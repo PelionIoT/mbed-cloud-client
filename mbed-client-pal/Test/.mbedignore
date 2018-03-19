@@ -1,0 +1,5 @@
+Unity/examples/*
+Unity/test/*
+Unity/extras/fixture/test/*
+Unity/
+PAL_Modules/*

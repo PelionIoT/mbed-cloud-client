@@ -1,0 +1,4 @@
+CMakeFiles/*
+Docs/*
+Test/*
+out/*
