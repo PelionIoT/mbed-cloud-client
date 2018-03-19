@@ -1,0 +1,29 @@
+{
+    "name": "mbed-client",
+    "config": {
+        "event-loop-size": 1024,
+        "reconnection-count": 3,
+        "reconnection-interval": 5,
+        "tcp-keepalive-time": null,
+        "tcp-keepalive-interval": null,
+        "disable-bootstrap-feature": null,
+        "coap-disable-obs-feature":null,
+        "reconnection-loop": 1,
+        "dns-use-thread": null,
+        "dns-thread-stack-size": 3072,
+        "dtls_peer_max_timeout": null,
+        "sn-coap-max-blockwise-payload-size" : null,
+        "sn-coap-duplication-max-msgs-count": null,
+        "sn-coap-max-incoming-message-size": null,
+        "sn-coap-resending-queue-size-msgs": null,
+        "sn-coap-resending-queue-size-bytes": null,
+        "sn-coap-blockwise-max-time-data-stored": null,
+        "disable-interface-description": null,
+        "disable-resource-type": null,
+        "disable-delayed-response": null,
+        "disable-block-message": null
+    },
+    "macros" : [
+        "MBED_CLIENT_C_NEW_API"
+    ]
+}

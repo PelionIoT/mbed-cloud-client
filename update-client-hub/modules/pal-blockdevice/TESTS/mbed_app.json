@@ -1,0 +1,9 @@
+{
+    "target_overrides": {
+        "*": {
+            "target.features_add": ["COMMON_PAL"],
+            "mbed-trace.enable": 1,
+            "platform.stdio-baud-rate": 115200
+        }
+    }
+}

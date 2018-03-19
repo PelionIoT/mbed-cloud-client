@@ -1,0 +1,9 @@
+config/*
+docs/*
+doxygen/*
+test/*
+yotta_modules/*
+yotta_targets/*
+build/*
+test_modules/*
+

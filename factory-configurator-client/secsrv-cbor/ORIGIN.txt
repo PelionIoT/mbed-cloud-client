@@ -1,0 +1,7 @@
+Source code is taken from Cborg git - https://github.com/quartzjer/cborg. 
+List of changes:
+* Chagne the tests to fit unit tests format.
+* Changed representation of CN_CBOR_UINT in the union v in struct cn_cbor from unsigned long to uint64_t as fix for platforms where unsigned long is represented in only 32 bits.
+* Same thing done for CN_CBOR_INT changed from long to int64_t.
+* Changed encoding lib function and added a lib function that gets the length of the buffer to encode into. 
+Updated to revision be86408ca8554719ba54f3f6ede0dc98be17d58a (from 19-Nov-2016).
