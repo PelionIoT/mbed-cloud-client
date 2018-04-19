@@ -29,6 +29,7 @@
 #include "include/m2mtlvdeserializer.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-trace/mbed_trace.h"
+#include "common_functions.h"
 
 #define TRACE_GROUP "mClt"
 #define BUFFER_SIZE 10
@@ -411,27 +412,36 @@ bool M2MTLVDeserializer::is_resource_instance(const uint8_t *tlv, uint32_t offse
 
 bool M2MTLVDeserializer::set_resource_instance_value(M2MResourceBase *res, const uint8_t *tlv, const uint32_t size)
 {
-    int64_t value = 0;
     bool success = true;
     switch (res->resource_instance_type()) {
         case M2MResourceBase::INTEGER:
         case M2MResourceBase::BOOLEAN:
         case M2MResourceBase::TIME:
-            value = String::convert_array_to_integer(tlv, size);
+        {
+            int64_t value = String::convert_array_to_integer(tlv, size);
             if (!res->set_value(value)) {
                 success = false;
             }
             break;
         // Todo! implement conversion for other types as well
+        }
         case M2MResourceBase::STRING:
-        case M2MResourceBase::FLOAT:
         case M2MResourceBase::OPAQUE:
         case M2MResourceBase::OBJLINK:
             if (!res->set_value(tlv, size)) {
                 success = false;
             }
             break;
+        case M2MResourceBase::FLOAT:
+        {
+            uint32_t value = common_read_32_bit(tlv);
+            if (!res->set_value_float(*(float*)&value)) {
+                success = false;
+            }
+            break;
+        }
         default:
+            success = false;
             break;
     }
 

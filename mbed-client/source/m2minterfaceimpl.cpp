@@ -988,7 +988,7 @@ void M2MInterfaceImpl::state_coap_data_sent( EventData */*data*/)
     internal_event(STATE_WAITING);
 }
 
-void M2MInterfaceImpl::state_coap_data_received( EventData *data)
+void M2MInterfaceImpl::state_coap_data_received(EventData *data)
 {
     tr_debug("M2MInterfaceImpl::state_coap_data_received");
     if(data) {

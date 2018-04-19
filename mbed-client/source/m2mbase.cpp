@@ -108,6 +108,7 @@ M2MBase::M2MBase(const String& resource_name,
         _sn_resource->dynamic_resource_params->free_on_delete = true;
         _sn_resource->dynamic_resource_params->notification_status = NOTIFICATION_STATUS_INIT;
         _sn_resource->dynamic_resource_params->auto_observable = false;
+        _sn_resource->dynamic_resource_params->publish_value = false;
     }
 }
 

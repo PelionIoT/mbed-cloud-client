@@ -15,7 +15,8 @@
  */
 #include "include/nsdlaccesshelper.h"
 #include "include/m2mnsdlinterface.h"
-
+#include "sn_nsdl_lib.h"
+#include "sn_grs.h"
 #include <stdlib.h>
 
 // callback function for NSDL library to call into
@@ -56,6 +57,12 @@ uint8_t __nsdl_c_send_to_server(struct nsdl_s * nsdl_handle,
 {
     uint8_t status = 0;
     M2MNsdlInterface *interface = (M2MNsdlInterface*)sn_nsdl_get_context(nsdl_handle);
+#if defined(FEA_TRACE_SUPPORT) || MBED_CONF_MBED_TRACE_ENABLE || YOTTA_CFG_MBED_TRACE || (defined(YOTTA_CFG) && !defined(NDEBUG))
+    coap_version_e version = COAP_VERSION_UNKNOWN;
+    sn_coap_hdr_s *header = sn_coap_parser(nsdl_handle->grs->coap, data_len, data_ptr, &version);
+    sn_nsdl_print_coap_data(header, true);
+    sn_coap_parser_release_allocated_coap_msg_mem(nsdl_handle->grs->coap, header);
+#endif
     if(interface) {
         status = interface->send_to_server_callback(nsdl_handle,
                                                            protocol, data_ptr,
@@ -72,8 +79,8 @@ uint8_t __nsdl_c_received_from_server(struct nsdl_s * nsdl_handle,
     M2MNsdlInterface *interface = (M2MNsdlInterface*)sn_nsdl_get_context(nsdl_handle);
     if(interface) {
         status = interface->received_from_server_callback(nsdl_handle,
-                                                                 coap_header,
-                                                                 address_ptr);
+                                                          coap_header,
+                                                          address_ptr);
     }
     return status;
 }

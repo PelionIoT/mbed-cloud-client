@@ -14,42 +14,10 @@
  * limitations under the License.
  *******************************************************************************/
 
-
+#include <stdio.h>
 #include "pal.h"
 #include "pal_plat_rtos.h"
 #include "sotp.h"
-
-#if PAL_UNIQUE_THREAD_PRIORITY   
-    // An array of PAL thread priorities.
-    // This array holds a boolean for each thread priority.
-    // If the value is true then it means that the priority is in use.
-    // The mapping between the priorities and the index in the array is as follow:
-    // g_palThreadPriorities[0]  --> PAL_osPriorityIdle
-    // g_palThreadPriorities[1]  --> PAL_osPriorityLow
-    // g_palThreadPriorities[2]  --> PAL_osPriorityReservedTRNG
-    // g_palThreadPriorities[3]  --> PAL_osPriorityBelowNormal
-    // g_palThreadPriorities[4]  --> PAL_osPriorityNormal
-    // g_palThreadPriorities[5]  --> PAL_osPriorityAboveNormal
-    // g_palThreadPriorities[6]  --> PAL_osPriorityReservedDNS
-    // g_palThreadPriorities[7]  --> PAL_osPriorityReservedSockets
-    // g_palThreadPriorities[8]  --> PAL_osPriorityHigh
-    // g_palThreadPriorities[9]  --> PAL_osPriorityReservedHighResTimer
-    // g_palThreadPriorities[10] --> PAL_osPriorityRealtime
-    PAL_PRIVATE bool g_threadPriorities[PAL_NUMBER_OF_THREAD_PRIORITIES];
-#endif //PAL_UNIQUE_THREAD_PRIORITY
-
-// thread structure (used by service layer)
-typedef struct palThreadWrapper
-{
-    palThreadData_t threadData; // structure containing information about the thread
-    palThreadServiceBridge_t bridge; // structure containing a function pointer which should always point to threadBridgeFunction & a pointer to palThreadData_t
-} palThreadWrapper_t;
-
-PAL_PRIVATE palMutexID_t g_threadsMutex = NULLPTR; // threads mutex
-PAL_PRIVATE uint32_t g_threadIdCounter = 0; // threads counter used for palThreadID generation
-PAL_PRIVATE palThreadWrapper_t g_threadsArray[(PAL_MAX_NUMBER_OF_THREADS + 1)] = {{{ 0 }}}; // threads array (+1 for the current thread)
-PAL_PRIVATE void threadSetDefaultValues(palThreadData_t* threadData); // forward declaration
-PAL_PRIVATE palThreadID_t generatePALthreadID(uint32_t threadWrapperIndex); // forward declaration
 
 //! Store the last saved time in SOTP (ram) for quick access
 PAL_PRIVATE uint64_t g_lastSavedTimeInSec = 0;
@@ -71,10 +39,11 @@ static uint64_t g_palDeviceBootTimeInSec = 0;
 #define PAL_STORAGE_ENCRYPTION_128_BIT_KEY "RoTStorageEnc128"
 #define PAL_STORAGE_ENCRYPTION_256_BIT_KEY "StorageEnc256HMACSHA256SIGNATURE"
 
+#define PAL_DELAY_BEFORE_REBOOT_IN_MILISEC 3000
 PAL_PRIVATE bool palRTOSInitialized = false;
 
 #if (PAL_SIMULATE_RTOS_REBOOT == 1)
-     #include <unistd.h> 
+    #include <unistd.h>
     extern char *program_invocation_name;
 #endif
 
@@ -84,9 +53,9 @@ PAL_PRIVATE bool palRTOSInitialized = false;
 typedef struct palNoise
 {
     int32_t buffer[PAL_NOISE_BUFFER_LEN];
-    volatile uint16_t bitCountAllocated;
-    volatile uint16_t bitCountActual;
-    volatile uint8_t numWriters;
+    volatile uint32_t bitCountAllocated;
+    volatile uint32_t bitCountActual;
+    volatile uint32_t numWriters;
     volatile bool isReading;
 } palNoise_t;
 
@@ -94,6 +63,10 @@ PAL_PRIVATE palNoise_t g_noise;
 
 palStatus_t pal_noiseWriteBuffer(int32_t* buffer, uint16_t lenBits, uint16_t* bitsWritten); // forward declaration
 palStatus_t pal_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partial, uint16_t* bitsRead); // forward declaration
+
+#if PAL_USE_HW_TRNG
+    PAL_PRIVATE palThreadID_t g_trngThreadID = NULLPTR;
+#endif
 
 extern palStatus_t pal_plat_CtrDRBGGenerateWithAdditional(palCtrDrbgCtxHandle_t ctx, unsigned char* out, size_t len, unsigned char* additional, size_t additionalLen);
 
@@ -133,105 +106,73 @@ palStatus_t pal_RTOSInitialize(void* opaqueContext)
         return status;
     }
 
-    status = pal_osMutexCreate(&g_threadsMutex);
-    if(PAL_SUCCESS == status)
+    status = pal_plat_RTOSInitialize(opaqueContext);
+    if (PAL_SUCCESS == status)
     {
-        status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER);
-        if (PAL_SUCCESS == status)
-        {
-#if PAL_UNIQUE_THREAD_PRIORITY
-            memset(g_threadPriorities, 0, sizeof(g_threadPriorities)); // mark all priorities as available
-#endif // PAL_UNIQUE_THREAD_PRIORITY
-            for (uint32_t i = 0; i <= PAL_MAX_NUMBER_OF_THREADS; ++i) // note the '<=' since g_threadsArray has PAL_MAX_NUMBER_OF_THREADS + 1 for the implicit thread
-            {
-                threadSetDefaultValues(&(g_threadsArray[i].threadData));
-            }
-            // add the currently running thread
-            g_threadsArray[0].threadData.palThreadID = generatePALthreadID(0);
-            g_threadsArray[0].threadData.osThreadID = pal_plat_osThreadGetId();
-
-            status = pal_osMutexRelease(g_threadsMutex);
-            if (PAL_SUCCESS == status)
-            {
-                status = pal_plat_RTOSInitialize(opaqueContext);
-                if (PAL_SUCCESS == status)
-                {
-                    memset(g_noise.buffer, 0, PAL_NOISE_SIZE_BYTES);
-                    g_noise.bitCountActual = g_noise.bitCountAllocated = 0;
-                    g_noise.numWriters = 0;
-                    g_noise.isReading = false;
-                    palRTOSInitialized = true;
-                }
-            }
-        }
+        memset(g_noise.buffer, 0, PAL_NOISE_SIZE_BYTES);
+        g_noise.bitCountActual = g_noise.bitCountAllocated = 0;
+        g_noise.numWriters = 0;
+        g_noise.isReading = false;
+#if PAL_USE_HW_TRNG
+        g_trngThreadID = NULLPTR;
+#endif
+        palRTOSInitialized = true;
+    }
+    else
+    {
+        PAL_LOG(ERR, "pal_RTOSInitialize: pal_plat_RTOSInitialize failed, status=%" PRIx32 "\n", status);
     }
     return status;
 }
 
 palStatus_t pal_RTOSDestroy(void)
 {
-    palStatus_t status = PAL_SUCCESS;
-    uint32_t i;
-    if (palRTOSInitialized)
+    palStatus_t status = PAL_ERR_NOT_INITIALIZED;
+    if (!palRTOSInitialized)
     {
-        palStatus_t status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER);
-        if (PAL_SUCCESS == status)
-        {
-            for (i = 1; i <= PAL_MAX_NUMBER_OF_THREADS; ++i) // terminate running threads, note skipping the (1st) thread
-            {                                                // note the '<=' since g_threadsArray has PAL_MAX_NUMBER_OF_THREADS + 1 for the implicit thread
-                if (NULLPTR != g_threadsArray[i].threadData.palThreadID)
-                {
-                    pal_osThreadTerminate(&(g_threadsArray[i].threadData.palThreadID));
-                }
-            }            
-            status = pal_osMutexRelease(g_threadsMutex);
-            if (PAL_SUCCESS != status)
-            {
-                PAL_LOG(ERR, "pal_RTOSDestroy: mutex release failed\n");
-            }
-        }
-        else
-        {
-            PAL_LOG(ERR, "pal_RTOSDestroy: mutex wait failed\n");
-        }
+        return status;
+    }
 
-        status = pal_osMutexDelete(&g_threadsMutex);
+#if PAL_USE_HW_TRNG
+    if (NULLPTR != g_trngThreadID)
+    {
+        if (PAL_SUCCESS != pal_osThreadTerminate(&g_trngThreadID))
+        {
+            PAL_LOG(ERR, "pal_RTOSDestroy: failed to terminate trng noise thread\n");
+        }
+    }
+#endif
+
+    if (NULLPTR != s_ctrDRBGCtx)
+    {
+        status = pal_CtrDRBGFree(&s_ctrDRBGCtx);
         if (PAL_SUCCESS != status)
         {
-            PAL_LOG(ERR, "pal_RTOSDestroy: mutex delete failed\n");
+            PAL_LOG(ERR, "pal_RTOSDestroy: pal_CtrDRBGFree failed, status=%" PRIx32 "\n", status);
         }
-
-        if (NULLPTR != s_ctrDRBGCtx)
-        {
-            status = pal_CtrDRBGFree(&s_ctrDRBGCtx);
-            if (PAL_SUCCESS != status)
-            {
-                PAL_LOG(ERR, "pal_RTOSDestroy: pal_CtrDRBGFree failed\n");
-            }
-        }
-
-        status = pal_plat_RTOSDestroy();
-        if (PAL_SUCCESS != status)
-        {
-            PAL_LOG(ERR, "pal_RTOSDestroy: pal_plat_RTOSDestroy failed\n");
-        }        
-        palRTOSInitialized = false;
     }
-    else
+
+    status = pal_plat_RTOSDestroy();
+    if (PAL_SUCCESS != status)
     {
-        status = PAL_ERR_NOT_INITIALIZED;
+        PAL_LOG(ERR, "pal_RTOSDestroy: pal_plat_RTOSDestroy failed, status=%" PRIx32 "\n", status);
     }
+    palRTOSInitialized = false;
     return status;
 }
 
-
 void pal_osReboot(void)
 {
+    PAL_LOG(INFO, "Rebooting the system\r\n");
+    fflush(NULL);
+    //delay to allow the OS finish flushing all the buffers
+    pal_osDelay(PAL_DELAY_BEFORE_REBOOT_IN_MILISEC);
     //Simulator is currently for Linux only
     #if (PAL_SIMULATE_RTOS_REBOOT == 1)
         const char *argv[] = {"0" , 0};
         char *const envp[] = { 0 };
         argv[0] = program_invocation_name;
+  
         if (-1 == execve(argv[0], (char **)argv , envp))
         {
             PAL_LOG(ERR,"child process execve failed [%s]",argv[0]);
@@ -271,7 +212,7 @@ uint64_t pal_osKernelSysMilliSecTick(uint64_t sysTicks)
     uint64_t osTickFreq = pal_plat_osKernelSysTickFrequency();
     if ((sysTicks) && (osTickFreq)) // > 0
     {
-    	result = (uint64_t)((sysTicks) / osTickFreq * PAL_TICK_TO_MILLI_FACTOR); //convert ticks per second to milliseconds
+        result = (uint64_t)((sysTicks) * PAL_TICK_TO_MILLI_FACTOR / osTickFreq); //convert ticks per second to milliseconds
     }
 
     return result;
@@ -284,384 +225,29 @@ uint64_t pal_osKernelSysTickFrequency(void)
     return result;
 }
 
-inline PAL_PRIVATE void threadSetDefaultValues(palThreadData_t* threadData)
-{
-    threadData->palThreadID = NULLPTR;
-    threadData->osThreadID = NULLPTR;
-    threadData->store = NULL;
-    threadData->palPriority = PAL_osPriorityError;
-    threadData->osPriority = 0;
-    threadData->stackSize = 0;
-    threadData->userFunction = NULL;
-    threadData->userFunctionArg = NULL;
-    threadData->portData = NULL;
-}
-
-PAL_PRIVATE void threadCleanup(palThreadData_t* threadData)
-{
-#if PAL_UNIQUE_THREAD_PRIORITY
-    g_threadPriorities[(threadData->palPriority)] = false; // mark the priority as available
-#endif // PAL_UNIQUE_THREAD_PRIORITY
-    threadSetDefaultValues(threadData);
-}
-
-PAL_PRIVATE palStatus_t findThreadData(palThreadID_t* threadID, palThreadData_t** threadData)
-{
-    palStatus_t status = PAL_ERR_RTOS_ERROR_BASE;
-    uint32_t index;
-    PAL_VALIDATE_ARGUMENTS((NULLPTR == threadID) || (PAL_INVALID_THREAD == *threadID));   
-
-    index = PAL_GET_THREAD_INDEX(*threadID);
-    if ((PAL_MAX_NUMBER_OF_THREADS >= index) && (g_threadsArray[index].threadData.palThreadID == *threadID))
-    {
-        *threadData = &(g_threadsArray[index].threadData);
-        status = PAL_SUCCESS;
-    }
-    return status;
-}
-
-PAL_PRIVATE void threadBridgeFunction(palThreadData_t* threadData)
-{
-    palThreadData_t* tempThreadData = NULL;
-    palThreadID_t localPalThreadID = NULLPTR; // local copy - will be used after mutex release
-    palThreadFuncPtr localUserFunction = NULL; // local copy - will be used after mutex release
-    void* localUserFunctionArg = NULL; // local copy - will be used after mutex release
-    palStatus_t status;
-
-    status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // enter critical section
-    if (PAL_SUCCESS != status)
-    {
-        goto mutex_wait_err;
-    }
-    
-    status = findThreadData(&(threadData->palThreadID), &tempThreadData);
-    if (PAL_SUCCESS == status) // thread still exists, i.e. it has NOT been terminated by API call
-    {
-        if (NULLPTR == tempThreadData->osThreadID) // may happen (on some systems) when the created thread has higher priority than the current thread & is immediately executed
-        {
-            tempThreadData->osThreadID = pal_plat_osThreadGetId();
-        }
-        localPalThreadID = tempThreadData->palThreadID;
-        localUserFunction = tempThreadData->userFunction;
-        localUserFunctionArg = tempThreadData->userFunctionArg;
-    }
-    
-    status = pal_osMutexRelease(g_threadsMutex); // exit critical section
-    if (PAL_SUCCESS != status)
-    {
-        goto mutex_release_err;
-    }
-    
-    if (NULLPTR == localPalThreadID)
-    {
-        // thread has been requested for termination, note that some operating systems don't terminate the thread immediately
-        goto finish;
-    }
-    
-    localUserFunction(localUserFunctionArg); // invoke user function with user function argument (local copies since we're not under mutex lock anymore)
-    
-    status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // enter critical section
-    if (PAL_SUCCESS != status)
-    {
-        goto mutex_wait_err;
-    }
-    
-    tempThreadData = NULL;
-    status = findThreadData(&localPalThreadID, &tempThreadData);
-    if (PAL_SUCCESS == status) // thread still exists, i.e. it has NOT been terminated by API call
-    {
-        status = pal_plat_osThreadDataCleanup(tempThreadData); // platform clean up
-        threadCleanup(tempThreadData);
-        if (PAL_SUCCESS != status)
-        {
-            PAL_LOG(ERR, "threadBridgeFunction: pal_plat_osThreadDataCleanup failed\n");
-        }
-    }
-
-    status = pal_osMutexRelease(g_threadsMutex); // exit critical section
-    if (PAL_SUCCESS != status)
-    {
-        goto mutex_release_err;
-    }
-    goto finish;
-
-mutex_wait_err:
-    {
-        PAL_LOG(ERR, "threadBridgeFunction: mutex wait failed\n");
-        goto finish;
-    }
-mutex_release_err:
-    {
-        PAL_LOG(ERR, "threadBridgeFunction: mutex release failed\n");
-        goto finish;
-    }
-finish:
-    return;
-}
-
-PAL_PRIVATE palStatus_t allocateThreadWrapper(palThreadWrapper_t** threadWrapper, uint32_t* threadWrapperIndex)
-{
-    palStatus_t status = PAL_ERR_RTOS_RESOURCE;
-    for (uint32_t i = 1; i <= PAL_MAX_NUMBER_OF_THREADS; ++i) // note skipping 1st index since it's being used for the implicit thread set in pal_RTOSInitialize
-    {                                                         // note the '<=' since g_threadsArray has PAL_MAX_NUMBER_OF_THREADS + 1 for the implicit thread
-        if (NULLPTR == g_threadsArray[i].threadData.palThreadID)
-        {
-            *threadWrapper = &g_threadsArray[i];
-            *threadWrapperIndex = i;
-            status = PAL_SUCCESS;
-            break;
-        }
-    }
-    return status;
-}
-
-inline PAL_PRIVATE palThreadID_t generatePALthreadID(uint32_t threadWrapperIndex)
-{
-    // 24 bits for thread counter + lower 8 bits for thread index
-    ++g_threadIdCounter;
-    palThreadID_t threadID = (palThreadID_t)((threadWrapperIndex + (g_threadIdCounter << 8)));
-    return threadID;
-}
-
-PAL_PRIVATE palStatus_t threadCreate(palThreadFuncPtr function, void* functionArg, palThreadPriority_t priority, uint32_t stackSize, palThreadLocalStore_t* store,
-    palThreadID_t* threadID)
-{
-    palStatus_t status, tempStatus;
-    palThreadWrapper_t* threadWrapper = NULL;
-    uint32_t threadWrapperIndex;
-    palThreadID_t localPalThreadID;
-    palThreadID_t localOsThreadID = NULLPTR;
-    palThreadData_t* tempThreadData = NULL;
-    int16_t translatedPriority;
-
-    PAL_VALIDATE_ARGUMENTS((NULL == function) || (PAL_osPriorityRealtime < priority) || (PAL_osPriorityError == priority) || (0 == stackSize) || (NULL == threadID));
-
-    *threadID = PAL_INVALID_THREAD;
-    translatedPriority = pal_plat_osThreadTranslatePriority(priority);
-    tempStatus = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER);
-    if (PAL_SUCCESS != tempStatus)
-    {
-        goto mutex_wait_err;
-    }
-
-#if PAL_UNIQUE_THREAD_PRIORITY
-    if (g_threadPriorities[priority]) // requested thread priority already occupied
-    {
-        status = PAL_ERR_RTOS_PRIORITY;
-        tempStatus = pal_osMutexRelease(g_threadsMutex);
-        if (PAL_SUCCESS != tempStatus)
-        {
-            goto mutex_release_err;
-        }
-        goto finish;
-    }
-    g_threadPriorities[priority] = true;
-#endif // PAL_UNIQUE_THREAD_PRIORITY
-
-    status = allocateThreadWrapper(&threadWrapper, &threadWrapperIndex);
-    if (PAL_SUCCESS != status)
-    {
-        PAL_LOG(ERR, "threadCreate: thread wrapper allocation failed\n");
-        tempStatus = pal_osMutexRelease(g_threadsMutex);
-        if (PAL_SUCCESS != tempStatus)
-        {
-            goto mutex_release_err;
-        }
-        goto finish;
-    }
-
-    localPalThreadID = generatePALthreadID(threadWrapperIndex);
-    threadWrapper->bridge.function = threadBridgeFunction; // this is the (service layer) thread function invoked by the port via the bridge
-    threadWrapper->bridge.threadData = &(threadWrapper->threadData);
-    threadWrapper->threadData.palThreadID = localPalThreadID;
-    threadWrapper->threadData.store = store;
-    threadWrapper->threadData.palPriority = priority;
-    threadWrapper->threadData.osPriority = translatedPriority;
-    threadWrapper->threadData.stackSize = stackSize;
-    threadWrapper->threadData.userFunction = function;
-    threadWrapper->threadData.userFunctionArg = functionArg;    
-    status = pal_plat_osThreadDataInitialize(&(threadWrapper->threadData.portData), threadWrapper->threadData.osPriority, threadWrapper->threadData.stackSize);
-    if (PAL_SUCCESS != status)
-    {
-        threadCleanup(&(threadWrapper->threadData));
-        PAL_LOG(ERR, "threadCreate: pal_plat_osThreadDataInitialize failed\n");
-        tempStatus = pal_osMutexRelease(g_threadsMutex);
-        if (PAL_SUCCESS != tempStatus)
-        {
-            goto mutex_release_err;
-        }
-        goto finish;
-    }
-
-    tempStatus = pal_osMutexRelease(g_threadsMutex);
-    if (PAL_SUCCESS != tempStatus)
-    {
-        goto mutex_release_err;
-    }
-        
-    status = pal_plat_osThreadRun(&(threadWrapper->bridge), &localOsThreadID); // note that we're not under a mutex lock anymore
-    
-    tempStatus = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER);
-    if (PAL_SUCCESS != tempStatus)
-    {
-        goto mutex_wait_err;
-    }
-
-    tempStatus = findThreadData(&localPalThreadID, &tempThreadData);
-    if ((PAL_SUCCESS == tempStatus) && (PAL_SUCCESS == status)) // thread still exists & pal_plat_osThreadRun was successful
-    {
-        if (NULLPTR == tempThreadData->osThreadID)
-        {
-            tempThreadData->osThreadID = localOsThreadID;
-        }
-        *threadID = localPalThreadID;
-    }
-    else if ((PAL_SUCCESS == tempStatus) && (PAL_SUCCESS != status)) // thread still exists & pal_plat_osThreadRun was not successful
-    {
-        threadCleanup(tempThreadData);
-    }
-    else if ((PAL_SUCCESS != tempStatus) && (PAL_SUCCESS == status)) // thread does not exist (either finished or terminated) & pal_plat_osThreadRun was successful
-    {
-        *threadID = localPalThreadID;
-    }
-    else
-    {
-        // note: this should never happen because if we're here then it means that pal_plat_osThreadRun was not successful and also that the thread data does not exist any more
-        //       meaning it has been cleaned up already, this should not be possible since the thread was not supposed to run (pal_plat_osThreadRun failed) and pal_osThreadTerminate
-        //       is not possible since the user does not have the palThreadID yet which is an output parameter of this function
-        PAL_LOG(ERR, "threadCreate: pal_plat_osThreadRun was not successful but the thread was not found");
-    }
-        
-    tempStatus = pal_osMutexRelease(g_threadsMutex);
-    if (PAL_SUCCESS != tempStatus)
-    {
-        goto mutex_release_err;
-    }
-    goto finish;
-
-mutex_wait_err:
-    {
-        status = tempStatus;
-        PAL_LOG(ERR, "threadCreate: mutex wait failed\n");
-        goto finish;
-    }
-mutex_release_err:
-    {
-        status = tempStatus;
-        PAL_LOG(ERR, "threadCreate: mutex release failed\n");
-        goto finish;
-    }
-finish:
-    return status;
-}
-
-
 palStatus_t pal_osThreadCreateWithAlloc(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadLocalStore_t* store, palThreadID_t* threadID)
 {
-    palStatus_t status = threadCreate(function, funcArgument, priority, stackSize, store, threadID);
+    PAL_VALIDATE_ARGUMENTS((NULL == function) || (PAL_osPrioritylast < priority) || (PAL_osPriorityError == priority) || (0 == stackSize) || (NULL == threadID));
+    if (store)
+    {
+        PAL_LOG(ERR, "thread storage in not supported\n");
+        return PAL_ERR_NOT_SUPPORTED;
+    }
+    palStatus_t status = pal_plat_osThreadCreate(function, funcArgument, priority, stackSize, threadID);
     return status;
 }
 
 palStatus_t pal_osThreadTerminate(palThreadID_t* threadID)
 {
     PAL_VALIDATE_ARGUMENTS ((NULL == threadID) || (PAL_INVALID_THREAD == *threadID));
-
-    palThreadData_t* threadData = NULL;
-    palStatus_t status;
-    palStatus_t mutexStatus = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER);
-    if (PAL_SUCCESS == mutexStatus)
-    {
-        status = findThreadData(threadID, &threadData);
-        if (PAL_SUCCESS == status) // thread has not finished yet
-        {
-            status = pal_plat_osThreadTerminate(threadData);
-            if (PAL_SUCCESS == status)
-            {
-                threadCleanup(threadData);
-            }
-            else
-            {
-                PAL_LOG(ERR, "pal_osThreadTerminate: pal_plat_osThreadTerminate failed\n");
-            }
-        }
-        else // thread was not found, it either never existed or already finished
-        {
-            status = PAL_SUCCESS;
-        }
-
-        mutexStatus = pal_osMutexRelease(g_threadsMutex);
-        if (PAL_SUCCESS != mutexStatus)
-        {
-            status = mutexStatus;
-            PAL_LOG(ERR, "pal_osThreadTerminate: mutex release failed\n");
-        }
-    }
-    else
-    {
-        status = mutexStatus;
-        PAL_LOG(ERR, "pal_osThreadTerminate: mutex wait failed\n");
-    }
+    palStatus_t status = pal_plat_osThreadTerminate(threadID);
     return status;
 }
 
 palThreadID_t pal_osThreadGetId(void)
 {
-    palThreadID_t palThreadID = PAL_INVALID_THREAD;
-    palThreadID_t osThreadID;
-    uint32_t i;
-    palStatus_t status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER);
-    if (PAL_SUCCESS == status)
-    {
-        osThreadID = pal_plat_osThreadGetId();
-        for (i = 0; i <= PAL_MAX_NUMBER_OF_THREADS; ++i) // search the threads array, note the '<=' since g_threadsArray has PAL_MAX_NUMBER_OF_THREADS + 1 for the implicit thread
-        {
-            if ((NULLPTR != g_threadsArray[i].threadData.palThreadID) && (g_threadsArray[i].threadData.osThreadID == osThreadID))
-            {
-                palThreadID = g_threadsArray[i].threadData.palThreadID;
-                break;
-            }
-        }        
-        status = pal_osMutexRelease(g_threadsMutex);
-        if (PAL_SUCCESS != status)
-        {
-            PAL_LOG(ERR, "pal_osThreadGetId: mutex release failed\n");
-        }
-    }
-    else
-    {
-        PAL_LOG(ERR, "pal_osThreadGetId: mutex wait failed\n");
-    }
-    return palThreadID;
-}
-
-palThreadLocalStore_t* pal_osThreadGetLocalStore(void)
-{
-    palThreadID_t palThreadID;
-    palThreadData_t* threadData = NULL;
-    palThreadLocalStore_t* store = NULL;
-    palStatus_t status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER);
-    if (PAL_SUCCESS == status)
-    {
-        palThreadID = pal_osThreadGetId(); // find the palThreadID for the current thread
-        if (PAL_INVALID_THREAD != palThreadID)
-        {
-            status = findThreadData(&palThreadID, &threadData);
-            if (PAL_SUCCESS == status)
-            {
-                store = threadData->store;
-            }
-        }
-        status = pal_osMutexRelease(g_threadsMutex);
-        if (PAL_SUCCESS != status)
-        {
-            PAL_LOG(ERR, "pal_osThreadGetLocalStore: mutex release failed\n");
-        }
-    }
-    else
-    {
-        PAL_LOG(ERR, "pal_osThreadGetLocalStore: mutex wait failed\n");
-    }
-    return store;
+    palThreadID_t threadID = pal_plat_osThreadGetId();
+    return threadID;
 }
 
 palStatus_t pal_osDelay(uint32_t milliseconds)
@@ -957,9 +543,8 @@ drbg_cleanup:
                         goto finish;
                     }
 #if PAL_USE_HW_TRNG
-                    palThreadID_t trngThreadId = NULLPTR;
-                    tmpStatus = pal_osThreadCreateWithAlloc(pal_trngNoiseThreadFunc, NULL, PAL_osPriorityReservedTRNG, PAL_NOISE_TRNG_THREAD_STACK_SIZE, NULL, &trngThreadId);
-                    if (PAL_SUCCESS != tmpStatus)
+                    status = pal_osThreadCreateWithAlloc(pal_trngNoiseThreadFunc, NULL, PAL_osPriorityReservedTRNG, PAL_NOISE_TRNG_THREAD_STACK_SIZE, NULL, &g_trngThreadID);
+                    if (PAL_SUCCESS != status)
                     {
                         PAL_LOG(ERR, "Failed to create noise trng thread, status=%" PRIx32 "\n", tmpStatus);
                     }
@@ -1445,7 +1030,7 @@ palStatus_t pal_noiseWriteValue(const int32_t* data, uint8_t startBit, uint8_t l
         pal_osAtomicIncrement(&g_noise.buffer[currentIndex], value); // write the bits to the current index of the noise buffer
         *bitsWritten = lenBits;
     }
-    pal_osAtomicIncrement((int32_t*)(&g_noise.bitCountActual), *bitsWritten); // increment how many bits were actually written
+    pal_osAtomicIncrement((int32_t*)(&g_noise.bitCountActual) , *bitsWritten); // increment how many bits were actually written
     PAL_LOG(DBG, "noise added %" PRIu8 " bits\n", *bitsWritten);
 finish:
     pal_osAtomicIncrement((int32_t*)(&g_noise.numWriters), -1); // decrement number of writers
@@ -1499,10 +1084,10 @@ palStatus_t pal_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partial, ui
 {
     PAL_VALIDATE_ARGUMENTS((NULL == buffer) || (NULL == bitsRead));
 
-    static uint8_t numOfNoiseReaders = 0; // allow only one reader at a time (no concurrent reads)
+    static uint32_t numOfNoiseReaders = 0; // allow only one reader at a time (no concurrent reads)
     palStatus_t status = PAL_SUCCESS;
     uint8_t numBytesToRead, numReadersLocal;
-    uint16_t bitCountActual = g_noise.bitCountActual;
+    uint16_t bitCountActual = (uint16_t)g_noise.bitCountActual;
     numReadersLocal = (uint8_t)pal_osAtomicIncrement((int32_t*)(&numOfNoiseReaders), 1); // increment number of readers
     *bitsRead = 0;
     if (1 != numReadersLocal) // single reader
@@ -1523,7 +1108,7 @@ palStatus_t pal_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partial, ui
     {
         pal_osDelay(PAL_NOISE_WAIT_FOR_WRITERS_DELAY_MILLI_SEC);
     }
-    bitCountActual = g_noise.bitCountActual; // this may occur if we waited for the writers to finish writing, meaning we might have a few more bits (relevant only for partial read)
+    bitCountActual = (uint16_t)g_noise.bitCountActual; // this may occur if we waited for the writers to finish writing, meaning we might have a few more bits (relevant only for partial read)
     numBytesToRead = (uint8_t)PAL_NOISE_BITS_TO_BYTES(bitCountActual);    
     memcpy((void*)buffer, (void*)g_noise.buffer, numBytesToRead); // copy noise buffer to output buffer
     *bitsRead = (numBytesToRead * CHAR_BIT); // set out param of how many bits were actually read

@@ -248,7 +248,7 @@ palStatus_t pal_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t
 {
 #if (PAL_ENABLE_X509 == 1)
 	palStatus_t status = PAL_SUCCESS;
-	palTLSConfService_t* palTLSConfCtx =  (palTLSConfService_t*)palTLSConf;;
+	palTLSConfService_t* palTLSConfCtx =  (palTLSConfService_t*)palTLSConf;
 
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConf);
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConfCtx->platTlsConfHandle || NULL == ownCert || NULL == privateKey);
@@ -265,7 +265,7 @@ palStatus_t pal_setCAChain(palTLSConfHandle_t palTLSConf, palX509_t* caChain, pa
 {
 #if (PAL_ENABLE_X509 == 1)
 	palStatus_t status = PAL_SUCCESS;
-	palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;;
+	palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
 	palX509Handle_t x509Ctx = NULLPTR;
 
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConf);
@@ -331,7 +331,7 @@ palStatus_t pal_setPSK(palTLSConfHandle_t palTLSConf, const unsigned char *ident
 {
 #if (PAL_ENABLE_PSK == 1)
 	palStatus_t status = PAL_SUCCESS;
-	palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;;
+	palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
 
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConf);
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConfCtx->platTlsConfHandle || NULL == identity || NULL == psk);
@@ -385,7 +385,7 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
 {
 	palStatus_t status = PAL_SUCCESS;
 	palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
-	palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;;
+	palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
 
 	PAL_VALIDATE_ARGUMENTS((NULLPTR == palTLSConfCtx || NULLPTR == palTLSCtx));
 	PAL_VALIDATE_ARGUMENTS((NULLPTR == palTLSCtx->platTlsHandle || NULLPTR == palTLSConfCtx->platTlsConfHandle));
@@ -504,7 +504,7 @@ palStatus_t pal_sslGetVerifyResult(palTLSHandle_t palTLSHandle)
 palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t timeoutInMilliSec)
 {
 	palStatus_t status = PAL_SUCCESS;
-	palTLSConfService_t* palTLSConfCtx =  (palTLSConfService_t*)palTLSConf;;
+	palTLSConfService_t* palTLSConfCtx =  (palTLSConfService_t*)palTLSConf;
 
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConfCtx || 0 == timeoutInMilliSec);
 
@@ -516,7 +516,7 @@ palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t time
 palStatus_t pal_sslRead(palTLSHandle_t palTLSHandle, void *buffer, uint32_t len, uint32_t* actualLen)
 {
 	palStatus_t status = PAL_SUCCESS;
-	palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;;
+	palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
 	
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSHandle);
 	PAL_VALIDATE_ARGUMENTS ((NULLPTR == palTLSCtx->platTlsHandle || NULL == buffer || NULL == actualLen));
@@ -539,8 +539,25 @@ palStatus_t pal_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, uint32
 
 palStatus_t pal_sslDebugging(uint8_t turnOn)
 {
-	palStatus_t status = PAL_SUCCESS;
-	status = pal_plat_sslDebugging(turnOn);
-	return status;
+    return PAL_ERR_NOT_SUPPORTED;
+}
+
+
+/*! Turn on/off the TLS library debugging for the given configuration handle. The logs are sent via the mbedTrace.
+*   In case of release mode, an error will be returned.
+*
+* @param[in] palTLSConf : the TLS confuguraiton to modify
+* @param[in] turnOn: if greater than 0 turn on debugging, otherwise turn it off
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_sslSetDebugging(palTLSConfHandle_t palTLSConf, uint8_t turnOn)
+{
+    palStatus_t status = PAL_SUCCESS;
+
+    palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
+
+    status = pal_plat_sslSetDebugging(palTLSConfCtx->platTlsConfHandle, turnOn);
+    return status;
 }
 

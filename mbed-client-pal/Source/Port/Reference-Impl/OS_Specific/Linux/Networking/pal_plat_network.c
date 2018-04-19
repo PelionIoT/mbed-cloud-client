@@ -332,6 +332,7 @@ PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_
 {
     palStatus_t result = PAL_SUCCESS;
     uint16_t port = 0;
+    bool found = false;
 
     result = pal_getSockAddrPort(palAddr, &port);
     if (result != PAL_SUCCESS)
@@ -339,9 +340,10 @@ PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_
         return result;
     }
 
+#if PAL_SUPPORT_IP_V4
     if (PAL_AF_INET == palAddr->addressType)
     {
-        palIpV4Addr_t ipV4Addr  = {0};
+        palIpV4Addr_t ipV4Addr = { 0 };
         struct sockaddr_in* ip4addr = (struct sockaddr_in*)output;
         ip4addr->sin_family = AF_INET;
         ip4addr->sin_port = PAL_HTONS(port);
@@ -350,8 +352,12 @@ PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_
         {
             memcpy(&ip4addr->sin_addr, ipV4Addr, sizeof(ip4addr->sin_addr));
         }
+        found = true;
     }
-    else if (PAL_AF_INET6 == palAddr->addressType)
+
+#endif // PAL_SUPPORT_IP_V4
+#if PAL_SUPPORT_IP_V6
+    if (PAL_AF_INET6 == palAddr->addressType)
     {
         palIpV6Addr_t ipV6Addr = {0};
         struct sockaddr_in6* ip6addr = (struct sockaddr_in6*)output;
@@ -364,6 +370,13 @@ PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_
         {
             memcpy(&ip6addr->sin6_addr, ipV6Addr, sizeof(ip6addr->sin6_addr));
         }
+        found = true;
+    }
+#endif
+
+    if (false == found)
+    {
+        return PAL_ERR_SOCKET_INVALID_ADDRESS;
     }
 
     return result;
@@ -372,7 +385,9 @@ PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_
 PAL_PRIVATE palStatus_t pal_plat_socketAddressToPalSockAddr(struct sockaddr* input, palSocketAddress_t* out, palSocketLength_t* length)
 {
     palStatus_t result = PAL_SUCCESS;
+    bool found = false;
 
+#if PAL_SUPPORT_IP_V4
     if (input->sa_family == AF_INET)
     {
         palIpV4Addr_t ipV4Addr;
@@ -385,8 +400,11 @@ PAL_PRIVATE palStatus_t pal_plat_socketAddressToPalSockAddr(struct sockaddr* inp
             result = pal_setSockAddrPort(out, PAL_NTOHS(ip4addr->sin_port));
         }
         *length = sizeof(struct sockaddr_in);
+        found = true;
     }
-    else if (input->sa_family == AF_INET6)
+#endif //PAL_SUPPORT_IP_V4
+#if PAL_SUPPORT_IP_V6
+    if (input->sa_family == AF_INET6)
     {
         palIpV6Addr_t ipV6Addr;
         struct sockaddr_in6* ip6addr = (struct sockaddr_in6*)input;
@@ -397,10 +415,13 @@ PAL_PRIVATE palStatus_t pal_plat_socketAddressToPalSockAddr(struct sockaddr* inp
             result = pal_setSockAddrPort(out, PAL_NTOHS(ip6addr->sin6_port));
         }
         *length = sizeof(struct sockaddr_in6);
+        found = true;
     }
-    else
-    { // we got unspeicified in one of the tests, so Don't fail , but don't translate address.
-        //result = PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+#endif // PAL_SUPPORT_IP_V6
+
+    if (false == found)
+    { // we got unspeicified in one of the tests, so Don't fail , but don't translate address.  // re-chcking
+        result = PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
     }
 
     return result;

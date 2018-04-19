@@ -225,7 +225,7 @@ typedef struct sn_nsdl_resource_parameters_ {
 #endif
     uint8_t                                     *resource;          /**< NULL if dynamic resource */
     ns_list_link_t                              link;
-    uint16_t                                    resourcelen;        /**< 0 if dynamic resource, resource information in static resource */
+    uint16_t                                    resource_len;        /**< 0 if dynamic resource, resource information in static resource */
     uint16_t                                    coap_content_type;  /**< CoAP content type */
     uint16_t                                    msg_id;             /**< Notification message id. */
     unsigned                                    access:4;           /**< Allowed operation mode, GET, PUT, etc,
@@ -236,6 +236,7 @@ typedef struct sn_nsdl_resource_parameters_ {
     bool                                        free_on_delete:1;   /**< 1 if struct is dynamic allocted --> to be freed */
     bool                                        observable:1;       /**< Is resource observable or not */
     bool                                        auto_observable:1;  /**< Is resource auto observable or not */
+    bool                                        publish_value:1;    /**< 1 if resource value to be published in registration message */
     NotificationDeliveryStatus                  notification_status:3; /**< Notification delivery status */
 } sn_nsdl_dynamic_resource_parameters_s;
 
@@ -782,6 +783,17 @@ extern const char* sn_nsdl_get_resource_attribute(const sn_nsdl_static_resource_
  */
 extern bool sn_nsdl_remove_resource_attribute(sn_nsdl_static_resource_parameters_s *params, sn_nsdl_resource_attribute_t attribute);
 #endif
+
+/*
+ * \fn bool sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
+ *
+ * \brief Utility function to print all the CoAP header parameters
+ *
+ * \param *coap_header_ptr CoAP header
+ * \param outgoing If True, package is going to be sent to server otherwise receiving
+ */
+extern void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing);
+
 #ifdef __cplusplus
 }
 #endif

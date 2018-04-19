@@ -54,34 +54,39 @@ typedef struct palTimingDelayContext
 	uint32_t						fin_ms;
 } palTimingDelayContext_t;
 
+
 //! the full structures will be defined later in the implemetation.
-typedef struct palTLSConf{
-	platTlsConfiguraionContext*  confCtx;
-	palTLSSocketHandle_t palIOCtx; // which will be used as bio context for mbedTLS
-	uint32_t tlsIndex; // to help us to get the index of the containing palTLS_t in the array. will be updated in the init
-					   // maybe we need to make this an array, since index can be shared for more than one TLS context
-	mbedtls_ctr_drbg_context ctrDrbg;
-	palTimingDelayContext_t timerCtx;
+typedef struct palTLS {
+    platTlsContext tlsCtx;
+    bool tlsInit;
+    char* psk; //NULL terminated
+    char* identity; //NULL terminated
+    bool wantReadOrWrite;
+}palTLS_t;
+
+
+//! the full structures will be defined later in the implemetation.
+typedef struct palTLSConf {
+    platTlsConfiguraionContext*  confCtx;
+    palTLSSocketHandle_t palIOCtx; // which will be used as bio context for mbedTLS
+    palTLS_t* tlsContext; // to help us to get the index of the containing palTLS_t in the array. will be updated in the init
+                          // maybe we need to make this an array, since index can be shared for more than one TLS context
+    mbedtls_ctr_drbg_context ctrDrbg;
+    palTimingDelayContext_t timerCtx;
 #if (PAL_ENABLE_X509 == 1)
-	mbedtls_x509_crt owncert;
+    mbedtls_x509_crt owncert;
     mbedtls_x509_crt cacert; 
 #endif 
 	mbedtls_pk_context pkey;	
-	bool hasKeys;
-	bool hasChain;
-	int cipherSuites[PAL_MAX_ALLOWED_CIPHER_SUITES+1];  // The +1 is for the Zero Termination required by mbedTLS
+    bool hasKeys;
+    bool hasChain;
+    int cipherSuites[PAL_MAX_ALLOWED_CIPHER_SUITES + 1];  // The +1 is for the Zero Termination required by mbedTLS
 }palTLSConf_t;
 
-//! the full structures will be defined later in the implemetation.
-typedef struct palTLS{
-	platTlsContext tlsCtx;
-	palTLSConf_t* palConfCtx;
-	bool tlsInit;
-	uint32_t tlsIndex;
-	char* psk; //NULL terminated
-	char* identity; //NULL terminated
-	bool wantReadOrWrite;
-}palTLS_t;
+
+
+
+
 
 PAL_PRIVATE palStatus_t translateTLSErrToPALError(int32_t error) 
 {
@@ -172,13 +177,10 @@ PAL_PRIVATE void palDebug(void *ctx, int debugLevel, const char *fileName, int l
 int pal_plat_entropySourceTLS( void *data, unsigned char *output, size_t len, size_t *olen );
 PAL_PRIVATE int palTimingGetDelay( void *data );
 PAL_PRIVATE void palTimingSetDelay( void *data, uint32_t intMs, uint32_t finMs );
-//! This is the array to hold the TLS context
-PAL_PRIVATE palTLS_t *g_palTLSContext = NULL;
 
 palStatus_t pal_plat_initTLSLibrary(void)
 {
 	palStatus_t status = PAL_SUCCESS;
-	g_palTLSContext = NULL;
 
 	g_entropy = (mbedtls_entropy_context*)malloc(sizeof(mbedtls_entropy_context));
 	if (NULL == g_entropy)
@@ -223,11 +225,7 @@ palStatus_t pal_plat_cleanupTLS(void)
 	g_entropyInitiated = false;
 	free(g_entropy);
 	g_entropy = NULL;
-	if (g_palTLSContext)
-	{
-		free((void*)g_palTLSContext);
-		g_palTLSContext = NULL;
-	}
+
 #if PAL_USE_SECURE_TIME
 	//! Try to catch the Mutex in order to prevent situation of deleteing under use mutex
 	status = pal_osMutexWait(g_palTLSTimeMutex, PAL_RTOS_WAIT_FOREVER);
@@ -306,7 +304,7 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
 		status = PAL_ERR_NO_MEMORY;
 		goto finish;
 	}
-	localConfigCtx->tlsIndex = 0;
+	localConfigCtx->tlsContext = NULL;
 	localConfigCtx->hasKeys = false;
 	localConfigCtx->hasChain = false;
 	memset(localConfigCtx->cipherSuites, 0,(sizeof(int)* (PAL_MAX_ALLOWED_CIPHER_SUITES+1)) );	
@@ -410,47 +408,25 @@ palStatus_t pal_plat_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf)
 
 palStatus_t pal_plat_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHandle)
 {
-	palStatus_t status = PAL_SUCCESS;
-	uint32_t firstAvailableCtxIndex = PAL_MAX_NUM_OF_TLS_CTX;
-	palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
-	
-
-	if (NULL == g_palTLSContext) //We allocate the entire array only for the first time
-	{
-		g_palTLSContext = (palTLS_t*)malloc(PAL_MAX_NUM_OF_TLS_CTX * sizeof(palTLS_t));
-		if (NULL == g_palTLSContext)
-		{
-			status = PAL_ERR_TLS_RESOURCE;
-			goto finish;
-		}
-		memset((void*)g_palTLSContext, 0 ,PAL_MAX_NUM_OF_TLS_CTX * sizeof(palTLS_t));
-	}
-
-	for (uint32_t i=0 ; i < PAL_MAX_NUM_OF_TLS_CTX ; ++i)
-	{
-		if (false == g_palTLSContext[i].tlsInit)
-		{
-			firstAvailableCtxIndex = i;
-			break;
-		}
-	}
-
-	if (firstAvailableCtxIndex >= PAL_MAX_NUM_OF_TLS_CTX)
-	{
+    palStatus_t status = PAL_SUCCESS;
+    palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
+    
+    palTLS_t* localTLSHandle = (palTLS_t*)malloc( sizeof(palTLS_t));
+    if (NULL == localTLSHandle)
+    {
         status = PAL_ERR_TLS_RESOURCE;
-		goto finish;
-	}
-	memset(&g_palTLSContext[firstAvailableCtxIndex], 0 , sizeof(palTLS_t));
-	mbedtls_ssl_init(&g_palTLSContext[firstAvailableCtxIndex].tlsCtx);
-	localConfigCtx->tlsIndex = firstAvailableCtxIndex;
-	g_palTLSContext[firstAvailableCtxIndex].palConfCtx = localConfigCtx;
-	g_palTLSContext[firstAvailableCtxIndex].tlsIndex = firstAvailableCtxIndex;
-	g_palTLSContext[firstAvailableCtxIndex].tlsInit = true;
-	mbedtls_ssl_set_timer_cb(&g_palTLSContext[firstAvailableCtxIndex].tlsCtx, &localConfigCtx->timerCtx, palTimingSetDelay, palTimingGetDelay);
-	*palTLSHandle = (palTLSHandle_t)&g_palTLSContext[firstAvailableCtxIndex];
+        goto finish;
+    }
+
+    memset(localTLSHandle, 0 , sizeof(palTLS_t));
+    mbedtls_ssl_init(&localTLSHandle->tlsCtx);
+    localConfigCtx->tlsContext = localTLSHandle;
+    localTLSHandle->tlsInit = true;
+    mbedtls_ssl_set_timer_cb(&localTLSHandle->tlsCtx, &localConfigCtx->timerCtx, palTimingSetDelay, palTimingGetDelay);
+    *palTLSHandle = (palTLSHandle_t)localTLSHandle;
 
 finish:
-	return status;
+    return status;
 }
 
 
@@ -458,7 +434,6 @@ palStatus_t pal_plat_freeTLS(palTLSHandle_t* palTLSHandle)
 {
 	palStatus_t status = PAL_SUCCESS;
 	palTLS_t* localTLSCtx = NULL;
-	bool foundActiveTLSCtx = false;
 
 	localTLSCtx = (palTLS_t*)*palTLSHandle;
 	if (false == localTLSCtx->tlsInit)
@@ -467,27 +442,11 @@ palStatus_t pal_plat_freeTLS(palTLSHandle_t* palTLSHandle)
 		goto finish;
 	}
 
-	g_palTLSContext[localTLSCtx->tlsIndex].tlsInit = false;
 
 	mbedtls_ssl_free(&localTLSCtx->tlsCtx);
-	memset(localTLSCtx, 0, sizeof(palTLS_t));
+    free(localTLSCtx);
 	*palTLSHandle = NULLPTR;
 
-	for (uint32_t i=0 ; i < PAL_MAX_NUM_OF_TLS_CTX ; ++i) //lets see if we need to release the global array
-	{
-		if (true == g_palTLSContext[i].tlsInit)
-		{
-			foundActiveTLSCtx = true;
-			break;
-		}
-	}	
-
-	if (false == foundActiveTLSCtx) // no more contexts, no need to hold the entire ctx array
-	{
-		free((void*)g_palTLSContext);
-		g_palTLSContext = NULL;
-	}
-	
 finish:
 	return status;
 }
@@ -706,8 +665,7 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
 			goto finish;
 		}
 
-		localTLSCtx->palConfCtx = localConfigCtx;
-		localConfigCtx->tlsIndex = localTLSCtx->tlsIndex;		
+		localConfigCtx->tlsContext = localTLSCtx;
 	}
 finish:
 	return status;
@@ -895,38 +853,32 @@ palStatus_t pal_plat_sslSetIOCallBacks(palTLSConfHandle_t palTLSConf, palTLSSock
 
 	if (isNonBlocking)
 	{
-		mbedtls_ssl_set_bio(&g_palTLSContext[localConfigCtx->tlsIndex].tlsCtx, palIOCtx, palBIOSend, palBIORecv, NULL);
+		mbedtls_ssl_set_bio(&localConfigCtx->tlsContext->tlsCtx, palIOCtx, palBIOSend, palBIORecv, NULL);
 	}
 	else
 	{
-		mbedtls_ssl_set_bio(&g_palTLSContext[localConfigCtx->tlsIndex].tlsCtx, palIOCtx, palBIOSend, NULL, palBIORecv_timeout);
+		mbedtls_ssl_set_bio(&localConfigCtx->tlsContext->tlsCtx, palIOCtx, palBIOSend, NULL, palBIORecv_timeout);
 	}
 
 	return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_sslDebugging(uint8_t turnOn)
+
+
+palStatus_t pal_plat_sslSetDebugging(palTLSConfHandle_t palTLSConf, uint8_t turnOn)
 {
-	palStatus_t status = PAL_SUCCESS;
-	palLogFunc_f func = NULL;
+    palStatus_t status = PAL_SUCCESS;
+    palLogFunc_f func = NULL;
 #if defined(MBEDTLS_DEBUG_C)	
-	mbedtls_debug_set_threshold(PAL_TLS_DEBUG_THRESHOLD);
+    mbedtls_debug_set_threshold(PAL_TLS_DEBUG_THRESHOLD);
 #endif
 
-	if (turnOn)
-	{
-		func = palDebug;
-	}
-
-	for (int i=0 ; i < PAL_MAX_NUM_OF_TLS_CTX ; ++i )
-	{
-		if ((g_palTLSContext != NULL) && (g_palTLSContext[i].tlsInit))
-		{
-			status = pal_plat_SetLoggingCb((palTLSConfHandle_t)g_palTLSContext[i].palConfCtx, func, NULL);
-		}
-	}
-
-	return status;
+    if (turnOn)
+    {
+        func = palDebug;
+    }
+    status = pal_plat_SetLoggingCb(palTLSConf, func, NULL);
+    return  status;
 }
 
 palStatus_t pal_plat_SetLoggingCb(palTLSConfHandle_t palTLSConf, palLogFunc_f palLogFunction, void *logContext)

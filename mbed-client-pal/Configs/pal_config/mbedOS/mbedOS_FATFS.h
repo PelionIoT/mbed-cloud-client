@@ -23,13 +23,8 @@
 *        if this file is defined it will be included from pal_configuration.h
 *        if not, the default file will be included - if needed
 */
-#include "mbedOS_default.h"
+#define PAL_NUMBER_OF_PARTITIONS 2
 
-#define PAL_SKIP_TEST_MODULE_RTOS
-#define PAL_SKIP_TEST_MODULE_NETWORK
-#define PAL_SKIP_TEST_MODULE_CRYPTO
-#define PAL_SKIP_TEST_MODULE_UPDATE
-#define PAL_SKIP_TEST_MODULE_TLS
-#define PAL_SKIP_TEST_MODULE_INTERNALFLASH
+#include "mbedOS_default.h"
 
 #endif /* PAL_MBEDOS_CONFIGURATION_H_ */

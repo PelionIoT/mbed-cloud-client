@@ -30,36 +30,6 @@ extern "C" {
 *   This file contains the real-time OS APIs that need to be implemented in the platform layer.
 */
 
-//! Type for holding platform specific (thread) data used exclusively by the platform, see pal_plat_osThreadDataInitialize for more information
-typedef void* palThreadPortData;
-
-//! PAL thread structure
-typedef struct palThreadData
-{
-    palThreadID_t palThreadID; /*! generated thread id - platform should not modify this value */
-    palThreadID_t osThreadID; /*! the 'real' platform specific thread id - platform should not modify this value */
-    palThreadLocalStore_t* store; /*! pointer to thread local store - platform should not modify this value */
-    palThreadPriority_t palPriority; /*! pal thread priority - platform should not modify this value */
-    int16_t osPriority; /*! the 'real' platform specific thread priority - platform should not modify this value */
-    uint32_t stackSize; /*! thread stack size - platform should not modify this value */
-    palThreadFuncPtr userFunction; /*! the user function to be invoked - platform should not modify this value */
-    void* userFunctionArg; /*! the user argument to be passed to the userFunction - platform should not modify this value */
-    palThreadPortData portData; /*! platform specific data - platform may modify this value, used exclusively by the platform */
-} palThreadData_t;
-
-//! PAL thread bridge function prototype
-typedef void(*palThreadServiceBridgeFuncPtr)(palThreadData_t* threadData);
-
-//! PAL thread bridge structure - used by the platform thread to give control of the thread back to the service, see pal_plat_osThreadRun for more information
-typedef struct palThreadServiceBridge
-{
-    palThreadServiceBridgeFuncPtr function; /*! function pointer which points back to the service */
-    palThreadData_t* threadData; /*! pointer to palThreadData_t associated with the thread */
-} palThreadServiceBridge_t;
-
-//! Total number of thread priorities
-#define PAL_NUMBER_OF_THREAD_PRIORITIES (PAL_osPrioritylast + 1)
-
 #define PAL_SHA256_DEVICE_KEY_SIZE_IN_BYTES 32
 #define PAL_DEVICE_KEY_SIZE_IN_BITS (128)
 #define PAL_DEVICE_KEY_SIZE_IN_BYTES (PAL_DEVICE_KEY_SIZE_IN_BITS / 8)
@@ -102,50 +72,18 @@ uint64_t pal_plat_osKernelSysTickMicroSec(uint64_t microseconds);
 */
 uint64_t pal_plat_osKernelSysTickFrequency(void);
 
-/*! Translate from palThreadPriority_t to platform specific priority.
-*
-@param[in] priority PAL priority to be translated.
-*
-* \return value representing the platform specific thread priority.
-*/
-int16_t pal_plat_osThreadTranslatePriority(palThreadPriority_t priority);
-
-/*! Allocate platform specific data for the thread.
-*
-* @param[out] portData A pointer to a palThreadPortData type containing (optional) platform specific data about the thread.
-* @param[in] priority Platform specific thread priority (post-translation).
-* @param[in] stackSize Thread stack size.
-*
-* \return PAL_SUCCESS(0) in case of success. A negative value indicating a specific error code in case of failure.
-*
-* \note portData is used exclusively by the platform, the service layer has no use for this and all it does is keep 
-*       the pointer as part of the palThreadData_t structure. If the platform does not have any allocations to be done then just return PAL_SUCCESS(0)
-*/
-palStatus_t pal_plat_osThreadDataInitialize(palThreadPortData* portData, int16_t priority, uint32_t stackSize);
-
 /*! Create and run the thread.
 *
-* @param[in] bridge A pointer to a palThreadServiceBridge_t structure which contains the function pointer and data which must be invoked from the created thread function.
-* @param[out] osThreadID Platform specific thread id associated with the created thread.
+* @param[in] function A function pointer to the thread callback function.
+* @param[in] funcArgument An argument for the thread function.
+* @param[in] priority The priority of the thread.
+* @param[in] stackSize The stack size of the thread, can NOT be 0.
+* @param[out] threadID: The created thread ID handle. In case of error, this value is NULL.
 *
 * \return PAL_SUCCESS(0) in case of success. A negative value indicating a specific error code in case of failure.
 *
-* \note From within the created thread function the plaform MUST execute "bridge->function(bridge->threadData);". This is the liaison between the platform and the service 
-*       which gives the control back to the service. It is recommended (if possible) to pass the bridge pointer as an argument (or as part of an argument) to the
-*       platfrom specific thread function.
 */
-palStatus_t pal_plat_osThreadRun(palThreadServiceBridge_t* bridge, palThreadID_t* osThreadID);
-
-/*! Free any allocated data for the thread.
-*
-* @param[in] threadData A pointer to a palThreadData_t structure containing information about the thread.
-*
-* \return PAL_SUCCESS(0) in case of success. A negative value indicating a specific error code in case of failure.
-*
-* \note If this function is called then pal_plat_osThreadTerminate will not be called, so clean up all allocated resources (if any).
-* \note This function is called from within the thread's context after the user function has been invoked and only if the thread hasn't been terminated.
-*/
-palStatus_t pal_plat_osThreadDataCleanup(palThreadData_t* threadData);
+palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID);
 
 /*! Terminate and free allocated data for the thread.
 *
@@ -153,13 +91,11 @@ palStatus_t pal_plat_osThreadDataCleanup(palThreadData_t* threadData);
 *
 * \return PAL_SUCCESS(0) in case of success. A negative value indicating a specific error code in case of failure.
 *
-* \note If this function is called then pal_plat_osThreadDataCleanup will not be called, so clean up all allocated resources.
 */
-palStatus_t pal_plat_osThreadTerminate(palThreadData_t* threadData);
+palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID);
 
 /*! Get the ID of the current thread.
 * \return The ID of the current thread. In case of error, returns PAL_MAX_UINT32.
-* \note For a thread with real time priority, the function always returns PAL_MAX_UINT32.
 */
 palThreadID_t pal_plat_osThreadGetId(void);
 

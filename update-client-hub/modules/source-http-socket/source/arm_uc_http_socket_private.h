@@ -21,6 +21,7 @@
 
 #include "update-client-source-http-socket/arm_uc_http_socket.h"
 #include "update-client-common/arm_uc_common.h"
+#include <pal.h>
 
 /**
  * @brief Initialize Http module.
@@ -60,10 +61,23 @@ arm_uc_error_t arm_uc_socket_get(arm_uc_uri_t* uri,
 /**
  * @brief Connect to server set in the global URI struct.
  * @details Connecting generates a socket event, which automatically processes
- *          the request passed in arm_uc_socket_get.
+ *          the request passed in arm_uc_socket_get. If a DNS request must
+ *          be made, this call initiates an asynchronous DNS request. After
+ *          the request is done, the connection process will be resumed in
+ *          arm_uc_socket_finish_connect().
  * @return Error code.
  */
 arm_uc_error_t arm_uc_socket_connect(void);
+
+/**
+ * @brief Finishes connecting to the server requested in a previous call to
+ *        arm_uc_socket_connect().
+ * @details This function is called after the DNS resolution for the host
+ *          requested in arm_uc_socket_get() above is done. It finishes the
+ *          connection process by creating a socket and connecting it.
+ * @return Error code.
+ */
+arm_uc_error_t arm_uc_socket_finish_connect(void);
 
 /**
  * @brief Send request passed in arm_uc_socket_get.
@@ -126,5 +140,16 @@ void arm_uc_socket_isr(void*);
  *        what context we are running from.
  */
 void arm_uc_timeout_timer_callback(void const *);
+
+/**
+ * @brief Callback handler for the asynchronous DNS resolver.
+ *        Callbacks go through the task queue because we don't know
+ *        what context we are running from.
+ */
+void arm_uc_dns_callback(const char* url,
+                         palSocketAddress_t* address,
+                         palSocketLength_t* address_length,
+                         palStatus_t status,
+                         void* argument);
 
 #endif // __ARM_UC_HTTP_SOCKET_PRIVATE_H__

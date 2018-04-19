@@ -134,6 +134,9 @@ bool M2MTLVSerializer::serialize_resource(const M2MResource *resource, uint8_t *
              (resource->resource_instance_type() == M2MResourceBase::TIME) ) {
             success = serialize_TLV_binary_int(resource, TYPE_RESOURCE, resource->name_id(), data, size);
         }
+        else if (resource->resource_instance_type() == M2MResourceBase::FLOAT) {
+            success = serialize_TLV_binary_float(resource, TYPE_RESOURCE, resource->name_id(), data, size);
+        }
         else {
              success = serialize_TILV(TYPE_RESOURCE, resource->name_id(),
                       resource->value(), resource->value_length(), data, size);
@@ -184,7 +187,10 @@ bool M2MTLVSerializer::serialize_resource_instance(uint16_t id, const M2MResourc
          (resource->resource_instance_type() == M2MResourceBase::BOOLEAN) ||
          (resource->resource_instance_type() == M2MResourceBase::TIME) ) {
         success=serialize_TLV_binary_int(resource, TYPE_RESOURCE_INSTANCE, id, data, size);
-        }
+    }
+    else if (resource->resource_instance_type() == M2MResourceBase::FLOAT) {
+        success=serialize_TLV_binary_float(resource, TYPE_RESOURCE_INSTANCE, id, data, size);
+    }
     else {
         success=serialize_TILV(TYPE_RESOURCE_INSTANCE, id, resource->value(), resource->value_length(), data, size);
     }
@@ -193,8 +199,7 @@ bool M2MTLVSerializer::serialize_resource_instance(uint16_t id, const M2MResourc
 }
 
 /* See, OMA-TS-LightweightM2M-V1_0-20170208-A, Appendix C,
- * Data Types, Integer, Boolean and TY
- * Yime, TLV Format */
+ * Data Types, Integer, Boolean and Time TLV Format */
 bool M2MTLVSerializer::serialize_TLV_binary_int(const M2MResourceBase *resource, uint8_t type, uint16_t id, uint8_t *&data, uint32_t &size)
 {
     int64_t valueInt = resource->get_value_int();
@@ -211,6 +216,19 @@ bool M2MTLVSerializer::serialize_TLV_binary_int(const M2MResourceBase *resource,
     }
 
     return serialize_TILV(type, id, buffer, buffer_size, data, size);
+}
+
+/* See, OMA-TS-LightweightM2M-V1_0-20170208-A, Appendix C,
+ * Data Type Float (32 bit only) TLV Format */
+bool M2MTLVSerializer::serialize_TLV_binary_float(const M2MResourceBase *resource, uint8_t type, uint16_t id, uint8_t *&data, uint32_t &size)
+{
+    float valueFloat = resource->get_value_float();
+    /* max len 8 bytes */
+    uint8_t buffer[4];
+
+    common_write_32_bit(*(uint32_t*)&valueFloat, buffer);
+
+    return serialize_TILV(type, id, buffer, 4, data, size);
 }
 
 

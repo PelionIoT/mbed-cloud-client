@@ -28,10 +28,9 @@
 
 #define TRACE_GROUP "fcsr"
 
-FtcdCommSerial::FtcdCommSerial(Serial *pc, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature)
-    : FtcdCommBase(network_endianness, header_token, use_signature)
+FtcdCommSerial::FtcdCommSerial(PinName TX, PinName RX, uint32_t baud, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature)
+    : mbed::Serial(TX, RX, baud), FtcdCommBase(network_endianness, header_token, use_signature)
 {
-    _pc = pc;
 }
 
 FtcdCommSerial::~FtcdCommSerial()
@@ -41,20 +40,22 @@ FtcdCommSerial::~FtcdCommSerial()
 size_t FtcdCommSerial::_serial_read(char *buffOut, size_t buffSize)
 {
     size_t count;
-    //TODO:
-    //getc is blocking. There is currently no way to check if there is anything left to read. seems readable() us not working
-    //Once determined, the relevant check should be added to this code.
+
+    // blocking read
+    // call directly to SerialBase::_base_getc to bypass Stream::getc which add a lot of overhead under ARMCC debug
+    lock();
     for (count = 0; count < buffSize; count++) {
-        buffOut[count] = _pc->getc();
+        buffOut[count] = _base_getc();
     }
+    unlock();
     return count;
 }
 
 size_t FtcdCommSerial::_serial_write(const char *buff, size_t buffSize)
 {
-
+    // lock is done inside Stream::putc
     for (size_t i = 0; i < buffSize; i++) {
-        _pc->putc(buff[i]);
+        putc(buff[i]);
     }
 
     return buffSize;

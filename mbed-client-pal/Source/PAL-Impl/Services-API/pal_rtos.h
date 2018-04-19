@@ -210,13 +210,11 @@ palStatus_t pal_osSetStrongTime(uint64_t setTimeInSeconds);
 * @param[in] funcArgument An argument for the thread function.
 * @param[in] priority The priority of the thread.
 * @param[in] stackSize The stack size of the thread, can NOT be 0.
-* @param[in] store A pointer to thread's local store, can be NULL.
+* @param[in] store MUST be NULL - this functionality is not supported.
 * @param[out] threadID: The created thread ID handle. In case of error, this value is NULL.
 *
 * \return PAL_SUCCESS when the thread was created successfully. \n
-*         PAL_ERR_RTOS_PRIORITY when the given priority is already used in the system.
 *
-* \note Each thread MUST have a unique priority.
 * \note When the priority of the created thread function is higher than the current running thread, the
 *       created thread function starts instantly and becomes the new running thread.
 * \note Calling \c pal_osThreadTerminate() releases the thread stack.
@@ -228,7 +226,7 @@ palStatus_t pal_osThreadCreateWithAlloc(palThreadFuncPtr function, void* funcArg
 * @param[in] threadID The thread ID to stop and terminate.
 *
 * \return PAL_SUCCESS(0) in case of success and a negative value indicating a specific error code in case of failure. \n
-*         PAL_ERR_RTOS_RESOURCE if the thread ID is not correct.
+*
 * \note  pal_osThreadTerminate is a non blocking operation, pal_osThreadTerminate sends cancellation request to the thread, 
 *        usually the thread exits immediately, but the system does not always guarantee this
 */
@@ -236,14 +234,8 @@ palStatus_t pal_osThreadTerminate(palThreadID_t* threadID);
 
 /*! Get the ID of the current thread.
 * \return The ID of the current thread. In case of error, return PAL_MAX_UINT32.
-* \note For a thread with real time priority, the function always returns PAL_MAX_UINT32.
 */
 palThreadID_t pal_osThreadGetId(void);
-
-/*! Get the storage of the current thread.
-* \return The storage of the current thread.
-*/
-palThreadLocalStore_t* pal_osThreadGetLocalStore(void);
 
 /*! Wait for a specified time period in milliseconds.
 *

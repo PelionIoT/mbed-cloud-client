@@ -62,14 +62,11 @@ struct grs_s {
 
 
 struct nsdl_s {
-    uint16_t update_register_msg_id;
-    uint16_t register_msg_len;
-    uint16_t update_register_msg_len;
-
-    uint16_t register_msg_id;
-    uint16_t unregister_msg_id;
-
-    uint16_t bootstrap_msg_id;
+    uint32_t update_register_token;
+    uint32_t register_token;
+    uint32_t unregister_token;
+    uint32_t bootstrap_token;
+    uint32_t token_seed;
     uint16_t oma_bs_port;                                                       /* Bootstrap port */
     uint8_t oma_bs_address_len;                                                 /* Bootstrap address length */
     unsigned int sn_nsdl_endpoint_registered:1;

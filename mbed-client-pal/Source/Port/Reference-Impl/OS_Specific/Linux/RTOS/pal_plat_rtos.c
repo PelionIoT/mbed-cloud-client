@@ -53,23 +53,16 @@
 #define CLOCK_MONOTONIC_RAW 4 //http://elixir.free-electrons.com/linux/latest/source/include/uapi/linux/time.h
 #endif
 
+#define PAL_THREAD_PRIORITY_TRANSLATE(x) ((int16_t)(x + 7))
+
+typedef struct palThreadData
+{
+    palThreadFuncPtr userFunction;
+    void* userFunctionArgument;
+} palThreadData_t;
+
 PAL_PRIVATE char g_mqName[MQ_FILENAME_LEN];
 PAL_PRIVATE int g_mqNextNameNum = 0;
-
-PAL_PRIVATE int16_t g_threadPriorityMap[PAL_NUMBER_OF_THREAD_PRIORITIES] = 
-{ 
-    7,  // PAL_osPriorityIdle
-    8,  // PAL_osPriorityLow
-    9,  // PAL_osPriorityReservedTRNG
-    10, // PAL_osPriorityBelowNormal
-    11, // PAL_osPriorityNormal
-    12, // PAL_osPriorityAboveNormal
-    13, // PAL_osPriorityReservedDNS
-    14, // PAL_osPriorityReservedSockets
-    15, // PAL_osPriorityHigh
-    16, // PAL_osPriorityReservedHighResTimer
-    17  // PAL_osPriorityRealtime
-};
 
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
 
@@ -156,103 +149,119 @@ inline uint64_t pal_plat_osKernelSysTickFrequency(void)
     return TICKS_PER_SECOND;
 }
 
-void* threadFunction(void* arg)
+PAL_PRIVATE void threadCleanupHandler(void* arg)
 {
-    palThreadServiceBridge_t* bridge = (palThreadServiceBridge_t*)arg;
-    bridge->function(bridge->threadData);
+    free(arg);
+}
+
+PAL_PRIVATE void* threadFunction(void* arg)
+{
+    /*
+    * note: even if a thread is only scheduled but has not started running, it will be cancelled only once it starts running and once it reaches a cancellation point, 
+    *       hence the clean up handler will always be executed thus avoiding a memory leak.
+    *       see section 2.9.5 @ http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_09.html
+    */
+    pthread_cleanup_push(threadCleanupHandler, arg); // register a cleanup handler to be executed once the thread is finished/terminated (threads can terminate only when reaching a cancellation point)
+    palThreadData_t* threadData = (palThreadData_t*)arg;
+    threadData->userFunction(threadData->userFunctionArgument);
+    pthread_cleanup_pop(1); // in case the thread has not terminated execute the cleanup handler (passing a non zero value to pthread_cleanup_pop)
     return NULL;
 }
 
-int16_t pal_plat_osThreadTranslatePriority(palThreadPriority_t priority)
+palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID)
 {
-    return g_threadPriorityMap[priority];
-}
-
-palStatus_t pal_plat_osThreadDataInitialize(palThreadPortData* portData, int16_t priority, uint32_t stackSize)
-{
-    return PAL_SUCCESS;
-}
-
-palStatus_t pal_plat_osThreadRun(palThreadServiceBridge_t* bridge, palThreadID_t* osThreadID)
-{
-    palStatus_t status = PAL_SUCCESS;
+    palStatus_t status = PAL_ERR_GENERIC_FAILURE;
+    pthread_t sysThreadID = (pthread_t)NULL;
+    struct sched_param schedParam;
     pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    int err = pthread_attr_setstacksize(&attr, bridge->threadData->stackSize);
+    pthread_attr_t* ptrAttr = NULL;
+    palThreadData_t* threadData;
+    int err = pthread_attr_init(&attr);
     if (0 != err)
     {
-        status = PAL_ERR_GENERIC_FAILURE;
         goto finish;
     }
-    if (0 != pthread_attr_setschedpolicy(&attr, SCHED_RR))
+    ptrAttr = &attr;
+
+    err = pthread_attr_setstacksize(ptrAttr, stackSize);
+    if (0 != err)
     {
-        status = PAL_ERR_GENERIC_FAILURE;
         goto finish;
     }
-#if (PAL_SIMULATOR_TEST_ENABLE == 0) //Disable ONLY for Linux PC simulator 
-    if (0 != pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED))
+
+    err = pthread_attr_setschedpolicy(ptrAttr, SCHED_RR);
+    if (0 != err)
     {
-        status = PAL_ERR_GENERIC_FAILURE;
+        goto finish;
+    }
+
+#if (PAL_SIMULATOR_TEST_ENABLE == 0) // disable ONLY for Linux PC simulator 
+    err = pthread_attr_setinheritsched(ptrAttr, PTHREAD_EXPLICIT_SCHED);
+    if (0 != err)
+    {
         goto finish;
     }
 #endif    
-    if (0 != pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED))
+    
+    err = pthread_attr_setdetachstate(ptrAttr, PTHREAD_CREATE_DETACHED);
+    if (0 != err)
     {
-        status = PAL_ERR_GENERIC_FAILURE;
+        goto finish;
+    }    
+    
+    schedParam.sched_priority = PAL_THREAD_PRIORITY_TRANSLATE(priority);
+    err = pthread_attr_setschedparam(ptrAttr, &schedParam);
+    if (0 != err)
+    {
         goto finish;
     }
 
-    struct sched_param schedParam;
-    schedParam.sched_priority = bridge->threadData->osPriority;
-    if (0 != pthread_attr_setschedparam(&attr, &schedParam))
+    threadData = (palThreadData_t*)malloc(sizeof(palThreadData_t));
+    if (NULL == threadData)
     {
-        status = PAL_ERR_GENERIC_FAILURE;
+        status = PAL_ERR_RTOS_RESOURCE;
+        goto finish;
+    }
+    threadData->userFunction = function;
+    threadData->userFunctionArgument = funcArgument;
+
+    err = pthread_create(&sysThreadID, ptrAttr, threadFunction, (void*)threadData);
+    if (0 != err)
+    {        
+        free(threadData);
+        status = (EPERM == err) ? PAL_ERR_RTOS_PRIORITY : PAL_ERR_RTOS_RESOURCE;
         goto finish;
     }
 
-    pthread_t threadID = (pthread_t)NULL;
-    int retVal = pthread_create(&threadID, &attr, threadFunction, (void*)bridge);
-    pthread_attr_destroy(&attr); // destroy the thread attributes object since it's no longer needed
-    if (0 != retVal)
-    {
-        if (EPERM == retVal)
-        {
-            status = PAL_ERR_RTOS_PRIORITY;
-        }
-        else
-        {
-            status = PAL_ERR_RTOS_RESOURCE;
-        }
-        goto finish;
-    }
-
-    if (((palThreadID_t)PAL_INVALID_THREAD == threadID) || (0 == threadID))
-    {
-        status = PAL_ERR_GENERIC_FAILURE;
-    }
-    else
-    {
-        *osThreadID = (palThreadID_t)threadID;
-    }
-
+    *threadID = (palThreadID_t)sysThreadID;
+    status = PAL_SUCCESS;
 finish:
+    if (NULL != ptrAttr)
+    {
+        err = pthread_attr_destroy(ptrAttr);
+        if (0 != err)
+        {
+            PAL_LOG(ERR, "pal_plat_osThreadCreate failed to destroy pthread_attr_t\n");
+        }
+    }
     return status;
 }
 
-palStatus_t pal_plat_osThreadDataCleanup(palThreadData_t* threadData)
+palThreadID_t pal_plat_osThreadGetId(void)
 {
-    return PAL_SUCCESS;
+    palThreadID_t threadID = (palThreadID_t)pthread_self();
+    return threadID;
 }
 
-palStatus_t pal_plat_osThreadTerminate(palThreadData_t* threadData)
+palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
 {
     palStatus_t status = PAL_ERR_RTOS_TASK;
-    int osStatus = 0;
-    pthread_t threadID = (pthread_t)(threadData->osThreadID);
-    if (pthread_self() != threadID) // terminate only if not trying to terminate from self
+    int err;
+    pthread_t sysThreadID = (pthread_t)*threadID;
+    if (!pthread_equal(pthread_self(), sysThreadID)) // self termination not allowed
     {
-        osStatus = pthread_cancel(threadID);
-        if ((0 == osStatus) || (ESRCH == osStatus))
+        err = pthread_cancel(sysThreadID);
+        if ((0 == err) || (ESRCH == err))
         {
             status = PAL_SUCCESS;
         }
@@ -262,12 +271,6 @@ palStatus_t pal_plat_osThreadTerminate(palThreadData_t* threadData)
         }
     }
     return status;
-}
-
-palThreadID_t pal_plat_osThreadGetId(void)
-{
-    palThreadID_t osThreadID = (palThreadID_t)pthread_self();
-    return osThreadID;
 }
 
 /*! Wait for a specified period of time in milliseconds.

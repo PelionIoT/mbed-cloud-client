@@ -1,0 +1,18 @@
+# TargetFunctions.txt contains the list of the functions' calls
+# User want to test their Stack Usage.
+#
+# User MUST supply include files, variables declarations, test function name and the target function call
+# for example:
+#          foo.h $ StackUsage_foo $ int a = 5; int b = 6; int c = 0 $ c = foo(a, a+b);
+# between each inputs (includes and variables for example) the syntax requires $ separation.
+# "stdio.h" and "stdlib.h" are already included in the generated files.
+
+#foo.h $ StackUsage_foo $ int a = 5; int b = 6; int c = 0; $ c = foo(a, a+b);
+$ StackUsage_memcmp $ char *mem1 = "blablabla"; int res = 0; $ res = memcmp(mem1, mem1, 8);
+#moo.h $ StackUsage_moo $ int a = 2; char b[2] = {'a','b'}; $ moo(a, b);
+#sum.h $ StackUsage_sum $ int res = 0; $ res = sum(88, 90);
+$ StackUsage_printf $ $ printf("I'm a test call\n");
+$ StackUsage_memcpy $ char* a = "PALTest"; char b[20] = {0}; $ memcpy(b, a, 8);
+
+
+List Finished!

@@ -231,6 +231,7 @@ typedef enum {
 	PAL_ERR_FS_INVALID_OPEN_FLAGS =							PAL_ERR_FILESYSTEM_ERROR_BASE + 18,		//!< File open mode is invalid.
 	PAL_ERR_FS_FILE_IS_DIR =								PAL_ERR_FILESYSTEM_ERROR_BASE + 19,		//!< File path given is a directory, not a file.
 	PAL_ERR_FS_ERROR_IN_SEARCHING =							PAL_ERR_FILESYSTEM_ERROR_BASE + 20, 	//!< Next file in directory could not be found.
+    PAL_ERR_FS_DISK_ERR =                                   PAL_ERR_FILESYSTEM_ERROR_BASE + 21, 	//!< A hard error occurred in the low level disk I/O layer.
 
 
 	PAL_ERR_INTERNAL_FLASH_ERROR_BASE =						PAL_ERR_MODULE_INTERNAL_FLASH_BASE,

@@ -40,15 +40,19 @@
 #define MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY 60
 #endif
 
-// TODO: remove this also, as it is platform specific and this default will not work on Linux at all.
-#ifndef MBED_CONF_MBED_CLIENT_DNS_THREAD_STACK_SIZE
-#define MBED_CONF_MBED_CLIENT_DNS_THREAD_STACK_SIZE 2048
+#ifndef MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+#define MBED_CONF_MBED_CLIENT_DNS_USE_THREAD 0
 #endif
-
 
 int8_t M2MConnectionHandlerPimpl::_tasklet_id = -1;
 
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+// Use volatile because address has been read from two different thread,
+// event and asynchronous DNS threads.
+static volatile M2MConnectionHandlerPimpl *connection_handler = NULL;
+#else
 static M2MConnectionHandlerPimpl *connection_handler = NULL;
+#endif
 
 // This is called from event loop, but as it is static C function, this is just a wrapper
 // which calls C++ on the instance.
@@ -57,7 +61,14 @@ extern "C" void eventloop_event_handler(arm_event_s *event)
     if (!connection_handler) {
         return;
     }
+
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD 
+    // use local instance because connection handler is volatile. 
+    M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)connection_handler;
+    instance->event_handler(event);
+#else
     connection_handler->event_handler(event);
+#endif
 }
 
 // event handler that forwards the event according to its type and/or connection state
@@ -169,9 +180,6 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
  _server_port(0),
  _listen_port(0),
  _net_iface(0),
-#ifdef MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
- _dns_thread_id(0),
-#endif
  _socket_state(ESocketStateDisconnected),
  _handshake_retry(0),
  _suppressable_event_in_flight(false),
@@ -194,6 +202,7 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
     memset(&_ipV6Addr, 0, sizeof(palIpV6Addr_t));
     ns_list_init(&_linked_list_send_data);
 
+    // Usage of connection_handler is not going to work with multiserver solution. Static address will be overridden with latest instance.
     connection_handler = this;
     eventOS_scheduler_mutex_wait();
     if (M2MConnectionHandlerPimpl::_tasklet_id == -1) {
@@ -205,9 +214,10 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
 M2MConnectionHandlerPimpl::~M2MConnectionHandlerPimpl()
 {
     tr_debug("~M2MConnectionHandlerPimpl()");
-
-    // terminate the DNS thread, if any is used
-    terminate_dns_thread();
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+    // Setting the connection_handler to NULL makes callback less likely to access this object after it has been deleted.
+    connection_handler = NULL;
+#endif
 
     close_socket();
     delete _security_impl;
@@ -215,17 +225,6 @@ M2MConnectionHandlerPimpl::~M2MConnectionHandlerPimpl()
     pal_destroy();
     tr_debug("~M2MConnectionHandlerPimpl() - OUT");
 }
-
-void M2MConnectionHandlerPimpl::terminate_dns_thread()
-{
-#ifdef MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-    if (_dns_thread_id) {
-        pal_osThreadTerminate(&_dns_thread_id);
-        _dns_thread_id = 0;
-    }
-#endif
-}
-
 
 bool M2MConnectionHandlerPimpl::bind_connection(const uint16_t listen_port)
 {
@@ -246,26 +245,57 @@ bool M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
     return !eventOS_event_send(&event);
 }
 
-extern "C" void dns_thread(void const *connection_handler)
+// This callback is used from PAL pal_getAddressInfoAsync, 
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument)
 {
-    ((M2MConnectionHandlerPimpl*)connection_handler)->address_resolver();
+    tr_debug("M2MConnectionHandlerPimpl::address_resolver callback");
 
-    // Sleep until terminated.
-    for (;;) {
-        // This trace line is causing unexpected behaviour in Linux.To be investigated!
-        //tr_debug("M2MConnectionHandlerPimpl::dns_thread() going to sleep..");
-        pal_osDelay(0xFFFFFFFF);
+    // Use connection_handler address agaist callbackArgument for prevent calling of class M2MConnectionHandlerPimpl
+    // methods when instance has been deleted. pal_getAddressInfoAsync does not contain cancelation interface so 
+    // calling this callback cannot avoid if pal_getAddressInfoAsync has been run without any errors.
+    if (!connection_handler) {
+        tr_debug("M2MConnectionHandlerPimpl::address_resolver callback M2MConnectionHandlerPimpl is NULL");
+        return;
+    }
+
+    M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)connection_handler;
+
+    if (PAL_SUCCESS != status) {
+        tr_error("M2MConnectionHandlerPimpl::address_resolver callback failed with 0x%X", status);
+        if (!(instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsError))) {
+            tr_error("M2MConnectionHandlerPimpl::address_resolver callback, error event alloc fail.");
+        }
+    } else {
+        if (!(instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsResolved))) {
+            tr_error("M2MConnectionHandlerPimpl::address_resolver callback, resolved event alloc fail.");
+        }
     }
 }
+#endif
 
-void M2MConnectionHandlerPimpl::address_resolver(void)
+bool M2MConnectionHandlerPimpl::address_resolver(void)
 {
     palStatus_t status;
-    palSocketLength_t socket_address_len;
+    bool ret = false;
 
-    status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &socket_address_len);
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+    tr_debug("M2MConnectionHandlerPimpl::address_resolver:asynchronous DNS");
+
+    status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len, &address_resolver_cb, this);
+
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with %d", (int)status);
+       tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. 0x%X", status);
+       _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
+    }
+    else {
+        ret = true;
+    }
+#else
+    tr_debug("M2MConnectionHandlerPimpl::address_resolver:synchronous DNS");
+    status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
+    if (PAL_SUCCESS != status) {
+        tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with 0x%X", status);
         if (!send_event(ESocketDnsError)) {
             tr_error("M2MConnectionHandlerPimpl::address_resolver, error event alloc fail.");
         }
@@ -273,7 +303,12 @@ void M2MConnectionHandlerPimpl::address_resolver(void)
         if (!send_event(ESocketDnsResolved)) {
             tr_error("M2MConnectionHandlerPimpl::address_resolver, resolved event alloc fail.");
         }
+        else {
+            ret = true;
+        }
     }
+#endif
+    return ret;
 }
 
 void M2MConnectionHandlerPimpl::handle_dns_result(bool success)
@@ -283,9 +318,6 @@ void M2MConnectionHandlerPimpl::handle_dns_result(bool success)
         tr_warn("M2MConnectionHandlerPimpl::handle_dns_result() called, not in ESocketStateDNSResolving state!");
         return;
     }
-
-    // DNS thread no-longer needed.
-    terminate_dns_thread();
 
     if (success) {
         _socket_state = EsocketStateInitializeConnection;
@@ -320,27 +352,8 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String& server_addr
     _server_type = server_type;
     _server_address = server_address;
 
-#ifdef MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
 
-    tr_debug("M2MConnectionHandlerPimpl::resolve_server_address: starting DNS thread");
-
-    // terminate previous thread if it was still there
-    terminate_dns_thread();
-
-    // Try to create the DNS thread. If it fails, give an error.
-    if (PAL_SUCCESS != pal_osThreadCreateWithAlloc(dns_thread, this, PAL_osPriorityAboveNormal, MBED_CONF_MBED_CLIENT_DNS_THREAD_STACK_SIZE, NULL, &_dns_thread_id)) {
-        tr_error("M2MConnectionHandlerPimpl::dns_thread create failed.");
-        _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
-        return false;
-    }
-#else
-
-    tr_debug("M2MConnectionHandlerPimpl::resolve_server_address: synchronous DNS");
-
-    address_resolver();
-
-#endif
-    return true;
+    return address_resolver();
 }
 
 void M2MConnectionHandlerPimpl::socket_connect_handler()
@@ -483,7 +496,6 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             }
             if (_socket_state != ESocketStateHandshaking) {
                 _socket_state = ESocketStateUnsecureConnection;
-                enable_keepalive();
                 _observer.address_ready(_address,
                                         _server_type,
                                         _address._port);
@@ -687,7 +699,6 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
 
         _handshake_retry = 0;
         _socket_state = ESocketStateSecureConnection;
-        enable_keepalive();
         _observer.address_ready(_address,
                                 _server_type,
                                 _server_port);
@@ -886,8 +897,6 @@ void M2MConnectionHandlerPimpl::close_socket()
 {
     _suppressable_event_in_flight = false;
 
-    terminate_dns_thread();
-
     if (_socket) {
         // At least on mbed-os the pal_close() will perform callbacks even during it
         // is called, which we will ignore when this state is set.
@@ -918,35 +927,6 @@ void M2MConnectionHandlerPimpl::close_socket()
         free(data);
     }
     release_mutex();
-}
-
-void M2MConnectionHandlerPimpl::enable_keepalive()
-{
-#if MBED_CLIENT_TCP_KEEPALIVE_TIME
-#ifdef PAL_NET_TCP_AND_TLS_SUPPORT
-    palStatus_t status;
-    if (is_tcp_connection()) {
-        int enable = 1;
-        status = pal_setSocketOptions(_socket, PAL_SO_KEEPALIVE, &enable, sizeof(enable));
-        if (PAL_SUCCESS != status) {
-            tr_error("M2MConnectionHandlerPimpl::enable_keepalive - PAL_SO_KEEPALIVE err: %d", (int)status);
-        }
-
-        int idle_period = MBED_CLIENT_TCP_KEEPALIVE_TIME;
-        tr_info("M2MConnectionHandlerPimpl::enable_keepalive - PAL_SO_KEEPIDLE %d", idle_period);
-        status = pal_setSocketOptions(_socket, PAL_SO_KEEPIDLE, &idle_period, sizeof(idle_period));
-        if (PAL_SUCCESS != status) {
-            tr_error("M2MConnectionHandlerPimpl::enable_keepalive - PAL_SO_KEEPIDLE err: %d", (int)status);
-        }
-
-        int intvl = MBED_CLIENT_TCP_KEEPALIVE_INTERVAL;
-        status = pal_setSocketOptions(_socket, PAL_SO_KEEPINTVL, &intvl, sizeof(intvl));
-        if (PAL_SUCCESS != status) {
-            tr_error("M2MConnectionHandlerPimpl::enable_keepalive - PAL_SO_KEEPINTVL err: %d", (int)status);
-        }
-    }
-#endif
-#endif
 }
 
 M2MConnectionHandlerPimpl::send_data_queue_s* M2MConnectionHandlerPimpl::get_item_from_list()

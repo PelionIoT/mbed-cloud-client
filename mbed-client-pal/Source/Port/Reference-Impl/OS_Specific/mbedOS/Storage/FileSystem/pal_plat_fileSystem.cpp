@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include <errno.h> //This should be added before mbed.h otherwise ARMCC compilation fails with conflicting error codes.
 #include "mbed.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -27,7 +27,6 @@
 //PAL Includes
 #include "pal.h"
 #include "pal_plat_fileSystem.h"
-
 
 #ifndef EEXIST
 #define EEXIST 17
@@ -65,9 +64,6 @@
 #define PAL_FS_COPY_BUFFER_SIZE 256                                                            //!< Size of the chunk to copy files
 PAL_PRIVATE const char *g_platOpenModeConvert[] = {"0", "r", "r+", "w+x", "w+"};                    //!< platform convert table for \b fopen() modes
 PAL_PRIVATE const int g_platSeekWhenceConvert[] = {0, SEEK_SET, SEEK_CUR, SEEK_END};                //!< platform convert table for \b fseek() relative position modes
-
-
-
 
 
 /*! \brief This function find the next file in a directory
@@ -278,7 +274,6 @@ palStatus_t pal_plat_fsRmFiles(const char *pathName)
         {
             if (!pal_plat_findNextFile(dh, &currentEntry))
             {
-                ret = PAL_ERR_FS_ERROR_IN_SEARCHING;
                 break;
             }
 
@@ -330,9 +325,9 @@ palStatus_t pal_plat_fsCpFolder(const char *pathNameSrc,  char *pathNameDest)
     {
         while(true)
         {
+        	currentEntry = NULL;
             if (!pal_plat_findNextFile(src_dh, &currentEntry))
             {
-                ret = PAL_ERR_FS_ERROR_IN_SEARCHING;
                 break;
             }
 
@@ -468,8 +463,8 @@ PAL_PRIVATE bool pal_plat_findNextFile(DIR *dh, struct dirent ** CurrentEntry)
         if (*CurrentEntry)
         {
             /* Skip the names "." and ".." as we don't want to remove them. also make sure that the current entry point to REGULER file*/
-            skip = (!strcmp((*CurrentEntry)->d_name, ".")) || (!strcmp((*CurrentEntry)->d_name, ".."));
-            if (skip)
+        	skip = ((!strcmp((*CurrentEntry)->d_name, ".")) || (!strcmp((*CurrentEntry)->d_name, "..")));
+        	if (skip)
             {
                 continue;
             }
@@ -479,11 +474,8 @@ PAL_PRIVATE bool pal_plat_findNextFile(DIR *dh, struct dirent ** CurrentEntry)
             }
         }
         else
-        {//Check if EOF reached
-            if (errno)
-            {//NOT!!! EOF  other error
-                ret = false;
-            }
+        {
+            ret = false;
             break; //Break from while
         }
     }
@@ -524,13 +516,14 @@ PAL_PRIVATE palStatus_t pal_plat_errorTranslation (int errorOpCode)
     {
     case 0:
         break;
+
     case EACCES:
     case EFAULT:
     case EROFS:
         ret = PAL_ERR_FS_ACCESS_DENIED;
         break;
 
-    case EBUSY :
+    case EBUSY:
         ret = PAL_ERR_FS_BUSY;
         break;
 
@@ -542,10 +535,13 @@ PAL_PRIVATE palStatus_t pal_plat_errorTranslation (int errorOpCode)
         ret = PAL_ERR_FS_FILENAME_LENGTH;
         break;
 
+    case -1: // This makes it compatible with mbedOS 5.8 , check https://github.com/ARMmbed/mbed-os/pull/6120
+    case ETIMEDOUT: // This makes it compatible with mbedOS 5.8, check https://github.com/ARMmbed/mbed-os/pull/6120
     case EBADF:
         ret = PAL_ERR_FS_BAD_FD;
         break;
 
+    case ENOEXEC: // This makes it compatible with mbedOS 5.8, check https://github.com/ARMmbed/mbed-os/pull/6120
     case EINVAL:
         ret = PAL_ERR_FS_INVALID_ARGUMENT;
         break;
@@ -558,8 +554,15 @@ PAL_PRIVATE palStatus_t pal_plat_errorTranslation (int errorOpCode)
         ret = PAL_ERR_FS_DIR_NOT_EMPTY;
         break;
 
+    case ENOTDIR: // This makes it compatible with mbedOS 5.8, check https://github.com/ARMmbed/mbed-os/pull/6120
+    case ENODEV: // This makes it compatible with mbedOS 5.8, check https://github.com/ARMmbed/mbed-os/pull/6120
+    case ENXIO: // This makes it compatible with mbedOS 5.8, check https://github.com/ARMmbed/mbed-os/pull/6120
     case ENOENT:
         ret = PAL_ERR_FS_NO_FILE;
+        break;
+
+    case EIO: // This makes it compatible with mbedOS 5.8, check https://github.com/ARMmbed/mbed-os/pull/6120
+        ret = PAL_ERR_FS_DISK_ERR;
         break;
 
     default:

@@ -117,14 +117,6 @@
     #define PAL_USE_HW_TRNG    1
 #endif // PAL_USE_HW_TRNG
 
-#ifndef PAL_MAX_NUMBER_OF_THREADS
-    #if PAL_USE_HW_TRNG
-        #define PAL_MAX_NUMBER_OF_THREADS 11
-    #else
-        #define PAL_MAX_NUMBER_OF_THREADS 10
-    #endif
-#endif
-
 #if PAL_USE_HW_TRNG
     //! Stack size for TRNG noise collecting thread
     #ifndef PAL_NOISE_TRNG_THREAD_STACK_SIZE

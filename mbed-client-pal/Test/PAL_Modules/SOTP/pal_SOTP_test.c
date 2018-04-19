@@ -185,15 +185,10 @@ TEST(pal_SOTP, SW_HW_RoT)
         }//start here after the reboot
         else 
         {
+		updatePalTestStatusAfterReboot();
+
             memset(rotA,0,sizeof(rotA));
             memset(rotB,0,sizeof(rotB));
-
-            if (palTestStatus.numberOfTests != 0)
-            {
-           	    Unity.TestFailures = palTestStatus.numOfTestsFailures;
-           	    Unity.NumberOfTests = palTestStatus.numberOfTests;
-           	    Unity.CurrentTestIgnored =palTestStatus.numberOfIgnoredTests;
-            }
 
             status = pal_osGetDeviceKey(ketType, rotA, rotLength);
             TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -301,12 +296,7 @@ TEST(pal_SOTP, timeInit)
          }//start here after reboot
          else
          {
-            if (palTestStatus.numberOfTests != 0)
- 			{
- 			    Unity.TestFailures = palTestStatus.numOfTestsFailures;
- 				Unity.NumberOfTests = palTestStatus.numberOfTests;
- 				Unity.CurrentTestIgnored =palTestStatus.numberOfIgnoredTests;
- 			}
+        	updatePalTestStatusAfterReboot();
             status = pal_plat_osGetRtcTime(&currentTime);
             TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 

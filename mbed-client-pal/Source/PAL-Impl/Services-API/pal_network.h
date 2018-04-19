@@ -106,19 +106,13 @@ palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t
 */
 palStatus_t pal_setSockAddrPort(palSocketAddress_t* address, uint16_t port);
 
+
 /*! Set an IPv4 address to `palSocketAddress_t` and `addressType` to IPv4.
 * @param[in,out] address The address to set.
 * @param[in] ipV4Addr The address value to set.
 \return PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure.
 */
 palStatus_t pal_setSockAddrIPV4Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr);
-
-/*! Set an IPv6 address to `palSocketAddress_t` and the `addressType` to IPv6.
-* @param[in,out] address The address to set.
-* @param[in] ipV6Addr The address value to set.
-\return PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure.
-*/
-palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t ipV6Addr);
 
 /*! Get an IPv4 address from `palSocketAddress_t`.
 * @param[in] address The address to set.
@@ -127,12 +121,21 @@ palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t i
 */
 palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t* address, palIpV4Addr_t ipV4Addr);
 
+
+/*! Set an IPv6 address to `palSocketAddress_t` and the `addressType` to IPv6.
+* @param[in,out] address The address to set.
+* @param[in] ipV6Addr The address value to set.
+\return PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure.
+*/
+palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t ipV6Addr);
+
 /*! Get an IPv6 address from `palSocketAddress_t`.
 * @param[in] address The address to set.
 * @param[out] ipV6Addr The address that is set in `address`.
 \return PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure.
 */
 palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Addr_t ipV6Addr);
+
 
 /*! Get a port from `palSocketAddress_t`.
 * @param[in] address The address to set.

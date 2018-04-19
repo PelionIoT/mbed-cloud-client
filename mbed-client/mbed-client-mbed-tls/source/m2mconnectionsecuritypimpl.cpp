@@ -173,7 +173,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     // Note: This call is not enough, one also needs the MBEDTLS_DEBUG_C to be defined globally
     // on build and if using default mbedtls configuration file, the
     // "#undef MBEDTLS_DEBUG_C" -line needs to be removed from mbedtls_mbed_client_config.h
-    pal_sslDebugging(1);
+    pal_sslSetDebugging(_conf, 1);
 #endif
 
     tr_debug("M2MConnectionSecurityPimpl::init - out");

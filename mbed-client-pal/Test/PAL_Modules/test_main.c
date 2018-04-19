@@ -68,7 +68,7 @@ palStatus_t getPalTestStatus(void)
              if ((PAL_SUCCESS == status) && (dataSizeWritten > 0))
              {
                  printf("reading DATA into test\r\n");
-                     sscanf(data,"%i %i %i %llu %llu %llu", &palTestStatus.module, &palTestStatus.test, &palTestStatus.inner, &palTestStatus.numOfTestsFailures, &palTestStatus.numberOfTests, &palTestStatus.numberOfIgnoredTests);
+                 sscanf(data,"%i %i %i %llu %llu %llu", &palTestStatus.module, &palTestStatus.test, &palTestStatus.inner, &palTestStatus.numOfTestsFailures, &palTestStatus.numberOfTests, &palTestStatus.numberOfIgnoredTests);
              }
              status2 = pal_fsFclose(&fd);
              if (PAL_SUCCESS != status2) 
@@ -95,9 +95,25 @@ palStatus_t getPalTestStatus(void)
     		"** num of tests failures %llu	**\n"
     		"** num of tests %llu     		**\n"
     		"** num of ignored tests %llu   **\n"
-    		"*********************************\n", palTestStatus.module, palTestStatus.test, palTestStatus.inner, palTestStatus.numOfTestsFailures, palTestStatus.numberOfTests, palTestStatus.numberOfIgnoredTests);
+    		"*********************************\n",
+			palTestStatus.module, palTestStatus.test, palTestStatus.inner,
+			palTestStatus.numOfTestsFailures, palTestStatus.numberOfTests,
+			palTestStatus.numberOfIgnoredTests);
+
     return status;
 }
+
+void updatePalTestStatusAfterReboot(void)
+{
+	if (palTestStatus.numberOfTests > 0)
+	{
+		Unity.TestFailures = palTestStatus.numOfTestsFailures;
+		Unity.NumberOfTests = palTestStatus.numberOfTests;
+		Unity.CurrentTestIgnored =palTestStatus.numberOfIgnoredTests;
+		PAL_LOG(DBG,"Unity number of tests was updated\r\n");
+	}
+}
+
 
 palStatus_t setPalTestStatus(palTestsStatusData_t palRebootTestStatus)
 {
@@ -161,7 +177,7 @@ void TEST_pal_all_GROUPS_RUNNER(void)
     switch (palTestStatus.module) // fall through is in design
     {
         case -1:
-            TEST_pal_sanity_GROUP_RUNNER(); // always run this at least once
+            //TEST_pal_sanity_GROUP_RUNNER(); // always run this at least once
         case PAL_TEST_MODULE_SOTP:
             PRINT_MEMORY_STATS;
             /**
@@ -206,7 +222,7 @@ void TEST_pal_all_GROUPS_RUNNER(void)
             PRINT_MEMORY_STATS;
             #ifndef PAL_SKIP_TEST_MODULE_TLS
                 TEST_pal_tls_GROUP_RUNNER();
-            #endif        
+            #endif
             PRINT_MEMORY_STATS;
             break;
         default:
@@ -223,7 +239,6 @@ void palTestMain(palTestModules_t modules,void* network)
     g_palTestTLSInterfaceCTX = network;
 	mbed_trace_init();
 	mbed_trace_config_set(PAL_TESTS_LOG_LEVEL);
-
     palStatus_t getTestStatusReturnValue = getPalTestStatus();
     if (PAL_SUCCESS != getTestStatusReturnValue) 
     {
@@ -356,6 +371,7 @@ void palSanityTestMain(void* network)
 {
      palTestMain(PAL_TEST_MODULE_SANITY, network); 
 }
+
 
 
 

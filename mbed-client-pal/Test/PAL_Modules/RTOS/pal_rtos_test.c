@@ -29,7 +29,6 @@ TEST_GROUP(pal_rtos);
 //for example if you need to pass a reference.
 //However, you should usually avoid this.
 //extern int Counter;
-palThreadLocalStore_t g_threadStorage = {NULL};
 threadsArgument_t g_threadsArg = {0};
 timerArgument_t g_timerArgs = {0};
 palMutexID_t mutex1 = NULLPTR;
@@ -145,7 +144,7 @@ TEST(pal_rtos, pal_osKernelSysTickMicroSec_Unity)
 TEST(pal_rtos, pal_osKernelSysMilliSecTick_Unity)
 {
     uint64_t tick = 0;
-    uint64_t microSec = 2000 * 1000;
+    uint64_t microSec = 200 * 1000;
     uint64_t milliseconds = 0;
     /*#1*/
     tick = pal_osKernelSysTickMicroSec(microSec);
@@ -153,6 +152,7 @@ TEST(pal_rtos, pal_osKernelSysMilliSecTick_Unity)
     /*#2*/
     milliseconds = pal_osKernelSysMilliSecTick(tick);
     TEST_ASSERT_EQUAL(microSec/1000, milliseconds);
+   
 }
 
 /*! \brief Verify that the tick frequency function returns a non-zero value.
@@ -801,104 +801,6 @@ TEST(pal_rtos, pal_init_test)
     TEST_ASSERT_EQUAL_HEX(0, initCounter);
 }
 
-/*! \brief This test does not run by default in the PAL Unity tets.
-* It's called "customized" because the purpose of it is to provide a test structure
-* for a developer who wants to check a specific API.
-*
-* | # |    Step                        |   Expected  |
-* |---|--------------------------------|-------------|
-* | 1 | Create a thread that runs `palThreadFuncCustom1` using `pal_osThreadCreateWithAlloc`.  | PAL_SUCCESS |
-* | 2 | Create a thread that runs `palThreadFuncCustom2` using `pal_osThreadCreateWithAlloc`.  | PAL_SUCCESS |
-* | 3 | Sleep.                                                                                 | PAL_SUCCESS |
-* | 4 | Terminate the first thread.                                                            | PAL_SUCCESS |
-* | 5 | Terminate the second thread.                                                           | PAL_SUCCESS |
-* | 6 | Create a thread that runs `palThreadFuncCustom1` using `pal_osThreadCreateWithAlloc`.  | PAL_SUCCESS |
-* | 7 | Create a thread that runs `palThreadFuncCustom2` using `pal_osThreadCreateWithAlloc`.  | PAL_SUCCESS |
-* | 8 | compare threads index 						                                           | PAL_SUCCESS |
-* | 9 | check threadIDs are not equal.		                                                   | PAL_SUCCESS |
-* | 10 | Sleep.                                                                                 | PAL_SUCCESS |
-* | 11 | Terminate the first thread.                                                            | PAL_SUCCESS |
-* | 12 | Terminate again the first thread.                                                      | PAL_SUCCESS |
-* | 13 | Terminate the second thread.                                                          | PAL_SUCCESS |
-*
-*/
-
-
-TEST(pal_rtos, ThreadReCreateSamePriority)
-{
-    palStatus_t status = PAL_SUCCESS;
-
-    palThreadID_t threadID1 = NULLPTR;
-    palThreadID_t threadID2 = NULLPTR;
-    palThreadID_t threadIndex = NULLPTR;
-
-    /*#1*/
-    status = pal_osThreadCreateWithAlloc(palThreadFuncCustom1, NULL, PAL_osPriorityAboveNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    threadIndex =  threadID1;
-    /*#2*/
-    status = pal_osThreadCreateWithAlloc(palThreadFuncCustom2, NULL, PAL_osPriorityHigh, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID2);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    /*#3*/
-    pal_osDelay(3000);
-    /*#4*/
-    // We deliberately dont terminate threadID1, it should end by itself
-    /*#5*/
-    // We deliberately dont terminate threadID2, it should end by itself
-    /*#6*/
-    status = pal_osThreadCreateWithAlloc(palThreadFuncCustom1, NULL, PAL_osPriorityAboveNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    /*#7*/
-    status = pal_osThreadCreateWithAlloc(palThreadFuncCustom2, NULL, PAL_osPriorityHigh, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID2);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    /*#8*/
-    TEST_ASSERT_EQUAL_UINT32(PAL_GET_THREAD_INDEX(threadIndex),PAL_GET_THREAD_INDEX(threadID1));
-    /*#9*/
-    TEST_ASSERT_NOT_EQUAL(threadIndex,threadID1);
-    /*#10*/
-    pal_osDelay(3000);
-    /*#11*/
-    status = pal_osThreadTerminate(&threadID1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    /*#12*/
-    status = pal_osThreadTerminate(&threadID1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    /*#13*/
-    status = pal_osThreadTerminate(&threadID2);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    pal_osDelay(500);
-
-    mutex1 = NULLPTR;
-    status = pal_osMutexCreate(&mutex1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    status = pal_osMutexWait(mutex1, PAL_RTOS_WAIT_FOREVER);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    status = pal_osThreadCreateWithAlloc(palThreadFuncCustom3, NULL, PAL_osPriorityAboveNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    status = pal_osThreadCreateWithAlloc(palThreadFuncCustom4, NULL, PAL_osPriorityAboveNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID2);
-#if PAL_UNIQUE_THREAD_PRIORITY
-    TEST_ASSERT_EQUAL_HEX(PAL_ERR_RTOS_PRIORITY, status);
-#else
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    status = pal_osThreadTerminate(&threadID2);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-#endif
-       
-    status = pal_osMutexRelease(mutex1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    status = pal_osThreadTerminate(&threadID1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    status = pal_osMutexDelete(&mutex1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    TEST_ASSERT_EQUAL(NULLPTR, mutex1);
-
-}
-
 /*! \brief Check derivation of keys from the platform's Root of Trust using the KDF algorithm.
  *
  * 
@@ -994,7 +896,7 @@ TEST(pal_rtos, GetDeviceKeyTest_HMAC_SHA256)
 #ifdef DEBUG
       /*#6*/
     status = pal_osGetDeviceKey((palDevKeyType_t)999, encKeyDerive[0], keyLenBytes);
-    TEST_ASSERT_EQUAL_HEX(PAL_ERR_GET_DEV_KEY, status);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
 #endif
 }
 

@@ -533,6 +533,7 @@ PAL_PRIVATE palStatus_t palSockAddrToSocketAddress(const palSocketAddress_t* pal
     }
     output.set_port(port);
 
+#if PAL_SUPPORT_IP_V4
     if (PAL_AF_INET == palAddr->addressType)
     {
         palIpV4Addr_t ipV4Addr;
@@ -543,7 +544,9 @@ PAL_PRIVATE palStatus_t palSockAddrToSocketAddress(const palSocketAddress_t* pal
             output.set_ip_bytes(&ipV4Addr, version);
         }
     }
-    else if (PAL_AF_INET6 == palAddr->addressType)
+#endif
+#if PAL_SUPPORT_IP_V6
+    if (PAL_AF_INET6 == palAddr->addressType)
     {
         palIpV6Addr_t ipV6Addr;
         version = NSAPI_IPv6;
@@ -553,6 +556,7 @@ PAL_PRIVATE palStatus_t palSockAddrToSocketAddress(const palSocketAddress_t* pal
             output.set_ip_bytes(&ipV6Addr, version);
         }
     }
+#endif
 
     return result;
 }
@@ -561,10 +565,13 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
 {
     palStatus_t result = PAL_SUCCESS;
     int index = 0;
+    bool found = false;
 
+#if PAL_SUPPORT_IP_V4
     if (input.get_ip_version() == NSAPI_IPv4)
     {
         palIpV4Addr_t addr;
+        found = true;
         const void* tmp = input.get_ip_bytes();
         for (index = 0; index < PAL_IPV4_ADDRESS_SIZE; index++)
         {
@@ -574,9 +581,12 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
         *length = PAL_NET_MAX_ADDR_SIZE;  // TODO: check
 
     }
-    else if (input.get_ip_version() == NSAPI_IPv6)
+#endif
+#if PAL_SUPPORT_IP_V6
+    if (input.get_ip_version() == NSAPI_IPv6)
     {
         palIpV6Addr_t addr;
+        found = true;
         const void* tmp = input.get_ip_bytes();
         for (index = 0; index < PAL_IPV6_ADDRESS_SIZE; index++)
         {
@@ -585,7 +595,8 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
         result = pal_setSockAddrIPV6Addr(out, addr);
         *length = PAL_NET_MAX_ADDR_SIZE;  // TODO: check
     }
-    else
+#endif
+    if (false == found )
     {
         result = PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
     }

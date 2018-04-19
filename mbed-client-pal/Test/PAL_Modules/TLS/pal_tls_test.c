@@ -27,7 +27,7 @@
 #define PAL_TEST_PSK_IDENTITY "Client_identity"
 
 #define PAL_TEST_PSK {0x12,0x34,0x45,0x67,0x89,0x10}
-
+#define PAL_WAIT_TIME	3
 
 PAL_PRIVATE palSocket_t g_socket = 0;
 extern void * g_palTestTLSInterfaceCTX; // this is set by the palTestMain funciton
@@ -39,7 +39,9 @@ PAL_PRIVATE uint32_t g_interfaceCTXIndex = 0;
 #endif 
 
 PAL_PRIVATE palMutexID_t g_mutex1 = NULLPTR;
-PAL_PRIVATE palMutexID_t g_mutex2 = NULLPTR;
+#if (PAL_ENABLE_X509 == 1)
+	PAL_PRIVATE palMutexID_t g_mutex2 = NULLPTR;
+#endif
 PAL_PRIVATE palMutexID_t g_mutexHandShake1 = NULLPTR;
 PAL_PRIVATE bool g_retryHandshake = false;
 PAL_PRIVATE const uint8_t g_coapHelloWorldRequest[16] = { 0x50,0x01,0x57,0x3e,0xff,0x2f,0x68,0x65,0x6c,0x6c,0x6f,0x57,0x6f,0x72,0x6c,0x64 };
@@ -169,6 +171,13 @@ static void handshakeUDP(bool socketNonBlocking)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -184,7 +193,7 @@ static void handshakeUDP(bool socketNonBlocking)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
-    //status = pal_sslDebugging(true);
+    //status = pal_sslSetDebugging(palTLSConf, true);
     //TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     #if (PAL_ENABLE_X509 == 1)
         /*#6*/
@@ -271,6 +280,13 @@ static void handshakeTCP(bool socketNonBlocking)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -306,7 +322,7 @@ static void handshakeTCP(bool socketNonBlocking)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
-    //status = pal_sslDebugging(true);
+    //status = pal_sslSetDebugging(palTLSConf, true);
     //TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     #if (PAL_ENABLE_X509 == 1)
         /*#7*/    
@@ -652,6 +668,13 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -667,7 +690,7 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
-    //status = pal_sslDebugging(true);
+    //status = pal_sslSetDebugging(palTLSConf, true);
     //TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     #if (PAL_ENABLE_X509 == 1)
         /*#6*/
@@ -699,14 +722,13 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
 
     curTimeInSec = pal_osGetTime();
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_TIMEOUT_EXPIRED, status);
-    TEST_ASSERT_TRUE(curTimeInSec - minSecSinceEpoch <= 1); //less than one second             
+    TEST_ASSERT_TRUE(curTimeInSec - minSecSinceEpoch <= PAL_WAIT_TIME); //less than PAL_WAIT_TIME seconds
     /*#11*/
     status = pal_freeTLS(&palTLSHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#12*/
     status = pal_tlsConfigurationFree(&palTLSConf);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
     status = pal_close(&g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 }
@@ -718,8 +740,8 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Create a TCP (blocking) socket.                                        | PAL_SUCCESS |
-* | 2 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 1 | Create a TCP (blocking) socket.                                          | PAL_SUCCESS |
+* | 2 | Perform a DNS lookup on the server address.                              | PAL_SUCCESS |
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 5 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
@@ -761,11 +783,21 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     sotp_result_e sotpRes = SOTP_SUCCESS;
     int32_t verifyResult = 0;
 
+
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+
     /*#2*/
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -897,6 +929,13 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	/*#4*/
 	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#5*/
     status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
@@ -1050,6 +1089,13 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -1203,6 +1249,13 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	/*#2*/
 	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#3*/
     status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
@@ -1428,6 +1481,13 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	/*#3*/
 	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
     status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
@@ -1644,6 +1704,13 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#3*/
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        status = pal_close(&g_socket);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
     status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
@@ -1798,49 +1865,6 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 
 #endif //PAL_USE_INTERNAL_FLASH
 
-static palStatus_t ThreadHandshakeTCPResource()
-{
-
-    palStatus_t status = PAL_SUCCESS;
-    palStatus_t mutexStatus = PAL_SUCCESS;
-    palStatus_t tmpStatus = PAL_SUCCESS;
-    palTLSConfHandle_t palTLSConf = NULLPTR;
-    palTLSHandle_t palTLSHandle = NULLPTR;
-    palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
-
-    mutexStatus = pal_osMutexWait(g_mutexHandShake1, PAL_RTOS_WAIT_FOREVER);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
-
-    /*#1*/
-    status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#2*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
-
-    mutexStatus = pal_osMutexRelease(g_mutexHandShake1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
-
-    pal_osDelay(800);
-    if(PAL_SUCCESS == status)
-    {
-    	tmpStatus = pal_freeTLS(&palTLSHandle);
-    	if (PAL_SUCCESS != tmpStatus)
-    	{
-    		PAL_LOG(ERR,"Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
-    	}
-    }
-
-	/*#16*/
-	tmpStatus = pal_tlsConfigurationFree(&palTLSConf);
-	if (PAL_SUCCESS != tmpStatus)
-	{
-		PAL_LOG(ERR,"Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
-	}
-
-    return status;
-}
-
 static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -1863,9 +1887,6 @@ static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
     bool mutexWait = false;
     int32_t verifyResult = 0;
 
-
-    mutexStatus = pal_osMutexWait(g_mutexHandShake1, PAL_RTOS_WAIT_FOREVER);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
 	mutexWait = true;
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, socketNonBlocking, 0, &socketTCP);
@@ -1892,7 +1913,7 @@ static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
     status = pal_connect(socketTCP, &socketAddr, addressLength);
     if (PAL_ERR_SOCKET_IN_PROGRES == status)
     {
-        pal_osDelay(400);
+        pal_osDelay(500);
     }
     else
     {
@@ -1907,7 +1928,7 @@ static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
-    //status = pal_sslDebugging(true);
+    //status = pal_sslSetDebugging(palTLSConf, true);
     //TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#7*/
     status = pal_setOwnCertAndPrivateKey(palTLSConf, &pubKey, &prvKey);
@@ -1933,7 +1954,7 @@ static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
 					mutexStatus = pal_osMutexRelease(g_mutexHandShake1);
 					TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
 					mutexWait = false;
-					pal_osDelay(100);
+					pal_osDelay(600);
                 }
             }
             status = pal_handShake(palTLSHandle, palTLSConf);
@@ -1991,39 +2012,17 @@ finish:
 
 }
 
-void pal_TCPHandshakeFunc1(void const *argument)
-{
-    palStatus_t mutexStatus = PAL_SUCCESS;
-    palStatus_t* arg = (palStatus_t*)argument;
-    mutexStatus = pal_osMutexWait(g_mutex1, PAL_RTOS_WAIT_FOREVER);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
-
-    *arg = ThreadHandshakeTCPResource();
-
-    mutexStatus = pal_osMutexRelease(g_mutex1);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
-}
-
-void pal_TCPHandshakeFunc2(void const *argument)
-{
-    palStatus_t mutexStatus = PAL_SUCCESS;
-    palStatus_t* arg = (palStatus_t*)argument;
-    mutexStatus = pal_osMutexWait(g_mutex2, PAL_RTOS_WAIT_FOREVER);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
-
-    *arg = ThreadHandshakeTCPResource();
-
-    mutexStatus = pal_osMutexRelease(g_mutex2);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
-}
-
-
 void pal_TCPHandshakeFunc3(void const *argument)
 {
     palStatus_t mutexStatus = PAL_SUCCESS;
     palStatus_t* arg = (palStatus_t*)argument;
+
+    mutexStatus = pal_osMutexWait(g_mutexHandShake1, PAL_RTOS_WAIT_FOREVER);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
+
     mutexStatus = pal_osMutexWait(g_mutex1, PAL_RTOS_WAIT_FOREVER);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
+
     *arg = ThreadHandshakeTCP(true);
 
     mutexStatus = pal_osMutexRelease(g_mutex1);
@@ -2065,6 +2064,7 @@ void pal_CertVerify(void const *argument)
 #endif
 }
 
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
 static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, palStatus_t test1Result, palStatus_t test2Result)
 {
 	palStatus_t status = PAL_SUCCESS;
@@ -2082,8 +2082,16 @@ static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, pal
     status = pal_osMutexCreate(&g_mutex2);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
+    status = pal_osMutexWait(g_mutexHandShake1, PAL_RTOS_WAIT_FOREVER);
+	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
 	status = pal_osThreadCreateWithAlloc(func1, &tlsArgs1, PAL_osPriorityHigh, 5*PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+	status = pal_osMutexRelease(g_mutexHandShake1);
+	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+	pal_osDelay(100);
 
 	status = pal_osThreadCreateWithAlloc(func2, &tlsArgs2, PAL_osPriorityAboveNormal, 5*PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID2);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -2118,21 +2126,9 @@ static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, pal
     TEST_ASSERT_EQUAL_HEX(test1Result, tlsArgs1);
     TEST_ASSERT_EQUAL_HEX(test2Result, tlsArgs2);
 }
+#endif
 
 
-/**
-* @brief Test try to process multiple handshake in the same time over different threads (second handhsake MUST fail)
-*
-*
-* | # |    Step                        |   Expected  |
-* |---|--------------------------------|-------------|
-* | 1 | Create Thread1 to process DTLS handshake                | PAL_SUCCESS |
-* | 1 | Create Thread2 to process TLS handshake                 | PAL_ERR_TLS_RESOURCE |
-*/
-TEST(pal_tls, parallelTCPHandshakes_threads)
-{
-    runTLSThreadTest(pal_TCPHandshakeFunc1, pal_TCPHandshakeFunc2, PAL_SUCCESS, PAL_ERR_TLS_RESOURCE);
-}
 
 /**
 * @brief Test try to process certificate verification with future certificate validation time while processing handshake
@@ -2148,10 +2144,19 @@ TEST(pal_tls, parallelTCPHandshakes_threads)
 */
 TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
 {
-    #if (PAL_USE_SECURE_TIME == 1)
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
     palStatus_t status = PAL_SUCCESS;
     palX509Handle_t certHandle = NULLPTR;
     uint64_t systemTime = 0;
+    palSocketAddress_t socketAddr = { 0 };
+    palSocketLength_t addressLength = 0;
+
+    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        return;
+    }
 
     status = pal_osSetTime(0);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -2172,7 +2177,7 @@ TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
 
     status = pal_x509Free(&certHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    #endif
+#endif
 }
 
 

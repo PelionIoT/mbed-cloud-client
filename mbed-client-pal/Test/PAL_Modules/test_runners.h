@@ -130,6 +130,8 @@ palStatus_t getPalTestStatus(void);
 
 palStatus_t palTestReboot(palTestModules_t module ,palTestSOTPTests_t test );
 
+void updatePalTestStatusAfterReboot(void);
+
 #ifdef __cplusplus
 }
 #endif

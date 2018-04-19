@@ -44,7 +44,6 @@ TEST_GROUP_RUNNER(pal_rtos)
 	RUN_TEST_CASE(pal_rtos, GetDeviceKeyTest_HMAC_SHA256);
 	RUN_TEST_CASE(pal_rtos, PrimitivesUnityTest1);
 	RUN_TEST_CASE(pal_rtos, PrimitivesUnityTest2);
-	RUN_TEST_CASE(pal_rtos, ThreadReCreateSamePriority);
 	RUN_TEST_CASE(pal_rtos, SemaphoreBasicTest);
 	RUN_TEST_CASE(pal_rtos, RandomUnityTest);
 	RUN_TEST_CASE(pal_rtos, loopRandomBigNumber);

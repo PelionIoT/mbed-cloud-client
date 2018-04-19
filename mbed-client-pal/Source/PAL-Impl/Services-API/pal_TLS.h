@@ -229,10 +229,22 @@ palStatus_t pal_sslRead(palTLSHandle_t palTLSHandle, void *buffer, uint32_t len,
 */
 palStatus_t pal_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, uint32_t len, uint32_t *bytesWritten);
 
+/*! Turn on/off the TLS library debugging for the given configuration handle. The logs are sent via the mbedTrace.
+*   In case of release mode, an error will be returned.
+*
+* @param[in] palTLSConf : the TLS confuguraiton to modify
+* @param[in] turnOn: if greater than 0 turn on debugging, otherwise turn it off
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_sslSetDebugging(palTLSConfHandle_t palTLSConf,uint8_t turnOn);
+
+
+
 /*! Turn on/off debugging from the TLS library. The logs are sent via the mbedTrace.
 *   In case of release mode, an error will be returned.
 *
-* @param[in] turnOn
+* @param[in] turnOn if greater than 0 turn on debugging, otherwise turn it off
 *
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */

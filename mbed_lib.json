@@ -8,7 +8,8 @@
         "PB_FIELD_32BIT",
         "PB_ENABLE_MALLOC",
         "PB_BUFFER_ONLY",
-        "PV_PROFILE_STD"
+        "PV_PROFILE_STD",
+        "PAL_IGNORE_UNIQUE_THREAD_PRIORITY"
     ],
     "target_overrides": {
         "*": {

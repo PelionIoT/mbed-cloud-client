@@ -47,21 +47,12 @@ using namespace m2m;
 #undef MBED_CLIENT_RECONNECTION_INTERVAL  /* 5 */
 
 /**
- * \def MBED_CLIENT_TCP_KEEPALIVE_TIME
- *
- * \brief Keep alive time (in seconds) to send pings
- * in case mbed Client is connected through TCP.
- * By default, the value is 600 seconds.
- */
-#undef MBED_CLIENT_TCP_KEEPALIVE_TIME   /* 600 */
-
-/**
  * \def MBED_CLIENT_TCP_KEEPALIVE_INTERVAL
  *
- * \brief The number of seconds between TCP keep-alive probes.
- * By default, the value is 75 seconds.
+ * \brief The number of seconds between CoAP ping messages.
+ * By default, the value is 90 seconds.
  */
-#undef MBED_CLIENT_TCP_KEEPALIVE_INTERVAL   /* 75 */
+#undef MBED_CLIENT_TCP_KEEPALIVE_INTERVAL   /* 90 */
 
 /**
  * \def MBED_CLIENT_EVENT_LOOP_SIZE
@@ -84,12 +75,6 @@ using namespace m2m;
 #define MBED_CLIENT_RECONNECTION_INTERVAL YOTTA_CFG_RECONNECTION_INTERVAL
 #elif defined MBED_CONF_MBED_CLIENT_RECONNECTION_INTERVAL
 #define MBED_CLIENT_RECONNECTION_INTERVAL MBED_CONF_MBED_CLIENT_RECONNECTION_INTERVAL
-#endif
-
-#ifdef YOTTA_CFG_TCP_KEEPALIVE_TIME
-#define MBED_CLIENT_TCP_KEEPALIVE_TIME YOTTA_CFG_TCP_KEEPALIVE_TIME
-#elif defined MBED_CONF_MBED_CLIENT_TCP_KEEPALIVE_TIME
-#define MBED_CLIENT_TCP_KEEPALIVE_TIME MBED_CONF_MBED_CLIENT_TCP_KEEPALIVE_TIME
 #endif
 
 #ifdef YOTTA_CFG_TCP_KEEPALIVE_INTERVAL
@@ -190,12 +175,8 @@ typedef struct mbedtls_entropy {
 #define MBED_CLIENT_RECONNECTION_INTERVAL 5
 #endif
 
-#ifndef MBED_CLIENT_TCP_KEEPALIVE_TIME
-#define MBED_CLIENT_TCP_KEEPALIVE_TIME 600
-#endif
-
 #ifndef MBED_CLIENT_TCP_KEEPALIVE_INTERVAL
-#define MBED_CLIENT_TCP_KEEPALIVE_INTERVAL 75
+#define MBED_CLIENT_TCP_KEEPALIVE_INTERVAL 90
 #endif
 
 #ifndef MBED_CLIENT_EVENT_LOOP_SIZE

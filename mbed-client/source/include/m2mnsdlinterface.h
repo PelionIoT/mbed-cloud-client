@@ -528,6 +528,9 @@ private:
 
     static char* parse_uri_query_parameters(char* uri);
 
+    void calculate_new_coap_ping_send_time();
+
+    void send_coap_ping();
 
 private:
 
@@ -543,6 +546,7 @@ private:
     sn_nsdl_addr_s                          _sn_nsdl_address;
     String                                  _endpoint_name;
     uint32_t                                _counter_for_nsdl;
+    uint32_t                                _next_coap_ping_send_time;
     uint16_t                                _bootstrap_id;
     char                                    *_server_address; // BS or M2M address
     bool                                    _unregister_ongoing;

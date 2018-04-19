@@ -198,6 +198,18 @@ public:
     bool set_value(int64_t value);
 
     /**
+     * \brief Sets a value of a given resource.
+     * \param value, A new value formatted as a string
+     * and set on the resource.
+     * \return True if successfully set, else false.
+     * \note If resource is observable, calling this API rapidly (< 1s) can fill up the CoAP resending queue
+     * and notification sending fails. CoAP resending queue size can be modified through:
+     * "sn-coap-resending-queue-size-msgs" and "sn-coap-resending-queue-size-bytes" parameters.
+     * Increasing these parameters will increase the memory consumption.
+     */
+    bool set_value_float(float value);
+
+    /**
      * \brief Clears the value of a given resource.
      */
     void clear_value();
@@ -226,6 +238,13 @@ public:
      * are done for the value, just a raw copy.
      */
     String get_value_string() const;
+
+    /**
+     * \brief Converts a value to float and returns it. Note: Conversion
+     * errors are not detected.
+     */
+    float get_value_float() const;
+
 
     /**
      * \brief Returns the value pointer of the object.
@@ -352,6 +371,18 @@ public:
      * \brief Clears the notification send status to initial state.
      */
     void clear_notification_status();
+
+    /**
+     * @brief Set the status whether resource value will be part of registration message.     *
+     * This only allowed for following resource types:
+     * STRING,
+     * INTEGER,
+     * FLOAT,
+     * BOOLEAN
+     *
+     * @param publish_value If true then resource value will be part of registration message.
+     */
+    void publish_value_in_registration_msg(bool publish_value);
 
 private:
 

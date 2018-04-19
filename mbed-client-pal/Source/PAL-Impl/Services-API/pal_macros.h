@@ -109,7 +109,6 @@ extern "C" {
 
 
 #define PAL_GET_LOWER_8BITS(x) (x & 0xFF)
-#define PAL_GET_THREAD_INDEX(x) (PAL_GET_LOWER_8BITS(x))
 
 #define PAL_INVERSE_UINT16_BYTES( val ) \
     ( ((val) << 8) | (((val) & 0x0000FF00) >> 8))
@@ -274,8 +273,8 @@ extern "C" {
 #define PAL_VALIDATE_ARGUMENTS(condition) PAL_VALIDATE_CONDITION_WITH_ERROR(condition,PAL_ERR_INVALID_ARGUMENT)
 
 #else
-#define PAL_VALIDATE_ARGUMENTS(condition) PAL_VALIDATE_ARG_RLZ(condition,PAL_ERR_INVALID_ARGUMENT)
-#define PAL_VALIDATE_CONDITION_WITH_ERROR(condition, error) PAL_VALIDATE_ARG_RLZ(condition, error)
+    #define PAL_VALIDATE_ARGUMENTS(condition) 
+    #define PAL_VALIDATE_CONDITION_WITH_ERROR(condition, error) 
 #endif
 
 
