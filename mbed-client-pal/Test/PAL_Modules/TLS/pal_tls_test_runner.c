@@ -35,7 +35,6 @@ TEST_GROUP_RUNNER(pal_tls)
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate); // Near future BootStrap - No SOTP time update
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate); // Near past BootStrap - No SOTP time update
     RUN_TEST_CASE(pal_tls, TCPHandshakeWhileCertVerify_threads);
-    RUN_TEST_CASE(pal_tls, parallelTCPHandshakes_threads);
     RUN_TEST_CASE(pal_tls, tlsHandshakeUDP);
     RUN_TEST_CASE(pal_tls, tlsHandshakeUDP_NonBlocking);
 }

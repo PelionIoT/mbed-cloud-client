@@ -18,12 +18,9 @@
 #include "pal.h"
 #include <stdlib.h>
 #include <string.h>
-
 #include "pal_plat_rtos.h"
 #include "mbed.h"
-
 #include "entropy_poll.h"
-
 
 /*
     mbedOS latest version RTOS support
@@ -36,12 +33,25 @@
 #define PAL_RTOS_TRANSLATE_CMSIS_ERROR_CODE(cmsisCode)\
     ((int32_t)((int32_t)cmsisCode + PAL_ERR_RTOS_ERROR_BASE))
 
-typedef struct threadPortData 
+#define PAL_THREAD_NAME_MAX_LEN 20 // max len for thread name which holds the pointer (as string) to dynamically allocated thread data
+#define PAL_THREAD_STACK_ALIGN(x) ((x % sizeof(uint64_t)) ? (x + ((sizeof(uint64_t)) - (x % sizeof(uint64_t)))) : x)
+
+typedef struct palThreadData 
 {
-    osThreadId_t osThreadID;
-    osThreadAttr_t osThread;
-    mbed_rtos_storage_thread_t osThreadStorage;
-} threadPortData_t;
+    osThreadId_t threadID;
+    osThreadAttr_t threadAttr;
+    mbed_rtos_storage_thread_t threadStore;
+    palThreadFuncPtr userFunction;
+    void* userFunctionArgument;
+} palThreadData_t;
+
+typedef struct palThreadCleanupData
+{
+    palTimerID_t timerID;
+    palThreadData_t* threadData;
+} palThreadCleanupData_t;
+
+PAL_PRIVATE palMutexID_t g_threadsMutex = NULLPTR;
 
 //! Timer structure
 typedef struct palTimer{
@@ -64,70 +74,6 @@ typedef struct palSemaphore{
     mbed_rtos_storage_semaphore_t osSemaphoreStorage;
 }palSemaphore_t;
 
-
-typedef struct palThreadCleanupData
-{
-    palTimerID_t timerID;
-    threadPortData_t* portData;
-} palThreadCleanupData_t;
-
-PAL_PRIVATE int16_t g_threadPriorityMap[PAL_NUMBER_OF_THREAD_PRIORITIES] = 
-{ 
-    (int16_t)osPriorityIdle,         // PAL_osPriorityIdle
-    (int16_t)osPriorityLow,          // PAL_osPriorityLow
-    (int16_t)osPriorityLow1,         // PAL_osPriorityReservedTRNG
-    (int16_t)osPriorityBelowNormal,  // PAL_osPriorityBelowNormal
-    (int16_t)osPriorityNormal,       // PAL_osPriorityNormal
-    (int16_t)osPriorityAboveNormal,  // PAL_osPriorityAboveNormal
-    (int16_t)osPriorityAboveNormal1, // PAL_osPriorityReservedDNS,
-    (int16_t)osPriorityAboveNormal2, // PAL_osPriorityReservedSockets
-    (int16_t)osPriorityHigh,         // PAL_osPriorityHigh
-    (int16_t)osPriorityRealtime,     // PAL_osPriorityReservedHighResTimer
-    (int16_t)osPriorityRealtime1     // PAL_osPriorityRealtime
-};
-
-PAL_PRIVATE void threadCleanupTimer(const void* arg)
-{
-    palStatus_t status;
-    osThreadState_t threadState;
-    palThreadCleanupData_t* threadCleanupData = (palThreadCleanupData_t*)arg;
-    palTimerID_t timerID = threadCleanupData->timerID;
-
-    threadState = osThreadGetState(threadCleanupData->portData->osThreadID);
-    if ((osThreadTerminated == threadState) || (osThreadInactive == threadState)) // thread has ended
-    {
-        free(threadCleanupData->portData->osThread.stack_mem);
-        free(threadCleanupData->portData);
-        free(threadCleanupData);
-        status = pal_osTimerDelete(&timerID);
-        if (PAL_SUCCESS != status)
-        {
-            PAL_LOG(ERR, "threadCleanupTimer: pal_osTimerDelete failed\n");
-        }
-    }
-    else // thread has not ended so wait another PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC
-    {
-        if (osThreadError == threadState)
-        {
-            PAL_LOG(ERR, "threadCleanupTimer: threadState = osThreadError\n");
-        }
-        else
-        {
-            status = pal_osTimerStart(timerID, PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC);
-            if (PAL_SUCCESS != status)
-            {
-                PAL_LOG(ERR, "threadCleanupTimer: pal_osTimerStart failed\n");
-            }
-        }
-    }
-}
-
-PAL_PRIVATE void threadFunction(void* arg)
-{
-    palThreadServiceBridge_t* bridge = (palThreadServiceBridge_t*)arg;
-    bridge->function(bridge->threadData);
-}
-
 void pal_plat_osReboot()
 {
     NVIC_SystemReset();
@@ -135,12 +81,19 @@ void pal_plat_osReboot()
 
 palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 {
-    return PAL_SUCCESS;
+    palStatus_t status = pal_osMutexCreate(&g_threadsMutex);
+    return status;
 }
 
 palStatus_t pal_plat_RTOSDestroy(void)
 {
-    return PAL_SUCCESS;
+    palStatus_t status = PAL_SUCCESS; 
+    if (NULLPTR != g_threadsMutex)
+    {
+        status = pal_osMutexDelete(&g_threadsMutex);
+        g_threadsMutex = NULLPTR;
+    }
+    return status;
 }
 
 palStatus_t pal_plat_osDelay(uint32_t milliseconds)
@@ -178,113 +131,280 @@ uint64_t pal_plat_osKernelSysTickFrequency()
     return osKernelGetTickFreq();
 }
 
-int16_t pal_plat_osThreadTranslatePriority(palThreadPriority_t priority)
+PAL_PRIVATE void timerFunctionThreadCleanup(const void* arg)
 {
-    return g_threadPriorityMap[priority];
-}
-
-palStatus_t pal_plat_osThreadDataInitialize(palThreadPortData* portData, int16_t priority, uint32_t stackSize)
-{
-    palStatus_t status = PAL_SUCCESS;
-    threadPortData_t* data = (threadPortData_t*)calloc(1, sizeof(threadPortData_t));
-    uint32_t* stack = (uint32_t*)malloc(stackSize);
-    if ((NULL == data) || (NULL == stack))
+    palStatus_t status;
+    palThreadCleanupData_t* cleanupData = (palThreadCleanupData_t*)arg;
+    palTimerID_t timerID = cleanupData->timerID;
+    osThreadState_t threadState = osThreadGetState(cleanupData->threadData->threadID);
+    if ((osThreadTerminated == threadState) || (osThreadInactive == threadState)) // thread has transitioned into its final state so clean up
     {
-        free(data);
-        free(stack);
-        status = PAL_ERR_RTOS_RESOURCE;
-    }
-    else
-    {
-        data->osThread.priority = (osPriority_t)priority;
-        data->osThread.stack_size = stackSize;
-        data->osThread.stack_mem = stack;
-        data->osThread.cb_mem = &(data->osThreadStorage);
-        data->osThread.cb_size = sizeof(data->osThreadStorage);
-        memset(&(data->osThreadStorage), 0, sizeof(data->osThreadStorage));
-        *portData = (palThreadPortData)data;
-    }
-    return status;
-}
-
-palStatus_t pal_plat_osThreadRun(palThreadServiceBridge_t* bridge, palThreadID_t* osThreadID)
-{
-    palStatus_t status = PAL_SUCCESS;
-    threadPortData_t* portData = (threadPortData_t*)(bridge->threadData->portData);
-    osThreadId_t threadID = osThreadNew(threadFunction, bridge, &(portData->osThread));
-    if (NULL == threadID)
-    {
-        free(portData->osThread.stack_mem);
-        free(portData);
-        status = PAL_ERR_GENERIC_FAILURE;
-    }
-    else
-    {
-        portData->osThreadID = threadID;
-        *osThreadID = (palThreadID_t)threadID;
-    }
-    return status;
-}
-
-palStatus_t pal_plat_osThreadDataCleanup(palThreadData_t* threadData)
-{
-    palStatus_t status = PAL_SUCCESS;
-    threadPortData_t* portData = (threadPortData_t*)(threadData->portData);
-    palTimerID_t timerID = NULLPTR;
-    palThreadCleanupData_t* threadCleanupData = (palThreadCleanupData_t*)malloc(sizeof(palThreadCleanupData_t));
-    if (NULL == threadCleanupData)
-    {
-        status = PAL_ERR_RTOS_RESOURCE;
-    }
-    else
-    {
-        // mbedOS threads do not clean up on their own & also cannot clean up from self (thread), therefore we clean up using a timer
-        status = pal_osTimerCreate(threadCleanupTimer, threadCleanupData, palOsTimerOnce, &timerID);
-        if (PAL_SUCCESS == status)
+        free(cleanupData->threadData->threadAttr.stack_mem);
+        free((void*)cleanupData->threadData->threadAttr.name);
+        free(cleanupData->threadData);
+        free(cleanupData);
+        status = pal_osTimerDelete(&timerID);
+        if (PAL_SUCCESS != status)
         {
-            threadCleanupData->timerID = timerID;
-            threadCleanupData->portData = portData;
-            if (NULL == portData->osThreadID)
-            {
-                portData->osThreadID = (osThreadId_t)threadData->osThreadID;
-            }
-            status = pal_osTimerStart(timerID, PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC);
+            PAL_LOG(ERR, "timerFunctionThreadCleanup timer delete failed\n");
         }
-    }    
+        goto end;
+    }
+
+    if (osThreadError == threadState)
+    {
+        PAL_LOG(ERR, "timerFunctionThreadCleanup threadState is osThreadError\n");
+        goto end;
+    }
+
+    status = pal_osTimerStart(timerID, PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC); // thread has not transitioned into its final so start the timer again
+    if (PAL_SUCCESS != status)
+    {
+        PAL_LOG(ERR, "timerFunctionThreadCleanup timer start failed\n");
+    }
+end:
+    return;
+}
+
+PAL_PRIVATE void threadFunction(void* arg)
+{
+    palThreadData_t* threadData;
+    palThreadFuncPtr userFunction;
+    void* userFunctionArgument;
+    palThreadCleanupData_t* cleanupData;
+    palTimerID_t timerID;
+    bool isMutexTaken = false;
+    palStatus_t status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // avoid race condition with thread terminate
+    if (PAL_SUCCESS != status)
+    {
+        PAL_LOG(ERR, "threadFunction mutex wait failed (pre)\n");
+        goto end;
+    }
+
+    isMutexTaken = true;
+    threadData = (palThreadData_t*)arg;
+    userFunction = threadData->userFunction;
+    userFunctionArgument = threadData->userFunctionArgument;
+    status = pal_osMutexRelease(g_threadsMutex);
+    if (PAL_SUCCESS != status)
+    {
+        PAL_LOG(ERR, "threadFunction mutex release failed (pre)\n");
+        goto end;
+    }
+
+    isMutexTaken = false;
+    userFunction(userFunctionArgument); // invoke user function with user argument (use local vars)
+    status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // avoid race condition with thread terminate
+    if (PAL_SUCCESS != status)
+    {
+        PAL_LOG(ERR, "threadFunction mutex wait failed (post)\n");
+        goto end;
+    }
+
+    isMutexTaken = true;
+    cleanupData = (palThreadCleanupData_t*)malloc(sizeof(palThreadCleanupData_t));
+    if (NULL == cleanupData)
+    {
+        PAL_LOG(ERR, "threadFunction malloc palThreadCleanupData_t failed\n");
+        goto end;
+    }
+
+    status = pal_osTimerCreate(timerFunctionThreadCleanup, cleanupData, palOsTimerOnce, &timerID);
+    if (PAL_SUCCESS != status)
+    {
+        free(cleanupData);
+        PAL_LOG(ERR, "threadFunction create timer failed\n");
+        goto end;
+    }
+
+    memset((void*)threadData->threadAttr.name, 0, PAL_THREAD_NAME_MAX_LEN); // clear the thread name which holds the address (as string) of the dynamically allocated palThreadData_t (rechecked in thread terminate)
+    threadData->threadID = osThreadGetId();
+    cleanupData->timerID = timerID;
+    cleanupData->threadData = threadData;
+    status = pal_osTimerStart(timerID, PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC);
+    if (PAL_SUCCESS != status)
+    {
+        free(cleanupData); // timer failed to start so cleanup dynamically allocated palThreadCleanupData_t
+        PAL_LOG(ERR, "threadFunction timer start failed\n");
+        status = pal_osTimerDelete(&timerID);
+        if (PAL_SUCCESS != status)
+        {
+            PAL_LOG(ERR, "threadFunction timer delete failed\n");
+        }
+    }
+end:
+    if (isMutexTaken)
+    {
+        status = pal_osMutexRelease(g_threadsMutex);
+        if (PAL_SUCCESS != status)
+        {
+            PAL_LOG(ERR, "threadFunction mutex release failed (post)\n");
+        }
+    }
+}
+
+PAL_PRIVATE osPriority_t translatePriority(palThreadPriority_t priority)
+{
+    osPriority_t translatedPriority;
+    switch (priority)
+    {
+        case PAL_osPriorityIdle:
+            translatedPriority = osPriorityIdle;
+            break;
+        case PAL_osPriorityLow:
+            translatedPriority = osPriorityLow;
+            break;
+        case PAL_osPriorityReservedTRNG:
+            translatedPriority = osPriorityLow1;
+            break;
+        case PAL_osPriorityBelowNormal:
+            translatedPriority = osPriorityBelowNormal;
+            break;
+        case PAL_osPriorityNormal:
+            translatedPriority = osPriorityNormal;
+            break;
+        case PAL_osPriorityAboveNormal:
+            translatedPriority = osPriorityAboveNormal;
+            break;
+        case PAL_osPriorityReservedDNS:
+            translatedPriority = osPriorityAboveNormal1;
+            break;
+        case PAL_osPriorityReservedSockets:
+            translatedPriority = osPriorityAboveNormal2;
+            break;
+        case PAL_osPriorityHigh:
+            translatedPriority = osPriorityHigh;
+            break;
+        case PAL_osPriorityReservedHighResTimer:
+            translatedPriority = osPriorityRealtime;
+            break;
+        case PAL_osPriorityRealtime:
+            translatedPriority = osPriorityRealtime1;
+            break;
+        case PAL_osPriorityError:
+        default:
+            translatedPriority = osPriorityError;
+            break;
+    }
+    return translatedPriority;
+}
+
+palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID)
+{
+    palStatus_t status = PAL_SUCCESS;
+    void* threadStack = NULL;
+    char* threadName = NULL;
+    palThreadData_t* threadData = NULL;
+    int bytesWritten;
+    osThreadId_t sysThreadID;
+    osPriority_t threadPriority = translatePriority(priority);
+    if (osPriorityError == threadPriority)
+    {
+        status = PAL_ERR_RTOS_PRIORITY;
+        goto end;
+    }
+
+    stackSize = PAL_THREAD_STACK_ALIGN(stackSize);
+    threadStack = malloc(stackSize);
+    threadName = (char*)calloc((PAL_THREAD_NAME_MAX_LEN + 1), sizeof(char)); // name will hold the address of the dynamically allocated palThreadData_t (as string)
+    threadData = (palThreadData_t*)malloc(sizeof(palThreadData_t));
+    if ((NULL == threadData) || (NULL == threadStack) || (NULL == threadName))
+    {
+        status = PAL_ERR_RTOS_RESOURCE;
+        goto clean;
+    }
+
+    bytesWritten = snprintf(threadName, (PAL_THREAD_NAME_MAX_LEN + 1), "%p", threadData);
+    if ((bytesWritten <= 0) || ((PAL_THREAD_NAME_MAX_LEN + 1) <= bytesWritten))
+    {
+        status = PAL_ERR_RTOS_RESOURCE;
+        goto clean;
+    }
+
+    memset(&(threadData->threadStore), 0, sizeof(threadData->threadStore));
+    threadData->threadAttr.priority = threadPriority;
+    threadData->threadAttr.stack_size = stackSize;
+    threadData->threadAttr.stack_mem = threadStack;
+    threadData->threadAttr.name = threadName;
+    threadData->threadAttr.cb_mem= &(threadData->threadStore);
+    threadData->threadAttr.cb_size = sizeof(threadData->threadStore);
+    threadData->userFunction = function;
+    threadData->userFunctionArgument = funcArgument;
+
+    sysThreadID = osThreadNew(threadFunction, threadData, &(threadData->threadAttr));
+    if (NULL == sysThreadID)
+    {
+        status = PAL_ERR_GENERIC_FAILURE;
+        goto clean;
+    }
+
+    *threadID = (palThreadID_t)sysThreadID;
+    goto end;
+clean:
+    free(threadStack);
+    free(threadName);
+    free(threadData);
+end:
     return status;
 }
 
 palThreadID_t pal_plat_osThreadGetId(void)
 {
-    palThreadID_t osThreadID = (palThreadID_t)osThreadGetId();
-    return osThreadID;
+    palThreadID_t threadID = (palThreadID_t)osThreadGetId();
+    return threadID;
 }
 
-palStatus_t pal_plat_osThreadTerminate(palThreadData_t* threadData)
+palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
 {
-    palStatus_t status = PAL_ERR_RTOS_TASK;
-    osStatus_t osStatus = osOK;
-    osThreadState_t threadState = osThreadError;
-    threadPortData_t* portData = NULL;
-    osThreadId_t threadID = (osThreadId_t)(threadData->osThreadID);
-    if (osThreadGetId() != threadID) // terminate only if not trying to terminate from self
+    palStatus_t status;
+    palThreadData_t* threadData = NULL;
+    osThreadId_t sysThreadID = (osThreadId_t)*threadID;
+    osStatus_t sysStatus;
+    osThreadState_t threadState;
+    const char* threadName;
+    bool isMutexTaken = false;
+    if (osThreadGetId() == sysThreadID) // self termination not allowed
     {
-        threadState = osThreadGetState(threadID);
-        if ((osThreadTerminated != threadState) && (osThreadError != threadState) && (osThreadInactive != threadState))
-        {
-            osStatus = osThreadTerminate(threadID);
-        }
+        status = PAL_ERR_RTOS_TASK;
+        goto end;   
+    }
 
-        if (osErrorISR == osStatus)
+    status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // avoid race condition with thread function
+    if (PAL_SUCCESS != status)
+    {
+        PAL_LOG(ERR, "thread terminate mutex wait failed\n");
+        goto end;
+    }
+
+    isMutexTaken = true;
+    threadState = osThreadGetState(sysThreadID);
+    if ((osThreadTerminated == threadState) || (osThreadInactive == threadState) || (osThreadError == threadState)) // thread has already transitioned into its final state
+    {
+        goto end;
+    }
+
+    threadName = osThreadGetName(sysThreadID);
+    if ((NULL == threadName) || (1 != sscanf(threadName, "%p", &threadData))) // this may happen if the thread has not tranistioned into its final state yet (altered in thread function)
+    {
+        goto end;
+    }
+
+    sysStatus = osThreadTerminate(sysThreadID);
+    if (osErrorISR == sysStatus)
+    {
+        status = PAL_ERR_RTOS_ISR;
+        goto end;
+    }
+
+    free(threadData->threadAttr.stack_mem);
+    free((void*)threadData->threadAttr.name);
+    free(threadData);
+end:
+    if (isMutexTaken)
+    {
+        if (PAL_SUCCESS != pal_osMutexRelease(g_threadsMutex))
         {
-            status = PAL_ERR_RTOS_ISR;
-        }
-        else
-        {
-            portData = (threadPortData_t*)(threadData->portData);
-            free(portData->osThread.stack_mem);
-            free(portData);
-            status = PAL_SUCCESS;
+            PAL_LOG(ERR, "thread terminate mutex release failed\n");
         }
     }
     return status;
@@ -672,6 +792,5 @@ palStatus_t pal_plat_rtcDeInit(void)
     return ret;
 }
 #endif //#if (PAL_USE_HW_RTC)
-
 
 #endif

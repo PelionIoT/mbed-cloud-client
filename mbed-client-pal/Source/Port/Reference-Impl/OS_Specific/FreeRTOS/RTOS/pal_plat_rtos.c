@@ -36,21 +36,6 @@
 
 #define PAL_TICK_TO_MILLI_FACTOR 1000
 
-PAL_PRIVATE int16_t g_threadPriorityMap[PAL_NUMBER_OF_THREAD_PRIORITIES] = 
-{ 
-    0, // PAL_osPriorityIdle
-    1, // PAL_osPriorityLow
-    2, // PAL_osPriorityReservedTRNG
-    3, // PAL_osPriorityBelowNormal
-    4, // PAL_osPriorityNormal
-    5, // PAL_osPriorityAboveNormal
-    6, // PAL_osPriorityReservedDNS
-    7, // PAL_osPriorityReservedSockets
-    8, // PAL_osPriorityHigh
-    9, // PAL_osPriorityReservedHighResTimer
-    10 // PAL_osPriorityRealtime
-};
-
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
 
 /////////////////////////STATIC FUNCTION///////////////////////////
@@ -83,6 +68,37 @@ typedef struct palSemaphore{
 	uint32_t                maxCount;
 }palSemaphore_t;
 
+typedef struct palThreadData
+{
+    palThreadFuncPtr userFunction;
+    void* userFunctionArgument;
+    TaskHandle_t sysThreadID;
+} palThreadData_t;
+
+#define PAL_MAX_CONCURRENT_THREADS 20
+
+PAL_PRIVATE palMutexID_t g_threadsMutex = NULLPTR;
+PAL_PRIVATE palThreadData_t* g_threadsArray[PAL_MAX_CONCURRENT_THREADS] = { 0 };
+
+#define PAL_THREADS_MUTEX_LOCK(status) \
+    { \
+        status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); \
+        if (PAL_SUCCESS != status)\
+        { \
+            PAL_LOG(ERR, "%s mutex wait failed\n", __FUNCTION__); \
+        } \
+    }
+
+#define PAL_THREADS_MUTEX_UNLOCK(status) \
+    { \
+        status = pal_osMutexRelease(g_threadsMutex); \
+        if (PAL_SUCCESS != status)\
+        { \
+            PAL_LOG(ERR, "%s mutex release failed\n", __FUNCTION__); \
+        } \
+    }
+
+PAL_PRIVATE void threadFree(palThreadData_t** threadData);
 
 PAL_PRIVATE PAL_INLINE uint32_t pal_plat_GetIPSR(void)
 {
@@ -100,27 +116,54 @@ PAL_PRIVATE PAL_INLINE uint32_t pal_plat_GetIPSR(void)
 	return(result);
 }
 
-PAL_PRIVATE void threadFunction(void const* arg)
-{
-    palThreadServiceBridge_t* bridge = (palThreadServiceBridge_t*)arg;
-    bridge->function(bridge->threadData);
-    vTaskDelete(NULL);
-}
-
 palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 {
-	palStatus_t status = PAL_SUCCESS;	
+    palStatus_t status = pal_osMutexCreate(&g_threadsMutex);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
+    {
+        if (g_threadsArray[i])
+        {
+            threadFree(&g_threadsArray[i]);
+        }
+    }
+    PAL_THREADS_MUTEX_UNLOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
 #if (PAL_USE_HW_RTC)
-    status = pal_plat_rtcInit();
+    if (PAL_SUCCESS == status)
+    {
+        status = pal_plat_rtcInit();        
+    }
 #endif
+end:
     return status;
 }
 
 palStatus_t pal_plat_RTOSDestroy(void)
 {
-	palStatus_t status = PAL_SUCCESS;
+    palStatus_t status = PAL_SUCCESS;
+    if (NULLPTR != g_threadsMutex)
+    {
+        status = pal_osMutexDelete(&g_threadsMutex);
+        g_threadsMutex = NULLPTR;
+    }
 #if (PAL_USE_HW_RTC)
-	status = pal_plat_rtcDeInit();
+    if (PAL_SUCCESS == status)
+    {
+        status = pal_plat_rtcDeInit();
+    }
 #endif
 	return status;
 }
@@ -158,65 +201,175 @@ uint64_t pal_plat_osKernelSysTickFrequency()
 	return configTICK_RATE_HZ;
 }
 
-int16_t pal_plat_osThreadTranslatePriority(palThreadPriority_t priority)
+PAL_PRIVATE PAL_INLINE palThreadData_t** threadAllocate(void)
 {
-    return g_threadPriorityMap[priority];
+    palThreadData_t** threadData = NULL;
+    for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
+    {
+        if (!g_threadsArray[i])
+        {
+            g_threadsArray[i] = (palThreadData_t*)calloc(1, sizeof(palThreadData_t));
+            if (g_threadsArray[i])
+            {
+                threadData = &g_threadsArray[i];
+            }
+            break;
+        }
+    }
+    return threadData;
 }
 
-palStatus_t pal_plat_osThreadDataInitialize(palThreadPortData* portData, int16_t priority, uint32_t stackSize)
+PAL_PRIVATE void threadFree(palThreadData_t** threadData)
 {
-    return PAL_SUCCESS;
+    (*threadData)->userFunction = NULL;
+    (*threadData)->userFunctionArgument = NULL;
+    (*threadData)->sysThreadID = NULL;
+    free(*threadData);
+    *threadData = NULL;
 }
 
-palStatus_t pal_plat_osThreadRun(palThreadServiceBridge_t* bridge, palThreadID_t* osThreadID)
+PAL_PRIVATE palThreadData_t** threadFind(const TaskHandle_t sysThreadID)
+{
+    palThreadData_t** threadData = NULL;
+    for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
+    {
+        if (sysThreadID == g_threadsArray[i]->sysThreadID)
+        {
+            threadData = &g_threadsArray[i];
+            break;
+        }
+    }
+    return threadData;
+}
+
+PAL_PRIVATE void threadFunction(void* arg)
 {
     palStatus_t status = PAL_SUCCESS;
-    TaskHandle_t threadID = NULLPTR;
+    palThreadData_t** threadData;
+    palThreadFuncPtr userFunction;
+    void* userFunctionArgument;
+    
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    threadData = (palThreadData_t**)arg;
+    userFunction = (*threadData)->userFunction;
+    userFunctionArgument = (*threadData)->userFunctionArgument;
+    if (NULL == (*threadData)->sysThreadID) // maybe null if this thread has a higher priority than the thread which created this thread
+    {
+        (*threadData)->sysThreadID = xTaskGetCurrentTaskHandle(); // set the thread id
+    }    
+    PAL_THREADS_MUTEX_UNLOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    
+    userFunction(userFunctionArgument); // invoke user function with user argument (use local vars) - note we're not under mutex lock anymore
+    
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    threadFree(threadData); // clean up
+    PAL_THREADS_MUTEX_UNLOCK(status)
+end:
+    vTaskDelete(NULL);
+}
 
+palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palThreadData_t** threadData;
+    TaskHandle_t sysThreadID = NULLPTR;    
+
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    threadData = threadAllocate(); // allocate thread data from the global array
+    PAL_THREADS_MUTEX_UNLOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+
+    if (NULL == threadData) // allocation failed or all array slots are occupied
+    {
+        status = PAL_ERR_RTOS_RESOURCE;
+        goto end;
+    }
+
+    (*threadData)->userFunction = function; // note that threadData is safe here (eventhough it's not mutex locked), no other thread will attempt to change it until the thread is either finished or terminated
+    (*threadData)->userFunctionArgument = funcArgument;
+    
     //Note: the stack in this API is handled as an array of "StackType_t" which can be of different sizes for different ports.
     //      in this specific port of (8.1.2) the "StackType_t" is defined to 4-bytes this is why we divide the "stackSize" parameter by "sizeof(uint32_t)".
     //      inside freeRTOS code, the stack size is calculated according to the following formula: "((size_t)usStackDepth) * sizeof(StackType_t)"
     //       where "usStackDepth" is equal to "stackSize / sizeof(uint32_t)"
-    BaseType_t result = xTaskGenericCreate((TaskFunction_t)threadFunction, 
+    BaseType_t result = xTaskGenericCreate((TaskFunction_t)threadFunction,
         "palTask",
-        (bridge->threadData->stackSize / sizeof(uint32_t)),
-        bridge,
-        bridge->threadData->osPriority,
-        &threadID,
+        (stackSize / sizeof(uint32_t)),
+        threadData,
+        (int16_t)priority,
+        &sysThreadID,
         NULL, //if stack pointer is NULL then allocate the stack according to stack size
         NULL);
 
-    if (pdPASS == result)
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
     {
-        *osThreadID = (palThreadID_t)threadID;
+        goto end;
+    }
+    if (pdPASS == result)
+    {        
+        if ((NULL != *threadData) && (NULL == (*threadData)->sysThreadID)) // *threadData maybe null in case the thread has already finished and cleaned up, sysThreadID maybe null if the created thread is lower priority than the creating thread
+        {
+            (*threadData)->sysThreadID = sysThreadID; // set the thread id
+        }
+        *threadID = (palThreadID_t)sysThreadID;
     }   
     else
     {
+        threadFree(threadData); // thread creation failed so clean up dynamic allocations etc.
         status = PAL_ERR_GENERIC_FAILURE;
     }
+    PAL_THREADS_MUTEX_UNLOCK(status);
+end:
     return status;
-}
-
-palStatus_t pal_plat_osThreadDataCleanup(palThreadData_t* threadData)
-{
-    return PAL_SUCCESS;
 }
 
 palThreadID_t pal_plat_osThreadGetId(void)
 {
-    palThreadID_t osThreadID = (palThreadID_t)xTaskGetCurrentTaskHandle();
-    return osThreadID;
+    palThreadID_t threadID = (palThreadID_t)xTaskGetCurrentTaskHandle();
+    return threadID;
 }
 
-palStatus_t pal_plat_osThreadTerminate(palThreadData_t* threadData)
+palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
 {
     palStatus_t status = PAL_ERR_RTOS_TASK;
-    TaskHandle_t threadID = (TaskHandle_t)(threadData->osThreadID);
-    if (xTaskGetCurrentTaskHandle() != threadID) // terminate only if not trying to terminate from self
+    TaskHandle_t sysThreadID = (TaskHandle_t)*threadID;
+    palThreadData_t** threadData;
+    if (xTaskGetCurrentTaskHandle() != sysThreadID) // self termination not allowed
     {
-        vTaskDelete(threadID);
-        status = PAL_SUCCESS;
+        PAL_THREADS_MUTEX_LOCK(status);
+        if (PAL_SUCCESS != status)
+        {
+            goto end;
+        }
+        threadData = threadFind(sysThreadID);
+        if (threadData) // thread may have ended or terminated already
+        {
+            vTaskDelete(sysThreadID);
+            threadFree(threadData);
+        }
+        PAL_THREADS_MUTEX_UNLOCK(status);        
     }
+end:
     return status;
 }
 

@@ -53,8 +53,6 @@ typedef struct threadsArgument{
 
 extern threadsArgument_t g_threadsArg;
 
-extern palThreadLocalStore_t g_threadStorage;
-
 void palThreadFunc1(void const *argument);
 void palThreadFunc2(void const *argument);
 void palThreadFunc3(void const *argument);
@@ -78,10 +76,6 @@ void palTimerFunc4(void const *argument);
 void palTimerFunc5(void const *argument);
 
 
-void palThreadFuncCustom1(void const *argument);
-void palThreadFuncCustom2(void const *argument);
-void palThreadFuncCustom3(void const *argument);
-void palThreadFuncCustom4(void const *argument);
 void palThreadFuncWaitForEverTest(void const *argument);
 
 void RecursiveLockThread(void const *param);

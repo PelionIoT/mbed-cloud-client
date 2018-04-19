@@ -175,6 +175,7 @@ TEST(pal_socket, socketUDPCreationOptionsTest)
     TEST_ASSERT_EQUAL_HEX(interfaceIndex, interfaceIndex2);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
 
+#if PAL_SUPPORT_IP_V4
     /*#3*/
     result = pal_getNetInterfaceInfo(interfaceIndex, &interfaceInfo);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
@@ -183,7 +184,7 @@ TEST(pal_socket, socketUDPCreationOptionsTest)
         (unsigned char)interfaceInfo.address.addressData[3],
         (unsigned char)interfaceInfo.address.addressData[4],
         (unsigned char)interfaceInfo.address.addressData[5]);;
-
+#endif
 
     //Blocking
     /*#4*/
@@ -273,12 +274,16 @@ TEST(pal_socket, basicTCPclientSendRecieve)
 
     /*#2*/
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &address, &addrlen);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        goto end;
+    }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
 
     /*#3*/
     result = pal_setSockAddrPort(&address, PAL_NET_TEST_SERVER_HTTP_PORT);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
-
 
     result = pal_setSocketOptions(g_testSockets[0], PAL_SO_SNDTIMEO, &timeout, sizeof(timeout));
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
@@ -301,6 +306,7 @@ TEST(pal_socket, basicTCPclientSendRecieve)
     TEST_ASSERT(read >= 4);
     TEST_ASSERT(buffer[0] == 'H' && buffer[1] == 'T'&& buffer[2] == 'T' && buffer[3] == 'P');
 
+end: //unified cleanup
     /*#7*/
     pal_close(&g_testSockets[0]);
 
@@ -337,7 +343,12 @@ TEST(pal_socket, basicUDPclientSendRecieve)
 
     /*#2*/
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME_UDP, &address, &addrlen);
-    TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration can't continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        goto end;
+    }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
     /*#3*/
     result = pal_setSockAddrPort(&address, PAL_NET_TEST_SERVER_UDP_PORT);
@@ -357,7 +368,7 @@ TEST(pal_socket, basicUDPclientSendRecieve)
     result = pal_receiveFrom(g_testSockets[0], buffer_in, 10, &address2, &addrlen, &read);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
     TEST_ASSERT_EQUAL(read, 10);
-
+end:
     /*#7*/
     pal_close(&g_testSockets[0]);
 }
@@ -449,7 +460,13 @@ TEST(pal_socket, basicSocketScenario3)
 
     /*#1*/
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &address, &addrlen);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
+
 
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
@@ -497,6 +514,9 @@ TEST(pal_socket, basicSocketScenario3)
     pal_close(&g_testSockets[0]);
 #endif // PAL_NET_ASYNCHRONOUS_SOCKET_API
 }
+
+
+
 
 typedef struct palNetTestThreadData{
     palSemaphoreID_t sem1;
@@ -564,9 +584,9 @@ void palNetClientFunc(void const *argument)
 ** \test
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | S1 | Create a blocking TCP server socket using `pal_socket`.                                | PAL_SUCCESS |
-* | S2 | Create a blocking TCP socket using `pal_socket`.                                       | PAL_SUCCESS |
-* | S3 | Look up the IP address of loopback using `pal_getAddressInfo`.                           | PAL_SUCCESS |
+* | S1 | Look up the IP address of loopback using `pal_getAddressInfo`.                           | PAL_SUCCESS |
+* | S2 | Create a blocking TCP server socket using `pal_socket`.                                | PAL_SUCCESS |
+* | S3 | Create a blocking TCP socket using `pal_socket`.                                       | PAL_SUCCESS |
 * | S4 | Set the port to test port in address structure using `pal_setSockAddrPort`.              | PAL_SUCCESS |
 * | S5 | Bind the server socket to the port and address using `pal_bind`.                             | PAL_SUCCESS |
 * | S6 | Create synchronization sepmaphores and set count to 0.                             | PAL_SUCCESS |
@@ -606,22 +626,22 @@ TEST(pal_socket, ServerSocketScenario)
 
 
     /*#S1*/
-    result = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM_SERVER, false, 0, &g_testSockets[0]);
+    result = pal_getNetInterfaceInfo(PAL_NET_TEST_LOCAL_LOOPBACK_IF_INDEX, &interfaceInfo);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
     /*#S2*/
-    result = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_testSockets[1]);
+    result = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM_SERVER, false, 0, &g_testSockets[0]);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
     /*#S3*/
-    result = pal_getNetInterfaceInfo(PAL_NET_TEST_LOCAL_LOOPBACK_IF_INDEX, &interfaceInfo);
+    result = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_testSockets[1]);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
-        PAL_PRINTF("interface addr: %u %u %u %u \r\n",
-        (unsigned char)interfaceInfo.address.addressData[2],
-        (unsigned char)interfaceInfo.address.addressData[3],
-        (unsigned char)interfaceInfo.address.addressData[4],
-        (unsigned char)interfaceInfo.address.addressData[5]);;
     /*#S4*/
     uint32_t rand_number = 0;
     uint16_t incoming_port;
@@ -700,6 +720,7 @@ TEST(pal_socket, ServerSocketScenario)
 //cleanup
 
 /*#S13*/
+
     pal_close(&g_testSockets[1]);
     pal_close(&g_testSockets[0]);
 
@@ -753,6 +774,11 @@ TEST(pal_socket, nonBlockingAsyncTest)
 
     /*#1*/
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &address, &addrlen);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        return;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
@@ -844,6 +870,11 @@ TEST(pal_socket, tProvUDPTest)
 
     /*#2*/
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME_UDP, &address, &addrlen);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        goto end;
+    }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
 
     /*#3*/
@@ -872,9 +903,11 @@ TEST(pal_socket, tProvUDPTest)
     result = pal_receiveFrom(g_testSockets[0], buffer, 100, NULL, NULL, &read); //  should get timeout
     TEST_ASSERT_EQUAL_HEX(result, PAL_ERR_SOCKET_WOULD_BLOCK);
 
+end:
     /*#8*/
     pal_close(&g_testSockets[0]);
 }
+
 
 PAL_PRIVATE void fillUDPTestBuffer(pal_udp_test_data_t *data, uint8_t* buffer)
 {
@@ -986,6 +1019,11 @@ PAL_PRIVATE void socketUDPBuffered(size_t bufSize)
     /*#7*/
     memset(&(data.interfaceInfo), 0, sizeof(data.interfaceInfo));
     result = pal_getNetInterfaceInfo(0, &(data.interfaceInfo));
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        goto end;
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
     /*#8*/
@@ -1053,6 +1091,7 @@ PAL_PRIVATE void socketUDPBuffered(size_t bufSize)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
     /*#20*/
+end:
     free(g_testRecvBuffer);
     g_testRecvBuffer = NULLPTR;
 }
@@ -1076,6 +1115,7 @@ TEST(pal_socket, socketUDPBufferedLarge)
 }
 
 #ifdef __LINUX__ // Linux CI tests for socketTCPBufferedSmall & socketTCPBufferedLarge must use an ipv4 address in order to connect to the external host
+#if PAL_SUPPORT_IP_V4
 PAL_PRIVATE palStatus_t getAddressInfoIPv4(char const *url, palSocketAddress_t *address, palSocketLength_t* addressLength)
 {
     struct addrinfo *info = NULLPTR;
@@ -1100,6 +1140,7 @@ PAL_PRIVATE palStatus_t getAddressInfoIPv4(char const *url, palSocketAddress_t *
     *addressLength = sizeof(struct sockaddr_in);
     return result;
 }
+#endif
 #endif
 
 /*! \brief Test TCP socket read in chunks
@@ -1145,12 +1186,19 @@ PAL_PRIVATE void socketTCPBuffered(size_t bufSize)
         0xff, 0x2c, 0xef, 0x5e, 0xe3, 0x70, 0x8c, 0xcb, 0xcb, 0x7a, 0x22, 0xdf, 0x91, 0x28, 0xbb, 0x21
     };
       
-    /*#1*/
-    result = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_testSockets[0]);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
 
     /*#2*/    
     result = test_getAddressInfo(PAL_NET_TEST_GOOGLE_CDN_HOST, &address, &addrlen);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        return;
+    }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#1*/
+    result = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_testSockets[0]);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
     /*#3*/
@@ -1240,6 +1288,7 @@ PAL_PRIVATE void socketTCPBuffered(size_t bufSize)
     /*#16*/
     free(g_testRecvBuffer);
     g_testRecvBuffer = NULLPTR;
+
 }
 
 /*! \brief Test function TCP socket read in small chunks
@@ -1289,6 +1338,11 @@ TEST(pal_socket, getAddressInfoAsync)
 
     /*#1*/
     status = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &addressSync, &addrlenSync);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        return;
+    }
     TEST_ASSERT_TRUE_MESSAGE((PAL_SUCCESS == status), "synchronous call to pal_getAddressInfo failed");
 
     /*#2*/
@@ -1310,6 +1364,7 @@ TEST(pal_socket, getAddressInfoAsync)
     TEST_ASSERT_EQUAL_HEX(addrlenSync, addrlenAsync);
     TEST_ASSERT_EQUAL_HEX(addressSync.addressType, addressAsync.addressType);
     TEST_ASSERT_EQUAL_MEMORY(addressSync.addressData, addressAsync.addressData, PAL_NET_MAX_ADDR_SIZE);
+
 }
 
 /*! \brief Test pal socket APIs input parameter validations
@@ -1329,18 +1384,22 @@ TEST(pal_socket, socketApiInputParamValidation)
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
     status = pal_setSockAddrPort(&addr, 0);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY, status);
+#if PAL_SUPPORT_IP_V4
     status = pal_setSockAddrIPV4Addr(NULL, NULL);
-    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
-    status = pal_setSockAddrIPV6Addr(NULL, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
     status = pal_getSockAddrIPV4Addr(NULL, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
     status = pal_getSockAddrIPV4Addr(&addr, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY, status);
+#endif
+#if PAL_SUPPORT_IP_V6
+    status = pal_setSockAddrIPV6Addr(NULL, NULL);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
     status = pal_getSockAddrIPV6Addr(NULL, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
     status = pal_getSockAddrIPV6Addr(&addr, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY, status);
+#endif
     status = pal_getSockAddrPort(NULL, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
     status = pal_getSockAddrPort(&addr, &port);
@@ -1392,7 +1451,7 @@ PAL_PRIVATE void keepAliveFunc(bool keepalive)
     size_t read = 0;
     palSocketLength_t addrlen = 0;
     int timeout = PAL_MILLI_PER_SECOND;
-    int KeepAliveOn , KeepAliveIntvl, KeepAliveIdle = 0;
+    int KeepAliveOn = 0, KeepAliveIntvl = 0, KeepAliveIdle = 0;
     int keepaliveNumber=0;
 
     if (keepalive)
@@ -1407,6 +1466,11 @@ PAL_PRIVATE void keepAliveFunc(bool keepalive)
 
     /*#2*/
     result = pal_getAddressInfo(PAL_TEST_KEEPALIVE_SERVER_ADDRESS, &address, &addrlen);
+    if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
+    {
+        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        goto end;
+    }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
 
     /*#3*/
@@ -1451,6 +1515,7 @@ PAL_PRIVATE void keepAliveFunc(bool keepalive)
         }
 
     }
+end:
     result = pal_close(&g_testSockets[0]);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
 }

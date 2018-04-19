@@ -153,9 +153,10 @@ public:
     void send_socket_event(SocketEvent event_type);
 
     /**
-    * @brief Does DNS resolving, called by dns_thread.
+    * @brief Does DNS resolving. Return true if DNS has been resolved
+    * or triggered though DNS thread.
     */
-    void address_resolver(void);
+    bool address_resolver(void);
 
     /**
      * @brief handler for eventloop events. Note, this needs to be public as it is called
@@ -208,16 +209,14 @@ private:
     */
     void close_socket();
 
-    /**
-    * @brief Enables keepalive for TCP connections.
-    */
-    void enable_keepalive();
+public:
 
     /**
      * @brief Internal helper for sending an event.
      */
     bool send_event(SocketEvent event_type);
 
+private:
     typedef struct send_data_queue {
         uint8_t *data;
         uint16_t offset;
@@ -289,13 +288,10 @@ private:
     uint16_t                                    _server_port;
     uint16_t                                    _listen_port;
     uint32_t                                    _net_iface;
+    palSocketLength_t                           _socket_address_len;
     volatile palSocketAddress_t                 _socket_address;
     static int8_t                               _tasklet_id;
     String                                      _server_address;
-
-#ifdef MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-    palThreadID_t                               _dns_thread_id;
-#endif
 
     // A state variable for the socket itself, which is needed to handle the
     // asynchronous events and callbacks. Note: the state may be accessed from

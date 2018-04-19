@@ -270,7 +270,7 @@ private:
     uint8_t                     *_delayed_token;
     uint8_t                     _delayed_token_len;
     bool                        _delayed_response;
-#endif    
+#endif
 
 friend class Test_M2MResource;
 friend class Test_M2MObjectInstance;

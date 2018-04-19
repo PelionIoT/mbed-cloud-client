@@ -18,7 +18,7 @@
 
 #include "cmsis_os.h"
 
-#ifdef MBED_DEBUG
+#if (defined(MBED_DEBUG) && !defined(DEBUG))
     #define DEBUG
 #endif
 

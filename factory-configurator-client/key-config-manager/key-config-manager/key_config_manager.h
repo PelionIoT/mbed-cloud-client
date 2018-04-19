@@ -113,7 +113,7 @@ extern "C" {
     /* === Certificates chain APIs === */
 
     /** The API initializes chain context for write chain operation,
-    *   This API should be called prior to kcm_cert_chain_add_certificate API.
+    *   This API should be called prior to ::kcm_cert_chain_add_next API.
     *
     *    @param[out] kcm_chain_handle                 pointer to certificate chain handle.
     *    @param[in]  kcm_chain_name                   pointer to certificate chain name.
@@ -131,7 +131,7 @@ extern "C" {
                                        bool kcm_chain_is_factory);
 
     /** The API initializes chain context for read chain operation.
-    *   This API should be called prior to kcm_cert_chain_get_next_certificate_size and kcm_cert_chain_get_next_certificate_data APIs
+    *   This API should be called prior to ::kcm_cert_chain_get_next_size and ::kcm_cert_chain_get_next_data APIs
     *
     *    @param[out] kcm_chain_handle                  pointer to certificate chain handle.
     *    @param[in]  kcm_chain_name                    pointer to certificate chain name.
@@ -172,20 +172,22 @@ extern "C" {
                                        size_t kcm_chain_name_len);
 
     /** The API returns size of the next certificate in the chain.
-    *  This API should be called prior to kcm_cert_chain_get_next_data.
+    *  This API should be called prior to ::kcm_cert_chain_get_next_data.
     *  This operation does not increase chain's context iterator.
     *
     *    @param[in]  kcm_chain_handle        certificate chain handle.
     *    @param[out] kcm_cert_data_size      pointer size of next certificate.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        KCM_STATUS_SUCCESS in case of success. 
+    *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN in case we reached the end of the chain
+    *        Otherwise one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_cert_chain_get_next_size(kcm_cert_chain_handle kcm_chain_handle,
                                               size_t *kcm_cert_data_size);
 
     /** The API returns data of the next certificate in the chain.
-    *   To get exact size of a next certificate use kcm_cert_chain_get_next_certificate_size.
+    *   To get exact size of a next certificate use ::kcm_cert_chain_get_next_size.
     *   In the end of get data operation, chain context points to the next certificate of current chain.
     *
     *    @param[in] kcm_chain_handle                    certificate chain handle.
@@ -194,7 +196,9 @@ extern "C" {
     *    @param[out] kcm_actual_cert_data_size          actual size of certificate data.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        KCM_STATUS_SUCCESS in case of success. 
+    *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN in case we reached the end of the chain
+    *        Otherwise one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_cert_chain_get_next_data(kcm_cert_chain_handle kcm_chain_handle,
                                               uint8_t *kcm_cert_data,

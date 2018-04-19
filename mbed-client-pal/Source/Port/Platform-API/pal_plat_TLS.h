@@ -256,14 +256,16 @@ palStatus_t pal_plat_setPSK(palTLSConfHandle_t sslConf, const unsigned char *ide
 */
 palStatus_t pal_plat_setAuthenticationMode(palTLSConfHandle_t sslConf, palTLSAuthMode_t authMode);
 
-/*! Turn on or off debugging from the TLS library. If the debugging is on, the logs will be sent via the PAL Logger (mbedTrace?!).
-*   In release mode, an error will be returned.
+
+/*! Turn on/off the TLS library debugging for the given configuration handle. The logs are sent via the mbedTrace.
+*   In case of release mode, an error will be returned.
 *
-* @param[in] turnOn: Sets the status of the debugging prints. 
+* @param[in] palTLSConf : the TLS confuguraiton to modify
+* @param[in] turnOn: if greater than 0 turn on debugging, otherwise turn it off
 *
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
-palStatus_t pal_plat_sslDebugging(uint8_t turnOn);
+palStatus_t pal_plat_sslSetDebugging(palTLSConfHandle_t palTLSConf, uint8_t turnOn);
 
 /*! Set the IO callbacks for the TLS context. 
 *

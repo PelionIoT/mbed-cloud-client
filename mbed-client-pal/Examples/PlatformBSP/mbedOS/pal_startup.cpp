@@ -25,11 +25,7 @@
 #define TEST_MAIN_THREAD_STACK_SIZE (1024*7)
 #endif
 
-
-
-
-
-extern int initSDcardAndFileSystem(void);
+extern int initSDcardAndFileSystem(bool reformat);
 
 Serial pc(USBTX, USBRX);
 
@@ -47,6 +43,30 @@ bool runProgram(testMain_t func, pal_args_t * args)
 	return result;
 }
 
+bspStatus_t initPlatformReformat(void** outputContext)
+{
+    bspStatus_t bspStatus = BSP_SUCCESS;
+    int err = 0;
+
+    pc.baud(TEST_K64F_BAUD_RATE);
+
+    err = initSDcardAndFileSystem(true);
+    if (err < 0) {
+        bspStatus = BSP_GENERIC_FAILURE;
+        printf("BSP ERROR: failed to init SD card and filesystem \r\n");
+    }
+
+    if (BSP_SUCCESS == bspStatus)
+    {
+        if (NULL != outputContext)
+        {
+            *outputContext = palTestGetNetWorkInterfaceContext();
+        }
+    }
+
+    return bspStatus;
+}
+
 bspStatus_t initPlatform(void** outputContext)
 {
     bspStatus_t bspStatus = BSP_SUCCESS;
@@ -54,7 +74,7 @@ bspStatus_t initPlatform(void** outputContext)
 
     pc.baud(TEST_K64F_BAUD_RATE);
 
-    err = initSDcardAndFileSystem();
+    err = initSDcardAndFileSystem(false);
     if (err < 0) {
         bspStatus = BSP_GENERIC_FAILURE;
         printf("BSP ERROR: failed to init SD card and filesystem \r\n");

@@ -42,6 +42,14 @@
 
 #define TRACE_GROUP "mClt"
 
+// -9223372036854775808 - +9223372036854775807
+// max length of int64_t string is 20 bytes + nil
+#define REGISTRY_INT64_STRING_MAX_LEN 21
+// (space needed for -3.402823 × 10^38) + (magic decimal 6 digits added as no precision is added to "%f") + trailing zero
+#define REGISTRY_FLOAT_STRING_MAX_LEN 48
+
+
+
 M2MResourceBase::M2MResourceBase(
                                          const String &res_name,
                                          M2MBase::Mode resource_mode,
@@ -94,7 +102,7 @@ M2MResourceBase::M2MResourceBase(
     if( value != NULL && value_length > 0 ) {
         sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
         res->resource = alloc_string_copy(value, value_length);
-        res->resourcelen = value_length;
+        res->resource_len = value_length;
     }
 }
 
@@ -176,16 +184,29 @@ void M2MResourceBase::clear_value()
     sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
     free(res->resource);
     res->resource = NULL;
-    res->resourcelen = 0;
+    res->resource_len = 0;
 
     report();
+}
+
+bool M2MResourceBase::set_value_float(float value)
+{
+    bool success;
+    char buffer[REGISTRY_FLOAT_STRING_MAX_LEN];
+
+    // Convert value to string
+    /* write the float value to a decimal number string and copy it into a buffer allocated for caller */
+    uint32_t size = snprintf(buffer, REGISTRY_FLOAT_STRING_MAX_LEN, "%f", value);
+
+    success = set_value((const uint8_t*)buffer, size);
+
+    return success;
 }
 
 bool M2MResourceBase::set_value(int64_t value)
 {
     bool success;
-    // max len of "-9223372036854775808" plus zero termination
-    char buffer[20+1];
+    char buffer[REGISTRY_INT64_STRING_MAX_LEN];
     uint32_t size = m2m::itoa_c(value, buffer);
 
     success = set_value((const uint8_t*)buffer, size);
@@ -203,11 +224,11 @@ bool M2MResourceBase::set_value(const uint8_t *value,
         sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
         free(res->resource);
         res->resource = NULL;
-        res->resourcelen = 0;
+        res->resource_len = 0;
         res->resource = alloc_string_copy(value, value_length);
         if(res->resource) {
             success = true;
-            res->resourcelen = value_length;
+            res->resource_len = value_length;
             if (changed) {
                 report_value_change();
             }
@@ -228,7 +249,7 @@ bool M2MResourceBase::set_value_raw(uint8_t *value,
         sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
         free(res->resource);
         res->resource = value;
-        res->resourcelen = value_length;
+        res->resource_len = value_length;
         if (changed) {
             report_value_change();
         }
@@ -303,7 +324,7 @@ bool M2MResourceBase::has_value_changed(const uint8_t* value, const uint32_t val
     bool changed = false;
     sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
 
-    if(value_len != res->resourcelen) {
+    if(value_len != res->resource_len) {
         changed = true;
     } else if(value && !res->resource) {
         changed = true;
@@ -311,7 +332,7 @@ bool M2MResourceBase::has_value_changed(const uint8_t* value, const uint32_t val
         changed = true;
     } else {
         if (res->resource) {
-            if (memcmp(value, res->resource, res->resourcelen) != 0) {
+            if (memcmp(value, res->resource, res->resource_len) != 0) {
                 changed = true;
             }
         }
@@ -357,10 +378,10 @@ void M2MResourceBase::get_value(uint8_t *&value, uint32_t &value_length)
         value = NULL;
     }
     sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
-    if(res->resource && res->resourcelen > 0) {
-        value = alloc_string_copy(res->resource, res->resourcelen);
+    if(res->resource && res->resource_len > 0) {
+        value = alloc_string_copy(res->resource, res->resource_len);
         if(value) {
-            value_length = res->resourcelen;
+            value_length = res->resource_len;
         }
     }
 }
@@ -382,9 +403,23 @@ String M2MResourceBase::get_value_string() const
     // XXX: do a better constructor to avoid pointless malloc
     String value;
     if (get_nsdl_resource()->resource) {
-        value.append_raw((char*)get_nsdl_resource()->resource, get_nsdl_resource()->resourcelen);
+        value.append_raw((char*)get_nsdl_resource()->resource, get_nsdl_resource()->resource_len);
     }
     return value;
+}
+
+float M2MResourceBase::get_value_float() const
+{
+    float value_float = 0;
+
+    // XXX: this relies on having a zero terminated value?!
+    // convert value from string to float
+    const char *value_string = (char *)value();
+    if (value_string) {
+        value_float = atof(value_string);
+    }
+
+    return value_float;
 }
 
 uint8_t* M2MResourceBase::value() const
@@ -394,7 +429,7 @@ uint8_t* M2MResourceBase::value() const
 
 uint32_t M2MResourceBase::value_length() const
 {
-    return get_nsdl_resource()->resourcelen;
+    return get_nsdl_resource()->resource_len;
 }
 
 sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
@@ -780,4 +815,15 @@ M2MResourceBase::NotificationStatus M2MResourceBase::notification_status() const
 void M2MResourceBase::clear_notification_status()
 {
     _notification_status = M2MResourceBase::INIT;
+}
+
+void M2MResourceBase::publish_value_in_registration_msg(bool publish_value)
+{
+    M2MBase::lwm2m_parameters_s* param = M2MBase::get_lwm2m_parameters();
+    assert(param->data_type == M2MBase::INTEGER ||
+           param->data_type == M2MBase::STRING ||
+           param->data_type == M2MBase::FLOAT ||
+           param->data_type == M2MBase::BOOLEAN);
+
+    param->dynamic_resource_params->publish_value = publish_value;
 }

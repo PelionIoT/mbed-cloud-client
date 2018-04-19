@@ -78,13 +78,29 @@
     #define PAL_NET_DNS_SUPPORT                 true/* Add PAL support for DNS lookup. */
 #endif
 
+
+#ifndef PAL_SUPPORT_IP_V4
+    #define PAL_SUPPORT_IP_V4                 true /* support IPV4 as default*/
+#endif
+#ifndef PAL_SUPPORT_IP_V6
+    #define PAL_SUPPORT_IP_V6                 true /* support IPV6 as default*/
+#endif
+
 //values for PAL_NET_DNS_IP_SUPPORT
 #define PAL_NET_DNS_ANY          0    /* if PAL_NET_DNS_IP_SUPPORT is set to PAL_NET_DNS_ANY pal_getAddressInfo will return the first available IPV4 or IPV6 address*/
 #define PAL_NET_DNS_IPV4_ONLY    2    /* if PAL_NET_DNS_IP_SUPPORT is set to PAL_NET_DNS_IPV4_ONLY pal_getAddressInfo will return the first available IPV4 address*/
 #define PAL_NET_DNS_IPV6_ONLY    4    /* if PAL_NET_DNS_IP_SUPPORT is set to PAL_NET_DNS_IPV6_ONLY pal_getAddressInfo will return the first available IPV6 address*/
 
+
 #ifndef PAL_NET_DNS_IP_SUPPORT
+#if PAL_SUPPORT_IP_V6 == true && PAL_SUPPORT_IP_V4 == true
     #define PAL_NET_DNS_IP_SUPPORT  0 /* sets the type of IP addresses returned by  pal_getAddressInfo*/
+#elif PAL_SUPPORT_IP_V6 == true
+    #define PAL_NET_DNS_IP_SUPPORT  4 /* sets the type of IP addresses returned by  pal_getAddressInfo*/
+#else 
+    #define PAL_NET_DNS_IP_SUPPORT  2 /* sets the type of IP addresses returned by  pal_getAddressInfo*/
+#endif
+
 #endif
 
 //! The maximum number of interfaces that can be supported at a time.
@@ -111,10 +127,6 @@
 	#define PAL_THREAD_SAFETY 1
 #endif
 
-#ifndef PAL_IGNORE_UNIQUE_THREAD_PRIORITY
-	#define PAL_UNIQUE_THREAD_PRIORITY true
-#endif
-
 //! initial time until thread stack cleanup (mbedOs only). This is the amount of time we wait before checking that a thread has completed so we can free it's stack.
 #ifndef PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC
     #define PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC 200
@@ -132,10 +144,6 @@
 /*
  * TLS configuration
  */
-//! The the maximum number of TLS contexts supported.
-#ifndef PAL_MAX_NUM_OF_TLS_CTX
-    #define PAL_MAX_NUM_OF_TLS_CTX 1
-#endif
 
 //! The maximum number of supported cipher suites.
 #ifndef PAL_MAX_ALLOWED_CIPHER_SUITES

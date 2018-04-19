@@ -65,38 +65,27 @@ bool FileSystemInit = false;
 
 static BlockDevice *bd = storage_selector();
 
-#if (MBED_CONF_STORAGE_SELECTOR_FILESYSTEM_INSTANCES > 0 )
 static MBRBlockDevice part1(bd, 1);
 static FileSystem  *fs1;
-#if ((MBED_CONF_STORAGE_SELECTOR_FILESYSTEM_INSTANCES == 2) && (PAL_NUMBER_OF_PARTITIONS == 2))
 static MBRBlockDevice part2(bd, 2);
 static FileSystem  *fs2;
-#endif
-#endif
 
 
 static int ReFormatPartition(BlockDevice* part, FileSystem* filesystem)
 {
 	int err = 0;
-#ifdef PAL_EXAMPLE_FORMAT_PARTITION
 	printf("re-format partition\r\n");
 	err = filesystem->reformat(part);
-	if (!err) {
-		err = filesystem->mount(part);
-		if (err != 0) {
-			printf("failed to mount %d\r\n", err);
-		}
-	}
-	else {
-		printf("failed to re format partition cause %d\r\n", err);
-	}
-#endif
 	return err;
 }
 
-static int initFileSystem(BlockDevice* part, FileSystem* filesystem)
+static int initFileSystem(BlockDevice* part, FileSystem* filesystem, bool reformat)
 {
 	int err = 0;
+	if (reformat)
+	{
+		err = filesystem->reformat(part);
+	}
 	err = filesystem->unmount(); // filesystem_selector func do mount but doesnt return value , for checking if mount function return error we need first to unmount and then try to mount again.
 	if (err < 0) {
 		printf("failed to unmount %d\r\n", err);
@@ -108,7 +97,8 @@ static int initFileSystem(BlockDevice* part, FileSystem* filesystem)
 	}
 	if (err == 0) {
 		err = filesystem->mkdir("bsp_test", 0600); // FATFS miss magic field. mkdir to check FS correctness.
-		if ((err != 0) && (err != (int)-EEXIST)) {
+		if (err != 0) {
+			printf("failed to mkdir - reformat \r\n");
 			err = ReFormatPartition(part, filesystem);
 		}
 		filesystem->remove("bsp_test"); // delete in any case even after format
@@ -116,16 +106,10 @@ static int initFileSystem(BlockDevice* part, FileSystem* filesystem)
 	return err;
 }
 
-int initSDcardAndFileSystem(void)
+int initSDcardAndFileSystem(bool reformat)
 {
-
 	int err = 0;
-	err = bd->init();
-	if (err < 0) {
-		printf("Failed to initialize block device\r\n");
-	}
-	else {
-		printf("Initializing the file system\r\n");
+	printf("Initializing the file system\r\n");
 #if (MBED_CONF_STORAGE_SELECTOR_FILESYSTEM_INSTANCES > 0)
 		err = part1.init();
 		if (err < 0)
@@ -139,28 +123,25 @@ int initSDcardAndFileSystem(void)
 		if (!err)
 		{
 			fs1 = filesystem_selector(((char*)PAL_FS_MOUNT_POINT_PRIMARY + 1), &part1, 1);
-			err = initFileSystem(&part1, fs1);
+			err = initFileSystem(&part1, fs1, reformat);
 		}
-#if (MBED_CONF_STORAGE_SELECTOR_FILESYSTEM_INSTANCES == 2)
-#if (PAL_NUMBER_OF_PARTITIONS == 2)
-		if (!err) {
-			err = part2.init();
-			if (err < 0) {
-				printf("failed to init secondary partition cause %d\r\n", err);
-				err = MBRBlockDevice::partition(bd, SECONDARY_PARTITION_NUMBER, PAL_PARTITION_TYPE, SECONDARY_PARTITION_START, SECONDARY_PARTITION_START + SECONDARY_PARTITION_SIZE);
-				if (err < 0) {
-					printf("Failed to initialize secondary partition\r\n");
+	#if (MBED_CONF_STORAGE_SELECTOR_FILESYSTEM_INSTANCES == 2)
+				if (!err) {
+					err = part2.init();
+					if (err < 0) {
+						printf("failed to init secondary partition cause %d\r\n", err);
+						err = MBRBlockDevice::partition(bd, SECONDARY_PARTITION_NUMBER, PAL_PARTITION_TYPE, SECONDARY_PARTITION_START, SECONDARY_PARTITION_START + SECONDARY_PARTITION_SIZE);
+						if (err < 0) {
+							printf("Failed to initialize secondary partition\r\n");
+						}
+					}
+					if (!err) {
+						fs2 = filesystem_selector(((char*)PAL_FS_MOUNT_POINT_SECONDARY + 1), &part2, 2);
+						err = initFileSystem(&part2, fs2, reformat);
+					}
 				}
-			}
-			if (!err) {
-				fs2 = filesystem_selector(((char*)PAL_FS_MOUNT_POINT_SECONDARY + 1), &part2, 2);
-				err = initFileSystem(&part2, fs2);
-			}
-		}
+	#endif
 #endif
-#endif
-#endif
-	}
 	if (!err)
 	{
 		printf("Succeed to initialize the file system\r\n");

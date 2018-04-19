@@ -16,9 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include <string>
-#include <assert.h>
-#include <stdio.h>
+// fixup the compilation on ARMCC for PRId32
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 #include "include/ConnectorClient.h"
 #include "include/CloudClientStorage.h"
 #include "include/CertificateParser.h"
@@ -27,6 +28,10 @@
 #include "mbed-client/m2mdevice.h"
 #include "mbed-trace/mbed_trace.h"
 #include "factory_configurator_client.h"
+
+#include <assert.h>
+#include <string>
+#include <stdio.h>
 
 #define TRACE_GROUP "mClt"
 
@@ -69,6 +74,7 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
 
 ConnectorClient::~ConnectorClient()
 {
+    uninitialize_storage();
     M2MDevice::delete_instance();
     M2MSecurity::delete_instance();
     delete _interface;
@@ -334,7 +340,7 @@ bool ConnectorClient::create_bootstrap_object()
             _security->create_object_instance(M2MSecurity::Bootstrap);
             int32_t bs_id = _security->get_security_instance_id(M2MSecurity::Bootstrap);
             _security->set_resource_value(M2MSecurity::SecurityMode, M2MSecurity::Certificate, bs_id);
-            tr_info("ConnectorClient::create_bootstrap_object - bs_id = %d", bs_id);
+            tr_info("ConnectorClient::create_bootstrap_object - bs_id = %" PRId32, bs_id);
             tr_info("ConnectorClient::create_bootstrap_object - use credentials from storage");
 
             // Allocate scratch buffer, this will be used to copy parameters from storage to security object

@@ -17,19 +17,19 @@
 #ifndef __FTCD_COMM_SERIAL_H__
 #define __FTCD_COMM_SERIAL_H__
 
-#include "mbed.h"
+#include "Serial.h"
 #include "ftcd_comm_base.h"
 #include <inttypes.h>
 
 
 
-class FtcdCommSerial :  public FtcdCommBase {
+class FtcdCommSerial : public mbed::Serial, public FtcdCommBase {
 
 public:
-    /** 
-     * The constructor gets from the application initialized serial object. The object should be configured for both TX and RX and application's baud rate.
+    /** Initialise a serial factory injection client, with specified UART pins
+     * and specified baud rate
      */
-    FtcdCommSerial(Serial *pc, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature);
+    FtcdCommSerial(PinName TX, PinName RX, uint32_t baud, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature);
 
     /** Not certain that we need to do anything here, but just in case we need
      * to do some clean-up at some point.
@@ -84,10 +84,7 @@ public:
     virtual bool send(const uint8_t *data, uint32_t data_size);
 
 private:
-    /*
-    *  Pointer that should be set to initialized serial object.
-    */
-    Serial *_pc;
+
     /** Reads a buffer from the serial line.
     *
     * @param buff_out A pointer to the buffer to read into, should be allocated by the caller

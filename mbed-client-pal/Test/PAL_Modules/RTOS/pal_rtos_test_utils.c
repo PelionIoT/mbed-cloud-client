@@ -25,13 +25,11 @@
 
 
 extern threadsArgument_t g_threadsArg;
-extern palThreadLocalStore_t g_threadStorage;
 timerArgument_t timerArgs;
 
 void palThreadFunc1(void const *argument)
 {
     volatile palThreadID_t threadID;
-	palThreadLocalStore_t * threadStorage = NULL;
 	threadsArgument_t *tmp = (threadsArgument_t*)argument;
 #ifdef MUTEX_UNITY_TEST
     palStatus_t status = PAL_SUCCESS;
@@ -46,15 +44,7 @@ void palThreadFunc1(void const *argument)
 	tmp->arg1 = 10;
     threadID = pal_osThreadGetId();
     TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);    
-    PAL_PRINTF("palThreadFunc1::Thread ID is %"PRIuPTR " \n", threadID);
-
-    threadStorage = pal_osThreadGetLocalStore();
-    if (threadStorage == &g_threadStorage)
-    {
-        PAL_PRINTF("Thread storage updated as expected\n");
-    }
-    TEST_ASSERT_EQUAL_HEX((uintptr_t)threadStorage, (uintptr_t)(&g_threadStorage));
-
+    PAL_PRINTF("palThreadFunc1::Thread ID is %"PRIuPTR " \n", threadID);    
 #ifdef MUTEX_UNITY_TEST
 	status = pal_osMutexRelease(mutex1);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -241,32 +231,6 @@ void palTimerFunc5(void const *argument) // function to count calls + wait alter
 }
 
 
-void palThreadFuncCustom1(void const *argument)
-{
-    PAL_PRINTF("palThreadFuncCustom1 was called\n");
-}
-
-void palThreadFuncCustom2(void const *argument)
-{
-    PAL_PRINTF("palThreadFuncCustom2 was called\n");
-}
-
-void palThreadFuncCustom3(void const *argument)
-{
-    palStatus_t status = PAL_SUCCESS;
-    PAL_PRINTF("palThreadFuncCustom3 was called\n");
-    status = pal_osMutexWait(mutex1, PAL_RTOS_WAIT_FOREVER);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-     status = pal_osMutexRelease(mutex1);
-     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-}
-
-void palThreadFuncCustom4(void const *argument)
-{
-    PAL_PRINTF("palThreadFuncCustom4 was called\n");
-}
-
 void palThreadFuncWaitForEverTest(void const *argument)
 {
 	pal_osDelay(PAL_TIME_TO_WAIT_MS/2);
@@ -283,7 +247,7 @@ void palRunThreads()
 	palThreadID_t threadID5 = NULLPTR;
 	palThreadID_t threadID6 = NULLPTR;
 
-	status = pal_osThreadCreateWithAlloc(palThreadFunc1, &g_threadsArg, PAL_osPriorityIdle, PAL_TEST_THREAD_STACK_SIZE, &g_threadStorage, &threadID1);
+	status = pal_osThreadCreateWithAlloc(palThreadFunc1, &g_threadsArg, PAL_osPriorityIdle, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 	status = pal_osThreadCreateWithAlloc(palThreadFunc2, &g_threadsArg, PAL_osPriorityLow, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID2);

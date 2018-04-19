@@ -23,13 +23,16 @@ typedef struct pal_in_addr {
     uint32_t s_addr; // that's a 32-bit int (4 bytes)
 } pal_in_addr_t;
 
+#if PAL_SUPPORT_IP_V4
 typedef struct pal_socketAddressInternal {
     short int          pal_sin_family;  // address family
     unsigned short int pal_sin_port;    // port
     pal_in_addr_t     pal_sin_addr;    // ipv4 address
     unsigned char      pal_sin_zero[8]; // 
 } pal_socketAddressInternal_t;
+#endif
 
+#if PAL_SUPPORT_IP_V6
 typedef struct pal_socketAddressInternal6{
     uint16_t       pal_sin6_family;   // address family, 
     uint16_t       pal_sin6_port;     // port number, Network Byte Order
@@ -37,6 +40,7 @@ typedef struct pal_socketAddressInternal6{
     palIpV6Addr_t pal_sin6_addr;     // IPv6 address
     uint32_t       pal_sin6_scope_id; // Scope ID
 } pal_socketAddressInternal6_t;
+#endif
 
 #if PAL_NET_DNS_SUPPORT
 
@@ -55,37 +59,47 @@ typedef struct pal_asyncAddressInfo
 palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t* interfaceIndex)
 {
     PAL_VALIDATE_ARGUMENTS((networkInterfaceContext == NULL) && (interfaceIndex == NULL));
-	palStatus_t result = pal_plat_registerNetworkInterface(networkInterfaceContext, interfaceIndex);;
+    palStatus_t result = pal_plat_registerNetworkInterface(networkInterfaceContext, interfaceIndex);;
 
-	return result;
+    return result;
 }
 
 palStatus_t pal_setSockAddrPort(palSocketAddress_t* address, uint16_t port)
 {
-	palStatus_t result = PAL_SUCCESS;
-	PAL_VALIDATE_ARGUMENTS(NULL == address);
+    palStatus_t result = PAL_SUCCESS;
+    bool found = false;
+    PAL_VALIDATE_ARGUMENTS(NULL == address);
 
-	if (address->addressType == PAL_AF_INET)
-	{
-		pal_socketAddressInternal_t* innerAddr = (pal_socketAddressInternal_t*)address;
-		// Set Linux format
-		innerAddr->pal_sin_port = PAL_HTONS(port);
-	}
-	else  if (address->addressType == PAL_AF_INET6)
-	{
-		pal_socketAddressInternal6_t * innerAddr = (pal_socketAddressInternal6_t*)address;
-		// Set Linux format
-		innerAddr->pal_sin6_port = PAL_HTONS(port);
-	}
-	else
-	{
-		result =  PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
-	}
-	
-	return result;
+#if PAL_SUPPORT_IP_V4
+    if (address->addressType == PAL_AF_INET)
+    {
+        pal_socketAddressInternal_t* innerAddr = (pal_socketAddressInternal_t*)address;
+        // Set Linux format
+        innerAddr->pal_sin_port = PAL_HTONS(port);
+        found = true;
+    }
+#endif
+
+#if PAL_SUPPORT_IP_V6
+    if (address->addressType == PAL_AF_INET6)
+    {
+        pal_socketAddressInternal6_t * innerAddr = (pal_socketAddressInternal6_t*)address;
+        // Set Linux format
+        innerAddr->pal_sin6_port = PAL_HTONS(port);
+        found = true;
+    }
+#endif
+    if (false == found)
+    {
+        result =  PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+    }
+
+    return result;
 }
 
 
+
+#if PAL_SUPPORT_IP_V4
 palStatus_t pal_setSockAddrIPV4Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr)
 {
     PAL_VALIDATE_ARGUMENTS((NULL == address) || (NULL == ipV4Addr));
@@ -95,22 +109,6 @@ palStatus_t pal_setSockAddrIPV4Addr(palSocketAddress_t* address, palIpV4Addr_t i
     innerAddr->pal_sin_addr.s_addr = (ipV4Addr[0]) | (ipV4Addr[1] << 8) | (ipV4Addr[2] << 16) | (ipV4Addr[3] << 24);
     return PAL_SUCCESS;
 }
-
-
-palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t ipV6Addr)
-{
-    PAL_VALIDATE_ARGUMENTS ((NULL == address) || (NULL == ipV6Addr));
-
-    int index;
-    pal_socketAddressInternal6_t* innerAddr = (pal_socketAddressInternal6_t*)address;
-    innerAddr->pal_sin6_family = PAL_AF_INET6;
-    for (index = 0; index < PAL_IPV6_ADDRESS_SIZE; index++) // TODO: use mem copy?
-    {
-        innerAddr->pal_sin6_addr[index] =  ipV6Addr[index];
-    }
-    return PAL_SUCCESS;
-}
-
 
 palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t* address, palIpV4Addr_t ipV4Addr)
 {
@@ -130,17 +128,27 @@ palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t* address, palIpV4Ad
 
     return result;
 }
+#else 
+palStatus_t pal_setSockAddrIPV4Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr)
+{
+    return PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+}
+palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t* address, palIpV4Addr_t ipV4Addr)
+{
+    return PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+}
+
+#endif
 
 
+#if PAL_SUPPORT_IP_V6
 palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Addr_t ipV6Addr)
 { 
-    
+    palStatus_t result = PAL_SUCCESS;
+    int index = 0;
     PAL_VALIDATE_ARGUMENTS (NULL == address);
     PAL_VALIDATE_CONDITION_WITH_ERROR((address->addressType != PAL_AF_INET6),PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY);
-    palStatus_t result = PAL_SUCCESS;
-
-    int index = 0;
-
+   
     pal_socketAddressInternal6_t * innerAddr = (pal_socketAddressInternal6_t*)address;
     for (index = 0; index < PAL_IPV6_ADDRESS_SIZE; index++) // TODO: use mem copy?
     {
@@ -151,29 +159,65 @@ palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Ad
     return result;
 }
 
+palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t ipV6Addr)
+{
+    int index;
+    PAL_VALIDATE_ARGUMENTS((NULL == address) || (NULL == ipV6Addr));
+
+    pal_socketAddressInternal6_t* innerAddr = (pal_socketAddressInternal6_t*)address;
+    innerAddr->pal_sin6_family = PAL_AF_INET6;
+    for (index = 0; index < PAL_IPV6_ADDRESS_SIZE; index++) // TODO: use mem copy?
+    {
+        innerAddr->pal_sin6_addr[index] = ipV6Addr[index];
+    }
+    return PAL_SUCCESS;
+}
+#else
+palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t ipV6Addr)
+{
+    return PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+}
+
+palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Addr_t ipV6Addr)
+{
+    return PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+}
+
+#endif
+
 
 palStatus_t pal_getSockAddrPort(const palSocketAddress_t* address, uint16_t* port)
 {
-	
-	PAL_VALIDATE_ARGUMENTS ((NULL == address) || (NULL == port));
-    PAL_VALIDATE_CONDITION_WITH_ERROR(((address->addressType != PAL_AF_INET) && (address->addressType != PAL_AF_INET6)),
-                                      PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY);
+    bool found = false;
     palStatus_t result = PAL_SUCCESS;
-	if (address->addressType == PAL_AF_INET)
-	{
-		pal_socketAddressInternal_t* innerAddr = (pal_socketAddressInternal_t*)address;
-		// Set numeric formal
-		*port = PAL_NTOHS(innerAddr->pal_sin_port);
-	}
-	else  if (address->addressType == PAL_AF_INET6)
-	{
-		pal_socketAddressInternal6_t * innerAddr = (pal_socketAddressInternal6_t*)address;
-		// Set numeric formal
-		*port = PAL_NTOHS(innerAddr->pal_sin6_port);
-	}
 
+    PAL_VALIDATE_ARGUMENTS ((NULL == address) || (NULL == port));
 
-	return result;
+#if PAL_SUPPORT_IP_V4
+
+    if (address->addressType == PAL_AF_INET)
+    {
+        pal_socketAddressInternal_t* innerAddr = (pal_socketAddressInternal_t*)address;
+        // Set numeric formal
+        *port = PAL_NTOHS(innerAddr->pal_sin_port);
+        found = true;
+    }
+#endif
+#if PAL_SUPPORT_IP_V6
+    if (address->addressType == PAL_AF_INET6)
+    {
+        pal_socketAddressInternal6_t * innerAddr = (pal_socketAddressInternal6_t*)address;
+        // Set numeric formal
+        *port = PAL_NTOHS(innerAddr->pal_sin6_port);
+        found = true;
+    }
+#endif
+    if (false == found)
+    {
+        result =  PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+    }
+
+    return result;
 }
 
 

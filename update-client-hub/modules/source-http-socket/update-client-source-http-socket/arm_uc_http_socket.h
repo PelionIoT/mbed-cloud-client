@@ -54,6 +54,7 @@ typedef enum {
 } arm_uc_socket_state_t;
 
 typedef enum {
+    SOCKET_EVENT_DNS_DONE,
     SOCKET_EVENT_CONNECT_DONE,
     SOCKET_EVENT_SEND_DONE,
     SOCKET_EVENT_RECEIVE_CONTINUE,

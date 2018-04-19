@@ -68,6 +68,36 @@ fcc_status_e fcc_storage_delete(void);
 *  stored in the structure.
 *  The structure contains data of last fcc_verify_device_configured_4mbed_cloud run.*
 *   @returns pointer to fcc_output_info_s structure.
+*
+*  Example:
+*  @code
+*  void print_fcc_output_info(fcc_output_info_s *output_info)
+*  {
+*      fcc_warning_info_s *warning_list = NULL;
+*
+*      if (output_info != NULL) {
+*          // Check if there is an error
+*          if (output_info->error_string_info != NULL) {
+*              // Print the error string
+*              printf("fcc output error: %s", output_info->error_string_info);
+*          }
+*          // Check if there are warnings
+*          if (output_info->size_of_warning_info_list > 0) {
+*              // Set warning_list to point on the head of the list
+*              warning_list = output_info->head_of_warning_list;
+*
+*              // Iterate the list
+*              while (warning_list != NULL) {
+*                  // Print the warning string
+*                  printf("fcc output warning: %s", warning_list->warning_info_string);
+*                  // Move warning_list to point on the next warning in he list
+*                  warning_list = warning_list->next;
+*              }
+*          }
+*      }
+*  }
+*  @endcode
+*
 */
 fcc_output_info_s* fcc_get_error_and_warning_data(void);
 

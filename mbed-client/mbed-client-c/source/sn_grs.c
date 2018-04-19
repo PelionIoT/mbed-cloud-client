@@ -497,8 +497,8 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
              }
 
             /* Add payload */
-            if (resource_temp_ptr->resourcelen != 0) {
-                response_message_hdr_ptr->payload_len = resource_temp_ptr->resourcelen;
+            if (resource_temp_ptr->resource_len != 0) {
+                response_message_hdr_ptr->payload_len = resource_temp_ptr->resource_len;
                 response_message_hdr_ptr->payload_ptr = handle->sn_grs_alloc(response_message_hdr_ptr->payload_len);
 
                 if (!response_message_hdr_ptr->payload_ptr) {

@@ -35,6 +35,94 @@
 */
 static arm_uc_http_socket_context_t* context = NULL;
 
+/******************************************************************************
+ * Internal helpers for DNS resolution
+ * These functions are used to implement DNS resolution in two variants:
+ * asynchronous (MBED_CONF_MBED_CLIENT_DNS_USE_THREAD == 1) or
+ * synchronous (otherwise). */
+
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD /* use asychronous DNS calls */
+
+#define arm_uc_get_address_info pal_getAddressInfoAsync
+
+static arm_uc_error_t arm_uc_start_dns_timer()
+{
+    arm_uc_error_t result = (arm_uc_error_t){ SRCE_ERR_FAILED };
+
+    if (context)
+    {
+        palStatus_t pal_inner = pal_osTimerStart(context->timeout_timer_id,
+                                                ARM_UC_SOCKET_TIMEOUT_MS);
+        if (pal_inner != PAL_SUCCESS)
+        {
+            UC_SRCE_ERR_MSG("Start socket timeout timer failed pal status: 0x%" PRIu32,
+                            (uint32_t)pal_inner);
+            arm_uc_socket_close();
+        }
+        else
+        {
+            result.code = SRCE_ERR_NONE;
+        }
+    }
+    return result;
+}
+
+static arm_uc_error_t arm_uc_stop_dns_timer()
+{
+    arm_uc_error_t result = (arm_uc_error_t){ SRCE_ERR_FAILED };
+
+    if (context)
+    {
+        palStatus_t pal_inner = pal_osTimerStop(context->timeout_timer_id);
+        if (pal_inner != PAL_SUCCESS)
+        {
+            UC_SRCE_ERR_MSG("pal_osTimerStop returned 0x%" PRIX32,
+                            (uint32_t) pal_inner);
+        }
+        else
+        {
+            result.code = SRCE_ERR_NONE;
+        }
+    }
+    return result;
+}
+
+#else /* use synchronous DNS calls */
+
+static palStatus_t arm_uc_get_address_info(const char* url, palSocketAddress_t* address,
+                                           palSocketLength_t* address_length,
+                                           palGetAddressInfoAsyncCallback_t callback,
+                                           void* argument)
+{
+    /* Run the synchronous DNS request and call the callback
+       immediately after the request is done */
+    palStatus_t pal_inner = pal_getAddressInfo(url, address, address_length);
+    /* Call the callback with the result of pal_getAddressInfo.
+       The callback will examine the value of pal_inner and act
+       accordingly (see arm_uc_dns_callback below). */
+    callback(url, address, address_length, pal_inner, argument);
+    /* Always return PAL_SUCCESS so that the caller can continue
+       execution. The actual check for success/failure happens
+       in the callback (see the comment above). */
+    return PAL_SUCCESS;
+}
+
+/* Timers are not used for synchronous DNS calls,
+   since the synchronous call can't be interrupted */
+static arm_uc_error_t arm_uc_start_dns_timer()
+{
+    return (arm_uc_error_t){ SRCE_ERR_NONE };
+}
+
+static arm_uc_error_t arm_uc_stop_dns_timer()
+{
+    return (arm_uc_error_t){ SRCE_ERR_NONE };
+}
+
+#endif // MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+
+/*****************************************************************************/
+
 /**
  * @brief Initialize Http module.
  * @details A memory struct is passed as well as a function pointer for event
@@ -175,7 +263,10 @@ arm_uc_error_t arm_uc_socket_get(arm_uc_uri_t* uri,
 /**
  * @brief Connect to server set in the global URI struct.
  * @details Connecting generates a socket event, which automatically processes
- *          the request passed in arm_uc_socket_get.
+ *          the request passed in arm_uc_socket_get. If a DNS request must
+ *          be made, this call initiates an asynchronous DNS request. After
+ *          the request is done, the connection process will be resumed in
+ *          arm_uc_socket_finish_connect().
  * @return Error code.
  */
 arm_uc_error_t arm_uc_socket_connect()
@@ -190,113 +281,43 @@ arm_uc_error_t arm_uc_socket_connect()
         {
             result = (arm_uc_error_t){ SRCE_ERR_NONE };
 
-            /* dns loopup */
-            palStatus_t pal_inner = pal_getAddressInfo(context->request_uri->host,
-                                               &context->cache_address,
-                                               &context->cache_address_length);
+            /* create socket timeout timer */
+            palStatus_t pal_inner = pal_osTimerCreate(arm_uc_timeout_timer_callback,
+                                                      NULL,
+                                                      palOsTimerOnce,
+                                                      &context->timeout_timer_id);
 
             if (pal_inner != PAL_SUCCESS)
             {
-                UC_SRCE_ERR_MSG("pal_getAddressInfo (DNS) failed");
-                arm_uc_socket_close();
-                result = (arm_uc_error_t){ SRCE_ERR_INVALID_PARAMETER };
-            }
-            else {
-
-                UC_SRCE_TRACE("socket: address type is: %u", context->cache_address.addressType);
-                /* create new async PAL socket */
-                pal_inner = pal_asynchronousSocket((palSocketDomain_t)context->cache_address.addressType,
-                                                   PAL_SOCK_STREAM,
-                                                   true,
-                                                   0,
-                                                   arm_uc_socket_isr,
-                                                   &context->socket);
-            }
-
-            if (pal_inner != PAL_SUCCESS)
-            {
-                UC_SRCE_ERR_MSG("socket creation failed with pal status: 0x%" PRIX32,
-                                (uint32_t) pal_inner);
+                UC_SRCE_ERR_MSG("socket timeout timer creation failed pal status: 0x%" PRIu32,
+                                (uint32_t)pal_inner);
                 arm_uc_socket_close();
                 result = (arm_uc_error_t){ SRCE_ERR_FAILED };
             }
             else
             {
-                UC_SRCE_TRACE("socket: create success");
+                /* start socket timeout timer */
+                result = arm_uc_start_dns_timer();
             }
-
-            /* create socket timeout timer */
             if (result.code == SRCE_ERR_NONE)
             {
-                pal_inner = pal_osTimerCreate(arm_uc_timeout_timer_callback,
-                                              NULL,
-                                              palOsTimerOnce,
-                                              &context->timeout_timer_id);
+                /* initiate DNS lookup */
+                pal_inner = arm_uc_get_address_info(context->request_uri->host,
+                                                    &context->cache_address,
+                                                    &context->cache_address_length,
+                                                    arm_uc_dns_callback,
+                                                    NULL);
 
                 if (pal_inner != PAL_SUCCESS)
                 {
-                    UC_SRCE_ERR_MSG("socket timeout timer creation failed");
-                    arm_uc_socket_close();
-                    result = (arm_uc_error_t){ SRCE_ERR_FAILED };
-                }
-                else
-                {
-                    /* start socket timeout timer */
-                    pal_inner = pal_osTimerStart(context->timeout_timer_id,
-                                                 ARM_UC_SOCKET_TIMEOUT_MS);
-
-                    if (pal_inner != PAL_SUCCESS)
-                    {
-                        UC_SRCE_ERR_MSG("Start socket timeout timer failed");
-                        arm_uc_socket_close();
-                        result = (arm_uc_error_t){ SRCE_ERR_FAILED };
-                    }
-                }
-            }
-
-            /* convert URI to PAL address if cache is not empty */
-            if ((result.code == SRCE_ERR_NONE) &&
-                (context->cache_address_length != 0))
-            {
-                /* set PAL port */
-                pal_inner = pal_setSockAddrPort(&context->cache_address,
-                                                context->request_uri->port);
-
-                if (pal_inner != PAL_SUCCESS)
-                {
-                    UC_SRCE_ERR_MSG("pal_setSockAddrPort returned: 0x%" PRIX32,
-                                    (uint32_t) pal_inner);
+                    UC_SRCE_ERR_MSG("pal_getAddressInfoAsync (DNS) failed pal status: 0x%" PRIu32,
+                                    (uint32_t)pal_inner);
                     arm_uc_socket_close();
                     result = (arm_uc_error_t){ SRCE_ERR_INVALID_PARAMETER };
                 }
-            }
-
-            /* connect to server */
-            if (result.code == SRCE_ERR_NONE)
-            {
-                pal_inner = pal_connect(context->socket,
-                                        &context->cache_address,
-                                        context->cache_address_length);
-                UC_SRCE_TRACE("pal_connect returned: 0x%" PRIX32,
-                              (uint32_t) pal_inner);
-
-                if (pal_inner == PAL_SUCCESS) /* synchronous finish */
-                {
-                    context->socket_state = STATE_CONNECTED_IDLE;
-                    context->expected_event = SOCKET_EVENT_CONNECT_DONE;
-                    result = (arm_uc_error_t){ SRCE_ERR_NONE };
-                    arm_uc_socket_isr(NULL);
-                }
-                else if (pal_inner == PAL_ERR_SOCKET_IN_PROGRES) /* asynchronous finish */
-                {
-                    context->expected_event = SOCKET_EVENT_CONNECT_DONE;
-                    result = (arm_uc_error_t){ SRCE_ERR_NONE };
-                }
                 else
                 {
-                    UC_SRCE_ERR_MSG("Error: socket connection failed");
-                    result = (arm_uc_error_t){ SRCE_ERR_FAILED };
-                    arm_uc_socket_close();
+                    UC_SRCE_TRACE("Initiated DNS lookup");
                 }
             }
         }
@@ -308,7 +329,8 @@ arm_uc_error_t arm_uc_socket_connect()
 
             if (pal_inner != PAL_SUCCESS)
             {
-                UC_SRCE_ERR_MSG("Start socket timeout timer failed");
+                UC_SRCE_ERR_MSG("Start socket timeout timer failed pal status: 0x%" PRIu32,
+                                (uint32_t)pal_inner);
                 arm_uc_socket_close();
                 return (arm_uc_error_t){ SRCE_ERR_FAILED };
             }
@@ -329,6 +351,112 @@ arm_uc_error_t arm_uc_socket_connect()
 
     return result;
 }
+
+/**
+ * @brief Finishes connecting to the server requested in a previous call to
+ *        arm_uc_socket_connect().
+ * @details This function is called after the DNS resolution for the host
+ *          requested in arm_uc_socket_get() above is done. It finishes the
+ *          connection process by creating a socket and connecting it.
+ * @return Error code.
+ */
+arm_uc_error_t arm_uc_socket_finish_connect()
+{
+    /* default return value */
+    arm_uc_error_t result = (arm_uc_error_t){ SRCE_ERR_FAILED };
+
+    /* NULL pointer check */
+    if (context && context->request_uri)
+    {
+        result = (arm_uc_error_t){ SRCE_ERR_NONE };
+
+        UC_SRCE_TRACE("socket: address type is: %u", context->cache_address.addressType);
+        /* create new async PAL socket */
+        palStatus_t pal_inner = pal_asynchronousSocket((palSocketDomain_t)context->cache_address.addressType,
+                                                       PAL_SOCK_STREAM,
+                                                       true,
+                                                       0,
+                                                       arm_uc_socket_isr,
+                                                       &context->socket);
+
+        if (pal_inner != PAL_SUCCESS)
+        {
+            UC_SRCE_ERR_MSG("socket creation failed with pal status: 0x%" PRIX32,
+                            (uint32_t) pal_inner);
+            arm_uc_socket_close();
+            result = (arm_uc_error_t){ SRCE_ERR_FAILED };
+        }
+        else
+        {
+            UC_SRCE_TRACE("socket: create success");
+        }
+
+        /* start socket timeout timer */
+        if (result.code == SRCE_ERR_NONE)
+        {
+            pal_inner = pal_osTimerStart(context->timeout_timer_id,
+                                            ARM_UC_SOCKET_TIMEOUT_MS);
+
+            if (pal_inner != PAL_SUCCESS)
+            {
+                UC_SRCE_ERR_MSG("Start socket timeout timer failed");
+                arm_uc_socket_close();
+                result = (arm_uc_error_t){ SRCE_ERR_FAILED };
+            }
+        }
+
+        /* convert URI to PAL address if cache is not empty */
+        if ((result.code == SRCE_ERR_NONE) &&
+            (context->cache_address_length != 0))
+        {
+            /* set PAL port */
+            pal_inner = pal_setSockAddrPort(&context->cache_address,
+                                            context->request_uri->port);
+
+            if (pal_inner != PAL_SUCCESS)
+            {
+                UC_SRCE_ERR_MSG("pal_setSockAddrPort returned: 0x%" PRIX32,
+                                (uint32_t) pal_inner);
+                arm_uc_socket_close();
+                result = (arm_uc_error_t){ SRCE_ERR_INVALID_PARAMETER };
+            }
+        }
+
+        /* connect to server */
+        if (result.code == SRCE_ERR_NONE)
+        {
+            pal_inner = pal_connect(context->socket,
+                                    &context->cache_address,
+                                    context->cache_address_length);
+            UC_SRCE_TRACE("pal_connect returned: 0x%" PRIX32,
+                            (uint32_t) pal_inner);
+
+            if (pal_inner == PAL_SUCCESS) /* synchronous finish */
+            {
+                context->socket_state = STATE_CONNECTED_IDLE;
+                context->expected_event = SOCKET_EVENT_CONNECT_DONE;
+                result = (arm_uc_error_t){ SRCE_ERR_NONE };
+                arm_uc_socket_isr(NULL);
+            }
+            else if (pal_inner == PAL_ERR_SOCKET_IN_PROGRES) /* asynchronous finish */
+            {
+                context->expected_event = SOCKET_EVENT_CONNECT_DONE;
+                result = (arm_uc_error_t){ SRCE_ERR_NONE };
+            }
+            else
+            {
+                UC_SRCE_ERR_MSG("Error: socket connection failed");
+                result = (arm_uc_error_t){ SRCE_ERR_FAILED };
+                arm_uc_socket_close();
+            }
+        }
+    }
+
+    UC_SRCE_TRACE("arm_uc_socket_finish_connect returning %s", ARM_UC_err2Str(result));
+
+    return result;
+}
+
 
 /**
  * @brief Send request passed in arm_uc_socket_get.
@@ -548,6 +676,7 @@ void arm_uc_socket_process_header()
         arm_uc_buffer_t* request_buffer = context->request_buffer;
         arm_uc_uri_t*    request_uri    = context->request_uri;
         arm_uc_rqst_t    request_type   = context->request_type;
+        uint32_t         request_offset = context->request_offset;
 
         /* setup default return to be failure */
         bool request_successfully_processed = false;
@@ -629,20 +758,12 @@ void arm_uc_socket_process_header()
                                               request_uri->port,
                                               request_uri->path);
 
-                                /* close socket */
-                                pal_close(&context->socket);
+                                /* close current socket */
+                                arm_uc_socket_close();
 
-                                /* reset buffer */
-                                request_buffer->size = 0;
-
-                                /* reconnect to new uri location */
-                                err = arm_uc_socket_connect();
-                                if (err.error == ERR_NONE)
-                                {
-                                    /* send the request to the new uri */
-                                    err = arm_uc_socket_send_request();
-                                }
-
+                                /* run "get" again with the new location (above) */
+                                err = arm_uc_socket_get(request_uri, request_buffer,
+                                                        request_offset, request_type);
                                 if (err.error == ERR_NONE)
                                 {
                                     request_successfully_processed = true;
@@ -673,7 +794,7 @@ void arm_uc_socket_process_header()
                     {
                         /* NOTE: HTTP 1.1 Code 206 with Header "Connection:close" is not
                            handled here, instead the execution falls trough to error-
-                           handling in http_socket (ARM_UCS_HTTPEVent with UCS_HTTP_EVENT_ERROR) 
+                           handling in http_socket (ARM_UCS_HTTPEVent with UCS_HTTP_EVENT_ERROR)
                            where the retry-mechanism will resume firmware download if
                            the server closed the connection.
                         */
@@ -955,6 +1076,39 @@ void arm_uc_socket_callback(uint32_t unused)
 
         switch (context->expected_event)
         {
+            case SOCKET_EVENT_DNS_DONE:
+                UC_SRCE_TRACE("DNS done");
+
+                {
+                    /* stop DNS timeout timer */
+                    arm_uc_error_t result = arm_uc_stop_dns_timer();
+                    if (result.code != SRCE_ERR_NONE)
+                    {
+                        arm_uc_socket_error(UCS_HTTP_EVENT_ERROR);
+                    }
+                    else
+                    {
+                        if (context->cache_address.addressType == 0 &&
+                            context->cache_address_length == 0)
+                        {
+                            UC_SRCE_ERR_MSG("DNS resolution failed for host %s",
+                                            context->request_uri->host);
+                            arm_uc_socket_error(UCS_HTTP_EVENT_ERROR);
+                        }
+                        else
+                        {
+                            result = arm_uc_socket_finish_connect();
+                            if (result.code != SRCE_ERR_NONE)
+                            {
+                                UC_SRCE_ERR_MSG("arm_uc_socket_finish_connect failed: %s",
+                                                ARM_UC_err2Str(result));
+                                arm_uc_socket_error(UCS_HTTP_EVENT_ERROR);
+                            }
+                        }
+                    }
+                }
+                break;
+
             case SOCKET_EVENT_CONNECT_DONE:
                 UC_SRCE_TRACE("Connect done");
 
@@ -988,6 +1142,12 @@ void arm_uc_socket_callback(uint32_t unused)
             case SOCKET_EVENT_TIMER_FIRED:
                 UC_SRCE_TRACE("socket timeout timer fired");
 
+                /* delete socket timeout timer */
+                if (context->timeout_timer_id != (palTimerID_t) NULL)
+                {
+                    pal_osTimerDelete(&context->timeout_timer_id);
+                    context->timeout_timer_id = 0;
+                }
                 arm_uc_socket_error(UCS_HTTP_EVENT_ERROR);
                 break;
 
@@ -1032,7 +1192,39 @@ void arm_uc_timeout_timer_callback(void const *unused)
 {
     (void) unused;
 
-    context->expected_event = SOCKET_EVENT_TIMER_FIRED;
-    /* push event to the socket event queue */
-    arm_uc_socket_isr(NULL);
+    if (context != NULL)
+    {
+        context->expected_event = SOCKET_EVENT_TIMER_FIRED;
+        /* push event to the socket event queue */
+        arm_uc_socket_isr(NULL);
+    }
+}
+
+/**
+ * @brief Callback handler for the asynchronous DNS resolver.
+ *        Callbacks go through the task queue because we don't know
+ *        what context we are running from.
+ */
+void arm_uc_dns_callback(const char* url, palSocketAddress_t* address,
+                         palSocketLength_t* address_length, palStatus_t status,
+                         void *argument)
+{
+    (void)url;
+    (void)address;
+    (void)address_length;
+    (void)argument;
+
+    if (context != NULL)
+    {
+        /* check if DNS call succeeded */
+        if (status != PAL_SUCCESS)
+        {
+            /* clear the address-related fields to signal an error */
+            context->cache_address.addressType = 0;
+            context->cache_address_length = 0;
+        }
+        context->expected_event = SOCKET_EVENT_DNS_DONE;
+        /* push event to the socket event queue */
+        arm_uc_socket_isr(NULL);
+    }
 }
