@@ -87,7 +87,7 @@ typedef struct LinuxWorkerThreadInfo {
 } linux_worker_thread_info_t;
 #endif
 
-void arm_uc_pal_linux_signal_callback(uint32_t event);
+void arm_uc_pal_linux_signal_callback(uint32_t event, bool from_thread);
 
 /* set module variables */
 void arm_uc_pal_linux_internal_set_callback(ARM_UC_PAAL_UPDATE_SignalEvent_t callback);

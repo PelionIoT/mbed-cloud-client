@@ -83,8 +83,10 @@ bool ARM_UC_PostCallback(arm_uc_callback_t* _storage,
                 arm_uc_notificationHandler();
             }
         }
-/* disable when not debugging */
-#if 0
+#ifdef TARGET_IS_PC_LINUX
+        /* On Linux, issue an error message if the callback was not added
+           to the queue. This is dangerous in mbed-os, since writing to the
+           console from an interrupt context might crash the program. */
         else
         {
             UC_COMM_ERR_MSG("failed to add callback to queue: %p %p",
