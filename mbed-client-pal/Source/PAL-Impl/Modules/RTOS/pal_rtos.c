@@ -39,7 +39,6 @@ static uint64_t g_palDeviceBootTimeInSec = 0;
 #define PAL_STORAGE_ENCRYPTION_128_BIT_KEY "RoTStorageEnc128"
 #define PAL_STORAGE_ENCRYPTION_256_BIT_KEY "StorageEnc256HMACSHA256SIGNATURE"
 
-#define PAL_DELAY_BEFORE_REBOOT_IN_MILISEC 3000
 PAL_PRIVATE bool palRTOSInitialized = false;
 
 #if (PAL_SIMULATE_RTOS_REBOOT == 1)
@@ -164,9 +163,7 @@ palStatus_t pal_RTOSDestroy(void)
 void pal_osReboot(void)
 {
     PAL_LOG(INFO, "Rebooting the system\r\n");
-    fflush(NULL);
-    //delay to allow the OS finish flushing all the buffers
-    pal_osDelay(PAL_DELAY_BEFORE_REBOOT_IN_MILISEC);
+
     //Simulator is currently for Linux only
     #if (PAL_SIMULATE_RTOS_REBOOT == 1)
         const char *argv[] = {"0" , 0};

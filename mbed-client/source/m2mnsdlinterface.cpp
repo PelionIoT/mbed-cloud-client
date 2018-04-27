@@ -1041,6 +1041,16 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
                                                           this,
                                                           execute_value_updated,
                                                           address);
+
+                if (base->base_type() == M2MBase::Resource) {
+                    M2MResource *res = (M2MResource*) base;
+                    if (res->delayed_response()) {
+                        tr_debug("M2MNsdlInterface::resource_callback_handle_event - final response sent by application");
+                        sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, coap_response);
+                        return 0;
+                    }
+                }
+
             }
         } else if (COAP_MSG_CODE_REQUEST_DELETE == received_coap_header->msg_code) {
             // Delete the object instance
@@ -1215,7 +1225,7 @@ void M2MNsdlInterface::send_delayed_response(M2MBase *base)
             memset(&coap_response,0,sizeof(sn_coap_hdr_s));
 
             coap_response.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
-            coap_response.msg_code = COAP_MSG_CODE_RESPONSE_CONTENT;
+            coap_response.msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
             resource->get_delayed_token(coap_response.token_ptr,coap_response.token_len);
 
             uint32_t length = 0;

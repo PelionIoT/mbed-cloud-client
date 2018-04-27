@@ -145,7 +145,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_t call
             else
             {
                 /* call event handler */
-                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_INITIALIZE_DONE);
+                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_INITIALIZE_DONE, false);
             }
         }
 
@@ -287,7 +287,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
             else
             {
                 /* call event handler */
-                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_PREPARE_DONE);
+                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_PREPARE_DONE, false);
             }
         }
     }
@@ -419,7 +419,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Write(uint32_t location,
             else
             {
                 /* call event handler */
-                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_WRITE_DONE);
+                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_WRITE_DONE, false);
             }
         }
     }
@@ -472,7 +472,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Finalize(uint32_t location)
         else
         {
             /* call event handler */
-            arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_FINALIZE_DONE);
+            arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_FINALIZE_DONE, false);
         }
     }
 
@@ -535,7 +535,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Read(uint32_t location,
                 if (result.error == ERR_NONE)
                 {
                     /* call event handler */
-                    arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_READ_DONE);
+                    arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_READ_DONE, false);
                 }
             }
         }
@@ -593,7 +593,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Activate(uint32_t location)
             }
             else
             {
-                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
+                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_ACTIVATE_DONE, false);
             }
         }
     }
@@ -642,7 +642,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetActiveFirmwareDetails(arm_uc_firmware_details
 
                 if (result.error == ERR_NONE)
                 {
-                    arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_ACTIVE_FIRMWARE_DETAILS_DONE);
+                    arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_ACTIVE_FIRMWARE_DETAILS_DONE, false);
                 }
             }
         }
@@ -691,7 +691,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetFirmwareDetails(uint32_t location,
                 UC_PAAL_TRACE("version: %" PRIu64, details->version);
                 UC_PAAL_TRACE("size: %"PRIu64, details->size);
 
-                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE);
+                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE, false);
             }
         }
     }
@@ -736,7 +736,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetInstallerDetails(arm_uc_installer_details_t* 
 
             if (result.error == ERR_NONE)
             {
-                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_INSTALLER_DETAILS_DONE);
+                arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_INSTALLER_DETAILS_DONE, false);
             }
         }
     }

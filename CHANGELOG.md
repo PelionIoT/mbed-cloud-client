@@ -1,5 +1,20 @@
 ## Changelog for Mbed Cloud Client
 
+### Release R1.3.1.1 (27.04.2018)
+
+* Fixed POST response handling: The client was sending multiple responses for the POST request received from Cloud, which would sometimes cause undefined behaviour for the POST callback on the webservice.
+
+#### Mbed Cloud Update
+
+* In Linux builds, Update related callbacks are now called in the context of the Update thread. Previously, it was
+  possible to call some of these callbacks in a different thread.
+* In Linux builds, if tracing is enabled, the update scheduler will display an error if a callback can't
+  be added to the scheduler queue.
+
+#### Platform Adaptation Layer (PAL)
+
+* Linux: Replaced `fflush(NULL)` with `sync()` in `pal_osReboot` which was causing deadlock in Raspberry Pi3.
+
 ### Release R1.3.1 (19.04.2018)
 
 #### Mbed Cloud Client

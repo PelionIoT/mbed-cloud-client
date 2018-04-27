@@ -81,6 +81,8 @@ inline PAL_PRIVATE void nextMessageQName()
  */
 void pal_plat_osReboot(void)
 {
+    // Syncronize cached files to persistant storage.
+    sync();
     // Reboot the device
     reboot(RB_AUTOBOOT);
 }

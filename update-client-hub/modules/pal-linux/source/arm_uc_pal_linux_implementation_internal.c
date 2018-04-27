@@ -23,6 +23,7 @@
 #include "update-client-common/arm_uc_trace.h"
 #include "update-client-common/arm_uc_utilities.h"
 #include "update-client-common/arm_uc_metadata_header_v2.h"
+#include "update-client-common/arm_uc_scheduler.h"
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -38,13 +39,25 @@ static ARM_UC_PAAL_UPDATE_SignalEvent_t arm_uc_pal_external_callback = NULL;
 
 linux_worker_thread_info_t linux_worker_thread = {0, PTHREAD_MUTEX_INITIALIZER};
 
-void arm_uc_pal_linux_signal_callback(uint32_t event)
+// storage set aside for adding event_cb to the event queue
+static arm_uc_callback_t event_cb_storage = { 0 };
+
+void arm_uc_pal_linux_signal_callback(uint32_t event, bool from_thread)
 {
     if (arm_uc_pal_external_callback)
     {
-        arm_uc_pal_external_callback(event);
+        if (from_thread) {
+            /* Run given callback in the update client's thread */
+            ARM_UC_PostCallback(&event_cb_storage, arm_uc_pal_external_callback, event);
+        } else {
+            arm_uc_pal_external_callback(event);
+        }
     }
-    pthread_mutex_unlock(&linux_worker_thread.mutex);
+    if (from_thread) {
+        /* The last thing that the thread does is call arm_uc_pal_linux_signal_callback(),
+         * so unlock the thread mutex so that another thread can be created if needed */
+        pthread_mutex_unlock(&linux_worker_thread.mutex);
+    }
 }
 
 void arm_uc_pal_linux_internal_set_callback(ARM_UC_PAAL_UPDATE_SignalEvent_t callback)
@@ -705,13 +718,13 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
     {
         UC_PAAL_TRACE("pre-script complete");
 
-        arm_uc_pal_linux_signal_callback(parameters->success_event);
+        arm_uc_pal_linux_signal_callback(parameters->success_event, true);
     }
     else
     {
         UC_PAAL_ERR_MSG("pre-script failed");
 
-        arm_uc_pal_linux_signal_callback(parameters->failure_event);
+        arm_uc_pal_linux_signal_callback(parameters->failure_event, true);
     }
 }
 
@@ -766,7 +779,7 @@ void* arm_uc_pal_linux_extended_post_worker(void* params)
         event = parameters->failure_event;
     }
 
-    arm_uc_pal_linux_signal_callback(event);
+    arm_uc_pal_linux_signal_callback(event, true);
 }
 
 #endif
