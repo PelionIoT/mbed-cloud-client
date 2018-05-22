@@ -20,7 +20,7 @@
 #define ARM_UC_HUB_STATE_MACHINE_H
 
 #include <stdint.h>
-
+#include "update-client-common/arm_uc_common.h"
 
 /**
  * States in the Update Hub.
@@ -86,5 +86,10 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t state);
  * @param callback Function pointer.
  */
 void ARM_UC_HUB_setInitializationCallback(void (*callback)(int32_t));
+
+/**
+ * @brief Return the active firmware details or NULL if they're not yet available.
+ */
+arm_uc_firmware_details_t* ARM_UC_HUB_getActiveFirmwareDetails(void);
 
 #endif // ARM_UC_HUB_STATE_MACHINE_H

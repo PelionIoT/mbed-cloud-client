@@ -98,6 +98,12 @@ private: // Constructor and destructor are private
      */
     virtual ~M2MResourceInstance();
 
+protected:
+    /**
+     * \brief Returns the owner object. Can return NULL if the object has no parent.
+     */
+    virtual M2MBase *get_parent() const;
+
 public:
 
     /**

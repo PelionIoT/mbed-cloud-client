@@ -25,6 +25,7 @@
 #include "mbed-client/m2mdevice.h"
 #include "mbed-client/m2mfirmware.h"
 #include "mbed-client/m2mobject.h"
+#include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2mconfig.h"
 #include "include/m2minterfaceimpl.h"
@@ -124,3 +125,25 @@ M2MObject* M2MInterfaceFactory::create_object(const String &name)
     }
     return object;
 }
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+M2MEndpoint* M2MInterfaceFactory::create_endpoint(const String &name)
+{
+    tr_debug("M2MInterfaceFactory::create_endpoint : Name : %s", name.c_str());
+    if(name.size() > MAX_ALLOWED_STRING_LENGTH || name.empty()){
+        return NULL;
+    }
+
+    M2MEndpoint *object = NULL;
+    char *path = (char*)malloc(2 + name.size() + 1);
+    if (path) {
+        // Prepend path with directory prefix "d/" so that all endpoints will be under common path
+        path[0] = 'd';
+        path[1] = '/';
+        memcpy(&path[2], name.c_str(), name.size());
+        path[name.size() + 2] = '\0';
+        object = new M2MEndpoint(name, path);
+    }
+    return object;
+}
+#endif

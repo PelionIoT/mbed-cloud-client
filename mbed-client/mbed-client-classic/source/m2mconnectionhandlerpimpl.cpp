@@ -62,8 +62,8 @@ extern "C" void eventloop_event_handler(arm_event_s *event)
         return;
     }
 
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD 
-    // use local instance because connection handler is volatile. 
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+    // use local instance because connection handler is volatile.
     M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)connection_handler;
     instance->event_handler(event);
 #else
@@ -245,14 +245,14 @@ bool M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
     return !eventOS_event_send(&event);
 }
 
-// This callback is used from PAL pal_getAddressInfoAsync, 
+// This callback is used from PAL pal_getAddressInfoAsync,
 #if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
 extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument)
 {
     tr_debug("M2MConnectionHandlerPimpl::address_resolver callback");
 
     // Use connection_handler address agaist callbackArgument for prevent calling of class M2MConnectionHandlerPimpl
-    // methods when instance has been deleted. pal_getAddressInfoAsync does not contain cancelation interface so 
+    // methods when instance has been deleted. pal_getAddressInfoAsync does not contain cancelation interface so
     // calling this callback cannot avoid if pal_getAddressInfoAsync has been run without any errors.
     if (!connection_handler) {
         tr_debug("M2MConnectionHandlerPimpl::address_resolver callback M2MConnectionHandlerPimpl is NULL");
@@ -763,7 +763,7 @@ void M2MConnectionHandlerPimpl::receive_handler()
                 close_socket();
                 return;
             }
-        } while (rcv_size > 0);
+        } while (rcv_size > 0 && _socket_state == ESocketStateSecureConnection);
 
     } else {
         size_t recv;
@@ -829,8 +829,6 @@ bool M2MConnectionHandlerPimpl::init_socket()
     palSocketType_t socket_type = PAL_SOCK_DGRAM;
     palStatus_t status;
     palSocketAddress_t bind_address;
-
-    palNetInterfaceInfo_t interface_info;
     palIpV4Addr_t interface_address4;
     palIpV6Addr_t interface_address6;
 
@@ -849,11 +847,6 @@ bool M2MConnectionHandlerPimpl::init_socket()
         return;
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
     }
-
-    uint32_t interface_count;
-    pal_getNumberOfNetInterfaces(&interface_count);
-    pal_getNetInterfaceInfo(_net_iface, &interface_info);
-
     status = pal_asynchronousSocketWithArgument((palSocketDomain_t)_socket_address.addressType,
                                                 socket_type, true, _net_iface, &socket_event_handler,
                                                 this, &_socket);
@@ -945,4 +938,9 @@ void M2MConnectionHandlerPimpl::add_item_to_list(M2MConnectionHandlerPimpl::send
     claim_mutex();
     ns_list_add_to_start(&_linked_list_send_data, data);
     release_mutex();
+}
+
+void M2MConnectionHandlerPimpl::force_close()
+{
+    close_socket();
 }

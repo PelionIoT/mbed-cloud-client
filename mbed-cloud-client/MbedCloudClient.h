@@ -135,6 +135,17 @@ public:
     void add_objects(const M2MObjectList& object_list);
 
     /**
+     * \brief Adds a list of M2MBase interface implementing objects that the application wants
+     * to register to the LWM2M server. This function MUST be called before calling the setup()
+     * API. Otherwise, the application gets the error ConnectInvalidParameters, when
+     * calling setup().
+     * \param base_list Object implementing the M2MBase interface that contain information about the
+     * client attempting to register to the LWM2M server.
+     */
+    void add_objects(const M2MBaseList& base_list);
+
+    void remove_object(M2MBase *object);
+    /**
      * \brief Sets the callback function that is called when there is
      * any new update on any Object/ObjectInstance/Resource from the LWM2M server,
      * typically on receiving PUT commands on the registered objects.
@@ -358,7 +369,7 @@ private:
     MbedCloudClientCallback                         *_value_callback;
     map<string, M2MObject*>                         _objects;
     map<string, M2MResource*>                       _resources;
-    M2MObjectList                                   _object_list;
+    M2MBaseList                                     _object_list;
     map<string, SimpleM2MResourceBase*>             _update_values;
     FP0<void>                                       _on_registered;
     FP0<void>                                       _on_unregistered;

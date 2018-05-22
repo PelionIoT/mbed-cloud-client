@@ -70,9 +70,11 @@
 #error Update client buffer must be divisible by the block page size
 #endif
 
-/* Calculate aligned external header size */
-#define ARM_UC_PAL_HEADER_SIZE (((ARM_UC_INTERNAL_HEADER_SIZE_V2 + MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE - 1)   \
-                                / MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE) * MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE)
+/* Use internal header format because we are using internal flash and
+   is assumed to be trusted */
+#define ARM_UC_PAL_HEADER_SIZE (uint32_t) ARM_UC_INTERNAL_HEADER_SIZE_V2
+
+static uint64_t arm_uc_pal_flashiap_firmware_size = 0;
 
 static void (*arm_uc_pal_flashiap_callback)(uint32_t) = NULL;
 
@@ -84,6 +86,140 @@ static void arm_uc_pal_flashiap_signal_internal(uint32_t event)
     }
 }
 
+/**
+ * @brief Align address up/down to sector boundary
+ *
+ * @param addr The address that need to be rounded up
+ * @param round_down if the value is 1, will align down to sector
+                     boundary otherwise align up.
+ * @return Returns the address aligned to sector boundary
+ */
+static uint32_t arm_uc_pal_flashiap_align_to_sector(uint32_t addr, int8_t round_down)
+{
+    uint32_t sector_start_addr = arm_uc_flashiap_get_flash_start();
+
+    /* check the address is pointing to internal flash */
+    if ((addr > sector_start_addr + arm_uc_flashiap_get_flash_size()) ||
+        (addr < sector_start_addr))
+    {
+        return ARM_UC_FLASH_INVALID_SIZE;
+    }
+
+    /* add sectors from start of flash until exeeced the required address
+       we cannot assume uniform sector size as in some mcu sectors have
+       drastically different sizes */
+    uint32_t sector_size = ARM_UC_FLASH_INVALID_SIZE;
+    while(sector_start_addr < addr)
+    {
+        sector_size = arm_uc_flashiap_get_sector_size(sector_start_addr);
+        if (sector_size != ARM_UC_FLASH_INVALID_SIZE)
+        {
+            sector_start_addr += sector_size;
+        }
+        else
+        {
+            return ARM_UC_FLASH_INVALID_SIZE;
+        }
+    }
+
+    /* if round down to nearest section, remove the last sector from addr */
+    if (round_down != 0 && sector_start_addr > addr)
+    {
+        sector_start_addr -= sector_size;
+    }
+
+    return sector_start_addr;
+}
+
+/**
+ * @brief Round size up to nearest page
+ *
+ * @param size The size that need to be rounded up
+ * @return Returns the size rounded up to the nearest page
+ */
+static uint32_t arm_uc_pal_flashiap_round_up_to_page_size(uint32_t size)
+{
+    uint32_t page_size = arm_uc_flashiap_get_page_size();
+
+    if (size != 0)
+    {
+        size = ((size - 1)/page_size + 1) * page_size;
+    }
+
+    return size;
+}
+
+/**
+ * @brief Get the physicl slot address and size given slot_id
+ *
+ * @param slot_id Storage location ID.
+ * @param slot_addr the slot address is returned in this pointer
+ * @param slot_size the slot size is returned in this pointer
+ * @return Returns ERR_NONE on success.
+ *         Returns ERR_INVALID_PARAMETER on error.
+ */
+static arm_uc_error_t arm_uc_pal_flashiap_get_slot_addr_size(uint32_t slot_id,
+                                                             uint32_t* slot_addr,
+                                                             uint32_t* slot_size)
+{
+    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    /* find the start address of the whole storage area. It needs to be aligned to
+       sector boundary and we cannot go outside user defined storage area, hence
+       rounding up to sector boundary */
+    uint32_t storage_start_addr = arm_uc_pal_flashiap_align_to_sector(
+                                    MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS, 0);
+    /* find the end address of the whole storage area. It needs to be aligned to
+       sector boundary and we cannot go outside user defined storage area, hence
+       rounding down to sector boundary */
+    uint32_t storage_end_addr = arm_uc_pal_flashiap_align_to_sector(
+                                    MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS + \
+                                    MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE, 1);
+    /* find the maximum size each slot can have given the start and end, without
+       considering the alignment of individual slots */
+    uint32_t max_slot_size = (storage_end_addr - storage_start_addr) / \
+                                    MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS;
+    /* find the start address of slot. It needs to align to sector boundary. We
+       choose here to round down at each slot boundary */
+    uint32_t slot_start_addr = arm_uc_pal_flashiap_align_to_sector(
+                                    storage_start_addr + \
+                                    slot_id * max_slot_size, 1);
+    /* find the end address of the slot, rounding down to sector boundary same as
+       the slot start address so that we make sure two slot don't overlap */
+    uint32_t slot_end_addr = arm_uc_pal_flashiap_align_to_sector(
+                                    slot_start_addr + \
+                                    max_slot_size, 1);
+
+    /* Any calculation above might result in an invalid address. */
+    if ((storage_start_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+        (storage_end_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+        (slot_start_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+        (slot_end_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+        (slot_id >= MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS))
+    {
+        UC_PAAL_ERR_MSG("Aligning fw storage slot to erase sector failed"
+                " storage_start_addr %" PRIX32 " slot_start_addr %" PRIX32
+                " max_slot_size %" PRIX32, storage_start_addr, slot_start_addr,
+                max_slot_size);
+        *slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+        *slot_size = ARM_UC_FLASH_INVALID_SIZE;
+    }
+    else
+    {
+        *slot_addr = slot_start_addr;
+        *slot_size = slot_end_addr - slot_start_addr;
+        result.code = ERR_NONE;
+    }
+
+    return result;
+}
+
+/**
+ * @brief Initialise the flash IAP API
+ *
+ * @param callback function pointer to the PAAL event handler
+ * @return Returns ERR_NONE on success.
+ *         Returns ERR_INVALID_PARAMETER on error.
+ */
 arm_uc_error_t ARM_UC_PAL_FlashIAP_Initialize(void (*callback)(uint32_t))
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
@@ -116,129 +252,125 @@ uint32_t ARM_UC_PAL_FlashIAP_GetMaxID(void)
  * @details The storage location is set up to receive an image with
  *          the details passed in the details struct.
  *
- * @param location Storage location ID.
+ * @param slot_id Storage location ID.
  * @param details Pointer to a struct with firmware details.
  * @param buffer Temporary buffer for formatting and storing metadata.
  * @return Returns ERR_NONE on accept, and signals the event handler with
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_PAL_FlashIAP_Prepare(uint32_t location,
+arm_uc_error_t ARM_UC_PAL_FlashIAP_Prepare(uint32_t slot_id,
                                            const arm_uc_firmware_details_t* details,
                                            arm_uc_buffer_t* buffer)
 {
+    UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_Prepare slot_id %" PRIu32 " details %p buffer %p",
+                  slot_id, details, buffer);
+
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t erase_size = ARM_UC_FLASH_INVALID_SIZE;
 
-    if (details && buffer && buffer->ptr)
+    /* validate input */
+    if (details && buffer && buffer->ptr && \
+        slot_id < MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS)
     {
-        UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_Prepare: %" PRIX32 " %" PRIX32,
-                 location, details->size);
+        UC_PAAL_TRACE("FW size %" PRIu64, details->size);
+        result.error = ERR_NONE;
+    }
+    else
+    {
+        UC_PAAL_TRACE("Input validation failed");
+    }
 
-        /* encode firmware details in buffer */
-        result  = arm_uc_create_internal_header_v2(details, buffer);
+    /* calculate space for new firmware */
+    if (result.error == ERR_NONE)
+    {
+        /* find slot start address */
+        result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id, &slot_addr, &slot_size);
 
-        /* make space for new firmware */
-        if (result.error == ERR_NONE)
+        /* find the amount of space that need to be erased */
+        erase_size = arm_uc_pal_flashiap_align_to_sector(
+                        slot_addr + \
+                        arm_uc_pal_flashiap_round_up_to_page_size(details->size) + \
+                        arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE),
+                        0) - slot_addr;
+
+        if ((result.error == ERR_NONE) && (erase_size > slot_size))
         {
-            /* find location start address */
-            uint32_t slot_size = MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE /
-                                 MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS;
-            uint32_t start_address = MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS +
-                                     location * slot_size;
+            result.code = ERR_INVALID_PARAMETER;
+            UC_PAAL_ERR_MSG("Firmware too large! required %" PRIX32 " available: %" PRIX32,
+                            erase_size, slot_size);
+        }
+    }
 
-            /* find end address */
-            uint32_t end_address = start_address +
-                                   ARM_UC_PAL_HEADER_SIZE +
-                                   details->size;
-
-            uint32_t erase_address = start_address;
-
-            /* find exact erase size */
-            while (erase_address < end_address)
+    /* erase space for new firmware */
+    if (result.error == ERR_NONE)
+    {
+        uint32_t erase_addr = slot_addr;
+        while (erase_addr < slot_addr + erase_size)
+        {
+            uint32_t sector_size = arm_uc_flashiap_get_sector_size(erase_addr);
+            UC_PAAL_TRACE("erase: addr %" PRIX32 " size %" PRIX32,
+                          erase_addr, sector_size);
+            if (sector_size != ARM_UC_FLASH_INVALID_SIZE)
             {
-                uint32_t sector_size = arm_uc_flashiap_get_sector_size(erase_address);
-                erase_address += sector_size;
-            }
-
-            if (erase_address > (start_address + slot_size))
-            {
-                result.code = ERR_INVALID_PARAMETER;
-                UC_PAAL_ERR_MSG("Firmware too large");
-            }
-            else
-            {
-                /* erase */
-                erase_address = start_address;
-                while (erase_address < end_address)
+                int32_t status = arm_uc_flashiap_erase(erase_addr, sector_size);
+                if (status == ARM_UC_FLASHIAP_SUCCESS)
                 {
-                    uint32_t sector_size = arm_uc_flashiap_get_sector_size(erase_address);
-
-                    int32_t status = arm_uc_flashiap_erase(erase_address, sector_size);
-
-                    UC_PAAL_TRACE("erase: %" PRIX32 " %" PRIX32 " %" PRId32,
-                             erase_address,
-                             sector_size,
-                             status);
-
-                    if (status == ARM_UC_FLASHIAP_SUCCESS)
-                    {
-                        erase_address += sector_size;
-                    }
-                    else
-                    {
-                        result.code = ERR_INVALID_PARAMETER;
-                        break;
-                    }
-                }
-            }
-
-            if (result.error == ERR_NONE)
-            {
-                UC_PAAL_TRACE("program: %" PRIX32 " %" PRIX32,
-                         start_address,
-                         ARM_UC_PAL_HEADER_SIZE);
-
-                uint32_t page_size = arm_uc_flashiap_get_page_size();
-
-                /* set default return code */
-                result.code = ERR_NONE;
-
-                for (uint32_t index = 0;
-                     index < ARM_UC_PAL_HEADER_SIZE;
-                     index += page_size)
-                {
-                    /* write header */
-                    int32_t status = arm_uc_flashiap_program(&buffer->ptr[index],
-                                                             start_address + index,
-                                                             page_size);
-
-                    if (status != ARM_UC_FLASHIAP_SUCCESS)
-                    {
-                        /* set return code */
-                        result.code = ERR_INVALID_PARAMETER;
-                        break;
-                    }
-                }
-
-                if (result.error == ERR_NONE)
-                {
-                    /* signal done */
-                    arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_PREPARE_DONE);
+                    erase_addr += sector_size;
                 }
                 else
                 {
-                    UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed");
+                    UC_PAAL_ERR_MSG("Flash erase failed with status %" PRIi32, status);
+                    result.code = ERR_INVALID_PARAMETER;
+                    break;
                 }
             }
             else
             {
-                UC_PAAL_ERR_MSG("arm_uc_flashiap_erase failed");
+                UC_PAAL_ERR_MSG("Get sector size for addr %" PRIX32 " failed", erase_addr);
+                result.code = ERR_INVALID_PARAMETER;
+                break;
             }
         }
-        else
+    }
+
+    /* generate header blob */
+    if (result.error == ERR_NONE)
+    {
+        result  = arm_uc_create_internal_header_v2(details, buffer);
+        if (result.error != ERR_NONE)
         {
             UC_PAAL_ERR_MSG("arm_uc_create_internal_header_v2 failed");
         }
+    }
+
+    /* write header blob */
+    if (result.error == ERR_NONE)
+    {
+        uint32_t hdr_size = arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE);
+        UC_PAAL_TRACE("program: %" PRIX32 " %" PRIX32,
+                      slot_addr, hdr_size);
+
+        /* write header */
+        int32_t status = arm_uc_flashiap_program((const uint8_t*) buffer->ptr,
+                                                 slot_addr,
+                                                 hdr_size);
+        if (status != ARM_UC_FLASHIAP_SUCCESS)
+        {
+            /* set return code */
+            result.code = ERR_INVALID_PARAMETER;
+        }
+    }
+
+    if (result.error == ERR_NONE)
+    {
+        /* store firmware size in global */
+        arm_uc_pal_flashiap_firmware_size = details->size;
+
+        /* signal done */
+        arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_PREPARE_DONE);
     }
 
     return result;
@@ -250,62 +382,74 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Prepare(uint32_t location,
  *          call. The call is expected to write the entire fragment before
  *          signaling completion.
  *
- * @param location Storage location ID.
+ * @param slot_id Storage location ID.
  * @param offset Offset in bytes to where the fragment should be written.
  * @param buffer Pointer to buffer struct with fragment.
  * @return Returns ERR_NONE on accept, and signals the event handler with
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_PAL_FlashIAP_Write(uint32_t location,
+arm_uc_error_t ARM_UC_PAL_FlashIAP_Write(uint32_t slot_id,
                                          uint32_t offset,
                                          const arm_uc_buffer_t* buffer)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    /* find slot address and size */
+    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
+    arm_uc_error_t result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id,
+                                                                   &slot_addr,
+                                                                   &slot_size);
 
-    if (buffer && buffer->ptr)
+    if (buffer && buffer->ptr && result.error == ERR_NONE)
     {
-        /* find location address */
-        uint32_t physical_address = MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS +
-                                    (location * MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE /
-                                     MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS) +
-                                    ARM_UC_PAL_HEADER_SIZE +
-                                    offset;
-
         UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_Write: %p %" PRIX32 " %" PRIX32 " %" PRIX32,
-                 buffer->ptr,
-                 buffer->size,
-                 physical_address,
-                 offset);
+                 buffer->ptr, buffer->size, slot_addr, offset);
 
-        /* set default return code */
-        result.code = ERR_NONE;
+        /* set default error */
+        result.code = ERR_INVALID_PARAMETER;
 
+        /* find physical address of the write */
         uint32_t page_size = arm_uc_flashiap_get_page_size();
+        uint32_t hdr_size = arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE);
+        uint32_t physical_address = slot_addr + hdr_size + offset;
+        uint32_t write_size = buffer->size;
 
-        for (uint32_t index = 0; index < buffer->size; index += page_size)
+        /* if last chunk, pad out to page_size aligned size */
+        if ((buffer->size % page_size != 0) &&
+            ((offset + buffer->size) >= arm_uc_pal_flashiap_firmware_size) &&
+            (arm_uc_pal_flashiap_round_up_to_page_size(buffer->size) <= buffer->size_max))
         {
-            int status = arm_uc_flashiap_program(&buffer->ptr[index],
-                                                 physical_address + index,
-                                                 page_size);
-
-            if (status != ARM_UC_FLASHIAP_SUCCESS)
-            {
-                /* set return code */
-                result.code = ERR_INVALID_PARAMETER;
-                break;
-            }
+            write_size = arm_uc_pal_flashiap_round_up_to_page_size(buffer->size);
         }
 
-        if (result.error == ERR_NONE)
+        /* check page alignment of the program address and size */
+        if ((write_size % page_size == 0) && (physical_address % page_size == 0))
         {
-            /* signal done */
-            arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_WRITE_DONE);
+            UC_PAAL_TRACE("programming addr %" PRIX32 " size %" PRIX32,
+                          physical_address, write_size);
+            int status = arm_uc_flashiap_program((const uint8_t*) buffer->ptr,
+                                                 physical_address,
+                                                 write_size);
+            if (status != ARM_UC_FLASHIAP_SUCCESS)
+            {
+                UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed");
+            }
+            else
+            {
+                result.code = ERR_NONE;
+                arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_WRITE_DONE);
+            }
         }
         else
         {
-            UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed");
+            UC_PAAL_ERR_MSG("program size %" PRIX32 " or address %" PRIX32
+                            " not aligned to page size %" PRIX32, buffer->size,
+                            physical_address, page_size);
         }
+    }
+    else
+    {
+        result.code = ERR_INVALID_PARAMETER;
     }
 
     return result;
@@ -314,12 +458,12 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Write(uint32_t location,
 /**
  * @brief Close storage location for writing and flush pending data.
  *
- * @param location Storage location ID.
+ * @param slot_id Storage location ID.
  * @return Returns ERR_NONE on accept, and signals the event handler with
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_PAL_FlashIAP_Finalize(uint32_t location)
+arm_uc_error_t ARM_UC_PAL_FlashIAP_Finalize(uint32_t slot_id)
 {
     arm_uc_error_t result = { .code = ERR_NONE };
 
@@ -336,7 +480,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Finalize(uint32_t location)
  *          the storage location has been reached. The actual amount of
  *          bytes read is set in the buffer struct.
  *
- * @param location Storage location ID.
+ * @param slot_id Storage location ID.
  * @param offset Offset in bytes to read from.
  * @param buffer Pointer to buffer struct to store fragment. buffer->size
  *        contains the intended read size.
@@ -345,25 +489,29 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Finalize(uint32_t location)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  *         buffer->size contains actual bytes read on return.
  */
-arm_uc_error_t ARM_UC_PAL_FlashIAP_Read(uint32_t location,
+arm_uc_error_t ARM_UC_PAL_FlashIAP_Read(uint32_t slot_id,
                                         uint32_t offset,
                                         arm_uc_buffer_t* buffer)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    /* find slot address and size */
+    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
+    arm_uc_error_t result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id,
+                                                                   &slot_addr,
+                                                                   &slot_size);
 
-    if (buffer && buffer->ptr)
+    if (buffer && buffer->ptr && result.error == ERR_NONE)
     {
         UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_Read: %" PRIX32 " %" PRIX32 " %" PRIX32,
-                 location, offset, buffer->size);
+                slot_id, offset, buffer->size);
 
-        /* find location address */
-        uint32_t physical_address = MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS +
-                                    (location * MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE /
-                                     MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS) +
-                                    ARM_UC_PAL_HEADER_SIZE +
-                                    offset;
-
+        /* find physical address of the read */
         uint32_t read_size = buffer->size;
+        uint32_t hdr_size = arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE);
+        uint32_t physical_address = slot_addr + hdr_size + offset;
+
+        UC_PAAL_TRACE("reading addr %" PRIX32 " size %" PRIX32,
+                      physical_address, read_size);
 
         int status = arm_uc_flashiap_read(buffer->ptr,
                                           physical_address,
@@ -371,16 +519,18 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Read(uint32_t location,
 
         if (status == ARM_UC_FLASHIAP_SUCCESS)
         {
-            /* set return code */
             result.code = ERR_NONE;
-
-            /* signal done */
             arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_READ_DONE);
         }
         else
         {
+            result.code = ERR_INVALID_PARAMETER;
             UC_PAAL_ERR_MSG("arm_uc_flashiap_read failed");
         }
+    }
+    else
+    {
+        result.code = ERR_INVALID_PARAMETER;
     }
 
     return result;
@@ -397,12 +547,12 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Read(uint32_t location,
  *           * Decompressing/decrypting/installing the firmware image on
  *             top of another.
  *
- * @param location Storage location ID.
+ * @param slot_id Storage location ID.
  * @return Returns ERR_NONE on accept, and signals the event handler with
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t location)
+arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
 {
     arm_uc_error_t result = { .code = ERR_NONE };
 
@@ -426,24 +576,24 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t location)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_FlashIAP_GetFirmwareDetails(
-                                        uint32_t location,
+                                        uint32_t slot_id,
                                         arm_uc_firmware_details_t* details)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_GetFirmwareDetails");
 
-    if (details)
+    /* find slot address and size */
+    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
+    arm_uc_error_t result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id,
+                                                                   &slot_addr,
+                                                                   &slot_size);
+
+    if (details && result.error == ERR_NONE)
     {
-        UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_GetFirmwareDetails");
-
-        /* find location address */
-        uint32_t physical_address = MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS +
-                                    (location * MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE /
-                                     MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS);
-
         uint8_t buffer[ARM_UC_PAL_HEADER_SIZE] = { 0 };
 
         int status = arm_uc_flashiap_read(buffer,
-                                          physical_address,
+                                          slot_addr,
                                           ARM_UC_PAL_HEADER_SIZE);
 
         if (status == ARM_UC_FLASHIAP_SUCCESS)
@@ -573,6 +723,16 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_GetActiveDetails(arm_uc_firmware_details_t* d
     return result;
 }
 
+/**
+ * @brief Get details for the firmware installer.
+ * @details This call populates the passed details struct with information
+ *          about the firmware installer.
+ *
+ * @param details Pointer to firmware details struct to be populated.
+ * @return Returns ERR_NONE on accept, and signals the event handler with
+ *         either DONE or ERROR when complete.
+ *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
+ */
 arm_uc_error_t ARM_UC_PAL_FlashIAP_GetInstallerDetails(arm_uc_installer_details_t* details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };

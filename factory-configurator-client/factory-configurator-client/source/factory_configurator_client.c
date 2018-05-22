@@ -72,6 +72,7 @@ const char g_fcc_class_id_name[] = "mbed.ClassId";
 const char g_fcc_vendor_id_name[] = "mbed.VendorId";
 
 static bool g_is_fcc_initialized = false;
+bool g_is_session_finished = true;
 
 fcc_status_e fcc_init(void)
 {
@@ -121,6 +122,7 @@ fcc_status_e fcc_finalize(void)
     pal_destroy();
 
     g_is_fcc_initialized = false;
+    g_is_session_finished = true;
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 
@@ -153,7 +155,16 @@ fcc_output_info_s* fcc_get_error_and_warning_data(void)
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_is_fcc_initialized), NULL, "FCC not initialized");
 
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+
     return get_output_info();
+}
+
+bool fcc_is_session_finished(void)
+{
+    SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+
+    return g_is_session_finished;
 }
 
 fcc_status_e fcc_verify_device_configured_4mbed_cloud(void)

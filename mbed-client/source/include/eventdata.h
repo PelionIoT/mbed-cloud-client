@@ -74,7 +74,7 @@ public:
     :_object(NULL){}
     virtual ~M2MRegisterData() {}
     M2MSecurity     *_object;
-    M2MObjectList    _object_list;
+    M2MBaseList    _base_list;
 };
 
 class M2MUpdateRegisterData : public EventData
@@ -86,7 +86,7 @@ public:
     virtual ~M2MUpdateRegisterData() {}
     M2MSecurity     *_object;
     uint32_t        _lifetime;
-    M2MObjectList    _object_list;
+    M2MBaseList    _base_list;
 };
 
 

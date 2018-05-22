@@ -21,6 +21,7 @@
 #include "pal_plat_rtos.h"
 #include "mbedtls/aes.h"
 #if (PAL_ENABLE_X509 == 1)
+#include "mbedtls/asn1write.h"
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/x509_csr.h"
 #endif 
@@ -449,6 +450,10 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             status = pal_plat_X509GetField(localCtx, "CN", output, outLenBytes, actualOutLenBytes);
             break; 
 
+        case PAL_X509_L_ATTR:
+            status = pal_plat_X509GetField(localCtx, "L", output, outLenBytes, actualOutLenBytes);
+            break;
+
         case PAL_X509_OU_ATTR:
             status = pal_plat_X509GetField(localCtx, "OU", output, outLenBytes, actualOutLenBytes);
             break;
@@ -463,6 +468,16 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             {
                 status = pal_plat_x509CertGetID(localCtx, output, outLenBytes, actualOutLenBytes);
             }
+            break;
+
+        case PAL_X509_SIGNATUR_ATTR:
+            if (localCtx->crt.sig.len > outLenBytes) {
+                status = PAL_ERR_BUFFER_TOO_SMALL;
+                break;
+            }
+
+            memcpy(output, localCtx->crt.sig.p, localCtx->crt.sig.len);
+            *actualOutLenBytes = localCtx->crt.sig.len;
             break;
 
         default:
@@ -1416,7 +1431,13 @@ palStatus_t pal_plat_writePrivateKeyToDer(palECKeyHandle_t key, unsigned char* d
     }
     else
     {
-        status = PAL_ERR_FAILED_TO_WRITE_PRIVATE_KEY;
+        switch (platStatus) {
+            case MBEDTLS_ERR_ASN1_BUF_TOO_SMALL:
+                status = PAL_ERR_BUFFER_TOO_SMALL;
+                break;
+            default:
+                status = PAL_ERR_FAILED_TO_WRITE_PRIVATE_KEY;
+        }
     }
 
     return status;
@@ -1436,7 +1457,13 @@ palStatus_t pal_plat_writePublicKeyToDer(palECKeyHandle_t key, unsigned char* de
     }
     else
     {
-        status = PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY;
+        switch (platStatus) {
+            case MBEDTLS_ERR_ASN1_BUF_TOO_SMALL:
+                status = PAL_ERR_BUFFER_TOO_SMALL;
+                break;
+            default:
+                status = PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY;
+        }
     }
 
     return status;
@@ -1450,8 +1477,6 @@ palStatus_t pal_plat_ECKeyGenerateKey(palGroupIndex_t grpID, palECKeyHandle_t ke
     palECKey_t* localECKey = (palECKey_t*)key;
     mbedtls_ecp_keypair* keyPair = NULL;
 
-    keyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
-
     switch(grpID)
     {
         case PAL_ECP_DP_SECP256R1:
@@ -1462,10 +1487,19 @@ palStatus_t pal_plat_ECKeyGenerateKey(palGroupIndex_t grpID, palECKeyHandle_t ke
             goto finish;
     }
 
+    platStatus = mbedtls_pk_setup(localECKey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+    if (CRYPTO_PLAT_SUCCESS != platStatus) {
+        status = PAL_ERR_KEYPAIR_GEN_FAIL;
+        goto finish;
+    }
+
+    keyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+
     platStatus = mbedtls_ecp_gen_key(platCurve, keyPair, pal_plat_entropySource, NULL);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
         status = PAL_ERR_KEYPAIR_GEN_FAIL;
+        mbedtls_pk_free(localECKey);
     }
 
 finish:
@@ -1811,6 +1845,82 @@ palStatus_t pal_plat_x509CSRSetKeyUsage(palx509CSRHandle_t x509CSR, uint32_t key
     return status;
 }
 
+palStatus_t pal_plat_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint32_t extKeyUsage)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palx509CSR_t *localCSR = (palx509CSR_t*)x509CSR;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+
+    // Max needed buffer if all option turned on
+    // In details: sequence tag + sequence len + ((oid tag + oid len + oid) * (7 options))
+    uint8_t value_buf[2 + (2 + MBEDTLS_OID_SIZE(MBEDTLS_OID_OCSP_SIGNING)) * 7];
+
+    uint8_t *start = value_buf;
+    uint8_t *end = value_buf + sizeof(value_buf);
+    uint32_t all_bits = PAL_X509_EXT_KU_ANY | PAL_X509_EXT_KU_SERVER_AUTH | PAL_X509_EXT_KU_CLIENT_AUTH |
+        PAL_X509_EXT_KU_CODE_SIGNING | PAL_X509_EXT_KU_EMAIL_PROTECTION | PAL_X509_EXT_KU_TIME_STAMPING |
+        PAL_X509_EXT_KU_OCSP_SIGNING;
+
+    // Check if all options valid
+    if ((extKeyUsage == 0) || (extKeyUsage & (~all_bits))) {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+
+    /* As mbedTLS, build the DER in value_buf from end to start */
+
+    if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_OCSP_SIGNING & extKeyUsage) {
+        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_OCSP_SIGNING, MBEDTLS_OID_SIZE(MBEDTLS_OID_OCSP_SIGNING));
+    }
+    if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_TIME_STAMPING & extKeyUsage) {
+        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_TIME_STAMPING, MBEDTLS_OID_SIZE(MBEDTLS_OID_TIME_STAMPING));
+    }
+    if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_EMAIL_PROTECTION & extKeyUsage) {
+        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_EMAIL_PROTECTION, MBEDTLS_OID_SIZE(MBEDTLS_OID_EMAIL_PROTECTION));
+    }
+    if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_CODE_SIGNING & extKeyUsage) {
+        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_CODE_SIGNING, MBEDTLS_OID_SIZE(MBEDTLS_OID_CODE_SIGNING));
+    }
+    if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_CLIENT_AUTH & extKeyUsage){
+        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_CLIENT_AUTH, MBEDTLS_OID_SIZE(MBEDTLS_OID_CLIENT_AUTH));
+    }
+    if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_SERVER_AUTH & extKeyUsage){
+        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_SERVER_AUTH, MBEDTLS_OID_SIZE(MBEDTLS_OID_SERVER_AUTH));
+    }
+    if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_ANY & extKeyUsage){
+        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE, MBEDTLS_OID_SIZE(MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE));
+    }
+
+    if (platStatus < CRYPTO_PLAT_SUCCESS) {
+        goto finish;
+    }
+
+    // Calc written len (from end to the end of value_buf) and write it to value_buf
+    platStatus = mbedtls_asn1_write_len(&end, start, (value_buf + sizeof(value_buf)) - end);
+    if (platStatus < CRYPTO_PLAT_SUCCESS) {
+        goto finish;
+    }
+    // Write sequence tag
+    platStatus = mbedtls_asn1_write_tag(&end, start, (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+    if (platStatus < CRYPTO_PLAT_SUCCESS) {
+        goto finish;
+    }
+
+    // Set start and end pointer to the used part in value_buf and add the extension to the CSR 
+    start = end;
+    end = value_buf + sizeof(value_buf);
+    platStatus = mbedtls_x509write_csr_set_extension(localCSR, MBEDTLS_OID_EXTENDED_KEY_USAGE, MBEDTLS_OID_SIZE(MBEDTLS_OID_EXTENDED_KEY_USAGE),
+                                                     start, (end - start));
+    if (CRYPTO_PLAT_SUCCESS != platStatus) {
+        goto finish;
+    }
+
+finish:
+    if (CRYPTO_PLAT_SUCCESS != platStatus) {
+        status = PAL_ERR_FAILED_TO_SET_EXT_KEY_USAGE;
+    }
+    return status;
+}
+
 palStatus_t pal_plat_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* oid, size_t oidLen, const unsigned char* value, size_t valueLen)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -1820,7 +1930,7 @@ palStatus_t pal_plat_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* 
     platStatus = mbedtls_x509write_csr_set_extension(localCSR, oid, oidLen, value, valueLen);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
-        status = PAL_ERR_SET_EXTENTION_FAILED;
+        status = PAL_ERR_SET_EXTENSION_FAILED;
     }
     return status;
 }
@@ -1828,22 +1938,24 @@ palStatus_t pal_plat_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* 
 palStatus_t pal_plat_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerLen)
 {
     palStatus_t status = PAL_SUCCESS;
-    palx509CSR_t *localCSR = (palx509CSR_t*)x509CSR;
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    palx509CSR_t *localCSR = (palx509CSR_t*)x509CSR;
 
     platStatus = mbedtls_x509write_csr_der(localCSR, derBuf, derBufLen, pal_plat_entropySource, NULL);
-    if (CRYPTO_PLAT_SUCCESS >= platStatus) //! mbedtls_x509write_csr_der() returns the size of the written CSR
-    {                                      //! we need to check if the length larger than zero
-        status = PAL_ERR_CSR_WRITE_DER_FAILED;
-        goto finish;
-    }
-
-    moveDataToBufferStart(derBuf, derBufLen, platStatus);
-    if (actualDerLen)
+    if (CRYPTO_PLAT_SUCCESS < platStatus)
     {
         *actualDerLen = platStatus;
+        moveDataToBufferStart(derBuf, derBufLen, *actualDerLen);
+    } else {
+        switch (platStatus) {
+            case MBEDTLS_ERR_ASN1_BUF_TOO_SMALL:
+                status = PAL_ERR_BUFFER_TOO_SMALL;
+                break;
+            default:
+                status = PAL_ERR_CSR_WRITE_DER_FAILED;
+        }
     }
- finish:
+
     return status;
 }
 
@@ -1857,6 +1969,29 @@ palStatus_t pal_plat_x509CSRFree(palx509CSRHandle_t *x509CSR)
     *x509CSR = NULLPTR;
     return status;
 }
+
+palStatus_t pal_plat_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_type, unsigned char* output, size_t outLenBytes, size_t* actualOutLenBytes)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palX509Ctx_t *crt_ctx = (palX509Ctx_t*)x509Cert;
+
+    switch (hash_type) {
+        case PAL_SHA256:
+            if (outLenBytes < PAL_SHA256_SIZE) {
+                status = PAL_ERR_BUFFER_TOO_SMALL;
+                break;
+            }
+            status = pal_plat_sha256(crt_ctx->crt.tbs.p, crt_ctx->crt.tbs.len, output);
+            *actualOutLenBytes = PAL_SHA256_SIZE;
+            break;
+        default:
+            status = PAL_ERR_INVALID_MD_TYPE;
+            break;
+    }
+    
+    return status;
+}
+
 #endif
 PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len)
 {

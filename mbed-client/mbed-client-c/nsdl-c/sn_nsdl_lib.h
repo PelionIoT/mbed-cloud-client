@@ -236,8 +236,9 @@ typedef struct sn_nsdl_resource_parameters_ {
     bool                                        free_on_delete:1;   /**< 1 if struct is dynamic allocted --> to be freed */
     bool                                        observable:1;       /**< Is resource observable or not */
     bool                                        auto_observable:1;  /**< Is resource auto observable or not */
-    bool                                        publish_value:1;    /**< 1 if resource value to be published in registration message */
-    NotificationDeliveryStatus                  notification_status:3; /**< Notification delivery status */
+    bool                                        always_publish:1;  /**< 1 if resource should always be published in registration or registration update **/
+    unsigned                                    publish_value:2;    /**< 0 for non-publishing,1 if resource value to be published in registration message,
+                                                                         2 if resource value to be published in Base64 encoded format */
 } sn_nsdl_dynamic_resource_parameters_s;
 
 /**

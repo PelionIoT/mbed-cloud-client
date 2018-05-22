@@ -73,6 +73,7 @@ extern const char g_fcc_crypto_ecp_invalid_key_error_str[];
 extern const char g_fcc_crypto_pk_key_invalid_version_error_str[];
 extern const char g_fcc_crypto_pk_password_requerd_error_str[];
 extern const char g_fcc_crypto_unknown_pk_algorithm_error_str[];
+extern const char g_fcc_crypto_chain_validation_error_str[];
 
 //warning strings
 extern const char g_fcc_item_not_set_warning_str[];

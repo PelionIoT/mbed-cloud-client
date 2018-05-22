@@ -25,6 +25,8 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include "kcm_status.h"
+#include "kcm_internal.h"
+#include "cs_hash.h"
 
 /*
 * Types certificate's attributes
@@ -40,6 +42,10 @@ typedef enum cs_certificate_attribute_type_ {
     CS_MAX_ATTRIBUTE_TYPE
 } cs_certificate_attribute_type_e;
 
+
+/** Parameters of the previous certificate in the chain required to verify that the current cert actually signed the previous one.
+*/
+typedef kcm_cert_chain_prev_params_int_s cs_child_cert_params_s;
 
 
 /** Verify handle of x509 formatted certificate using certificate chain handle.
@@ -62,7 +68,7 @@ kcm_status_e cs_verify_x509_cert(palX509Handle_t x509_cert, palX509Handle_t x509
 * @return
 *     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
 */
-kcm_status_e cs_parse_der_x509_cert(const uint8_t *cert, size_t cert_length);
+kcm_status_e cs_check_der_x509_format(const uint8_t *cert, size_t cert_length);
 
 /**Parse and create handle for x509 der certificate.
 * In case certificate is NULL , return empty initialized handle.
@@ -153,6 +159,18 @@ kcm_status_e  cs_x509_cert_verify_signature(palX509Handle_t x509_cert,
                                             size_t hash_size,
                                             const unsigned char *signature,
                                             size_t signature_size);
+
+/** Retrieve all the parameters of a child X509 (signed by a parent) certificate, required for validation by the parent (signer) certificate
+*
+* Once these parameters are retrieved, The validity of the child certificate may be checked with the public key of the signer (the pal_verifySignature() API)
+*
+* @param[in] x509_cert Handle to an X509 certificate
+* @param[out] params_out pointer to a cs_child_cert_params_s structure which the relevant data will be filled
+*
+* @return
+*     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
+*/
+kcm_status_e cs_child_cert_params_get(palX509Handle_t x509_cert, cs_child_cert_params_s *params_out);
 
 
 #ifdef __cplusplus

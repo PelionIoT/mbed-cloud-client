@@ -257,6 +257,15 @@ extern "C" {
      */
     arm_uc_error_t ARM_UC_HUB_Uninitialize();
 
+    /**
+     * @brief Return the details of the active firmware.
+     * @param details Pointer to the firmware details structure.
+     * @return ARM_UC_HUB_ERR_NOT_AVAILABLE if the active firmware details
+     *         are not yet available, ERR_INVALID_PARAMETER if "details" is
+     *         NULL or ERR_NONE for success.
+     */
+    arm_uc_error_t ARM_UC_API_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details);
+
 #ifdef __cplusplus
 }
 #endif

@@ -145,7 +145,7 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             UC_HUB_ERR_MSG("HUB_ERR_ROLLBACK_PROTECTION: %" PRIX32,
                            (uint32_t) HUB_ERR_ROLLBACK_PROTECTION);
             error_external = ARM_UC_WARNING_ROLLBACK_PROTECTION;
-            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_TYPE;
+            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_UPDATE;
             break;
 
         default:

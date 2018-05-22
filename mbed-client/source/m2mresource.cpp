@@ -174,6 +174,7 @@ bool M2MResource::remove_resource_instance(uint16_t inst_id)
                 res = *it;
                 delete res;
                 _resource_instance_list.erase(pos);
+                set_changed();
                 success = true;
                 break;
             }
@@ -299,6 +300,7 @@ void M2MResource::add_resource_instance(M2MResourceInstance *res)
     tr_debug("M2MResource::add_resource_instance()");
     if(res) {
         _resource_instance_list.push_back(res);
+        set_changed();
     }
 }
 
@@ -603,6 +605,11 @@ sn_coap_hdr_s* M2MResource::handle_post_request(nsdl_s *nsdl,
         coap_response->msg_code = msg_code;
     }
     return coap_response;
+}
+
+M2MBase *M2MResource::get_parent() const
+{
+    return (M2MBase *) &get_parent_object_instance();
 }
 
 M2MObjectInstance& M2MResource::get_parent_object_instance() const

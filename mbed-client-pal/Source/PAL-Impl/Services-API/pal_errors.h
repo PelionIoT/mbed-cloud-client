@@ -55,7 +55,7 @@ typedef enum {
 	PAL_ERR_BUFFER_TOO_SMALL =      PAL_ERR_GENERAL_BASE + 0x03,   /*! The buffer given is too small. */
 	PAL_ERR_NOT_SUPPORTED =         PAL_ERR_GENERAL_BASE + 0x04,   /*! The operation is not supported by PAL for the current configuration. */
 	PAL_ERR_TIMEOUT_EXPIRED =       PAL_ERR_GENERAL_BASE + 0x05,   /*! The timeout for the operation has expired. */
-	PAL_ERR_NOT_INITIALIZED =       PAL_ERR_GENERAL_BASE + 0x06,   /*! The timeout for the operation has expired. */
+	PAL_ERR_NOT_INITIALIZED =       PAL_ERR_GENERAL_BASE + 0x06,   /*! Component is not initialized */
 	PAL_ERR_NULL_POINTER     =      PAL_ERR_GENERAL_BASE + 0x07,   /*! Received a null pointer when it should be initialized. */
 	PAL_ERR_CREATION_FAILED =       PAL_ERR_GENERAL_BASE + 0x08,   /*! Failure in creation of the given type, such as mutex or thread. */
 	PAL_ERR_END_OF_FILE =           PAL_ERR_GENERAL_BASE + 0x09,   /*! The reading process finished since end of file reached. */
@@ -179,7 +179,7 @@ typedef enum {
 	PAL_ERR_X509_INVALID_NAME    =                          PAL_ERR_CRYPTO_ERROR_BASE + 25,
 	PAL_ERR_FAILED_TO_SET_KEY_USAGE =                       PAL_ERR_CRYPTO_ERROR_BASE + 26,
 	PAL_ERR_INVALID_KEY_USAGE    =                          PAL_ERR_CRYPTO_ERROR_BASE + 27,
-	PAL_ERR_SET_EXTENTION_FAILED =                          PAL_ERR_CRYPTO_ERROR_BASE + 28,
+	PAL_ERR_SET_EXTENSION_FAILED =                          PAL_ERR_CRYPTO_ERROR_BASE + 28,
 	PAL_ERR_CSR_WRITE_DER_FAILED =                          PAL_ERR_CRYPTO_ERROR_BASE + 29,
 	PAL_ERR_FAILED_TO_COPY_KEYPAIR =                        PAL_ERR_CRYPTO_ERROR_BASE + 30,
 	PAL_ERR_FAILED_TO_COPY_GROUP =                          PAL_ERR_CRYPTO_ERROR_BASE + 31,
@@ -203,6 +203,7 @@ typedef enum {
 	PAL_ERR_FAILED_SET_TIME_CB =                            PAL_ERR_CRYPTO_ERROR_BASE + 49,
 	PAL_ERR_HMAC_GENERIC_FAILURE =                          PAL_ERR_CRYPTO_ERROR_BASE + 50,
 	PAL_ERR_X509_CERT_VERIFY_FAILED =                       PAL_ERR_CRYPTO_ERROR_BASE + 51,
+    PAL_ERR_FAILED_TO_SET_EXT_KEY_USAGE =                   PAL_ERR_CRYPTO_ERROR_BASE + 52,
 	PAL_ERR_X509_BADCERT_EXPIRED =                          PAL_ERR_MODULE_BITMASK_BASE + 0x01, //! Value must not be changed in order to be able to create bit mask
 	PAL_ERR_X509_BADCERT_FUTURE =                           PAL_ERR_MODULE_BITMASK_BASE + 0x02, //! Value must not be changed in order to be able to create bit mask
 	PAL_ERR_X509_BADCERT_BAD_MD =                           PAL_ERR_MODULE_BITMASK_BASE + 0x04, //! Value must not be changed in order to be able to create bit mask

@@ -550,6 +550,19 @@ palStatus_t pal_x509CSRSetKeyUsage(palx509CSRHandle_t x509CSR, uint32_t keyUsage
 #endif
 }
 
+palStatus_t pal_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint32_t extKeyUsage)
+{
+#if (PAL_ENABLE_X509 == 1)
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR))
+
+    status = pal_plat_x509CSRSetExtendedKeyUsage(x509CSR, extKeyUsage);
+    return status;
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif
+}
+
 palStatus_t pal_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* oid, size_t oidLen, const unsigned char* value, size_t valueLen)
 {
 #if (PAL_ENABLE_X509 == 1)
@@ -619,3 +632,11 @@ palStatus_t pal_ECDSAVerify(palECKeyHandle_t pubKey, unsigned char* dgst, uint32
     return status;
 }
 
+palStatus_t pal_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_type, unsigned char *output, size_t outLenBytes, size_t* actualOutLenBytes)
+{
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS((NULL == output || NULL == actualOutLenBytes || NULLPTR == x509Cert));
+
+    status = pal_plat_x509CertGetHTBS(x509Cert, hash_type, output, outLenBytes, actualOutLenBytes);
+    return status;
+}

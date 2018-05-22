@@ -55,6 +55,10 @@ extern "C" {
 */
 #define FCC_BUNDLE_SCHEME_GROUP_NAME          "SchemeVersion"
 /**
+* Name of keep alive session group.
+*/
+#define FCC_KEEP_ALIVE_SESSION_GROUP_NAME          "KpAlvSess"
+/**
 * Name of Entropy group.
 */
 #define FCC_ENTROPY_NAME       "Entropy"
@@ -101,8 +105,6 @@ extern "C" {
 *       FCC_STATUS_SUCCESS in case of success or one of the `::fcc_status_e` errors otherwise.
 */
 fcc_status_e fcc_bundle_handler(const uint8_t *encoded_bundle, size_t encoded_bundle_size, uint8_t **bundle_response_out, size_t *bundle_response_size_out);
-
-
 #ifdef __cplusplus
 }
 #endif

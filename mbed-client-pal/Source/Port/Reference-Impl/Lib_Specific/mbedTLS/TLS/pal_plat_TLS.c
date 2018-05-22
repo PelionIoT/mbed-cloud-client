@@ -196,12 +196,15 @@ palStatus_t pal_plat_initTLSLibrary(void)
 
 #if PAL_USE_SECURE_TIME
 	#ifdef MBEDTLS_PLATFORM_TIME_ALT
-		int32_t platStatus = SSL_LIB_SUCCESS;
-		platStatus = mbedtls_platform_set_time(pal_mbedtlsTimeCB);
-		if (SSL_LIB_SUCCESS != platStatus)
+		// this scope is here to keep warnings away from gotos which skip over variable initialization
 		{
-			status = PAL_ERR_FAILED_SET_TIME_CB;
-			goto finish;
+			int32_t platStatus = SSL_LIB_SUCCESS;
+			platStatus = mbedtls_platform_set_time(pal_mbedtlsTimeCB);
+			if (SSL_LIB_SUCCESS != platStatus)
+			{
+				status = PAL_ERR_FAILED_SET_TIME_CB;
+				goto finish;
+			}
 		}
 	#endif //MBEDTLS_PLATFORM_TIME_ALT
 		status = pal_osMutexCreate(&g_palTLSTimeMutex);

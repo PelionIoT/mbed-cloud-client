@@ -18,7 +18,7 @@
 #include "storage.h"
 #include "pv_error_handling.h"
 #include "cs_der_certs.h"
-#include "cs_der_keys.h"
+#include "cs_der_keys_and_csrs.h"
 #include "fcc_malloc.h"
 #include "pal.h"
 
@@ -109,7 +109,7 @@ kcm_status_e kcm_init(void)
         //Initialize back-end storage
         status = storage_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), status, "Failed initializing storage\n");
-        
+
         // Mark as "initialized"
         kcm_initialized = true;
     }
@@ -185,7 +185,7 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name, size_t kcm_item_name_
             //currently possible to write a symmetric key of size 0 since we do not check format
             break;
         case KCM_CERTIFICATE_ITEM:
-            kcm_status = cs_parse_der_x509_cert(kcm_item_data, kcm_item_data_size);
+            kcm_status = cs_check_der_x509_format(kcm_item_data, kcm_item_data_size);
             SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Certificate validation failed");
             kcm_item_is_encrypted = false; //do not encrypt certificates
             break;
@@ -519,7 +519,7 @@ kcm_status_e kcm_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, const 
         kcm_status = storage_file_read_meta_data_by_type(&chain_context->current_kcm_ctx, KCM_CERT_CHAIN_LEN_MD_TYPE, (uint8_t*)&chain_len_to_read, meta_data_size, &meta_data_size);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed reading file's metadata");
         // Test if the read len is legitimate number
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((chain_len_to_read == 0 || chain_len_to_read > KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN), (kcm_status = KCM_STATUS_INVALID_CHAIN), Exit, "Illegitimate chain len in file's metadata");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((chain_len_to_read == 0 || chain_len_to_read > KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN), (kcm_status = KCM_STATUS_CORRUPTED_CHAIN_FILE), Exit, "Illegitimate chain len in file's metadata");
     }
 
     chain_context->operation_type = KCM_CHAIN_OP_TYPE_OPEN;
@@ -545,11 +545,20 @@ Exit:
     return kcm_status;
 }
 
-
+/*
+* If not first certificate in chain:
+*     1. Validate previously added certificate with the public key inside kcm_cert_data
+*     2. Set the chain_context->prev_cert_params to be the params of the current certificate so it can be validated with next call to this function.
+*     3. Store the current certificate
+*     4. Update the index of the chain handle iterator for next use of this function
+* If is first certificate in chain:
+*    File already open - skip step 1 (no previous cert available). Note in this case the file should already be open so no need to reopen it
+*/
 kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, const uint8_t *kcm_cert_data, size_t kcm_cert_data_size)
 {
     kcm_cert_chain_context_int_s *chain_context = (kcm_cert_chain_context_int_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    palX509Handle_t cert;
 
     SA_PV_LOG_INFO_FUNC_ENTER("cert_data_size =%" PRIu32 "", (uint32_t)kcm_cert_data_size);
 
@@ -565,24 +574,41 @@ kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, con
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != KCM_CHAIN_OP_TYPE_CREATE), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->current_cert_index >= chain_context->num_of_certificates_in_chain), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid certificate index");
 
-    kcm_status = cs_parse_der_x509_cert(kcm_cert_data, kcm_cert_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Certificate validation failed");
+    // Parse the X509 and make sure it is of correct structure
+    kcm_status = cs_create_handle_from_der_x509_cert(kcm_cert_data, kcm_cert_data_size, &cert);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to parsing cert");
 
     if (chain_context->current_cert_index > 0) {
+        // If not first certificate - validate based on params of previous certificate
+        kcm_status = cs_x509_cert_verify_signature(cert, chain_context->prev_cert_params.htbs,
+                                                   chain_context->prev_cert_params.htbs_actual_size,
+                                                   chain_context->prev_cert_params.signature,
+                                                   chain_context->prev_cert_params.signature_actual_size);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status == KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED), (kcm_status = KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED), Clean_X509, "Failed verifying child signature");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed verifying child signature");
         // only on the first certificate, the file is open
         // update file name by changing last char suffix and create the file
         kcm_cert_chain_update_name_prefix(chain_context->chain_name, chain_context->current_cert_index);
         kcm_status = storage_file_create(&chain_context->current_kcm_ctx, chain_context->chain_name, chain_context->chain_name_len, NULL, chain_context->chain_is_factory, false);
         if (kcm_status == KCM_STATUS_FILE_EXIST) {
             // trying to recover by deleting the existing file
-            SA_PV_LOG_INFO("Certificate chain file for index %" PRIu32 " already exist. File will be overwrited.", (uint32_t)chain_context->current_cert_index);
+            SA_PV_LOG_INFO("Certificate chain file for index %" PRIu32 " already exist. File will be overwritten.", (uint32_t)chain_context->current_cert_index);
+
             kcm_status = storage_file_delete(&chain_context->current_kcm_ctx, chain_context->chain_name, chain_context->chain_name_len);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed delete existing kcm chain file");
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed to delete existing kcm chain file");
+
             kcm_status = storage_file_create(&chain_context->current_kcm_ctx, chain_context->chain_name, chain_context->chain_name_len, NULL, chain_context->chain_is_factory, false);
         }
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed creating kcm chain file");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, Clean_X509, "Failed creating kcm chain file");
     }
 
+    // Save params only if certificate is not last in chain 
+    if(chain_context->current_cert_index < chain_context->num_of_certificates_in_chain - 1) {
+        // Get params needed for validation by the signer
+        // These will be used to validate this certificate in the chain when parsing the next one
+        kcm_status = cs_child_cert_params_get(cert, &chain_context->prev_cert_params);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed to retrieve child cert params");
+    }
     kcm_status = storage_file_write_with_ctx(&chain_context->current_kcm_ctx, kcm_cert_data, kcm_cert_data_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed writing kcm chain file");
 
@@ -592,14 +618,17 @@ kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, con
     // file written, increase current_cert_index
     chain_context->current_cert_index++;
 
+
 Exit:
     if (kcm_status != KCM_STATUS_SUCCESS) {
         if (chain_context->current_cert_index > 0) {
             storage_file_close(&chain_context->current_kcm_ctx);
         }
     }
-    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 
+Clean_X509:
+    cs_close_handle_x509_cert(&cert);
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
 
@@ -798,3 +827,200 @@ Exit:
     return kcm_status;
 
 }
+
+
+kcm_status_e kcm_key_pair_generate_and_store(
+    const kcm_crypto_key_scheme_e    key_scheme,
+    const uint8_t                    *private_key_name,
+    size_t                            private_key_name_len,
+    const uint8_t                    *public_key_name,
+    size_t                            public_key_name_len,
+    bool                              kcm_item_is_factory,
+    const kcm_security_desc_s        *kcm_params)
+
+{
+
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    size_t actual_kcm_priv_key_size = 0;
+    size_t actual_kcm_pub_key_size = 0;
+    uint8_t priv_key_buffer[KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE];
+    uint8_t pub_key_buffer[KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE];
+    bool pub_key_exists = false;
+
+
+    //temporary check that kcm_params is NULL                                                                                                   
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_params != NULL), KCM_STATUS_INVALID_PARAMETER, "kcm_params is not NULL!");
+
+    //check input params
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_scheme != KCM_SCHEME_EC_SECP256R1), KCM_STATUS_INVALID_PARAMETER, "Invalid key_scheme");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name_len");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((public_key_name != NULL) && (public_key_name_len == 0)), KCM_STATUS_INVALID_PARAMETER, "public_key_name is not NULL, but its size is 0");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((public_key_name == NULL) && (public_key_name_len != 0)), KCM_STATUS_INVALID_PARAMETER, "public_key_name is NULL, but its size is not 0");
+
+    SA_PV_LOG_INFO_FUNC_ENTER("priv_key_name = %.*s priv_key_len = %" PRIu32 ", pub_key_name = %.*s pub_key_len = %" PRIu32,
+        (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len, (int)public_key_name_len, (char*)public_key_name, (uint32_t)public_key_name_len);
+
+    pub_key_exists = ((public_key_name != NULL) && (public_key_name_len != 0));
+
+    //check private key existence
+    kcm_status = kcm_item_get_data_size(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM,
+                                        &actual_kcm_priv_key_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "private key already exists");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check private key existence");
+
+    //fetch public key if exists
+    if (pub_key_exists) {
+        kcm_status = kcm_item_get_data_size(public_key_name, public_key_name_len, KCM_PUBLIC_KEY_ITEM,
+                                            &actual_kcm_pub_key_size);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "public key already exists");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check public key existence");
+    }
+
+    //generate key pair
+    kcm_status = cs_key_pair_generate(key_scheme, priv_key_buffer, sizeof(priv_key_buffer), &actual_kcm_priv_key_size, pub_key_buffer, sizeof(pub_key_buffer), &actual_kcm_pub_key_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to generate key pair");
+
+    //store private key
+    kcm_status = kcm_item_store(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM, kcm_item_is_factory, priv_key_buffer, actual_kcm_priv_key_size, NULL);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to store private key");
+
+    //store public key if exists
+    if (pub_key_exists) {
+        kcm_status = kcm_item_store(public_key_name, public_key_name_len, KCM_PUBLIC_KEY_ITEM, kcm_item_is_factory, pub_key_buffer, actual_kcm_pub_key_size, NULL);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to store public key");
+    }
+
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+
+    return kcm_status;
+}
+
+
+kcm_status_e kcm_csr_generate(
+    const uint8_t            *private_key_name,
+    size_t                   private_key_name_len,
+    const kcm_csr_params_s   *csr_params,
+    uint8_t                  *csr_buff_out,
+    size_t                   csr_buff_max_size,
+    size_t                   *csr_buff_act_size)
+{
+
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    size_t prv_key_size, actual_prv_key_size = 0;
+    uint8_t priv_key_buffer[KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE];
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name_len");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_params");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params->subject == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid subject name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params->md_type == KCM_MD_NONE), KCM_STATUS_INVALID_PARAMETER, "Invalid md type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_out");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_max_size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_act_size == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_act_size");
+
+    SA_PV_LOG_INFO_FUNC_ENTER("priv_key_name = %.*s priv_key_len = %" PRIu32", csr_buff_max_size = %" PRIu32,
+        (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len, (uint32_t)csr_buff_max_size);
+
+    //fetch private key size
+    kcm_status = kcm_item_get_data_size(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM,
+                                        &prv_key_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to get private key data size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((prv_key_size == 0), kcm_status, "Size of private key is 0");
+
+    //fetch private key
+    kcm_status = kcm_item_get_data(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM, priv_key_buffer,
+                                   prv_key_size, &actual_prv_key_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to get private key");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((actual_prv_key_size == 0), kcm_status = KCM_STATUS_ITEM_IS_EMPTY, "Size of private key is 0");
+
+    //generate csr
+    kcm_status = cs_csr_generate(priv_key_buffer, actual_prv_key_size, csr_params, csr_buff_out, csr_buff_max_size, csr_buff_act_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to generate CSR");
+
+    SA_PV_LOG_INFO_FUNC_EXIT("csr_buff_act_size = %" PRIu32 "", (uint32_t)*csr_buff_act_size);
+
+    return kcm_status;
+
+}
+
+
+kcm_status_e kcm_generate_keys_and_csr(
+    kcm_crypto_key_scheme_e   key_scheme,
+    const uint8_t             *private_key_name,
+    size_t                    private_key_name_len,
+    const uint8_t             *public_key_name,
+    size_t                    public_key_name_len,
+    bool                      kcm_item_is_factory,
+    const kcm_csr_params_s    *csr_params,
+    uint8_t                   *csr_buff_out,
+    size_t                    csr_buff_max_size,
+    size_t                    *csr_buff_act_size_out,
+    const kcm_security_desc_s *kcm_params)
+{
+
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    size_t actual_kcm_key_size = 0;
+    size_t priv_key_act_size_out = 0;
+    size_t pub_key_act_size_out = 0;
+    uint8_t priv_key_buffer[KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE];
+    uint8_t pub_key_buffer[KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE];
+    bool pub_key_exists = false;
+
+    //temporary check that kcm_params is NULL                                                                                                   
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_params != NULL), KCM_STATUS_INVALID_PARAMETER, "kcm_params is not NULL!");
+
+    //check input params
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_scheme != KCM_SCHEME_EC_SECP256R1), KCM_STATUS_INVALID_PARAMETER, "Invalid key_scheme");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name_len");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((public_key_name != NULL) && (public_key_name_len == 0)), KCM_STATUS_INVALID_PARAMETER, "public_key_name is not NULL, but its size is 0");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((public_key_name == NULL) && (public_key_name_len != 0)), KCM_STATUS_INVALID_PARAMETER, "public_key_name is NULL, but its size is not 0");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_params");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params->subject == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid subject name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params->md_type == KCM_MD_NONE), KCM_STATUS_INVALID_PARAMETER, "Invalid md type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_out");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_max_size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_act_size");
+
+    SA_PV_LOG_INFO_FUNC_ENTER("priv_key_name = %.*s priv_key_len = %" PRIu32 ", pub_key_name = %.*s pub_key_len = %" PRIu32,
+        (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len, (int)public_key_name_len, (char*)public_key_name, (uint32_t)public_key_name_len);
+
+    pub_key_exists = ((public_key_name != NULL) && (public_key_name_len != 0));
+
+    //check private key existence
+    kcm_status = kcm_item_get_data_size(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM,
+                                        &actual_kcm_key_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "private key already exists");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check private key existence");
+
+    //check public key existence
+    if (pub_key_exists) {
+        kcm_status = kcm_item_get_data_size(public_key_name, public_key_name_len, KCM_PUBLIC_KEY_ITEM,
+                                            &actual_kcm_key_size);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "public key already exists");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check public key existence");
+    }
+
+    //generat keys and csr
+    kcm_status = cs_generate_keys_and_csr(key_scheme, csr_params, priv_key_buffer, sizeof(priv_key_buffer), &priv_key_act_size_out, pub_key_buffer, sizeof(pub_key_buffer), &pub_key_act_size_out, csr_buff_out, csr_buff_max_size, csr_buff_act_size_out);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to generate keys and csr");
+
+    //store private key
+    kcm_status = kcm_item_store(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM, kcm_item_is_factory, priv_key_buffer, sizeof(priv_key_buffer), NULL);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to store private key");
+
+    //store public key
+    if (pub_key_exists) {
+        kcm_status = kcm_item_store(public_key_name, public_key_name_len, KCM_PUBLIC_KEY_ITEM, kcm_item_is_factory, pub_key_buffer, sizeof(pub_key_buffer), NULL);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to store public key");
+    }
+
+
+    SA_PV_LOG_INFO_FUNC_EXIT("csr_buff_act_size_out = %" PRIu32 "", (uint32_t)*csr_buff_act_size_out);
+    return kcm_status;
+
+}
+
+
+

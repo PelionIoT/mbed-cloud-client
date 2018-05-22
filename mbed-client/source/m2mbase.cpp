@@ -19,6 +19,7 @@
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2mtimer.h"
 
+#include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mobject.h"
 #include "mbed-client/m2mobjectinstance.h"
 #include "mbed-client/m2mresource.h"
@@ -106,7 +107,6 @@ M2MBase::M2MBase(const String& resource_name,
         }
         _sn_resource->dynamic_resource_params->publish_uri = true;
         _sn_resource->dynamic_resource_params->free_on_delete = true;
-        _sn_resource->dynamic_resource_params->notification_status = NOTIFICATION_STATUS_INIT;
         _sn_resource->dynamic_resource_params->auto_observable = false;
         _sn_resource->dynamic_resource_params->publish_value = false;
     }
@@ -123,7 +123,7 @@ M2MBase::M2MBase(const lwm2m_parameters_s *s):
 
 M2MBase::~M2MBase()
 {
-    tr_debug("M2MBase::~M2MBase()");
+    tr_debug("M2MBase::~M2MBase() %p", this);
     delete _report_handler;
 
     value_updated_callback* callback = (value_updated_callback*)M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MBaseValueUpdatedCallback);
@@ -145,6 +145,13 @@ char* M2MBase::create_path_base(const M2MBase &parent, const char *name)
 
     return result;
 }
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+char* M2MBase::create_path(const M2MEndpoint &parent, const char *name)
+{
+    return create_path_base(parent, name);
+}
+#endif
 
 char* M2MBase::create_path(const M2MObject &parent, uint16_t object_instance)
 {
@@ -200,6 +207,7 @@ void M2MBase::set_interface_description(const char *desc)
         _sn_resource->dynamic_resource_params->static_resource_parameters->interface_description_ptr =
                 (char*)alloc_string_copy((uint8_t*) desc, len);
     }
+    set_changed();
 }
 
 void M2MBase::set_interface_description(const String &desc)
@@ -226,6 +234,7 @@ void M2MBase::set_resource_type(const char *res_type)
         _sn_resource->dynamic_resource_params->static_resource_parameters->resource_type_ptr = (char*)
                 alloc_string_copy((uint8_t*) res_type, len);
     }
+    set_changed();
 }
 #endif // DISABLE_RESOURCE_TYPE
 #endif //MEMORY_OPTIMIZED_API
@@ -239,6 +248,7 @@ void M2MBase::set_interface_description(const char *desc)
         item.attribute_name = ATTR_INTERFACE_DESCRIPTION;
         item.value = (char*)alloc_string_copy((uint8_t*) desc, len);
         sn_nsdl_set_resource_attribute(_sn_resource->dynamic_resource_params->static_resource_parameters, &item);
+        set_changed();
     }
 }
 
@@ -263,6 +273,7 @@ void M2MBase::set_resource_type(const char *res_type)
         item.attribute_name = ATTR_RESOURCE_TYPE;
         item.value = (char*)alloc_string_copy((uint8_t*) res_type, len);
         sn_nsdl_set_resource_attribute(_sn_resource->dynamic_resource_params->static_resource_parameters, &item);
+        set_changed();
     }
 }
 #endif // RESOURCE_ATTRIBUTES_LIST
@@ -270,16 +281,19 @@ void M2MBase::set_resource_type(const char *res_type)
 void M2MBase::set_coap_content_type(const uint16_t con_type)
 {
     _sn_resource->dynamic_resource_params->coap_content_type = con_type;
+    set_changed();
 }
 
 void M2MBase::set_observable(bool observable)
 {
     _sn_resource->dynamic_resource_params->observable = observable;
+    set_changed();
 }
 
 void M2MBase::set_auto_observable(bool auto_observable)
 {
     _sn_resource->dynamic_resource_params->auto_observable = auto_observable;
+    set_changed();
 }
 
 void M2MBase::add_observation_level(M2MBase::Observation obs_level)
@@ -331,6 +345,8 @@ void M2MBase::set_observation_token(const uint8_t *token, const uint8_t length)
 {
     if (_report_handler) {
         _report_handler->set_observation_token(token, length);
+        // This relates to sn_nsdl_auto_obs_token_callback in sn_nsdl.c
+        set_changed();
     }
 }
 
@@ -487,18 +503,19 @@ bool M2MBase::handle_observation_attribute(const char *query)
     return success;
 }
 
-void M2MBase::observation_to_be_sent(const m2m::Vector<uint16_t> &changed_instance_ids,
+bool M2MBase::observation_to_be_sent(const m2m::Vector<uint16_t> &changed_instance_ids,
                                      uint16_t obs_number,
                                      bool send_object)
 {
     //TODO: Move this to M2MResourceInstance
     M2MObservationHandler *obs_handler = observation_handler();
     if (obs_handler) {
-        obs_handler->observation_to_be_sent(this,
+        return obs_handler->observation_to_be_sent(this,
                                             obs_number,
                                             changed_instance_ids,
                                             send_object);
     }
+    return false;
 }
 
 void M2MBase::set_base_type(M2MBase::BaseType type)
@@ -861,7 +878,6 @@ bool M2MBase::set_notification_delivery_status_cb(notification_delivery_status_c
 
 void M2MBase::send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status)
 {
-    _sn_resource->dynamic_resource_params->notification_status = status;
     M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(object,
                                                                             M2MCallbackAssociation::M2MBaseNotificationDeliveryStatusCallback);
     if (item) {
@@ -872,12 +888,18 @@ void M2MBase::send_notification_delivery_status(const M2MBase& object, const Not
     }
 }
 
-NotificationDeliveryStatus M2MBase::get_notification_delivery_status() const
+void M2MBase::set_changed()
 {
-    return _sn_resource->dynamic_resource_params->notification_status;
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    M2MBase *parent = get_parent();
+    if (parent) {
+        parent->set_changed();
+    }
+#endif
 }
 
-void M2MBase::clear_notification_delivery_status()
+M2MBase *M2MBase::get_parent() const
 {
-    _sn_resource->dynamic_resource_params->notification_status = NOTIFICATION_STATUS_INIT;
+    return NULL;
 }
+

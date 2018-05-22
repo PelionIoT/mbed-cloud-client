@@ -212,6 +212,12 @@
     #define MBEDTLS_SSL_MAX_CONTENT_LEN 4096
 #endif //MBEDTLS_SSL_MAX_CONTENT_LEN
 
+// needed for Base64 encoding Opaque data for
+// registration payload, adds 500 bytes to flash.
+#ifndef MBEDTLS_BASE64_C
+    #define MBEDTLS_BASE64_C
+#endif // MBEDTLS_BASE64_C
+
 // Needed by provisioning
 #undef MBEDTLS_PEM_WRITE_C
 
@@ -225,8 +231,6 @@
 #undef MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
 
 #undef MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED
-
-//#define MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
    
 // Remove error messages, save 10KB of ROM
 #undef MBEDTLS_ERROR_C
@@ -245,10 +249,6 @@
 
 // needed for parsing the certificates
 #undef MBEDTLS_PEM_PARSE_C
-
-
-// dep of the previous
-#undef MBEDTLS_BASE64_C
 
 #undef MBEDTLS_SHA512_C
 

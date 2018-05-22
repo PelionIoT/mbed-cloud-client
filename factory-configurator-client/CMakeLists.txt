@@ -24,11 +24,6 @@ FOREACH(module ${MODULES})
 	LIST(APPEND SOURCE_LIST "${CMAKE_CURRENT_SOURCE_DIR}/${module}/source/*.cpp")
 ENDFOREACH()
 
-# sotp sources
-LIST(APPEND SOURCE_LIST "${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source/sotp/*.h")
-LIST(APPEND SOURCE_LIST "${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source/sotp/*.c")
-LIST(APPEND SOURCE_LIST "${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source/sotp/*.cpp")
-
 FILE(GLOB factory-configurator-client ${SOURCE_LIST})
 
 message("*********************************************************************")

@@ -22,7 +22,7 @@
 #include <stdint.h>
 
 #include "kcm_status.h"
-
+#include "pal_Crypto.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,9 +33,10 @@ typedef enum {
 } cs_hash_mode_e;
 
 typedef enum {
-    CS_SHA256_SIZE = 32,
+    CS_SHA256_SIZE = PAL_SHA256_SIZE,
 } cs_hash_size_e;
 
+#define CS_MAX_HASH_SIZE CS_SHA256_SIZE
 
 /**Calculate hash on input data
 *

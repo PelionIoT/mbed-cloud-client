@@ -91,6 +91,7 @@ M2MResource* M2MObjectInstance::create_static_resource(const lwm2m_parameters_s*
                 //res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
             //}
             _resource_list.push_back(res);
+            set_changed();
         }
     }
     return res;
@@ -122,6 +123,7 @@ M2MResource* M2MObjectInstance::create_static_resource(const String &resource_na
                     res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
                 }
                 _resource_list.push_back(res);
+                set_changed();
             }
         }
     }
@@ -146,6 +148,7 @@ M2MResource* M2MObjectInstance::create_dynamic_resource(const lwm2m_parameters_s
             //}
             res->add_observation_level(observation_level());
             _resource_list.push_back(res);
+            set_changed();
         }
     }
     return res;
@@ -175,6 +178,7 @@ M2MResource* M2MObjectInstance::create_dynamic_resource(const String &resource_n
                 }
                 res->add_observation_level(observation_level());
                 _resource_list.push_back(res);
+                set_changed();
             }
         }
     }
@@ -203,6 +207,7 @@ M2MResourceInstance* M2MObjectInstance::create_static_resource_instance(const St
                                   value, value_length, path,
                                   true, external_blockwise_store);
             _resource_list.push_back(res);
+            set_changed();
             res->set_operation(M2MBase::GET_ALLOWED);
             res->set_observable(false);
             res->set_register_uri(false);
@@ -257,6 +262,7 @@ M2MResourceInstance* M2MObjectInstance::create_dynamic_resource_instance(const S
                 instance->set_observable(observable);
                 instance->set_instance_id(instance_id);
                 res->add_resource_instance(instance);
+                set_changed();
             }
         }
     }
@@ -284,6 +290,7 @@ bool M2MObjectInstance::remove_resource(const char *resource_name)
                 res = *it;
                 delete res;
                 _resource_list.erase(pos);
+                set_changed();
                 success = true;
                 break;
              }
@@ -314,6 +321,7 @@ bool M2MObjectInstance::remove_resource_instance(const String &resource_name,
                         if(strcmp((*itr)->name(),resource_name.c_str()) == 0) {
                             delete res;
                             _resource_list.erase(pos);
+                            set_changed();
                             break;
                         }
                     }
@@ -751,6 +759,11 @@ void M2MObjectInstance::notification_update(M2MBase::Observation observation_lev
         }
 
     }
+}
+
+M2MBase *M2MObjectInstance::get_parent() const
+{
+    return (M2MBase *) &get_parent_object();
 }
 
 M2MBase::DataType M2MObjectInstance::convert_resource_type(M2MResourceInstance::ResourceType type)

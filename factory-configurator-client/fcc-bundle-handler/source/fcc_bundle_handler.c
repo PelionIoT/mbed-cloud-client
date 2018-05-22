@@ -41,6 +41,7 @@
 */
 #define FCC_SIZE_OF_VERSION_FIELD 5
 const char fcc_bundle_scheme_version[] = "0.0.1";
+extern bool g_is_session_finished;
 /**
 * Types of configuration parameter groups
 */
@@ -54,9 +55,11 @@ typedef enum {
     FCC_ENTROPY_TYPE,                  //!< Entropy group type
     FCC_ROT_TYPE,                      //!< Root of trust group type
     FCC_VERIFY_DEVICE_IS_READY_TYPE,   //!< Verify device readiness type
-    FCC_FACTORY_DISABLE_TYPE,             //!< Disable FCC flow type
+    FCC_FACTORY_DISABLE_TYPE,          //!< Disable FCC flow type
+    FCC_IS_ALIVE_SESSION_GROUP_TYPE,   //!< Indicates current message status - last message or not
     FCC_MAX_CONFIG_PARAM_GROUP_TYPE    //!< Max group type
 } fcc_bundle_param_group_type_e;
+
 /**
 * Group lookup record, correlating group's type and name
 */
@@ -73,6 +76,7 @@ static const fcc_bundle_group_lookup_record_s fcc_groups_lookup_table[FCC_MAX_CO
     { FCC_SCHEME_VERSION_TYPE,           FCC_BUNDLE_SCHEME_GROUP_NAME },
     { FCC_ENTROPY_TYPE,                  FCC_ENTROPY_NAME },
     { FCC_ROT_TYPE,                      FCC_ROT_NAME },
+    { FCC_IS_ALIVE_SESSION_GROUP_TYPE,   FCC_KEEP_ALIVE_SESSION_GROUP_NAME },
     { FCC_KEY_GROUP_TYPE,                FCC_KEY_GROUP_NAME },
     { FCC_CERTIFICATE_GROUP_TYPE,        FCC_CERTIFICATE_GROUP_NAME },
     { FCC_CSR_GROUP_TYPE,                FCC_CSR_GROUP_NAME },
@@ -82,6 +86,17 @@ static const fcc_bundle_group_lookup_record_s fcc_groups_lookup_table[FCC_MAX_CO
     { FCC_FACTORY_DISABLE_TYPE,          FCC_FACTORY_DISABLE_GROUP_NAME },
 };
 
+
+/* Response cbor blob structure
+
+{  "SchemeVersion": "0.0.1",
+   "FCUSessionID": uint32_t,
+   "Csrs": [ {"Name": "__", "Format":"_","Data":"__"},
+             {"Name": "__", "Format":"_","Data":"__"}],
+   "WarningInfo": "string of warnings",
+   "ReturnStatus": uint32_t,
+   "InfoMessage": "detailed error string"}
+*/
 /** Prepare a response message
 *
 * The function prepare response buffer according to result of bundle buffer processing.
@@ -224,8 +239,76 @@ static bool check_scheme_version(cn_cbor *cbor_blob)
 
     return true;
 }
+/** The function parses group that indicates if current session will be closed after the processing of the message.
+*  The function checks existence and value of the group and sets the result to global variable g_is_alive_sesssion.
+*
+* @param cbor_blob[in]   The pointer to main cbor blob.
+* @return
+*     true for success, false otherwise.
+*/
+static bool parse_keep_alive_session_group(cn_cbor *cbor_blob)
+{
+    cn_cbor *is_alive_message = NULL;
 
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_blob == NULL), false, "Invalid cbor_blob");
 
+    is_alive_message = cn_cbor_mapget_string(cbor_blob, FCC_KEEP_ALIVE_SESSION_GROUP_NAME);
+    //In case current group wasn't found -  set g_is_not_last_message to false (for backward compatibility)
+    if (is_alive_message == NULL) {
+        g_is_session_finished = true;
+        return true;
+    }
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((is_alive_message->type != CN_CBOR_UINT || is_alive_message->v.uint != 1), false, "Wrong is alive session structure");
+
+    //In case current group was found and its value is "1" -set g_is_not_last_message to true
+    g_is_session_finished = false;
+
+    return true;
+}
+
+/* CBOR blob structure
+{   "SchemeVersion": "0.0.1",
+    "FCUSessionID": uint32_t,
+    "IsNotLastMessage": 1 or 0,
+    "Entropy": [byte array - 48 bytes],
+    "Csrs": [ {"PrivKeyName":"__",
+               "PubKeyName": "__", -optional
+               "Extensions": [
+                               {"TrustLevel": uint32_t },
+                               {
+                                   "KeyUsage":  [uint32_t,uint32_t,unit32_t ],
+                               },
+                               {
+                                   "ExtendedKeyUsage":  [byte array],
+                               }]
+               "Subject": "C=__,ST=__ ,L=__, O=__,OU=__,CN=__,",
+                },
+                { ... },
+                { ... }
+              ],
+    "ROT": "byte array",
+    "Certificates": [ {"Name": "__", "Format":" _","Data":"__", "ACL" : "__"},
+                      {..},
+                      {"Name": "__", "Format":" _","Data":"__", "ACL" : "__"}],
+    "Keys": [ {"Name": "__", "Type":"__", "Format":"__", "Data":"**","ACL" : "__"},
+              {"Name": "__", "Type":"__", "Format":"__", "Data":"**","ACL": "__"},
+               ...
+              {"Name": "__", "Type":"__", "Format":"__", "Data":"**","ACL": "__"}],
+    "ConfigParams": [ {"Name": "__", "Data":"__", "ACL" : "__"},
+                      {"Name": "__", "Format":"__", "Data":"__", "ACL": "__"},
+                       ...,
+                      {"Name": "__", "Format":"__", "Data":"__", "ACL": "__"}],
+    "CertificateChains": [ {"Name": "mbed.CertificateChain",
+                            "DataArray":[h'3081870.....',h'308187020100...',h'308187020....'],
+                            "Format":"Der",
+                            "ACL":"_____"},
+                          {"Name": "mbed.LwM2MCertificateChain",
+                           "DataArray":[h'308187...',h'30818702...',h'308187020...',h'308187020...',h'308187020...'],
+                           "Format":"Der",
+                           "ACL":"_____"}],
+    "Verify":1, 
+    "Disable":1}
+*/
 fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob_size, uint8_t **bundle_response_out, size_t *bundle_response_size_out)
 {
     bool status = false;
@@ -258,7 +341,6 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
 
     // Check params
     SA_PV_ERR_RECOVERABLE_RETURN_IF((bundle_response_out == NULL), FCC_STATUS_INVALID_PARAMETER, "Invalid bundle_response_out");
-    
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((bundle_response_size_out == NULL), FCC_STATUS_INVALID_PARAMETER, "Invalid bundle_response_size_out");
     SA_PV_ERR_RECOVERABLE_GOTO_IF((encoded_blob == NULL), fcc_status = FCC_STATUS_INVALID_PARAMETER, exit, "Invalid encoded_blob");
@@ -293,6 +375,19 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
             switch (group_type) {
                 case FCC_SCHEME_VERSION_TYPE:
                     break;
+                case FCC_ENTROPY_TYPE: // Entropy for random generator
+                    fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, SOTP_TYPE_RANDOM_SEED);
+                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_sotp_buffer failed for entropy");
+                    break;
+                case FCC_ROT_TYPE: // Key for ESFS
+                    fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, SOTP_TYPE_ROT);
+                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_sotp_buffer failed for ROT");
+                    break;
+                case FCC_IS_ALIVE_SESSION_GROUP_TYPE:
+                    /* Parse and save is message status */
+                    status = parse_keep_alive_session_group(main_list_cb);
+                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, free_cbor_list_and_out, "parse_keep_alive_session_group failed");
+                    break;
                 case FCC_KEY_GROUP_TYPE:
                     FCC_SET_START_TIMER(fcc_gen_timer);
                     fcc_status = fcc_bundle_process_keys(group_value_cb);
@@ -317,14 +412,6 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
                     FCC_END_TIMER("Total certificate chains process", 0, fcc_gen_timer);
                     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_certificate_chains failed");
                     break;
-                case FCC_ENTROPY_TYPE: // Entropy for random generator
-                    fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, SOTP_TYPE_RANDOM_SEED);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_sotp_buffer failed for entropy");
-                    break;
-                case FCC_ROT_TYPE: // Key for ESFS
-                    fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, SOTP_TYPE_ROT);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_sotp_buffer failed for ROT");
-                    break;
                 case FCC_VERIFY_DEVICE_IS_READY_TYPE: //Check if device need to be verified
                     fcc_status = bundle_process_status_field(group_value_cb, (char*)FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME, strlen((char*)FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME), &fcc_verify_status);
                     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "process_device_verify failed");
@@ -332,6 +419,7 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
                 case FCC_FACTORY_DISABLE_TYPE://Check if device need to be disabled for factory
                     fcc_status = bundle_process_status_field(group_value_cb, (char*)FCC_FACTORY_DISABLE_GROUP_NAME, strlen((char*)FCC_FACTORY_DISABLE_GROUP_NAME), &fcc_disable_status);
                     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_factory_disable failed");
+                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_disable_status == true && g_is_session_finished == false), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, free_cbor_list_and_out, "can not disable fcc for intermidiate message");
                     break;
                 default:
                     fcc_status = FCC_STATUS_BUNDLE_UNSUPPORTED_GROUP;

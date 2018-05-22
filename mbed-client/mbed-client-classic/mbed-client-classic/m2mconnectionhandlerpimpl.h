@@ -164,6 +164,12 @@ public:
      */
     void event_handler(arm_event_s *event);
 
+    /**
+    * \brief Closes the open connection.
+    * \note This must be called from the same event loop context!
+    */
+    void force_close();
+
 private:
 
     /**

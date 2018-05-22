@@ -146,8 +146,10 @@ extern "C" {
                                      size_t kcm_chain_name_len,
                                      size_t *kcm_chain_len_out);
 
-    /** This API adds next certificate of chain to the storage.
-    *  The certificates should be added in the order from root of chain, followed by the certificates it signs and so on.
+    /** This API adds next certificate of chain to the storage. 
+    *
+    *  It also validates the previous certificate (unless it is the first certificate) with the public key from kcm_cert_data.
+    *  The certificates should be added in the order from lowest child, followed by the certificate that signs it and so on, all the way to the root of the chain.
     *
     *    @param[in] kcm_chain_handle                 certificate chain handle.
     *    @param[in] kcm_cert_data                    pointer to certificate data in DER format.
@@ -179,7 +181,7 @@ extern "C" {
     *    @param[out] kcm_cert_data_size      pointer size of next certificate.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success. 
+    *        KCM_STATUS_SUCCESS in case of success.
     *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN in case we reached the end of the chain
     *        Otherwise one of the `::kcm_status_e` errors.
     */
@@ -196,7 +198,7 @@ extern "C" {
     *    @param[out] kcm_actual_cert_data_size          actual size of certificate data.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success. 
+    *        KCM_STATUS_SUCCESS in case of success.
     *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN in case we reached the end of the chain
     *        Otherwise one of the `::kcm_status_e` errors.
     */
@@ -230,42 +232,88 @@ extern "C" {
     kcm_status_e kcm_factory_reset(void);
 
 
-
-#ifndef __DOXYGEN__
-    /* === Keys and CSR generation === */
-
-    /**  Generate a key pair complying the given crypto scheme DER.
-    *    Saves the private key and exposes the public key.
+    /** Generate a key pair complying the given cryptographic scheme in DER format.
+    *    Saves private key and public key if provided.
     *
-    *      @param key_scheme The crypto scheme.
-    *      @param key_name The key name for which a key pair is generated.
-    *      @param key_name_len Key name length.
-    *      @param pub_key_der_out Public key to generate in DER format.
-    *      @param pub_key_der_size Public key size in bytes.
-    *      @param priv_key_sec_desc Private key security descriptor.
-    *      @param pub_key_sec_desc Public key security descriptor.
+    *      @param key_scheme The cryptographic scheme.
+    *      @param private_key_name The private key name for which a key pair is generated.
+    *      @param private_key_name_len Private key name length
+    *      @param public_key_name The public key name for which a key pair is generated.
+    *      This parameter is optional. If not provided, the key will be generated, but not stored.
+    *      @param public_key_name_len Public key name length.
+    *      Must be 0, if ::public_key_name not provided.
+    *      @param kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
+    *      @param kcm_params Additional kcm_params. Currently void.
     *
     *      @returns
-    *        Operation status.
+    *         KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e kcm_key_pair_generate_and_store(kcm_crypto_key_scheme_s key_scheme, const uint8_t *key_name, size_t key_name_len,
-                                                 uint8_t *pub_key_der_out, size_t pub_key_der_size,
-                                                 const kcm_security_desc_s priv_key_sec_desc, const kcm_security_desc_s pub_key_sec_desc);
+    kcm_status_e kcm_key_pair_generate_and_store(
+        const kcm_crypto_key_scheme_e     key_scheme,
+        const uint8_t                     *private_key_name,
+        size_t                            private_key_name_len,
+        const uint8_t                     *public_key_name,
+        size_t                            public_key_name_len,
+        bool                              kcm_item_is_factory,
+        const kcm_security_desc_s         *kcm_params
+    );
 
-    /** Generate a general CSR from the given private and public keys.
-    *   Further design is needed
+
+    /** Generate a general CSR from the given private key.
+   *
+   *     @param private_key_name The private key name to fetch from storage.
+   *     @param private_key_name_len The private key name len.
+   *     @param csr_params CSR parameters.
+   *     @param csr_buff_out Pointer to generated CSR buffer to fill.
+   *     @param csr_buff_max_size Size of the supplied CSR buffer.
+   *     @param csr_buff_act_size Actual size of the filled CSR buffer.
+   *
+   *     @returns
+   *         KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+   */
+    kcm_status_e kcm_csr_generate(
+        const uint8_t              *private_key_name,
+        size_t                     private_key_name_len,
+        const kcm_csr_params_s     *csr_params,
+        uint8_t                    *csr_buff_out,
+        size_t                     csr_buff_max_size,
+        size_t                     *csr_buff_act_size
+    );
+
+
+    /** Generate private and public key and CSR from the generated keys.
     *
-    *     @param key_name The key name to fetch from storage(public/private).
-    *     @param key_name_len The key name len.
-    *     @param csr_out Pointer to generated E2E CSR.
-    *     @param csr_size_out Size of the E2E CSR.
+    *     @param key_scheme The cryptographic scheme.
+    *     @param private_key_name The private key name to generate.
+    *     @param private_key_name_len The private key name len.
+    *     @param public_key_name The public key name for which a key pair is generated.
+    *     This parameter is optional. If not provided, the key will be generated, but not stored.
+    *     @param public_key_name_len Public key name length.
+    *     Must be 0, if ::public_key_name not provided.
+    *     @param kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
+    *     @param csr_params CSR parameters.
+    *     @param csr_buff_out Pointer to generated CSR buffer to fill.
+    *     @param csr_buff_max_size Size of the supplied CSR buffer.
+    *     @param csr_buff_act_size Actual size of the filled CSR buffer.
+    *     @param kcm_data_pkcm_params Additional kcm_params. Currently void.
     *
     *     @returns
-    *        Operation status.
+    *         KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e kcm_csr_generate(const uint8_t *key_name, size_t key_name_len,
-                                  uint8_t **csr_out, size_t *csr_size_out);
-#endif //#ifndef __DOXYGEN__
+    kcm_status_e kcm_generate_keys_and_csr(
+        kcm_crypto_key_scheme_e     key_scheme,
+        const uint8_t               *private_key_name,
+        size_t                      private_key_name_len,
+        const uint8_t               *public_key_name,
+        size_t                      public_key_name_len,
+        bool                        kcm_item_is_factory,
+        const kcm_csr_params_s      *csr_params,
+        uint8_t                     *csr_buff_out,
+        size_t                      csr_buff_max_size,
+        size_t                      *csr_buff_act_size_out,
+        const kcm_security_desc_s   *kcm_params
+    );
+
 
 #ifdef __cplusplus
 }

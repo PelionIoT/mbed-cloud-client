@@ -52,7 +52,7 @@ const char g_fcc_kcm_file_data_corrupted_str[] = "File data corrupted:";
 const char g_fcc_kcm_file_name_corrupted_str[] = "File name corrupted:";
 const char g_fcc_kcm_not_initialized_str[] = "KCM not initialized:";
 const char g_fcc_kcm_close_incomplete_chain_str[] = "Closing incomplete KCM chain:";
-const char g_fcc_kcm_invalid_chain_str[] = "Invalid certificate chain:";
+const char g_fcc_kcm_invalid_chain_str[] = "Corrupted certificate chain file:";
 const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[] = "Invalid number of certificate in chain:";
 const char g_fcc_kcm_file_exist_error_str[] = "Data already exists:";
 const char g_fcc_kcm_file_name_too_long_error_str[] = "File name too long:";
@@ -78,6 +78,7 @@ const char g_fcc_crypto_ecp_invalid_key_error_str[] = "EC key invalid:";
 const char g_fcc_crypto_pk_key_invalid_version_error_str[] = "Public key version invalid:";
 const char g_fcc_crypto_pk_password_requerd_error_str[] = "Public key password required:";
 const char g_fcc_crypto_unknown_pk_algorithm_error_str[] = "Public key algorithm unknown:";
+const char g_fcc_crypto_chain_validation_error_str[] = "Chain validation error:";
 
 //warning strings
 const char g_fcc_item_not_set_warning_str[] = "Item not set:";
@@ -189,6 +190,7 @@ static bool copy_all_warning_to_buffer(char *out_warning_string, size_t size_of_
 * @param fcc_status[in]          The fcc_status
 *
 */
+
 char* fcc_get_fcc_error_string(fcc_status_e fcc_status)
 {
     SA_PV_LOG_TRACE_FUNC_ENTER("fcc_status is %d", fcc_status);
@@ -203,6 +205,7 @@ char* fcc_get_fcc_error_string(fcc_status_e fcc_status)
         case FCC_STATUS_BUNDLE_RESPONSE_ERROR:
         case FCC_STATUS_BUNDLE_UNSUPPORTED_GROUP:
         case FCC_STATUS_BUNDLE_INVALID_SCHEME:
+        case FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS:
         case FCC_STATUS_BUNDLE_INVALID_GROUP:
         case FCC_STATUS_KCM_STORAGE_ERROR:
         case FCC_STATUS_KCM_FILE_EXIST_ERROR:
@@ -267,6 +270,9 @@ char* fcc_get_fcc_error_string(fcc_status_e fcc_status)
         case FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR:
             fcc_error_string = (char*)g_fcc_crypto_public_key_correlation_error_str;
             break;
+        case FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED:
+            fcc_error_string = (char*)g_fcc_crypto_chain_validation_error_str;
+            break;
         default:
             fcc_error_string = (char*)NULL;
             break;
@@ -297,7 +303,12 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
         case KCM_STATUS_UNKNOWN_STORAGE_ERROR:
         case KCM_CRYPTO_STATUS_INVALID_MD_TYPE:
         case KCM_CRYPTO_STATUS_FAILED_TO_WRITE_SIGNATURE:
-        case  KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED:
+        case KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED:
+        case KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PRIVATE_KEY:
+        case KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PUBLIC_KEY:
+        case KCM_CRYPTO_STATUS_FAILED_TO_WRITE_CSR:
+        case KCM_CRYPTO_STATUS_INVALID_OID:
+        case KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT:
             kcm_error_string = (char*)g_fcc_general_status_error_str;
             break;
         case KCM_STATUS_STORAGE_ERROR:
@@ -315,11 +326,14 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
         case KCM_STATUS_CLOSE_INCOMPLETE_CHAIN:
             kcm_error_string = (char*)g_fcc_kcm_close_incomplete_chain_str;
             break;
-        case KCM_STATUS_INVALID_CHAIN:
+        case KCM_STATUS_CORRUPTED_CHAIN_FILE:
             kcm_error_string = (char*)g_fcc_kcm_invalid_chain_str;
             break;
         case KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN:
             kcm_error_string = (char*)g_fcc_kcm_invalid_num_of_cert_in_chain_str;
+            break;
+        case KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED:
+            kcm_error_string = (char*)g_fcc_crypto_chain_validation_error_str;
             break;
         case KCM_STATUS_ITEM_NOT_FOUND:
             kcm_error_string = (char*)g_fcc_item_not_exists_error_str;

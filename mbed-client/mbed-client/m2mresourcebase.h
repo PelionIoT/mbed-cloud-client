@@ -73,6 +73,14 @@ public:
         OBJLINK
     }ResourceType;
 
+    /*
+     * \brief Value set callback function.
+     * \param resource Pointer to resource whose value should be updated
+     * \param value Pointer to value buffer containing new value, ownership is transferred to callback function
+     * \param value_length Length of value buffer
+     */
+    typedef void(*value_set_callback) (const M2MResourceBase *resource, uint8_t *value, const uint32_t value_length);
+
 protected: // Constructor and destructor are private
          // which means that these objects can be created or
          // deleted only through a function provided by the M2MObjectInstance.
@@ -224,6 +232,7 @@ public:
      * \brief Provides the value of the given resource.
      * \param value[OUT] A pointer to the resource value.
      * \param value_length[OUT] The length of the value pointer.
+     * \note If value argument is not NULL, it will be freed.
      */
     void get_value(uint8_t *&value, uint32_t &value_length);
 
@@ -249,15 +258,30 @@ public:
     /**
      * \brief Returns the value pointer of the object.
      * \return The value pointer of the object.
-    */
+     */
     uint8_t* value() const;
 
     /**
      * \brief Returns the length of the value pointer.
      * \return The length of the value pointer.
-    */
+     */
     uint32_t value_length() const;
 
+    /**
+     * \brief Set the value set callback. The set callback will be called instead of setting
+     * the value in set_value methods. When this function is set actual value change is done
+     * using the update_value function.
+     * \param callback Callback function that will handle new value
+     */
+    void set_value_set_callback(value_set_callback callback);
+
+    /**
+     * \brief Default value update function. This function frees old value, stores the new value
+     * and informs report handler in case it changed.
+     * \param value Pointer to new value, ownership is transferred to client
+     * \param value_length Length of new value buffer
+     */
+    void update_value(uint8_t *value, const uint32_t value_length);
 
     /**
      * \brief Handles the GET request for the registered objects.
@@ -379,6 +403,7 @@ public:
      * INTEGER,
      * FLOAT,
      * BOOLEAN
+     * OPAQUE
      *
      * @param publish_value If true then resource value will be part of registration message.
      */

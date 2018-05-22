@@ -24,7 +24,6 @@
 #include "fcc_output_info_handler.h"
 #include "fcc_malloc.h"
 #include "time.h"
-#include "cs_der_keys.h"
 #include "cs_utils.h"
 #include "fcc_sotp.h"
 

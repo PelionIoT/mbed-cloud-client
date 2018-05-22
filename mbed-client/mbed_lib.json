@@ -9,7 +9,6 @@
         "coap-disable-obs-feature":null,
         "reconnection-loop": 1,
         "dns-use-thread": null,
-        "dns-thread-stack-size": 3072,
         "dtls_peer_max_timeout": null,
         "sn-coap-max-blockwise-payload-size" : null,
         "sn-coap-duplication-max-msgs-count": null,

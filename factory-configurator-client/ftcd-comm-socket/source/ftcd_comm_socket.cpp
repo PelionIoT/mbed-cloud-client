@@ -182,8 +182,7 @@ ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint3
 {
     int result = PAL_SUCCESS;
 
-    // 16 is sizeof(sockaddr) for Linux system. This is necessary because the flow pal_accept() -> pal_plat_accept() -> (Linux) accept() sends pointer to addrlen which must be initialized to the size of the internal address structure (see Linux man pages)
-    palSocketLength_t addrlen = 16;
+    palSocketLength_t addrlen = sizeof(palSocketAddress_t);
     palSocketAddress_t address = { 0 };
 
     // wait to accept connection

@@ -1548,7 +1548,9 @@
  *
  * This module is required for PEM support (required by X.509).
  */
-//#define MBEDTLS_BASE64_C
+// needed for Base64 encoding Opaque data for
+// registration payload, adds 500 bytes to flash.
+#define MBEDTLS_BASE64_C
 
 /**
  * \def MBEDTLS_BIGNUM_C

@@ -71,6 +71,7 @@ fcc_status_e fcc_bundle_process_certificate_chains(const cn_cbor *cert_chains_li
         // create chain
         kcm_result = kcm_cert_chain_create(&cert_chain_handle, certificate_chain.name, certificate_chain.name_len, (size_t)certificate_chain.array_cn->length, true);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_KCM_ERROR, exit, "Failed to create certificate chain");
+        
         //Get all certificates in certificate chain and store it
         for (cert_index = 0; cert_index < (uint32_t)certificate_chain.array_cn->length; cert_index++) {
 
@@ -81,6 +82,7 @@ fcc_status_e fcc_bundle_process_certificate_chains(const cn_cbor *cert_chains_li
             SA_PV_ERR_RECOVERABLE_GOTO_IF((status == false || certificate_data == NULL || certificate_data_size == 0), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Failed to get cert data at index (%" PRIu32 ") ", cert_index);
 
             kcm_result = kcm_cert_chain_add_next(cert_chain_handle, certificate_data, certificate_data_size);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result == KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED), fcc_status = FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED, exit, "Failed to add certificate chain at index (%" PRIu32 "): PK does not match signature", cert_chain_index);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_KCM_ERROR, exit, "Failed to add certificate chain at index (%" PRIu32 ") ", cert_chain_index);
         }
         // close chain

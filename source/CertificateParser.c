@@ -22,32 +22,46 @@
 
 #define TRACE_GROUP "mClt"
 
-bool extract_cn_from_certificate(const uint8_t* cer, size_t cer_len, char* common_name)
+bool extract_field_from_certificate(const uint8_t* cer, size_t cer_len, const char *field, char* value)
 {
-    tr_debug("extract_cn_from_certificate");
+#if 1 // TODO : Uncomment once PAL has feature to extract "L" from certificate
+    tr_debug("extract_field_from_certificate");
+
+    palX509Attr_t attr = PAL_X509_L_ATTR;
+    if (strcmp(field,"CN") == 0) {
+        attr = PAL_X509_CN_ATTR;
+    } else if (strcmp(field,"L") == 0) {
+        attr = PAL_X509_L_ATTR;
+    } else {
+        return false;
+    }
+
     palX509Handle_t cert;
     size_t len;
     palStatus_t ret;
-
     ret = pal_x509Initiate(&cert);
     if (ret != PAL_SUCCESS) {
-        tr_error("extract_cn_from_certificate - cert init failed: %d", (int)ret);
+        tr_error("extract_field_from_certificate - cert init failed: %d", (int)ret);
         pal_x509Free(&cert);
         return false;
     }
     ret = pal_x509CertParse(cert, cer, cer_len);
     if (ret != PAL_SUCCESS) {
-        tr_error("extract_cn_from_certificate - cert parse failed: %d", (int)ret);
+        tr_error("extract_field_from_certificate - cert parse failed: %d", (int)ret);
         pal_x509Free(&cert);
         return false;
-    }
-    ret = pal_x509CertGetAttribute(cert, PAL_X509_CN_ATTR, common_name, 64, &len);
+    }    
+    ret = pal_x509CertGetAttribute(cert, attr, value, 64, &len);
     if (ret != PAL_SUCCESS) {
-        tr_error("extract_cn_from_certificate - cert attr get failed: %d", (int)ret);
+        tr_error("extract_field_from_certificate - cert attr get failed: %d", (int)ret);
         pal_x509Free(&cert);
         return false;
     }
     pal_x509Free(&cert);
     return true;
+#else
+    return false;
+#endif
 }
+
 

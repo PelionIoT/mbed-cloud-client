@@ -189,6 +189,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     struct pollfd fds[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {{0,0,0}};
     nfds_t nfds = 0;
     struct sigaction s;
+    sigset_t blockedSignals;
     palStatus_t result = PAL_SUCCESS;
     uint64_t lastIOCounter=0;
     uint64_t lastUSRCounter=0;
@@ -205,6 +206,13 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     sigemptyset(&s.sa_mask);
     s.sa_flags =  SA_RESTART ;
     sigaction(SIGIO, &s, NULL);
+
+    // Block the timer signal from interrupting ppoll(), as it does not have a signal handler.
+    // The timer signal is already blocked on all the threads created after pal_init(), but
+    // the ppoll() will change that situation with the given sigmask.
+    // Without this, the libc's default signal handler will kick in and kill the process.
+    sigemptyset(&blockedSignals);
+    sigaddset(&blockedSignals, PAL_TIMER_SIGNAL);
 
     s_pollThread = pthread_self(); // save the thread id for signal usage
     // Tell the calling thread that we have finished initialization
@@ -268,7 +276,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
         // Wait for a socket event or pthread_kill(s_pollThread, SIGUSR1) event
         lastUSRCounter = s_palUSR1Counter;
-        res = ppoll(&fds[0], nfds, &timeout_zero, &s.sa_mask);
+        res = ppoll(&fds[0], nfds, &timeout_zero, &blockedSignals);
 
 
         // Notes:
@@ -481,7 +489,7 @@ palStatus_t pal_plat_socketsInit(void* context)
             result = PAL_ERR_SOCKET_OPERATION_NOT_PERMITTED;
         }
         else
-    {
+        {
             result = PAL_ERR_SOCKET_GENERIC;
         }
     }
@@ -954,8 +962,15 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     intptr_t res = 0;
     palStatus_t result = PAL_SUCCESS;
     struct sockaddr_storage internalAddr = {0} ;
+    socklen_t internalAddrLen = sizeof(internalAddr);
 
-    res = accept((intptr_t)socket,(struct sockaddr *)&internalAddr, addressLen);
+    // XXX: the whole addressLen -concept is broken as the address is fixed size anyway.
+    if (*addressLen < sizeof(palSocketAddress_t))
+    {
+        return PAL_ERR_SOCKET_INVALID_ADDRESS;
+    }
+
+    res = accept((intptr_t)socket,(struct sockaddr *)&internalAddr, &internalAddrLen);
     if(res == -1)
     {
         result = translateErrorToPALError(errno);
@@ -963,7 +978,8 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     else
     {
         *acceptedSocket = (palSocket_t*)res;
-        result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&internalAddr, address, addressLen);
+        *addressLen = sizeof(palSocketAddress_t);
+        result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&internalAddr, address, &internalAddrLen);
     }
 
     return result;
@@ -1032,16 +1048,6 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 }
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
-
-
-
-
-
-
-
-
-
-
 
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API

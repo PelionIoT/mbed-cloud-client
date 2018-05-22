@@ -96,7 +96,7 @@ void ConnectorClient::start_bootstrap()
     state_engine();
 }
 
-void ConnectorClient::start_registration(M2MObjectList* client_objs)
+void ConnectorClient::start_registration(M2MBaseList* client_objs)
 {
     tr_debug("ConnectorClient::start_registration()");
     assert(_callback != NULL);
@@ -105,13 +105,7 @@ void ConnectorClient::start_registration(M2MObjectList* client_objs)
     // XXX: actually this call should be external_event() to match the pattern used in other m2m classes
     create_register_object();
     if(_security->get_security_instance_id(M2MSecurity::M2MServer) >= 0) {
-        if(use_bootstrap()) {
-            // Bootstrap registration always uses iep
-            _interface->update_endpoint(_endpoint_info.internal_endpoint_name);
-        } else {
-            // Registration without bootstrap always uses external id
-            _interface->update_endpoint(_endpoint_info.endpoint_name);
-        }
+        _interface->update_endpoint(_endpoint_info.endpoint_name);
         _interface->update_domain(_endpoint_info.account_id);
         internal_event(State_Registration_Start);
     } else {
@@ -257,6 +251,18 @@ void ConnectorClient::create_register_object()
             }
         }
 
+        // Endpoint
+        if (success) {
+            success = false;
+            char device_id[64];
+            if (extract_field_from_certificate(buffer, real_size, "CN", device_id)) {
+                tr_info("ConnectorClient::create_register_object - CN - endpoint_name : %s", device_id);
+                _endpoint_info.endpoint_name = String(device_id);
+                success = true;
+            } else
+                tr_error("KEY_ENDPOINT_NAME failed.");
+        }
+
         // Connector device private key
         if (success) {
             success = false;
@@ -281,23 +287,11 @@ void ConnectorClient::create_register_object()
                 tr_error("KEY_CONNECTOR_URL failed.");
         }
 
-        // Endpoint
-        if (success) {
-            success = false;
-            if (get_config_parameter(g_fcc_endpoint_parameter_name, buffer, max_size, &real_size) == CCS_STATUS_SUCCESS) {
-                tr_info("ConnectorClient::create_register_object - endpoint name %.*s", (int)real_size, buffer);
-                success = true;
-                _endpoint_info.endpoint_name = String((const char*)buffer, real_size);
-            }
-            else
-                tr_error("KEY_ENDPOINT_NAME failed.");
-        }
-
         // Try to get internal endpoint name
         if (success) {
             if (get_config_parameter(KEY_INTERNAL_ENDPOINT, buffer, max_size, &real_size) == CCS_STATUS_SUCCESS) {
                 _endpoint_info.internal_endpoint_name = String((const char*)buffer, real_size);
-                tr_info("Using internal endpoint name instead: %s", _endpoint_info.internal_endpoint_name.c_str());
+                tr_info("ConnectorClient::create_register_object - internal endpoint name : %s", _endpoint_info.internal_endpoint_name.c_str());
             }
             else {
                 tr_debug("KEY_INTERNAL_ENDPOINT failed.");
@@ -587,7 +581,7 @@ void ConnectorClient::bootstrap_done(M2MSecurity *security_object)
         _callback->connector_error(M2MInterface::MemoryFail, ERROR_NO_MEMORY); // Translated to error code ConnectMemoryConnectFail
         return;
     } else {
-        tr_error("ConnectorClient::bootstrap_done - set_credentials status %d", status);
+        tr_info("ConnectorClient::bootstrap_done - set_credentials status %d", status);
     }
     internal_event(state);
 }
@@ -718,15 +712,19 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
 
     if(srv_public_key && public_key && sec_key) {
         // Parse common name
-        char common_name[64];
-        memset(common_name, 0, 64);
-        if (extract_cn_from_certificate(public_key, public_key_size, common_name)){
-            tr_info("ConnectorClient::set_connector_credentials - CN: %s", common_name);
-            _endpoint_info.internal_endpoint_name = String(common_name);
+        char device_id[64];
+        memset(device_id, 0, 64);
+        if (extract_field_from_certificate(public_key, public_key_size, "L", device_id)) {
+            tr_info("ConnectorClient::set_connector_credentials - L internal_endpoint_name : %s", device_id);
+            _endpoint_info.internal_endpoint_name = String(device_id);
             delete_config_parameter(KEY_INTERNAL_ENDPOINT);
-            status = set_config_parameter(KEY_INTERNAL_ENDPOINT,(uint8_t*)common_name, strlen(common_name));
+            status = set_config_parameter(KEY_INTERNAL_ENDPOINT,(uint8_t*)device_id, strlen(device_id));
         }
-
+        memset(device_id, 0, 64);
+        if (extract_field_from_certificate(public_key, public_key_size, "CN", device_id)) {
+            tr_info("ConnectorClient::set_connector_credentials - CN endpoint_name : %s", device_id);
+            _endpoint_info.endpoint_name = String(device_id);
+        }
         if(status == CCS_STATUS_SUCCESS) {
             delete_config_certificate(g_fcc_lwm2m_server_ca_certificate_name);
             status = set_config_certificate(g_fcc_lwm2m_server_ca_certificate_name,
@@ -745,11 +743,17 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
         }
 
         if(status == CCS_STATUS_SUCCESS) {
-            delete_config_parameter(KEY_ACCOUNT_ID);
-            // AccountID optional so don't fail if unable to store
-            set_config_parameter(KEY_ACCOUNT_ID,
+            ccs_status_e check_status = check_config_parameter(KEY_ACCOUNT_ID);
+            // Do not call delete if KEY does not exist.
+            if ((check_status == CCS_STATUS_KEY_DOESNT_EXIST) || (check_status == CCS_STATUS_ERROR)) {
+                tr_debug("No KEY_ACCOUNT_ID stored.");
+            } else {
+                delete_config_parameter(KEY_ACCOUNT_ID);
+                // AccountID optional so don't fail if unable to store
+                set_config_parameter(KEY_ACCOUNT_ID,
                                  (const uint8_t*)_endpoint_info.account_id.c_str(),
                                  (size_t)_endpoint_info.account_id.size());
+            }
         }
         if(status == CCS_STATUS_SUCCESS) {
             status = set_config_parameter(g_fcc_lwm2m_server_uri_name,
@@ -766,12 +770,16 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
             set_config_parameter(g_fcc_current_time_parameter_name, data, 4);
 
             temp = device->resource_value_string(M2MDevice::Timezone, 0);
-            delete_config_parameter(g_fcc_device_time_zone_parameter_name);
-            set_config_parameter(g_fcc_device_time_zone_parameter_name, (const uint8_t*)temp.c_str(), temp.size());
+            if (temp.size() > 0) {
+                delete_config_parameter(g_fcc_device_time_zone_parameter_name);
+                set_config_parameter(g_fcc_device_time_zone_parameter_name, (const uint8_t*)temp.c_str(), temp.size());
+            }
 
             temp = device->resource_value_string(M2MDevice::UTCOffset, 0);
-            delete_config_parameter(g_fcc_offset_from_utc_parameter_name);
-            set_config_parameter(g_fcc_offset_from_utc_parameter_name, (const uint8_t*)temp.c_str(), temp.size());
+            if (temp.size() > 0) {
+                delete_config_parameter(g_fcc_offset_from_utc_parameter_name);
+                set_config_parameter(g_fcc_offset_from_utc_parameter_name, (const uint8_t*)temp.c_str(), temp.size());
+            }
 
             status = CCS_STATUS_SUCCESS;
         }

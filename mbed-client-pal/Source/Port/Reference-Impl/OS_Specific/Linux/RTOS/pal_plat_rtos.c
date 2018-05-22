@@ -61,10 +61,37 @@ typedef struct palThreadData
     void* userFunctionArgument;
 } palThreadData_t;
 
+/*
+ * Internal struct to handle timers.
+ */
+struct palTimerInfo
+{
+    struct palTimerInfo *next;
+    timer_t handle;
+    palTimerFuncPtr function;
+    void *funcArgs;
+    palTimerType_t timerType;
+};
+
+
 PAL_PRIVATE char g_mqName[MQ_FILENAME_LEN];
 PAL_PRIVATE int g_mqNextNameNum = 0;
 
+// Mutex to prevent simultaneus modification of the linked list of the timers in g_timerList.
+PAL_PRIVATE palMutexID_t g_timerListMutex = 0;
+
+// A singly linked list of the timers, access may be done only if holding the g_timerListMutex.
+// The list is needed as the timers use async signals and when the signal is finally delivered, the
+// palTimerInfo timer struct may be already deleted. The signals themselves carry pointer to timer,
+// so whenever a signal is received, the thread will look if the palTimerInfo is still on the list,
+// and if it is, uses the struct to find the callback pointer and arguments.
+PAL_PRIVATE volatile struct palTimerInfo *g_timerList = NULL;
+
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
+
+PAL_PRIVATE palStatus_t startTimerThread();
+PAL_PRIVATE palStatus_t stopTimerThread();
+PAL_PRIVATE void palTimerThread(void const *args);
 
 inline PAL_PRIVATE void nextMessageQName()
 {
@@ -101,6 +128,34 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 #if (PAL_USE_HW_RTC)
     status = pal_plat_rtcInit();
 #endif
+
+    // Setup the signal handler thread which will be shared with all the timers
+
+    status = pal_osMutexCreate(&g_timerListMutex);
+
+    if (status == PAL_SUCCESS) {
+
+        sigset_t blocked;
+
+        sigemptyset(&blocked);
+        sigaddset(&blocked, PAL_TIMER_SIGNAL);
+
+        // Make PAL_TIMER_SIGNAL blocked from this thread and the others
+        // created onwards. Note: there is no handler for that on purpose, as
+        // the signal is handled by the timer thread itself by sigwaitinfo().
+        int err = pthread_sigmask(SIG_BLOCK, &blocked, NULL);
+
+        if (err != 0) {
+
+            status = PAL_ERR_SYSCALL_FAILED;
+        }
+    }
+
+    if (status == PAL_SUCCESS) {
+
+        status = startTimerThread();
+    }
+
     return status;
 }
 
@@ -109,10 +164,22 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 palStatus_t pal_plat_RTOSDestroy(void)
 {
     palStatus_t ret = PAL_SUCCESS;
+
 #if PAL_USE_HW_RTC
     ret = pal_plat_rtcDeInit();
 #endif
-	return ret;
+
+    // Is there really a point to check these, as if the shutdown fails, what can we do?
+    // Nobody is going to call the shutdown again.
+    if (ret == PAL_SUCCESS) {
+        ret = stopTimerThread();
+    }
+
+    if (ret == PAL_SUCCESS) {
+        ret = pal_osMutexDelete(&g_timerListMutex);
+    }
+
+    return ret;
 }
 
 /*return The RTOS kernel system timer counter, in microseconds
@@ -237,6 +304,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
 
     *threadID = (palThreadID_t)sysThreadID;
     status = PAL_SUCCESS;
+
 finish:
     if (NULL != ptrAttr)
     {
@@ -299,94 +367,184 @@ palStatus_t pal_plat_osDelay(uint32_t milliseconds)
     return (stat == 0) ? PAL_SUCCESS : PAL_ERR_GENERIC_FAILURE;
 }
 
-/*
- * Internal struct to handle timers.
- */
-
-struct palTimerInfo
-{
-    timer_t handle;
-    palTimerFuncPtr function;
-    void *funcArgs;
-    palTimerType_t timerType;
-    bool isHighRes;
-};
-
-/*
- * internal function used to handle timers expiration events.
- */
-PAL_PRIVATE void palTimerEventHandler(void* args)
-{
-    struct palTimerInfo* timer = (struct palTimerInfo *) args;
-
-    if (NULL == timer)
-    { // no timer anymore, so just return.
-        return;
-    }
-
-    //call the callback function
-    timer->function(timer->funcArgs);
-}
-
 
 /*
 * Internal struct to handle timers.
 */
 
-#define PAL_HIGH_RES_TIMER_THRESHOLD_MS 100
-
-typedef struct palHighResTimerThreadContext
+typedef struct palTimerThreadContext
 {
-    palTimerFuncPtr function;
-    void *funcArgs;
-    uint32_t intervalMS;
-} palHighResTimerThreadContext_t;
+    // semaphore used for signaling both the thread startup and thread closure
+    palSemaphoreID_t startStopSemaphore;
+
+    // If set, the timer thread will stop its loop, signal the startStopSemaphore
+    // and run out of thread function. This is set and accessed while holding the
+    // g_timerListMutex.
+    volatile bool threadStopRequested;
+
+} palTimerThreadContext_t;
 
 
 static palThreadID_t s_palHighResTimerThreadID = NULLPTR;
-static bool s_palHighResTimerThreadInUse =  0;
-static palHighResTimerThreadContext_t s_palHighResTimerThreadContext = {0};
+static palTimerThreadContext_t s_palTimerThreadContext = {0};
 
 /*
-*  callback for handling high precision timer callbacks (currently only one is supported)
+* Thread for handling the signals from all timers by calling the attached callback
 */
 
-PAL_PRIVATE void palHighResTimerThread(void const *args)
+PAL_PRIVATE void palTimerThread(void const *args)
 {
-    palHighResTimerThreadContext_t* context = (palHighResTimerThreadContext_t*)args;
-    uint32_t timer_period_ms = context->intervalMS;
+    palTimerThreadContext_t* context = (palTimerThreadContext_t*)args;
+
     int err = 0;
-    struct timespec next_timeout_ts;
-    err = clock_gettime(CLOCK_MONOTONIC, &next_timeout_ts);
-    assert(err == 0);
 
-    while(1) {
-        // Determine absolute time we want to sleep until
-        next_timeout_ts.tv_nsec += PAL_NANO_PER_MILLI * timer_period_ms;
-        if (next_timeout_ts.tv_nsec >= PAL_NANO_PER_SECOND) 
-        {
-            next_timeout_ts.tv_nsec = next_timeout_ts.tv_nsec - PAL_NANO_PER_SECOND;
-            next_timeout_ts.tv_sec += 1;
+    sigset_t signal_set_to_wait;
+
+    sigemptyset(&signal_set_to_wait);
+    sigaddset(&signal_set_to_wait, PAL_TIMER_SIGNAL);
+
+    // signal the caller that thread has started
+    pal_osSemaphoreRelease(context->startStopSemaphore);
+
+    // loop until signaled with threadStopRequested
+    while (1) {
+
+        siginfo_t info;
+
+        // wait for signal from a timer
+        err = sigwaitinfo(&signal_set_to_wait, &info);
+
+        // A positive return value is the signal number, negative value is a sign of some
+        // signal handler interrupting the OS call and errno should be then EINTR.
+        // The other two documented errors, EAGAIN or EINVAL should not happen as we're
+        // not using the timeout, but have them logged just in case.
+        if (err <= 0) {
+            if (errno != EINTR) {
+                PAL_LOG(ERR, "palTimerThread: sigwaitinfo failed with %d\n", errno);
+            }
+        } else {
+
+            // before using the timer list or threadStopRequested flag, we need to claim the mutex
+            pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
+
+            if (context->threadStopRequested) {
+
+                // release mutex and bail out
+                pal_osMutexRelease(g_timerListMutex);
+                break;
+
+            } else {
+
+                // the sival_ptr contains the pointer of timer which caused it
+                struct palTimerInfo* signal_timer = (struct palTimerInfo*)info.si_value.sival_ptr;
+
+                struct palTimerInfo *temp_timer = (struct palTimerInfo*)g_timerList;
+
+                palTimerFuncPtr found_function = NULL;
+                void *found_funcArgs;
+
+                // Check, if the timer still is on the list. It may have been deleted, if the
+                // signal delivery / client callback has taken some time.
+                while (temp_timer != NULL) {
+
+                    if (temp_timer == signal_timer) {
+
+                        // Ok, found the timer from list, backup the parameters as we release
+                        // the mutex after this loop, before calling the callback and the
+                        // temp_timer may very well get deleted just after the mutex is released.
+
+                        found_function = temp_timer->function;
+                        found_funcArgs = temp_timer->funcArgs;
+
+                        break;
+                    } else {
+                        temp_timer = temp_timer->next;
+                    }
+                }
+
+                // Release the list mutex before callback to avoid callback deadlocking other threads
+                // if they try to create a timer.
+                pal_osMutexRelease(g_timerListMutex);
+
+                // the function may be NULL here if the timer was already freed
+                if (found_function) {
+                    // finally call the callback function
+                    found_function(found_funcArgs);
+                }
+            }
         }
-
-        // Call nanosleep until error or no interrupt, ie. return code is 0
-        do {
-            err = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_timeout_ts, NULL);
-            assert(err == 0 || err == EINTR);
-        } while(err == EINTR);
-
-        // Done sleeping, call callback
-        context->function(context->funcArgs);
     }
+
+    // signal the caller that thread is now stopping and it can continue the pal_destroy()
+    pal_osSemaphoreRelease(context->startStopSemaphore);
 }
 
-PAL_PRIVATE palStatus_t startHighResTimerThread(palTimerFuncPtr function, void *funcArgs , uint32_t intervalMS)
+PAL_PRIVATE palStatus_t startTimerThread()
 {
-    s_palHighResTimerThreadContext.function = function;
-    s_palHighResTimerThreadContext.funcArgs = funcArgs;
-    s_palHighResTimerThreadContext.intervalMS = intervalMS;
-    palStatus_t status = pal_osThreadCreateWithAlloc(palHighResTimerThread, &s_palHighResTimerThreadContext, PAL_osPriorityReservedHighResTimer,
-        PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE, NULL, &s_palHighResTimerThreadID);
+    palStatus_t status;
+
+    status = pal_osSemaphoreCreate(0, &s_palTimerThreadContext.startStopSemaphore);
+
+    if (status == PAL_SUCCESS) {
+
+        s_palTimerThreadContext.threadStopRequested = false;
+
+        status = pal_osThreadCreateWithAlloc(palTimerThread, &s_palTimerThreadContext, PAL_osPriorityReservedHighResTimer,
+                                                PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE, NULL, &s_palHighResTimerThreadID);
+
+        if (status == PAL_SUCCESS) {
+
+            // the timer thread will signal on semaphore when it has started
+            pal_osSemaphoreWait(s_palTimerThreadContext.startStopSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+
+        } else {
+            // cleanup the semaphore
+            pal_osSemaphoreDelete(&s_palTimerThreadContext.startStopSemaphore);
+        }
+    }
+
+    return status;
+}
+
+PAL_PRIVATE palStatus_t stopTimerThread()
+{
+    palStatus_t status;
+
+    union sigval value;
+    value.sival_ptr = NULL;
+
+    status = pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
+
+    if (status == PAL_SUCCESS) {
+
+        // set the flag to end the thread
+        s_palTimerThreadContext.threadStopRequested = true;
+
+        // ping the timer thread that it should start shutdown
+        pthread_t sysThreadID = (pthread_t)s_palHighResTimerThreadID;
+        int err;
+
+        do {
+
+            err = pthread_sigqueue(sysThreadID, PAL_TIMER_SIGNAL, value);
+
+        } while (err == EAGAIN); // retry (spin, yuck!) if the signal queue is full
+
+        pal_osMutexRelease(g_timerListMutex);
+
+        // pthread_sigqueue() failed, which is a sign of thread being dead, so a wait
+        // on semaphore would cause a deadlock.
+        if (err == 0) {
+
+            // wait for for acknowledgement that timer thread is going down
+            pal_osSemaphoreWait(s_palTimerThreadContext.startStopSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+        }
+
+        pal_osSemaphoreDelete(&s_palTimerThreadContext.startStopSemaphore);
+
+        // and clean up the thread
+        status = pal_osThreadTerminate(&s_palHighResTimerThreadID);
+    }
     return status;
 }
 
@@ -425,14 +583,14 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         timerInfo->function = function;
         timerInfo->funcArgs = funcArgument;
         timerInfo->timerType = timerType;
-        timerInfo->isHighRes = false;
 
         memset(&sig, 0, sizeof(sig));
 
-        sig.sigev_notify = SIGEV_THREAD;
-        sig.sigev_signo = 0;
+        sig.sigev_notify = SIGEV_SIGNAL;
+        sig.sigev_signo = PAL_TIMER_SIGNAL;
+
+        // the signal handler uses this to find the correct timer context
         sig.sigev_value.sival_ptr = timerInfo;
-        sig.sigev_notify_function = (void (*)(union sigval)) palTimerEventHandler;
 
         int ret = timer_create(CLOCK_MONOTONIC, &sig, &localTimer);
         if (-1 == ret)
@@ -455,6 +613,15 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         // managed to create the timer - finish up
         timerInfo->handle = localTimer;
         *timerID = (palTimerID_t) timerInfo;
+
+        pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
+
+        // add the new timer to head of the singly linked list
+        timerInfo->next = (struct palTimerInfo *)g_timerList;
+
+        g_timerList = timerInfo;
+
+        pal_osMutexRelease(g_timerListMutex);
     }
     finish: if (PAL_SUCCESS != status)
     {
@@ -493,40 +660,20 @@ palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
     struct palTimerInfo* timerInfo = (struct palTimerInfo *) timerID;
     struct itimerspec its;
 
+    convertMilli2Timespec(millisec, &(its.it_value));
 
-    if ((millisec <= PAL_HIGH_RES_TIMER_THRESHOLD_MS) && (palOsTimerPeriodic == timerInfo->timerType )) // periodic high res timer  - we only support 1 (workaround for issue when lots of threads are created in linux)
+    if (palOsTimerPeriodic == timerInfo->timerType)
     {
-        if (true == s_palHighResTimerThreadInUse)
-        {
-            status = PAL_ERR_NO_HIGH_RES_TIMER_LEFT;
-        }
-        else
-        {
-            status = startHighResTimerThread(timerInfo->function, timerInfo->funcArgs, millisec);
-            if (PAL_SUCCESS == status)
-            {
-                timerInfo->isHighRes = true;
-                s_palHighResTimerThreadInUse = true;
-            }
-        }
+        convertMilli2Timespec(millisec, &(its.it_interval));
     }
-    else // otherwise handle normally
+    else
+    {  // one time timer
+        convertMilli2Timespec(0, &(its.it_interval));
+    }
+
+    if (-1 == timer_settime(timerInfo->handle, 0, &its, NULL))
     {
-        convertMilli2Timespec(millisec, &(its.it_value));
-
-        if (palOsTimerPeriodic == timerInfo->timerType)
-        {
-            convertMilli2Timespec(millisec, &(its.it_interval));
-        }
-        else
-        {  // one time timer
-            convertMilli2Timespec(0, &(its.it_interval));
-        }
-
-        if (-1 == timer_settime(timerInfo->handle, 0, &its, NULL))
-        {
-            status = PAL_ERR_INVALID_ARGUMENT;
-        }
+        status = PAL_ERR_INVALID_ARGUMENT;
     }
 
     return status;
@@ -549,26 +696,14 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
     struct palTimerInfo* timerInfo = (struct palTimerInfo *) timerID;
     struct itimerspec its;
 
-    if ((true == timerInfo->isHighRes) && (0 != s_palHighResTimerThreadInUse )) // if  high res timer clean up thread.
-    {
-        status = pal_osThreadTerminate(&s_palHighResTimerThreadID);
-        if (PAL_SUCCESS == status)
-        {
-            timerInfo->isHighRes = false;
-            s_palHighResTimerThreadInUse = false;
-        }
-    }
-    else // otherwise process normally
-    {
-        // set timer to 0 to disarm it.
-        convertMilli2Timespec(0, &(its.it_value));
+    // set timer to 0 to disarm it.
+    convertMilli2Timespec(0, &(its.it_value));
 
-        convertMilli2Timespec(0, &(its.it_interval));
+    convertMilli2Timespec(0, &(its.it_interval));
 
-        if (-1 == timer_settime(timerInfo->handle, 0, &its, NULL))
-        {
-            status = PAL_ERR_INVALID_ARGUMENT;
-        }
+    if (-1 == timer_settime(timerInfo->handle, 0, &its, NULL))
+    {
+        status = PAL_ERR_INVALID_ARGUMENT;
     }
 
     return status;
@@ -582,42 +717,57 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
  */
 palStatus_t pal_plat_osTimerDelete(palTimerID_t* timerID)
 {
-    palStatus_t status = PAL_SUCCESS, tempStatus;
+    palStatus_t status = PAL_SUCCESS;
     if (NULL == timerID)
     {
         return PAL_ERR_INVALID_ARGUMENT;
     }
     struct palTimerInfo* timerInfo = (struct palTimerInfo *) *timerID;
+
     if (NULL == timerInfo)
     {
         status = PAL_ERR_RTOS_PARAMETER;
     }
 
-    if ((PAL_SUCCESS == status) && (true == timerInfo->isHighRes) && (0 != s_palHighResTimerThreadInUse)) //  if high res timer delted before stopping => clean up thread.
-    {
-        tempStatus = pal_osThreadTerminate(&s_palHighResTimerThreadID);
-        if (PAL_SUCCESS == tempStatus)
-        {
-            timerInfo->isHighRes = false;
-            s_palHighResTimerThreadInUse = false;
-        }
-        else
-        {
-            status = tempStatus;
+    // the list of timers is protected by a mutex to avoid concurrency issues
+    pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
+
+    // remove the timer from the list before freeing it
+    struct palTimerInfo *prev_timer = NULL;
+    struct palTimerInfo *temp_timer = (struct palTimerInfo *)g_timerList;
+
+    while (temp_timer) {
+
+        if (temp_timer == timerInfo) {
+            // found the timer from list, now it needs to be removed from there
+
+            if (prev_timer) {
+                // there was a previous item, so update its next to this objects next
+                prev_timer->next = temp_timer->next;
+            } else {
+                // the item was the first/only one, so update the list head instead
+                g_timerList = temp_timer->next;
+            }
+            // all done now
+            break;
+
+        } else {
+            prev_timer = temp_timer;
+            temp_timer = temp_timer->next;
         }
     }
 
-    if (PAL_SUCCESS == status)
+    timer_t lt = timerInfo->handle;
+    if (-1 == timer_delete(lt))
     {
-        timer_t lt = timerInfo->handle;
-        if (-1 == timer_delete(lt))
-        {
-            status = PAL_ERR_RTOS_RESOURCE;
-        }
-
-        free(timerInfo);
-        *timerID = (palTimerID_t) NULL;
+        status = PAL_ERR_RTOS_RESOURCE;
     }
+
+    pal_osMutexRelease(g_timerListMutex);
+
+    free(timerInfo);
+    *timerID = (palTimerID_t) NULL;
+
     return status;
 }
 

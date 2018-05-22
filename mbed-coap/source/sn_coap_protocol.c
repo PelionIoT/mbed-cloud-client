@@ -372,7 +372,9 @@ int8_t sn_coap_protocol_delete_retransmission(struct coap_s *handle, uint16_t ms
 #if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE /* If Message blockwising is not used at all, this part of code will not be compiled */
 int8_t prepare_blockwise_message(struct coap_s *handle, sn_coap_hdr_s *src_coap_msg_ptr)
 {
-    if ((src_coap_msg_ptr->payload_len > handle->sn_coap_block_data_size) && (handle->sn_coap_block_data_size > 0)) {
+    if ((src_coap_msg_ptr->payload_len > SN_COAP_MAX_NONBLOCKWISE_PAYLOAD_SIZE) &&
+        (src_coap_msg_ptr->payload_len > handle->sn_coap_block_data_size) &&
+        (handle->sn_coap_block_data_size > 0)) {
         /* * * * Add Blockwise option to send CoAP message * * */
 
         /* Allocate memory for less used options */
@@ -436,15 +438,15 @@ int16_t sn_coap_protocol_build(struct coap_s *handle, sn_nsdl_addr_s *dst_addr_p
     }
 
 #if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE /* If Message blockwising is not used at all, this part of code will not be compiled */
-
     /* If blockwising needed */
-    if ((src_coap_msg_ptr->payload_len > handle->sn_coap_block_data_size) && (handle->sn_coap_block_data_size > 0)) {
+    if ((src_coap_msg_ptr->payload_len > SN_COAP_MAX_NONBLOCKWISE_PAYLOAD_SIZE) &&
+        (src_coap_msg_ptr->payload_len > handle->sn_coap_block_data_size) &&
+        (handle->sn_coap_block_data_size > 0)) {
         /* Store original Payload length */
         original_payload_len = src_coap_msg_ptr->payload_len;
         /* Change Payload length of send message because Payload is blockwised */
         src_coap_msg_ptr->payload_len = handle->sn_coap_block_data_size;
     }
-
 #endif
     /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
     /* * * * Build Packet data from CoAP message by using CoAP Header builder  * * * */
@@ -1264,6 +1266,15 @@ static void sn_coap_protocol_linked_list_blockwise_payload_store(struct coap_s *
         return;
     }
 
+    // Do not add duplicates to list, this could happen if server needs to retransmit block message again
+    ns_list_foreach(coap_blockwise_payload_s, payload_info_ptr, &handle->linked_list_blockwise_received_payloads) {
+        if (0 == memcmp(addr_ptr->addr_ptr, payload_info_ptr->addr_ptr, addr_ptr->addr_len)) {
+            if (payload_info_ptr->port == addr_ptr->port && payload_info_ptr->block_number == block_number) {
+                return;
+            }
+        }
+    }
+
     coap_blockwise_payload_s *stored_blockwise_payload_ptr = NULL;
 
     /* * * * Allocating memory for stored Payload  * * * */
@@ -1721,7 +1732,16 @@ static sn_coap_hdr_s *sn_coap_handle_blockwise_message(struct coap_s *handle, sn
                     }
 
                     sn_coap_builder_2(dst_ack_packet_data_ptr, src_coap_blockwise_ack_msg_ptr, handle->sn_coap_block_data_size);
+
                     handle->sn_coap_tx_callback(dst_ack_packet_data_ptr, dst_packed_data_needed_mem, src_addr_ptr, param);
+
+#if ENABLE_RESENDINGS
+                    uint32_t resend_time = sn_coap_calculate_new_resend_time(handle->system_time, handle->sn_coap_resending_intervall, 0);
+                    sn_coap_protocol_linked_list_send_msg_store(handle, src_addr_ptr,
+                            dst_packed_data_needed_mem,
+                            dst_ack_packet_data_ptr,
+                            resend_time, param);
+#endif
 
                     handle->sn_coap_protocol_free(dst_ack_packet_data_ptr);
                     dst_ack_packet_data_ptr = 0;
@@ -2042,13 +2062,13 @@ static sn_coap_hdr_s *sn_coap_handle_blockwise_message(struct coap_s *handle, sn
                     handle->sn_coap_tx_callback(dst_ack_packet_data_ptr,
                                                 dst_packed_data_needed_mem, src_addr_ptr, param);
 
-    #if ENABLE_RESENDINGS
+#if ENABLE_RESENDINGS
                     uint32_t resend_time = sn_coap_calculate_new_resend_time(handle->system_time, handle->sn_coap_resending_intervall, 0);
                     sn_coap_protocol_linked_list_send_msg_store(handle, src_addr_ptr,
                             dst_packed_data_needed_mem,
                             dst_ack_packet_data_ptr,
                             resend_time, param);
-    #endif
+#endif
                     handle->sn_coap_protocol_free(dst_ack_packet_data_ptr);
                     dst_ack_packet_data_ptr = 0;
                 }

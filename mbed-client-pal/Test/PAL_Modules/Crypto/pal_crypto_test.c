@@ -665,17 +665,18 @@ TEST(pal_crypto, X509_Parse)
  * | 6 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.           | PAL_SUCCESS |
  * | 7 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.           | PAL_SUCCESS |
  * | 8 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.           | PAL_SUCCESS |
- * | 9 | Release x509 certificate context using `pal_x509Free`.                                       | PAL_SUCCESS |
- * | 10 | Initialize X509 ceritifcate context using `pal_x509Initiate`.                                | PAL_SUCCESS |
- * | 11 | Parse a valid x509 certificate using `pal_x509CertParse`.                                   | PAL_SUCCESS |
- * | 12 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
+ * | 9 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.           | PAL_SUCCESS |
+ * | 10 | Release x509 certificate context using `pal_x509Free`.                                       | PAL_SUCCESS |
+ * | 11 | Initialize X509 ceritifcate context using `pal_x509Initiate`.                                | PAL_SUCCESS |
+ * | 12 | Parse a valid x509 certificate using `pal_x509CertParse`.                                   | PAL_SUCCESS |
  * | 13 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
- * | 14 | Get the certificate attribute value using `pal_x509CertGetAttribute `and check it.          | PAL_SUCCESS |
- * | 15 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
+ * | 14 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
+ * | 15 | Get the certificate attribute value using `pal_x509CertGetAttribute `and check it.          | PAL_SUCCESS |
  * | 16 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
- * | 17 | Get the certificate attribute value with a too small buffer.                                | PAL_ERR_BUFFER_TOO_SMALL |
- * | 18 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
- * | 19 | Release x509 certificate context using `pal_x509Free`.                                      | PAL_SUCCESS |
+ * | 17 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
+ * | 18 | Get the certificate attribute value with a too small buffer.                                | PAL_ERR_BUFFER_TOO_SMALL |
+ * | 19 | Get the certificate attribute value using `pal_x509CertGetAttribute` and check it.          | PAL_SUCCESS |
+ * | 20 | Release x509 certificate context using `pal_x509Free`.                                      | PAL_SUCCESS |
  */
 TEST(pal_crypto, X509_ReadAttributes)
 {
@@ -719,11 +720,15 @@ TEST(pal_crypto, X509_ReadAttributes)
     TEST_ASSERT_EQUAL_STRING("IOT_PAL", buffer1);
     memset(buffer1, 0, sizeof(buffer1));
     /*#7*/
+    result = pal_x509CertGetAttribute(ctx, PAL_X509_L_ATTR, buffer1, sizeof(buffer1), &actualOutLen);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    memset(buffer1, 0, sizeof(buffer1));
+    /*#8*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_OU_ATTR, buffer1, sizeof(buffer1), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     TEST_ASSERT_EQUAL_STRING("IOTBU", buffer1);
     memset(buffer1, 0, sizeof(buffer1));
-    /*#8*/
+    /*#9*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_CERT_ID_ATTR, certID1, sizeof(certID1), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     result = pal_x509CertGetAttribute(ctx, PAL_X509_CERT_ID_ATTR, certID2, sizeof(certID2), &actualOutLen);
@@ -731,36 +736,36 @@ TEST(pal_crypto, X509_ReadAttributes)
     TEST_ASSERT_EQUAL_MEMORY(certID1, certID2, sizeof(certID1));
     memset(certID1, 0, sizeof(certID1));
     memset(certID2, 0, sizeof(certID2));
-    /*#9*/
+    /*#10*/
     result = pal_x509Free(&ctx);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
-    /*#10*/
+    /*#11*/
     result = pal_x509Initiate(&ctx);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
-    /*#11*/
+    /*#12*/
     result = pal_x509CertParse(ctx, cert_not_self_signed, sizeof(cert_not_self_signed));
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
-    /*#12*/
+    /*#13*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_ISSUER_ATTR, buffer1, sizeof(buffer1), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     memset(buffer1, 0, sizeof(buffer1));
-    /*#13*/
+    /*#14*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_SUBJECT_ATTR, buffer1, sizeof(buffer1), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     memset(buffer1, 0, sizeof(buffer1));
-    /*#14*/
+    /*#15*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_CN_ATTR, buffer1, sizeof(buffer1), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     TEST_ASSERT_EQUAL_STRING("IOT_TEST", buffer1);
     memset(buffer1, 0, sizeof(buffer1));
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
-    /*#15*/
+    /*#16*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_VALID_FROM, validationBuf, sizeof(validationBuf), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     memcpy(&validFrom, validationBuf, sizeof(tmpTime));
     memset(validationBuf, 0, sizeof(validationBuf));
-    /*#16*/
+    /*#17*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_VALID_TO, validationBuf, sizeof(validationBuf), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     memcpy(&validTo, validationBuf, sizeof(tmpTime));
@@ -768,12 +773,12 @@ TEST(pal_crypto, X509_ReadAttributes)
     
     //Check exact time period
     TEST_ASSERT_EQUAL_HEX(0x05a39a7f, validTo - validFrom);
-    /*#17*/
+    /*#18*/
     //! sending small buffer size to check error value scenario
     result = pal_x509CertGetAttribute(ctx, PAL_X509_VALID_TO, validationBuf, 1, &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_BUFFER_TOO_SMALL, result);
     TEST_ASSERT_EQUAL(sizeof(uint64_t), actualOutLen);
-    /*#18*/
+    /*#19*/
     result = pal_x509CertGetAttribute(ctx, PAL_X509_CERT_ID_ATTR, certID1, sizeof(certID1), &actualOutLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
     result = pal_x509CertGetAttribute(ctx, PAL_X509_CERT_ID_ATTR, certID2, sizeof(certID2), &actualOutLen);
@@ -782,7 +787,7 @@ TEST(pal_crypto, X509_ReadAttributes)
     memset(certID1, 0, sizeof(certID1));
     memset(certID2, 0, sizeof(certID2));
 
-    /*#19*/
+    /*#20*/
     result = pal_x509Free(&ctx);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 #endif
@@ -1085,5 +1090,153 @@ TEST(pal_crypto, CSR)
     /*#2*/
     result = pal_ECGroupFree(&grp);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
 #endif
+}
+
+#define PAL_CRYPTO_TEST_MAX_ECDSA_LEN 74
+
+/**
+* @brief Test hash function of the TBS of an X509 and its verification
+*
+* Uses `x509_verify_ca` and `x509_verify_cert`.
+*
+* | # |    Step                        |   Expected  |
+* |---|--------------------------------|-------------|
+* | 1 | Instantiate X509 handles using `pal_x509Initiate`.                                                                   | PAL_SUCCESS |
+* | 2 | Parse signer and signee X509 certificates into handles using `pal_x509CertParse`.                                    | PAL_SUCCESS |
+* | 3 | Hash the TBS of the signee using `pal_x509CertGetHTBS`.                                                              | PAL_SUCCESS |
+* | 4 | Acquire the signature from the signee using `pal_x509CertGetAttribute` with PAL_X509_SIGNATUR_ATTR flag.             | PAL_SUCCESS |
+* | 5 | Verify the hash signed by the CA in the signature of signee equals the hash of the TBS using `pal_verifySignature`.  | PAL_SUCCESS |
+* | 6 | Verify the signature with the public key of the signee instead of the signer, using `pal_verifySignature` and fail.  | PAL_ERR_PK_SIG_VERIFY_FAILED |
+* | 7 | Release the two X509 handles using `pal_x509Free`.                                                                   | PAL_SUCCESS |
+*/
+TEST(pal_crypto, X509_tbs_hash)
+{
+#if (PAL_ENABLE_X509 == 1)
+    palStatus_t status;
+    unsigned char digest[PAL_SHA256_SIZE] = { 0 };
+    unsigned char sig[PAL_CRYPTO_TEST_MAX_ECDSA_LEN] = { 0 };
+    size_t sig_len;
+    size_t digest_len;
+    palX509Handle_t signee = NULLPTR;
+    palX509Handle_t signer = NULLPTR;
+
+    /*#1*/
+    status = pal_x509Initiate(&signee);
+    TEST_ASSERT_NOT_EQUAL(signee, NULLPTR);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_x509Initiate(&signer);
+    TEST_ASSERT_NOT_EQUAL(signer, NULLPTR);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_x509CertParse(signee, x509_verify_cert, sizeof(x509_verify_cert));
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_x509CertParse(signer, x509_verify_ca, sizeof(x509_verify_ca));
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#3*/
+#ifdef DEBUG
+    // Check invalid arguments
+    status = pal_x509CertGetHTBS(NULLPTR, PAL_SHA256, digest, sizeof(digest), &digest_len);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
+    status = pal_x509CertGetHTBS(signee, PAL_SHA256, NULL, sizeof(digest), &digest_len);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
+    status = pal_x509CertGetHTBS(signee, PAL_SHA256, digest, sizeof(digest), NULL);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
+#endif
+    // Check with small buffer
+    status = pal_x509CertGetHTBS(signee, PAL_SHA256, digest, sizeof(digest) - 1, &digest_len);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_BUFFER_TOO_SMALL, status);
+
+    status = pal_x509CertGetHTBS(signee, PAL_SHA256, digest, sizeof(digest), &digest_len);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_HEX(PAL_SHA256_SIZE, digest_len);
+    
+    /*#4*/
+    status = pal_x509CertGetAttribute(signee, PAL_X509_SIGNATUR_ATTR, sig, sizeof(sig), &sig_len);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#5*/
+    status = pal_verifySignature(signer, PAL_SHA256, digest, digest_len, sig, sig_len);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#6*/
+    status = pal_verifySignature(signee, PAL_SHA256, digest, PAL_SHA256_SIZE, sig, sig_len);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_PK_SIG_VERIFY_FAILED, status);
+
+    /*#7*/
+    status = pal_x509Free(&signee);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_x509Free(&signer);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#endif
+}
+
+/**
+* @brief Test the generation of elliptic-curves keys (public and private).
+*
+* Uses `pal_ECKeyGenerateKey`.
+*
+* | # |    Step                        |   Expected  |
+* |---|--------------------------------|-------------|
+* | 1 | Initialize a new EC key using `pal_ECKeyNew`.                                                                      | PAL_SUCCESS |
+* | 2 | Generate EC keys using `pal_ECKeyGenerateKey`.                                                                     | PAL_SUCCESS |
+* | 3 | Initialize and load EC group using `pal_ECGroupInitAndLoad`.                                                       | PAL_SUCCESS |
+* | 4 | Check both generated keys using `pal_ECCheckKey`.                                                                  | PAL_SUCCESS |
+* | 5 | Compute signature for digest with private key using `pal_ECDSASign`.                                               | PAL_SUCCESS |
+* | 6 | Verify signature with public key using `pal_ECDSAVerify`.                                                          | PAL_SUCCESS |
+* | 7 | Release the EC group using `pal_ECGroupFree`.                                                                      | PAL_SUCCESS |
+* | 8 | Release the EC key using `pal_ECKeyFree`.                                                                          | PAL_SUCCESS |
+*/
+TEST(pal_crypto, ECKey_GenerateKeys)
+{
+    palStatus_t result;
+    palECKeyHandle_t key_handle = NULLPTR;
+    palGroupIndex_t grpID = PAL_ECP_DP_SECP256R1;
+    palCurveHandle_t grp_handle = NULLPTR;
+    bool verified = false;
+    unsigned char hash_digest[] =
+    { 0x34, 0x70, 0xCD, 0x54, 0x7B, 0x0A, 0x11, 0x5F, 0xE0, 0x5C, 0xEB, 0xBC, 0x07, 0xBA, 0x91, 0x88,
+        0x27, 0x20, 0x25, 0x6B, 0xB2, 0x7A, 0x66, 0x89, 0x1A, 0x4B, 0xB7, 0x17, 0x11, 0x04, 0x86, 0x6F };
+    unsigned char signature[74] = { 0 };
+    size_t act_size_of_sign = sizeof(signature);
+
+    /*#1*/
+    result = pal_ECKeyNew(&key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#2*/
+    result = pal_ECKeyGenerateKey(grpID, key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#3*/
+    result = pal_ECGroupInitAndLoad(&grp_handle, grpID);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#4*/
+    result = pal_ECCheckKey(grp_handle,key_handle, PAL_CHECK_BOTH_KEYS,&verified);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    TEST_ASSERT_EQUAL_HEX(true, verified);
+
+    /*#5*/
+    result = pal_ECDSASign(grp_handle, PAL_SHA256, key_handle, hash_digest, sizeof(hash_digest), signature, &act_size_of_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#6*/
+    verified = false;
+    result = pal_ECDSAVerify(key_handle, hash_digest, sizeof(hash_digest), signature, act_size_of_sign, &verified);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    TEST_ASSERT_EQUAL_HEX(true, verified);
+
+    /*#7*/
+    result = pal_ECGroupFree(&grp_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#8*/
+    result = pal_ECKeyFree(&key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 }

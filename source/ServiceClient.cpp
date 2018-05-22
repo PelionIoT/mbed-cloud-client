@@ -29,6 +29,7 @@
 #include "include/UpdateClientResources.h"
 #include "include/UpdateClient.h"
 #include "factory_configurator_client.h"
+#include "mbed-client/m2mconstants.h"
 #include "mbed-trace/mbed_trace.h"
 #include <assert.h>
 
@@ -60,15 +61,18 @@ ServiceClient::ServiceClient(ServiceClientCallback& callback)
 
 ServiceClient::~ServiceClient()
 {
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+    ARM_UC_HUB_Uninitialize();
+#endif
 }
 
-void ServiceClient::initialize_and_register(M2MObjectList& client_objs)
+void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 {
     tr_debug("ServiceClient::initialize_and_register");
     if(_current_state == State_Init ||
        _current_state == State_Unregister ||
        _current_state == State_Failure) {
-        _client_objs = &client_objs;
+        _client_objs = &reg_objs;
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         tr_debug("ServiceClient::initialize_and_register: update client supported");
@@ -136,6 +140,21 @@ void ServiceClient::initialize_and_register(M2MObjectList& client_objs)
         M2MDevice *device_object = device_object_from_storage();
 
         if (device_object) {
+            M2MObjectInstance* instance = device_object->object_instance(0);
+            if (instance) {
+                M2MResource *res = instance->resource(DEVICE_MANUFACTURER);
+                if (res) {
+                    res->publish_value_in_registration_msg(true);
+                }
+                res = instance->resource(DEVICE_MODEL_NUMBER);
+                if (res) {
+                    res->publish_value_in_registration_msg(true);
+                }
+                res = instance->resource(DEVICE_SERIAL_NUMBER);
+                if (res) {
+                    res->publish_value_in_registration_msg(true);
+                }
+             }
             /* Publish device object resource to mds */
             M2MResourceList list = device_object->object_instance()->resources();
             if(!list.empty()) {

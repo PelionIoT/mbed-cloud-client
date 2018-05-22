@@ -43,6 +43,7 @@
 #include "sn_nsdl_lib.h"
 #include "sn_grs.h"
 #include "mbed-trace/mbed_trace.h"
+#include "mbedtls/base64.h"
 #include "common_functions.h"
 #include "randLIB.h"
 
@@ -406,6 +407,11 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
     temp_parameters.lifetime_len = lt_len;
     temp_parameters.lifetime_ptr = lt_ptr;
 
+    if (handle->ep_information_ptr) {
+        temp_parameters.type_len = handle->ep_information_ptr->type_len;
+        temp_parameters.type_ptr = handle->ep_information_ptr->type_ptr;
+    }
+
     /*** Build endpoint register update message ***/
 
     /* Allocate memory for header struct */
@@ -467,7 +473,6 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
 
     /* Build payload */
     if (handle->ep_information_ptr->ds_register_mode == REGISTER_WITH_RESOURCES) {
-
         if (sn_nsdl_build_registration_body(handle, register_message_ptr, 1) == SN_NSDL_FAILURE) {
             sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
             return 0;
@@ -532,7 +537,7 @@ int32_t sn_nsdl_send_observation_notification(struct nsdl_s *handle, uint8_t *to
     int32_t         return_msg_id = 0;
 
     /* Check parameters */
-    if (handle == NULL || handle->grs == NULL) {
+    if (handle == NULL || handle->grs == NULL || token_len == 0) {
         return 0;
     }
 
@@ -794,8 +799,10 @@ int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet_ptr, uint16_t
             handle->grs->coap->sn_coap_protocol_free(coap_packet_ptr->payload_ptr);
         }
 
+#if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
         // Remove sent blockwise message(GET request) from the linked list.
         sn_coap_protocol_remove_sent_blockwise_message(handle->grs->coap, coap_packet_ptr->msg_id);
+#endif
 
         sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
         return SN_NSDL_SUCCESS;
@@ -1026,7 +1033,7 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
     while (resource_temp_ptr) {
         /* if resource needs to be registered */
         if (resource_temp_ptr->publish_uri) {
-            if (updating_registeration && resource_temp_ptr->registered == SN_NDSL_RESOURCE_REGISTERED) {
+            if (!resource_temp_ptr->always_publish && updating_registeration && resource_temp_ptr->registered == SN_NDSL_RESOURCE_REGISTERED) {
                 resource_temp_ptr = sn_grs_get_next_resource(handle->grs, resource_temp_ptr);
                 continue;
             } else {
@@ -1120,14 +1127,36 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
             }
 
             /* ;v */
-            if (resource_temp_ptr->publish_value && resource_temp_ptr->resource) {
-                *temp_ptr++ = ';';
-                memcpy(temp_ptr, resource_value, RESOURCE_VALUE_PARAMETER_LEN);
-                temp_ptr += RESOURCE_VALUE_PARAMETER_LEN;
-                *temp_ptr++ = '"';
-                memcpy(temp_ptr, resource_temp_ptr->resource, resource_temp_ptr->resource_len);
-                temp_ptr += resource_temp_ptr->resource_len;
-                *temp_ptr++ = '"';
+            if ((resource_temp_ptr->publish_value > 0) && resource_temp_ptr->resource) {
+                // If the resource is Opaque then do Base64 encoding of data
+                if (resource_temp_ptr->publish_value == 2) {
+                    size_t dst_size = (((resource_temp_ptr->resource_len + 2) / 3) << 2) + 1;
+                    unsigned char *dst = (unsigned char*)handle->sn_nsdl_alloc(dst_size);
+                    size_t olen = 0;
+                    if (dst) {
+                        if (mbedtls_base64_encode(dst, dst_size, &olen,
+                            resource_temp_ptr->resource, resource_temp_ptr->resource_len) == 0) {
+                            *temp_ptr++ = ';';
+                            memcpy(temp_ptr, resource_value, RESOURCE_VALUE_PARAMETER_LEN);
+                            temp_ptr += RESOURCE_VALUE_PARAMETER_LEN;
+                            *temp_ptr++ = '"';
+                            memcpy(temp_ptr, dst, olen);
+                            temp_ptr += olen;
+                            *temp_ptr++ = '"';
+
+                        }
+                        handle->sn_nsdl_free(dst);
+                    }
+
+                } else {      // For resources which does not require Base64 encoding of data
+                    *temp_ptr++ = ';';
+                    memcpy(temp_ptr, resource_value, RESOURCE_VALUE_PARAMETER_LEN);
+                    temp_ptr += RESOURCE_VALUE_PARAMETER_LEN;
+                    *temp_ptr++ = '"';
+                    memcpy(temp_ptr, resource_temp_ptr->resource, resource_temp_ptr->resource_len);
+                    temp_ptr += resource_temp_ptr->resource_len;
+                    *temp_ptr++ = '"';
+                }
             }
 
             /* ;aobs / ;obs */
@@ -1146,8 +1175,6 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
                     uint16_t temp = common_read_16_bit((uint8_t*)token);
                     temp_ptr = sn_nsdl_itoa(temp_ptr, temp);
                     *temp_ptr++ = '"';
-                } else {
-                    return SN_NSDL_FAILURE;
                 }
             }
             else if (resource_temp_ptr->observable) {
@@ -1187,7 +1214,7 @@ static uint16_t sn_nsdl_calculate_registration_body_size(struct nsdl_s *handle, 
 
     while (resource_temp_ptr) {
         if (resource_temp_ptr->publish_uri) {
-            if (updating_registeration && resource_temp_ptr->registered == SN_NDSL_RESOURCE_REGISTERED) {
+            if (!resource_temp_ptr->always_publish && updating_registeration && resource_temp_ptr->registered == SN_NDSL_RESOURCE_REGISTERED) {
                 resource_temp_ptr = sn_grs_get_next_resource(handle->grs, resource_temp_ptr);
                 continue;
             }
@@ -1308,14 +1335,19 @@ static uint16_t sn_nsdl_calculate_registration_body_size(struct nsdl_s *handle, 
                 }
             }
 
-            if (resource_temp_ptr->publish_value && resource_temp_ptr->resource) {
+            if ((resource_temp_ptr->publish_value > 0) && resource_temp_ptr->resource) {
                 /* ;v="" */
-                if (sn_nsdl_check_uint_overflow(return_value, 5, resource_temp_ptr->resource_len)) {
-                    return_value += 5 + resource_temp_ptr->resource_len;
+                uint16_t len = resource_temp_ptr->resource_len;
+                if (resource_temp_ptr->publish_value == 2) {
+                    len = (((resource_temp_ptr->resource_len + 2) / 3) << 2);
+                }
+                if (sn_nsdl_check_uint_overflow(return_value, 5, len)) {
+                    return_value += 5 + len;
                 } else {
                     *error = SN_NSDL_FAILURE;
                     break;
                 }
+                /* ;v="" */
             }
 
 #ifndef COAP_DISABLE_OBS_FEATURE
@@ -1382,7 +1414,9 @@ static uint8_t sn_nsdl_calculate_uri_query_option_len(sn_nsdl_ep_parameters_s *e
         number_of_parameters++;
     }
 
-    if ((endpoint_info_ptr->type_len != 0) && (msg_type == SN_NSDL_EP_REGISTER_MESSAGE) && (endpoint_info_ptr->type_ptr != 0)) {
+    if ((endpoint_info_ptr->type_len != 0) &&
+        (msg_type == SN_NSDL_EP_REGISTER_MESSAGE || msg_type == SN_NSDL_EP_UPDATE_MESSAGE) &&
+        (endpoint_info_ptr->type_ptr != 0)) {
         return_value += endpoint_info_ptr->type_len;
         return_value += ET_PARAMETER_LEN;       //et=
         number_of_parameters++;
@@ -1490,7 +1524,7 @@ static int8_t sn_nsdl_fill_uri_query_options(struct nsdl_s *handle,
 
     if ((parameter_ptr->type_len != 0) &&
         (parameter_ptr->type_ptr != 0) &&
-        (msg_type == SN_NSDL_EP_REGISTER_MESSAGE)) {
+        (msg_type == SN_NSDL_EP_REGISTER_MESSAGE || msg_type == SN_NSDL_EP_UPDATE_MESSAGE)) {
         if (temp_ptr != source_msg_ptr->options_list_ptr->uri_query_ptr) {
             *temp_ptr++ = '&';
         }
@@ -1659,19 +1693,36 @@ static int8_t sn_nsdl_local_rx_function(struct nsdl_s *handle, sn_coap_hdr_s *co
         is_bs_msg = true;
     }
 
+    /* Store the current message token so that we can identify if same operation was initiated from callback */
+    uint32_t temp_token = 0;
+    if (is_reg_msg) {
+        temp_token = handle->register_token;
+    }
+    else if (is_unreg_msg) {
+        temp_token = handle->unregister_token;
+    }
+    else if (is_update_reg_msg) {
+        temp_token = handle->update_register_token;
+    }
+    else if (is_bs_msg) {
+        temp_token = handle->bootstrap_token;
+    }
+
     /* No messages to wait for, or message was not response to our request */
     int ret = handle->sn_nsdl_rx_callback(handle, coap_packet_ptr, address_ptr);
 
-    if (is_reg_msg) {
+    /* If callback initiated same operation then token is updated in handle and temp_token won't match.
+       This means we don't clear the handle token here because we will wait for response to new request. */
+    if (is_reg_msg && temp_token == handle->register_token) {
         handle->register_token = 0;
     }
-    else if (is_unreg_msg) {
+    else if (is_unreg_msg && temp_token == handle->unregister_token) {
         handle->unregister_token = 0;
     }
-    else if (is_update_reg_msg) {
+    else if (is_update_reg_msg && temp_token == handle->update_register_token) {
         handle->update_register_token = 0;
     }
-    else if (is_bs_msg) {
+    else if (is_bs_msg && temp_token == handle->bootstrap_token) {
         handle->bootstrap_token = 0;
     }
     return ret;
@@ -1821,6 +1872,10 @@ static int8_t set_endpoint_info(struct nsdl_s *handle, sn_nsdl_ep_parameters_s *
     handle->ep_information_ptr->endpoint_name_ptr = 0;
     handle->ep_information_ptr->endpoint_name_len = 0;
 
+    handle->sn_nsdl_free(handle->ep_information_ptr->type_ptr);
+    handle->ep_information_ptr->type_ptr = 0;
+    handle->ep_information_ptr->type_len = 0;
+
     if (endpoint_info_ptr->domain_name_ptr && endpoint_info_ptr->domain_name_len) {
         handle->ep_information_ptr->domain_name_ptr = handle->sn_nsdl_alloc(endpoint_info_ptr->domain_name_len);
 
@@ -1844,6 +1899,14 @@ static int8_t set_endpoint_info(struct nsdl_s *handle, sn_nsdl_ep_parameters_s *
 
         memcpy(handle->ep_information_ptr->endpoint_name_ptr, endpoint_info_ptr->endpoint_name_ptr, endpoint_info_ptr->endpoint_name_len);
         handle->ep_information_ptr->endpoint_name_len = endpoint_info_ptr->endpoint_name_len;
+    }
+
+    if (endpoint_info_ptr->type_ptr && endpoint_info_ptr->type_len) {
+        handle->ep_information_ptr->type_ptr = handle->sn_nsdl_alloc(endpoint_info_ptr->type_len);
+        if (handle->ep_information_ptr->type_ptr) {
+            memcpy(handle->ep_information_ptr->type_ptr, endpoint_info_ptr->type_ptr, endpoint_info_ptr->type_len);
+            handle->ep_information_ptr->type_len = endpoint_info_ptr->type_len;
+        }
     }
 
     handle->ep_information_ptr->binding_and_mode = endpoint_info_ptr->binding_and_mode;
@@ -1903,27 +1966,8 @@ extern int8_t sn_nsdl_clear_coap_sent_blockwise_messages(struct nsdl_s *handle)
     }
 
     // Enable function once new CoAP API is released to mbed-os
-    //sn_coap_protocol_clear_sent_blockwise_messages(handle->grs->coap);
+    sn_coap_protocol_clear_sent_blockwise_messages(handle->grs->coap);
 
-#if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
-    // Workaround until CoAP API is released
-    /* Loop all stored Blockwise messages in Linked list */
-    ns_list_foreach_safe(coap_blockwise_msg_s, removed_blocwise_msg_ptr, &handle->grs->coap->linked_list_blockwise_sent_msgs) {
-        if (removed_blocwise_msg_ptr->coap == handle->grs->coap) {
-            if (removed_blocwise_msg_ptr->coap_msg_ptr){
-                if (removed_blocwise_msg_ptr->coap_msg_ptr->payload_ptr) {
-                    handle->grs->coap->sn_coap_protocol_free(removed_blocwise_msg_ptr->coap_msg_ptr->payload_ptr);
-                }
-                sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap,
-                                                              removed_blocwise_msg_ptr->coap_msg_ptr);
-
-            }
-
-            ns_list_remove(&handle->grs->coap->linked_list_blockwise_sent_msgs, removed_blocwise_msg_ptr);
-            handle->grs->coap->sn_coap_protocol_free(removed_blocwise_msg_ptr);
-        }
-    }
-#endif
     return SN_NSDL_SUCCESS;
 }
 

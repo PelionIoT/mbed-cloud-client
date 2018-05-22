@@ -137,6 +137,11 @@ M2MResource& M2MResourceInstance::get_parent_resource() const
     return _parent_resource;
 }
 
+M2MBase *M2MResourceInstance::get_parent() const
+{
+    return (M2MBase *) &get_parent_resource();
+}
+
 const char* M2MResourceInstance::object_name() const
 {
     const M2MObjectInstance& parent_object_instance = _parent_resource.get_parent_object_instance();

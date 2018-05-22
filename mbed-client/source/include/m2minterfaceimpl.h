@@ -110,6 +110,18 @@ public:
      * @param object_list Objects which contains information
      * which the client want to register to the LWM2M server.
      */
+    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list);
+
+    /**
+     * @brief Initiates registration of the provided Security object to the
+     * corresponding LWM2M server.
+     * @param security_object Security object which contains information
+     * required for registering to the LWM2M server.
+     * If client wants to register to multiple LWM2M servers then it has call
+     * this function once for each of LWM2M server object separately.
+     * @param object_list Objects which contains information
+     * which the client want to register to the LWM2M server.
+     */
     virtual void register_object(M2MSecurity *security_object, const M2MObjectList &object_list);
 
     /**
@@ -121,6 +133,20 @@ public:
      * @param lifetime Lifetime for the endpoint client in seconds.
      */
     virtual void update_registration(M2MSecurity *security_object, const uint32_t lifetime = 0);
+
+    /**
+     * @brief Updates or refreshes the client's registration on the LWM2M
+     * server. Use this function to publish new objects to LWM2M server.
+     * @param security_object The security object from which the device object
+     * needs to update the registration. If there is only one LWM2M server registered,
+     * this parameter can be NULL.
+     * @param object_list Objects that contain information about the
+     * client attempting to register to the LWM2M server.
+     * @param lifetime The lifetime of the endpoint client in seconds. If the same value
+     * has to be passed, set the default value to 0.
+     */
+    virtual void update_registration(M2MSecurity *security_object, const M2MBaseList &list,
+                                     const uint32_t lifetime = 0);
 
     /**
      * @brief Updates or refreshes the client's registration on the LWM2M
@@ -180,6 +206,13 @@ public:
      *                                     size_t len, size_t *olen);
      */
     virtual void set_entropy_callback(entropy_cb callback);
+
+    /**
+      * \brief Removes an object from M2MInterfaceImpl.
+      * Does not call delete on the object though.
+      * \return true if the object was found and false if the object was not found.
+      */
+    virtual bool remove_object(M2MBase *object);
 
     /**
      * @brief Updates the endpoint name.
@@ -455,7 +488,6 @@ private: // state machine state functions
     enum ReconnectionState{
         None,
         WithUpdate,
-        FullRegistration,
         Unregistration
     };
 

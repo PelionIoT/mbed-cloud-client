@@ -295,6 +295,9 @@ public:
     // callback used from M2MResource/M2MResourceInstance
     void notification_update(M2MBase::Observation observation_level);
 
+protected:
+    virtual M2MBase *get_parent() const;
+
 private:
 
     /**
@@ -323,6 +326,7 @@ private:
     friend class Test_M2MBase;
     friend class Test_M2MResource;
     friend class Test_M2MResourceInstance;
+    friend class TestFactory;
 };
 
 inline M2MObject& M2MObjectInstance::get_parent_object() const

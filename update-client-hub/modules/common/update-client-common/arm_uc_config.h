@@ -65,4 +65,8 @@
 // NOTE: The charset must be sorted except for the trailing character which is used as a padding character.
 #define MBED_CLOUD_UPDATE_BASE64_CHARSET "0123456789@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-"
 
+#ifndef ARM_UC_SCHEDULER_STORAGE_POOL_SIZE
+#define ARM_UC_SCHEDULER_STORAGE_POOL_SIZE 32
+#endif
+
 #endif // ARM_UPDATE_CONFIG_H

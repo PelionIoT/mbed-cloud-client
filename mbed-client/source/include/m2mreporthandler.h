@@ -149,6 +149,44 @@ public:
      */
     bool is_under_observation() const;
 
+    /**
+     * @brief Schedule a report, if the pmin is exceeded
+     * report immediately, otherwise store the state to be
+     * reported once the time fires.
+     *
+     * @param in_queue If the message is queued message then it must be send even if
+     * current and last values are the same.
+     */
+    void schedule_report(bool in_queue = false);
+
+    /**
+     * @brief Set flag that new notification needs to be send.
+     *
+     * @param to_queue If True then notification is marked to be send
+     */
+    void set_notification_in_queue(bool to_queue);
+
+    /**
+     * @brief Returns whether notification needs to be send or not.
+     *
+     * @return Is notification sending needed or not.
+     */
+    bool notification_in_queue() const;
+
+    /**
+     * @brief Set flag that new notification needs to be send.
+     *
+     * @param to_queue If True then notification is marked to be send
+     */
+    void set_notification_send_in_progress(bool progress);
+
+    /**
+     * @brief Returns whether notification send is in progress or not.
+     *
+     * @return Is notification sending ongoing or not.
+     */
+    bool notification_send_in_progress() const;
+
 protected : // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type =
@@ -156,23 +194,17 @@ protected : // from M2MTimerObserver
 
 private:
 
-
-
     bool set_notification_attribute(const char* option,
             M2MBase::BaseType type,
             M2MResourceInstance::ResourceType resource_type);
 
     /**
-     * @brief Schedule a report, if the pmin is exceeded
-     * then report immediately else store the state to be
-     * reported once the time fires.
-     */
-    void schedule_report();
-
-    /**
     * @brief Reports a sample that satisfies the reporting criteria.
+    *
+    * @param in_queue If the message is queued message then it must be send even
+    * current and last values are the same.
     */
-    void report();
+    void report(bool in_queue = false);
 
     /**
     * @brief Manage timers for pmin and pmax.
@@ -232,6 +264,8 @@ private:
     float                       _low_step;
     float                       _last_value;
     m2m::Vector<uint16_t>       _changed_instance_ids;
+    bool                        _notification_sending_in_progress;
+    bool                        _notification_in_queue;
 
 friend class Test_M2MReportHandler;
 

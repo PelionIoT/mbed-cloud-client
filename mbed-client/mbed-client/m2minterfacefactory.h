@@ -107,12 +107,21 @@ public:
      * client can manage its own customized resources used for registering
      * Device Management and Information Reporting for those resources.
      * \param name The name of the object.
-     * \param id A unique ID for the object. It should be other than the reserved
-     * LWM2M object IDs.
      * \return M2MObject An object for managing other mbed Client operations.
      */
     static M2MObject *create_object(const String &name);
 
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    /**
+     * \brief Creates a endpoint object for the mbed Client Inteface. With this, the
+     * client can manage multiple endpoints and their resources. Common directory path "d/"
+     * will be prepended to the endpoint path, resulting in the endpoint having final path of
+     * "d/name".
+     * \param name The name of the object.
+     * \return M2MObject An object for managing other mbed Client operations.
+     */
+    static M2MEndpoint* create_endpoint(const String &name);
+#endif
 
     friend class Test_M2MInterfaceFactory;
 };

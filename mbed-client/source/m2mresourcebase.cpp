@@ -219,19 +219,17 @@ bool M2MResourceBase::set_value(const uint8_t *value,
 {
     tr_debug("M2MResourceBase::set_value()");
     bool success = false;
-    bool changed = has_value_changed(value,value_length);
     if( value != NULL && value_length > 0 ) {
-        sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
-        free(res->resource);
-        res->resource = NULL;
-        res->resource_len = 0;
-        res->resource = alloc_string_copy(value, value_length);
-        if(res->resource) {
-            success = true;
-            res->resource_len = value_length;
-            if (changed) {
-                report_value_change();
+        uint8_t *value_copy = alloc_string_copy(value, value_length);
+        if (value_copy) {
+            value_set_callback callback = (value_set_callback)M2MCallbackStorage::get_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueSetCallback);
+            if (callback) {
+                (*callback)((const M2MResourceBase*)this, value_copy, value_length);
             }
+            else {
+                update_value(value_copy, value_length);
+            }
+            success = true;
         }
     }
     return success;
@@ -243,18 +241,29 @@ bool M2MResourceBase::set_value_raw(uint8_t *value,
 {
     tr_debug("M2MResourceBase::set_value_raw()");
     bool success = false;
-    bool changed = has_value_changed(value,value_length);
     if( value != NULL && value_length > 0 ) {
         success = true;
-        sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
-        free(res->resource);
-        res->resource = value;
-        res->resource_len = value_length;
-        if (changed) {
-            report_value_change();
+        value_set_callback callback = (value_set_callback)M2MCallbackStorage::get_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueSetCallback);
+        if (callback) {
+            (*callback)((const M2MResourceBase*)this, value, value_length);
+        }
+        else {
+            update_value(value, value_length);
         }
     }
     return success;
+}
+
+void M2MResourceBase::update_value(uint8_t *value, const uint32_t value_length)
+{
+    bool changed = has_value_changed(value,value_length);
+    sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
+    free(res->resource);
+    res->resource = value;
+    res->resource_len = value_length;
+    if (changed) {
+        report_value_change();
+    }
 }
 
 void M2MResourceBase::report()
@@ -289,12 +298,8 @@ void M2MResourceBase::report()
              (observation_level != M2MBase::None)) {
             M2MReportHandler *report_handler = M2MBase::report_handler();
             if (report_handler && is_observable()) {
-                sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
-                if(res->resource) {
-                    report_handler->set_value(atof((const char*)res->resource));
-                } else {
-                    report_handler->set_value(0);
-                }
+                const float float_value = get_value_float();
+                report_handler->set_value(float_value);
             }
         }
         else {
@@ -390,10 +395,20 @@ int64_t M2MResourceBase::get_value_int() const
 {
     int64_t value_int = 0;
 
-    // XXX: this relies on having a zero terminated value?!
     const char *value_string = (char *)value();
-    if (value_string) {
-        value_int = atoll(value_string);
+    const uint32_t value_len = value_length();
+
+    if ((value_string) && (value_len <= REGISTRY_INT64_STRING_MAX_LEN)) {
+
+        // -9223372036854775808 - +9223372036854775807
+        // max length of int64_t string is 20 bytes + nil
+        // The +1 here is there in case the string was already zero terminated.
+        char temp[REGISTRY_INT64_STRING_MAX_LEN + 1];
+
+        memcpy(temp, value_string, value_len);
+        temp[value_len] = 0;
+
+        value_int = atoll(temp);
     }
     return value_int;
 }
@@ -412,11 +427,19 @@ float M2MResourceBase::get_value_float() const
 {
     float value_float = 0;
 
-    // XXX: this relies on having a zero terminated value?!
-    // convert value from string to float
     const char *value_string = (char *)value();
-    if (value_string) {
-        value_float = atof(value_string);
+    const uint32_t value_len = value_length();
+
+    if ((value_string) && (value_len <= REGISTRY_FLOAT_STRING_MAX_LEN)) {
+
+        // (space needed for -3.402823 × 10^38) + (magic decimal 6 digits added as no precision is added to "%f") + trailing zero
+        // The +1 here is there in case the string was already zero terminated.
+        char temp[REGISTRY_FLOAT_STRING_MAX_LEN + 1];
+
+        memcpy(temp, value_string, value_len);
+        temp[value_len] = 0;
+
+        value_float = atof(temp);
     }
 
     return value_float;
@@ -432,6 +455,12 @@ uint32_t M2MResourceBase::value_length() const
     return get_nsdl_resource()->resource_len;
 }
 
+void M2MResourceBase::set_value_set_callback(value_set_callback callback)
+{
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueSetCallback);
+    M2MCallbackStorage::add_callback(*this, (void*)callback, M2MCallbackAssociation::M2MResourceBaseValueSetCallback);
+}
+
 sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
                                                M2MObservationHandler *observation_handler)
@@ -441,18 +470,19 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
     sn_coap_hdr_s *coap_response = sn_nsdl_build_response(nsdl,
                                                           received_coap_header,
                                                           msg_code);
-    if(received_coap_header) {
+    if (received_coap_header) {
         // process the GET if we have registered a callback for it
         if ((operation() & SN_GRS_GET_ALLOWED) != 0) {
-            if(coap_response) {
+            if (coap_response) {
                 bool content_type_present = false;
-                if(received_coap_header->options_list_ptr &&
-                        received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
+                if (received_coap_header->options_list_ptr &&
+                    received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
                     content_type_present = true;
                     coap_response->content_format = received_coap_header->options_list_ptr->accept;
+                    set_coap_content_type(coap_response->content_format);
                 }
-                if(!content_type_present) {
-                    if(resource_instance_type() == M2MResourceInstance::OPAQUE) {
+                if (!content_type_present) {
+                    if (resource_instance_type() == M2MResourceInstance::OPAQUE) {
                         coap_response->content_format = sn_coap_content_format_e(COAP_CONTENT_OMA_OPAQUE_TYPE);
                     } else {
                         coap_response->content_format = sn_coap_content_format_e(COAP_CONTENT_OMA_PLAIN_TEXT_TYPE);
@@ -469,9 +499,8 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                     if (outgoing_block_message_cb) {
                         String name = "";
                         if (received_coap_header->uri_path_ptr != NULL &&
-                                received_coap_header->uri_path_len > 0) {
-                            name.append_raw((char *)received_coap_header->uri_path_ptr,
-                                             received_coap_header->uri_path_len);
+                            received_coap_header->uri_path_len > 0) {
+                            name.append_raw((char *)received_coap_header->uri_path_ptr, received_coap_header->uri_path_len);
                         }
                         (*outgoing_block_message_cb)(name, coap_response->payload_ptr, payload_len);
                     }
@@ -479,7 +508,6 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
 #endif
                     if (coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE ||
                         coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE_OLD) {
-                        set_coap_content_type(coap_response->content_format);
                         coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), payload_len);
                     } else {
                         get_value(coap_response->payload_ptr,payload_len);
@@ -494,21 +522,21 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                     coap_response->options_list_ptr->max_age = max_age();
                 }
 
-                if(received_coap_header->options_list_ptr) {
-                    if(received_coap_header->options_list_ptr->observe != -1) {
+                if (received_coap_header->options_list_ptr) {
+                    if (received_coap_header->options_list_ptr->observe != -1) {
                         if (is_observable()) {
                             uint32_t number = 0;
                             uint8_t observe_option = 0;
                             observe_option = received_coap_header->options_list_ptr->observe;
 
-                            if(START_OBSERVATION == observe_option) {
+                            if (START_OBSERVATION == observe_option) {
                                 // If the observe length is 0 means register for observation.
-                                if(received_coap_header->options_list_ptr->observe != -1) {
+                                if (received_coap_header->options_list_ptr->observe != -1) {
                                     number = received_coap_header->options_list_ptr->observe;
                                 }
 
                                 // If the observe value is 0 means register for observation.
-                                if(number == 0) {
+                                if (number == 0) {
                                     tr_info("M2MResourceBase::handle_get_request - put resource under observation");
                                     set_under_observation(true,observation_handler);
                                     send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
@@ -518,7 +546,7 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                                     }
                                 }
 
-                                if(received_coap_header->token_ptr) {
+                                if (received_coap_header->token_ptr) {
                                     set_observation_token(received_coap_header->token_ptr,
                                                           received_coap_header->token_len);
                                 }
@@ -535,7 +563,7 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                     }
                 }
             }
-        }else {
+        } else {
             tr_error("M2MResourceBase::handle_get_request - Return COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED");
             // Operation is not allowed.
             msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
@@ -543,9 +571,11 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
     } else {
         msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
     }
-    if(coap_response) {
+
+    if (coap_response) {
         coap_response->msg_code = msg_code;
     }
+
     return coap_response;
 }
 
@@ -823,7 +853,15 @@ void M2MResourceBase::publish_value_in_registration_msg(bool publish_value)
     assert(param->data_type == M2MBase::INTEGER ||
            param->data_type == M2MBase::STRING ||
            param->data_type == M2MBase::FLOAT ||
-           param->data_type == M2MBase::BOOLEAN);
+           param->data_type == M2MBase::BOOLEAN ||
+           param->data_type == M2MBase::OPAQUE);
 
-    param->dynamic_resource_params->publish_value = publish_value;
+    uint8_t pub_value = publish_value;
+
+    if (param->data_type == M2MBase::OPAQUE) {
+        pub_value = 2;
+    } else {
+        pub_value = (uint8_t)publish_value;
+    }
+    param->dynamic_resource_params->publish_value = pub_value;
 }

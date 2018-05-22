@@ -101,9 +101,9 @@ public:
 
     /**
     *  \brief Starts the registration sequence from the Service Client.
-    *  \param client_objs, A list of objects to be registered with Cloud.
+    *  \param client_objs, A list of objects implementing the M2MBase interface to be registered with Cloud.
     */
-    void start_registration(M2MObjectList* client_objs);
+    void start_registration(M2MBaseList* client_objs);
 
     /**
     *  \brief Sends an update registration message to the LWM2M server.
@@ -329,7 +329,7 @@ private:
     M2MInterface                        *_interface;
     M2MSecurity                         *_security;
     ConnectorClientEndpointInfo         _endpoint_info;
-    M2MObjectList                       *_client_objs;
+    M2MBaseList                         *_client_objs;
     M2MTimer                            _rebootstrap_timer;
     uint16_t                            _bootstrap_security_instance;
     uint16_t                            _lwm2m_security_instance;

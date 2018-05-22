@@ -13,7 +13,6 @@ SET(MODULES
 	utils
 	mbed-trace-helper
 	fcc-output-info-handler
-	mbed-client-esfs
 )
 
 

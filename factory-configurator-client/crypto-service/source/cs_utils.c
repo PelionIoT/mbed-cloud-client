@@ -16,11 +16,12 @@
 #include <stdio.h>
 #include "pv_log.h"
 #include "cs_hash.h"
-#include "cs_der_keys.h"
+#include "cs_der_keys_and_csrs.h"
 #include "cs_der_certs.h"
 #include "pal_Crypto.h"
 #include "pal_errors.h"
 #include "pv_error_handling.h"
+#include "kcm_internal.h"
 
 
 kcm_status_e cs_error_handler(palStatus_t pal_status)
@@ -84,6 +85,16 @@ kcm_status_e cs_error_handler(palStatus_t pal_status)
             return KCM_CRYPTO_STATUS_INVALID_MD_TYPE;
         case PAL_ERR_FAILED_TO_WRITE_SIGNATURE:
             return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_SIGNATURE;
+        case PAL_ERR_FAILED_TO_WRITE_PRIVATE_KEY:
+            return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PRIVATE_KEY;
+        case PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY:
+            return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PUBLIC_KEY;
+        case PAL_ERR_CSR_WRITE_DER_FAILED:
+            return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_CSR;
+        case PAL_ERR_X509_UNKNOWN_OID:
+            return KCM_CRYPTO_STATUS_INVALID_OID;
+        case PAL_ERR_X509_INVALID_NAME:
+            return KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT;
         default:
            return  KCM_STATUS_ERROR;
     }
@@ -95,7 +106,7 @@ kcm_status_e cs_error_handler(palStatus_t pal_status)
 kcm_status_e cs_check_certifcate_public_key(palX509Handle_t x509_cert, const uint8_t *private_key_data, size_t size_of_private_key_data)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t out_sign[CS_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES] = { 0 };
+    uint8_t out_sign[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES] = { 0 };
     size_t size_of_sign = sizeof(out_sign);
     size_t act_size_of_sign = 0;
     const uint8_t hash_digest[] =
