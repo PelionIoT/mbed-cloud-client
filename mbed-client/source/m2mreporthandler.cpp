@@ -49,7 +49,9 @@ M2MReportHandler::M2MReportHandler(M2MReportObserver &observer)
   _st(0.0f),
   _high_step(0.0f),
   _low_step(0.0f),
-  _last_value(-1.0f)
+  _last_value(-1.0f),
+  _notification_sending_in_progress(false),
+  _notification_in_queue(false)
 {
     tr_debug("M2MReportHandler::M2MReportHandler()");
 }
@@ -79,8 +81,10 @@ void M2MReportHandler::set_value(float value)
 {
     tr_debug("M2MReportHandler::set_value() - current %f, last %f", value, _last_value);
     _current_value = value;
+
     if(_current_value != _last_value) {
         tr_debug("M2MReportHandler::set_value() - UNDER OBSERVATION");
+        set_notification_in_queue(true);
         if (check_threshold_values()) {
             schedule_report();
         }
@@ -89,8 +93,8 @@ void M2MReportHandler::set_value(float value)
             _notify = false;
             _last_value = _current_value;
             if ((_attribute_state & M2MReportHandler::Lt) == M2MReportHandler::Lt ||
-                    (_attribute_state & M2MReportHandler::Gt) == M2MReportHandler::Gt ||
-                    (_attribute_state & M2MReportHandler::St) == M2MReportHandler::St) {
+                (_attribute_state & M2MReportHandler::Gt) == M2MReportHandler::Gt ||
+                (_attribute_state & M2MReportHandler::St) == M2MReportHandler::St) {
                 tr_debug("M2MReportHandler::set_value - stop pmin timer");
                 _pmin_timer.stop_timer();
                 _pmin_exceeded = true;
@@ -98,6 +102,7 @@ void M2MReportHandler::set_value(float value)
         }
         _high_step = _current_value + _st;
         _low_step = _current_value - _st;
+
     }
 }
 
@@ -120,6 +125,7 @@ void M2MReportHandler::set_notification_trigger(uint16_t obj_instance_id)
 
     _current_value = 0.0f;
     _last_value = 1.0f;
+    set_notification_in_queue(true);
     schedule_report();
 }
 
@@ -291,47 +297,61 @@ bool M2MReportHandler::set_notification_attribute(const char* option,
     return success;
 }
 
-void M2MReportHandler::schedule_report()
+void M2MReportHandler::schedule_report(bool in_queue)
 {
     tr_debug("M2MReportHandler::schedule_report()");
     _notify = true;
     if ((_attribute_state & M2MReportHandler::Pmin) != M2MReportHandler::Pmin ||
          _pmin_exceeded) {
-        report();
+        tr_debug("M2MReportHandler::schedule_report() - report");
+        report(in_queue);
     }
 }
 
-void M2MReportHandler::report()
+void M2MReportHandler::report(bool in_queue)
 {
-    tr_debug("M2MReportHandler::report()");
-    if(_current_value != _last_value && _notify) {
+    tr_debug("M2MReportHandler::report() - current %2f, last %2f, notify %d, queud %d", _current_value, _last_value, _notify, in_queue);
+
+    if((_current_value != _last_value && _notify) || in_queue) {
         if (_pmin_exceeded) {
             tr_debug("M2MReportHandler::report()- send with PMIN expiration");
         } else {
             tr_debug("M2MReportHandler::report()- send with VALUE change");
         }
+
         _pmin_exceeded = false;
         _pmax_exceeded = false;
         _notify = false;
         _observation_number++;
-        if(_observation_number == 1) {
+
+        if (_observation_number == 1) {
             // Increment the observation number by 1 if it is already 1 because CoAP specification has reserved 1 for DEREGISTER notification
             _observation_number++;
         }
-        _observer.observation_to_be_sent(_changed_instance_ids, observation_number());
-        _changed_instance_ids.clear();
+
+        if (_observer.observation_to_be_sent(_changed_instance_ids, observation_number())) {
+            _changed_instance_ids.clear();
+            set_notification_send_in_progress(true);
+        }
+
         _pmax_timer.stop_timer();
     }
     else {
         if (_pmax_exceeded) {
             tr_debug("M2MReportHandler::report()- send with PMAX expiration");
             _observation_number++;
-            if(_observation_number == 1) {
+
+            if (_observation_number == 1) {
                 // Increment the observation number by 1 if it is already 1 because CoAP specification has reserved 1 for DEREGISTER notification
                 _observation_number++;
             }
-            _observer.observation_to_be_sent(_changed_instance_ids, observation_number(),true);
-            _changed_instance_ids.clear();
+
+            if (_observer.observation_to_be_sent(_changed_instance_ids, observation_number(), true)) {
+                _changed_instance_ids.clear();
+                set_notification_send_in_progress(true);
+            } else {
+                set_notification_in_queue(true);
+            }
         }
         else {
             tr_debug("M2MReportHandler::report()- no need to send");
@@ -411,6 +431,8 @@ void M2MReportHandler::set_default_values()
     _last_value = -1.0f;
     _attribute_state = 0;
     _changed_instance_ids.clear();
+    _notification_in_queue = false;
+    _notification_sending_in_progress = false;
 }
 
 bool M2MReportHandler::check_threshold_values() const
@@ -548,4 +570,24 @@ uint8_t* M2MReportHandler::alloc_string_copy(const uint8_t* source, uint32_t siz
         result[size] = '\0';
     }
     return result;
+}
+
+void M2MReportHandler::set_notification_in_queue(bool to_queue)
+{
+    _notification_in_queue = to_queue;
+}
+
+bool M2MReportHandler::notification_in_queue() const
+{
+    return _notification_in_queue;
+}
+
+void M2MReportHandler::set_notification_send_in_progress(bool progress)
+{
+    _notification_sending_in_progress = progress;
+}
+
+bool M2MReportHandler::notification_send_in_progress() const
+{
+    return _notification_sending_in_progress;
 }

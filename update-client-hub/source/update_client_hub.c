@@ -56,6 +56,7 @@ arm_uc_error_t ARM_UC_HUB_Initialize(void (*init_cb)(int32_t))
 {
     arm_uc_error_t retval;
 
+    ARM_UC_SchedulerInit();
     if (ARM_UC_HUB_getState() != ARM_UC_HUB_STATE_UNINITIALIZED)
     {
         UC_HUB_ERR_MSG("Already Initialized");
@@ -418,5 +419,32 @@ arm_uc_error_t ARM_UC_GetDeviceId(uint8_t* id,
 arm_uc_error_t ARM_UC_HUB_Uninitialize()
 {
     arm_uc_error_t err = ARM_UC_SourceManager.Uninitialize();
+    return err;
+}
+
+/**
+ * @brief Return the details of the active firmware.
+ * @param details Pointer to the firmware details structure.
+ * @return ARM_UC_HUB_ERR_NOT_AVAILABLE if the active firmware details
+ *         are not yet available, ERR_INVALID_PARAMETER if "details" is
+ *         NULL or ERR_NONE for success.
+ */
+arm_uc_error_t ARM_UC_API_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details)
+{
+    arm_uc_error_t err = {ARM_UC_HUB_ERR_NOT_AVAILABLE};
+
+    if (details == NULL)
+    {
+        err.code = ERR_INVALID_PARAMETER;
+    }
+    else
+    {
+        arm_uc_firmware_details_t *hub_details = ARM_UC_HUB_getActiveFirmwareDetails();
+        if (hub_details)
+        {
+            memcpy(details, hub_details, sizeof(arm_uc_firmware_details_t));
+            err.code = ERR_NONE;
+        }
+    }
     return err;
 }

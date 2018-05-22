@@ -83,3 +83,8 @@ void M2MConnectionHandler::release_mutex()
 {
     _private_impl->release_mutex();
 }
+
+void M2MConnectionHandler::force_close()
+{
+    _private_impl->force_close();
+}

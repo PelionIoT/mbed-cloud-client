@@ -72,7 +72,7 @@ namespace UpdateClient
      *
      * \param list M2MObjectList reference.
      */
-    void populate_object_list(M2MObjectList& list);
+    void populate_object_list(M2MBaseList& list);
 
     /**
      * \brief Registers a callback function for authorizing firmware downloads and reboots.

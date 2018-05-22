@@ -24,11 +24,12 @@
 #include "fcc_output_info_handler.h"
 #include "fcc_malloc.h"
 #include "time.h"
-#include "cs_der_keys.h"
+#include "cs_der_keys_and_csrs.h"
 #include "cs_utils.h"
 #include "fcc_sotp.h"
 #include "common_utils.h"
 #include "kcm_internal.h"
+#include "fcc_utils.h"
 
 #define FCC_10_YEARS_IN_SECONDS 315360000//10*365*24*60*60
 
@@ -544,6 +545,41 @@ store_error_and_exit:
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return fcc_status;
 }
+
+/** Get a handle to the next X509 in the chain
+*   This is done by getting the size of the next X509, then reading the file into a dynamically allocated buffer, creating the X509 handle and freeing the buffer.
+*   Calling this function after ::kcm_cert_chain_open will output the X509 handle of the first certificate in the chain
+*
+*    @param[in]  kcm_chain_handle                  pointer to an open chain handle (use the ::kcm_cert_chain_open API).
+*    @param[out] x509_cert_handle_out              pointer to an X509 handle where the created handle will be placed.
+*
+*    @returns
+*        FCC_STATUS_SUCCESS in case of success or one of the `::fcc_status_e` errors otherwise.
+*/
+static fcc_status_e get_next_x509_in_chain(kcm_cert_chain_handle chain_handle, palX509Handle_t *x509_cert_handle_out)
+{
+    uint8_t *cert_buff = NULL;
+    size_t cert_buff_size = 0;
+    fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    kcm_status = kcm_cert_chain_get_next_size(chain_handle, &cert_buff_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_convert_kcm_to_fcc_status(kcm_status), "Failed to get next size");
+
+    cert_buff = fcc_malloc(cert_buff_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((cert_buff == NULL), FCC_STATUS_MEMORY_OUT, "Allocation failed");
+
+    kcm_status = kcm_cert_chain_get_next_data(chain_handle, cert_buff, cert_buff_size, &cert_buff_size);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), Exit, "Failed to get next cert");
+
+    kcm_status = cs_create_handle_from_der_x509_cert(cert_buff, cert_buff_size, x509_cert_handle_out);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), Exit, "Failed to get X509 handle");
+
+Exit:
+    fcc_free(cert_buff);
+    return fcc_status;
+}
+
 /**This function checks device private key.
 *
 * @param use_bootstrap[in]          Bootstrap mode.
@@ -555,8 +591,6 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     fcc_status_e output_info_fcc_status = FCC_STATUS_SUCCESS;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    size_t size_of_device_cert = 0;
-    uint8_t *device_cert = NULL;
     bool is_self_signed = false;
     uint8_t *parameter_name = NULL;
     size_t size_of_parameter_name = 0;
@@ -564,11 +598,13 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     size_t size_of_second_mode_parameter_name = 0;
     uint8_t *private_key_data = NULL;
     size_t size_of_private_key_data = 0;
+    kcm_cert_chain_context_int_s *cert_chain;
+    kcm_cert_chain_handle chain_handle;
+    size_t chain_len = 0;
     palX509Handle_t x509_cert_handle = NULLPTR;
-
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-    //Set device privat key names of current and second modes
+    //Set device private key names of current and second modes
     if (use_bootstrap == true) {
         parameter_name = (uint8_t*)g_fcc_bootstrap_device_private_key_name;
         size_of_parameter_name = strlen(g_fcc_bootstrap_device_private_key_name);
@@ -581,7 +617,6 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
         size_of_second_mode_parameter_name = strlen(g_fcc_bootstrap_device_private_key_name);
     }
 
-    //FIXME: Device certificate should be verified as chain/
     fcc_status = fcc_get_kcm_data(parameter_name, size_of_parameter_name, KCM_PRIVATE_KEY_ITEM, &private_key_data, &size_of_private_key_data);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to get device certificate");
 
@@ -605,49 +640,71 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
         size_of_second_mode_parameter_name = strlen(g_fcc_bootstrap_device_certificate_name);
     }
 
-    fcc_status = fcc_get_kcm_data(parameter_name, size_of_parameter_name, KCM_CERTIFICATE_ITEM, &device_cert, &size_of_device_cert);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to get device certificate");
+    // Open device certificate as chain. 
+    kcm_status = kcm_cert_chain_open(&chain_handle, parameter_name, size_of_parameter_name, &chain_len);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), store_error_and_exit, "Failed to get device certificate descriptor");
+    
+    cert_chain = (kcm_cert_chain_context_int_s *)chain_handle;
 
     //Create device certificate handle
-    kcm_status = cs_create_handle_from_der_x509_cert(device_cert, size_of_device_cert, &x509_cert_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, store_error_and_exit, "Failed to get device certificate descriptor");
+    fcc_status = get_next_x509_in_chain(chain_handle, &x509_cert_handle);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to get device certificate descriptor");
 
     //Check device certificate public key
     kcm_status = cs_check_certifcate_public_key(x509_cert_handle, private_key_data, size_of_private_key_data);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, store_error_and_exit, "Failed to check device certificate public key");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, close_chain, "Failed to check device certificate public key");
 
     //Check if the certificate of second mode exists, if yes - set warning
     fcc_status = verify_existence_and_set_warning(second_mode_parameter_name, size_of_second_mode_parameter_name, KCM_CERTIFICATE_ITEM, false);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to verify_existence_and_set_warning");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_existence_and_set_warning");
 
     //Compare device certificate's CN attribute with endpoint name
     fcc_status = compare_cn_with_endpoint(x509_cert_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to compare_cn_with_endpoint");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to compare_cn_with_endpoint");
 
     //In case LWM2M certificate check it's OU attribute with aid of server link
     if (strcmp((const char*)parameter_name, g_fcc_lwm2m_device_certificate_name) == 0) {
         fcc_status = compare_ou_with_aid_server(x509_cert_handle);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to compare_ou_with_aid_server");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to compare_ou_with_aid_server");
     }
 
     //Check that device certificate not self-signed
     kcm_status = cs_is_self_signed_x509_cert(x509_cert_handle, &is_self_signed);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, store_error_and_exit, "Failed to check if device certificate is self-signed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, close_chain, "Failed to check if device certificate is self-signed");
     if (is_self_signed == true) {
         output_info_fcc_status = fcc_store_warning_info(parameter_name, size_of_parameter_name, g_fcc_self_signed_warning_str);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS),
                                       fcc_status = FCC_STATUS_WARNING_CREATE_ERROR,
-                                      store_error_and_exit,
+                                      close_chain,
                                       "Failed to create warning %s",
                                       g_fcc_self_signed_warning_str);
     }
-    //Check device certificate attributes
+
+    //Verify expiration of first certificate in chain
     fcc_status = verify_certificate_expiration(x509_cert_handle, parameter_name, size_of_parameter_name);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to verify_certificate_validity");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_certificate_validity");
+
+    // Verify expiration of rest of chain
+    while (cert_chain->current_cert_index < cert_chain->num_of_certificates_in_chain) {
+
+        // Close handle of first X509 in chain
+        cs_close_handle_x509_cert(&x509_cert_handle);
+        
+        // Acquire a handle to the next X509 in the chain
+        fcc_status = get_next_x509_in_chain(chain_handle, &x509_cert_handle);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to get device certificate descriptor");
+
+        // Only verify the expiration date of the X509, not the signature (was checked before the store)
+        fcc_status = verify_certificate_expiration(x509_cert_handle, KCM_FILE_BASENAME(cert_chain->chain_name, KCM_FILE_PREFIX_CERTIFICATE), KCM_FILE_BASENAME_LEN(cert_chain->chain_name_len, KCM_FILE_PREFIX_CERTIFICATE));
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_certificate_validity");
+    }
+
+
+close_chain:
+    kcm_cert_chain_close(chain_handle);
 
 store_error_and_exit:
     fcc_free(private_key_data);
-    fcc_free(device_cert);
     cs_close_handle_x509_cert(&x509_cert_handle);
     if (fcc_status != FCC_STATUS_SUCCESS) {
         output_info_fcc_status = fcc_store_error_info(parameter_name, size_of_parameter_name, fcc_status);
@@ -671,15 +728,19 @@ static fcc_status_e verify_firmware_update_certificate(void)
     fcc_status_e output_info_fcc_status = FCC_STATUS_SUCCESS;
     uint8_t *parameter_name = (uint8_t*)g_fcc_update_authentication_certificate_name;
     size_t size_of_parameter_name = strlen(g_fcc_update_authentication_certificate_name);
-    size_t certificate_data_size = 0;
-    uint8_t *certificate_data = NULL;
     palX509Handle_t x509_cert_handle = NULLPTR;
+    kcm_cert_chain_context_int_s *cert_chain;
+    kcm_cert_chain_handle chain_handle;
+    size_t chain_len = 0;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-    fcc_status = fcc_get_kcm_data(parameter_name, size_of_parameter_name, KCM_CERTIFICATE_ITEM, &certificate_data, &certificate_data_size);
+    // Open device certificate as chain. 
+    kcm_status = kcm_cert_chain_open(&chain_handle, parameter_name, size_of_parameter_name, &chain_len);
+    cert_chain = (kcm_cert_chain_context_int_s *)chain_handle;
 
-    if (fcc_status == FCC_STATUS_ITEM_NOT_EXIST || fcc_status == FCC_STATUS_EMPTY_ITEM) {
+    // If item does not exist or is empty -set warning
+    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND || kcm_status == KCM_STATUS_ITEM_IS_EMPTY) {
         fcc_output_status = fcc_store_warning_info((const uint8_t*)parameter_name, size_of_parameter_name, g_fcc_item_not_set_warning_str);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_output_status != FCC_STATUS_SUCCESS),
                                       fcc_status = FCC_STATUS_WARNING_CREATE_ERROR,
@@ -689,20 +750,30 @@ static fcc_status_e verify_firmware_update_certificate(void)
         fcc_status = FCC_STATUS_SUCCESS;
     } else {
         //If get kcm data returned error, exit with error
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to get update certificate data");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), exit, "Failed to get update certificate data");
 
-        //Create ca firmware integrity certificate handle
-        kcm_status = cs_create_handle_from_der_x509_cert(certificate_data, certificate_data_size, &x509_cert_handle);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, exit, "Failed to get device certificate descriptor");
+        // Verify expiration of all certificates in firmware chain
+        // ADAM: Maybe change to function that gets verify_certificate_expiration as callback function (seems unnecessary for now...)
+        while (cert_chain->current_cert_index < cert_chain->num_of_certificates_in_chain) {
 
-        //Check firmware update certificate expiration
-        fcc_status = verify_certificate_expiration(x509_cert_handle, parameter_name, size_of_parameter_name);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to verify_certificate_validity");
+            // Acquire a handle to the next X509 in the chain
+            fcc_status = get_next_x509_in_chain(chain_handle, &x509_cert_handle);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to get device certificate descriptor");
+
+            // Only verify the expiration date of the X509, not the signature (was checked before the store)
+            fcc_status = verify_certificate_expiration(x509_cert_handle, KCM_FILE_BASENAME(cert_chain->chain_name, KCM_FILE_PREFIX_CERTIFICATE), KCM_FILE_BASENAME_LEN(cert_chain->chain_name_len, KCM_FILE_PREFIX_CERTIFICATE));
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to verify_certificate_validity");
+
+            cs_close_handle_x509_cert(&x509_cert_handle);
+
+            // Set handle to 0 so that cs_close_handle_x509_cert is not called upon exit
+            x509_cert_handle = NULLPTR;
+        }
+        
     }
 
 exit:
-
-    fcc_free(certificate_data);
+    kcm_cert_chain_close(chain_handle);
     if (x509_cert_handle != NULLPTR) {
         cs_close_handle_x509_cert(&x509_cert_handle);
     }
@@ -973,6 +1044,7 @@ fcc_status_e fcc_check_firmware_update_integrity(void)
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     fcc_status = verify_firmware_update_certificate();
+    //fcc_status = verify_certificate(g_fcc_update_authentication_certificate_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status, "Failed to verify integrity CA certificate");
 
     fcc_status = verify_firmware_uuid(g_fcc_class_id_name);

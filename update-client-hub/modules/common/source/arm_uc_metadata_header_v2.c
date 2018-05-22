@@ -146,9 +146,11 @@ arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t* input,
 
             if (status.error == ERR_NONE)
             {
-                int diff = memcmp(&input[ARM_UC_EXTERNAL_HMAC_OFFSET_V2],
-                                  output_buf.ptr,
-                                  sizeof(arm_uc_hash_t));
+                input_buf.size_max = sizeof(arm_uc_hash_t);
+                input_buf.size = sizeof(arm_uc_hash_t);
+                input_buf.ptr = (uint8_t *) &input[ARM_UC_EXTERNAL_HMAC_OFFSET_V2];
+
+                int diff = ARM_UC_BinCompareCT(&input_buf, &output_buf);
 
                 if (diff == 0)
                 {

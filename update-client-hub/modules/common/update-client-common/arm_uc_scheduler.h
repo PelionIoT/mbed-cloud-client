@@ -23,9 +23,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/**
- * Simple scheduler useful for collecting events from different threads and
- * interrupt context so they can be executed from the same thread/context.
+/** 
+ * @file arm_uc_scheduler.h
+ * @brief A simple, atomic event queue for embedded systems
+ * 
+ * @details This is a simple scheduler useful for collecting events from
+ * different threads and interrupt context so they can be executed from the
+ * same thread/context.
  *
  * This can reduce the calldepth, ensure functions are executed from the same
  * thread, and provide a method for breaking out of interrupt context.
@@ -34,6 +38,126 @@
  *
  * The notification handler should be used for processing the queue whenever it
  * is non-empty.
+ * 
+ * This event queue uses an underlying atomic queue implementation
+ * to provide atomicity guaranties without Critical Section primitives on 
+ * Cortex-M3 or later platforms. Linux and Cortex-M0 require a Critical Section
+ * due to the lack of exclusive access primitives. See the atomic-queue
+ * documentation for more detail on atomic access.
+ * 
+ * An atomic queue has been used for three reasons:
+ * 1. This allows the queue to be used in contexts where some RTOS primitives
+ *    (mutexes) cannot be used, such as interrupt context.
+ * 2. On many platforms, critical sections are very expensive, while atomics
+ *    are not. Thus, there is a significant performance benefit to using atomic
+ *    primitives wherever possible.
+ * 3. Atomic operations have the least effect on all other execution contexts
+ *    on the device. Critical sections have performance and responsiveness side
+ *    effects. Mutexes can disrupt the execution of other threads. Atomics do 
+ *    not affect the execution of other contexts and are immune to priority
+ *    inversion
+ * 
+ * In short, the atomic queue is the most cooperative way of building an event
+ * queue.
+ * 
+ * This queue does, however have three major drawbacks:
+ * 1. There is no way to directly cancel a callback. This is because the atomic
+ *    queue has no way to remove an element from the middle of the queue. It
+ *    can only be removed from the head of the queue.
+ * 2. There is no way to prioritize one callback over another in the same 
+ *    queue. This is because there is no way to insert a callback into the
+ *    middle of the queue. It can only be added at the end.
+ * 3. The queue is entirely dependent on correct memory ownership, but it
+ *    allocates no memory. The queue must own the callbacks while they are in
+ *    the queue and any manipulation of that storage could break the behaviour
+ *    of the queue.
+ *    
+ * To compensate for 1., a callback author can provide a cancellation flag for 
+ * their callback that is checked on entry, but this may not know if it was
+ * successful. The implementation of callback cancellation is beyond the scope
+ * of this document.
+ * 
+ * To compensate for 2., a prioritized event queue could be constructed from
+ * two or more atomic queues. Since an event queue only takes a single pointer
+ * of dedicated storage, this is can be used with a small number of priorities.
+ * The implementation of a prioritized event queue is beyond the scope of this
+ * document.
+ * 
+ * In typical (non-atomic) structures, the solution for 3. is to allocate a
+ * new callback storage block from the heap on each call. This would ensure
+ * that the queue owns the block. However, this is not possible from an
+ * interrupt context. Therefore, the queue uses a pool allocator instead.
+ * However, pool allocators can run out of elements very easily. To ensure
+ * that a particular callback can be scheduled, it is possible to give the
+ * callback a statically allocated block instead. However, this introduces a
+ * new failure mode: what happens if the block is already in use?
+ *
+ * To compensate for this failure mode, a per-element lock is provided in every
+ * atomic queue element. The lock must be taken before ANY content of the
+ * element is modified, including setting the callback and parameter. The lock
+ * must only be released after the contents of the element have been copied
+ * out.
+ * 
+ * Because both statically allocated blocks and pool allocated blocks are
+ * available, the user of the event queue is presented with a choice: Use a
+ * statically allocated callback element, or use a pool allocated callback
+ * element. Each option is better for different use-cases. When it is only
+ * semantically possible for one callback from a given block of code to be in
+ * flight at a time, it is more reliable for the callback to be statically
+ * allocated. When it's possible for more than one callback from the same block
+ * of code to be in flight at a time, then the pool allocator is a better
+ * choice. Notwithstanding this distinction, if the scheduler fails to acquire
+ * a lock on a statically allocated element, it will allocate a pool element
+ * instead.
+ *
+ * To reduce API complexity, the callback queue mechanism works as below:
+ * 
+ * When a callback is posted, the scheduler attempts to acquire the lock.
+ * If either the callback storage is NULL or the lock cannot be acquired, the
+ * scheduler pool-allocates a callback. If that fails, the scheduler uses a
+ * dedicated error callback to notify the system that pool allocation has
+ * failed, since this is a critical error.
+ * 
+ * This event queue is composed of two major parts:
+ * * The mechanism to post a callback (ARM_UC_PostCallback)
+ * * The mechanism to process a callback
+ * 
+ * When posting a callback, the scheduler first takes the lock on the supplied
+ * callback structure, or pool-allocates a new one and then takes the lock. The
+ * supplied event handler and event parameter are then placed into the supplied
+ * (or pool-allocated) callback structure. The callback structure is then
+ * placed in the event queue for later execution. If the queue was empty prior
+ * to queuing this element, then the notification handler is invoked.
+ * 
+ * **NOTE:** this means that the notification handler MUST be safe to execute
+ * in IRQ context.
+ * 
+ * When the queue is processed, callbacks are extracted in FIFO order. The
+ * scheduler can be run in one of two modes:
+ * * Consume the whole queue (ARM_UC_ProcessQueue)
+ * * Consume single event (ARM_UC_ProcessSingleCallback)
+ * 
+ * Both of these operations execute the same process:
+ * 1. An element is dequeued from the atomic-queue
+ * 2. The contents of the element are extracted
+ * 3. The element is unlocked
+ * 4. If the element was pool-allocated, it is freed
+ * 5. The callback is executed with the supplied parameter
+ * 
+ * Finally, ARM_UC_ProcessQueue goes back to 1, while 
+ * ARM_UC_ProcessSingleCallback returns true if there are still callbacks in
+ * the queue, false otherwise.
+ * 
+ * Callback Pool:
+ * The callback pool is configured using a system define: 
+ *     ARM_UC_SCHEDULER_STORAGE_POOL_SIZE
+ * To set the size of the pool, override this define in your build system. To
+ * disable the pool, set this define to 0.
+ * 
+ * To assist with callback pool debugging, an API is provided to calculate the
+ * high watermark of the pool: ARM_UC_SchedulerGetHighWatermark(). This can be
+ * compared to ARM_UC_SCHEDULER_STORAGE_POOL_SIZE to determine how many
+ * elements were left at maximum usage.
  */
 
 /**
@@ -92,6 +216,44 @@ bool ARM_UC_ProcessSingleCallback(void);
  *        added to an empty queue.
  */
 void ARM_UC_AddNotificationHandler(void (*handler)(void));
+
+/**
+ * @brief Initialize the scheduler.
+ * @details This function primarily initializes the pool allocator for
+ * callbacks. It should be called prior to using the scheduler at all.
+ */
+void ARM_UC_SchedulerInit(void);
+
+/**
+ * @brief Set the handler for scheduler errors.
+ * @details This will be called in normal scheduler context when the pool runs
+ * out of available callbacks.
+ * 
+ * @param[in] handler The function to call (thread context) when there is a
+ *                    scheduler error.
+ */
+void ARM_UC_SetSchedulerErrorHandler(void(*handler)(uint32_t));
+
+/**
+ * @brief Get the maximum usage of the callback pool.
+ * @details Uses the high watermark of the callback pool to indicate the 
+ * worst-case callback usage.
+ * 
+ * @return the maximum number of callbacks that have been allocated from the
+ * pool at one time.
+ */
+uint32_t ARM_UC_SchedulerGetHighWatermark();
+
+/**
+ * @brief Get the current number of queued callbacks
+ * @details This is a function for running tests. The value returned by this
+ * function cannot be relied upon in any system that is not exclusively
+ * single-threaded, since any parallel thread or any interrupt could modify the
+ * count.
+ * 
+ * @return The number of callbacks currently queued in the scheduler.
+ */
+int32_t ARM_UC_SchedulerGetQueuedCount();
 
 #ifdef __cplusplus
 }

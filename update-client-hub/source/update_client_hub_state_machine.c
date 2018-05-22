@@ -66,6 +66,7 @@ static arm_uc_buffer_t back_buffer = {
 
 // version (timestamp) of the current running application
 static arm_uc_firmware_details_t arm_uc_active_details = { 0 };
+static bool arm_uc_active_details_available = false;
 
 // bootloader information
 static arm_uc_installer_details_t arm_uc_installer_details = { 0 };
@@ -199,6 +200,14 @@ void ARM_UC_HUB_setInitializationCallback(void (*callback)(int32_t))
     arm_uc_hub_init_cb = callback;
 }
 
+/**
+ * @brief Return the active firmware details or NULL if they're not yet available.
+ */
+arm_uc_firmware_details_t* ARM_UC_HUB_getActiveFirmwareDetails(void)
+{
+    return arm_uc_active_details_available ? &arm_uc_active_details : NULL;
+}
+
 void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 {
     arm_uc_error_t retval;
@@ -228,6 +237,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 /* report the active firmware hash to the Cloud in parallel
                    with the main user application.
                 */
+                arm_uc_active_details_available = false;
                 new_state = ARM_UC_HUB_STATE_GET_ACTIVE_FIRMWARE_DETAILS;
                 break;
 
@@ -253,6 +263,9 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* send hash to update service */
                 ARM_UC_ControlCenter_ReportName(&front_buffer);
+
+                /* signal to the API that the firmware details are now available */
+                arm_uc_active_details_available = true;
 
                 new_state = ARM_UC_HUB_STATE_REPORT_ACTIVE_VERSION;
                 break;

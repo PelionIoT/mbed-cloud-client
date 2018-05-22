@@ -39,12 +39,21 @@ static volatile uint32_t critical_primask = 0;
 
 void aq_critical_section_enter()
 {
-    uint32_t primask = __get_PRIMASK(); // get the current interrupt enabled state
+    uint32_t primask;
+#if defined(__CORTEX_A9)
+    primask = __get_CPSR(); // get the current interrupt enabled state
+#else
+    primask = __get_PRIMASK(); // get the current interrupt enabled state
+#endif
     __disable_irq();
 
     // Save the interrupt enabled state as it was prior to any nested critical section lock use
     if (!interruptEnableCounter) {
+#if defined(__CORTEX_A9)
+        critical_primask = primask & 0x80;
+#else
         critical_primask = primask & 0x1;
+#endif
     }
 
     /* If the interruptEnableCounter overflows or we are in a nested critical section and interrupts
@@ -69,8 +78,12 @@ void aq_critical_section_exit()
     // If critical_section_enter has not previously been called, do nothing
     if (interruptEnableCounter) {
 
-        uint32_t primask = __get_PRIMASK(); // get the current interrupt enabled state
-
+        uint32_t primask;
+#if defined(__CORTEX_A9)
+        primask = __get_CPSR(); // get the current interrupt enabled state
+#else
+        primask = __get_PRIMASK(); // get the current interrupt enabled state
+#endif
         /* FIXME: This assertion needs to be commented out for the moment, as it
          *        triggers a fault when uVisor is enabled. For more information
          *        on the fault please checkout ARMmbed/mbed-drivers#176. */

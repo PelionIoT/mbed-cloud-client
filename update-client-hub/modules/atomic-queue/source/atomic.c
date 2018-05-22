@@ -56,6 +56,10 @@ int aq_atomic_cas_deref_uintptr(uintptr_t* volatile * ptrAddr,
 int aq_atomic_cas_uintptr(uintptr_t *ptr, uintptr_t oldval, uintptr_t newval) {
     return __sync_bool_compare_and_swap(ptr, oldval, newval);
 }
+
+int32_t aq_atomic_inc_int32(int32_t *ptr, int32_t inc) {
+    return __sync_add_and_fetch(ptr, inc);
+}
 #else
 int aq_atomic_cas_uintptr(uintptr_t *ptr, uintptr_t oldval, uintptr_t newval)
 {
@@ -70,5 +74,12 @@ int aq_atomic_cas_uintptr(uintptr_t *ptr, uintptr_t oldval, uintptr_t newval)
     aq_critical_section_exit();
     return rc;
 }
-
+int32_t aq_atomic_inc_int32(int32_t *ptr, int32_t inc) {
+    int32_t ret;
+    aq_critical_section_enter();
+    ret = *ptr + inc;
+    *ptr = ret;
+    aq_critical_section_exit();
+    return ret;
+}
 #endif

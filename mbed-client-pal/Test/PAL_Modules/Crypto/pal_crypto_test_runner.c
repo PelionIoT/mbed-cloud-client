@@ -53,5 +53,7 @@ TEST_GROUP_RUNNER(pal_crypto)
     //Not required for R1.2
     RUN_TEST_CASE(pal_crypto, CSR);
 #endif //0
+    RUN_TEST_CASE(pal_crypto, X509_tbs_hash);
 
+    RUN_TEST_CASE(pal_crypto, ECKey_GenerateKeys);
 }

@@ -26,6 +26,8 @@ enum {
     ARM_UC_BLOCKDEVICE_FAIL    = -1
 };
 
+#define ARM_UC_BLOCKDEVICE_INVALID_SIZE 0xFFFFFFFF
+
 /** Initialize a block device
  *
  *  @return         0 on success or a negative error code on failure

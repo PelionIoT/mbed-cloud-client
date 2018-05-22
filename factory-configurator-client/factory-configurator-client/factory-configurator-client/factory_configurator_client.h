@@ -101,6 +101,15 @@ fcc_status_e fcc_storage_delete(void);
 */
 fcc_output_info_s* fcc_get_error_and_warning_data(void);
 
+/** The function returns status of current session between the FCC and the FCU.
+* If the returned value is true - the session should be finished in the communication layer after current message processing,
+* if the return value is false - the session should be kept alive for next message.
+*
+*    @returns
+*       bool
+*/
+bool fcc_is_session_finished(void);
+
 /* === Verification === */
 
 /** Verifies that all mandatory fields needed to connect to mbed Cloud are in place on the device.

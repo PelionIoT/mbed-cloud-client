@@ -32,13 +32,13 @@ PAL_PRIVATE void pal_modulesCleanup(void)
     DEBUG_PRINT("Destroying modules\r\n");
     pal_plat_socketsTerminate(NULL);
     sotp_deinit();
-    pal_RTOSDestroy();
     pal_plat_cleanupCrypto();
     pal_cleanupTLS();
     pal_fsCleanup();
     #if PAL_USE_INTERNAL_FLASH
         pal_internalFlashDeInit();
-    #endif    
+    #endif
+    pal_RTOSDestroy();
 }
 
 
@@ -98,9 +98,9 @@ palStatus_t pal_init(void)
                             if (SOTP_SUCCESS != sotpStatus)
                             {
                                 DEBUG_PRINT("init of SOTP module has failed with status %" PRIx32 "\r\n",status);
+                                status = PAL_ERR_NOT_INITIALIZED;
                             }
-
-                            else
+                            if (PAL_SUCCESS == status)
                             {
                                 status = pal_initTime();
                                 if (PAL_SUCCESS != status)
@@ -111,10 +111,6 @@ palStatus_t pal_init(void)
                         }
                     }
                 }
-            }
-            if (PAL_SUCCESS != status)
-            {
-                DEBUG_PRINT("init of Time module has failed with status %" PRIx32 "\r\n",status);
             }
         }
         else
@@ -132,7 +128,6 @@ palStatus_t pal_init(void)
             PAL_LOG(ERR,"\nInit failed\r\n");
         }
     }
-
 
     DEBUG_PRINT("FINISH PAL INIT\r\n");
     return status;

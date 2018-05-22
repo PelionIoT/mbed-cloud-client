@@ -26,16 +26,11 @@
 #define CORE_UTIL_ASSERT_MSG(test, msg)
 
 
-int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e)
+int aq_element_take(struct atomic_queue_element * e)
 {
-    CORE_UTIL_ASSERT_MSG(q != NULL, "null queue used");
-    if (q == NULL) {
-        return ATOMIC_QUEUE_NULL_QUEUE;
-    }
-
-/* duplicate element check using lock */
-#ifdef ATOMIC_QUEUE_CONFIG_ELEMENT_LOCK
-    uintptr_t lock;
+    if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
+    // Duplicate element check using lock
+    uintptr_t lock; // This is initialized in the do/while loop.
     // Check/obtain a lock on the element.
     do {
         lock = e->lock;
@@ -43,22 +38,25 @@ int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e)
             return ATOMIC_QUEUE_DUPLICATE_ELEMENT;
         }
     } while (!aq_atomic_cas_uintptr(&e->lock, lock, 1));
-#endif
+    return ATOMIC_QUEUE_SUCCESS;
+}
+
+int aq_element_release(struct atomic_queue_element * e)
+{
+    if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
+    e->lock = 0;
+    return ATOMIC_QUEUE_SUCCESS;
+}
+
+int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e)
+{
+    CORE_UTIL_ASSERT_MSG(q != NULL, "null queue used");
+    if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
+    if (q == NULL) {
+        return ATOMIC_QUEUE_NULL_QUEUE;
+    }
 
     do {
-/* duplicate element check by searching */
-#ifndef ATOMIC_QUEUE_CONFIG_ELEMENT_LOCK
-        // Make sure the new element does not exist in the current queue
-        struct atomic_queue_element* te = q->tail;
-        while (te != NULL)
-        {
-            CORE_UTIL_ASSERT_MSG(te != e, "duplicate queue element");
-            if (te == e) {
-                return ATOMIC_QUEUE_DUPLICATE_ELEMENT;
-            }
-            te = te->next;
-        }
-#endif
         e->next = q->tail;
     } while (!aq_atomic_cas_uintptr((uintptr_t *)&q->tail, (uintptr_t)e->next, (uintptr_t)e));
 
@@ -87,6 +85,7 @@ struct atomic_queue_element * aq_pop_head(struct atomic_queue * q)
                             NULL,
                             offsetof(struct atomic_queue_element, next));
             if (fail == AQ_ATOMIC_CAS_DEREF_VALUE) {
+                // Detect a loop to the tail of the queue
                 if (current->next == q->tail) {
                     return NULL;
                 }
@@ -94,11 +93,6 @@ struct atomic_queue_element * aq_pop_head(struct atomic_queue * q)
             }
         }
     }
-
-#ifdef ATOMIC_QUEUE_CONFIG_ELEMENT_LOCK
-    // Release element lock
-    current->lock = 0;
-#endif
 
     return current;
 }
@@ -127,7 +121,7 @@ unsigned aq_count(struct atomic_queue *q)
 
 void aq_initialize_element(struct atomic_queue_element* e)
 {
-#ifdef ATOMIC_QUEUE_CONFIG_ELEMENT_LOCK
+    if (!e) { return;}
     e->lock = 0;
-#endif
+    e->next = NULL;
 }

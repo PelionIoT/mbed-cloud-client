@@ -124,4 +124,9 @@
     #endif
 #endif
 
+#ifndef PAL_TIMER_SIGNAL
+    // Signal number for timer completition signal, a RT signal is needed to get signal queueing
+    #define PAL_TIMER_SIGNAL (SIGRTMIN+0)
+#endif
+
 #endif /* PAL_DEFAULT_LINUX_CONFIGURATION_H_ */

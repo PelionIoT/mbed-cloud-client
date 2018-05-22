@@ -531,6 +531,15 @@ palStatus_t pal_plat_x509CSRSetKey(palx509CSRHandle_t x509CSR, palECKeyHandle_t 
 */
 palStatus_t pal_plat_x509CSRSetKeyUsage(palx509CSRHandle_t x509CSR, uint32_t keyUsage);
 
+/*! Set the extended key usage extension.
+*
+* @param[in] x509CSR:   The CSR context to use.
+* @param[in] extKeyUsage:  The extended key usage flags, should be taken from `palExtKeyUsage_t`.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_plat_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint32_t extKeyUsage);
+
 /*! Generic function to add to the CSR.
 *
 * @param[in] x509CSR:  The CSR context to use.
@@ -553,6 +562,19 @@ palStatus_t pal_plat_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* 
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
 palStatus_t pal_plat_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerLen);
+
+/*! Calculate the hash of the To Be Signed part of an X509 certificate.
+* This function may be used to validate a certificate signature: Simply retrieve this hash, verify the signature using this hash, the public key and the signature of the X509
+*
+* @param[in] x509Cert:	        Handle to the certificate to hash the TBS (to be signed part). 
+* @param[in] hash_type:	        The hash type. Currently only PAL_SHA256 supported
+* @param[out] output:	        Pointer to a buffer that will contain the hash digest. This buffer must be at least the size of the digest. If hash_type is PAL_SHA256, then buffer pointed to by output must be at least 32 bytes. 
+* @param[in] outLenBytes:       The size of the buffer pointed to by output. Must be at least the size of the digest
+* @param[out] actualOutLenBytes:    Size of the digest copied to output. In case of success, will always be the length of the hash digest
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_plat_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_type, unsigned char* output, size_t outLenBytes, size_t* actualOutLenBytes);
 
 /*! Free the x509 CSR context.
 *
@@ -616,5 +638,6 @@ palStatus_t pal_plat_ECGroupFree(palCurveHandle_t* grp);
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
 palStatus_t pal_plat_ECGroupInitAndLoad(palCurveHandle_t* grp, palGroupIndex_t index);
+
 
 #endif //_PAL_PLAT_CRYPTO_H_

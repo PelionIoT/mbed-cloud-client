@@ -23,6 +23,8 @@
 //FORWARD DECLARATION
 typedef Vector<M2MObjectInstance *> M2MObjectInstanceList;
 
+class M2MEndpoint;
+
 /*! \file m2mobject.h
  *  \brief M2MObject.
  *  This class is the base class for the mbed Client Objects. All defined
@@ -34,6 +36,8 @@ class M2MObject : public M2MBase
 {
 
 friend class M2MInterfaceFactory;
+friend class M2MEndpoint;
+friend class TestFactory;
 
 protected :
 
@@ -175,8 +179,17 @@ public:
 
     void notification_update(uint16_t obj_instance_id);
 
-protected :
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    void set_endpoint(M2MEndpoint *endpoint);
 
+    M2MEndpoint* get_endpoint() const;
+#endif
+
+protected :
+    /**
+     * \brief Returns the owner object. Can return NULL if the object has no parent.
+     */
+    virtual M2MBase *get_parent() const;
 
 private:
 
@@ -184,7 +197,12 @@ private:
 
     M2MObservationHandler    *_observation_handler; // Not owned
 
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    M2MEndpoint              *_endpoint; // Parent endpoint
+#endif
+
 friend class Test_M2MObject;
+friend class Test_M2MEndpoint;
 friend class Test_M2MInterfaceImpl;
 friend class Test_M2MNsdlInterface;
 friend class Test_M2MTLVSerializer;

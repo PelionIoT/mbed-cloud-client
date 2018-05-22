@@ -16,7 +16,7 @@
 
 #include "pv_error_handling.h"
 #include "cs_der_certs.h"
-#include "cs_der_keys.h"
+#include "cs_der_keys_and_csrs.h"
 #include "cs_hash.h"
 #include "pal.h"
 #include "cs_utils.h"
@@ -157,7 +157,7 @@ kcm_status_e cs_close_handle_x509_cert(palX509Handle_t *x509_cert_handle)
 
     return kcm_status;
 }
-kcm_status_e cs_parse_der_x509_cert(const uint8_t *cert, size_t cert_length)
+kcm_status_e cs_check_der_x509_format(const uint8_t *cert, size_t cert_length)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
@@ -272,5 +272,22 @@ kcm_status_e  cs_x509_cert_verify_signature(palX509Handle_t x509_cert, const uns
     return kcm_status;
 }
 
+kcm_status_e cs_child_cert_params_get(palX509Handle_t x509_cert, cs_child_cert_params_s *params_out)
+{
+    palStatus_t pal_status = PAL_SUCCESS;
 
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((x509_cert == NULLPTR), KCM_STATUS_INVALID_PARAMETER, "Invalid x509_cert");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((params_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid pointer params_out");
+
+    // Retrieve the signature
+    pal_status = pal_x509CertGetAttribute(x509_cert, PAL_X509_SIGNATUR_ATTR, params_out->signature, sizeof(params_out->signature), &params_out->signature_actual_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), cs_error_handler(pal_status), "Failed getting signature");
+
+    // Hash a SHA256 of the To Be Signed part of the X509 certificate
+    // If we end up using more than on hash type we may retrieve it from x509_cert instead of hard coded PAL_SHA256
+    pal_status = pal_x509CertGetHTBS(x509_cert, PAL_SHA256, params_out->htbs, sizeof(params_out->htbs), &params_out->htbs_actual_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), cs_error_handler(pal_status), "Failed Hashing TBS");
+
+    return KCM_STATUS_SUCCESS;
+}
 

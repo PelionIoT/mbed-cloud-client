@@ -902,7 +902,7 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
 typedef void(*palSelectCallbackFunction_t)();
 
 PAL_PRIVATE palSemaphoreID_t s_palSelectSemaphore = 0;
-PAL_PRIVATE bool s_palSelectSemaphoreInited = false;
+
 uint32_t s_select_event_happened[PAL_NET_SOCKET_SELECT_MAX_SOCKETS];
 
 // select callbacks definition

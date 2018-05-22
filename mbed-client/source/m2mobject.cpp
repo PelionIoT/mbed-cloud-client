@@ -22,6 +22,7 @@
 #include <inttypes.h>
 
 #include "mbed-client/m2mobject.h"
+#include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mconstants.h"
 #include "include/m2mtlvserializer.h"
 #include "include/m2mtlvdeserializer.h"
@@ -44,7 +45,10 @@ M2MObject::M2MObject(const String &object_name, char *path, bool external_blockw
           path,
           external_blockwise_store,
           false),
-          _observation_handler(NULL)
+    _observation_handler(NULL)
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    ,_endpoint(NULL)
+#endif
 {
     M2MBase::set_base_type(M2MBase::Object);
     M2MBase::set_operation(M2MBase::GET_ALLOWED);
@@ -55,7 +59,10 @@ M2MObject::M2MObject(const String &object_name, char *path, bool external_blockw
 
 M2MObject::M2MObject(const M2MBase::lwm2m_parameters_s* static_res)
 : M2MBase(static_res),
-_observation_handler(NULL)
+    _observation_handler(NULL)
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    ,_endpoint(NULL)
+#endif
 {
     M2MBase::set_operation(M2MBase::GET_ALLOWED);
     if(M2MBase::name_id() != -1) {
@@ -99,6 +106,7 @@ M2MObjectInstance* M2MObject::create_object_instance(uint16_t instance_id)
                     instance->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
                 }
                 _instance_list.push_back(instance);
+                set_changed();
             }
         }
     }
@@ -120,6 +128,7 @@ M2MObjectInstance* M2MObject::create_object_instance(const lwm2m_parameters_s* s
               //  instance->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
             //}
             _instance_list.push_back(instance);
+            set_changed();
         }
     }
     return instance;
@@ -142,6 +151,7 @@ bool M2MObject::remove_object_instance(uint16_t inst_id)
                 _instance_list.erase(pos);
                 delete obj;
                 success = true;
+                set_changed();
                 break;
             }
         }
@@ -298,7 +308,7 @@ sn_coap_hdr_s* M2MObject::handle_get_request(nsdl_s *nsdl,
                                     } else if (STOP_OBSERVATION == observe_option) {
                                         tr_info("M2MObject::handle_get_request - stops observation");
                                         // If the observe options_list_ptr->observe value is 1 means de-register from observation.
-                                        set_under_observation(false,NULL);
+                                        set_under_observation(false, NULL);
                                         remove_observation_level(M2MBase::O_Attribute);
                                         send_notification_delivery_status(*this, NOTIFICATION_STATUS_UNSUBSCRIBED);
                                     }
@@ -386,9 +396,9 @@ sn_coap_hdr_s* M2MObject::handle_post_request(nsdl_s *nsdl,
                                       received_coap_header,
                                       msg_code);
 
-    if(received_coap_header) {
+    if (received_coap_header) {
         if ((operation() & SN_GRS_POST_ALLOWED) != 0) {
-            if(received_coap_header->content_format != COAP_CT_NONE) {
+            if (received_coap_header->content_format != COAP_CT_NONE) {
                 set_coap_content_type(received_coap_header->content_format);
             }
             if(received_coap_header->payload_ptr) {
@@ -437,7 +447,7 @@ sn_coap_hdr_s* M2MObject::handle_post_request(nsdl_s *nsdl,
                         }
                         if (!obj_instance_exists && coap_response) {
                             M2MObjectInstance *obj_instance = create_object_instance(instance_id);
-                            if(obj_instance) {
+                            if (obj_instance) {
                                 obj_instance->set_operation(M2MBase::GET_PUT_ALLOWED);
                             }
 
@@ -534,3 +544,23 @@ void M2MObject::notification_update(uint16_t obj_instance_id)
     }
 }
 
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+void M2MObject::set_endpoint(M2MEndpoint *endpoint)
+{
+    _endpoint = endpoint;
+}
+
+M2MEndpoint* M2MObject::get_endpoint() const
+{
+    return _endpoint;
+}
+#endif
+
+M2MBase *M2MObject::get_parent() const
+{
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    return (M2MBase *) get_endpoint();
+#else
+    return NULL;
+#endif
+}

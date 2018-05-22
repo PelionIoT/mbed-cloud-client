@@ -21,6 +21,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 #include "esfs.h"
+#include "cs_hash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +34,11 @@ extern "C" {
 #define FCC_ROT_SIZE                       16
 #define FCC_CA_IDENTIFICATION_SIZE         33 //PAL_CERT_ID_SIZE
 
+/* === EC max sizes === */
+#define KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE           130
+#define KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE            65
+#define KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE            91
+#define KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES  (256/8)*2 + 10 //74 bytes
 
 /**
 * KCM file prefixes defines
@@ -47,6 +53,13 @@ extern "C" {
 #define KCM_FILE_PREFIX_CERT_CHAIN_X_OFFSET 3
 
 #define KCM_FILE_PREFIX_MAX_SIZE 12
+
+
+// Make sure that pointer_to_complete_name points to a type of size 1 (char or uint8_t) so that arithmetic works correctly
+#define KCM_FILE_BASENAME(pointer_to_complete_name, prefix_define) (pointer_to_complete_name + sizeof(prefix_define) - 1)
+// Complete name is the prefix+name (without '/0')
+#define KCM_FILE_BASENAME_LEN(complete_name_size, prefix_define) (complete_name_size - (sizeof(prefix_define) - 1))
+
 
     typedef enum {
         /* KCM_LOCAL_ACL_MD_TYPE,
@@ -86,6 +99,18 @@ extern "C" {
         KCM_CHAIN_OP_TYPE_MAX
     } kcm_chain_operation_type_e;
 
+
+    /*
+    * Structure containing all necessary data of a child X509 Certificate to be validated with its signers public key
+    */
+    typedef struct kcm_cert_chain_prev_params_int_ {
+        uint8_t signature[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES]; //!< The signature of certificate.
+        size_t signature_actual_size;                                      //!< The size of signature.
+        uint8_t htbs[CS_SHA256_SIZE];                                      //!< The hash of certificate's tbs.
+        size_t htbs_actual_size;                                           //!< The size of hash digest.
+    } kcm_cert_chain_prev_params_int_s;
+
+
     /** The chain context used internally only and should not be changed by user.
     */
     typedef struct kcm_cert_chain_context_int_ {
@@ -96,7 +121,9 @@ extern "C" {
         uint32_t current_cert_index;              //!< Current certificate iterator.
         kcm_chain_operation_type_e operation_type;//!< Type of Current operation.
         bool chain_is_factory;                    //!< Is chain is a factory item, otherwise false.
+        kcm_cert_chain_prev_params_int_s prev_cert_params; //!< Saved params of previous parsed certificate. used only in create operation
     } kcm_cert_chain_context_int_s;
+
 
 #ifdef __cplusplus
 }

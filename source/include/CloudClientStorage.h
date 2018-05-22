@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2018 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -50,6 +50,7 @@ ccs_status_e initialize_storage(void);
 ccs_status_e get_config_parameter(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length);
 ccs_status_e get_config_parameter_string(const char* key, uint8_t *buffer, const size_t buffer_size);
 ccs_status_e set_config_parameter(const char* key, const uint8_t *buffer, const size_t buffer_size);
+ccs_status_e check_config_parameter(const char* key);
 ccs_status_e delete_config_parameter(const char* key);
 ccs_status_e size_config_parameter(const char* key, size_t* size_out);
 

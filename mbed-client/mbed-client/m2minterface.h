@@ -24,9 +24,11 @@
 //FORWARD DECLARATION
 class M2MSecurity;
 class M2MObject;
+class M2MBase;
 class M2MInterfaceObserver;
 
-typedef Vector<M2MObject *> M2MObjectList;
+typedef Vector<M2MObject*> M2MObjectList;
+typedef Vector<M2MBase*> M2MBaseList;
 typedef FP callback_handler;
 
 // TODO! Add more errors
@@ -151,7 +153,27 @@ public:
      * \param object_list Objects that contain information about the
      * client attempting to register to the LWM2M server.
      */
+    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list) = 0;
+
+    /**
+     * \brief Initiates the registration of a provided security object to the
+     * corresponding LWM2M server.
+     * \param security_object The security object that contains information
+     * required for registering to the LWM2M server.
+     * If the client wants to register to multiple LWM2M servers, it must call
+     * this function once for each of the LWM2M server objects separately.
+     * \param object_list Objects that contain information about the
+     * client attempting to register to the LWM2M server.
+     */
     virtual void register_object(M2MSecurity *security_object, const M2MObjectList &object_list) = 0;
+
+
+    /**
+      * \brief Removes an object from M2MInterface.
+      * Does not call delete on the object though.
+      * \return true if the object was found and false if the object was not found.
+      */
+    virtual bool remove_object(M2MBase *base) = 0;
 
     /**
      * \brief Updates or refreshes the client's registration on the LWM2M
@@ -163,6 +185,20 @@ public:
      * has to be passed, set the default value to 0.
      */
     virtual void update_registration(M2MSecurity *security_object, const uint32_t lifetime = 0) = 0;
+
+    /**
+     * \brief Updates or refreshes the client's registration on the LWM2M
+     * server. Use this function to publish new objects to LWM2M server.
+     * \param security_object The security object from which the device object
+     * needs to update the registration. If there is only one LWM2M server registered,
+     * this parameter can be NULL.
+     * \param object_list Objects that contain information about the
+     * client attempting to register to the LWM2M server.
+     * \param lifetime The lifetime of the endpoint client in seconds. If the same value
+     * has to be passed, set the default value to 0.
+     */
+    virtual void update_registration(M2MSecurity *security_object, const M2MBaseList &list,
+                                     const uint32_t lifetime = 0) = 0;
 
     /**
      * \brief Updates or refreshes the client's registration on the LWM2M

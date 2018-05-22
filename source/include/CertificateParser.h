@@ -26,12 +26,13 @@ extern "C" {
 #endif
 
 /**
-*  \brief A utility function to extract CN field from the mDS certificate and store it to KCM.
-*  \param certificate, The certificate to be extracted.
-*  \param common_name [OUT], buffer containing CN value. Maximum common name can be 64 bytes.
+*  \brief A utility function to extract Locality field from the mDS certificate and store it to KCM.
+*  \param certificate, The certificate from which the field has to be extracted.
+*  \param field, The field to be extracted.
+*  \param value [OUT], buffer containing field value. Maximum value can be 64 bytes.
 *  \return True if success, False if failure.
 */
-bool extract_cn_from_certificate(const uint8_t* cer, size_t cer_len, char *common_name);
+bool extract_field_from_certificate(const uint8_t* cer, size_t cer_len, const char *field, char* value);
 
 #ifdef __cplusplus
 }

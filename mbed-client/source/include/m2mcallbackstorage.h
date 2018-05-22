@@ -68,7 +68,11 @@ public:
 
         // typedef void(*notification_delivery_status_cb) (const M2MBase& base,
         // const M2MBase::NotificationDeliveryStatus status, void *client_args);
-        M2MBaseNotificationDeliveryStatusCallback
+        M2MBaseNotificationDeliveryStatusCallback,
+
+        // typedef void(*value_set_callback) (const M2MResourceBase *resource,
+        // uint8_t *value, const uint32_t value_length);
+        M2MResourceBaseValueSetCallback
 
     };
 

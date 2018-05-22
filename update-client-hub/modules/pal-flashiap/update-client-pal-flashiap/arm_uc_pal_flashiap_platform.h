@@ -30,6 +30,8 @@ enum {
     ARM_UC_FLASHIAP_FAIL    = -1
 };
 
+#define ARM_UC_FLASH_INVALID_SIZE 0xFFFFFFFF
+
 /** Initialize a flash IAP device
  *
  *  Should be called once per lifetime of the object.
@@ -89,6 +91,18 @@ uint32_t arm_uc_flashiap_get_page_size(void);
  */
 uint32_t arm_uc_flashiap_get_sector_size(uint32_t address);
 
+/** Get the flash size
+ *
+ *  @return         Size of the flash in bytes
+ */
+uint32_t arm_uc_flashiap_get_flash_size(void);
+
+
+/** Get the flash start address
+ *
+ *  @return         Start address of the flash
+ */
+uint32_t arm_uc_flashiap_get_flash_start(void);
 #ifdef __cplusplus
 }
 #endif

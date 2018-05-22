@@ -113,8 +113,9 @@ public:
 
     /**
     * \brief Closes the open connection.
+    * \note This must be called from the same event loop context!
     */
-    void close_connection();
+    void force_close();
 
     /**
     * \brief Error handling for DTLS connectivity.

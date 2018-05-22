@@ -313,7 +313,8 @@ bool M2MConnectionSecurityPimpl::certificate_parse_valid_time(const char *certif
 
     tr_debug("certificate_validfrom_time");
 
-    if(PAL_SUCCESS != (ret = pal_x509Initiate(&cert))) {
+    ret = pal_x509Initiate(&cert);
+    if(PAL_SUCCESS != ret) {
         tr_error("certificate_validfrom_time - cert init failed: %u", (int)ret);
         pal_x509Free(&cert);
         return false;

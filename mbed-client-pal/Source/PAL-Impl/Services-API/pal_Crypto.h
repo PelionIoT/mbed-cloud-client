@@ -105,11 +105,23 @@ typedef enum palGroupIndex{
 	PAL_ECP_DP_SECP256R1
 }palGroupIndex_t;
 
+//! Key usage options
 typedef enum palKeyUsage{
 	PAL_X509_KU_DIGITAL_SIGNATURE = 0x1,
 	PAL_X509_KU_NON_REPUDIATION = 0x2,
 	PAL_X509_KU_KEY_CERT_SIGN = 0x4
 }palKeyUsage_t;
+
+//! Extended key usage options
+typedef enum palExtKeyUsage {
+    PAL_X509_EXT_KU_ANY =              (1 << 0),
+    PAL_X509_EXT_KU_SERVER_AUTH =      (1 << 1),
+    PAL_X509_EXT_KU_CLIENT_AUTH =      (1 << 2),
+    PAL_X509_EXT_KU_CODE_SIGNING =     (1 << 3),
+    PAL_X509_EXT_KU_EMAIL_PROTECTION = (1 << 4),
+    PAL_X509_EXT_KU_TIME_STAMPING =    (1 << 8),
+    PAL_X509_EXT_KU_OCSP_SIGNING =     (1 << 9)
+}palExtKeyUsage_t;
 
 //! Key check options.
 typedef enum palKeyToCheck{
@@ -120,13 +132,15 @@ typedef enum palKeyToCheck{
 
 //! Attributes to be retrieved from the x509 cert.
 typedef enum palX509Attr{
-	PAL_X509_ISSUER_ATTR,
-	PAL_X509_SUBJECT_ATTR,
-	PAL_X509_CN_ATTR,
-	PAL_X509_OU_ATTR,
-	PAL_X509_VALID_FROM,
-	PAL_X509_VALID_TO,
-	PAL_X509_CERT_ID_ATTR
+    PAL_X509_ISSUER_ATTR,
+    PAL_X509_SUBJECT_ATTR,
+    PAL_X509_CN_ATTR,
+    PAL_X509_OU_ATTR,
+    PAL_X509_VALID_FROM,
+    PAL_X509_VALID_TO,
+    PAL_X509_CERT_ID_ATTR,
+    PAL_X509_SIGNATUR_ATTR,
+    PAL_X509_L_ATTR
 }palX509Attr_t;
 
 
@@ -660,6 +674,15 @@ palStatus_t pal_x509CSRSetKey(palx509CSRHandle_t x509CSR, palECKeyHandle_t pubKe
 */
 palStatus_t pal_x509CSRSetKeyUsage(palx509CSRHandle_t x509CSR, uint32_t keyUsage);
 
+/*! Set the extended key usage extension.
+*
+* @param[in] x509CSR:   The CSR context to use.
+* @param[in] extKeyUsage:  The extended key usage flags, should be taken from `palExtKeyUsage_t`.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint32_t extKeyUsage);
+
 /*! Generic function to add to the CSR.
 *
 * @param[in] x509CSR:   The CSR context to use.
@@ -733,5 +756,19 @@ palStatus_t pal_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKeyHand
 palStatus_t pal_ECDSAVerify(palECKeyHandle_t pubKey, unsigned char* dgst, uint32_t dgstLen, 
 									unsigned char* sig, size_t sigLen, bool* verified);
 
+
+/*! Calculate the hash of the To Be Signed part of an X509 certificate.
+* This function may be used to validate a certificate signature: Simply retrieve this hash, verify the signature using this hash, the public key and the signature of the X509
+*
+* @param[in] x509Cert:	        Handle to the certificate to hash the TBS (to be signed part). 
+* @param[in] hash_type:	        The hash type. Currently only PAL_SHA256 supported
+* @param[out] output:	        Pointer to a buffer that will contain the hash digest. This buffer must be at least the size of the digest. If hash_type is PAL_SHA256, then buffer pointed to by output must be at least 32 bytes. 
+* @param[in] outLenBytes:       The size of the buffer pointed to by output. Must be at least the size of the digest
+* @param[out] actualOutLenBytes:    Size of the digest copied to output. In case of success, will always be the length of the hash digest
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+
+palStatus_t pal_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_type, unsigned char *output, size_t outLenBytes, size_t* actualOutLenBytes);
 
 #endif //_PAL_CRYPTO_H_

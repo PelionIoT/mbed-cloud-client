@@ -55,8 +55,38 @@ void MbedCloudClient::add_objects(const M2MObjectList& object_list)
         M2MObjectList::const_iterator it;
         it = object_list.begin();
         for (; it!= object_list.end(); it++) {
+            _object_list.push_back((M2MBase*)*it);
+        }
+    }
+}
+
+void MbedCloudClient::add_objects(const M2MBaseList& base_list)
+{
+    if(!base_list.empty()) {
+        M2MBaseList::const_iterator it;
+        it = base_list.begin();
+        for (; it!= base_list.end(); it++) {
             _object_list.push_back(*it);
         }
+    }
+}
+
+void MbedCloudClient::remove_object(M2MBase *object)
+{
+    M2MBaseList::const_iterator it;
+    int found_index = -1;
+    int index;
+    tr_debug("MbedCloudClient::remove_object %p", object);
+    for (it = _object_list.begin(), index = 0; it != _object_list.end(); it++, index++) {
+        if(*it == object) {
+            found_index = index;
+            break;
+        }
+    }
+    if(found_index != -1) {
+        tr_debug("  object found at index %d", found_index);
+        _object_list.erase(found_index);
+        _client.connector_client().m2m_interface()->remove_object(object);
     }
 }
 
@@ -72,7 +102,7 @@ bool MbedCloudClient::setup(void* iface)
     map<string, M2MObject*>::iterator it;
     for (it = _objects.begin(); it != _objects.end(); it++)
     {
-        _object_list.push_back(it->second);
+        _object_list.push_back((M2MBase*)it->second);
     }
     _client.connector_client().m2m_interface()->set_platform_network_handler(iface);
 

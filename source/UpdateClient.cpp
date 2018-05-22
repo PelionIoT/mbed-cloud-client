@@ -115,7 +115,7 @@ void UpdateClient::UpdateClient(FP1<void, int32_t> callback)
 /**
  * @brief Populate M2MObjectList with Update Client objects.
  */
-void UpdateClient::populate_object_list(M2MObjectList& list)
+void UpdateClient::populate_object_list(M2MBaseList& list)
 {
     /* Setup Firmware Update LWM2M object */
     list.push_back(FirmwareUpdateResource::getObject());

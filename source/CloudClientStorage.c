@@ -111,6 +111,20 @@ ccs_status_e set_config_parameter(const char* key, const uint8_t *buffer, const 
     return CCS_STATUS_SUCCESS;
 }
 
+ccs_status_e check_config_parameter(const char* key)
+{
+    if (key == NULL) {
+        return CCS_STATUS_ERROR;
+    }
+
+    size_t real_size = 0;
+    kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key, strlen(key), KCM_CONFIG_ITEM, &real_size);
+    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
+        return CCS_STATUS_KEY_DOESNT_EXIST;
+    }
+    return CCS_STATUS_SUCCESS;
+}
+
 ccs_status_e delete_config_parameter(const char* key)
 {
     if (key == NULL) {
@@ -118,9 +132,17 @@ ccs_status_e delete_config_parameter(const char* key)
         return CCS_STATUS_ERROR;
     }
 
-    tr_debug("CloudClientStorage::delete_config_parameter [%s]", key);
+    ccs_status_e status = check_config_parameter(key);
+    if (status == CCS_STATUS_KEY_DOESNT_EXIST) {
+        // No need to call delete as item does not exist.
+        tr_debug("CloudClientStorage::delete_config_parameter [%s] does not exist.", key);
+        return CCS_STATUS_SUCCESS;
+    } else if (status == CCS_STATUS_ERROR) {
+        return CCS_STATUS_ERROR;
+    }
 
     // Delete parameter from storage
+    tr_debug("CloudClientStorage::delete_config_parameter [%s]", key);
     kcm_status_e kcm_status = kcm_item_delete((const uint8_t*)key,
                                   strlen(key),
                                   KCM_CONFIG_ITEM);
@@ -142,7 +164,7 @@ ccs_status_e size_config_parameter(const char* key, size_t* size_out)
 
     tr_debug("CloudClientStorage::size_config_parameter [%s]", key);
 
-    // Delete parameter from storage
+    // Get kcm item size
     kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key,
                                          strlen(key),
                                          KCM_CONFIG_ITEM,

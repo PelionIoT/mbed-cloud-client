@@ -94,6 +94,8 @@ void FirmwareUpdateResource::Initialize(void)
 
                 /* Default values are non-standard, but the standard has no
                    values for indicating that the device is initializing.
+                   To address this, Service ignores -1 and/or 255 values coming through,
+                   so for our purposes this is the correct form of initialization.
                 */
                 uint8_t defaultValue[] = {"-1"};
                 uint8_t defaultVersion[] = {"-1"};

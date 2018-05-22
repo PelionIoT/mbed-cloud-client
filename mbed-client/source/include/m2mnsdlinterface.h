@@ -26,6 +26,7 @@
 #include "mbed-client/m2mbase.h"
 #include "mbed-client/m2mserver.h"
 #include "include/nsdllinker.h"
+#include "eventOS_event.h"
 
 //FORWARD DECLARARTION
 class M2MSecurity;
@@ -36,8 +37,7 @@ class M2MResourceInstance;
 class M2MNsdlObserver;
 class M2MServer;
 class M2MConnectionHandler;
-
-typedef Vector<M2MObject *> M2MObjectList;
+class M2MNotificationHandler;
 
 /**
  * @brief M2MNsdlInterface
@@ -66,11 +66,11 @@ public:
         ns_list_link_t      link;
     };
 
-    typedef struct nsdl_coap_data_s {
+    struct nsdl_coap_data_s {
         nsdl_s              *nsdl_handle;
         sn_coap_hdr_s       *received_coap_header;
         sn_nsdl_addr_s      address;
-    } nsdl_coap_data_t;
+    };
 
     typedef NS_LIST_HEAD(get_data_request_s, link) get_data_request_list_t;
 
@@ -118,10 +118,10 @@ public:
 
     /**
      * @brief Creates the NSDL structure for the registered objectlist.
-     * @param object_list, List of objects to be registered.
+     * @param list, List of objects implementing the M2MBase interface to be registered.
      * @return true if structure created successfully else false.
     */
-    bool create_nsdl_list_structure(const M2MObjectList &object_list);
+    bool create_nsdl_list_structure(const M2MBaseList &list);
 
     /**
      * @brief Removed the NSDL resource for the given resource.
@@ -291,6 +291,12 @@ public:
     void set_server_address(const char *server_address);
 
     /**
+     * @brief Remove an object from the list kept by the NSDLInteface.
+     * Does not call delete on the object.
+     */
+    bool remove_object_from_list(M2MBase *base);
+
+    /*
      * @brief Get NSDL timer.
      * @return NSDL execution timer.
      */
@@ -334,13 +340,26 @@ public:
     */
     void clear_sent_blockwise_messages();
 
+    /**
+     * @brief Send next notification message.
+    */
+    void send_next_notification(bool clear_token);
+
+    /**
+     * @brief Store the "BS finished" response id.
+     * @param msg_id Response id.
+    */
+    void store_bs_finished_response_id(uint16_t msg_id);
+
+    void set_registration_status(bool registered);
+
 protected: // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type);
 
 protected: // from M2MObservationHandler
 
-    virtual void observation_to_be_sent(M2MBase *object,
+    virtual bool observation_to_be_sent(M2MBase *object,
                                         uint16_t obs_number,
                                         const m2m::Vector<uint16_t> &changed_instance_ids,
                                         bool send_object = false);
@@ -371,7 +390,13 @@ private:
     */
     bool initialize();
 
-    bool add_object_to_list(M2MObject *object);
+    bool add_object_to_list(M2MBase *base);
+
+    bool create_nsdl_structure(M2MBase *base);
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    bool create_nsdl_endpoint_structure(M2MEndpoint *endpoint);
+#endif
 
     bool create_nsdl_object_structure(M2MObject *object);
 
@@ -392,6 +417,12 @@ private:
     M2MBase* find_resource(const String &object,
                            const uint16_t msg_id) const;
 
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    M2MBase* find_resource(const M2MEndpoint *endpoint,
+                                             const String &object_name,
+                                             const uint16_t msg_id) const;
+#endif
+
     M2MBase* find_resource(const M2MObject *object,
                            const String &object_instance,
                            const uint16_t msg_id) const;
@@ -404,19 +435,23 @@ private:
                            const String &object_name,
                            const String &resource_instance) const;
 
-    bool object_present(M2MObject * object) const;
+    bool object_present(M2MBase *base) const;
+
+    int object_index(M2MBase *base) const;
 
     static M2MInterface::Error interface_error(const sn_coap_hdr_s &coap_header);
 
     void send_object_observation(M2MObject *object,
                                  uint16_t obs_number,
                                  const m2m::Vector<uint16_t> &changed_instance_ids,
-                                 bool send_object, bool resend);
+                                 bool send_object);
 
     void send_object_instance_observation(M2MObjectInstance *object_instance,
-                                          uint16_t obs_number, bool resend);
+                                          uint16_t obs_number);
 
-    void send_resource_observation(M2MResource *resource, uint16_t obs_number, bool resend);
+    void send_resource_observation(M2MResource *resource, uint16_t obs_number);
+
+
 
     /**
      * @brief Allocate (size + 1) amount of memory, copy size bytes into
@@ -507,12 +542,6 @@ private:
     bool parse_and_send_uri_query_parameters();
 
     /**
-     * @brief Handle pending notifications.
-     * @param clear, If set clears the flag to initial state otherwise sends the notification.
-    */
-    void handle_pending_notifications(bool clear);
-
-    /**
      * @brief Callback function that triggers the registration update call.
      * @param argument, Arguments part of the POST request.
     */
@@ -520,11 +549,20 @@ private:
 
     bool lifetime_value_changed() const;
 
-    static void execute_notification_delivery_status_cb(M2MBase* object, int32_t msgid);
+    void execute_notification_delivery_status_cb(M2MBase* object, int32_t msgid);
 
     bool is_response_to_get_req(const sn_coap_hdr_s *coap_header, get_data_request_s &get_data);
 
     void free_get_request_list(const sn_coap_hdr_s *coap_header = NULL);
+
+    /**
+     * @brief Send next notification for object, return true if notification sent, false
+     *        if no notification to send or send already in progress.
+     * @param object, M2MObject whose next notification should be sent
+     * @param clear_token, Flag to indicate whether observation token should be cleared.
+     * @return True if notification sent, false otherwise or if send already in progress
+     */
+    bool send_next_notification_for_object(M2MObject& object, bool clear_token);
 
     static char* parse_uri_query_parameters(char* uri);
 
@@ -532,10 +570,35 @@ private:
 
     void send_coap_ping();
 
+    void send_empty_ack(const sn_coap_hdr_s *header, sn_nsdl_addr_s *address);
+
+    struct M2MNsdlInterface::nsdl_coap_data_s* create_coap_event_data(sn_coap_hdr_s *received_coap_header,
+                                                  sn_nsdl_addr_s *address,
+                                                  struct nsdl_s *nsdl_handle,
+                                                  uint8_t coap_msg_code = COAP_MSG_CODE_EMPTY);
+
+    void handle_register_response(const sn_coap_hdr_s *coap_header);
+
+    void handle_unregister_response(const sn_coap_hdr_s *coap_header);
+
+    void handle_register_update_response(const sn_coap_hdr_s *coap_header);
+
+    void handle_get_response(const sn_coap_hdr_s *coap_header, get_data_request_s *get_data);
+
+    void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
+
+    void handle_empty_ack(const sn_coap_hdr_s *coap_header, bool is_bootstrap_msg);
+
+    bool handle_post_response(sn_coap_hdr_s *coap_header,
+                              sn_nsdl_addr_s *address,
+                              sn_coap_hdr_s *&coap_response,
+                              M2MObjectInstance *&obj_instance,
+                              bool is_bootstrap_msg);
+
 private:
 
     M2MNsdlObserver                         &_observer;
-    M2MObjectList                            _object_list;
+    M2MBaseList                            _base_list;
     sn_nsdl_ep_parameters_s                 *_endpoint;
     nsdl_s                                  *_nsdl_handle;
     M2MSecurity                             *_security; // Not owned
@@ -557,6 +620,10 @@ private:
     get_data_request_list_t                 _get_request_list;
     char                                    *_custom_uri_query_params;
     static int8_t                           _tasklet_id;
+    M2MNotificationHandler                  *_notification_handler;
+    bool                                    _notification_send_ongoing;
+    arm_event_storage_t                     _event;
+    bool                                    _registered;
 
 friend class Test_M2MNsdlInterface;
 

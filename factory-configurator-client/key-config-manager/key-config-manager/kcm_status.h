@@ -47,8 +47,9 @@ typedef enum {
     KCM_STATUS_UNKNOWN_STORAGE_ERROR,                         //!< KCM can not translate current storage error
     KCM_STATUS_NOT_INITIALIZED,                               //!< KCM did not initialized.
     KCM_STATUS_CLOSE_INCOMPLETE_CHAIN,                        //!< Closing KCM chain with less certificates than declared in create
-    KCM_STATUS_INVALID_CHAIN,                                 //!< KCM invalid chain detected.
+    KCM_STATUS_CORRUPTED_CHAIN_FILE,                          //!< KCM attempted to open an invalid chain file
     KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN,                  //!< Operation failed due to invalid number of certificates.
+    KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED,          //!< At least one of the certificates fails to verify its predecessor.
     KCM_STATUS_FILE_NAME_TOO_LONG,                            //!< Provided a file name that is longer than permitted. 
     KCM_CRYPTO_STATUS_UNSUPPORTED_HASH_MODE,                  //!< Operation was called with unsupported hash mode.
     KCM_CRYPTO_STATUS_PARSING_DER_PRIVATE_KEY,                //!< Operation failed to parse private der key.
@@ -73,6 +74,11 @@ typedef enum {
     KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED,                //!< Operation failed to check the signature.
     KCM_CRYPTO_STATUS_INVALID_MD_TYPE,                        //!< Operation failed in check of ecc md type.
     KCM_CRYPTO_STATUS_FAILED_TO_WRITE_SIGNATURE,              //!< Operation failed to calculate signature.
+    KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PRIVATE_KEY,            //!< Operation failed to write private key to DER buffer.
+    KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PUBLIC_KEY,             //!< Operation failed to write public key to DER buffer.
+    KCM_CRYPTO_STATUS_FAILED_TO_WRITE_CSR,                    //!< Operation failed to write CSR to DER buffer.
+    KCM_CRYPTO_STATUS_INVALID_OID,                            //!< Operation failed due to invalid OID.
+    KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT,                    //!< Operation failed due to invalid name format.
     KCM_MAX_STATUS,
 } kcm_status_e;
 

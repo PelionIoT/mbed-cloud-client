@@ -41,6 +41,7 @@ class M2MReportHandler;
 class M2MObjectInstance;
 class M2MObject;
 class M2MResource;
+class M2MEndpoint;
 
 
 /*! \file m2mbase.h
@@ -59,7 +60,8 @@ public:
         Object = 0x0,
         Resource = 0x1,
         ObjectInstance = 0x2,
-        ResourceInstance = 0x3
+        ResourceInstance = 0x3,
+        ObjectDirectory = 0x4
     } BaseType;
 
     /**
@@ -144,7 +146,7 @@ public:
             uint16_t            instance_id; // XXX: this is not properly aligned now, need to reorder these after the elimination is done
         } identifier;
         sn_nsdl_dynamic_resource_parameters_s *dynamic_resource_params;
-        BaseType            base_type : 2;
+        BaseType            base_type : 3;
         M2MBase::DataType   data_type : 3;
         bool                multiple_instance;
         bool                free_on_delete;   /**< true if struct is dynamically allocated and it
@@ -518,6 +520,9 @@ public:
      */
     bool set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args);
 
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    static char* create_path(const M2MEndpoint &parent, const char *name);
+#endif
     static char* create_path(const M2MObject &parent, const char *name);
     static char* create_path(const M2MObject &parent, uint16_t object_instance);
     static char* create_path(const M2MResource &parent, uint16_t resource_instance);
@@ -526,7 +531,7 @@ public:
 
 protected : // from M2MReportObserver
 
-    virtual void observation_to_be_sent(const m2m::Vector<uint16_t> &changed_instance_ids,
+    virtual bool observation_to_be_sent(const m2m::Vector<uint16_t> &changed_instance_ids,
                                         uint16_t obs_number,
                                         bool send_object = false);
 
@@ -632,8 +637,20 @@ protected:
     void set_observation_token(const uint8_t *token,
                                const uint8_t length);
 
-private:
+    /*
+     * \brief The data has changed and it needs to be updated into Mbed Cloud.
+     *        Current implementation maintains the changed state only in M2MEndpoint. If any of the changes in an
+     *        object changes the M2M registration structure, the information is propagated to M2MEndpoint using 
+     *        this interface.
+     */
+    virtual void set_changed();
 
+    /*
+     * \brief Returns the owner object. Can return NULL if the object has no parent.
+     */
+    virtual M2MBase *get_parent() const;
+
+  private:
     static bool is_integer(const String &value);
 
     static bool is_integer(const char *value);
@@ -648,6 +665,7 @@ friend class Test_M2MBase;
 friend class Test_M2MObject;
 friend class M2MNsdlInterface;
 friend class M2MInterfaceFactory;
+friend class M2MObject;
 };
 
 #endif // M2M_BASE_H

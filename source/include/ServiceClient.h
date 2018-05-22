@@ -118,7 +118,7 @@ public:
     *  \param callback, Takes the callback for the status from ConnectorClient.
     *  \param client_objs, A list of objects to be registered to Cloud.
     */
-    void initialize_and_register(M2MObjectList& client_objs);
+    void initialize_and_register(M2MBaseList& reg_objs);
 
     /**
      * \brief Returns the ConnectorClient handler.
@@ -266,7 +266,7 @@ private:
     // data which is pending for the registration
     const char                      *_service_uri;
     void                            *_stack;
-    M2MObjectList                   *_client_objs;
+    M2MBaseList                     *_client_objs;
     StartupMainState                _current_state;
     bool                            _event_generated;
     bool                            _state_engine_running;

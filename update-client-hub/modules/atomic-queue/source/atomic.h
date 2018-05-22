@@ -33,8 +33,6 @@ enum {
    AQ_ATOMIC_CAS_DEREF_INTERUPTED,
 };
 
-int aq_atomic_cas_uintptr(uintptr_t *ptr, uintptr_t oldval, uintptr_t newval);
-
 /**
  * @brief Atomically compares the value of a dereferenced pointer, replacing the pointer on success.
  * @detail aq_atomic_cas_deref_uintptr provides a mechanism to atomically change a pointer based on a value contained

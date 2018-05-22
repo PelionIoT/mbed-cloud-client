@@ -21,46 +21,77 @@
 extern "C" {
 #endif
 
-/**
-* @file kcm_defs.h
-*  \brief Keys and configuration manager (KCM) definitions.
-*/
+    /**
+    * @file kcm_defs.h
+    *  \brief Keys and configuration manager (KCM) definitions.
+    */
 
-/**
-* KCM item types
-*/
-typedef enum {
-    KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
-    KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
-    KCM_SYMMETRIC_KEY_ITEM,        //!< KCM symmetric key item type.
-    KCM_CERTIFICATE_ITEM,          //!< KCM certificate item type. Supported x509 certificates in der format.
-    KCM_CONFIG_ITEM,               //!< KCM configuration parameter item type.
-    KCM_LAST_ITEM                  //!< KCM not defined item type.
-} kcm_item_type_e;
+    /**
+    * KCM item types
+    */
+    typedef enum {
+        KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
+        KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
+        KCM_SYMMETRIC_KEY_ITEM,        //!< KCM symmetric key item type.
+        KCM_CERTIFICATE_ITEM,          //!< KCM certificate item type. Supported x509 certificates in der format.
+        KCM_CONFIG_ITEM,               //!< KCM configuration parameter item type.
+        KCM_LAST_ITEM                  //!< KCM not defined item type.
+    } kcm_item_type_e;
 
-/**
-* Security descriptor - contains different ACLs such as remote ACL, local ACL and audit.
-* Currently defined to `void*.`
-* May be changed in the future.
-*/
-typedef void* kcm_security_desc_s;
 
-#ifndef __DOXYGEN__
-/**
-* CryptoKeyScheme structure.
-* Currently defined to void*.
-* May be changed in the future.
-*/
-typedef void* kcm_crypto_key_scheme_s;
 
-#endif //#ifndef __DOXYGEN__
+    /** supported message digests */
+    typedef enum {
+        KCM_MD_NONE = 0x0,
+        KCM_MD_SHA256                  //!< KCM SHA256 message digest.
+    } kcm_md_type_e;
 
+
+    /** key usage extension bit-mask options */
+    typedef enum {
+        KCM_CSR_KU_NONE = 0x0,
+        KCM_CSR_KU_DIGITAL_SIGNATURE = 0x1, //!< Digital signature key usage extension bit        
+        KCM_CSR_KU_NON_REPUDIATION = 0x2,   //!< Non repudiation key usage extension bit
+        KCM_CSR_KU_KEY_CERT_SIGN = 0x4      //!< Certificate signing key usage extension bit
+    } kcm_csr_key_usage_e;
+
+
+    /**
+    * Security descriptor - contains different ACLs such as remote ACL, local ACL and audit.
+    * Currently defined to `void*.`
+    * May be changed in the future.
+    */
+    typedef void* kcm_security_desc_s;
+
+
+    /** Cryptographic scheme types
+    *   Currently only ECC-256 curve is supported.
+    *   More schemes can be added later on.
+    */
+    typedef enum {
+        KCM_SCHEME_NONE,
+        KCM_SCHEME_EC_SECP256R1,       //!< KCM ECC cryptographic scheme, 256-bits NIST curve.
+    }kcm_crypto_key_scheme_e;
 
 #define KCM_MAX_FILENAME_SIZE  1012
 
 #define KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN 5
 
-typedef void* kcm_cert_chain_handle;
+    typedef void* kcm_cert_chain_handle;
+
+    /** This struct contains CSR parameters for future generated CSR
+    *
+    *      @param subject String that contains the subject (distinguished name) of the certificate in predefined format.
+    *                     The format should be as the following example: “C=US,ST=California,L=San Francisco,O=Wikimedia Foundation,Inc.,CN=*.wikipedia.org”.
+    *      @param md_type Message digest selected from `kcm_md_type_e`.
+    *      @param key_usage Key usage extension selected from `kcm_csr_key_usage_e`.
+    */
+    typedef struct kcm_csr_params_ {
+        char *subject;
+        kcm_md_type_e md_type;
+        kcm_csr_key_usage_e key_usage;
+    } kcm_csr_params_s;
+
 
 
 #ifdef __cplusplus

@@ -101,6 +101,11 @@ private: // Constructor and destructor are private,
     M2MResource( const M2MResource& /*other*/ );
 
     /**
+     * \brief Returns the owner object. Can return NULL if the object has no parent.
+     */
+    virtual M2MBase *get_parent() const;
+
+    /**
      * Destructor
      */
     virtual ~M2MResource();
@@ -284,6 +289,7 @@ friend class Test_M2MTLVSerializer;
 friend class Test_M2MTLVDeserializer;
 friend class Test_M2MBase;
 friend class Test_M2MResourceInstance;
+friend class TestFactory;
 };
 
 /**
