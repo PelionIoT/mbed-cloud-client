@@ -43,7 +43,7 @@ extern "C" {
     /** supported message digests */
     typedef enum {
         KCM_MD_NONE = 0x0,
-        KCM_MD_SHA256                  //!< KCM SHA256 message digest.
+        KCM_MD_SHA256 = 0x1               //!< KCM SHA256 message digest.
     } kcm_md_type_e;
 
 
@@ -54,6 +54,19 @@ extern "C" {
         KCM_CSR_KU_NON_REPUDIATION = 0x2,   //!< Non repudiation key usage extension bit
         KCM_CSR_KU_KEY_CERT_SIGN = 0x4      //!< Certificate signing key usage extension bit
     } kcm_csr_key_usage_e;
+
+
+    /** extended key usage extension bit-mask options */
+    typedef enum {
+        KCM_CSR_EXT_KU_NONE =             0,
+        KCM_CSR_EXT_KU_ANY =              (1 << 0),
+        KCM_CSR_EXT_KU_SERVER_AUTH =      (1 << 1), //!< SSL / TLS Web Server Authentication
+        KCM_CSR_EXT_KU_CLIENT_AUTH =      (1 << 2), //!< SSL / TLS Web Client Authentication
+        KCM_CSR_EXT_KU_CODE_SIGNING =     (1 << 3), //!< Code signing
+        KCM_CSR_EXT_KU_EMAIL_PROTECTION = (1 << 4), //!< E - mail Protection(S / MIME)
+        KCM_CSR_EXT_KU_TIME_STAMPING =    (1 << 8), //!< Trusted Time stamping
+        KCM_CSR_EXT_KU_OCSP_SIGNING =     (1 << 9)  //!< OCSP Signing
+    } kcm_csr_ext_key_usage_e;
 
 
     /**
@@ -85,13 +98,14 @@ extern "C" {
     *                     The format should be as the following example: “C=US,ST=California,L=San Francisco,O=Wikimedia Foundation,Inc.,CN=*.wikipedia.org”.
     *      @param md_type Message digest selected from `kcm_md_type_e`.
     *      @param key_usage Key usage extension selected from `kcm_csr_key_usage_e`.
+    *      @param ext_key_usage Extended key usage flags selected from `kcm_csr_ext_key_usage_e`.
     */
     typedef struct kcm_csr_params_ {
         char *subject;
         kcm_md_type_e md_type;
-        kcm_csr_key_usage_e key_usage;
+        uint32_t key_usage;
+        uint32_t ext_key_usage;
     } kcm_csr_params_s;
-
 
 
 #ifdef __cplusplus

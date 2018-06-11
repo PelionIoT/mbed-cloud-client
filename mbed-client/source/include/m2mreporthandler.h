@@ -187,6 +187,20 @@ public:
      */
     bool notification_send_in_progress() const;
 
+    /**
+     * @brief Sets whether notification will be sent using blockwise or not.
+     *
+     * @param blockwise_notify If True then notification is sent using blockwise.
+     */
+    void set_blockwise_notify(bool blockwise_notify);
+
+    /**
+     * @brief Returns whether notification is sent using blockwise or not.
+     *
+     * @return Is notification sent using blockwise.
+     */
+    bool blockwise_notify() const;
+
 protected : // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type =
@@ -266,6 +280,7 @@ private:
     m2m::Vector<uint16_t>       _changed_instance_ids;
     bool                        _notification_sending_in_progress;
     bool                        _notification_in_queue;
+    bool                        _blockwise_notify;
 
 friend class Test_M2MReportHandler;
 

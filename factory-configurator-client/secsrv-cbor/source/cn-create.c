@@ -41,6 +41,20 @@ cn_cbor* cn_cbor_data_create(const uint8_t* data, int len
   return ret;
 }
 
+cn_cbor* cn_cbor_text_create(const uint8_t* data, int len
+                             CBOR_CONTEXT,
+                             cn_cbor_errback *errp)
+{
+    cn_cbor* ret;
+    INIT_CB(ret);
+
+    ret->type = CN_CBOR_TEXT;
+    ret->length = len;
+    ret->v.str = (const char*)data; 
+
+    return ret;
+}
+
 cn_cbor* cn_cbor_string_create(const char* data
                                CBOR_CONTEXT,
                                cn_cbor_errback *errp)

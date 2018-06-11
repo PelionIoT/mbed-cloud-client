@@ -135,6 +135,11 @@ void fcc_bundle_clean_and_free_data_param(fcc_bundle_data_param_s *data_param)
         data_param->name = NULL;
     }
 
+    if (data_param->private_key_name != NULL) {
+        fcc_free(data_param->private_key_name);
+        data_param->private_key_name = NULL;
+    }
+
     data_param->array_cn = NULL;
 
     //FIXME - in case we will support pem, add additional pointer data_der, that will point to allocated
@@ -171,6 +176,10 @@ bool fcc_bundle_get_data_param(const cn_cbor *data_param_cb, fcc_bundle_data_par
             data_param_type = fcc_bundle_data_param_lookup_table[data_param_index].data_param_type;
 
             switch (data_param_type) {
+                case FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME_TYPE:
+                    status = get_data_name(data_param_value_cb, &(data_param->private_key_name), &(data_param->private_key_name_len));
+                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to get private key  name");
+                    break;
 
                 case FCC_BUNDLE_DATA_PARAM_NAME_TYPE:
                     status = get_data_name(data_param_value_cb, &(data_param->name), &(data_param->name_len));

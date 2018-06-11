@@ -52,7 +52,7 @@ fcc_status_e fcc_bundle_process_certificates(const cn_cbor *certs_list_cb)
 
         FCC_SET_START_TIMER(fcc_certificate_timer);
 
-        fcc_bundle_clean_and_free_data_param(&certificate);
+        //fcc_bundle_clean_and_free_data_param(&certificate);
 
         //Get key CBOR struct at index key_index
         cert_cb = cn_cbor_index(certs_list_cb, cert_index);
@@ -62,6 +62,17 @@ fcc_status_e fcc_bundle_process_certificates(const cn_cbor *certs_list_cb)
         status = fcc_bundle_get_data_param(cert_cb, &certificate);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != true), fcc_status = FCC_STATUS_BUNDLE_ERROR, "Failed to get certificate data at index (%" PRIu32 ") ", cert_index);
 
+        //If private key name was passed with the certificate - the certificate is self-generated and we need to verify it agains given private key
+        if (certificate.private_key_name != NULL) {
+            //Try to retrieve the private key from the device and verify the certificate against key data
+            kcm_result = kcm_certificate_verify_with_private_key(
+                certificate.data,
+                certificate.data_size,
+                certificate.private_key_name,
+                certificate.private_key_name_len);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, exit, "Failed to verify certificate against given private key (%" PRIu32 ") ", cert_index);
+        }
+
         kcm_result = kcm_item_store(certificate.name, certificate.name_len, KCM_CERTIFICATE_ITEM, true, certificate.data, certificate.data_size, certificate.acl);
         FCC_END_TIMER((char*)certificate.name, certificate.name_len,fcc_certificate_timer);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_result), exit,"Failed to store certificate at index (%" PRIu32 ") ", cert_index);
@@ -70,8 +81,15 @@ fcc_status_e fcc_bundle_process_certificates(const cn_cbor *certs_list_cb)
 
 exit:
     if (kcm_result != KCM_STATUS_SUCCESS) {
+        //FCC_STATUS_ITEM_NOT_EXIST returned only if private key of self-generate certificate is missing. In this case we need to return name of missing item
+        if (kcm_result == KCM_STATUS_ITEM_NOT_FOUND) {
+            output_info_fcc_status = fcc_bundle_store_error_info(certificate.private_key_name, certificate.private_key_name_len, kcm_result);
+        }
+        else {
+            output_info_fcc_status = fcc_bundle_store_error_info(certificate.name, certificate.name_len, kcm_result);
+        }
 
-        output_info_fcc_status = fcc_bundle_store_error_info(certificate.name, certificate.name_len, kcm_result);
+
         SA_PV_ERR_RECOVERABLE_RETURN_IF((output_info_fcc_status != FCC_STATUS_SUCCESS),
                                         fcc_status = FCC_STATUS_OUTPUT_INFO_ERROR, 
                                         "Failed to create output kcm_status error %d", kcm_result);

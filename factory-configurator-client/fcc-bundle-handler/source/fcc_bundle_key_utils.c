@@ -116,7 +116,7 @@ fcc_status_e fcc_bundle_process_keys(const cn_cbor *keys_list_cb)
 
         FCC_SET_START_TIMER(fcc_key_timer);
 
-        fcc_bundle_clean_and_free_data_param(&key);
+        //fcc_bundle_clean_and_free_data_param(&key);
 
         //Get key CBOR struct at index key_index
         key_cb = cn_cbor_index(keys_list_cb, key_index);

@@ -515,8 +515,6 @@ void M2MInterfaceImpl::socket_error(uint8_t error_code, bool retry)
         _registration_flow_timer->stop_timer();
     }
 
-    _queue_sleep_timer.stop_timer();
-
     const char *error_code_des;
     M2MInterface::Error error = M2MInterface::ErrorNone;
     switch (error_code) {
@@ -624,16 +622,21 @@ void M2MInterfaceImpl::data_sent()
 
 void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
 {
-    if(M2MTimerObserver::QueueSleep == type) {
-        tr_debug("M2MInterfaceImpl::timer_expired() - sleep");
-        M2MTimer &timer = _nsdl_interface.get_nsdl_execution_timer();
-        timer.stop_timer();
-        _queue_mode_timer_ongoing = true;
-        if(_callback_handler) {
-            _callback_handler();
+    if (M2MTimerObserver::QueueSleep == type) {
+        if (_reconnecting) {
+            tr_debug("M2MInterfaceImpl::timer_expired() - reconnection ongoing, continue sleep timer");
+            _queue_sleep_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT*MBED_CLIENT_RECONNECTION_INTERVAL*1000,
+                                            M2MTimerObserver::QueueSleep);
+        } else {
+            tr_debug("M2MInterfaceImpl::timer_expired() - sleep");
+            M2MTimer &timer = _nsdl_interface.get_nsdl_execution_timer();
+            timer.stop_timer();
+            _queue_mode_timer_ongoing = true;
+            if(_callback_handler) {
+                _callback_handler();
+            }
         }
-    }
-    else if (M2MTimerObserver::RetryTimer == type) {
+    } else if (M2MTimerObserver::RetryTimer == type) {
         tr_debug("M2MInterfaceImpl::timer_expired() - retry");
         _retry_timer_expired = true;
         if (_bootstrapped) {
@@ -641,8 +644,7 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
         } else {
             internal_event(STATE_BOOTSTRAP);
         }
-    }
-    else if (M2MTimerObserver::BootstrapFlowTimer == type) {
+    } else if (M2MTimerObserver::BootstrapFlowTimer == type) {
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         tr_debug("M2MInterfaceImpl::timer_expired() - bootstrap");
         _bootstrapped = false;
@@ -651,8 +653,7 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
         }
         bootstrap_error(ERROR_REASON_23);
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-    }
-    else if (M2MTimerObserver::RegistrationFlowTimer == type) {
+    } else if (M2MTimerObserver::RegistrationFlowTimer == type) {
         tr_debug("M2MInterfaceImpl::timer_expired() - register");
         registration_error(M2MInterface::Timeout, true);
     }

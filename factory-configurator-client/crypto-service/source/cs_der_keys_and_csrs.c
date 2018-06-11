@@ -257,12 +257,16 @@ static kcm_status_e cs_csr_generate_int(palECKeyHandle_t key_handle, const kcm_c
     palx509CSRHandle_t x509CSR_handle = NULLPTR;
     palMDType_t pal_md_type;
     uint32_t pal_key_usage = 0;
+    uint32_t pal_ext_key_usage = 0;
+    uint32_t eku_all_bits = KCM_CSR_EXT_KU_ANY | KCM_CSR_EXT_KU_SERVER_AUTH | KCM_CSR_EXT_KU_CLIENT_AUTH |
+        KCM_CSR_EXT_KU_CODE_SIGNING | KCM_CSR_EXT_KU_EMAIL_PROTECTION | KCM_CSR_EXT_KU_TIME_STAMPING | KCM_CSR_EXT_KU_OCSP_SIGNING;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_params pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params->subject == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid subject pointer in csr_params");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid out csr buffer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid max csr buffer size");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid out csr buffer size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params->ext_key_usage & (~eku_all_bits)), KCM_STATUS_INVALID_PARAMETER, "Invalid extended key usage options");
 
     // Initialize x509 CSR handle 
     pal_status = pal_x509CSRInit(&x509CSR_handle);
@@ -301,6 +305,34 @@ static kcm_status_e cs_csr_generate_int(palECKeyHandle_t key_handle, const kcm_c
         pal_status = pal_x509CSRSetKeyUsage(x509CSR_handle, pal_key_usage);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR key usage");
     }
+
+    // Set CSR extended key usage
+    if (csr_params->ext_key_usage != KCM_CSR_EXT_KU_NONE) {
+        if (csr_params->ext_key_usage & KCM_CSR_EXT_KU_ANY) {
+            pal_ext_key_usage |= PAL_X509_EXT_KU_ANY;
+        }
+        if (csr_params->ext_key_usage & KCM_CSR_EXT_KU_SERVER_AUTH) {
+            pal_ext_key_usage |= PAL_X509_EXT_KU_SERVER_AUTH;
+        }
+        if (csr_params->ext_key_usage & KCM_CSR_EXT_KU_CLIENT_AUTH) {
+            pal_ext_key_usage |= PAL_X509_EXT_KU_CLIENT_AUTH;
+        }
+        if (csr_params->ext_key_usage & KCM_CSR_EXT_KU_CODE_SIGNING) {
+            pal_ext_key_usage |= PAL_X509_EXT_KU_CODE_SIGNING;
+        }
+        if (csr_params->ext_key_usage & KCM_CSR_EXT_KU_EMAIL_PROTECTION) {
+            pal_ext_key_usage |= PAL_X509_EXT_KU_EMAIL_PROTECTION;
+        }
+        if (csr_params->ext_key_usage & KCM_CSR_EXT_KU_TIME_STAMPING) {
+            pal_ext_key_usage |= PAL_X509_EXT_KU_TIME_STAMPING;
+        }
+        if (csr_params->ext_key_usage & KCM_CSR_EXT_KU_OCSP_SIGNING) {
+            pal_ext_key_usage |= PAL_X509_EXT_KU_OCSP_SIGNING;
+        }
+        pal_status = pal_x509CSRSetExtendedKeyUsage(x509CSR_handle, pal_ext_key_usage);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR extended key usage");
+    }
+
     // Write the CSR to out buffer in DER format
     pal_status = pal_x509CSRWriteDER(x509CSR_handle, csr_buff_out, csr_buff_max_size, csr_buff_act_size_out);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to write the CSR to out buffer");
@@ -345,7 +377,6 @@ exit:
     }
     return kcm_status;
 }
-
 kcm_status_e cs_generate_keys_and_csr(kcm_crypto_key_scheme_e curve_name, const kcm_csr_params_s *csr_params, uint8_t *priv_key_out,
                                       size_t priv_key_max_size, size_t *priv_key_act_size_out, uint8_t *pub_key_out,
                                       size_t pub_key_max_size, size_t *pub_key_act_size_out, uint8_t *csr_buff_out,

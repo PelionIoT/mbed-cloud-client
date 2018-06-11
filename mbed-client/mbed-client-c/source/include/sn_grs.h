@@ -123,8 +123,6 @@ extern sn_nsdl_dynamic_resource_parameters_s    *sn_grs_search_resource(struct g
                                                                         const char *path,
                                                                         uint8_t search_method);
 extern int8_t                                   sn_grs_destroy(struct grs_s *handle);
-extern sn_grs_resource_list_s                   *sn_grs_list_resource(struct grs_s *handle, const char *path);
-extern void                                     sn_grs_free_resource_list(struct grs_s *handle, sn_grs_resource_list_s *list);
 extern int8_t                                   sn_grs_send_coap_message(struct nsdl_s *handle,
                                                                          sn_nsdl_addr_s *address_ptr,
                                                                          sn_coap_hdr_s *coap_hdr_ptr);

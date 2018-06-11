@@ -502,28 +502,6 @@ extern int8_t sn_nsdl_delete_resource(struct nsdl_s *handle, const char *path);
 extern sn_nsdl_dynamic_resource_parameters_s *sn_nsdl_get_resource(struct nsdl_s *handle, const char *path);
 
 /**
- * \fn extern sn_grs_resource_list_s *sn_nsdl_list_resource(struct nsdl_s *handle, char *path)
- *
- * \brief Resource list function.
- *
- * \param   *handle Pointer to nsdl-library handle
- * \param   *path   A pointer to an array containing the path or a NULL pointer.
- *
- * \return  !NULL   A pointer to a sn_grs_resource_list_s structure containing the resource listing.
- * \return  NULL    Failure with an unspecified error
- */
-sn_grs_resource_list_s *sn_nsdl_list_resource(struct nsdl_s *handle, const char *path);
-
-/**
- * \fn extern void sn_nsdl_free_resource_list(struct nsdl_s *handle, sn_grs_resource_list_s *list)
- *
- * \brief Free a resource list obtained from sn_nsdl_list_resource()
- *
- * \param   list    The list to free, or NULL.
- */
-void sn_nsdl_free_resource_list(struct nsdl_s *handle, sn_grs_resource_list_s *list);
-
-/**
  * \fn extern int8_t sn_nsdl_send_coap_message(struct nsdl_s *handle, sn_nsdl_addr_s *address_ptr, sn_coap_hdr_s *coap_hdr_ptr);
  *
  * \brief Send an outgoing CoAP request.
@@ -785,7 +763,7 @@ extern const char* sn_nsdl_get_resource_attribute(const sn_nsdl_static_resource_
 extern bool sn_nsdl_remove_resource_attribute(sn_nsdl_static_resource_parameters_s *params, sn_nsdl_resource_attribute_t attribute);
 #endif
 
-/*
+/**
  * \fn bool sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
  *
  * \brief Utility function to print all the CoAP header parameters
@@ -794,6 +772,16 @@ extern bool sn_nsdl_remove_resource_attribute(sn_nsdl_static_resource_parameters
  * \param outgoing If True, package is going to be sent to server otherwise receiving
  */
 extern void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing);
+
+/**
+ * \fn uint16_t sn_nsdl_get_block_size(struct nsdl_s *handle)
+ *
+ * \brief Get CoAP block size
+ *
+ * \param *handle Pointer to library handle
+ * \return  block size
+ */
+extern uint16_t sn_nsdl_get_block_size(const struct nsdl_s *handle);
 
 #ifdef __cplusplus
 }

@@ -67,7 +67,7 @@ fcc_status_e fcc_bundle_process_config_params(const cn_cbor *config_params_list_
 
         FCC_SET_START_TIMER(fcc_config_param_timer);
 
-        fcc_bundle_clean_and_free_data_param(&config_param);
+        //fcc_bundle_clean_and_free_data_param(&config_param);
 
         //Get key CBOR struct at index key_index
         config_param_cb = cn_cbor_index(config_params_list_cb, config_param_index);

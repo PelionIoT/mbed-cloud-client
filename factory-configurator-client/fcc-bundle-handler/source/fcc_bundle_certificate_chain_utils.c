@@ -23,6 +23,7 @@
 #include "fcc_malloc.h"
 #include "fcc_time_profiling.h"
 
+
 /** Processes  certificate chain list.
 * The function extracts data parameters for each certificate chain and stores it.
 *
@@ -58,7 +59,7 @@ fcc_status_e fcc_bundle_process_certificate_chains(const cn_cbor *cert_chains_li
 
         certificate_data = NULL;
 
-        fcc_bundle_clean_and_free_data_param(&certificate_chain);
+        //fcc_bundle_clean_and_free_data_param(&certificate_chain);
 
         //Get certificate chain CBOR struct at index cert_chain_index
         cert_chain_cb = cn_cbor_index(cert_chains_list_cb, cert_chain_index);
@@ -81,6 +82,16 @@ fcc_status_e fcc_bundle_process_certificate_chains(const cn_cbor *cert_chains_li
             status = get_data_buffer_from_cbor(cert_cb, &certificate_data, &certificate_data_size);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((status == false || certificate_data == NULL || certificate_data_size == 0), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Failed to get cert data at index (%" PRIu32 ") ", cert_index);
 
+            //If private key name was passed - current leaf certificate is self generated and we need to perform verification against given private key
+            if (cert_index == 0 && certificate_chain.private_key_name != NULL) {
+                //Try to retrieve the private key from the device and verify the leaf certificate against private key data
+                kcm_result = kcm_certificate_verify_with_private_key(
+                    certificate_data,
+                    certificate_data_size,
+                    certificate_chain.private_key_name,
+                    certificate_chain.private_key_name_len);
+                    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, exit, "Failed to verify leaf certificate against given private key (%" PRIu32 ") ", cert_chain_index);
+            }
             kcm_result = kcm_cert_chain_add_next(cert_chain_handle, certificate_data, certificate_data_size);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result == KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED), fcc_status = FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED, exit, "Failed to add certificate chain at index (%" PRIu32 "): PK does not match signature", cert_chain_index);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_KCM_ERROR, exit, "Failed to add certificate chain at index (%" PRIu32 ") ", cert_chain_index);
@@ -97,7 +108,13 @@ exit:
         if (cert_chain_handle != NULL) {
             kcm_cert_chain_close(cert_chain_handle);
         }
-        output_info_fcc_status = fcc_bundle_store_error_info(certificate_chain.name, certificate_chain.name_len, kcm_result);
+        //KCM_STATUS_ITEM_NOT_FOUND returned only if private key of self-generate certificate is missing.In this case we need to return name of themissing item -the private key.
+        if (kcm_result == KCM_STATUS_ITEM_NOT_FOUND) {
+            output_info_fcc_status = fcc_bundle_store_error_info(certificate_chain.private_key_name, certificate_chain.private_key_name_len, kcm_result);
+        } else {
+            output_info_fcc_status = fcc_bundle_store_error_info(certificate_chain.name, certificate_chain.name_len, kcm_result);
+        }
+
     }
     fcc_bundle_clean_and_free_data_param(&certificate_chain);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((output_info_fcc_status != FCC_STATUS_SUCCESS),

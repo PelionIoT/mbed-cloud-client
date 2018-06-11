@@ -322,6 +322,14 @@ int cn_cbor_get_encoded_size(const cn_cbor *cb, cn_cbor_errback *err);
 int cn_cbor_encoder_write(const cn_cbor *cb, uint8_t *bufOut, int bufSize, cn_cbor_errback *err);
 
 /**
+* Get the size in bytes of the encoding of only cn_cbor container (map or array) discarding its parents and siblings.
+*
+* @param[in]  cb_container         Pointer to a cn_cbor structure of either type CN_CBOR_MAP or CN_CBOR_ARRAY. Mey be part of a bigger cn_cbor structure.
+* @return                          -1 on fail, or number encoded bytes the container will be .
+*/
+int cn_cbor_get_encoded_container_size(const cn_cbor *cb_container);
+
+/**
  * Create a CBOR map.
  *
  * @param[in]   CBOR_CONTEXT Allocation context (only if USE_CBOR_CONTEXT is defined)
@@ -341,6 +349,21 @@ cn_cbor* cn_cbor_map_create(CBOR_CONTEXT_COMMA cn_cbor_errback *errp);
  * @return                   The created object, or NULL on error
  */
 cn_cbor* cn_cbor_data_create(const uint8_t* data, int len
+                             CBOR_CONTEXT,
+                             cn_cbor_errback *errp);
+
+/**
+ * Create a CBOR UTF-8 string from a buffer. The data is not checked for UTF-8 correctness.
+ * The data being stored in the string is *not* owned the CBOR object, so it is
+ * not freed automatically.
+ *
+ * @param[in]   data         UTF-8 string (does not have to be NULL terminated)
+ * @param[in]   len          The number of bytes of data
+ * @param[in]   CBOR_CONTEXT Allocation context (only if USE_CBOR_CONTEXT is defined)
+ * @param[out]  errp         Error, if NULL is returned
+ * @return                   The created object, or NULL on error
+ */
+cn_cbor* cn_cbor_text_create(const uint8_t* data, int len
                              CBOR_CONTEXT,
                              cn_cbor_errback *errp);
 

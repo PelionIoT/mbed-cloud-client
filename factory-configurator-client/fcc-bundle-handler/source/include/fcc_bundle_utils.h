@@ -23,24 +23,17 @@
 #include "fcc_status.h"
 #include "key_config_manager.h"
 #include "fcc_sotp.h"
+#include "cn-cbor.h"
+#include "fcc_bundle_fields.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define FCC_CBOR_MAP_LENGTH 2
+#define CSR_MAX_NUMBER_OF_CSRS 5
 
-/**
-* Names of key parameters
-*/
-#define FCC_BUNDLE_DATA_PARAMETER_NAME                  "Name"
-#define FCC_BUNDLE_DATA_PARAMETER_SCHEME                "Type"
-#define FCC_BUNDLE_DATA_PARAMETER_FORMAT                "Format"
-#define FCC_BUNDLE_DATA_PARAMETER_DATA                  "Data"
-#define FCC_BUNDLE_DATA_PARAMETER_ACL                   "ACL"
-#define FCC_BUNDLE_DATA_PARAMETER_ARRAY                 "DataArray"
-
-/**
+    /**
 * Types of key parameters
 */
 typedef enum {
@@ -50,6 +43,7 @@ typedef enum {
     FCC_BUNDLE_DATA_PARAM_DATA_TYPE,
     FCC_BUNDLE_DATA_PARAM_ACL_TYPE,
     FCC_BUNDLE_DATA_PARAM_ARRAY_TYPE,
+    FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME_TYPE,
     FCC_BUNDLE_DATA_PARAM_MAX_TYPE
 } fcc_bundle_data_param_type_e;
 
@@ -70,7 +64,8 @@ static const fcc_bundle_data_param_lookup_record_s fcc_bundle_data_param_lookup_
     { FCC_BUNDLE_DATA_PARAM_FORMAT_TYPE,        FCC_BUNDLE_DATA_PARAMETER_FORMAT },
     { FCC_BUNDLE_DATA_PARAM_DATA_TYPE,          FCC_BUNDLE_DATA_PARAMETER_DATA },
     { FCC_BUNDLE_DATA_PARAM_ACL_TYPE,           FCC_BUNDLE_DATA_PARAMETER_ACL },
-    { FCC_BUNDLE_DATA_PARAM_ARRAY_TYPE,         FCC_BUNDLE_DATA_PARAMETER_ARRAY }
+    { FCC_BUNDLE_DATA_PARAM_ARRAY_TYPE,         FCC_BUNDLE_DATA_PARAMETER_ARRAY },
+    { FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME_TYPE, FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME }
 };
 
 /**
@@ -91,12 +86,6 @@ typedef enum {
     FCC_PEM_DATA_FORMAT,
     FCC_MAX_DATA_FORMAT
 } fcc_bundle_data_format_e;
-
-/**
-* Names of data formats
-*/
-#define FCC_BUNDLE_DER_DATA_FORMAT_NAME  "der"
-#define FCC_BUNDLE_PEM_DATA_FORMAT_NAME   "pem"
 
 /**
 * Group lookup record, correlating group's type and name
@@ -140,6 +129,8 @@ typedef struct fcc_bundle_data_param_ {
     uint8_t                          *acl;
     size_t                           acl_size;
     cn_cbor                          *array_cn;
+    uint8_t                           *private_key_name;
+    size_t                           private_key_name_len;
 } fcc_bundle_data_param_s;
 
 
@@ -255,6 +246,17 @@ fcc_status_e bundle_process_status_field(const cn_cbor *cbor_blob, char *cbor_gr
 *     One of FCC_STATUS_* error codes
 */
 fcc_status_e fcc_bundle_factory_disable(void);
+
+/** Process the the CSR requests from the incoming message, generate the keys (and store them) and CSRs, and append the CSRs to the encoder in the proper format.
+* 
+*
+* @param csrs_list_cb[in]   The pointer to a cn_cbor object of type CN_CBOR_ARRAY which is an array of CSR request maps.
+* @param response_encoder[in/out]    encoder that points to the response map.
+* @return
+*     One of FCC_STATUS_* error codes
+*/
+fcc_status_e fcc_bundle_process_csrs(const cn_cbor *csrs_list_cb, cn_cbor *response_encoder);
+
 #ifdef __cplusplus
 }
 #endif

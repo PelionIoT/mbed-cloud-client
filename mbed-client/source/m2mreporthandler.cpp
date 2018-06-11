@@ -51,7 +51,8 @@ M2MReportHandler::M2MReportHandler(M2MReportObserver &observer)
   _low_step(0.0f),
   _last_value(-1.0f),
   _notification_sending_in_progress(false),
-  _notification_in_queue(false)
+  _notification_in_queue(false),
+  _blockwise_notify(false)
 {
     tr_debug("M2MReportHandler::M2MReportHandler()");
 }
@@ -69,7 +70,7 @@ void M2MReportHandler::set_under_observation(bool observed)
     _is_under_observation = observed;
 
     stop_timers();
-    if(observed) {
+    if (observed) {
         handle_timers();
     }
     else {
@@ -82,13 +83,12 @@ void M2MReportHandler::set_value(float value)
     tr_debug("M2MReportHandler::set_value() - current %f, last %f", value, _last_value);
     _current_value = value;
 
-    if(_current_value != _last_value) {
+    if (_current_value != _last_value) {
         tr_debug("M2MReportHandler::set_value() - UNDER OBSERVATION");
         set_notification_in_queue(true);
         if (check_threshold_values()) {
             schedule_report();
-        }
-        else {
+        } else {
             tr_debug("M2MReportHandler::set_value - value not in range");
             _notify = false;
             _last_value = _current_value;
@@ -102,7 +102,6 @@ void M2MReportHandler::set_value(float value)
         }
         _high_step = _current_value + _st;
         _low_step = _current_value - _st;
-
     }
 }
 
@@ -590,4 +589,14 @@ void M2MReportHandler::set_notification_send_in_progress(bool progress)
 bool M2MReportHandler::notification_send_in_progress() const
 {
     return _notification_sending_in_progress;
+}
+
+void M2MReportHandler::set_blockwise_notify(bool blockwise_notify)
+{
+    _blockwise_notify = blockwise_notify;
+}
+
+bool M2MReportHandler::blockwise_notify() const
+{
+    return _blockwise_notify;
 }

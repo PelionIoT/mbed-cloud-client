@@ -74,7 +74,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=1.3.2";
+const char *MCC_VERSION = "mccv=1.3.3";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -703,6 +703,14 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                                                              coap_response,
                                                              obj_instance,
                                                              is_bootstrap_msg);
+
+            } else if (COAP_STATUS_BUILDER_BLOCK_SENDING_DONE == coap_header->coap_status &&
+                       coap_header->msg_code == COAP_MSG_CODE_RESPONSE_CONTENT) {
+
+                M2MBase *base = find_resource("", coap_header->msg_id);
+                if (base) {
+                    handle_notification_delivered(base);
+                }
 
             } else if (COAP_MSG_CODE_EMPTY == coap_header->msg_code) {
 
@@ -1687,9 +1695,12 @@ void M2MNsdlInterface::send_object_observation(M2MObject *object,
         }
 
         object->get_observation_token((uint8_t*)&token,token_length);
+
+        object->report_handler()->set_blockwise_notify(is_blockwise_needed(length));
+
         int32_t msgid = sn_nsdl_send_observation_notification(_nsdl_handle, token, token_length, value, length,
-                                                                   sn_coap_observe_e(obs_number), COAP_MSG_TYPE_CONFIRMABLE,
-                                                                   sn_coap_content_format_e(object->coap_content_type()), -1);
+                                                              sn_coap_observe_e(obs_number), COAP_MSG_TYPE_CONFIRMABLE,
+                                                              sn_coap_content_format_e(object->coap_content_type()), -1);
         execute_notification_delivery_status_cb(object, msgid);
 
         memory_free(value);
@@ -1709,6 +1720,8 @@ void M2MNsdlInterface::send_object_instance_observation(M2MObjectInstance *objec
         value = M2MTLVSerializer::serialize(object_instance->resources(), length);
 
         object_instance->get_observation_token((uint8_t*)&token,token_length);
+
+        object_instance->report_handler()->set_blockwise_notify(is_blockwise_needed(length));
 
         int32_t msgid = sn_nsdl_send_observation_notification(_nsdl_handle, token, token_length, value, length,
                                                                sn_coap_observe_e(obs_number), COAP_MSG_TYPE_CONFIRMABLE,
@@ -1742,6 +1755,8 @@ void M2MNsdlInterface::send_resource_observation(M2MResource *resource,
         } else {
             resource->get_value(value,length);
         }
+
+        resource->report_handler()->set_blockwise_notify(is_blockwise_needed(length));
 
         int32_t msgid = sn_nsdl_send_observation_notification(_nsdl_handle, token, token_length, value, length,
                                                                    sn_coap_observe_e(obs_number),
@@ -2426,7 +2441,23 @@ void M2MNsdlInterface::send_coap_ping()
     if (MBED_CLIENT_TCP_KEEPALIVE_INTERVAL > 0 && _counter_for_nsdl == _next_coap_ping_send_time) {
         tr_info("M2MNsdlInterface::send_coap_ping()");
         calculate_new_coap_ping_send_time();
-        sn_coap_protocol_send_rst(_nsdl_handle->grs->coap, 0, &_sn_nsdl_address, _nsdl_handle);
+
+        // Build the CoAP here as the CoAP builder would add the message to re-sending queue.
+        uint8_t packet_ptr[4];
+
+        /* Add CoAP version and message type */
+        packet_ptr[0] = COAP_VERSION_1;
+        packet_ptr[0] |= COAP_MSG_TYPE_CONFIRMABLE;
+
+        /* Add message code */
+        packet_ptr[1] = COAP_MSG_CODE_EMPTY;
+
+        /* Add message ID */
+        packet_ptr[2] = 0;
+        packet_ptr[3] = 0;
+
+        /* Send ping */
+        _nsdl_handle->sn_nsdl_tx_callback(_nsdl_handle, SN_NSDL_PROTOCOL_COAP, packet_ptr, 4, &_sn_nsdl_address);
     }
 }
 
@@ -2908,18 +2939,34 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
     } else {
         // Notification delivered
         M2MBase *base = find_resource("", coap_header->msg_id);
-        if (base) {
-            base->report_handler()->set_notification_send_in_progress(false);
-            _notification_send_ongoing = false;
-            base->send_notification_delivery_status(*base, NOTIFICATION_STATUS_DELIVERED);
-            _notification_handler->send_notification(this);
-
-            // Supported only in Resource level
-            // TODO! remove below code once old API is removed
-            if (M2MBase::Resource == base->base_type()) {
-                M2MResource *resource = static_cast<M2MResource *> (base);
-                resource->notification_sent();
-            }
+        if (base && !base->report_handler()->blockwise_notify()) {
+            handle_notification_delivered(base);
         }
+    }
+}
+
+void M2MNsdlInterface::handle_notification_delivered(M2MBase *base)
+{
+    base->report_handler()->set_notification_send_in_progress(false);
+    _notification_send_ongoing = false;
+    base->send_notification_delivery_status(*base, NOTIFICATION_STATUS_DELIVERED);
+    _notification_handler->send_notification(this);
+
+    // Supported only in Resource level
+    // TODO! remove below code once old API is removed
+    if (M2MBase::Resource == base->base_type()) {
+        M2MResource *resource = static_cast<M2MResource *> (base);
+        resource->notification_sent();
+    }
+}
+
+bool M2MNsdlInterface::is_blockwise_needed(uint32_t length) const
+{
+    uint16_t block_size = sn_nsdl_get_block_size(_nsdl_handle);
+
+    if (length > block_size && block_size > 0) {
+        return true;
+    } else {
+        return false;
     }
 }

@@ -19,6 +19,12 @@
 #include "fcc_status.h"
 #include "fcc_output_info_handler.h"
 #include "fcc_malloc.h"
+#include "kcm_defs.h"
+#include "fcc_bundle_utils.h"
+
+// Macros for stringizing defines
+#define xstr(a) str(a)
+#define str(a) #a
 
 
 //General error string
@@ -44,6 +50,7 @@ const char g_fcc_wrong_ca_certificate_error_str[] = "Validation of CA certificat
 const char g_fcc_invalid_cn_certificate_error_str[] = "Certificate CN attribute invalid:";
 const char g_fcc_crypto_public_key_correlation_error_str[] = "Certificate public key validation failed:";
 const char g_fcc_internal_storage_error_str[] = "Internal storage error:";
+const char g_fcc_csr_requests_too_many[] = "Too many CSR requests. Maximum CSR requests supported is " xstr(CSR_MAX_NUMBER_OF_CSRS);
 
 //kcm crypto error strings
 const char g_fcc_kcm_file_error_str[] = "File operation general error:";
@@ -53,8 +60,9 @@ const char g_fcc_kcm_file_name_corrupted_str[] = "File name corrupted:";
 const char g_fcc_kcm_not_initialized_str[] = "KCM not initialized:";
 const char g_fcc_kcm_close_incomplete_chain_str[] = "Closing incomplete KCM chain:";
 const char g_fcc_kcm_invalid_chain_str[] = "Corrupted certificate chain file:";
-const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[] = "Invalid number of certificate in chain:";
+const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[] = "Invalid number of certificate in chain. Maximum chain length supported is " xstr(KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN);
 const char g_fcc_kcm_file_exist_error_str[] = "Data already exists:";
+const char g_fcc_kcm_key_exist_error_str[] = "Desired generated key name already exists:";
 const char g_fcc_kcm_file_name_too_long_error_str[] = "File name too long:";
 const char g_fcc_crypto_kcm_error_str[] = "KCM crypto error:";
 const char g_fcc_crypto_empty_item_error_str[] = "Item data empty:";
@@ -79,7 +87,7 @@ const char g_fcc_crypto_pk_key_invalid_version_error_str[] = "Public key version
 const char g_fcc_crypto_pk_password_requerd_error_str[] = "Public key password required:";
 const char g_fcc_crypto_unknown_pk_algorithm_error_str[] = "Public key algorithm unknown:";
 const char g_fcc_crypto_chain_validation_error_str[] = "Chain validation error:";
-
+const char g_fcc_self_generated_certificate_validation_error_str[] = "Self-generated certificate validation failed:";
 //warning strings
 const char g_fcc_item_not_set_warning_str[] = "Item not set:";
 
@@ -273,9 +281,13 @@ char* fcc_get_fcc_error_string(fcc_status_e fcc_status)
         case FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED:
             fcc_error_string = (char*)g_fcc_crypto_chain_validation_error_str;
             break;
-        default:
-            fcc_error_string = (char*)NULL;
+        case FCC_STATUS_TOO_MANY_CSR_REQUESTS:
+            fcc_error_string = (char*)g_fcc_csr_requests_too_many;
             break;
+        case FCC_STATUS_SUCCESS:
+        case FCC_MAX_STATUS:
+            return fcc_error_string;
+
     }
     if (fcc_error_string != NULL) {
         SA_PV_LOG_TRACE_FUNC_EXIT("fcc_error_string is %s", fcc_error_string);
@@ -310,6 +322,9 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
         case KCM_CRYPTO_STATUS_INVALID_OID:
         case KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT:
             kcm_error_string = (char*)g_fcc_general_status_error_str;
+            break;
+        case KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR:
+            kcm_error_string = (char*)g_fcc_self_generated_certificate_validation_error_str;
             break;
         case KCM_STATUS_STORAGE_ERROR:
             kcm_error_string = (char*)g_fcc_kcm_file_error_str;
@@ -349,6 +364,9 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
             break;
         case KCM_STATUS_FILE_EXIST:
             kcm_error_string = (char*)g_fcc_kcm_file_exist_error_str;
+            break;
+        case KCM_STATUS_KEY_EXIST:
+            kcm_error_string = (char*)g_fcc_kcm_key_exist_error_str;
             break;
         case KCM_STATUS_FILE_NAME_CORRUPTED:
             kcm_error_string = (char*)g_fcc_kcm_file_name_corrupted_str;
@@ -419,9 +437,9 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
         case KCM_CRYPTO_STATUS_PK_UNKNOWN_PK_ALG:
             kcm_error_string = (char*)g_fcc_crypto_unknown_pk_algorithm_error_str;
             break;
-        default:
-            kcm_error_string = (char*)NULL;
-            break;
+        case KCM_STATUS_SUCCESS:
+        case KCM_MAX_STATUS:
+            return kcm_error_string;
     }
 
     if (kcm_error_string != NULL) {

@@ -100,7 +100,6 @@ kcm_status_e cs_error_handler(palStatus_t pal_status)
     }
 }
 
-
 /* The function checks private and certificate's public key correlation
 */
 kcm_status_e cs_check_certifcate_public_key(palX509Handle_t x509_cert, const uint8_t *private_key_data, size_t size_of_private_key_data)
