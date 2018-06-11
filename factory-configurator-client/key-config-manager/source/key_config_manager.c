@@ -21,6 +21,7 @@
 #include "cs_der_keys_and_csrs.h"
 #include "fcc_malloc.h"
 #include "pal.h"
+#include "cs_utils.h"
 
 typedef enum {
     KCM_PRIVATE_KEY_DATA,
@@ -210,7 +211,6 @@ Exit:
 
     return kcm_status;
 }
-
 
 kcm_status_e kcm_item_get_data_size(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, size_t *kcm_item_data_size_out)
 {
@@ -592,7 +592,7 @@ kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, con
         kcm_status = storage_file_create(&chain_context->current_kcm_ctx, chain_context->chain_name, chain_context->chain_name_len, NULL, chain_context->chain_is_factory, false);
         if (kcm_status == KCM_STATUS_FILE_EXIST) {
             // trying to recover by deleting the existing file
-            SA_PV_LOG_INFO("Certificate chain file for index %" PRIu32 " already exist. File will be overwritten.", (uint32_t)chain_context->current_cert_index);
+            SA_PV_LOG_INFO("Certificate chain file for index %" PRIu32 " already exists. File will be overwritten.", (uint32_t)chain_context->current_cert_index);
 
             kcm_status = storage_file_delete(&chain_context->current_kcm_ctx, chain_context->chain_name, chain_context->chain_name_len);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed to delete existing kcm chain file");
@@ -866,14 +866,14 @@ kcm_status_e kcm_key_pair_generate_and_store(
     //check private key existence
     kcm_status = kcm_item_get_data_size(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM,
                                         &actual_kcm_priv_key_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "private key already exists");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_KEY_EXIST, "private key already exists");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check private key existence");
 
     //fetch public key if exists
     if (pub_key_exists) {
         kcm_status = kcm_item_get_data_size(public_key_name, public_key_name_len, KCM_PUBLIC_KEY_ITEM,
                                             &actual_kcm_pub_key_size);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "public key already exists");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_KEY_EXIST, "public key already exists");
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check public key existence");
     }
 
@@ -991,14 +991,14 @@ kcm_status_e kcm_generate_keys_and_csr(
     //check private key existence
     kcm_status = kcm_item_get_data_size(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM,
                                         &actual_kcm_key_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "private key already exists");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_KEY_EXIST, "private key already exists");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check private key existence");
 
     //check public key existence
     if (pub_key_exists) {
         kcm_status = kcm_item_get_data_size(public_key_name, public_key_name_len, KCM_PUBLIC_KEY_ITEM,
                                             &actual_kcm_key_size);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_FILE_EXIST, "public key already exists");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_KEY_EXIST, "public key already exists");
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "failed to check public key existence");
     }
 
@@ -1022,5 +1022,61 @@ kcm_status_e kcm_generate_keys_and_csr(
 
 }
 
+kcm_status_e kcm_certificate_verify_with_private_key(
+    const uint8_t * kcm_cert_data,
+    size_t kcm_cert_data_size,
+    const uint8_t * kcm_priv_key_name,
+    size_t kcm_priv_key_name_len)
+{
+
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    size_t priv_key_data_size = 0;
+    uint8_t *priv_key_data = NULL;
+    size_t act_priv_key_data_size = 0;
+    palX509Handle_t x509_cert;
+
+    //check input params
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_cert_data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_cert_data");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_cert_data_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_cert_data_size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_priv_key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_priv_key_name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_priv_key_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_priv_key_name_len");
+    SA_PV_LOG_INFO_FUNC_ENTER("priv key name =  %.*s, cert size=%" PRIu32 "", (int)kcm_priv_key_name_len, (char*)kcm_priv_key_name,(uint32_t)kcm_cert_data_size);
+
+    //Get private key size
+    kcm_status = kcm_item_get_data_size(kcm_priv_key_name,
+        kcm_priv_key_name_len,
+        KCM_PRIVATE_KEY_ITEM,
+        &priv_key_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS || priv_key_data_size == 0), kcm_status, "Failed to get kcm private key size");
+
+    //Allocate memory and get private key data
+    priv_key_data = fcc_malloc(priv_key_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((priv_key_data == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, "Failed to allocate buffer for private key data");
+
+    //Get private key data
+    kcm_status = kcm_item_get_data(kcm_priv_key_name,
+        kcm_priv_key_name_len,
+        KCM_PRIVATE_KEY_ITEM,
+        priv_key_data,
+        priv_key_data_size,
+        &act_priv_key_data_size);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS || act_priv_key_data_size != priv_key_data_size), (kcm_status = kcm_status), Exit, "Failed to get private key data");
+
+    //Create certificate handle
+    kcm_status = cs_create_handle_from_der_x509_cert(kcm_cert_data, kcm_cert_data_size, &x509_cert);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed to create certificate handle");
+
+    //Check current certificate against given private key
+    kcm_status = cs_check_certifcate_public_key(x509_cert, priv_key_data, priv_key_data_size);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR), Exit, "Certificate verification failed against private key");
+
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+Exit:
+
+    fcc_free(priv_key_data);
+    cs_close_handle_x509_cert(&x509_cert);
+    return kcm_status;
+
+}
 
 

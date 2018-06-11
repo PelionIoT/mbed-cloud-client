@@ -47,7 +47,7 @@ FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_
 }
 
 FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_e domain, const uint16_t port_num, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature, int32_t timeout)
-    : FtcdCommBase(network_endianness,header_token, use_signature)
+    : FtcdCommBase(network_endianness, header_token, use_signature)
 
 {
     _interface_handler = interfaceHandler;
@@ -185,14 +185,23 @@ ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint3
     palSocketLength_t addrlen = sizeof(palSocketAddress_t);
     palSocketAddress_t address = { 0 };
 
-    // wait to accept connection
-    result = pal_accept(_server_socket, &address, &addrlen, &_client_socket);
-    if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
-        return FTCD_COMM_NETWORK_TIMEOUT;
-    } else if (result != PAL_SUCCESS) {
-        return FTCD_COMM_NETWORK_CONNECTION_ERROR;
+    // wait to accept connection if not in the middle of an accepted connection
+    if (!_client_socket) {
+        // Initialize client socket
+        result = pal_socket((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM, false, _interface_index, &_client_socket);
+        if (result != PAL_SUCCESS) {
+            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
+            return FTCD_COMM_NETWORK_CONNECTION_ERROR;
+        }
+        // We accept an incoming connection and close the connection when we know we received the last message
+        // FIXME: In the future we will want to take care of situations where the server closes the connection
+        result = pal_accept(_server_socket, &address, &addrlen, &_client_socket);
+        if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
+            return FTCD_COMM_NETWORK_TIMEOUT;
+        } else if (result != PAL_SUCCESS) {
+            return FTCD_COMM_NETWORK_CONNECTION_ERROR;
+        }
     }
-
     return FtcdCommBase::wait_for_message(message_out, message_size_out);
 }
 
@@ -324,12 +333,6 @@ bool FtcdCommSocket::_listen(void)
 
     //Open server and client sockets
     result = pal_socket((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM_SERVER, false, _interface_index, &_server_socket);
-    if (result != PAL_SUCCESS) {
-        mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
-        return false;
-    }
-
-    result = pal_socket((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM, false, _interface_index, &_client_socket);
     if (result != PAL_SUCCESS) {
         mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
         return false;

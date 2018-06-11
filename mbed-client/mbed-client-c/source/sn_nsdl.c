@@ -1915,27 +1915,6 @@ static int8_t set_endpoint_info(struct nsdl_s *handle, sn_nsdl_ep_parameters_s *
     return 0;
 }
 
-/* Wrapper */
-sn_grs_resource_list_s *sn_nsdl_list_resource(struct nsdl_s *handle, const char *path)
-{
-    /* Check parameters */
-    if (handle == NULL) {
-        return NULL;
-    }
-
-    return sn_grs_list_resource(handle->grs, path);
-}
-
-void sn_nsdl_free_resource_list(struct nsdl_s *handle, sn_grs_resource_list_s *list)
-{
-    /* Check parameters */
-    if (handle == NULL) {
-        return;
-    }
-
-    sn_grs_free_resource_list(handle->grs, list);
-}
-
 extern int8_t sn_nsdl_send_coap_message(struct nsdl_s *handle, sn_nsdl_addr_s *address_ptr, sn_coap_hdr_s *coap_hdr_ptr)
 {
     /* Check parameters */
@@ -2569,4 +2548,13 @@ static void sn_nsdl_add_token(struct nsdl_s *handle, uint32_t *token, sn_coap_hd
 
     message_ptr->token_ptr = (uint8_t*)token;
     message_ptr->token_len = sizeof(*token);
+}
+
+uint16_t sn_nsdl_get_block_size(const struct nsdl_s *handle)
+{
+    if (handle == NULL) {
+        return 0;
+    }
+
+    return handle->grs->coap->sn_coap_block_data_size;
 }

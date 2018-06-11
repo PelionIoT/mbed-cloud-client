@@ -37,6 +37,7 @@ typedef enum {
     KCM_STATUS_META_DATA_NOT_FOUND,                           //!< The meta data was not found in the file.
     KCM_STATUS_META_DATA_SIZE_ERROR,                          //!< The meta data found but the size is different then expected.
     KCM_STATUS_FILE_EXIST,                                    //!< Trying to store an item that is already in the storage.
+    KCM_STATUS_KEY_EXIST,                                     //!< Trying to generate a key for a CSR, but the requesested output key name already exists in the storage.
     KCM_STATUS_NOT_PERMITTED,                                 //!< Trying to access an item without proper permissions.
     KCM_STATUS_STORAGE_ERROR,                                 //!< File error occurred.
     KCM_STATUS_ITEM_IS_EMPTY,                                 //!< The data of current item is empty.
@@ -49,7 +50,7 @@ typedef enum {
     KCM_STATUS_CLOSE_INCOMPLETE_CHAIN,                        //!< Closing KCM chain with less certificates than declared in create
     KCM_STATUS_CORRUPTED_CHAIN_FILE,                          //!< KCM attempted to open an invalid chain file
     KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN,                  //!< Operation failed due to invalid number of certificates.
-    KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED,          //!< At least one of the certificates fails to verify its predecessor.
+    KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED,         //!< At least one of the certificates fails to verify its predecessor.
     KCM_STATUS_FILE_NAME_TOO_LONG,                            //!< Provided a file name that is longer than permitted. 
     KCM_CRYPTO_STATUS_UNSUPPORTED_HASH_MODE,                  //!< Operation was called with unsupported hash mode.
     KCM_CRYPTO_STATUS_PARSING_DER_PRIVATE_KEY,                //!< Operation failed to parse private der key.
@@ -79,6 +80,7 @@ typedef enum {
     KCM_CRYPTO_STATUS_FAILED_TO_WRITE_CSR,                    //!< Operation failed to write CSR to DER buffer.
     KCM_CRYPTO_STATUS_INVALID_OID,                            //!< Operation failed due to invalid OID.
     KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT,                    //!< Operation failed due to invalid name format.
+    KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR, //!< Verification of self-generated certificate against stored private key failed
     KCM_MAX_STATUS,
 } kcm_status_e;
 

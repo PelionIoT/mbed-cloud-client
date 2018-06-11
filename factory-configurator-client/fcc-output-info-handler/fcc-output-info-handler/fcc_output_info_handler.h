@@ -58,7 +58,7 @@ fcc_status_e fcc_bundle_store_error_info(const uint8_t *failed_item_name, size_t
 /**  The function stores the name of failed item and fcc error string in global variables
 *The error returned by fcc_verify_device_configured_4mbed_cloud API.
 
-* @param failed_item_name[in]          The name of failed item
+* @param failed_item_name[in]          The name of failed item. If NULL, error will be stored without an item name.
 * @param failed_item_name_size[in]     The size of failed item name.
 * @param fcc_status[in]               The fcc status value.
 *

@@ -47,9 +47,11 @@ extern const char g_fcc_wrong_ca_certificate_error_str[];
 extern const char g_fcc_invalid_cn_certificate_error_str[];
 extern const char g_fcc_crypto_public_key_correlation_error_str[];
 extern const char g_fcc_internal_storage_error_str[];
+extern const char g_fcc_csr_requests_too_many[];
 
 //kcm crypto error strings
 extern const char g_fcc_kcm_file_exist_error_str[];
+extern const char g_fcc_kcm_key_exist_error_str[];
 extern const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[];
 extern const char g_fcc_crypto_empty_item_error_str[];
 extern const char g_fcc_crypto_unsupported_hash_mode_error_str[];
@@ -74,7 +76,7 @@ extern const char g_fcc_crypto_pk_key_invalid_version_error_str[];
 extern const char g_fcc_crypto_pk_password_requerd_error_str[];
 extern const char g_fcc_crypto_unknown_pk_algorithm_error_str[];
 extern const char g_fcc_crypto_chain_validation_error_str[];
-
+extern const char g_fcc_self_generated_certificate_validation_error_str[];
 //warning strings
 extern const char g_fcc_item_not_set_warning_str[];
 extern const char g_fcc_bootstrap_mode_false_warning_str[];

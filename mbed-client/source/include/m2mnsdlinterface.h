@@ -587,6 +587,8 @@ private:
 
     void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
 
+    void handle_notification_delivered(M2MBase *base);
+
     void handle_empty_ack(const sn_coap_hdr_s *coap_header, bool is_bootstrap_msg);
 
     bool handle_post_response(sn_coap_hdr_s *coap_header,
@@ -595,6 +597,7 @@ private:
                               M2MObjectInstance *&obj_instance,
                               bool is_bootstrap_msg);
 
+    bool is_blockwise_needed(uint32_t length) const;
 private:
 
     M2MNsdlObserver                         &_observer;

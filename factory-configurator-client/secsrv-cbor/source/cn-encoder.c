@@ -400,6 +400,32 @@ int cn_cbor_encoder_write(const cn_cbor *cb, uint8_t *bufOut, int bufSize, cn_cb
 	return bytesWritten;
 }
 
+int cn_cbor_get_encoded_container_size(const cn_cbor *cb_container) 
+{
+    int ret;
+    cn_cbor_errback err;
+    cn_cbor *sibling_backup = cb_container->next;
+    cn_cbor *parent_backup = cb_container->parent;
+
+    // Make sure the CBOR is a container
+    if (cb_container->type != CN_CBOR_MAP &&
+        cb_container->type != CN_CBOR_ARRAY) {
+        return -1;
+    }
+
+    // Disconnect parent sibling temporarily. We first cast to size_t to avoid compiler const warnings
+    ((cn_cbor*)(size_t)cb_container)->next = NULL;
+    ((cn_cbor*)(size_t)cb_container)->parent = NULL;
+
+    ret = cn_cbor_get_encoded_size(cb_container, &err);
+
+    // Restore sibling
+    ((cn_cbor*)(size_t)cb_container)->next = sibling_backup;
+    ((cn_cbor*)(size_t)cb_container)->parent = parent_backup;
+
+    return ret;
+}
+
 #ifdef  __cplusplus
 }
 #endif

@@ -1,6 +1,28 @@
 ## Changelog for Mbed Cloud Client
 
-### Release R1.3.2 (22.05.2018)
+### Release 1.3.3 (11.06.2018)
+
+#### Mbed Cloud Client
+
+* Fixed issue: Wrong CoAP ping message. CoAP ping must be sent as an empty confirmable message.
+* In the previous versions, the client in queue mode went to sleep while in reconnection mode. Now, it completes the connection before going to sleep.
+* This version of Cloud Client supports Mbed OS 5.8.5 and onwards patch releases.
+
+#### Factory configurator client
+
+* Full support for the `device generated keys` mode. You can activate the mode using the factory configurator utility (FCU) or the KCM APIs.
+
+    <span class="notes">**Note:** Cloud Client and Mbed Cloud do not yet support this mode.</span>
+* A certificate signed request (CSR) that is generated on the device, can be created with the `Extended key usage` extension.
+* A new KCM API introduced:
+  * `kcm_certificate_verify_with_private_key` - a self-generated certificate can be checked against a stored private key.
+* Fixed the `FtcdCommBase::wait_for_message` function to receive multiple messages.
+
+#### Platform Adaptation Layer (PAL)
+
+* The u-blox ODIN-W2 board now requires support for RSA crypto from Mbed TLS. RSA crypto has been enabled by default for the target `MODULE_UBLOX_ODIN_W2`. Enabling RSA crypto increases the flash size by 20KB. More details in Mbed OS PR [#6963](https://github.com/ARMmbed/mbed-os/pull/6963).
+
+### Release 1.3.2 (22.05.2018)
 
 #### Mbed Cloud Client
 
@@ -35,28 +57,27 @@
 
 * Linux: Converted all timers to use signal-based timer (SIGEV_SIGNAL) instead of (SIGEV_THREAD).
   * This fixes the Valgrind warnings for possible memory leaks caused by LIBC's internal timer helper thread.
-  
+
     <span class="notes">**Note**: If the client application is creating a pthread before instantiating MbedCloudClient,
     it needs to block the PAL_TIMER_SIGNAL from it. Otherwise the thread may get an exception caused
     by the default signal handler with a message such as "Process terminating with default action
-    of signal 34 (SIGRT2)". For a suggested way to handle this please see `mcc_platform_init()` in
-    https://github.com/ARMmbed/mbed-cloud-client-example/blob/master/source/platform/Linux/common_setup.c.</span>
-* Linux: Linux specific version of pal_accept()'s addressLen parameter was requiring a platform specific socket address structure size, not a platform independent one.
+    of signal 34 (SIGRT2)". For a suggested way to handle this please see `mcc_platform_init()` in [here](https://github.com/ARMmbed/mbed-cloud-client-example/blob/master/source/platform/Linux/common_setup.c).</span>
+* Linux: Fixed the Linux-specific version of `pal_accept()'s` `addressLen` parameter which previously required a platform-specific socket address structure size, not a platform independent one.
 * Fixed a hard fault issue that occurred when calling `pal_ECKeyGenerateKey`.
 * Return PAL_ERR_BUFFER_TOO_SMALL if the output buffer is too small for write in `pal_writePrivateKeyToDer`, `pal_writePublicKeyToDer`  and `pal_x509CSRWriteDER APIs`.
 * Fixed the missing handling for initialization failure of SOTP.
 * New API `pal_x509CertGetHTBS`: Calculate the hash of the _To Be Signed_ part of an X509 certificate.
 
-#### Mbed cloud update
+#### Mbed Cloud Update
 
 * Improvements to the scheduler to ensure that events are not lost. The scheduler now uses a pool allocation mechanism and queue element locks.
-* Implement API to get the active firmware details.
-* Rollback protection error will now be reported as "Firmware update failed" (8) when MCCP=1.
-* Issue an error when the firmware payload exceeds the maximum storage-size limit.
-* Use constant time binary compare function.
-* Fix build error for Cortex-A9 target.
+* Implemented an API to get the active firmware details.
+* A rollback protection error will now be reported as "Firmware update failed" (8) when MCCP=1.
+* An error is issued when the firmware payload exceeds the maximum storage-size limit.
+* Mbed Cloud Update now uses a constant time binary compare function.
+* Fixed a build error for Cortex-A9 target when retrieving the current interrupt enabled state.
 
-### Release R1.3.1.1 (27.04.2018)
+### Release 1.3.1.1 (27.04.2018)
 
 #### Mbed Cloud Client
 
@@ -73,7 +94,7 @@
 
 * Linux: Replaced `fflush(NULL)` with `sync()` in `pal_osReboot` which was causing deadlock in Raspberry Pi3.
 
-### Release R1.3.1 (19.04.2018)
+### Release 1.3.1 (19.04.2018)
 
 #### Mbed Cloud Client
 
@@ -102,5 +123,5 @@ Using PAL for asyncronous handling of DNS enables firmware update with mesh.
 * Removed the thread-priority requirement.
 * Fixed the compatibility issues with Mbed OS 5.8/5.9.
 
-### Release R1.3.0 (27.3.2018)
+### Release 1.3.0 (27.3.2018)
 * Initial public release.

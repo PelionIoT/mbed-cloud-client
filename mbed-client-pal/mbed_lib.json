@@ -1,8 +1,13 @@
 {
     "name": "mbed-client-pal",
     "config": {
-        "update-active-metadata-header-offset": null
+        "update-active-metadata-header-offset": null,
+        "rsa-required": false
+    },
+    "target_overrides": {
+        "MODULE_UBLOX_ODIN_W2": {
+            "rsa-required": true
+        }
     }
-
 }
 
