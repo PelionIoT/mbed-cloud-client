@@ -36,6 +36,11 @@
 #define PAL_THREAD_NAME_MAX_LEN 20 // max len for thread name which holds the pointer (as string) to dynamically allocated thread data
 #define PAL_THREAD_STACK_ALIGN(x) ((x % sizeof(uint64_t)) ? (x + ((sizeof(uint64_t)) - (x % sizeof(uint64_t)))) : x)
 
+/* Determine if a non-secure user thread has default access to call secure functions */
+#ifndef MBED_TZ_DEFAULT_ACCESS
+#define MBED_TZ_DEFAULT_ACCESS   0
+#endif
+
 typedef struct palThreadData 
 {
     osThreadId_t threadID;
@@ -328,6 +333,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
     threadData->threadAttr.name = threadName;
     threadData->threadAttr.cb_mem= &(threadData->threadStore);
     threadData->threadAttr.cb_size = sizeof(threadData->threadStore);
+    threadData->threadAttr.tz_module = MBED_TZ_DEFAULT_ACCESS;
     threadData->userFunction = function;
     threadData->userFunctionArgument = funcArgument;
 
