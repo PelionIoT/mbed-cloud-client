@@ -2,7 +2,12 @@
     "name": "mbed-client-pal",
     "config": {
         "update-active-metadata-header-offset": null,
-        "rsa-required": false
+        "rsa-required": false,
+        "pal-dns-api-version": {
+            "help": "Version of DNS API. This requires that PAL_NET_DNS_SUPPORT is defined to true",
+            "macro_name": "PAL_DNS_API_VERSION",
+            "value" : 1
+        }
     },
     "target_overrides": {
         "MODULE_UBLOX_ODIN_W2": {

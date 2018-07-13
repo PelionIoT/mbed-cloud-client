@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-
+#ifndef USE_TINY_CBOR
 #include "fcc_bundle_handler.h"
 #include "cn-cbor.h"
 #include "pv_error_handling.h"
@@ -22,6 +22,7 @@
 #include "fcc_output_info_handler.h"
 #include "fcc_malloc.h"
 #include "fcc_time_profiling.h"
+#include "fcc_utils.h"
 
 
 /** Processes  certificate chain list.
@@ -59,7 +60,6 @@ fcc_status_e fcc_bundle_process_certificate_chains(const cn_cbor *cert_chains_li
 
         certificate_data = NULL;
 
-        //fcc_bundle_clean_and_free_data_param(&certificate_chain);
 
         //Get certificate chain CBOR struct at index cert_chain_index
         cert_chain_cb = cn_cbor_index(cert_chains_list_cb, cert_chain_index);
@@ -92,9 +92,8 @@ fcc_status_e fcc_bundle_process_certificate_chains(const cn_cbor *cert_chains_li
                     certificate_chain.private_key_name_len);
                     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, exit, "Failed to verify leaf certificate against given private key (%" PRIu32 ") ", cert_chain_index);
             }
-            kcm_result = kcm_cert_chain_add_next(cert_chain_handle, certificate_data, certificate_data_size);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result == KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED), fcc_status = FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED, exit, "Failed to add certificate chain at index (%" PRIu32 "): PK does not match signature", cert_chain_index);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_KCM_ERROR, exit, "Failed to add certificate chain at index (%" PRIu32 ") ", cert_chain_index);
+            kcm_result = kcm_cert_chain_add_next(cert_chain_handle, certificate_data, certificate_data_size);            
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_result != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_result), exit, "Failed to add certificate chain at index (%" PRIu32 ") ", cert_chain_index);
         }
         // close chain
         kcm_result = kcm_cert_chain_close(cert_chain_handle);
@@ -125,3 +124,4 @@ exit:
 
     return fcc_status;
 }
+#endif

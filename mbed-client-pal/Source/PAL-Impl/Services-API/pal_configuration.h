@@ -78,6 +78,13 @@
     #define PAL_NET_DNS_SUPPORT                 true/* Add PAL support for DNS lookup. */
 #endif
 
+#if (PAL_NET_DNS_SUPPORT == true) && !(defined(PAL_DNS_API_VERSION))
+#define PAL_DNS_API_VERSION 1
+#endif
+
+#if (PAL_DNS_API_VERSION == 2)
+#define PAL_DNS_API_V2
+#endif
 
 #ifndef PAL_SUPPORT_IP_V4
     #define PAL_SUPPORT_IP_V4                 true /* support IPV4 as default*/
@@ -175,13 +182,14 @@
 #endif 
 
 //! Define the cipher suites for TLS (only one cipher suite per device available).
-#define PAL_TLS_PSK_WITH_AES_128_CBC_SHA256_SUITE           0x01
-#define PAL_TLS_PSK_WITH_AES_128_CCM_8_SUITE                0x02
-#define PAL_TLS_PSK_WITH_AES_256_CCM_8_SUITE                0x04
-#define PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SUITE        0x08
-#define PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE   0x10
-#define PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_SUITE   0x20
-
+#define PAL_TLS_PSK_WITH_AES_128_CBC_SHA256_SUITE               0x01
+#define PAL_TLS_PSK_WITH_AES_128_CCM_8_SUITE                    0x02
+#define PAL_TLS_PSK_WITH_AES_256_CCM_8_SUITE                    0x04
+#define PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8_SUITE            0x08
+#define PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE       0x10
+#define PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_SUITE       0x20
+#define PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256_SUITE      0x40
+#define PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256_SUITE      0x80
 
 //! Use the default cipher suite for TLS/DTLS operations
 #if (PAL_ENABLE_X509 == 1)
@@ -422,8 +430,7 @@
 #define VAR_NAME_VALUE(var) #var " = "  VALUE(var)
 
 #if ((!PAL_USE_INTERNAL_FLASH && (!PAL_USE_HW_ROT || !PAL_USE_HW_RTC || !PAL_USE_HW_TRNG))  \
-        || ((PAL_INT_FLASH_NUM_SECTIONS == 1) && PAL_USE_INTERNAL_FLASH && (!PAL_USE_HW_RTC || !PAL_USE_HW_TRNG)) \
-        || ((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH && !PAL_USE_HW_TRNG)) 
+        || ((PAL_INT_FLASH_NUM_SECTIONS == 1) && PAL_USE_INTERNAL_FLASH && (!PAL_USE_HW_RTC || !PAL_USE_HW_TRNG)))
         #pragma message(VAR_NAME_VALUE(PAL_USE_INTERNAL_FLASH))
         #pragma message(VAR_NAME_VALUE(PAL_USE_HW_ROT))
         #pragma message(VAR_NAME_VALUE(PAL_USE_HW_RTC))

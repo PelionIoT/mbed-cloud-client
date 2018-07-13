@@ -276,15 +276,14 @@ static void UpdateClient::queue_handler(void)
 static void UpdateClient::schedule_event()
 {
     /* schedule event */
-    arm_event_s event = {
-        .receiver   = update_client_tasklet_id,
-        .sender     = 0,
-        .event_type = UPDATE_CLIENT_EVENT_PROCESS_QUEUE,
-        .event_id   = 0,
-        .data_ptr   = NULL,
-        .priority   = ARM_LIB_LOW_PRIORITY_EVENT,
-        .event_data = 0,
-    };
+    arm_event_s event = {0};
+    event.receiver = update_client_tasklet_id;
+    event.sender = 0;
+    event.event_type = UPDATE_CLIENT_EVENT_PROCESS_QUEUE;
+    event.event_id = 0;
+    event.data_ptr = NULL;
+    event.priority = ARM_LIB_LOW_PRIORITY_EVENT;
+    event.event_data = 0;
 
     eventOS_event_send(&event);
 }

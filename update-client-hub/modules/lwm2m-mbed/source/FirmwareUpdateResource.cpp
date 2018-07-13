@@ -19,6 +19,8 @@
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
 
 #include "update-client-common/arm_uc_common.h"
+#include "source/update_client_hub_state_machine.h"
+#include "source/update_client_hub_error_handler.h"
 
 #include <stdio.h>
 
@@ -37,7 +39,7 @@ namespace FirmwareUpdateResource {
     static void packageCallback(void* _parameters);
     static void packageURICallback(void* _parameters);
     static void updateCallback(void*);
-    static void notificationCallback(void);
+    static void notificationCallback(const M2MBase& object, NotificationDeliveryStatus delivery_status, void* client_args);
     static void sendDelayedResponseTask(uint32_t parameter);
 
     /* LWM2M Firmware Update Object */
@@ -141,7 +143,7 @@ void FirmwareUpdateResource::Initialize(void)
                 if (resourceState)
                 {
                     resourceState->set_operation(M2MBase::GET_ALLOWED);
-                    resourceState->set_notification_sent_callback(notificationCallback);
+                    resourceState->set_notification_delivery_status_cb(notificationCallback, NULL);
                     resourceState->set_value(defaultValue, sizeof(defaultValue) - 1);
                 }
 
@@ -151,7 +153,7 @@ void FirmwareUpdateResource::Initialize(void)
                 if (resourceResult)
                 {
                     resourceResult->set_operation(M2MBase::GET_ALLOWED);
-                    resourceResult->set_notification_sent_callback(notificationCallback);
+                    resourceResult->set_notification_delivery_status_cb(notificationCallback, NULL);
                     resourceResult->set_value(defaultValue, sizeof(defaultValue) - 1);
                 }
 
@@ -250,13 +252,39 @@ void FirmwareUpdateResource::updateCallback(void* _parameters)
     }
 }
 
-void FirmwareUpdateResource::notificationCallback(void)
+void FirmwareUpdateResource::notificationCallback(const M2MBase& base,
+                                                  const NotificationDeliveryStatus delivery_status,
+                                                  void *client_args)
 {
-    UC_SRCE_TRACE("FirmwareUpdateResource::notificationCallback");
+    UC_SRCE_TRACE("FirmwareUpdateResource::notificationCallback status: %d", delivery_status);
 
-    if (externalNotificationCallback)
-    {
-        externalNotificationCallback();
+    if (delivery_status == NOTIFICATION_STATUS_DELIVERED) {
+        // Notification has been ACKed by server, complete to callback
+        UC_SRCE_TRACE("FirmwareUpdateResource::notificationCallback DELIVERED");
+
+        if (externalNotificationCallback) {
+            externalNotificationCallback();
+        }
+
+    }
+    else if (delivery_status == NOTIFICATION_STATUS_BUILD_ERROR ||
+             delivery_status == NOTIFICATION_STATUS_RESEND_QUEUE_FULL ||
+             delivery_status == NOTIFICATION_STATUS_SEND_FAILED ||
+             delivery_status == NOTIFICATION_STATUS_UNSUBSCRIBED) {
+        // Error case, notification not reaching service
+        // We are sending out error because we cannot rely connection is
+        // anymore up and the service and client are not in sync anymore.
+        // Also sending new notifications after this might lock event
+        // machine because comms cannot service us anymore.
+        UC_SRCE_ERR_MSG("Received Notification delivery status: %d - ERROR!", delivery_status);
+        ARM_UC_HUB_ErrorHandler(HUB_ERR_CONNECTION, ARM_UC_HUB_getState());
+
+    }
+    else {
+        // NOTIFICATION_STATUS_INIT
+        // NOTIFICATION_STATUS_SENT
+        // NOTIFICATION_STATUS_SUBSCRIBED
+        UC_SRCE_TRACE("FirmwareUpdateResource::notificationCallback Status ignored, waiting delivery...");
     }
 }
 

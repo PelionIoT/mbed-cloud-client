@@ -162,21 +162,27 @@ palStatus_t pal_RTOSDestroy(void)
 
 void pal_osReboot(void)
 {
-    PAL_LOG(INFO, "Rebooting the system\r\n");
-
+    PAL_LOG(INFO, "pal_osReboot\r\n");
+#if (PAL_USE_APPLICATION_REBOOT)
+    pal_plat_osApplicationReboot();
+#else
     //Simulator is currently for Linux only
     #if (PAL_SIMULATE_RTOS_REBOOT == 1)
         const char *argv[] = {"0" , 0};
         char *const envp[] = { 0 };
         argv[0] = program_invocation_name;
+
+        PAL_LOG(INFO, "pal_osReboot -> simulated reboot with execve(%s).\r\n", argv[0]);
   
         if (-1 == execve(argv[0], (char **)argv , envp))
         {
             PAL_LOG(ERR,"child process execve failed [%s]",argv[0]);
         }
     #else
+        PAL_LOG(INFO, "Rebooting the system\r\n");
         pal_plat_osReboot();
     #endif
+#endif
 }
 
 uint64_t pal_osKernelSysTick(void)
@@ -434,8 +440,7 @@ PAL_PRIVATE void pal_trngNoiseThreadFunc(void const* arg)
         if ((0 < trngBytesRead) && ((PAL_SUCCESS == status) || (PAL_ERR_RTOS_TRNG_PARTIAL_DATA == status)))
         {
             noiseBitsWritten = 0;
-            status = pal_noiseWriteBuffer((int32_t*)buf, (trngBytesRead * CHAR_BIT), &noiseBitsWritten);
-            PAL_LOG(DBG, "noise trng thread wrote %" PRIu16 " bits, status=%" PRIx32 "\n", noiseBitsWritten, status);
+            status = pal_noiseWriteBuffer((int32_t*)buf, (trngBytesRead * CHAR_BIT), &noiseBitsWritten);            
         }
         pal_osDelay(PAL_NOISE_TRNG_THREAD_DELAY_MILLI_SEC);
     }
@@ -1027,8 +1032,7 @@ palStatus_t pal_noiseWriteValue(const int32_t* data, uint8_t startBit, uint8_t l
         pal_osAtomicIncrement(&g_noise.buffer[currentIndex], value); // write the bits to the current index of the noise buffer
         *bitsWritten = lenBits;
     }
-    pal_osAtomicIncrement((int32_t*)(&g_noise.bitCountActual) , *bitsWritten); // increment how many bits were actually written
-    PAL_LOG(DBG, "noise added %" PRIu8 " bits\n", *bitsWritten);
+    pal_osAtomicIncrement((int32_t*)(&g_noise.bitCountActual) , *bitsWritten); // increment how many bits were actually written    
 finish:
     pal_osAtomicIncrement((int32_t*)(&g_noise.numWriters), -1); // decrement number of writers
     return status;

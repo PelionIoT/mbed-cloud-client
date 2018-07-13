@@ -426,7 +426,7 @@ kcm_status_e kcm_cert_chain_create(kcm_cert_chain_handle *kcm_chain_handle, cons
     }
 
     // Validate function parameters
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_len == 0 || kcm_chain_len > KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid chain len");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_len == 0 || kcm_chain_len > KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid chain len");
 
     kcm_status = kcm_create_complete_name(kcm_chain_name, kcm_chain_name_len, KCM_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during kcm_create_complete_name");
@@ -519,7 +519,7 @@ kcm_status_e kcm_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, const 
         kcm_status = storage_file_read_meta_data_by_type(&chain_context->current_kcm_ctx, KCM_CERT_CHAIN_LEN_MD_TYPE, (uint8_t*)&chain_len_to_read, meta_data_size, &meta_data_size);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed reading file's metadata");
         // Test if the read len is legitimate number
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((chain_len_to_read == 0 || chain_len_to_read > KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN), (kcm_status = KCM_STATUS_CORRUPTED_CHAIN_FILE), Exit, "Illegitimate chain len in file's metadata");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((chain_len_to_read == 0 || chain_len_to_read > KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN), (kcm_status = KCM_STATUS_CORRUPTED_CHAIN_FILE), Exit, "Illegitimate chain len in file's metadata");
     }
 
     chain_context->operation_type = KCM_CHAIN_OP_TYPE_OPEN;
@@ -839,7 +839,6 @@ kcm_status_e kcm_key_pair_generate_and_store(
     const kcm_security_desc_s        *kcm_params)
 
 {
-
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     size_t actual_kcm_priv_key_size = 0;
     size_t actual_kcm_pub_key_size = 0;
@@ -847,6 +846,11 @@ kcm_status_e kcm_key_pair_generate_and_store(
     uint8_t pub_key_buffer[KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE];
     bool pub_key_exists = false;
 
+    // Check if KCM initialized, if not initialize it
+    if (!kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     //temporary check that kcm_params is NULL                                                                                                   
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_params != NULL), KCM_STATUS_INVALID_PARAMETER, "kcm_params is not NULL!");
@@ -910,6 +914,12 @@ kcm_status_e kcm_csr_generate(
     size_t prv_key_size, actual_prv_key_size = 0;
     uint8_t priv_key_buffer[KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE];
 
+    // Check if KCM initialized, if not initialize it
+    if (!kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
     SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name_len");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_params");
@@ -966,6 +976,12 @@ kcm_status_e kcm_generate_keys_and_csr(
     uint8_t priv_key_buffer[KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE];
     uint8_t pub_key_buffer[KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE];
     bool pub_key_exists = false;
+
+    // Check if KCM initialized, if not initialize it
+    if (!kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     //temporary check that kcm_params is NULL                                                                                                   
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_params != NULL), KCM_STATUS_INVALID_PARAMETER, "kcm_params is not NULL!");
@@ -1034,6 +1050,12 @@ kcm_status_e kcm_certificate_verify_with_private_key(
     uint8_t *priv_key_data = NULL;
     size_t act_priv_key_data_size = 0;
     palX509Handle_t x509_cert;
+
+    // Check if KCM initialized, if not initialize it
+    if (!kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     //check input params
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_cert_data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_cert_data");

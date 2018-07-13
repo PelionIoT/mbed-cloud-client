@@ -128,30 +128,6 @@ typedef struct sn_nsdl_ep_parameters_ {
 } sn_nsdl_ep_parameters_s;
 
 /**
- * \brief For internal use
- */
-typedef struct sn_nsdl_sent_messages_ {
-    uint8_t     message_type;
-    uint16_t    msg_id_number;
-    ns_list_link_t  link;
-} sn_nsdl_sent_messages_s;
-
-/**
- * \brief Includes resource path
- */
-typedef struct sn_grs_resource_ {
-    char *path;
-} sn_grs_resource_s;
-
-/**
- * \brief Table of created resources
- */
-typedef struct sn_grs_resource_list_ {
-    uint8_t res_count; /**< Number of resources */
-    sn_grs_resource_s *res;
-} sn_grs_resource_list_s;
-
-/**
  * \brief Resource access rights
  */
 typedef enum sn_grs_resource_acl_ {
@@ -241,24 +217,6 @@ typedef struct sn_nsdl_resource_parameters_ {
                                                                          2 if resource value to be published in Base64 encoded format */
 } sn_nsdl_dynamic_resource_parameters_s;
 
-/**
- * \brief Defines OMAlw server information
- */
-typedef struct sn_nsdl_oma_server_info_ {
-    sn_nsdl_addr_s *omalw_address_ptr;
-    omalw_server_security_t omalw_server_security;
-
-} sn_nsdl_oma_server_info_t;
-
-/**
- * \brief Defines endpoint parameters to OMA bootstrap.
- */
-typedef struct sn_nsdl_bs_ep_info_ {
-    void (*oma_bs_status_cb)(sn_nsdl_oma_server_info_t *);  /**< Callback for OMA bootstrap status */
-
-    void (*oma_bs_status_cb_handle)(sn_nsdl_oma_server_info_t *,
-                                    struct nsdl_s *);       /**< Callback for OMA bootstrap status with nsdl handle */
-} sn_nsdl_bs_ep_info_t;
 
 /**
  * \fn struct nsdl_s *sn_nsdl_init  (uint8_t (*sn_nsdl_tx_cb)(sn_nsdl_capab_e , uint8_t *, uint16_t, sn_nsdl_addr_s *),
@@ -516,21 +474,27 @@ extern sn_nsdl_dynamic_resource_parameters_s *sn_nsdl_get_resource(struct nsdl_s
 extern int8_t sn_nsdl_send_coap_message(struct nsdl_s *handle, sn_nsdl_addr_s *address_ptr, sn_coap_hdr_s *coap_hdr_ptr);
 
 /**
- * \fn extern int32_t sn_nsdl_send_get_data_request(struct nsdl_s *handle);
+ * \fn extern int32_t sn_nsdl_send_request(struct nsdl_s *handle, sn_coap_msg_code_e msg_code, const char *uri_path, const uint32_t token, const size_t offset, const uint16_t payload_len, const uint8_t* payload_ptr);
  *
- * \brief Send an outgoing CoAP GET request.
+ * \brief Send an outgoing CoAP request.
  *
- * \param   *handle     Pointer to nsdl-library handle
- * \param   *uri_path   Path to the data
- * \param   *token      Message token
+ * \param   *handle       Pointer to nsdl-library handle
+ * \param   msg-code      CoAP message code to use for request
+ * \param   *uri_path     Path to the data
+ * \param   *token        Message token
+ * \param   offset        Offset within response body to request
+ * \param   payload_len   Message payload length, can be 0 for no payload
+ * \param   *payload_ptr  Message payload pointer, can be NULL for no payload
  *
- * \return  0   Success
- * \return  -1  Failure
+ * \Return  > 0 Success else Failure
  */
-extern int32_t sn_nsdl_send_get_data_request(struct nsdl_s *handle,
-                                             const char *uri_path,
-                                             const uint32_t token,
-                                             const size_t offset);
+extern int32_t sn_nsdl_send_request(struct nsdl_s *handle,
+                                    sn_coap_msg_code_e msg_code,
+                                    const char *uri_path,
+                                    const uint32_t token,
+                                    const size_t offset,
+                                    const uint16_t payload_len,
+                                    uint8_t* payload_ptr);
 
 /**
  * \fn extern int8_t set_NSP_address(struct nsdl_s *handle, uint8_t *NSP_address, uint8_t address_length, uint16_t port, sn_nsdl_addr_type_e address_type);
@@ -563,7 +527,6 @@ extern int8_t sn_nsdl_destroy(struct nsdl_s *handle);
 extern uint16_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle,
                                       sn_nsdl_addr_s *bootstrap_address_ptr,
                                       sn_nsdl_ep_parameters_s *endpoint_info_ptr,
-                                      sn_nsdl_bs_ep_info_t *bootstrap_endpoint_info_ptr,
                                       const char *uri_query_parameters);
 
 /**
@@ -782,6 +745,16 @@ extern void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoin
  * \return  block size
  */
 extern uint16_t sn_nsdl_get_block_size(const struct nsdl_s *handle);
+
+/**
+ * \fn uint8_t sn_nsdl_get_retransmission_count(struct nsdl_s *handle)
+ *
+ * \brief  Returns retransmission coint
+ *
+ * \param *handle Pointer to library handle
+ * \return  Retransmission count
+ */
+extern uint8_t sn_nsdl_get_retransmission_count(struct nsdl_s *handle);
 
 #ifdef __cplusplus
 }

@@ -728,6 +728,7 @@ int32_t pal_plat_osAtomicIncrement(int32_t* valuePtr, int32_t increment)
 	return free(buffer);
 }
 
+#if PAL_USE_HW_TRNG
 palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -749,6 +750,7 @@ palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, siz
     }
     return status;
 }
+#endif
 
 #if (PAL_USE_HW_RTC)
 palStatus_t pal_plat_osGetRtcTime(uint64_t *rtcGetTime)

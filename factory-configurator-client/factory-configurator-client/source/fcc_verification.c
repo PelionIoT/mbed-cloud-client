@@ -729,7 +729,7 @@ static fcc_status_e verify_firmware_update_certificate(void)
     uint8_t *parameter_name = (uint8_t*)g_fcc_update_authentication_certificate_name;
     size_t size_of_parameter_name = strlen(g_fcc_update_authentication_certificate_name);
     palX509Handle_t x509_cert_handle = NULLPTR;
-    kcm_cert_chain_context_int_s *cert_chain;
+    kcm_cert_chain_context_int_s *cert_chain = NULL;
     kcm_cert_chain_handle chain_handle;
     size_t chain_len = 0;
 
@@ -737,10 +737,9 @@ static fcc_status_e verify_firmware_update_certificate(void)
 
     // Open device certificate as chain. 
     kcm_status = kcm_cert_chain_open(&chain_handle, parameter_name, size_of_parameter_name, &chain_len);
-    cert_chain = (kcm_cert_chain_context_int_s *)chain_handle;
 
     // If item does not exist or is empty -set warning
-    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND || kcm_status == KCM_STATUS_ITEM_IS_EMPTY) {
+    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND ) {
         fcc_output_status = fcc_store_warning_info((const uint8_t*)parameter_name, size_of_parameter_name, g_fcc_item_not_set_warning_str);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_output_status != FCC_STATUS_SUCCESS),
                                       fcc_status = FCC_STATUS_WARNING_CREATE_ERROR,
@@ -749,8 +748,11 @@ static fcc_status_e verify_firmware_update_certificate(void)
                                       g_fcc_item_not_set_warning_str);
         fcc_status = FCC_STATUS_SUCCESS;
     } else {
+
         //If get kcm data returned error, exit with error
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), exit, "Failed to get update certificate data");
+
+        cert_chain = (kcm_cert_chain_context_int_s *)chain_handle;
 
         // Verify expiration of all certificates in firmware chain
         // ADAM: Maybe change to function that gets verify_certificate_expiration as callback function (seems unnecessary for now...)
@@ -773,7 +775,10 @@ static fcc_status_e verify_firmware_update_certificate(void)
     }
 
 exit:
-    kcm_cert_chain_close(chain_handle);
+    //Close the chain in case it was created
+    if ( cert_chain != NULL) {
+        kcm_cert_chain_close(chain_handle);
+    }
     if (x509_cert_handle != NULLPTR) {
         cs_close_handle_x509_cert(&x509_cert_handle);
     }

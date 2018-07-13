@@ -51,8 +51,11 @@ public:
         SMSBindingSecretKey,
         M2MServerSMSNumber,
         ShortServerID,
-        ClientHoldOffTime
-    }SecurityResource;
+        ClientHoldOffTime,
+        OpenCertificateChain,
+        CloseCertificateChain,
+        ReadDeviceCertificateChain
+    } SecurityResource;
 
     /**
      * \brief An enum defining the type of the security attribute
@@ -62,7 +65,8 @@ public:
         SecurityNotSet = -1,
         Psk = 0,
         Certificate = 2,
-        NoSecurity = 3
+        NoSecurity = 3,
+        EST = 4
     } SecurityModeType;
 
     /**
@@ -192,15 +196,18 @@ public:
     /**
      * \brief Populates the data buffer and returns the size of the buffer.
      * \param resource With this function, the following resources can return a value:
-     * 'PublicKey', 'ServerPublicKey', 'Secretkey'.
+     * 'PublicKey', 'ServerPublicKey', 'Secretkey',
+     * 'OpenCertificateChain', 'CloseCertificateChain' 'ReadDeviceCertificateChain'.
      * \param [OUT]data A copy of the data buffer that contains the value. The caller
      * is responsible for freeing this buffer.
      * \param instance_id Instance id of the security instance where resource value should be retrieve.
-     * \return The size of the populated buffer.
+     * \param buffer_len[IN/OUT] Length of the buffer.
+     * \return Error code, 0 on success otherwise < 0
      */
-    uint32_t resource_value_buffer(SecurityResource resource,
-                                   uint8_t *&data,
-                                   uint16_t instance_id) const;
+    int resource_value_buffer(SecurityResource resource,
+                              uint8_t *&data,
+                              uint16_t instance_id,
+                              size_t *buffer_len) const;
 
     /**
      * \brief Returns a pointer to the value and size of the buffer.
@@ -256,9 +263,10 @@ public:
      */
     int32_t get_security_instance_id(ServerType server_type) const;
 
+    M2MResource* get_resource(SecurityResource resource, uint16_t instance_id = 0) const;
 private:
 
-    M2MResource* get_resource(SecurityResource resource, uint16_t instance_id = 0) const;
+
     void clear_resources(uint16_t instance_id = 0);
 
 protected:

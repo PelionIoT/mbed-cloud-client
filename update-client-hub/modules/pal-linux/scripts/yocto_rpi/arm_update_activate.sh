@@ -33,76 +33,76 @@ set -x
 # Return the number of the partition with the given label (in $1)
 # Exit with error if the partition can't be found
 getpart() {
-    res=`readlink -f /dev/disk/by-label/$1`
-    if [[ ${res:0:13}x == "/dev/mmcblk0px" ]]; then
-        echo `echo $res | cut -d'p' -f2`
+    res=$(readlink -f "/dev/disk/by-label/$1")
+    if [ "$(echo "${res}" | cut -c1-13)x"  = "/dev/mmcblk0px" ]; then
+        echo "$(echo $res | cut -d'p' -f2)"
     fi
 }
 
 # Detect root partitions
-root1=`getpart "rootfs1"`
-if [ "${root1}"x == "x" ]; then
+root1=$(getpart "rootfs1")
+if [ "${root1}"x = "x" ]; then
     echo "Unable to find partition with label 'rootfs1'"
     exit 9
 fi
-root2=`getpart "rootfs2"`
-if [ "${root2}"x == "x" ]; then
+root2=$(getpart "rootfs2")
+if [ "${root2}"x = "x" ]; then
     echo "Unable to find partition with label 'rootfs2'"
     exit 9
 fi
 ROOTS="$root1 $root2"
 
 # Flag partition
-FLAGS=`getpart "bootflags"`
-if [ "${FLAGS}"x == "x" ]; then
+FLAGS=$(getpart "bootflags")
+if [ "${FLAGS}"x = "x" ]; then
     echo "Unable to find partition with label 'bootflags'"
     exit 9
 fi
 
 # Find the partition that is currently mounted to /
-activePartition=`lsblk -nro NAME,MOUNTPOINT | grep -e ".* /$" | cut -d ' ' -f1`
+activePartition=$(lsblk -nro NAME,MOUNTPOINT | grep -e ".* /$" | cut -d ' ' -f1)
 # Find the disk that contains the current root
-activeDisk=`lsblk -nro pkname /dev/${activePartition}`
+activeDisk=$(lsblk -nro pkname "/dev/${activePartition}")
 # Get the format of the partition name
-partitionPrefix=`echo ${activePartition} | sed -e "s|^\([a-z0-9]*[a-z]\)[0-9]$|\1|"`
+partitionPrefix=$(echo ${activePartition} | sed -e "s|^\([a-z0-9]*[a-z]\)[0-9]$|\1|")
 
 nextPartition=""
 nextPartitionLabel=""
 nextRoot=""
 # Find the other root partition by listing both root partitions and filtering out the active partition
 for pNum in ${ROOTS} ; do
-    if [[ "${partitionPrefix}${pNum}" != "$activePartition" ]]; then
+    if [ "${partitionPrefix}${pNum}" != "$activePartition" ]; then
         nextPartition="${partitionPrefix}${pNum}"
         nextRoot=${pNum}
         break
     fi
 done
 
-if [[ -z "${nextPartition}" ]]; then
+if [ -z "${nextPartition}" ]; then
     exit 1
 fi
 
 # Make sure that nextPartition exists in the disk
-if ! lsblk -nr /dev/${nextPartition} > /dev/null ; then
+if ! lsblk -nr "/dev/${nextPartition}" > /dev/null ; then
     exit 2
 fi
 
 # Make sure the next partition isn't mounted.
-umount /dev/${nextPartition} > /dev/null
+umount "/dev/${nextPartition}" > /dev/null
 # Set next partition label based on whether it is first or second root
-if [[ "${nextRoot}" == "5" ]]; then
+if [ "${nextRoot}" = "5" ]; then
     nextPartitionLabel="rootfs1"
 fi
-if [[ "${nextRoot}" == "6" ]]; then
+if [ "${nextRoot}" = "6" ]; then
     nextPartitionLabel="rootfs2"
 fi
 # Create the file system on the next partition
-if ! mkfs -t ext4 -L ${nextPartitionLabel} -F /dev/${nextPartition}; then
+if ! mkfs -t ext4 -L ${nextPartitionLabel} -F "/dev/${nextPartition}"; then
     echo "mkfs failed on the new root partition"
     exit 3
 fi
 # Mount the next partition
-if ! mount /dev/${nextPartition} /mnt/root; then
+if ! mount "/dev/${nextPartition}" /mnt/root; then
     echo "Unable to mount the new root partition"
     exit 4
 fi
@@ -118,18 +118,18 @@ if ! mkdir -p /mnt/flags ; then
 fi
 
 # Make sure flags partition isn't mounted.
-umount /dev/${partitionPrefix}${FLAGS} > /dev/null
-if ! mount /dev/${partitionPrefix}${FLAGS} /mnt/flags ; then
+umount "/dev/${partitionPrefix}${FLAGS}" > /dev/null
+if ! mount "/dev/${partitionPrefix}${FLAGS}" /mnt/flags ; then
     exit 7
 fi
 
 # Boot Flags
-if [[ "${nextRoot}" == "5" ]]; then
+if [ "${nextRoot}" = "5" ]; then
     cp $HEADER /mnt/flags/five
     sync
     rm -f /mnt/flags/six
     sync
-elif [[ "${nextRoot}" == "6" ]]; then
+elif [ "${nextRoot}" = "6" ]; then
     cp $HEADER /mnt/flags/six
     sync
     rm -f /mnt/flags/five

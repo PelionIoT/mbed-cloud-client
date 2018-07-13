@@ -60,7 +60,7 @@ const char g_fcc_kcm_file_name_corrupted_str[] = "File name corrupted:";
 const char g_fcc_kcm_not_initialized_str[] = "KCM not initialized:";
 const char g_fcc_kcm_close_incomplete_chain_str[] = "Closing incomplete KCM chain:";
 const char g_fcc_kcm_invalid_chain_str[] = "Corrupted certificate chain file:";
-const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[] = "Invalid number of certificate in chain. Maximum chain length supported is " xstr(KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN);
+const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[] = "Maximum chain length supported is " xstr(KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN) ". Chain length of the item is invalid:";
 const char g_fcc_kcm_file_exist_error_str[] = "Data already exists:";
 const char g_fcc_kcm_key_exist_error_str[] = "Desired generated key name already exists:";
 const char g_fcc_kcm_file_name_too_long_error_str[] = "File name too long:";
@@ -277,9 +277,6 @@ char* fcc_get_fcc_error_string(fcc_status_e fcc_status)
             break;
         case FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR:
             fcc_error_string = (char*)g_fcc_crypto_public_key_correlation_error_str;
-            break;
-        case FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED:
-            fcc_error_string = (char*)g_fcc_crypto_chain_validation_error_str;
             break;
         case FCC_STATUS_TOO_MANY_CSR_REQUESTS:
             fcc_error_string = (char*)g_fcc_csr_requests_too_many;

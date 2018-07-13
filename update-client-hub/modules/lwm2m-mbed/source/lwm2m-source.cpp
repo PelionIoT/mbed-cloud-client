@@ -16,6 +16,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-lwm2m-mbed-apis.h"
 #include "update-client-common/arm_uc_common.h"
 #include "update-client-lwm2m/lwm2m-source.h"
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
@@ -49,11 +50,12 @@ uint32_t ARM_UCS_LWM2M_SOURCE_GetVersion(void)
  */
 ARM_SOURCE_CAPABILITIES ARM_UCS_LWM2M_SOURCE_GetCapabilities(void)
 {
-    ARM_SOURCE_CAPABILITIES result = { .notify = 0,
-                                       .manifest_default = 0,
-                                       .manifest_url = 0,
-                                       .firmware = 0,
-                                       .keytable = 0 };
+    ARM_SOURCE_CAPABILITIES result;
+    result.notify = 0;
+    result.manifest_default = 0;
+    result.manifest_url = 0;
+    result.firmware = 0;
+    result.keytable = 0;
 
     /* the event handler must be set before module can be used */
     if (ARM_UCS_EventHandler != 0)
@@ -75,8 +77,7 @@ ARM_SOURCE_CAPABILITIES ARM_UCS_LWM2M_SOURCE_GetCapabilities(void)
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event)
 {
     UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_Initialize: %p", cb_event);
-
-    arm_uc_error_t result = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, SRCE_ERR_INVALID_PARAMETER);
 
     if (cb_event != 0)
     {
@@ -91,7 +92,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event
 
         DeviceMetadataResource::Initialize();
 
-        result.code = SRCE_ERR_NONE;
+        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
     }
 
     return result;
@@ -103,7 +104,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Uninitialize(void)
 {
-    arm_uc_error_t retval = { .code = SRCE_ERR_NONE };
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_NONE);
     DeviceMetadataResource::Uninitialize();
     FirmwareUpdateResource::Uninitialize();
 
@@ -121,7 +122,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Uninitialize(void)
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefaultCost(uint32_t* cost)
 {
-    arm_uc_error_t result = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, SRCE_ERR_INVALID_PARAMETER);
 
     if (cost != 0)
     {
@@ -136,7 +137,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefaultCost(uint32_t* cost)
             *cost = 0xFFFFFFFF;
         }
 
-        result.code = SRCE_ERR_NONE;
+        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
     }
 
     return result;
@@ -153,7 +154,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefaultCost(uint32_t* cost)
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefault(arm_uc_buffer_t* buffer,
                                                        uint32_t offset)
 {
-    arm_uc_error_t result = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, SRCE_ERR_INVALID_PARAMETER);
 
     /* copy manifest from cache into buffer */
     if ((buffer != NULL) &&
@@ -186,7 +187,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefault(arm_uc_buffer_t* buffer,
                 arm_ucs_manifest_length = 0;
             }
 
-            result.code = SRCE_ERR_NONE;
+            ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
 
             /* signal event handler that manifest has been copied to buffer */
             if (ARM_UCS_EventHandler)
@@ -255,13 +256,13 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURLCost(arm_uc_uri_t* uri,
     (void) uri;
     (void) cost;
 
-    arm_uc_error_t result = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, SRCE_ERR_INVALID_PARAMETER);
 
     /* not supported - return default cost regardless of actual uri location */
     if (cost)
     {
         *cost = 0xFFFFFFFF;
-        result.code = SRCE_ERR_NONE;
+        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
     }
 
     return result;
@@ -283,13 +284,13 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareURLCost(arm_uc_uri_t* uri,
     (void) uri;
     (void) cost;
 
-    arm_uc_error_t result = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, SRCE_ERR_INVALID_PARAMETER);
 
     /* not supported - return default cost regardless of actual uri location */
     if (cost != 0)
     {
         *cost = 0xFFFFFFFF;
-        result.code = SRCE_ERR_NONE;
+        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
     }
 
     return result;
@@ -311,13 +312,13 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost(arm_uc_uri_t* uri,
     (void) uri;
     (void) cost;
 
-    arm_uc_error_t result = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, SRCE_ERR_INVALID_PARAMETER);
 
     /* not supported - return default cost regardless of actual uri location */
     if ((uri != 0) && (cost != 0))
     {
         *cost = 0xFFFFFFFF;
-        result.code = SRCE_ERR_NONE;
+        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
     }
 
     return result;
@@ -341,7 +342,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURL(arm_uc_uri_t* uri,
     (void) buffer;
     (void) offset;
 
-    arm_uc_error_t retval = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
     return retval;
 }
@@ -364,7 +365,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t* uri,
     (void) buffer;
     (void) offset;
 
-    arm_uc_error_t retval = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
     return retval;
 }
@@ -384,23 +385,8 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURL(arm_uc_uri_t* uri,
     (void) uri;
     (void) buffer;
 
-    arm_uc_error_t retval = { .code = SRCE_ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
     return retval;
 }
 
-ARM_UPDATE_SOURCE ARM_UCS_LWM2M_SOURCE =
-{
-    .GetVersion             = ARM_UCS_LWM2M_SOURCE_GetVersion,
-    .GetCapabilities        = ARM_UCS_LWM2M_SOURCE_GetCapabilities,
-    .Initialize             = ARM_UCS_LWM2M_SOURCE_Initialize,
-    .Uninitialize           = ARM_UCS_LWM2M_SOURCE_Uninitialize,
-    .GetManifestDefaultCost = ARM_UCS_LWM2M_SOURCE_GetManifestDefaultCost,
-    .GetManifestURLCost     = ARM_UCS_LWM2M_SOURCE_GetManifestURLCost,
-    .GetFirmwareURLCost     = ARM_UCS_LWM2M_SOURCE_GetFirmwareURLCost,
-    .GetKeytableURLCost     = ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost,
-    .GetManifestDefault     = ARM_UCS_LWM2M_SOURCE_GetManifestDefault,
-    .GetManifestURL         = ARM_UCS_LWM2M_SOURCE_GetManifestURL,
-    .GetFirmwareFragment    = ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment,
-    .GetKeytableURL         = ARM_UCS_LWM2M_SOURCE_GetKeytableURL
-};

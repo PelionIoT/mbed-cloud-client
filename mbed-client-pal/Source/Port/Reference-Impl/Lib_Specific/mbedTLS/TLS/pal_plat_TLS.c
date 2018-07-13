@@ -313,6 +313,11 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
 	memset(localConfigCtx->cipherSuites, 0,(sizeof(int)* (PAL_MAX_ALLOWED_CIPHER_SUITES+1)) );	
 	mbedtls_ssl_config_init(localConfigCtx->confCtx);
 
+#if (PAL_ENABLE_X509 == 1)
+	mbedtls_x509_crt_init(&localConfigCtx->owncert);
+	mbedtls_x509_crt_init(&localConfigCtx->cacert);
+#endif
+
 	if (PAL_TLS_IS_CLIENT == methodType)
 	{
 		endpoint = MBEDTLS_SSL_IS_CLIENT;
@@ -507,6 +512,14 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
 		case PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:
 			localConfigCtx->cipherSuites[0] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384;
 			break;
+#ifdef MBEDTLS_ARIA_C
+        case PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256:
+            localConfigCtx->cipherSuites[0] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256;
+            break;
+        case PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256:
+            localConfigCtx->cipherSuites[0] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256;
+            break;
+#endif
 		default:
 			localConfigCtx->cipherSuites[0] = 0;
 			status = PAL_ERR_TLS_INVALID_CIPHER;
@@ -525,7 +538,7 @@ palStatus_t pal_plat_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int
 	int32_t platStatus = SSL_LIB_SUCCESS;
 	*verifyResult = 0;
 	
-	platStatus = mbedtls_ssl_get_verify_result(&localTLSCtx->tlsCtx);
+    platStatus = mbedtls_ssl_get_verify_result(&localTLSCtx->tlsCtx);
 	if (SSL_LIB_SUCCESS != platStatus)
 	{
 		status = PAL_ERR_X509_CERT_VERIFY_FAILED;
@@ -655,7 +668,7 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
 
 	if (!localTLSCtx->wantReadOrWrite)
 	{
-		platStatus = mbedtls_ssl_setup(&localTLSCtx->tlsCtx, localConfigCtx->confCtx);
+        platStatus = mbedtls_ssl_setup(&localTLSCtx->tlsCtx, localConfigCtx->confCtx);
 		if (SSL_LIB_SUCCESS != platStatus)
 		{
 			if (MBEDTLS_ERR_SSL_ALLOC_FAILED == platStatus)
@@ -682,7 +695,7 @@ palStatus_t pal_plat_handShake(palTLSHandle_t palTLSHandle, uint64_t* serverTime
 	while( (MBEDTLS_SSL_HANDSHAKE_OVER != localTLSCtx->tlsCtx.state) && (PAL_SUCCESS == status) )
     {
         platStatus = mbedtls_ssl_handshake_step( &localTLSCtx->tlsCtx );
-        
+
 		/* Extract the first 4 bytes of the ServerHello random */
 		if( MBEDTLS_SSL_SERVER_HELLO_DONE == localTLSCtx->tlsCtx.state )
 		{
@@ -726,7 +739,7 @@ palStatus_t pal_plat_renegotiate(palTLSHandle_t palTLSHandle, uint64_t serverTim
 		goto finish;
 	}
 
-	platStatus = mbedtls_ssl_renegotiate(&localTLSCtx->tlsCtx);
+	platStatus = mbedtls_ssl_renegotiate(&localTLSCtx->tlsCtx);    
 	status = translateTLSHandShakeErrToPALError(localTLSCtx, platStatus);
 
 finish:
@@ -754,7 +767,6 @@ palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX
 	palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
 	int32_t platStatus = SSL_LIB_SUCCESS;
 
-	mbedtls_x509_crt_init(&localConfigCtx->owncert);
 	mbedtls_pk_init(&localConfigCtx->pkey);
 
 	
@@ -785,14 +797,61 @@ finish:
 	return status;
 }
 
+palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateKey_t* privateKey)
+{
+	palStatus_t status = PAL_SUCCESS;
+	palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
+	int32_t platStatus = SSL_LIB_SUCCESS;
+
+	mbedtls_pk_init(&localConfigCtx->pkey);
+
+	platStatus = mbedtls_pk_parse_key(&localConfigCtx->pkey, (const unsigned char *)privateKey->buffer, privateKey->size, NULL, 0 );
+	if (SSL_LIB_SUCCESS != platStatus)
+	{
+		status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
+		goto finish;
+	}
+
+
+	localConfigCtx->hasKeys = true;
+
+finish:
+	PAL_LOG(DBG, "Privatekey set and parse status %" PRIu32 ".", platStatus);
+	return status;
+}
+
+palStatus_t pal_plat_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCert)
+{
+	palStatus_t status = PAL_SUCCESS;
+	palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
+	int32_t platStatus = SSL_LIB_SUCCESS;
+
+	platStatus = mbedtls_x509_crt_parse_der(&localConfigCtx->owncert, (const unsigned char *)ownCert->buffer, ownCert->size);
+	if (SSL_LIB_SUCCESS != platStatus)
+	{
+		status = PAL_ERR_TLS_FAILED_TO_PARSE_CERT;
+		goto finish;
+	}
+
+	platStatus = mbedtls_ssl_conf_own_cert(localConfigCtx->confCtx, &localConfigCtx->owncert, &localConfigCtx->pkey); 
+	if (SSL_LIB_SUCCESS != platStatus)
+	{
+		status = PAL_ERR_TLS_FAILED_TO_SET_CERT;
+	}
+
+	localConfigCtx->hasKeys = true;
+
+finish:
+	PAL_LOG(DBG, "Own cert chain set and parse status %" PRIu32 ".", platStatus);
+	return status;
+}
+
 
 palStatus_t pal_plat_setCAChain(palTLSConfHandle_t palTLSConf, palX509_t* caChain, palX509CRL_t* caCRL)
 {
 	palStatus_t status = PAL_SUCCESS;
 	palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
 	int32_t platStatus = SSL_LIB_SUCCESS;
-
-	mbedtls_x509_crt_init(&localConfigCtx->cacert);
 
 	platStatus = mbedtls_x509_crt_parse_der(&localConfigCtx->cacert, (const unsigned char *)caChain->buffer, caChain->size);
 	if (SSL_LIB_SUCCESS != platStatus)
@@ -1198,3 +1257,21 @@ PAL_PRIVATE void palDebug(void *ctx, int debugLevel, const char *fileName, int l
 	(void)ctx;
 	PAL_LOG(DBG, "%s: %d: %s", fileName, line, message);
 }
+
+#ifdef MBEDTLS_ENTROPY_NV_SEED
+int mbedtls_platform_std_nv_seed_read( unsigned char *buf, size_t buf_len )
+{
+	palStatus_t status = PAL_SUCCESS;
+	status = pal_osRandomBuffer(buf, buf_len);
+	if (PAL_SUCCESS != status)
+	{
+	    return -1;
+	}
+	return 0;
+}
+
+int mbedtls_platform_std_nv_seed_write( unsigned char *buf, size_t buf_len )
+{
+	return 0;
+}
+#endif //MBEDTLS_ENTROPY_NV_SEED

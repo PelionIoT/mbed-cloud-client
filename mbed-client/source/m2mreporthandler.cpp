@@ -50,9 +50,10 @@ M2MReportHandler::M2MReportHandler(M2MReportObserver &observer)
   _high_step(0.0f),
   _low_step(0.0f),
   _last_value(-1.0f),
-  _notification_sending_in_progress(false),
+  _notification_send_in_progress(false),
   _notification_in_queue(false),
-  _blockwise_notify(false)
+  _blockwise_notify(false),
+  _pmin_quiet_period(false)
 {
     tr_debug("M2MReportHandler::M2MReportHandler()");
 }
@@ -84,14 +85,13 @@ void M2MReportHandler::set_value(float value)
     _current_value = value;
 
     if (_current_value != _last_value) {
-        tr_debug("M2MReportHandler::set_value() - UNDER OBSERVATION");
+        tr_debug("M2MReportHandler::set_value() - new value");
         set_notification_in_queue(true);
         if (check_threshold_values()) {
             schedule_report();
         } else {
             tr_debug("M2MReportHandler::set_value - value not in range");
             _notify = false;
-            _last_value = _current_value;
             if ((_attribute_state & M2MReportHandler::Lt) == M2MReportHandler::Lt ||
                 (_attribute_state & M2MReportHandler::Gt) == M2MReportHandler::Gt ||
                 (_attribute_state & M2MReportHandler::St) == M2MReportHandler::St) {
@@ -100,8 +100,8 @@ void M2MReportHandler::set_value(float value)
                 _pmin_exceeded = true;
             }
         }
-        _high_step = _current_value + _st;
-        _low_step = _current_value - _st;
+        _high_step = _last_value + _st;
+        _low_step = _last_value - _st;
     }
 }
 
@@ -205,11 +205,16 @@ void M2MReportHandler::timer_expired(M2MTimerObserver::Type type)
     switch(type) {
         case M2MTimerObserver::PMinTimer: {
             tr_debug("M2MReportHandler::timer_expired - PMIN");
+
             _pmin_exceeded = true;
             if (_notify ||
-                    (_pmin > 0 &&
-                     (_attribute_state & M2MReportHandler::Pmax) != M2MReportHandler::Pmax)){
+                (_pmin > 0 && (_attribute_state & M2MReportHandler::Pmax) != M2MReportHandler::Pmax)){
                 report();
+            }
+
+            // If value hasn't changed since last expiration, next value change should send notification immediately
+            if (_current_value == _last_value) {
+                _pmin_quiet_period = true;
             }
         }
         break;
@@ -300,16 +305,17 @@ void M2MReportHandler::schedule_report(bool in_queue)
 {
     tr_debug("M2MReportHandler::schedule_report()");
     _notify = true;
+
     if ((_attribute_state & M2MReportHandler::Pmin) != M2MReportHandler::Pmin ||
-         _pmin_exceeded) {
-        tr_debug("M2MReportHandler::schedule_report() - report");
+         _pmin_exceeded ||
+         _pmin_quiet_period) {
         report(in_queue);
     }
 }
 
 void M2MReportHandler::report(bool in_queue)
 {
-    tr_debug("M2MReportHandler::report() - current %2f, last %2f, notify %d, queud %d", _current_value, _last_value, _notify, in_queue);
+    tr_debug("M2MReportHandler::report() - current %2f, last %2f, notify %d, queued %d", _current_value, _last_value, _notify, in_queue);
 
     if((_current_value != _last_value && _notify) || in_queue) {
         if (_pmin_exceeded) {
@@ -321,6 +327,7 @@ void M2MReportHandler::report(bool in_queue)
         _pmin_exceeded = false;
         _pmax_exceeded = false;
         _notify = false;
+        _pmin_quiet_period = false;
         _observation_number++;
 
         if (_observation_number == 1) {
@@ -431,39 +438,34 @@ void M2MReportHandler::set_default_values()
     _attribute_state = 0;
     _changed_instance_ids.clear();
     _notification_in_queue = false;
-    _notification_sending_in_progress = false;
+    _notification_send_in_progress = false;
+    _pmin_quiet_period = false;
 }
 
 bool M2MReportHandler::check_threshold_values() const
 {
     tr_debug("M2MReportHandler::check_threshold_values");
     tr_debug("Current value: %f", _current_value);
+    tr_debug("Last value: %f", _last_value);
     tr_debug("High step: %f", _high_step);
     tr_debug("Low step: %f", _low_step);
     tr_debug("Less than: %f", _lt);
     tr_debug("Greater than: %f", _gt);
     tr_debug("Step: %f", _st);
-    bool can_send = false;
-    // Check step condition
-    if ((_attribute_state & M2MReportHandler::St) == M2MReportHandler::St) {
-        if ((_current_value >= _high_step ||
-            _current_value <= _low_step)) {
-            can_send = true;
-        }
-        else {
-            if ((_attribute_state & M2MReportHandler::Lt) == M2MReportHandler::Lt ||
-                    (_attribute_state & M2MReportHandler::Gt) == M2MReportHandler::Gt ) {
-                can_send = check_gt_lt_params();
-            }
-            else {
+
+    bool can_send = check_gt_lt_params();
+    if (can_send) {
+        if ((_attribute_state & M2MReportHandler::St) == M2MReportHandler::St) {
+            if ((_current_value >= _high_step ||
+                _current_value <= _low_step)) {
+                can_send = true;
+            } else {
                 can_send = false;
             }
         }
     }
-    else {
-        can_send = check_gt_lt_params();
-    }
-    tr_debug("M2MReportHandler::check_threshold_values - value in range = %d", (int)can_send);
+
+    tr_debug("M2MReportHandler::check_threshold_values - value can be sent = %d", (int)can_send);
     return can_send;
 }
 
@@ -472,8 +474,8 @@ bool M2MReportHandler::check_gt_lt_params() const
     tr_debug("M2MReportHandler::check_gt_lt_params");
     bool can_send = false;
     // GT & LT set.
-    if ((_attribute_state & (M2MReportHandler::Lt | M2MReportHandler::Gt))
-             == (M2MReportHandler::Lt | M2MReportHandler::Gt)) {
+    if ((_attribute_state & (M2MReportHandler::Lt | M2MReportHandler::Gt)) ==
+        (M2MReportHandler::Lt | M2MReportHandler::Gt)) {
         if (_current_value > _gt || _current_value < _lt) {
             can_send = true;
         }
@@ -583,12 +585,12 @@ bool M2MReportHandler::notification_in_queue() const
 
 void M2MReportHandler::set_notification_send_in_progress(bool progress)
 {
-    _notification_sending_in_progress = progress;
+    _notification_send_in_progress = progress;
 }
 
 bool M2MReportHandler::notification_send_in_progress() const
 {
-    return _notification_sending_in_progress;
+    return _notification_send_in_progress;
 }
 
 void M2MReportHandler::set_blockwise_notify(bool blockwise_notify)

@@ -37,6 +37,18 @@ typedef enum {
 } ccs_status_e;
 
 /**
+* CCS item types
+* Keep these sync with ones that found from kcm_defs.h
+*/
+typedef enum {
+    CCS_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
+    CCS_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
+    CCS_SYMMETRIC_KEY_ITEM,        //!< KCM symmetric key item type.
+    CCS_CERTIFICATE_ITEM,          //!< KCM certificate item type. Supported x509 certificates in der format.
+    CCS_CONFIG_ITEM                //!< KCM configuration parameter item type.
+} ccs_item_type_e;
+
+/**
 *  \brief Uninitializes the CFStore handle.
 */
 ccs_status_e uninitialize_storage(void);
@@ -47,27 +59,23 @@ ccs_status_e uninitialize_storage(void);
 ccs_status_e initialize_storage(void);
 
 /* Bootstrap credential handling methods */
-ccs_status_e get_config_parameter(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length);
-ccs_status_e get_config_parameter_string(const char* key, uint8_t *buffer, const size_t buffer_size);
-ccs_status_e set_config_parameter(const char* key, const uint8_t *buffer, const size_t buffer_size);
-ccs_status_e check_config_parameter(const char* key);
-ccs_status_e delete_config_parameter(const char* key);
-ccs_status_e size_config_parameter(const char* key, size_t* size_out);
+ccs_status_e ccs_get_string_item(const char* key, uint8_t *buffer, const size_t buffer_size, ccs_item_type_e item_type);
+ccs_status_e ccs_check_item(const char* key, ccs_item_type_e item_type);
+ccs_status_e ccs_delete_item(const char* key, ccs_item_type_e item_type);
+ccs_status_e ccs_get_item(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length, ccs_item_type_e item_type);
+ccs_status_e ccs_set_item(const char* key, const uint8_t *buffer, const size_t buffer_size, ccs_item_type_e item_type);
+ccs_status_e ccs_item_size(const char* key, size_t* size_out, ccs_item_type_e item_type);
 
-ccs_status_e get_config_private_key(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length);
-ccs_status_e set_config_private_key(const char* key, const uint8_t *buffer, const size_t buffer_size);
-ccs_status_e delete_config_private_key(const char* key);
-
-ccs_status_e get_config_public_key(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length);
-ccs_status_e set_config_public_key(const char* key, const uint8_t *buffer, const size_t buffer_size);
-ccs_status_e delete_config_public_key(const char* key);
-
-ccs_status_e get_config_certificate(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length);
-ccs_status_e set_config_certificate(const char* key, const uint8_t *buffer, const size_t buffer_size);
-ccs_status_e delete_config_certificate(const char* key);
-
-
-
+/* Certificate chain handling methods */
+void *ccs_create_certificate_chain(const char *chain_file_name, size_t chain_len);
+void *ccs_open_certificate_chain(const char *chain_file_name, size_t *chain_size);
+ccs_status_e ccs_close_certificate_chain(void *chain_handle);
+ccs_status_e ccs_add_next_cert_chain(void *chain_handle, const uint8_t *cert_data, size_t data_size);
+ccs_status_e ccs_get_next_cert_chain(void *chain_handle, void *cert_data, size_t *data_size);
+ccs_status_e ccs_parse_cert_chain_and_store(const uint8_t *cert_chain_name,
+                                            const size_t cert_chain_name_len,
+                                            const uint8_t *cert_chain_data,
+                                            const uint16_t cert_chain_data_len);
 #ifdef __cplusplus
 }
 #endif

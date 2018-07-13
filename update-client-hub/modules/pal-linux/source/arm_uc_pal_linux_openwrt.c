@@ -48,33 +48,6 @@ ARM_UC_PAAL_UPDATE_CAPABILITIES ARM_UC_PAL_Linux_GetCapabilities_OpenWRT(void)
     return result;
 }
 
-static int32_t ARM_UC_PAL_Linux_Post_Activate_OpenWRT()
-{
-#if defined(ARM_UC_OEM_TRANSFER_MODE) && ARM_UC_OEM_TRANSFER_MODE == 1
-    int32_t event = 0;
-    /* set "OEM tranfer mode" to 0 */
-    uint32_t temp32 = 0;
-    arm_uc_error_t sotp_status = arm_uc_write_sotp_uint(SOTP_TYPE_OEM_TRANSFER_MODE_ENABLED,
-                                                        sizeof(uint32_t), &temp32);
-    /* force a sync() to flush all the buffers, seems to be needed
-       on some OpenWRT platforms */
-    sync();
-    if (sotp_status.code == ERR_NONE)
-    {
-        UC_PAAL_TRACE("cleared OEM transfer mode flag");
-        event = ARM_UC_PAAL_EVENT_ACTIVATE_DONE;
-    }
-    else
-    {
-        UC_PAAL_ERR_MSG("unable to reset OEM transfer mode");
-        event = ARM_UC_PAAL_EVENT_ACTIVATE_ERROR;
-    }
-    return event;
-#else
-    return ARM_UC_PAAL_EVENT_ACTIVATE_DONE;
-#endif
-}
-
 arm_ucp_worker_t arm_uc_worker_parameters_active_details = {
     .command = "/usr/sbin/arm_update_active_details.sh",
     .header   = 1,
@@ -96,7 +69,7 @@ arm_ucp_worker_t arm_uc_worker_parameters_activate = {
     .size     = 0,
     .success_event = ARM_UC_PAAL_EVENT_ACTIVATE_DONE,
     .failure_event = ARM_UC_PAAL_EVENT_ACTIVATE_ERROR,
-    .post_runner = ARM_UC_PAL_Linux_Post_Activate_OpenWRT
+    .post_runner = NULL
 };
 
 arm_uc_error_t ARM_UC_PAL_Linux_Initialize_OpenWRT(ARM_UC_PAAL_UPDATE_SignalEvent_t callback)

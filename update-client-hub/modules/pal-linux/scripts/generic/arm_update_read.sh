@@ -28,7 +28,7 @@
 . ../../../arm_update_cmdline.sh
 
 # copy fragment from stored firmware to temporary file
-VALUE=$(dd if=/tmp/extended/firmware_${LOCATION}.bin of=/tmp/firmware_fragment.bin count=$SIZE ibs=1 skip=$OFFSET 2>/dev/null)
+VALUE=$(dd if="/tmp/extended/firmware_${LOCATION}.bin" of=/tmp/firmware_fragment.bin count=$SIZE ibs=1 skip=$OFFSET 2>/dev/null)
 
 # indicate to Update client where to read fragment from
 echo "/tmp/firmware_fragment.bin"

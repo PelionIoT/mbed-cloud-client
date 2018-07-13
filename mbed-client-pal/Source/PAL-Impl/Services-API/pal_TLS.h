@@ -37,9 +37,9 @@ typedef uintptr_t palTLSConfHandle_t;
 
 typedef enum palTLSTranportMode{
 #ifdef PAL_NET_TCP_AND_TLS_SUPPORT
-	PAL_TLS_MODE, //(STREAM)
+    PAL_TLS_MODE, //(STREAM)
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
-	PAL_DTLS_MODE //(DATAGRAM)
+    PAL_DTLS_MODE //(DATAGRAM)
 }palTLSTransportMode_t;
 
 typedef struct palTLSSocket{
@@ -51,8 +51,8 @@ typedef struct palTLSSocket{
 
 
 typedef struct palTLSBuffer{
-	const void* buffer;
-	uint32_t size;
+    const void* buffer;
+    uint32_t size;
 }palTLSBuffer_t;
 
 typedef palTLSBuffer_t palX509_t;
@@ -99,7 +99,7 @@ palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHan
 */
 palStatus_t pal_freeTLS(palTLSHandle_t* palTLSHandle);
 
-/*! Add entropy source to the TLS/DTLS library. (This API may NOT be available in all TLS/DTLS platforms, see note.) 
+/*! Add entropy source to the TLS/DTLS library. (This API may NOT be available in all TLS/DTLS platforms, see note.)
 *
 * @param[in] entropyCallback: The entropy callback to be used in TLS/DTLS handshake.
 *
@@ -129,6 +129,7 @@ palStatus_t pal_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf);
 
 /*! Set your own certificate chain and private key.
 *
+* @deprecated This function has been splitted into two separate functions, pal_setOwnCertChain() and pal_setOwnPrivateKey().
 * @param[in] palTLSConf: The TLS configuration context.
 * @param[in] ownCert: Your own public certificate chain.
 * @param[in] privateKey: Your own private key.
@@ -136,6 +137,24 @@ palStatus_t pal_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf);
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
 palStatus_t pal_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey);
+
+/*! Set your own certificate chain.
+*
+* @param[in] palTLSConf: The TLS configuration context.
+* @param[in] ownCert: Your own public certificate chain.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCert);
+
+/*! Set your own private key.
+*
+* @param[in] palTLSConf: The TLS configuration context.
+* @param[in] privateKey: Your own private key.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateKey_t* privateKey);
 
 /*! Set the data required to verify the peer certificate.
 *
@@ -170,7 +189,7 @@ palStatus_t pal_tlsSetSocket(palTLSConfHandle_t palTLSConf, palTLSSocket_t* sock
 
 /*! Perform the TLS handshake (blocking).
 *
-* This function sets the TLS configuration context into the TLS context and performs the handshake 
+* This function sets the TLS configuration context into the TLS context and performs the handshake
 * with the peer.
 * @param[in] palTLSHandle: The TLS context.
 * @param[in] palTLSConf: The TLS configuration context.
@@ -200,7 +219,7 @@ palStatus_t pal_sslGetVerifyResult(palTLSHandle_t palTLSHandle);
 /*! Return the result of the certificate verification.
 *
 * @param[in] ssl: The SSL context.
-* @param[out] verifyResult: bitmask of errors that cause the failure, this value is 
+* @param[out] verifyResult: bitmask of errors that cause the failure, this value is
 *							relevant ONLY in case that the return value of the function is `PAL_ERR_X509_CERT_VERIFY_FAILED`.
 *
 \return PAL_SUCCESS on success. In case of failure returns `PAL_ERR_X509_CERT_VERIFY_FAILED`.

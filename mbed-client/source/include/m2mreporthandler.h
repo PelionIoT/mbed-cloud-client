@@ -261,9 +261,9 @@ private:
     M2MBase::Observation        _observation_level : 4;
     uint8_t                     _attribute_state;
     unsigned                    _token_length : 8;
-    bool                        _notify;
-    bool                        _pmin_exceeded;
-    bool                        _pmax_exceeded;
+    bool                        _notify : 1;
+    bool                        _pmin_exceeded : 1;
+    bool                        _pmax_exceeded : 1;
     unsigned                    _observation_number : 24;
     M2MTimer                    _pmin_timer;
     M2MTimer                    _pmax_timer;
@@ -278,9 +278,10 @@ private:
     float                       _low_step;
     float                       _last_value;
     m2m::Vector<uint16_t>       _changed_instance_ids;
-    bool                        _notification_sending_in_progress;
-    bool                        _notification_in_queue;
-    bool                        _blockwise_notify;
+    bool                        _notification_send_in_progress : 1;
+    bool                        _notification_in_queue : 1;
+    bool                        _blockwise_notify : 1;
+    bool                        _pmin_quiet_period : 1;
 
 friend class Test_M2MReportHandler;
 

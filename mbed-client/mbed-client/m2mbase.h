@@ -60,8 +60,10 @@ public:
         Object = 0x0,
         Resource = 0x1,
         ObjectInstance = 0x2,
-        ResourceInstance = 0x3,
-        ObjectDirectory = 0x4
+        ResourceInstance = 0x3
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+        ,ObjectDirectory = 0x4
+#endif
     } BaseType;
 
     /**
@@ -155,6 +157,8 @@ public:
                                                  its own similar, independent flag.
                                                  Note: this also serves as a read-only flag. */
        bool                 identifier_int_type;
+       bool                 read_write_callback_set; /** If set all the read and write operations are handled in callbacks
+                                                         and the resource value is not stored anymore in M2MResourceBase. */
     } lwm2m_parameters_s;
 
 protected:
@@ -640,7 +644,7 @@ protected:
     /*
      * \brief The data has changed and it needs to be updated into Mbed Cloud.
      *        Current implementation maintains the changed state only in M2MEndpoint. If any of the changes in an
-     *        object changes the M2M registration structure, the information is propagated to M2MEndpoint using 
+     *        object changes the M2M registration structure, the information is propagated to M2MEndpoint using
      *        this interface.
      */
     virtual void set_changed();

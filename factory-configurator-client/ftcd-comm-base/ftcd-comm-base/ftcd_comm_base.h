@@ -53,6 +53,7 @@ typedef enum {
 
     FTCD_COMM_NETWORK_TIMEOUT,          //socket timeout error
     FTCD_COMM_NETWORK_CONNECTION_ERROR, //socket error
+    FTCD_COMM_NETWORK_CONNECTION_CLOSED, // Socket connection was closed by the client
     FTCD_COMM_INTERNAL_ERROR,
 
     FTCD_COMM_STATUS_MAX_ERROR = 0xFFFFFFFF

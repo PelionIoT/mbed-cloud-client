@@ -60,6 +60,7 @@ M2MBase::M2MBase(const String& resource_name,
         _sn_resource->free_on_delete = true;
         _sn_resource->multiple_instance = multiple_instance;
         _sn_resource->data_type = type;
+        _sn_resource->read_write_callback_set = false;
         _sn_resource->dynamic_resource_params =
                 (sn_nsdl_dynamic_resource_parameters_s*)memory_alloc(sizeof(sn_nsdl_dynamic_resource_parameters_s));
         if(_sn_resource->dynamic_resource_params) {

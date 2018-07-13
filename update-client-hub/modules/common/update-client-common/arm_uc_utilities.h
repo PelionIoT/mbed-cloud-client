@@ -21,7 +21,6 @@
 
 #include "update-client-common/arm_uc_types.h"
 #include "update-client-common/arm_uc_error.h"
-#include "sotp.h"
 #include <string.h>
 #include <stdbool.h>
 
@@ -160,7 +159,7 @@ static inline void ARM_UC_buffer_shallow_copy(arm_uc_buffer_t* dest, arm_uc_buff
  */
 static inline arm_uc_error_t ARM_UC_buffer_deep_copy(arm_uc_buffer_t* dest, arm_uc_buffer_t* src)
 {
-    arm_uc_error_t retval = { .code = MFST_ERR_NULL_PTR };
+    ARM_UC_INIT_ERROR(retval, MFST_ERR_NULL_PTR);
 
     /* NULL pointer check */
     if (dest &&
@@ -175,16 +174,16 @@ static inline arm_uc_error_t ARM_UC_buffer_deep_copy(arm_uc_buffer_t* dest, arm_
             memcpy(dest->ptr, src->ptr, src->size);
             dest->size = src->size;
 
-            retval.code = MFST_ERR_NONE;
+            ARM_UC_CLEAR_ERROR(retval);
         }
         else
         {
-            retval.code = MFST_ERR_SIZE;
+            ARM_UC_SET_ERROR(retval, MFST_ERR_SIZE);
         }
     }
     else
     {
-        retval.code = MFST_ERR_NULL_PTR;
+        ARM_UC_SET_ERROR(retval, MFST_ERR_NULL_PTR);
     }
 
     return retval;
@@ -193,24 +192,6 @@ static inline arm_uc_error_t ARM_UC_buffer_deep_copy(arm_uc_buffer_t* dest, arm_
 uint32_t ARM_UC_BinCompareCT(const arm_uc_buffer_t* a, const arm_uc_buffer_t* b);
 uint8_t * ARM_UC_Base64Enc(uint8_t *buf, const uint32_t size, const arm_uc_buffer_t* bin);
 void ARM_UC_Base64Dec(arm_uc_buffer_t* bin, const uint32_t size, const uint8_t* buf);
-
-/**
- * Reads an integer up to 8 bytes in size from SOTP.
- * @param type SOTP item type.
- * @param size SOTP item size in bytes (1, 2, 4 or 8).
- * @param out Location where the integer value is written.
- * @return ERR_NONE if the read succeeded, ERR_INVALID_PARAMETER otherwise.
- */
-arm_uc_error_t arm_uc_read_sotp_uint(uint32_t type, uint16_t size, void *out);
-
-/**
- * Writes an integer up to 8 bytes in size to SOTP.
- * @param type SOTP item type.
- * @param size SOTP item size in bytes (1, 2, 4 or 8).
- * @param in Location where the integer value is read.
- * @return ERR_NONE if the read succeeded, ERR_INVALID_PARAMETER otherwise.
- */
-arm_uc_error_t arm_uc_write_sotp_uint(uint32_t type, uint16_t size, void *in);
 
 #ifdef __cplusplus
 }

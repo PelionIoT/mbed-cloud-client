@@ -20,7 +20,6 @@
 #include "mbed-cloud-client/MbedCloudClient.h"
 #include "mbed-cloud-client/SimpleM2MResource.h"
 
-#include "ns_hal_init.h"
 #include "mbed-trace/mbed_trace.h"
 
 #include <assert.h>
@@ -30,18 +29,11 @@
 
 #define TRACE_GROUP "mClt"
 
-#ifdef MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
-    #define MBED_CLIENT_EVENT_LOOP_SIZE MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
-#else
-    #define MBED_CLIENT_EVENT_LOOP_SIZE 1024
-#endif
-
 MbedCloudClient::MbedCloudClient()
 :_client(*this),
  _value_callback(NULL),
  _error_description(NULL)
 {
-    ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
 }
 
 MbedCloudClient::~MbedCloudClient()
@@ -241,4 +233,18 @@ void MbedCloudClient::value_updated(M2MBase *base, M2MBase::BaseType type)
             }
         }
     }
+}
+
+void MbedCloudClient::send_get_request(const char *uri,
+                                       const size_t offset,
+                                       get_data_cb data_cb,
+                                       get_data_error_cb error_cb,
+                                       void *context)
+{
+    _client.connector_client().m2m_interface()->get_data_request(uri,
+                                                                offset,
+                                                                true,
+                                                                data_cb,
+                                                                error_cb,
+                                                                context);
 }

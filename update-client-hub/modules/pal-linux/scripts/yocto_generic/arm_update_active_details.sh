@@ -36,29 +36,29 @@ if [ -n "$ARM_UPDATE_ACTIVE_DETAILS_LOG_PATH" ]; then
 fi
 
 # header directory
-HEADER_DIR=$(dirname ${HEADER})
+HEADER_DIR=$(dirname "${HEADER}")
 
 # header name (not prefix)
 HEADER_NAME="header"
 
 # location where the update client will find the header
-HEADER_PATH=${HEADER_DIR}"/"${HEADER_NAME}".bin"
+HEADER_PATH="${HEADER_DIR}/${HEADER_NAME}.bin"
 
 set -x
 
 # Detect root partitions
-root1=`get_device_for_label rootfs1`
+root1=$(get_device_for_label rootfs1)
 exit_on_error "$?"
 
-root2=`get_device_for_label rootfs2`
+root2=$(get_device_for_label rootfs2)
 exit_on_error "$?"
 
 # Flag partition
-FLAGS=`get_device_for_label bootflags`
+FLAGS=$(get_device_for_label bootflags)
 exit_on_error "$?"
 
 # Find the partition that is currently mounted to /
-activePartition=`get_active_root_device`
+activePartition=$(get_active_root_device)
 
 if [ "$activePartition" = "$root1" ]; then
     activePartitionLabel=rootfs1

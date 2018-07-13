@@ -37,7 +37,7 @@ enum {
  *  Should be called once per lifetime of the object.
  *  @return 0 on success or a negative error code on failure
  */
-int32_t arm_uc_flashiap_init();
+int32_t arm_uc_flashiap_init(void);
 
 /** Erase sectors
  *

@@ -19,6 +19,10 @@
 #ifndef ARM_UC_HUB_ERROR_HANDLER_H
 #define ARM_UC_HUB_ERROR_HANDLER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "update_client_hub_state_machine.h"
 
 #include "update-client-common/arm_uc_common.h"
@@ -26,5 +30,9 @@
 void ARM_UC_HUB_AddErrorCallbackInternal(void (*callback)(int32_t error));
 
 void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // ARM_UC_HUB_ERROR_HANDLER_H

@@ -33,6 +33,8 @@ const uint8_t MAX_ALLOWED_ERROR_STRING_LENGTH = 64;
 const uint16_t OPTIMUM_LIFETIME = 3600;
 const uint16_t REDUCE_LIFETIME = 900;
 const float REDUCTION_FACTOR = 0.75f;
+const uint16_t MAX_CERTIFICATE_SIZE = 1024;
+const uint16_t CONFIG_BOOLEAN_ITEM_SIZE = 4;
 
 // XXX:
 //                               <name></><inst-id></><res-name>
@@ -58,6 +60,14 @@ const float REDUCTION_FACTOR = 0.75f;
 #define ST_SIZE  "st"
 #define STP  "stp"
 #define CANCEL  "cancel"
+
+// Different query parameters
+#define QUERY_PARAM_IEP "iep"
+#define QUERY_PARAM_EST "est"
+#define QUERY_PARAM_AID "aid"
+
+// Different query parameter values
+#define QUERY_VALUE_TRUE "true"
 
 // just a helper for "String default_value = "";" pattern
 extern const String EMPTY;
@@ -119,6 +129,10 @@ extern const String EMPTY;
 #define SECURITY_SHORT_SERVER_ID  "10"
 #define SECURITY_CLIENT_HOLD_OFF_TIME  "11"
 
+#define SECURITY_OPEN_CERTIFICATE_CHAIN  "12"
+#define SECURITY_CLOSE_CERTIFICATE_CHAIN  "13"
+#define SECURITY_READ_CERTIFICATE_CHAIN  "14"
+
 //SERVER RESOURCES
 #define SERVER_PATH_PREFIX "1/0/"
 #define SERVER_SHORT_SERVER_ID  "0"
@@ -171,6 +185,8 @@ extern const String EMPTY;
 #define ERROR_REASON_23 "Bootstrap SecureConnection failed"
 #define ERROR_REASON_24 "LWM2M server rejected client unregistration (not-found)"
 #define ERROR_REASON_25 "Failed to allocate registration message"
+#define ERROR_REASON_26 "BS FIN fails: missing EST iep param"
+#define ERROR_REASON_27 "Call already in progress"
 
 #define COAP_ERROR_REASON_1 "bad-request"
 #define COAP_ERROR_REASON_2 "bad-option"
@@ -201,6 +217,8 @@ extern const String EMPTY;
 
 #define AUTO_OBS_TOKEN_MIN 1
 #define AUTO_OBS_TOKEN_MAX 1023
+
+#define RESPONSE_RANDOM_FACTOR  1.5   /**< Resending random factor, value is specified in IETF CoAP specification */
 
 // TLV serializer / deserializer
 const uint8_t TYPE_RESOURCE = 0xC0;

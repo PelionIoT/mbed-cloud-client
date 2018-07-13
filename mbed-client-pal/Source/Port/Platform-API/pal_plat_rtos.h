@@ -39,6 +39,10 @@ extern "C" {
 */
 void pal_plat_osReboot(void);
 
+/*! Application provided implementation to replace default pal_osReboot() functionality.
+*/
+void pal_plat_osApplicationReboot(void);
+
 /*! Initialize all data structures (semaphores, mutexes, memory pools, message queues) at system initialization.
 *   In case of a failure in any of the initializations, the function returns an error and stops the rest of the initializations.
 * @param[in] opaqueContext The context passed to the initialization (not required for generic CMSIS, pass NULL in this case).

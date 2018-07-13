@@ -1,12 +1,50 @@
 ## Changelog for Mbed Cloud Client
 
-### Release 1.3.3 (11.06.2018)
+### Release 1.4.0 (13.07.2018)
+* Fixed a timer initialization bug under connection handler.
+* Linux: Updated mbed-coap to 4.5.0.
+* This version of Cloud Client has been tested with Mbed OS 5.9.2.
+
+#### Platform Adaptation Layer (PAL)
+
+* Introduced support for ARIA cipher suite introduced in mbedTLS 2.10.0.
+* Introduced MbedTLS configuration support for non-TRNG boards like NUCLEO-F411RE.
+* Hook-up point for allowing application to provide its own reboot function.
+  * Defining `PAL_USE_APPLICATION_REBOOT` activates this feature.
+  * You must define the function `void pal_plat_osApplicationReboot(void)` in your application to provide the required functionality.
+* Introduced the feature flag `PAL_USE_APPLICATION_REBOOT` for application to override generic reboot functionality, which is useful for different Linux flavors.
+* New asynchronous DNS API (activated in application mbed_app.json via `mbed-client-pal.pal-dns-api-version : 2`) with Mbed OS 5.9.x.
+
+#### Factory configurator client
+
+* Chain verification failure will result in `KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED` error instead of `FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED`.
+* Improved robustness of factory serial communication layer.
+* Define `KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN` was renamed to `KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN`.
+
+#### Mbed Cloud Update
+
+* Improved Linux shell scripts for compatibility and robustness.
+* Fixed an issue in `ARM_UC_HUB_Initialize()` and `ARM_UC_HUB_Uninitialize()` to prevent these functions being called when Update client is in the wrong state.
+* Fixed compiler warnings.
+* Removed designated initialisers from C++ code.
+* Update results are now sent synchronously to ensure that the Update Client hub is in the correct state if several LWM2M operations are performed in rapid succession.
+* Added error messages for missing commands in `arm_update_activate.sh`.
+* Added error reporting when there is not enough space on the device to store the firmware image candidate.
+* Added registration for the scheduler error handler.
+
+#### PAL Platform
+
+* Introducing mbedTLS 2.10.0 support for ARIA cipher suite.
+
+### Release 1.3.3 (08.06.2018)
 
 #### Mbed Cloud Client
 
 * Fixed issue: Wrong CoAP ping message. CoAP ping must be sent as an empty confirmable message.
 * In the previous versions, the client in queue mode went to sleep while in reconnection mode. Now, it completes the connection before going to sleep.
 * This version of Cloud Client supports Mbed OS 5.8.5 and onwards patch releases.
+* Improvements for connection handler, removed usage of static pointer to class. There is now possible to allocate more than one class M2MConnectionSecurityPimpl pareller.
+* Support for new asynchronous DNS API ("mbed-client-pal.pal-dns-api-version : 2") with Mbed OS 5.9.x. 
 
 #### Factory configurator client
 

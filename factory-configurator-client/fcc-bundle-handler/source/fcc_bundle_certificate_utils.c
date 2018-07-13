@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-
+#ifndef USE_TINY_CBOR
 #include "fcc_bundle_handler.h"
 #include "cn-cbor.h"
 #include "pv_error_handling.h"
@@ -98,3 +98,4 @@ exit:
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return fcc_status;
 }
+#endif

@@ -104,8 +104,9 @@ fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
             break;
         case KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR:
             fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR;
+            break;
         case KCM_STATUS_FILE_EXIST:
-        case (KCM_STATUS_KEY_EXIST):
+        case KCM_STATUS_KEY_EXIST:
             fcc_status = FCC_STATUS_KCM_FILE_EXIST_ERROR;
             break;
         case KCM_CRYPTO_STATUS_UNSUPPORTED_HASH_MODE:

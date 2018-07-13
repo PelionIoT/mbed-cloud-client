@@ -18,6 +18,7 @@
 #define M2M_TIMER_PIMPL_H__
 
 #include "ns_types.h"
+#include "eventOS_event.h"
 #include "mbed-client/m2mtimerobserver.h"
 
 class M2MTimerPimpl {
@@ -63,32 +64,16 @@ public:
     void stop_timer();
 
     /**
-     * Callback function for timer completion.
-     */
-    void timer_expired();
-
-    /**
      * @brief Checks if the intermediate interval has passed
      * @return true if interval has passed, false otherwise
      */
-    bool is_intermediate_interval_passed();
+    bool is_intermediate_interval_passed() const;
 
     /**
      * @brief Checks if the total interval has passed
      * @return true if interval has passed, false otherwise
      */
-    bool is_total_interval_passed();
-
-    /**
-     * @brief Start long period timer
-     */
-    void start_still_left_timer();
-
-    /**
-     * @brief Get timer id
-     * @return Timer id
-     */
-    inline int8_t get_timer_id() const;
+    bool is_total_interval_passed() const;
 
     /**
      * @brief Get still left time
@@ -96,38 +81,63 @@ public:
      */
     uint64_t get_still_left_time() const;
 
+    /**
+     * Tasklet's internal event handler, which needs to be public as it is used from C wrapper side.
+     * This makes it possible to at least keep the member variables private.
+     */
+    void handle_timer_event(const arm_event_s &event);
+
 private:
+
+    /**
+     * Second phase of initialization, which will create the tasklet upon first call to
+     * to any of the M2MTimerPimpl instances a start_timer() or start_dtls_timer().
+     */
+    void initialize_tasklet();
+
+    /**
+     * @brief Start long period timer
+     */
+    void start_still_left_timer();
+
+    /**
+     * Function handling the timer completion.
+     */
+    void timer_expired();
 
     void start();
     void cancel();
 
+    /**
+     * Internal helper to request a event after given amount of milliseconds.
+     * @param delay_ms requested delay in milliseconds
+     */
+    void request_event_in(int32_t delay_ms);
+
 private:
     M2MTimerObserver&   _observer;
-    bool                _single_shot;
     uint64_t            _interval;
-    M2MTimerObserver::Type  _type;
 
     uint64_t            _intermediate_interval;
     uint64_t            _total_interval;
     uint64_t            _still_left;
-    uint8_t             _status;
-    bool                _dtls_type;
 
-    // this is the timer-id of this object, used to map the
-    // timer event callback to the correct object.
-    int8_t              _timer_id;
+    // pointer to the current timer event pending, NULL if none is in flight
+    arm_event_storage_t *_timer_event;
+
+    M2MTimerObserver::Type  _type : 4;
+
+    unsigned int        _status : 2;
+
+    bool                _dtls_type : 1;
+
+    bool                _single_shot : 1;
 
     static int8_t       _tasklet_id;
-    static int8_t       _next_timer_id;
 
     friend class M2MTimer;
     friend class Test_M2MTimerPimpl_classic;
 };
-
-inline int8_t M2MTimerPimpl::get_timer_id() const
-{
-    return _timer_id;
-}
 
 #endif //M2M_TIMER_PIMPL_H__
 

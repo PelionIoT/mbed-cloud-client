@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2018 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@
         #include "NUCLEO_default.h"
     #elif defined(TARGET_UBLOX_EVK_ODIN_W2)
         #include "ODIN_default.h"
+    #elif defined(TARGET_UBLOX_C030_U201)
+        #include "C030_default.h"
     #endif
 #endif
 

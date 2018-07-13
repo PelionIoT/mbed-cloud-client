@@ -101,6 +101,11 @@ public:
     virtual void cancel_bootstrap();
 
     /**
+     * @brief Finishes on going bootstrap in cases where client is the one to finish it.
+     */
+    virtual void finish_bootstrap();
+
+    /**
      * @brief Initiates registration of the provided Security object to the
      * corresponding LWM2M server.
      * @param security_object Security object which contains information
@@ -255,6 +260,24 @@ public:
                                   void *context);
 
     /**
+     * @brief Sends the CoAP POST request to the server.
+     * @uri Uri path to the data.
+     * @async In async mode application must call this API again with the updated offset.
+     *        If set to false then client will automatically download the whole package.
+     * @payload_len Length of payload.
+     * @payload_ptr, Pointer to payload buffer.
+     * @get_data_cb Callback which is triggered once there is data available.
+     * @get_data_error_cb Callback which is trigged in case of any error.
+     */
+    virtual void post_data_request(const char *uri,
+                                   const bool async,
+                                   const uint16_t payload_len,
+                                   uint8_t *payload_ptr,
+                                   get_data_cb data_cb,
+                                   get_data_error_cb error_cb,
+                                   void *context);
+
+    /**
      * @brief Set custom uri query paramaters used in LWM2M registration.
      * @uri_query_params Uri query params. Parameters must be in key-value format:
      * "a=100&b=200". Maximum length can be up to 64 bytes.
@@ -277,6 +300,8 @@ protected: // From M2MNsdlObserver
     virtual void client_unregistered();
 
     virtual void bootstrap_done();
+
+    virtual void bootstrap_finish();
 
     virtual void bootstrap_wait();
 
@@ -509,6 +534,7 @@ private:
     bool                        _reconnecting;
     bool                        _retry_timer_expired;
     bool                        _bootstrapped;
+    bool                        _bootstrap_finished;
     bool                        _queue_mode_timer_ongoing;
     uint8_t                     _current_state;
     BindingMode                 _binding_mode;

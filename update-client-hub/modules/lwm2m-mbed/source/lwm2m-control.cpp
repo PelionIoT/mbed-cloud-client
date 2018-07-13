@@ -28,7 +28,7 @@
  */
 arm_uc_error_t ARM_UC_CONTROL_SetOverrideCallback(void (*callback)(void))
 {
-    arm_uc_error_t retval = { .code = ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(retval, ERR_INVALID_PARAMETER);
 
     int32_t result = FirmwareUpdateResource::addUpdateCallback(callback);
 

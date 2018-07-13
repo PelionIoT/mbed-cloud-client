@@ -68,7 +68,7 @@ void aq_critical_section_enter()
     ++_entry_count;
 }
 
-void aq_critical_section_exit()
+void aq_critical_section_exit(void)
 {
     assert(_entry_count > 0);
     --_entry_count;

@@ -2616,6 +2616,12 @@
 //#define MBEDTLS_SSL_COOKIE_TIMEOUT        60 /**< Default expiration delay of DTLS cookies, in seconds if HAVE_TIME, or in number of cookies issued */
 
 /**
+ * Enable ARIA ciphersuites.
+ */
+
+#define MBEDTLS_ARIA_C
+
+/**
  * Complete list of ciphersuites to use, in order of preference.
  *
  * \warning No dependency checking is done on that field! This option can only
@@ -2632,7 +2638,9 @@
                                  MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, \
                                  MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8, \
                                  MBEDTLS_TLS_PSK_WITH_AES_256_CCM_8, \
-                                 MBEDTLS_TLS_PSK_WITH_AES_128_CBC_SHA256
+                                 MBEDTLS_TLS_PSK_WITH_AES_128_CBC_SHA256, \
+                                 MBEDTLS_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256, \
+                                 MBEDTLS_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256
 /* X509 options */
 //#define MBEDTLS_X509_MAX_INTERMEDIATE_CA   8   /**< Maximum number of intermediate CAs in a verification chain. */
 //#define MBEDTLS_X509_MAX_FILE_PATH_LEN     512 /**< Maximum length of a path/filename string in bytes including the null terminator character ('\0'). */

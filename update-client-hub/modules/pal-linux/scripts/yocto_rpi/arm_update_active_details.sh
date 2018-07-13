@@ -28,13 +28,13 @@
 . /opt/arm/arm_update_cmdline.sh
 
 # header directory
-HEADER_DIR=$(dirname ${HEADER})
+HEADER_DIR=$(dirname "${HEADER}")
 
 # header name (not prefix)
 HEADER_NAME="header"
 
 # location where the update client will find the header
-HEADER_PATH=${HEADER_DIR}"/"${HEADER_NAME}".bin"
+HEADER_PATH="${HEADER_DIR}/${HEADER_NAME}.bin"
 
 # header size
 HEADER_SIZE=112
@@ -43,39 +43,39 @@ set -x
 # Return the number of the partition with the given label (in $1)
 # Exit with error if the partition can't be found
 getpart() {
-    res=`readlink -f /dev/disk/by-label/$1`
-    if [[ ${res:0:13}x == "/dev/mmcblk0px" ]]; then
-        echo `echo $res | cut -d'p' -f2`
+    res=$(readlink -f "/dev/disk/by-label/$1")
+    if [ "$(echo "${res}" | cut -c1-13)x"  = "/dev/mmcblk0px" ]; then
+        echo "$(echo $res | cut -d'p' -f2)"
     fi
 }
 
 # Flag partition
-FLAGS=`getpart "bootflags"`
-if [ "${FLAGS}"x == "x" ]; then
+FLAGS=$(getpart "bootflags")
+if [ "${FLAGS}"x = "x" ]; then
     echo "Unable to find partition with label 'bootflags'"
     exit 9
 fi
 
 # Find the partition that is currently mounted to /
-activePartition=`lsblk -nro NAME,MOUNTPOINT | grep -e ".* /$" | cut -d ' ' -f1`
-activePartitionNum=`echo ${activePartition} | grep -Eo '[0-9]+$'`
+activePartition=$(lsblk -nro NAME,MOUNTPOINT | grep -e ".* /$" | cut -d ' ' -f1)
+activePartitionNum=$(echo "${activePartition}" | grep -Eo '[0-9]+$')
 
 # Get the format of the partition name
-partitionPrefix=`echo ${activePartition} | sed -e "s|^\([a-z0-9]*[a-z]\)[0-9]$|\1|"`
+partitionPrefix=$(echo "${activePartition}" | sed -e "s|^\([a-z0-9]*[a-z]\)[0-9]$|\1|")
 
 # Make sure flags partition isn't mounted.
-umount /dev/${partitionPrefix}${FLAGS} > /dev/null
+umount "/dev/${partitionPrefix}${FLAGS}" > /dev/null
 
 # mount flags partition
-if ! mount /dev/${partitionPrefix}${FLAGS} /mnt/flags ; then
+if ! mount "/dev/${partitionPrefix}${FLAGS}" /mnt/flags ; then
     exit 7
 fi
 
 # Boot Flags
-if [ "${activePartitionNum}" == "5" ] && [ -e "/mnt/flags/five" ]; then
+if [ "${activePartitionNum}" = "5" ] && [ -e "/mnt/flags/five" ]; then
     cp /mnt/flags/five $HEADER_PATH
     sync
-elif [ "${activePartitionNum}" == "6" ] && [ -e "/mnt/flags/six" ]; then
+elif [ "${activePartitionNum}" = "6" ] && [ -e "/mnt/flags/six" ]; then
     cp /mnt/flags/six $HEADER_PATH
     sync
 else

@@ -27,7 +27,7 @@ static struct atomic_queue arm_uc_queue = { 0 };
 static void (*arm_uc_notificationHandler)(void) = NULL;
 static volatile int32_t arm_uc_queue_counter = 0;
 
-int32_t ARM_UC_SchedulerGetQueuedCount() {
+int32_t ARM_UC_SchedulerGetQueuedCount(void) {
     return arm_uc_queue_counter;
 }
 
@@ -141,7 +141,7 @@ static void callback_pool_free(arm_uc_callback_t* e)
     } 
 }
 
-uint32_t ARM_UC_SchedulerGetHighWatermark()
+uint32_t ARM_UC_SchedulerGetHighWatermark(void)
 {
     uint32_t i;
     for (i = 0; i < ARM_UC_SCHEDULER_STORAGE_POOL_SIZE; i++)

@@ -31,7 +31,7 @@
 mkdir -p /tmp/extended
 
 # move header and firmeware to extended directory for local control
-cp $HEADER /tmp/extended/header_${LOCATION}.bin
-cp $FIRMWARE /tmp/extended/firmware_${LOCATION}.bin
+cp $HEADER "/tmp/extended/header_${LOCATION}.bin"
+cp $FIRMWARE "/tmp/extended/firmware_${LOCATION}.bin"
 
 exit 0

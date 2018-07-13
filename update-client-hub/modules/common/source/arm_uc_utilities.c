@@ -23,7 +23,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "sotp.h"
 
 /* lookup table for printing hexadecimal values */
 const uint8_t arm_uc_hex_table[16] = {'0', '1', '2', '3', '4', '5', '6', '7',
@@ -552,66 +551,4 @@ void ARM_UC_Base64Dec(arm_uc_buffer_t* bin, const uint32_t size, const uint8_t* 
         }
     }
     bin->size = optr - (uintptr_t)bin->ptr;
-}
-
-
-/*****************************************************************************/
-/* SOTP access functions                                                     */
-/*****************************************************************************/
-
-/**
- * Reads an integer up to 8 bytes in size from SOTP.
- * @param type SOTP item type.
- * @param size SOTP item size in bytes (1, 2, 4 or 8).
- * @param out Location where the integer value is written.
- * @return ERR_NONE if the read succeeded, ERR_INVALID_PARAMETER otherwise.
- */
-arm_uc_error_t arm_uc_read_sotp_uint(uint32_t type, uint16_t size, void *out)
-{
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
-
-    if (out != NULL &&
-       (size == sizeof(uint8_t) || size == sizeof(uint16_t) ||
-        size == sizeof(uint32_t) || size == sizeof(uint64_t)))
-    {
-        uint64_t temp_sotp = 0;
-        uint16_t actual_len_bytes = 0;
-        sotp_result_e status = sotp_get(type, size, (uint32_t*)&temp_sotp,
-                                        &actual_len_bytes);
-        if (status == SOTP_SUCCESS && actual_len_bytes == size)
-        {
-            memcpy(out, &temp_sotp, size);
-            result = (arm_uc_error_t){ ERR_NONE };
-        }
-    }
-
-    return result;
-}
-
-/**
- * Writes an integer up to 8 bytes in size to SOTP.
- * @param type SOTP item type.
- * @param size SOTP item size in bytes (1, 2, 4 or 8).
- * @param in Location where the integer value is read.
- * @return ERR_NONE if the read succeeded, ERR_INVALID_PARAMETER otherwise.
- */
-arm_uc_error_t arm_uc_write_sotp_uint(uint32_t type, uint16_t size, void *in)
-{
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
-
-    if (in != NULL &&
-       (size == sizeof(uint8_t) || size == sizeof(uint16_t) ||
-        size == sizeof(uint32_t) || size == sizeof(uint64_t)))
-    {
-        uint64_t temp_sotp = 0;
-        /* ensure 32-bit alignment is enforced */
-        memcpy(&temp_sotp, in, size);
-        sotp_result_e status = sotp_set(type, size, (uint32_t*)&temp_sotp);
-        if (status == SOTP_SUCCESS)
-        {
-            result = (arm_uc_error_t){ ERR_NONE };
-        }
-    }
-
-    return result;
 }

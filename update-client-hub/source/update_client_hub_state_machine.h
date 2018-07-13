@@ -19,6 +19,10 @@
 #ifndef ARM_UC_HUB_STATE_MACHINE_H
 #define ARM_UC_HUB_STATE_MACHINE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include "update-client-common/arm_uc_common.h"
 
@@ -27,16 +31,13 @@
  */
 typedef enum {
     ARM_UC_HUB_STATE_UNINITIALIZED,
+    ARM_UC_HUB_STATE_INITIALIZING,
     ARM_UC_HUB_STATE_INITIALIZED,
     ARM_UC_HUB_STATE_GET_ACTIVE_FIRMWARE_DETAILS,
     ARM_UC_HUB_STATE_REPORT_ACTIVE_HASH,
     ARM_UC_HUB_STATE_REPORT_ACTIVE_VERSION,
     ARM_UC_HUB_STATE_GET_INSTALLER_DETAILS,
     ARM_UC_HUB_STATE_REPORT_INSTALLER_DETAILS,
-    ARM_UC_HUB_STATE_CHECK_OEM_MODE_RESET,
-    ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS,
-    ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_OK,
-    ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_ERROR,
     ARM_UC_HUB_STATE_IDLE,
     ARM_UC_HUB_STATE_NOTIFIED,
     ARM_UC_HUB_STATE_CERT_STORED,
@@ -63,7 +64,7 @@ typedef enum {
     ARM_UC_HUB_STATE_ERROR_MANIFEST_MANAGER,
     ARM_UC_HUB_STATE_ERROR_SOURCE_MANAGER,
     ARM_UC_HUB_STATE_ERROR_CONTROL_CENTER,
-    ARM_UC_HUB_STATE_ERROR_UNKNOWN,
+    ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK,
 } arm_uc_hub_state_t;
 
 /**
@@ -91,5 +92,9 @@ void ARM_UC_HUB_setInitializationCallback(void (*callback)(int32_t));
  * @brief Return the active firmware details or NULL if they're not yet available.
  */
 arm_uc_firmware_details_t* ARM_UC_HUB_getActiveFirmwareDetails(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // ARM_UC_HUB_STATE_MACHINE_H

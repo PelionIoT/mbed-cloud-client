@@ -66,6 +66,7 @@ struct cryptsize getCryptInfo(arm_uc_buffer_t* buffer)
         case MFST_CRYPT_SHA256_ECC_AES128_PSK:
         // case MFST_CRYPT_SHA256_HMAC_AES128_PSK:
             cs.aeslen = 128/CHAR_BIT;
+            // fall through
         // case MFST_CRYPT_SHA256_HMAC:
         case MFST_CRYPT_SHA256:
             cs.hashlen = 256/CHAR_BIT;
@@ -126,7 +127,7 @@ arm_uc_mm_crypto_flags_t ARM_UC_mmGetCryptoFlags(uint32_t cryptoMode)
  */
 arm_uc_error_t ARM_UC_mmGetManifestHashFromBin(arm_uc_buffer_t* buffer, arm_uc_buffer_t* hash)
 {
-    const uint32_t fieldID = ARM_UC_MM_DER_SIG_HASH;
+    const int32_t fieldID = ARM_UC_MM_DER_SIG_HASH;
     int rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, hash);
     if (rc) return (arm_uc_error_t){MFST_ERR_DER_FORMAT};
     return (arm_uc_error_t){MFST_ERR_NONE};
@@ -276,7 +277,7 @@ enum arm_uc_mmCertificateFetchEvents {
  */
 static arm_uc_error_t ARM_UC_mmValidateSignatureCert(arm_uc_buffer_t* buffer, arm_uc_buffer_t* ca, uint32_t sigIndex)
 {
-    const uint32_t fieldIDs[] = {ARM_UC_MM_DER_SIG_HASH, ARM_UC_MM_DER_SIG_SIGNATURES};
+    const int32_t fieldIDs[] = {ARM_UC_MM_DER_SIG_HASH, ARM_UC_MM_DER_SIG_SIGNATURES};
     arm_uc_buffer_t fields[ARRAY_SIZE(fieldIDs)];
 
     // Get the signature list
@@ -290,7 +291,7 @@ static arm_uc_error_t ARM_UC_mmValidateSignatureCert(arm_uc_buffer_t* buffer, ar
 
     // Load the specified signature out of the signature block
     arm_uc_buffer_t sig;
-    const uint32_t sigID = ARM_UC_MM_DER_SIG_SIGNATURE;
+    const int32_t sigID = ARM_UC_MM_DER_SIG_SIGNATURE;
     rc = ARM_UC_mmDERParseTree(&arm_uc_mmSignatures[0], &sigblock, 1U, &sigID, &sig);
     if (rc) return (arm_uc_error_t){MFST_ERR_DER_FORMAT};
 

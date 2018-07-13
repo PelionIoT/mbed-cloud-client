@@ -81,6 +81,13 @@ public:
      * \param type The type of the object.
      */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type) = 0;
+
+    /**
+     * \brief A callback indicating when all bootstrap data has been received.
+     * \param security_object, The security object that contains the security information.
+     */
+    virtual void bootstrap_data_ready(M2MSecurity *security_object) { };
+
 };
 
 #endif // M2M_INTERFACE_OBSERVER_H

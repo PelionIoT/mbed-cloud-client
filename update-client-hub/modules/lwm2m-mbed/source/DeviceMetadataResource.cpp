@@ -71,7 +71,7 @@ void DeviceMetadataResource::Initialize(void)
                 const uint8_t invalid_value[]    = "INVALID";
                 const uint8_t invalid_value_size = sizeof(invalid_value) - 1;
 
-                arm_uc_error_t err    = { .code = ERR_INVALID_PARAMETER };
+                ARM_UC_INIT_ERROR(err, ERR_INVALID_PARAMETER);
                 arm_uc_guid_t guid    = { 0 };
                 uint8_t* value        = NULL;
                 uint32_t value_length = 0;

@@ -108,7 +108,7 @@
  * @enddot
  */
 
-
+#if ARM_UC_MANIFEST_MANAGER_TRACE_ENABLE
 static const char* ARM_UC_mmInsertState2Str(uint32_t state)
 {
     switch (state) {
@@ -121,6 +121,7 @@ static const char* ARM_UC_mmInsertState2Str(uint32_t state)
         return "Unknown State";
     }
 }
+#endif
 
 #define max(A,B) ((A)>(B)?(A):(B))
 
