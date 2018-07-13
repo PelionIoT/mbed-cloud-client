@@ -521,7 +521,7 @@ const char* ARM_UC_mmDERDescID2Str(uint32_t id)
  */
 struct ARM_UC_MM_DERParserState {
     uint32_t nValues;         //!< Number of values remaining to parse
-    const uint32_t* valueIDs; //!< Current element of the value identifier array
+    const int32_t* valueIDs; //!< Current element of the value identifier array
     arm_uc_buffer_t* buffers; //!< Current buffer of the value output array
 };
 /**
@@ -682,7 +682,7 @@ int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** 
     // Get the next tag & length, advancing the parse position to just after the tag/length pair.
     rc = ARM_UC_MM_ASN1_get_tag(pos, end, &len, desc->tag);
     // If an optional tag was expected, but not encountered, it is not an error unless it was requested by the user.
-    if (rc == ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG && desc->optional && desc->id != state->valueIDs[0])
+    if (rc == ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG && desc->optional && desc->id != (unsigned)(state->valueIDs[0]))
     {
         DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, " (skipped)\n");
         return 0;
@@ -694,7 +694,7 @@ int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** 
         return rc;
     }
     // If the encountered tag is one of the requested IDs, record its location and size, then move on to the next value
-    if (desc->id == state->valueIDs[0])
+    if (desc->id == (unsigned)(state->valueIDs[0]))
     {
         // If the element is a sequence, store the whole element, not just the content.
         if (desc->tag == (ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE) && desc->nSubElements != 1)

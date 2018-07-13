@@ -32,9 +32,13 @@ typedef Vector<M2MBase*> M2MBaseList;
 typedef FP callback_handler;
 
 // TODO! Add more errors
-typedef enum get_data_req_error_e {
-    FAILED_TO_SEND_MSG = 0
-} get_data_req_error_t;
+typedef enum request_error_e {
+    FAILED_TO_SEND_MSG = 0,
+    FAILED_TO_ALLOCATE_MEMORY = 1
+} request_error_t;
+
+typedef request_error_e get_data_req_error_e;
+typedef request_error_t get_data_req_error_t;
 
 /*!
  * @brief A callback function to receive data from GET request.
@@ -46,17 +50,20 @@ typedef enum get_data_req_error_e {
  *                   Caller must store this information to detect when the download has completed.
  * @param context Application context
 */
-typedef void (*get_data_cb)(const uint8_t *buffer,
-                           size_t buffer_size,
-                           size_t total_size,
-                           void *context);
+typedef void (*request_data_cb)(const uint8_t *buffer,
+                                size_t buffer_size,
+                                size_t total_size,
+                                void *context);
+typedef request_data_cb get_data_cb; // For backward compatibility
 
 /*!
  * @brief A callback function to receive errors from GET transfer.
  * @param error_code
  * @param context Application context
 */
-typedef void (*get_data_error_cb)(get_data_req_error_t error_code, void *context);
+typedef void (*request_error_cb)(request_error_t error_code, void *context);
+typedef request_error_cb get_data_error_cb; // For backward compatibility
+
 
 /*! \file m2minterface.h
  *  \brief M2MInterface.
@@ -88,7 +95,8 @@ public:
         NotAllowed,
         SecureConnectionFailed,
         DnsResolvingFailed,
-        UnregistrationFailed
+        UnregistrationFailed,
+        ESTEnrollmentFailed
     }Error;
 
     /**
@@ -142,6 +150,11 @@ public:
      * NOTE: This API is not supported for developers!!
      */
     virtual void cancel_bootstrap() = 0;
+
+    /**
+     * \brief Finishes bootstrap in cases where client will be the one to finish it.
+     */
+    virtual void finish_bootstrap() = 0;
 
     /**
      * \brief Initiates the registration of a provided security object to the
@@ -299,6 +312,24 @@ public:
                                   get_data_cb,
                                   get_data_error_cb,
                                   void *context) = 0;
+
+    /**
+     * @brief Sends the CoAP POST request to the server.
+     * @uri Uri path to the data.
+     * @async In async mode application must call this API again with the updated offset.
+     *        If set to false then client will automatically download the whole package.
+     * @payload_len Length of payload.
+     * @payload_ptr, Pointer to payload buffer.
+     * @get_data_cb Callback which is triggered once there is data available.
+     * @get_data_error_cb Callback which is trigged in case of any error.
+     */
+    virtual void post_data_request(const char *uri,
+                                   const bool async,
+                                   const uint16_t payload_len,
+                                   uint8_t *payload_ptr,
+                                   get_data_cb data_cb,
+                                   get_data_error_cb error_cb,
+                                   void *context) = 0;
 
     /**
      * @brief Set custom uri query paramaters used in LWM2M registration.

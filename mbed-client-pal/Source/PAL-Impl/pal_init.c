@@ -97,7 +97,7 @@ palStatus_t pal_init(void)
                             sotpStatus = sotp_init();
                             if (SOTP_SUCCESS != sotpStatus)
                             {
-                                DEBUG_PRINT("init of SOTP module has failed with status %" PRIx32 "\r\n",status);
+                                DEBUG_PRINT("init of SOTP module has failed with status %" PRIx32 "\r\n", (int32_t)sotpStatus);
                                 status = PAL_ERR_NOT_INITIALIZED;
                             }
                             if (PAL_SUCCESS == status)

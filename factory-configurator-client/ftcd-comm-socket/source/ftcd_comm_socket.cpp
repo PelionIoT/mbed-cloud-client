@@ -44,6 +44,7 @@ FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_
     _net_interface_info = NULL;
     _server_socket = NULL;
     _client_socket = NULL;
+    _connection_state = SOCKET_WAIT_FOR_CONNECTION;
 }
 
 FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_e domain, const uint16_t port_num, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature, int32_t timeout)
@@ -59,6 +60,7 @@ FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_
     _net_interface_info = NULL;
     _server_socket = NULL;
     _client_socket = NULL;
+    _connection_state = SOCKET_WAIT_FOR_CONNECTION;
 }
 
 FtcdCommSocket::~FtcdCommSocket()
@@ -164,7 +166,6 @@ bool FtcdCommSocket::init()
 
 }
 
-
 void FtcdCommSocket::finish(void)
 {
     if (_server_socket != NULL) {
@@ -178,46 +179,59 @@ void FtcdCommSocket::finish(void)
     pal_destroy();
 }
 
+// no_open_connection, connection_open, connection_open_timeout
 ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint32_t *message_size_out)
 {
     int result = PAL_SUCCESS;
-
+    ftcd_comm_status_e comm_status = FTCD_COMM_STATUS_SUCCESS;
     palSocketLength_t addrlen = sizeof(palSocketAddress_t);
     palSocketAddress_t address = { 0 };
+    bool reiterate;
 
-    // wait to accept connection if not in the middle of an accepted connection
-    if (!_client_socket) {
-        // Initialize client socket
-        result = pal_socket((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM, false, _interface_index, &_client_socket);
-        if (result != PAL_SUCCESS) {
-            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
-            return FTCD_COMM_NETWORK_CONNECTION_ERROR;
+    do {
+        reiterate = false;
+
+        if (_connection_state == SOCKET_WAIT_FOR_CONNECTION) {
+            // wait to accept connection
+            result = pal_accept(_server_socket, &address, &addrlen, &_client_socket);
+            if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
+                // Timeout
+                return FTCD_COMM_NETWORK_TIMEOUT;
+            } else if (result != PAL_SUCCESS) {
+                return FTCD_COMM_NETWORK_CONNECTION_ERROR;
+            }
+
         }
-        // We accept an incoming connection and close the connection when we know we received the last message
-        // FIXME: In the future we will want to take care of situations where the server closes the connection
-        result = pal_accept(_server_socket, &address, &addrlen, &_client_socket);
-        if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
-            return FTCD_COMM_NETWORK_TIMEOUT;
-        } else if (result != PAL_SUCCESS) {
-            return FTCD_COMM_NETWORK_CONNECTION_ERROR;
+
+        // Set state as accepted connection
+        _connection_state = SOCKET_CONNECTION_ACCEPTED;
+
+        // Read the message from an open connection,
+        // if the connection has been closed by the client wait for a new connection
+        comm_status = FtcdCommBase::wait_for_message(message_out, message_size_out);
+        if (comm_status == FTCD_COMM_NETWORK_CONNECTION_CLOSED) {
+            reiterate = true; // Set the reiterate flag so that we will wait for a new connection before returning from function
+        } 
+        if (comm_status != FTCD_COMM_STATUS_SUCCESS) { // If error reading - close the client socket and back to SOCKET_CLOSED state
+            _connection_state = SOCKET_WAIT_FOR_CONNECTION;
         }
-    }
-    return FtcdCommBase::wait_for_message(message_out, message_size_out);
+
+    } while (reiterate);
+    return comm_status;
 }
 
-ftcd_comm_status_e FtcdCommSocket::is_token_detected(void)
+ftcd_comm_status_e FtcdCommSocket::is_token_detected()
 {
     char c;
-    int result = PAL_SUCCESS;
+    ftcd_comm_status_e result = FTCD_COMM_STATUS_SUCCESS;
     size_t idx = 0;
 
     //read char by char to detect token
     while (idx < FTCD_MSG_HEADER_TOKEN_SIZE_BYTES) {
         result = _read_from_socket(reinterpret_cast<void*>(&c), 1);
-        if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
-            return FTCD_COMM_NETWORK_TIMEOUT;
-        } else if (result != PAL_SUCCESS) {
-            return FTCD_COMM_NETWORK_CONNECTION_ERROR;
+        
+        if (result != FTCD_COMM_STATUS_SUCCESS) {
+            return result;
         }
 
         if (c == _header_token[idx]) {
@@ -226,7 +240,7 @@ ftcd_comm_status_e FtcdCommSocket::is_token_detected(void)
             idx = 0;
         }
     }
-    return FTCD_COMM_STATUS_SUCCESS;
+    return result;
 }
 
 
@@ -292,8 +306,13 @@ bool FtcdCommSocket::send(const uint8_t *data, uint32_t data_size)
     size_t remaind_bytes = (size_t)data_size;
 
     do {
+        if (_connection_state != SOCKET_CONNECTION_ACCEPTED) {
+            return FTCD_COMM_NETWORK_CONNECTION_CLOSED;
+        }
         result = pal_send(_client_socket, data, remaind_bytes, &sent_bytes);
         if (result != PAL_SUCCESS) {
+            // Drop current client for all errors
+            _connection_state = SOCKET_WAIT_FOR_CONNECTION;
             mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Failed pal_send");
             success = false;
             break;
@@ -337,6 +356,14 @@ bool FtcdCommSocket::_listen(void)
         mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
         return false;
     }
+
+    result = pal_socket((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM, false, _interface_index, &_client_socket);
+    if (result != PAL_SUCCESS) {
+        mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
+        return false;
+    }
+    // reset connection state
+    _connection_state = SOCKET_WAIT_FOR_CONNECTION;
 
     status = pal_setSocketOptions(_server_socket, PAL_SO_REUSEADDR, &enable_reuseaddr, sizeof(enable_reuseaddr));
     if (status != 0) {
@@ -394,56 +421,35 @@ bool FtcdCommSocket::_listen(void)
 
 ftcd_comm_status_e FtcdCommSocket::_read_from_socket(void * data_out, int data_out_size)
 {
-    int status = PAL_SUCCESS;
+    palStatus_t pal_status = PAL_SUCCESS;
     size_t bytes_received = 0;
-
-    if (data_out == NULL) {
-        mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Invalid message");
-        return FTCD_COMM_INTERNAL_ERROR;
-    }
-
-    status = pal_recv(_client_socket, data_out, data_out_size, &bytes_received);
-    if (status == PAL_ERR_SOCKET_WOULD_BLOCK) {
-        mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Receive socket timeout, (status = %i)", status);
-        return FTCD_COMM_NETWORK_TIMEOUT;
-    } else if (status != PAL_SUCCESS) {
-        mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Receive socket error, (status = %i)", status);
-        return FTCD_COMM_NETWORK_CONNECTION_ERROR;
-    }
-
-    /* FIXME: The socket reads up to MSS (Max Segment Size) which is 1460 bytes.
-    A bigger message would result in a partial message read. A temporary solution
-    is to loop through until socket emptiness */
-
-    // The number of bytes we had managed to read so far
-    size_t bytes_read_successfully = bytes_received;
-
-    // The remaining bytes left to read
-    size_t remaining_bytes = data_out_size - bytes_received;
-
-    // Loop through until nothing left to read
-    // remaining_bytes will never be less than 0 since a max of remaining_bytes will be read into bytes_received,
-    // and we do remaining_bytes -= bytes_received
-    while (remaining_bytes != 0) {
-
-        //Zero bytes_received before next receive
+    size_t left_to_read = data_out_size;
+    uint8_t* buffer = (uint8_t*)data_out;
+    while (left_to_read > 0) {
+        if (_connection_state != SOCKET_CONNECTION_ACCEPTED) {
+            return FTCD_COMM_NETWORK_CONNECTION_CLOSED;
+        }
         bytes_received = 0;
-
-        status = pal_recv(_client_socket, (uint8_t *)data_out + bytes_read_successfully, remaining_bytes, &bytes_received);
-        if (status == PAL_ERR_SOCKET_WOULD_BLOCK) {
-            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Receive socket timeout, (status = %i)", status);
+        pal_status = pal_recv(_client_socket, buffer, left_to_read, &bytes_received);
+        if (pal_status == PAL_ERR_SOCKET_CONNECTION_CLOSED) {
+            // Drop current client
+            _connection_state = SOCKET_WAIT_FOR_CONNECTION;
+            return FTCD_COMM_NETWORK_CONNECTION_CLOSED;
+        }
+        else if (pal_status == PAL_ERR_SOCKET_WOULD_BLOCK) {
+            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Receive socket timeout");
             return FTCD_COMM_NETWORK_TIMEOUT;
-        } else if (status != PAL_SUCCESS) {
-            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Receive socket error, (status = %i)", status);
+        } else if (pal_status != PAL_SUCCESS) {
+            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Receive socket error, (status = 0x%" PRIx32 ")", (uint32_t)pal_status);
             return FTCD_COMM_NETWORK_CONNECTION_ERROR;
         }
-        // Should never happen - this means that pal_recv behaved incorrectly.
-        if (bytes_received > remaining_bytes) {
+        buffer += bytes_received;
+        if (left_to_read < bytes_received) {
             return FTCD_COMM_INTERNAL_ERROR;
         }
-        remaining_bytes -= bytes_received;
-        bytes_read_successfully += bytes_received;
+        left_to_read -= bytes_received;
     }
+
     return FTCD_COMM_STATUS_SUCCESS;
 }
 

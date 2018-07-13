@@ -145,16 +145,11 @@ int8_t sn_nsdl_destroy(struct nsdl_s *handle)
         handle->sn_nsdl_free(handle->ep_information_ptr);
     }
 
-    if (handle->nsp_address_ptr) {
-        if (handle->nsp_address_ptr->omalw_address_ptr) {
-            handle->sn_nsdl_free(handle->nsp_address_ptr->omalw_address_ptr->addr_ptr);
-            handle->sn_nsdl_free(handle->nsp_address_ptr->omalw_address_ptr);
-        }
-
-        handle->sn_nsdl_free(handle->nsp_address_ptr);
+    if (handle->server_address.addr_ptr) {
+        handle->sn_nsdl_free(handle->server_address.addr_ptr);
+        handle->server_address.addr_ptr = NULL;
+        handle->server_address.type = SN_NSDL_ADDRESS_TYPE_NONE;
     }
-
-    handle->sn_nsdl_free(handle->oma_bs_address_ptr);
 
     /* Destroy also libCoap and grs part of libNsdl */
     sn_coap_protocol_destroy(handle->grs->coap);
@@ -238,6 +233,8 @@ uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
 
     /*** Build endpoint register message ***/
 
+    handle->is_bs_server = false;
+
     /* Allocate memory for header struct */
     register_message_ptr = sn_coap_parser_alloc_message(handle->grs->coap);
     if (register_message_ptr == NULL) {
@@ -294,7 +291,7 @@ uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
     sn_nsdl_add_token(handle, &handle->register_token, register_message_ptr);
 
     /* Build and send coap message to NSP */
-    message_id = sn_nsdl_internal_coap_send(handle, register_message_ptr, handle->nsp_address_ptr->omalw_address_ptr);
+    message_id = sn_nsdl_internal_coap_send(handle, register_message_ptr, &handle->server_address);
 
     handle->sn_nsdl_free(register_message_ptr->payload_ptr);
     register_message_ptr->payload_ptr = NULL;
@@ -372,7 +369,7 @@ int32_t sn_nsdl_unregister_endpoint(struct nsdl_s *handle)
         sn_nsdl_add_token(handle, &handle->unregister_token, unregister_message_ptr);
 
         /* Send message */
-        message_id = sn_nsdl_internal_coap_send(handle, unregister_message_ptr, handle->nsp_address_ptr->omalw_address_ptr);
+        message_id = sn_nsdl_internal_coap_send(handle, unregister_message_ptr, &handle->server_address);
 
         unregister_message_ptr->token_ptr = NULL;
         unregister_message_ptr->token_len = 0;
@@ -482,7 +479,7 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
     sn_nsdl_add_token(handle, &handle->update_register_token, register_message_ptr);
 
     /* Build and send coap message to NSP */
-    message_id = sn_nsdl_internal_coap_send(handle, register_message_ptr, handle->nsp_address_ptr->omalw_address_ptr);
+    message_id = sn_nsdl_internal_coap_send(handle, register_message_ptr, &handle->server_address);
 
     register_message_ptr->token_ptr = NULL;
     register_message_ptr->token_len = 0;
@@ -575,7 +572,7 @@ int32_t sn_nsdl_send_observation_notification(struct nsdl_s *handle, uint8_t *to
     }
 
     /* Send message */
-    return_msg_id = sn_nsdl_send_coap_message(handle, handle->nsp_address_ptr->omalw_address_ptr, notification_message_ptr);
+    return_msg_id = sn_nsdl_send_coap_message(handle, &handle->server_address, notification_message_ptr);
     if (return_msg_id >= SN_NSDL_SUCCESS) {
         return_msg_id = notification_message_ptr->msg_id;
     }
@@ -593,9 +590,9 @@ int32_t sn_nsdl_send_observation_notification(struct nsdl_s *handle, uint8_t *to
 /* ~ OMA functions ~ */
 /* * * * * * * * * * */
 
-uint16_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle, sn_nsdl_addr_s *bootstrap_address_ptr,
+uint16_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle,
+                               sn_nsdl_addr_s *bootstrap_address_ptr,
                                sn_nsdl_ep_parameters_s *endpoint_info_ptr,
-                               sn_nsdl_bs_ep_info_t *bootstrap_endpoint_info_ptr,
                                const char *uri_query_parameters)
 {
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -605,12 +602,19 @@ uint16_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle, sn_nsdl_addr_s *bootstrap_
     uint16_t message_id = 0;
 
     /* Check parameters */
-    if (!bootstrap_address_ptr || !bootstrap_endpoint_info_ptr || !endpoint_info_ptr || !handle) {
+    if (!bootstrap_address_ptr || !endpoint_info_ptr || !handle) {
         return 0;
     }
 
-    handle->sn_nsdl_oma_bs_done_cb = bootstrap_endpoint_info_ptr->oma_bs_status_cb;
-    handle->sn_nsdl_oma_bs_done_cb_handle = bootstrap_endpoint_info_ptr->oma_bs_status_cb_handle;
+    if (set_NSP_address(handle,
+                        bootstrap_address_ptr->addr_ptr,
+                        bootstrap_address_ptr->addr_len,
+                        bootstrap_address_ptr->port,
+                        bootstrap_address_ptr->type) == SN_NSDL_FAILURE) {
+        return 0;
+    }
+
+    handle->is_bs_server = true;
 
     /* XXX FIX -- Init CoAP header struct */
     sn_coap_parser_init_message(&bootstrap_coap_header);
@@ -661,16 +665,6 @@ uint16_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle, sn_nsdl_addr_s *bootstrap_
     bootstrap_coap_header.options_list_ptr->uri_query_ptr = uri_query_tmp_ptr;
 
     /* Save bootstrap server address */
-    handle->oma_bs_address_len = bootstrap_address_ptr->addr_len;       /* Length.. */
-    handle->oma_bs_address_ptr = handle->sn_nsdl_alloc(handle->oma_bs_address_len);     /* Address.. */
-    if (!handle->oma_bs_address_ptr) {
-        handle->sn_nsdl_free(bootstrap_coap_header.options_list_ptr);
-        handle->sn_nsdl_free(uri_query_tmp_ptr);
-        return 0;
-    }
-    memcpy(handle->oma_bs_address_ptr, bootstrap_address_ptr->addr_ptr, handle->oma_bs_address_len);
-    handle->oma_bs_port = bootstrap_address_ptr->port;                  /* And port */
-
     sn_nsdl_add_token(handle, &handle->bootstrap_token, &bootstrap_coap_header);
 
     /* Send message */
@@ -850,21 +844,22 @@ int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet_ptr, uint16_t
     }
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /* * If OMA bootstrap message... * */
-    bool bootstrap_msg = src_ptr && (handle->oma_bs_address_len == src_ptr->addr_len) &&
-            (handle->oma_bs_port == src_ptr->port) &&
-            !memcmp(handle->oma_bs_address_ptr, src_ptr->addr_ptr, handle->oma_bs_address_len);
+    bool bootstrap_msg = handle->is_bs_server;
 
     // Pass bootstrap data to application
     if (bootstrap_msg) {
-        handle->sn_nsdl_rx_callback(handle, coap_packet_ptr,src_ptr);
-        if (coap_packet_ptr &&
-            coap_packet_ptr->options_list_ptr &&
-            coap_packet_ptr->coap_status != COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED &&
-            coap_packet_ptr->options_list_ptr->block1 != -1) {
-                handle->sn_nsdl_free(coap_packet_ptr->payload_ptr);
-                coap_packet_ptr->payload_ptr = NULL;
+        // If retval is 2 skip the freeing, it will be done in MBED_CLIENT_NSDLINTERFACE_BS_PUT_EVENT event
+        if (handle->sn_nsdl_rx_callback(handle, coap_packet_ptr,src_ptr) != 2) {
+            if (coap_packet_ptr &&
+                coap_packet_ptr->options_list_ptr &&
+                coap_packet_ptr->coap_status != COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED &&
+                coap_packet_ptr->options_list_ptr->block1 != -1) {
+                    handle->sn_nsdl_free(coap_packet_ptr->payload_ptr);
+                    coap_packet_ptr->payload_ptr = NULL;
+            }
+            sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
         }
-        sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
+
         return SN_NSDL_SUCCESS;
     }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -955,20 +950,8 @@ static int32_t sn_nsdl_internal_coap_send(struct nsdl_s *handle, sn_coap_hdr_s *
  */
 static void sn_nsdl_resolve_nsp_address(struct nsdl_s *handle)
 {
-    /* Local variables */
-    if (!handle->nsp_address_ptr) {
-        //allocate only if previously not allocated
-        handle->nsp_address_ptr = handle->sn_nsdl_alloc(sizeof(sn_nsdl_oma_server_info_t));
-    }
-
-    if (handle->nsp_address_ptr) {
-        handle->nsp_address_ptr->omalw_server_security = SEC_NOT_SET;
-        handle->nsp_address_ptr->omalw_address_ptr = handle->sn_nsdl_alloc(sizeof(sn_nsdl_addr_s));
-        if (handle->nsp_address_ptr->omalw_address_ptr) {
-            memset(handle->nsp_address_ptr->omalw_address_ptr, 0, sizeof(sn_nsdl_addr_s));
-            handle->nsp_address_ptr->omalw_address_ptr->type = SN_NSDL_ADDRESS_TYPE_NONE;
-        }
-    }
+    memset(&handle->server_address, 0, sizeof(sn_nsdl_addr_s));
+    handle->server_address.type = SN_NSDL_ADDRESS_TYPE_NONE;
 }
 
 #ifdef RESOURCE_ATTRIBUTES_LIST
@@ -1797,24 +1780,23 @@ static int8_t sn_nsdl_resolve_ep_information(struct nsdl_s *handle, sn_coap_hdr_
 extern int8_t set_NSP_address(struct nsdl_s *handle, uint8_t *NSP_address, uint8_t address_length, uint16_t port, sn_nsdl_addr_type_e address_type)
 {
     /* Check parameters and source pointers */
-    if (!handle || !handle->nsp_address_ptr || !handle->nsp_address_ptr->omalw_address_ptr || !NSP_address) {
+    if (!handle || !NSP_address) {
         return SN_NSDL_FAILURE;
     }
 
-    handle->nsp_address_ptr->omalw_address_ptr->type = address_type;
-    handle->nsp_address_ptr->omalw_server_security = SEC_NOT_SET;
+    handle->server_address.type = address_type;
 
-    handle->sn_nsdl_free(handle->nsp_address_ptr->omalw_address_ptr->addr_ptr);
+    handle->sn_nsdl_free(handle->server_address.addr_ptr);
 
-    handle->nsp_address_ptr->omalw_address_ptr->addr_len = address_length;
+    handle->server_address.addr_len = address_length;
 
-    handle->nsp_address_ptr->omalw_address_ptr->addr_ptr = handle->sn_nsdl_alloc(handle->nsp_address_ptr->omalw_address_ptr->addr_len);
-    if (!handle->nsp_address_ptr->omalw_address_ptr->addr_ptr) {
+    handle->server_address.addr_ptr = handle->sn_nsdl_alloc(handle->server_address.addr_len);
+    if (!handle->server_address.addr_ptr) {
         return SN_NSDL_FAILURE;
     }
 
-    memcpy(handle->nsp_address_ptr->omalw_address_ptr->addr_ptr, NSP_address, handle->nsp_address_ptr->omalw_address_ptr->addr_len);
-    handle->nsp_address_ptr->omalw_address_ptr->port = port;
+    memcpy(handle->server_address.addr_ptr, NSP_address, handle->server_address.addr_len);
+    handle->server_address.port = port;
 
     return SN_NSDL_SUCCESS;
 }
@@ -1950,15 +1932,18 @@ extern int8_t sn_nsdl_clear_coap_sent_blockwise_messages(struct nsdl_s *handle)
     return SN_NSDL_SUCCESS;
 }
 
-extern int32_t sn_nsdl_send_get_data_request(struct nsdl_s *handle,
-        const char *uri_path,
-        const uint32_t token,
-        const size_t offset)
+extern int32_t sn_nsdl_send_request(struct nsdl_s *handle,
+                                    const sn_coap_msg_code_e msg_code,
+                                    const char *uri_path,
+                                    const uint32_t token,
+                                    const size_t offset,
+                                    const uint16_t payload_len,
+                                    uint8_t* payload_ptr)
 {
     sn_coap_hdr_s  req_message;
     int32_t        message_id;
 
-    if (handle == NULL || uri_path == NULL || handle->grs->coap->sn_coap_block_data_size == 0) {
+    if (handle == NULL || uri_path == NULL) {
         return 0;
     }
 
@@ -1966,11 +1951,16 @@ extern int32_t sn_nsdl_send_get_data_request(struct nsdl_s *handle,
 
     // Fill message fields
     req_message.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
-    req_message.msg_code = COAP_MSG_CODE_REQUEST_GET;
+    req_message.msg_code = msg_code;
     req_message.uri_path_len = (uint16_t)strlen(uri_path);
     req_message.uri_path_ptr = (uint8_t*)uri_path;
     req_message.token_ptr = (uint8_t*)&token;
     req_message.token_len = sizeof(token);
+    if (msg_code == COAP_MSG_CODE_REQUEST_POST || msg_code == COAP_MSG_CODE_REQUEST_PUT) {
+        // Use payload only if POST or PUT request
+        req_message.payload_ptr = payload_ptr;
+        req_message.payload_len = payload_len;
+    }
 
 // Skip block options if feature is not enabled
 #if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
@@ -1986,10 +1976,12 @@ extern int32_t sn_nsdl_send_get_data_request(struct nsdl_s *handle,
     }
     // Add block size
     req_message.options_list_ptr->block2 |= sn_coap_convert_block_size(handle->grs->coap->sn_coap_block_data_size);
+#else
+    (void)offset;
 #endif
 
     // Build and send coap message
-    message_id = sn_nsdl_internal_coap_send(handle, &req_message, handle->nsp_address_ptr->omalw_address_ptr);
+    message_id = sn_nsdl_internal_coap_send(handle, &req_message, &handle->server_address);
     handle->grs->coap->sn_coap_protocol_free(req_message.options_list_ptr);
 
     return message_id;
@@ -2557,4 +2549,18 @@ uint16_t sn_nsdl_get_block_size(const struct nsdl_s *handle)
     }
 
     return handle->grs->coap->sn_coap_block_data_size;
+}
+
+extern uint8_t sn_nsdl_get_retransmission_count(struct nsdl_s *handle)
+{
+#if ENABLE_RESENDINGS
+    if (handle == NULL) {
+        return 0;
+    }
+
+    return handle->grs->coap->sn_coap_resending_count;
+#else
+    (void) handle;
+    return 0;
+#endif
 }

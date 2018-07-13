@@ -68,7 +68,6 @@ extern "C" {
         KCM_CSR_EXT_KU_OCSP_SIGNING =     (1 << 9)  //!< OCSP Signing
     } kcm_csr_ext_key_usage_e;
 
-
     /**
     * Security descriptor - contains different ACLs such as remote ACL, local ACL and audit.
     * Currently defined to `void*.`
@@ -86,10 +85,19 @@ extern "C" {
         KCM_SCHEME_EC_SECP256R1,       //!< KCM ECC cryptographic scheme, 256-bits NIST curve.
     }kcm_crypto_key_scheme_e;
 
+    /*
+    * Maximal file name length that can be saved in the KCM
+    */
 #define KCM_MAX_FILENAME_SIZE  1012
 
-#define KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN 5
+    /*
+    * Maximal length of the certificate chain in the device
+    */
+#define KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN 5
 
+    /*
+    * Certificate chain handle
+    */
     typedef void* kcm_cert_chain_handle;
 
     /** This struct contains CSR parameters for future generated CSR

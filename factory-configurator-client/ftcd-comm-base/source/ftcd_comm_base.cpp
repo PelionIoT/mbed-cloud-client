@@ -76,13 +76,12 @@ ftcd_comm_status_e FtcdCommBase::wait_for_message(uint8_t **message_out, uint32_
     if (_use_token == true) {
         //detect token
         status_code = is_token_detected();
-        if (status_code == FTCD_COMM_NETWORK_TIMEOUT) {
-            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Network timeout occurred");
+        if (status_code != FTCD_COMM_STATUS_SUCCESS) {
+            if (status_code != FTCD_COMM_NETWORK_CONNECTION_CLOSED) {
+                mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Network error (%d)", status_code);
+            }
             return status_code;
-        } else if (status_code == FTCD_COMM_NETWORK_CONNECTION_ERROR) {
-            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Network connection error occurred");
-            return status_code;
-        }
+        } 
     }
 
     // Read message size

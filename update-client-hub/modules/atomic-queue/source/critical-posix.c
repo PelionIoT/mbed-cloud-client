@@ -61,7 +61,7 @@ void aq_critical_section_enter() {
     }
 }
 
-void aq_critical_section_exit() {
+void aq_critical_section_exit(void) {
     assert(irq_nesting_depth > 0);
     if (--irq_nesting_depth == 0) {
         int rc = sigprocmask(SIG_SETMASK, &old_sig_set, NULL);

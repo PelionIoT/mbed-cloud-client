@@ -38,8 +38,11 @@
 
 #define ARM_UC_COMMON_ERR_LIST\
     ENUM_FIXED(ERR_NONE,0)\
+    ENUM_AUTO(ERR_UNSPECIFIED)\
     ENUM_AUTO(ERR_INVALID_PARAMETER)\
+    ENUM_AUTO(ERR_NULL_PTR)\
     ENUM_AUTO(ERR_NOT_READY)\
+    ENUM_AUTO(ERR_INVALID_STATE)\
 
 // Manifest manager
 #define ARM_UC_MM_ERR_LIST\
@@ -90,10 +93,16 @@
 // Source Manager
 #define ARM_UC_SM_ERR_LIST\
     ENUM_FIXED(SOMA_ERR_NONE, SOURCE_MANAGER_PREFIX << 16)\
+    ENUM_AUTO(SOMA_ERR_UNSPECIFIED)\
     ENUM_AUTO(SOMA_ERR_NO_ROUTE_TO_SOURCE)\
     ENUM_AUTO(SOMA_ERR_SOURCE_REGISTRY_FULL)\
     ENUM_AUTO(SOMA_ERR_SOURCE_NOT_FOUND)\
-    ENUM_AUTO(SOMA_ERR_INVALID_PARAMETER)
+    ENUM_AUTO(SOMA_ERR_INVALID_URI)\
+    ENUM_AUTO(SOMA_ERR_INVALID_REQUEST)\
+    ENUM_AUTO(SOMA_ERR_INVALID_PARAMETER)\
+    ENUM_AUTO(SOMA_ERR_INVALID_MANIFEST_STATE)\
+    ENUM_AUTO(SOMA_ERR_INVALID_FW_STATE)\
+    ENUM_AUTO(SOMA_ERR_INVALID_EVENT)
 
 // Source
 #define ARM_UC_SRC_ERR_LIST\
@@ -101,6 +110,7 @@
     ENUM_AUTO(SRCE_ERR_UNINITIALIZED)\
     ENUM_AUTO(SRCE_ERR_INVALID_PARAMETER)\
     ENUM_AUTO(SRCE_ERR_FAILED)\
+    ENUM_AUTO(SRCE_ERR_ABORT)\
     ENUM_AUTO(SRCE_ERR_BUSY)
 
 // Firmware Manager
@@ -125,8 +135,10 @@
 
 #define ARM_UC_HB_ERR_LIST\
     ENUM_FIXED(HUB_ERR_NONE, HUB_PREFIX << 16)\
+    ENUM_AUTO(HUB_ERR_INTERNAL_ERROR)\
     ENUM_AUTO(HUB_ERR_ROLLBACK_PROTECTION)\
     ENUM_AUTO(ARM_UC_HUB_ERR_NOT_AVAILABLE)\
+    ENUM_AUTO(HUB_ERR_CONNECTION)\
 
 #define ARM_UC_EQ_ERR_LIST\
     ENUM_FIXED(ARM_UC_EQ_ERR_NONE, EVENT_QUEUE_PREFIX)\
@@ -166,23 +178,39 @@ union arm_uc_error_code {
 
 typedef union arm_uc_error_code arm_uc_error_t;
 
-#ifndef ARM_UC_ERR_TRACE
-#define ARM_UC_ERR_TRACE 0
-#endif
 
-#if ARM_UC_ERR_TRACE
-#define ARM_UC_SET_ERROR(ERR, CODE)
-    do {(ERR).code = (CODE);} while (0)
+#define ARM_UC_ERROR(CODE)              ((arm_uc_error_t){ CODE })
+#define ARM_UC_IS_ERROR(VAR)            ((VAR).error != ERR_NONE)
+#define ARM_UC_IS_NOT_ERROR(VAR)        (!ARM_UC_IS_ERROR(VAR))
+
+#define ARM_UC_CLEAR_ERROR(ERR)\
+    ((ERR).code = (ERR_NONE))
+#define ARM_UC_INIT_ERROR(VAR, CODE)    arm_uc_error_t (VAR) = arm_uc_code_to_error( CODE )
+#define ARM_UC_GET_ERROR(VAR)           ((VAR).code)
+
+#if ARM_UC_ERROR_TRACE_ENABLE
+#define ARM_UC_SET_ERROR(VAR, CODE)\
+    do { (VAR).code = (CODE);\
+    if ( ARM_UC_IS_ERROR(VAR) ) \
+        UC_ERROR_TRACE("set error %" PRIx32, (long unsigned int)CODE);\
+    } while (0)
 #else
-#define ARM_UC_SET_ERROR(ERR, CODE)\
-    (ERR).code = (CODE)
+#define ARM_UC_SET_ERROR(VAR, CODE)                 (VAR).code = (CODE)
 #endif
+// have a way to set errors without trace for values that are not strictly errors.
+#define ARM_UC_SET_ERROR_NEVER_TRACE(VAR, CODE)     (VAR).code = (CODE)
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 const char* ARM_UC_err2Str(arm_uc_error_t err);
+static inline arm_uc_error_t arm_uc_code_to_error(uint32_t code) {
+    arm_uc_error_t err;
+    err.code = code;
+    return err;
+}
 
 #ifdef __cplusplus
 }

@@ -246,13 +246,21 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
             uint32_t slot_size = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
             result = pal_blockdevice_get_slot_addr_size(slot_id, &slot_addr, &slot_size);
 
-            UC_PAAL_TRACE("erase: %" PRIX32 " %" PRIX32, slot_addr, erase_size);
+            UC_PAAL_TRACE("erase: %" PRIX32 " %" PRIX32 " %" PRIX32, slot_addr, erase_size, slot_size);
 
             int status = ARM_UC_BLOCKDEVICE_FAIL;
-            if ((result.error == ERR_NONE) && (erase_size <= slot_size))
+            if (result.error == ERR_NONE)
             {
-                /* erase */
-                status = arm_uc_blockdevice_erase(slot_addr, erase_size);
+                if (erase_size <= slot_size)
+                {
+                    /* erase */
+                    status = arm_uc_blockdevice_erase(slot_addr, erase_size);
+                }
+                else
+                {
+                    UC_PAAL_ERR_MSG("not enough space for firmware image");
+                    result.code = ERR_INVALID_PARAMETER;
+                }
             }
 
             if (status == ARM_UC_BLOCKDEVICE_SUCCESS)

@@ -1,3 +1,4 @@
+#!/bin/sh
 # ----------------------------------------------------------------------------
 # Copyright 2017 ARM Ltd.
 #
@@ -40,7 +41,7 @@ eoeStatus="$1"
 get_device_for_label() {
 gdflLabel="$1"
 
-    gdflDev=`readlink -f "/dev/disk/by-label/${gdflLabel}"`
+    gdflDev=$(readlink -f "/dev/disk/by-label/${gdflLabel}")
     if [ "$?" -ne 0 ]; then
         echo "Failed to find device file for partition with label \"${gdflLabel}\""
         return 1;
@@ -73,7 +74,7 @@ gmDevice="$1"
 ensure_not_mounted_or_die() {
 enmodDevice="$1"
 
-    enmodMountpoint=`get_mountpoint "$enmodDevice"`
+    enmodMountpoint=$(get_mountpoint "$enmodDevice")
     exit_on_error "$?"
 
     if [ "$enmodMountpoint" = "" ]; then
@@ -97,7 +98,7 @@ emodDevice="$1"
 emodMountpoint="$2"
 emodFsType="$3"
 
-    emodCurrMountpoint=`get_mountpoint "$emodDevice"`
+    emodCurrMountpoint=$(get_mountpoint "$emodDevice")
     exit_on_error "$?"
 
     case  "$emodCurrMountpoint" in

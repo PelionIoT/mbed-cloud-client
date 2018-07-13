@@ -182,7 +182,6 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
 	{
 		goto finish;
 	}
-//#define PAL_TLS_SUPPORT_ALL_AVAILABLE_SUITES 1
 #if (PAL_TLS_CIPHER_SUITE & PAL_TLS_PSK_WITH_AES_128_CBC_SHA256_SUITE)
 	status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_PSK_WITH_AES_128_CBC_SHA256);
 #elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_PSK_WITH_AES_128_CCM_8_SUITE)
@@ -195,12 +194,10 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
 	status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8);
 #elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_SUITE)
 	status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8);
-#elif PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE
-	status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256);
-#elif PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_SUITE
-	status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384);
-#elif PAL_TLS_SUPPORT_ALL_AVAILABLE_SUITES
-	status = PAL_SUCCESS;
+#elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256_SUITE)
+    status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256);
+#elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256_SUITE)
+    status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256);
 #else
 	#error : No CipherSuite was defined!
 #endif
@@ -253,13 +250,44 @@ palStatus_t pal_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConf);
 	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConfCtx->platTlsConfHandle || NULL == ownCert || NULL == privateKey);
 
-	status = pal_plat_setOwnCertAndPrivateKey(palTLSConfCtx->platTlsConfHandle, ownCert, privateKey);
+	status = pal_plat_setOwnCertAndPrivateKey(palTLSConfCtx->platTlsConfHandle, ownCert, privateKey);    
 	return status;
 #else
 	return PAL_ERR_NOT_SUPPORTED;
 #endif
 }
 
+palStatus_t pal_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCert)
+{
+#if (PAL_ENABLE_X509 == 1)
+	palStatus_t status = PAL_SUCCESS;
+	palTLSConfService_t* palTLSConfCtx =  (palTLSConfService_t*)palTLSConf;
+
+	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConf);
+	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConfCtx->platTlsConfHandle || NULL == ownCert);
+
+	status = pal_plat_setOwnCertChain(palTLSConfCtx->platTlsConfHandle, ownCert);
+	return status;
+#else
+	return PAL_ERR_NOT_SUPPORTED;
+#endif
+}
+
+palStatus_t pal_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateKey_t* privateKey)
+{
+#if (PAL_ENABLE_X509 == 1)
+	palStatus_t status = PAL_SUCCESS;
+	palTLSConfService_t* palTLSConfCtx =  (palTLSConfService_t*)palTLSConf;
+
+	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConf);
+	PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConfCtx->platTlsConfHandle || NULL == privateKey);
+
+	status = pal_plat_setOwnPrivateKey(palTLSConfCtx->platTlsConfHandle, privateKey);
+	return status;
+#else
+	return PAL_ERR_NOT_SUPPORTED;
+#endif
+}
 
 palStatus_t pal_setCAChain(palTLSConfHandle_t palTLSConf, palX509_t* caChain, palX509CRL_t* caCRL)
 {

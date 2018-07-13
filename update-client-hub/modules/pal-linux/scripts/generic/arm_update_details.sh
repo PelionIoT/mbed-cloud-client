@@ -27,7 +27,7 @@
 #
 . ../../../arm_update_cmdline.sh
 
-VALUE=$(cp /tmp/extended/header_${LOCATION}.bin $HEADER)
+VALUE=$(cp "/tmp/extended/header_${LOCATION}.bin" $HEADER)
 
 echo $HEADER
 

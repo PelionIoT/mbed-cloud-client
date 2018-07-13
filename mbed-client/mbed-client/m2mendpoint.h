@@ -17,7 +17,6 @@
 #define M2M_ENDPOINT_H
 
 #include "mbed-client/m2mvector.h"
-#include "mbed-client/m2mendpoint.h"
 #include "mbed-client/m2mbase.h"
 #include "mbed-client/m2mobject.h"
 #include "mbed-client/m2mstring.h"

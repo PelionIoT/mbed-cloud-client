@@ -56,6 +56,7 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
 
     int32_t error_external = ARM_UC_WARNING_UNKNOWN;
     arm_uc_monitor_result_t error_monitor = ARM_UC_MONITOR_RESULT_INITIAL;
+    arm_uc_hub_state_t next_state = ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK;
 
     switch (error)
     {
@@ -141,11 +142,33 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             break;
 
         /* Hub */
+        case HUB_ERR_INTERNAL_ERROR:
+            UC_HUB_ERR_MSG("HUB_ERR_INTERNAL_ERROR: %" PRIX32,
+                           (uint32_t) HUB_ERR_INTERNAL_ERROR);
+            error_external = ARM_UC_FATAL;
+            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_UPDATE;
+            break;
+
         case HUB_ERR_ROLLBACK_PROTECTION:
             UC_HUB_ERR_MSG("HUB_ERR_ROLLBACK_PROTECTION: %" PRIX32,
                            (uint32_t) HUB_ERR_ROLLBACK_PROTECTION);
             error_external = ARM_UC_WARNING_ROLLBACK_PROTECTION;
             error_monitor = ARM_UC_MONITOR_RESULT_ERROR_UPDATE;
+            break;
+
+        /* LWM2M source */
+        case HUB_ERR_CONNECTION:
+            UC_HUB_ERR_MSG("HUB_ERR_CONNECTION: %" PRIX32,
+                           (uint32_t) HUB_ERR_CONNECTION);
+            error_external = ARM_UC_ERROR_CONNECTION;
+            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_CONNECTION;
+            /* Prevent a possible infinite loop: when HUB_ERR_CONNECTION is received,
+               the next state was always set to ARM_UC_HUB_STATE_UNKNOWN. However,
+               this function also sends a report which might fail, which will trigger
+               the HUB_ERR_CONNECTION event and will repeat the whole process again,
+               potentially in an inifinite loop in case of network issues. So switch
+               the state to "idle" directly to prevent this.*/
+            next_state = ARM_UC_HUB_STATE_IDLE;
             break;
 
         default:
@@ -155,16 +178,16 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             break;
     }
 
-    /* send external code to user application */
-    if (arm_uc_error_callback_handler)
-    {
-        arm_uc_error_callback_handler(error_external);
-    }
-
     /* send error code to monitor */
     ARM_UC_ControlCenter_ReportUpdateResult(error_monitor);
 
     /* progress state in hub */
-    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_ERROR_UNKNOWN);
+    ARM_UC_HUB_setState(next_state);
+
+    /* Send the external code to the user application. */
+    if (arm_uc_error_callback_handler) {
+        arm_uc_error_callback_handler(error_external);
+    }
+
 }
 

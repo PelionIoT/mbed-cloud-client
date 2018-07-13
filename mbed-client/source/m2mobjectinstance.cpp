@@ -307,7 +307,7 @@ bool M2MObjectInstance::remove_resource_instance(const String &resource_name,
     bool success = false;
     M2MResource *res = resource(resource_name);
     if(res) {
-        M2MResourceInstanceList list = res->resource_instances();
+        const M2MResourceInstanceList &list = res->resource_instances();
         M2MResourceInstanceList::const_iterator it;
         it = list.begin();
         for ( ; it != list.end(); it++) {

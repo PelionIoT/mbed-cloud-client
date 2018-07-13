@@ -222,8 +222,8 @@ void palConnectCallBack()
         nsapi_error_t  PALSocketWrapper::initialize(Socket* socket, palSocketType_t socketType, bool isNonBlocking, palAsyncSocketCallback_t callback, void* argument)
         {
         // check that we got a valid socket and the socket type is supported
-            PAL_VALIDATE_CONDITION_WITH_ERROR(((true == initialized) || (NULL == socket) || 
-                                              ((socketType != PAL_SOCK_STREAM) && (socketType != PAL_SOCK_STREAM_SERVER) && 
+            PAL_VALIDATE_CONDITION_WITH_ERROR(((true == initialized) || (NULL == socket) ||
+                                              ((socketType != PAL_SOCK_STREAM) && (socketType != PAL_SOCK_STREAM_SERVER) &&
                                                (socketType != PAL_SOCK_DGRAM))),NSAPI_ERROR_PARAMETER);
 
 
@@ -295,7 +295,7 @@ void palConnectCallBack()
         nsapi_error_t PALSocketWrapper::getsockopt(int level, int optname, void *optval, unsigned *optlen)
         {
             nsapi_error_t status = NSAPI_ERROR_OK;
-            PAL_VALIDATE_CONDITION_WITH_ERROR((false == initialized),NSAPI_ERROR_PARAMETER);          
+            PAL_VALIDATE_CONDITION_WITH_ERROR((false == initialized),NSAPI_ERROR_PARAMETER);
             status = activeSocket->getsockopt( level,  optname,  optval,  optlen);
             return  status;
         }
@@ -561,7 +561,11 @@ PAL_PRIVATE palStatus_t palSockAddrToSocketAddress(const palSocketAddress_t* pal
     return result;
 }
 
+#ifndef PAL_DNS_API_V2
 PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSocketAddress_t* out, palSocketLength_t* length)
+#else
+PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSocketAddress_t* out)
+#endif
 {
     palStatus_t result = PAL_SUCCESS;
     int index = 0;
@@ -578,7 +582,9 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
             addr[index] = ((const uint8_t*)tmp)[index];
         }
         result = pal_setSockAddrIPV4Addr(out, addr);
+#ifndef PAL_DNS_API_V2
         *length = PAL_NET_MAX_ADDR_SIZE;  // TODO: check
+#endif
 
     }
 #endif
@@ -593,7 +599,9 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
             addr[index] = ((const uint8_t*)tmp)[index];
         }
         result = pal_setSockAddrIPV6Addr(out, addr);
+#ifndef PAL_DNS_API_V2
         *length = PAL_NET_MAX_ADDR_SIZE;  // TODO: check
+#endif
     }
 #endif
     if (false == found )
@@ -746,7 +754,7 @@ palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
     PALSocketWrapper* socketObj =  NULL;
     PAL_VALIDATE_ARGUMENTS(NULL == socket);
-    
+
     socketObj =  (PALSocketWrapper*)socket;
 
     *isNonBlocking = socketObj->isNonBlocking();
@@ -812,10 +820,17 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
         }
         else // only return address / bytesReceived in case of success
         {
+#ifndef PAL_DNS_API_V2
             if ((NULL != from) && (NULL != fromLength))
             {
                 result = socketAddressToPalSockAddr(sockAddr, from, fromLength);
             }
+#else
+            if (NULL != from)
+            {
+                result = socketAddressToPalSockAddr(sockAddr, from);
+            }
+#endif
             *bytesReceived = status + bufferUsed;
         }
     }
@@ -892,7 +907,11 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
     if (NULL != address)
     {
         addr.set_ip_address(address);
+#ifndef PAL_DNS_API_V2
         result = socketAddressToPalSockAddr(addr, &interfaceInfo->address, &interfaceInfo->addressSize);
+#else
+        result = socketAddressToPalSockAddr(addr, &interfaceInfo->address);
+#endif
     }
 
 
@@ -959,7 +978,7 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
     int result = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS(NULL == socket);
 
-    PALSocketWrapper* socketObj = (PALSocketWrapper*)socket;    
+    PALSocketWrapper* socketObj = (PALSocketWrapper*)socket;
     result = socketObj->listen(backlog);
     if (result < 0)
     {
@@ -985,7 +1004,11 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     }
     else
     {
+#ifndef PAL_DNS_API_V2
         result = socketAddressToPalSockAddr(incomingAddr, address, addressLen);
+#else
+        result = socketAddressToPalSockAddr(incomingAddr, address);
+#endif
     }
     return result;
 }
@@ -1149,9 +1172,7 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* length)
 {
     palStatus_t result = PAL_SUCCESS;
-    SocketAddress zeroAddress("0.0.0.0"); // zero address for check
     SocketAddress translatedAddress; // by default use the fist supported net interface - TODO: do we need to select a different interface?
-
 
 #if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
     result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress);
@@ -1163,25 +1184,77 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
 
-    if (result == 0)
-    {
-        if (zeroAddress == translatedAddress) // got zero address - return error
-        {
-            result = PAL_ERR_SOCKET_DNS_ERROR;
-        }
-        else // address ok
-        {
-            result = socketAddressToPalSockAddr(translatedAddress, address, length);
-        }
-
+    if (result == 0) {
+#ifndef PAL_DNS_API_V2
+        result = socketAddressToPalSockAddr(translatedAddress, address, length);
+#else
+        result = socketAddressToPalSockAddr(translatedAddress, address);
+#endif
     }
-    else // error happened
-    {
+    else { // error happened
         result = translateErrorToPALError(result);
     }
     return result;
 }
 
+#ifdef PAL_DNS_API_V2
+void pal_plat_getAddressInfoAsync_callback(void *data, nsapi_error_t result, SocketAddress *address)
+{
+    PAL_LOG(DBG, "pal_plat_getAddressInfoAsync_callback(0x%X,%d, %s)",data, result, address->get_ip_address());
+    palStatus_t status = PAL_SUCCESS;
+    pal_asyncAddressInfo_t* info = (pal_asyncAddressInfo_t*)(data);
+
+    if (result == NSAPI_ERROR_OK) {
+        status = socketAddressToPalSockAddr(*address, info->address);
+    }
+    else { // error happened
+        status = translateErrorToPALError(result);
+    }
+
+    info->callback(info->url, info->address, status, info->callbackArgument); // invoke callback
+    free(info);
+}
+
+palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo* info)
+{
+    PAL_LOG(DBG, "pal_plat_getAddressInfoAsync");
+    palStatus_t result;
+#if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
+    const nsapi_version_t version = NSAPI_UNSPEC;
+#elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV4_ONLY
+    const nsapi_version_t version = NSAPI_IPv4;
+#elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV6_ONLY
+    const nsapi_version_t version = NSAPI_IPv6;
+#else
+#error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
+#endif
+
+    result = s_pal_networkInterfacesSupported[0]->gethostbyname_async(info->url, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
+    PAL_LOG(DBG, "pal_plat_getAddressInfoAsync result %d", result);
+    if (result < 0) {
+        result = translateErrorToPALError(result);
+    }
+    else {
+        /* Skip over setting queryHandle when:
+         * 1. info->queryHandle not allocated  
+         * 2. if result is zero then callback pal_plat_getAddressInfoAsync_callback will be called immediately and address info has been deallocated. */
+        if ( (info->queryHandle != NULL) && result) {
+            *(info->queryHandle) = result;
+        }
+        result = PAL_SUCCESS;
+    }
+    return result;
+}
+
+palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
+{
+    palStatus_t status = s_pal_networkInterfacesSupported[0]->gethostbyname_async_cancel(queryHandle);
+    if (PAL_SUCCESS != status) {
+        PAL_LOG(ERR, "pal_cancelAddressInfoAsync failed with %ld", status);
+    }
+    return status;
+}
+#endif
 #endif
 
 

@@ -104,6 +104,8 @@ typedef struct pal_timeVal{
 
 //------- system general functions
 /*! Initiates a system reboot.
+* Application can provide their own implementation by defining PAL_USE_APPLICATION_REBOOT and
+* providing implementation for pal_plat_osApplicationReboot() function.
 */
 void pal_osReboot(void);
 

@@ -242,7 +242,7 @@ void ARM_UC_SetSchedulerErrorHandler(void(*handler)(uint32_t));
  * @return the maximum number of callbacks that have been allocated from the
  * pool at one time.
  */
-uint32_t ARM_UC_SchedulerGetHighWatermark();
+uint32_t ARM_UC_SchedulerGetHighWatermark(void);
 
 /**
  * @brief Get the current number of queued callbacks
@@ -253,7 +253,7 @@ uint32_t ARM_UC_SchedulerGetHighWatermark();
  * 
  * @return The number of callbacks currently queued in the scheduler.
  */
-int32_t ARM_UC_SchedulerGetQueuedCount();
+int32_t ARM_UC_SchedulerGetQueuedCount(void);
 
 #ifdef __cplusplus
 }

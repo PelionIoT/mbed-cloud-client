@@ -140,12 +140,6 @@ private:
     uint32_t certificate_validfrom_time(const unsigned char *certificate, const uint32_t cert_len);
 
     /**
-    * \brief A utility function to check if provided certificate is valid with given time
-    * \return True if certificate is valid, false if not
-    */
-    bool check_certificate_validity(const uint8_t *cert, const uint32_t cert_len, const int64_t device_time);
-
-    /**
     *  \brief Returns certificate validFrom and validTo times in epoch format.
     *  \param certificate, The certificate to be extracted.
     *  \param valid_from ValidFrom time will be written to this parameter on success.
@@ -153,17 +147,6 @@ private:
     *  \return true on success or false on failure.
     */
     bool certificate_parse_valid_time(const char *certificate, uint32_t certificate_len, uint64_t *valid_from, uint64_t *valid_to);
-
-    /**
-    * \brief A utility function to check if provided security object
-    * has client and server certificates that are valid with current time set
-    * in device object
-    * \param security, M2MSecurity object to validate
-    * \param security_instance_id, Object instance id of security instance to validate
-    * \return True if certificates are valid, false if M2MSecurity or M2MDevice
-    * objects are missing, or if current time is not within the validity periods
-    */
-    bool check_security_object_validity(const M2MSecurity *security, uint16_t security_instance_id);
 
 private:
 

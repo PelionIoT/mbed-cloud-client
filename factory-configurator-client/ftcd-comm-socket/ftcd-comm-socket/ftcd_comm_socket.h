@@ -90,7 +90,9 @@ public:
     * @param message_size_out The message size in bytes
     *
     * @returns
-    *     FTCD_COMM_STATUS_SUCCESS on success, otherwise appropriate error from  ftcd_comm_status_e
+    *     FTCD_COMM_STATUS_SUCCESS - On success. In this case the client socket, and accepted connection remain open waiting for the next message with next call.
+    *     FTCD_COMM_NETWORK_TIMEOUT - This means a timeout has occurred, client socket close and next call will create a new socket and accept a new connection.
+    *     Other ftcd_comm_status_e error code - some other error has occurred, client socket will be closed and next call will create and open a new socket, and wait for a new connection.
     */
     virtual ftcd_comm_status_e wait_for_message(uint8_t **message_out, uint32_t *message_size_out);
 
@@ -142,7 +144,12 @@ public:
     virtual bool send(const uint8_t *data, uint32_t data_size);
 
 private:
+    enum connection_state_e {
+        SOCKET_WAIT_FOR_CONNECTION,
+        SOCKET_CONNECTION_ACCEPTED
+    };
 
+    connection_state_e _connection_state;
     const void *_interface_handler;
     palSocket_t _server_socket;
     palSocket_t _client_socket;

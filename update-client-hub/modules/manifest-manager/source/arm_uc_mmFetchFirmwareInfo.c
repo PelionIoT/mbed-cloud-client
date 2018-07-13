@@ -58,7 +58,7 @@ static inline uint32_t htobe(uint32_t x)
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_URL)\
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_SIZE)\
 
-static const uint32_t imageRefFields [] = {
+static const int32_t imageRefFields [] = {
     #define ENUM_AUTO(ENUM_AUTO) ENUM_AUTO,
     ARM_UC_MM_MFST_IMAGE_REF_FIELDS
     #undef ENUM_AUTO
@@ -69,6 +69,7 @@ enum imageRefFieldIdxs {
     #undef ENUM_AUTO
 };
 
+#if ARM_UC_MANIFEST_MANAGER_TRACE_ENABLE
 static const char* ARM_UC_mmFwState2Str(uint32_t state)
 {
     switch (state) {
@@ -81,6 +82,7 @@ static const char* ARM_UC_mmFwState2Str(uint32_t state)
         return "Unknown State";
     }
 }
+#endif
 
 int ARM_UC_mmGetImageRef(manifest_firmware_info_t* info, arm_uc_buffer_t* mfst_fwref)
 {
@@ -117,7 +119,7 @@ int ARM_UC_mmGetImageRef(manifest_firmware_info_t* info, arm_uc_buffer_t* mfst_f
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_URL)\
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_SIZE)\
 
-static const uint32_t localEncKeyFields [] = {
+static const int32_t localEncKeyFields [] = {
     #define ENUM_AUTO(ENUM_AUTO) ENUM_AUTO,
     ARM_UC_MM_MFST_CRYPT_LOCAL_ID_FIELDS
     #undef ENUM_AUTO
@@ -168,7 +170,7 @@ int ARM_UC_mmGetLocalIDAndKey(manifest_firmware_info_t* info, arm_uc_buffer_t* m
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_URL)\
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_SIZE)\
 
-static const uint32_t certEncKeyFields [] = {
+static const int32_t certEncKeyFields [] = {
     #define ENUM_AUTO(ENUM_AUTO) ENUM_AUTO,
     ARM_UC_MM_MFST_CRYPT_CERT_KEY_FIELDS
     #undef ENUM_AUTO
@@ -221,7 +223,7 @@ int ARM_UC_mmGetCertAndKey(manifest_firmware_info_t* info, arm_uc_buffer_t* mfst
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_URL)\
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_RSRC_REF_SIZE)\
 
-static const uint32_t certKeyTableFields [] = {
+static const int32_t certKeyTableFields [] = {
     #define ENUM_AUTO(ENUM_AUTO) ENUM_AUTO,
     ARM_UC_MM_MFST_CRYPT_CERT_KEYTABLE_FIELDS
     #undef ENUM_AUTO
@@ -289,7 +291,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
         case ARM_UC_MM_FW_STATE_READ_URI:
         {
             // Get the encryption mode and the firmware info block.
-            const uint32_t fieldIDs [] = {ARM_UC_MM_DER_MFST_ENC_ENUM, ARM_UC_MM_DER_MFST_FIRMWARE};
+            const int32_t fieldIDs [] = {ARM_UC_MM_DER_MFST_ENC_ENUM, ARM_UC_MM_DER_MFST_FIRMWARE};
             arm_uc_buffer_t buffers [sizeof(fieldIDs)/sizeof(fieldIDs[0])];
             int rc = ARM_UC_mmDERGetSignedResourceValues(
                     &ctx->current_data,

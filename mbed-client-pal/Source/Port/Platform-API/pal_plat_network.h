@@ -203,7 +203,19 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 */
 palStatus_t pal_plat_getAddressInfo(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength);
 
-#endif
+#ifdef PAL_DNS_API_V2
+/*! This function translates the URL to a `palSocketAddress_t` that can be used with PAL sockets.
+* @param[in] info address of `pal_asyncAddressInfo_t`.
+*/
+palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo_t* info);
+
+/*! This function is cancelation for pal_plat_getAddressInfoAsync. 
+* @param[in] queryHandle Id of ongoing DNS query.
+*/
+palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
+#endif // PAL_DNS_API_V2
+
+#endif // PAL_NET_DNS_SUPPORT
 
 
 #ifdef __cplusplus

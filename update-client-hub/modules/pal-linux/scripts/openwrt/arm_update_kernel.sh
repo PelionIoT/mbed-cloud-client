@@ -51,10 +51,10 @@ for x in $(cat /proc/cmdline); do
 done
 
 # read active slot number
-ACTIVE_SLOT=${LINUX//${FIRMWARE_PREFIX}/}
+ACTIVE_SLOT=$(echo "${LINUX}" | sed -e "s/${FIRMWARE_PREFIX}//")
 
 # deduce alternate, update slot
-if [ $ACTIVE_SLOT == 0 ]; then
+if [ "$ACTIVE_SLOT" -eq 0 ]; then
     UPDATE_SLOT=1
 else
     UPDATE_SLOT=0
@@ -64,11 +64,11 @@ fi
 # get active mtd for slot and flags
 #
 ACTIVE_NAME_MTD="${FIRMWARE_PREFIX}${ACTIVE_SLOT}"
-ACTIVE_LINE_MTD=$(cat /proc/mtd | grep ${ACTIVE_NAME_MTD})
+ACTIVE_LINE_MTD=$(cat /proc/mtd | grep "${ACTIVE_NAME_MTD}")
 ACTIVE_SLOT_MTD=${ACTIVE_LINE_MTD%:*}
 
 ACTIVE_NAME_MTD="${FLAGS_PREFIX}${ACTIVE_SLOT}"
-ACTIVE_LINE_MTD=$(cat /proc/mtd | grep ${ACTIVE_NAME_MTD})
+ACTIVE_LINE_MTD=$(cat /proc/mtd | grep "${ACTIVE_NAME_MTD}")
 ACTIVE_FLAGS_MTD=${ACTIVE_LINE_MTD%:*}
 
 #

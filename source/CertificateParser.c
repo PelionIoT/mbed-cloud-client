@@ -36,10 +36,9 @@ bool extract_field_from_certificate(const uint8_t* cer, size_t cer_len, const ch
         return false;
     }
 
-    palX509Handle_t cert;
-    size_t len;
-    palStatus_t ret;
-    ret = pal_x509Initiate(&cert);
+    palX509Handle_t cert = NULL;
+    size_t len = 0;
+    palStatus_t ret = pal_x509Initiate(&cert);
     if (ret != PAL_SUCCESS) {
         tr_error("extract_field_from_certificate - cert init failed: %d", (int)ret);
         pal_x509Free(&cert);

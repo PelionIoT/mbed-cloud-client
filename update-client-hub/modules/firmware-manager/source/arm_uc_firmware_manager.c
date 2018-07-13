@@ -39,15 +39,6 @@ static arm_uc_buffer_t* back_buffer = NULL;
 
 #define UCFM_DEBUG_OUTPUT 0
 
-typedef enum {
-    UCFM_STATE_IDLE,
-    UCFM_STATE_FINISH,
-    UCFM_STATE_GET_STORED_HASH,
-    UCFM_STATE_GET_ACTIVE_HASH,
-    UCFM_STATE_GET_ACTIVE_VERSION
-} ucfm_state_t;
-
-static ucfm_state_t ucfm_state;
 
 static void arm_uc_signal_ucfm_handler(uint32_t event);
 
@@ -546,8 +537,6 @@ static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t* front, arm_uc_buffer_t*
     }
     else
     {
-        ucfm_state = UCFM_STATE_FINISH;
-
         /* flush decryption buffer, discard data */
         ARM_UC_cryptoDecryptFinish(&cipherHandle, front);
         memset(&cipherHandle, 0, sizeof(arm_uc_cipherHandle_t));

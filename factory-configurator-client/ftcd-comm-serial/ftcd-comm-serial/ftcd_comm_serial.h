@@ -17,18 +17,18 @@
 #ifndef __FTCD_COMM_SERIAL_H__
 #define __FTCD_COMM_SERIAL_H__
 
-#include "Serial.h"
 #include "ftcd_comm_base.h"
 #include <inttypes.h>
+#include "mbed.h"
 
-
-
-class FtcdCommSerial : public mbed::Serial, public FtcdCommBase {
+class FtcdCommSerial : public FtcdCommBase {
 
 public:
-    /** Initialise a serial factory injection client, with specified UART pins
-     * and specified baud rate
-     */
+    /** Initialize serial object that communicate via stdin and stdout */
+    FtcdCommSerial(ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature);
+
+    /** Deprecated constructor for backward compatibility.
+        Note, the TX, RX and baud params are ignored */
     FtcdCommSerial(PinName TX, PinName RX, uint32_t baud, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature);
 
     /** Not certain that we need to do anything here, but just in case we need

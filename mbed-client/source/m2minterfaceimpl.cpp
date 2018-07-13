@@ -68,6 +68,7 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver& observer,
   _reconnecting(false),
   _retry_timer_expired(false),
   _bootstrapped(true), // True as default to get it working with connector only configuration
+  _bootstrap_finished(false),
   _queue_mode_timer_ongoing(false),
   _current_state(0),
   _binding_mode(mode),
@@ -176,6 +177,15 @@ void M2MInterfaceImpl::cancel_bootstrap()
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 }
 
+void M2MInterfaceImpl::finish_bootstrap()
+{
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+    tr_debug("M2MInterfaceImpl::finish_bootstrap");
+    _security = NULL;
+    bootstrap_done();
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+}
+
 void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MObjectList &object_list)
 {
     M2MBaseList list;
@@ -275,6 +285,12 @@ void M2MInterfaceImpl::update_registration(M2MSecurity *security_object,
 void M2MInterfaceImpl::unregister_object(M2MSecurity* /*security*/)
 {
     tr_debug("M2MInterfaceImpl::unregister_object - IN - current state %d", _current_state);
+    if (_nsdl_interface.is_unregister_ongoing()) {
+        set_error_description(ERROR_REASON_27);
+        _observer.error(M2MInterface::NotAllowed);
+        return;
+    }
+
     _connection_handler.claim_mutex();
     // Transition to a new state based upon
     // the current state of the state machine
@@ -393,6 +409,10 @@ void M2MInterfaceImpl::client_unregistered()
 {
     tr_info("M2MInterfaceImpl::client_unregistered()");
     _nsdl_interface.set_registration_status(false);
+
+    // Zero the flag otherwise next registered response will start unregistration process
+    _reconnection_state = M2MInterfaceImpl::None;
+
     internal_event(STATE_UNREGISTERED);
     //TODO: manage register object in a list.
 }
@@ -410,8 +430,33 @@ void M2MInterfaceImpl::bootstrap_done()
         _registration_flow_timer->stop_timer();
     }
 
-    internal_event(STATE_BOOTSTRAPPED);
-    _observer.bootstrap_done(_nsdl_interface.get_security_object());
+    // Force close connection since either server already closed (sent PEER_CLOSE_NOTIFY)
+    // or bootstrap flow has finished.
+    _connection_handler.force_close();
+
+    if (_bootstrap_finished) {
+        // Inform to observer only if bootstrap has already been finished
+        // This has to be done like this since we might get bootstrap_done
+        // callback BEFORE bootstrap_finish
+        internal_event(STATE_BOOTSTRAPPED);
+        _observer.bootstrap_done(_nsdl_interface.get_security_object());
+    }
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+}
+
+void M2MInterfaceImpl::bootstrap_finish()
+{
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+    tr_info("M2MInterfaceImpl::bootstrap_finish");
+    internal_event(STATE_BOOTSTRAP_WAIT);
+    _observer.bootstrap_data_ready(_nsdl_interface.get_security_object());
+    _bootstrap_finished = true;
+
+    if (_bootstrapped) {
+        // If _bootstrapped is set, we have already received the bootstrap_done
+        // callback so we must inform observer now
+        bootstrap_done();
+    }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 }
 
@@ -550,6 +595,7 @@ void M2MInterfaceImpl::socket_error(uint8_t error_code, bool retry)
     internal_event(STATE_IDLE);
     // Try to do reconnecting
     if (retry) {
+        _nsdl_interface.set_request_context_to_be_resend();
         _reconnecting = true;
         _connection_handler.stop_listening();
         _retry_timer_expired = false;
@@ -603,10 +649,10 @@ void M2MInterfaceImpl::data_sent()
 {
     tr_debug("M2MInterfaceImpl::data_sent()");
     if(queue_mode()) {
-        if(_callback_handler && (_nsdl_interface.get_unregister_ongoing() == false)) {
+        if(_callback_handler && (_nsdl_interface.is_unregister_ongoing() == false)) {
             _queue_sleep_timer.stop_timer();
             // Multiply by two to get enough time for coap retransmissions.
-            _queue_sleep_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT*MBED_CLIENT_RECONNECTION_INTERVAL*1000*2,
+            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count())*1000,
                                             M2MTimerObserver::QueueSleep);
         }
     }
@@ -618,6 +664,7 @@ void M2MInterfaceImpl::data_sent()
     } else if (_current_state != STATE_BOOTSTRAP_WAIT) {
         internal_event(STATE_COAP_DATA_SENT);
     }
+
 }
 
 void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
@@ -625,7 +672,7 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
     if (M2MTimerObserver::QueueSleep == type) {
         if (_reconnecting) {
             tr_debug("M2MInterfaceImpl::timer_expired() - reconnection ongoing, continue sleep timer");
-            _queue_sleep_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT*MBED_CLIENT_RECONNECTION_INTERVAL*1000,
+            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count())*1000,
                                             M2MTimerObserver::QueueSleep);
         } else {
             tr_debug("M2MInterfaceImpl::timer_expired() - sleep");
@@ -674,6 +721,7 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
     tr_debug("M2MInterfaceImpl::state_bootstrap");
     // Start with bootstrapping preparation
     _bootstrapped = false;
+    _bootstrap_finished = false;
     _nsdl_interface.set_registration_status(false);
     M2MSecurityData *event = static_cast<M2MSecurityData *> (data);
     if(!_security) {
@@ -947,7 +995,6 @@ void M2MInterfaceImpl::state_update_registration(EventData *data)
 {
     tr_debug("M2MInterfaceImpl::state_update_registration");
     uint32_t lifetime = 0;
-    bool clear_queue = false;
     // Set to false to allow reconnection to work.
     _queue_mode_timer_ongoing = false;
 
@@ -958,11 +1005,9 @@ void M2MInterfaceImpl::state_update_registration(EventData *data)
             _nsdl_interface.create_nsdl_list_structure(event->_base_list);
         }
         lifetime = event->_lifetime;
-    } else {
-        clear_queue = true;
     }
 
-    bool success = _nsdl_interface.send_update_registration(lifetime, clear_queue);
+    bool success = _nsdl_interface.send_update_registration(lifetime);
     if (!success) {
         tr_error("M2MInterfaceImpl::state_update_registration : M2MInterface::MemoryFail");
         internal_event(STATE_IDLE);
@@ -1185,6 +1230,10 @@ void M2MInterfaceImpl::start_register_update(M2MUpdateRegisterData *data) {
     if (_reconnecting) {
         //If client is in reconnection mode, ignore this call, state machine will reconnect on its own.
         return;
+    } else if (_nsdl_interface.is_update_register_ongoing()) {
+        set_error_description(ERROR_REASON_27);
+        _observer.error(M2MInterface::NotAllowed);
+        return;
     }
 
     _reconnection_state = M2MInterfaceImpl::WithUpdate;
@@ -1271,12 +1320,25 @@ void M2MInterfaceImpl::get_data_request(const char *uri,
                                         void *context)
 {
     get_data_req_error_e error = FAILED_TO_SEND_MSG;
-    if(_current_state != STATE_IDLE && uri) {
-        if (!_nsdl_interface.send_get_data_request(uri, offset, async, data_cb, error_cb, context)) {
-            error_cb(error, context);
-        }
+    if (uri) {
+        _nsdl_interface.send_request(uri, COAP_MSG_CODE_REQUEST_GET, offset, async, 0, NULL, data_cb, error_cb, context);
+    } else {
+        error_cb(error, context);
     }
-    else {
+}
+
+void M2MInterfaceImpl::post_data_request(const char *uri,
+                                         const bool async,
+                                         const uint16_t payload_len,
+                                         uint8_t *payload_ptr,
+                                         get_data_cb data_cb,
+                                         get_data_error_cb error_cb,
+                                         void *context)
+{
+    get_data_req_error_e error = FAILED_TO_SEND_MSG;
+    if (uri) {
+        _nsdl_interface.send_request(uri, COAP_MSG_CODE_REQUEST_POST, 0, async, payload_len, payload_ptr, data_cb, error_cb, context);
+    } else {
         error_cb(error, context);
     }
 }

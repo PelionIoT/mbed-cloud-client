@@ -47,23 +47,47 @@ static arm_uc_mmContext_t manifestManagerInitContext = { 0 };
 static arm_uc_mmContext_t* pManifestManagerInitContext = &manifestManagerInitContext;
 
 /**
+ * @brief Handle any errors posted by the scheduler.
+ * @details This explicitly runs *not* in interrupt context, the scheduler has a dedicated
+ *            callback structure to ensure it can post at least this event.
+ *          ARM_UC_HUB_ErrorHandler() will invoke the HUB callback that was set up.
+ *          It is up to the external application to go about inducing a reset etc,
+ *            if that is what it decides. Note that the HUB is no longer operable
+ *            and the app should probably Uninitialize it and report an error.
+ *            However, the HUB will attempt some cleanup after it returns.
+ * @param an_event the type of the event causing the error callback.
+ *        The only possible errors from the scheduler are currently:
+ *            ARM_UC_EQ_ERR_POOL_EXHAUSTED
+ *            ARM_UC_EQ_ERR_FAILED_TAKE
+ *        These are passed on to the Hub error handler as an internal error,
+ *          and the hub state is now considered unknown from this perspective.
+ *          (An internal error is considered fatal by the hub.)
+ */
+void UC_HUB_scheduler_error_handler(uint32_t an_event)
+{
+    UC_HUB_ERR_MSG("scheduler error: %" PRIu32, an_event);
+    ARM_UC_HUB_ErrorHandler(HUB_ERR_INTERNAL_ERROR, ARM_UC_HUB_getState());
+}
+
+/**
  * @brief Call initialiser of all components of the client.
- *        finish asynchronously, will invoke callback when
- *        initialisation is done.
- * @param init_cb the callback to be invoked at the end of initilastion.
+ *        finish asynchronously, will invoke callback when initialization is done.
+ * @param init_cb the callback to be invoked at the end of initialization.
  */
 arm_uc_error_t ARM_UC_HUB_Initialize(void (*init_cb)(int32_t))
 {
     arm_uc_error_t retval;
 
-    ARM_UC_SchedulerInit();
     if (ARM_UC_HUB_getState() != ARM_UC_HUB_STATE_UNINITIALIZED)
     {
-        UC_HUB_ERR_MSG("Already Initialized");
-        return (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+        UC_HUB_ERR_MSG("Already Initialized/Initializing");
+        return (arm_uc_error_t){ ERR_INVALID_STATE };
     }
+    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INITIALIZING);
 
+    ARM_UC_SchedulerInit();
     ARM_UC_HUB_setInitializationCallback(init_cb);
+    ARM_UC_SetSchedulerErrorHandler(UC_HUB_scheduler_error_handler);
 
     /* Register event handler with Control Center. */
     retval = ARM_UC_ControlCenter_Initialize(ARM_UC_HUB_ControlCenterEventHandler);
@@ -416,9 +440,16 @@ arm_uc_error_t ARM_UC_GetDeviceId(uint8_t* id,
     return err;
 }
 
-arm_uc_error_t ARM_UC_HUB_Uninitialize()
+arm_uc_error_t ARM_UC_HUB_Uninitialize(void)
 {
+    if (ARM_UC_HUB_getState() != ARM_UC_HUB_STATE_INITIALIZED)
+    {
+       UC_HUB_ERR_MSG("Update Client not initialized");
+       return (arm_uc_error_t){ ERR_INVALID_STATE };
+    }
+
     arm_uc_error_t err = ARM_UC_SourceManager.Uninitialize();
+    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_UNINITIALIZED);
     return err;
 }
 

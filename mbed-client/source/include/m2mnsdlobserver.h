@@ -76,6 +76,12 @@ public :
     virtual void bootstrap_done() = 0;
 
     /**
+    * @brief Informs that client bootstrap data has been received and final bootstrap
+    * finish message has been handled.
+    */
+    virtual void bootstrap_finish() = 0;
+
+    /**
     * @brief Informs that client bootstrapping is waiting for message to be sent.
     * @param security_object, M2MSecurity Object which contains information about
     * LWM2M server fetched from bootstrap server.

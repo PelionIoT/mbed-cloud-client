@@ -57,7 +57,7 @@ public:
     typedef FP2<void, const uint16_t, const M2MResourceBase::NotificationStatus> notification_status_callback;
 
     typedef void(*notification_status_callback_2) (const uint16_t msg_id,
-                                                 const M2MResourceBase::NotificationStatus status);
+                                                   const M2MResourceBase::NotificationStatus status);
 
     /**
      * An enum defining a resource type that can be
@@ -71,7 +71,7 @@ public:
         OPAQUE,
         TIME,
         OBJLINK
-    }ResourceType;
+    } ResourceType;
 
     /*
      * \brief Value set callback function.
@@ -81,9 +81,35 @@ public:
      */
     typedef void(*value_set_callback) (const M2MResourceBase *resource, uint8_t *value, const uint32_t value_length);
 
+    /*
+     * \brief Read resource value callback function.
+     * \param resource Pointer to resource whose value should will be read
+     * \param buffer[OUT] Buffer containing the resource value
+     * \param buffer_size[IN/OUT] Buffer length
+     * \param client_args Client arguments
+     * \return Error code, 0 on success otherwise < 0
+     */
+    typedef int(*read_resource_value_callback) (const M2MResourceBase& resource,
+                                                void *buffer,
+                                                size_t *buffer_size,
+                                                void *client_args);
+
+    /*
+     * \brief Set resource value callback function.
+     * \param resource Pointer to resource whose value will be updated
+     * \param buffer Buffer containing the new value
+     * \param buffer_size Size of the data
+     * \param client_args Client arguments
+     * \return error code, True if value storing completed otherwise False
+     */
+    typedef bool(*write_resource_value_callback) (const M2MResourceBase& resource,
+                                                  const uint8_t *buffer,
+                                                  const size_t buffer_size,
+                                                  void *client_args);
+
 protected: // Constructor and destructor are private
-         // which means that these objects can be created or
-         // deleted only through a function provided by the M2MObjectInstance.
+           // which means that these objects can be created or
+           // deleted only through a function provided by the M2MObjectInstance.
 
     M2MResourceBase(
                         const lwm2m_parameters_s* s,
@@ -170,6 +196,41 @@ public:
     bool set_execute_function(execute_callback_2 callback);
 
     /**
+     * \brief Sets the function that is executed when the resource value change.
+     * \param callback The function pointer that needs to be executed.
+     * \param client_args Client arguments.
+     * \return True, if callback could be set, false otherwise.
+     */
+    bool set_resource_read_callback(read_resource_value_callback callback, void *client_args);
+
+    /**
+     * \brief Sets the function that is executed when reading the resource value.
+     * \param callback The function pointer that needs to be executed.
+     * \param client_args Client arguments.
+     * \return True, if callback could be set, false otherwise.
+     */
+    bool set_resource_write_callback(write_resource_value_callback callback, void *client_args);
+
+    /**
+     * \brief Executes the function that is set in "set_resource_read_callback".
+     * \note If "read_resource_value_callback" is not set this is internally calling value() and value_length() API's.
+     * \param resource Pointer to resource whose value will be read.
+     * \param buffer[OUT] Buffer where the value is stored.
+     * \param buffer_len[IN/OUT] Buffer length
+     * \return Error code, 0 on success otherwise < 0
+     */
+    int read_resource_value(const M2MResourceBase& resource, void *buffer, size_t *buffer_len);
+
+    /**
+     * \brief Executes the function that is set in "set_resource_write_callback".
+     * \param resource Pointer to resource where value will be stored.
+     * \param buffer Buffer containing the new value.
+     * \param buffer_size Size of the data.
+     * \return True if storing succeeded otherwise False.
+     */
+    bool write_resource_value(const M2MResourceBase& resource, const uint8_t *buffer, const size_t buffer_size);
+
+    /**
      * \brief Sets a value of a given resource.
      * \param value A pointer to the value to be set on the resource.
      * \param value_length The length of the value pointer.
@@ -253,7 +314,6 @@ public:
      * errors are not detected.
      */
     float get_value_float() const;
-
 
     /**
      * \brief Returns the value pointer of the object.

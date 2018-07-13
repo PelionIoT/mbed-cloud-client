@@ -23,7 +23,7 @@
 
 static FlashIAP flash;
 
-int32_t arm_uc_flashiap_init()
+int32_t arm_uc_flashiap_init(void)
 {
     /* Workaround for https://github.com/ARMmbed/mbed-os/issues/4967
      * pal_init calls flash.init() before here. Second call to flash.init() will

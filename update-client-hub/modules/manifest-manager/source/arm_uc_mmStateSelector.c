@@ -105,6 +105,7 @@ arm_uc_error_t ARM_UC_mmFSM(uint32_t event)
                     }
                     break;
                 }
+                // fall through
             case ARM_UC_MM_STATE_INVALID:
             default:
                 err = (arm_uc_error_t){MFST_ERR_INVALID_STATE};

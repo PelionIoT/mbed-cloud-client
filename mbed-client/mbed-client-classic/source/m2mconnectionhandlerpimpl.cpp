@@ -46,29 +46,19 @@
 
 int8_t M2MConnectionHandlerPimpl::_tasklet_id = -1;
 
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-// Use volatile because address has been read from two different thread,
-// event and asynchronous DNS threads.
-static volatile M2MConnectionHandlerPimpl *connection_handler = NULL;
-#else
-static M2MConnectionHandlerPimpl *connection_handler = NULL;
-#endif
-
 // This is called from event loop, but as it is static C function, this is just a wrapper
 // which calls C++ on the instance.
 extern "C" void eventloop_event_handler(arm_event_s *event)
 {
-    if (!connection_handler) {
-        return;
+    tr_debug("M2MConnectionHandlerPimpl::eventloop_event_handler %d", event->event_type);
+    if (event->event_type != M2MConnectionHandlerPimpl::ESocketIdle) {
+        if(!event->data_ptr) {
+            tr_error("M2MConnectionHandlerPimpl::eventloop_event_handler event->data_ptr=NULL !!!!");
+            assert(event->data_ptr);
+        }
+        M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)event->data_ptr;
+        instance->event_handler(event);
     }
-
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-    // use local instance because connection handler is volatile.
-    M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)connection_handler;
-    instance->event_handler(event);
-#else
-    connection_handler->event_handler(event);
-#endif
 }
 
 // event handler that forwards the event according to its type and/or connection state
@@ -78,6 +68,7 @@ void M2MConnectionHandlerPimpl::event_handler(arm_event_s *event)
 
         // Event from socket callback method
         case M2MConnectionHandlerPimpl::ESocketCallback:
+        case M2MConnectionHandlerPimpl::ESocketTimerCallback:
 
             // this will enable sending more events during this event processing, but that is less evil than missing one
             _suppressable_event_in_flight = false;
@@ -180,10 +171,16 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
  _server_port(0),
  _listen_port(0),
  _net_iface(0),
+#if (PAL_DNS_API_VERSION == 2)
+  _handler_async_DNS(0),
+#endif
  _socket_state(ESocketStateDisconnected),
  _handshake_retry(0),
  _suppressable_event_in_flight(false),
  _secure_connection(false)
+#if (PAL_DNS_API_VERSION < 2)
+ ,_socket_address_len(0)
+#endif
 {
 #ifndef PAL_NET_TCP_AND_TLS_SUPPORT
     if (is_tcp_connection()) {
@@ -202,8 +199,6 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
     memset(&_ipV6Addr, 0, sizeof(palIpV6Addr_t));
     ns_list_init(&_linked_list_send_data);
 
-    // Usage of connection_handler is not going to work with multiserver solution. Static address will be overridden with latest instance.
-    connection_handler = this;
     eventOS_scheduler_mutex_wait();
     if (M2MConnectionHandlerPimpl::_tasklet_id == -1) {
         M2MConnectionHandlerPimpl::_tasklet_id = eventOS_event_handler_create(&eventloop_event_handler, ESocketIdle);
@@ -215,8 +210,11 @@ M2MConnectionHandlerPimpl::~M2MConnectionHandlerPimpl()
 {
     tr_debug("~M2MConnectionHandlerPimpl()");
 #if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-    // Setting the connection_handler to NULL makes callback less likely to access this object after it has been deleted.
-    connection_handler = NULL;
+#if (PAL_DNS_API_VERSION == 2)
+    if ( _handler_async_DNS > 0) {
+        pal_cancelAddressInfoAsync(_handler_async_DNS);
+    }
+#endif
 #endif
 
     close_socket();
@@ -239,7 +237,7 @@ bool M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
     event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
     event.sender = 0;
     event.event_type = event_type;
-    event.data_ptr = NULL;
+    event.data_ptr = this;
     event.event_data = 0;
     event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
     return !eventOS_event_send(&event);
@@ -247,19 +245,14 @@ bool M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
 
 // This callback is used from PAL pal_getAddressInfoAsync,
 #if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+#if (PAL_DNS_API_VERSION < 2)
 extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument)
+#else
+extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address, palStatus_t status, void* callbackArgument)
+#endif
 {
     tr_debug("M2MConnectionHandlerPimpl::address_resolver callback");
-
-    // Use connection_handler address agaist callbackArgument for prevent calling of class M2MConnectionHandlerPimpl
-    // methods when instance has been deleted. pal_getAddressInfoAsync does not contain cancelation interface so
-    // calling this callback cannot avoid if pal_getAddressInfoAsync has been run without any errors.
-    if (!connection_handler) {
-        tr_debug("M2MConnectionHandlerPimpl::address_resolver callback M2MConnectionHandlerPimpl is NULL");
-        return;
-    }
-
-    M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)connection_handler;
+    M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)callbackArgument;
 
     if (PAL_SUCCESS != status) {
         tr_error("M2MConnectionHandlerPimpl::address_resolver callback failed with 0x%X", status);
@@ -282,8 +275,12 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
 #if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:asynchronous DNS");
 
+#if (PAL_DNS_API_VERSION < 2)
     status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len, &address_resolver_cb, this);
-
+#else
+    _handler_async_DNS = 0;
+    status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
+#endif
     if (PAL_SUCCESS != status) {
        tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. 0x%X", status);
        _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
@@ -313,7 +310,11 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
 
 void M2MConnectionHandlerPimpl::handle_dns_result(bool success)
 {
-
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+#if (PAL_DNS_API_VERSION == 2)
+    _handler_async_DNS = 0;
+#endif
+#endif
     if (_socket_state != ESocketStateDNSResolving) {
         tr_warn("M2MConnectionHandlerPimpl::handle_dns_result() called, not in ESocketStateDNSResolving state!");
         return;
@@ -333,6 +334,15 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String& server_addr
                                                        M2MConnectionObserver::ServerType server_type,
                                                        const M2MSecurity* security)
 {
+#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+#if (PAL_DNS_API_VERSION == 2)
+    if ( _handler_async_DNS > 0) {
+        if (pal_cancelAddressInfoAsync(_handler_async_DNS) != PAL_SUCCESS) {
+            return false;
+        }
+    }
+#endif
+#endif
     _socket_state = ESocketStateDNSResolving;
     _security = security;
 
@@ -509,8 +519,6 @@ bool M2MConnectionHandlerPimpl::send_data(uint8_t *data,
                                           uint16_t data_len,
                                           sn_nsdl_addr_s *address)
 {
-    arm_event_s event = {0};
-
     if (address == NULL || data == NULL || !data_len || _socket_state < ESocketStateUnsecureConnection) {
         tr_warn("M2MConnectionHandlerPimpl::send_data() - too early");
         return false;
@@ -550,16 +558,11 @@ bool M2MConnectionHandlerPimpl::send_data(uint8_t *data,
     memcpy(out_data->data + offset, data, data_len);
     out_data->data_len = data_len + offset;
 
-    event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
-    event.sender = 0;
-    event.event_type = ESocketSend;
-    event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
-
     claim_mutex();
     ns_list_add_to_end(&_linked_list_send_data, out_data);
     release_mutex();
 
-    if (eventOS_event_send(&event) != 0) {
+    if (!send_event(ESocketSend)) {
         // Event push failed, free the buffer
         claim_mutex();
         ns_list_remove(&_linked_list_send_data, out_data);
@@ -725,9 +728,18 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
             close_socket();
 
         }
-        eventOS_event_timer_cancel(ESocketCallback, M2MConnectionHandlerPimpl::_tasklet_id);
-        eventOS_event_timer_request(ESocketCallback, ESocketCallback, M2MConnectionHandlerPimpl::_tasklet_id, 1000);
+        eventOS_event_timer_cancel(ESocketTimerCallback, M2MConnectionHandlerPimpl::_tasklet_id);
 
+        // There is required to set event.data_ptr for eventloop_event_handler.
+        arm_event_s event = {0};
+        event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
+        event.sender = 0;
+        event.event_id = ESocketTimerCallback;
+        event.event_type = ESocketTimerCallback;
+        event.data_ptr = this;
+        event.event_data = 0;
+        event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
+        eventOS_event_timer_request_in(&event, eventOS_event_timer_ms_to_ticks(1000));
     }
 }
 
@@ -809,7 +821,7 @@ void M2MConnectionHandlerPimpl::receive_handler()
                 }
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
             }
-        } while (recv > 0);
+        } while (recv > 0 && _socket_state == ESocketStateUnsecureConnection);
     }
 }
 

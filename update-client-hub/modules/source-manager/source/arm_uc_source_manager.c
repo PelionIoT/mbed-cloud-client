@@ -63,7 +63,7 @@ static arm_uc_error_t ARM_UCSM_RequestStructInit(request_t* request);
 /**
  * @brief The SourceRegistry is an array of ARM_UPDATE_SOURCE
  */
-static arm_uc_error_t ARM_UCSM_SourceRegistryInit();
+static arm_uc_error_t ARM_UCSM_SourceRegistryInit(void);
 static arm_uc_error_t ARM_UCSM_SourceRegistryAdd(const ARM_UPDATE_SOURCE* source);
 static arm_uc_error_t ARM_UCSM_SourceRegistryRemove(const ARM_UPDATE_SOURCE* source);
 
@@ -121,7 +121,7 @@ static arm_uc_error_t ARM_UCSM_RequestStructInit(request_t* request)
 /**
  * @brief Initialise the source_registry array to NULL
  */
-static arm_uc_error_t ARM_UCSM_SourceRegistryInit()
+static arm_uc_error_t ARM_UCSM_SourceRegistryInit(void)
 {
     for(uint32_t i=0; i<MAX_SOURCES; i++)
     {

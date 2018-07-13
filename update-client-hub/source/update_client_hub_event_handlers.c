@@ -202,10 +202,6 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
 
         case UCFM_EVENT_GET_FIRMWARE_DETAILS_DONE:
             UC_HUB_TRACE("UCFM_EVENT_GET_FIRMWARE_DETAILS_DONE");
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS)
-            {
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_OK);
-            }
             break;
 
         case UCFM_EVENT_INITIALIZE_ERROR:
@@ -218,10 +214,6 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
 
         case UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR:
             UC_HUB_TRACE("UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR");
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS)
-            {
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_ERROR);
-            }
             break;
 
         default:
@@ -241,7 +233,7 @@ void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
-    if (event == ARM_UC_MM_RC_ERROR && arm_uc_hub_state == ARM_UC_HUB_STATE_UNINITIALIZED)
+    if (event == ARM_UC_MM_RC_ERROR && arm_uc_hub_state == ARM_UC_HUB_STATE_INITIALIZING)
     {
         // TODO: An empty config store may be an error in the future.
         if (ARM_UC_mmGetError().code == MFST_ERR_NO_MANIFEST)
@@ -304,7 +296,7 @@ void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event)
             UC_HUB_TRACE("ARM_UC_MM_RC_DONE");
 
             /* Update Hub has been initialized. */
-            if(arm_uc_hub_state == ARM_UC_HUB_STATE_UNINITIALIZED)
+            if(arm_uc_hub_state == ARM_UC_HUB_STATE_INITIALIZING)
             {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INITIALIZED);
             }
@@ -452,6 +444,12 @@ void ARM_UC_HUB_ControlCenterEventHandler(uint32_t event)
 
         case ARM_UCCC_EVENT_MONITOR_SEND_DONE:
             UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE");
+
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK)
+            {
+                /* Switch to 'idle' after receiving report notification */
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_IDLE);
+            }
 
 /* TODO: use timeout to ensure callback doesn't stall reboot */
 #if 0

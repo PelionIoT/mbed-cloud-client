@@ -60,8 +60,7 @@ extern "C" {
         FCC_STATUS_OUTPUT_INFO_ERROR,          //!< The process failed in output info creation.
         FCC_STATUS_WARNING_CREATE_ERROR,       //!< The process failed in output info creation.
         FCC_STATUS_UTC_OFFSET_WRONG_FORMAT,    //!< Current UTC is wrong.
-        FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, //!< Certificate's public key failed do not matches to corresponding private key
-        FCC_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED, //!< One of the certificates in the chain does not match its predecessor 
+        FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, //!< Certificate's public key failed do not matches to corresponding private key        
         FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS,//!< The message status is invalid.
         FCC_STATUS_TOO_MANY_CSR_REQUESTS,     //!< The message contained more than CSR_MAX_NUMBER_OF_CSRS CSR requests
         FCC_MAX_STATUS = 0x7fffffff

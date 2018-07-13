@@ -34,7 +34,7 @@ extern "C" {
   *    section) will be preserved on exit from the section.
   * 4) This implementation will currently only work on code running in privileged mode.
   */
-void aq_critical_section_enter();
+void aq_critical_section_enter(void);
 
 /** Mark the end of a critical section
   *
@@ -47,7 +47,7 @@ void aq_critical_section_enter();
   *    section) will be preserved on exit from the section.
   * 4) This implementation will currently only work on code running in privileged mode.
   */
-void aq_critical_section_exit();
+void aq_critical_section_exit(void);
 
 #ifdef __cplusplus
 } // extern "C"

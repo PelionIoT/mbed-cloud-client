@@ -24,7 +24,8 @@
 
 #include <string.h>
 
-arm_uc_mmPersistentContext_t arm_uc_mmPersistentContext = { 0 };
+// Initialisation with an enum silences a compiler warning for ARM ("188-D: enumerated type mixed with another type").
+arm_uc_mmPersistentContext_t arm_uc_mmPersistentContext = { ARM_UC_MM_STATE_INVALID };
 const size_t arm_uc_mmDynamicContextSize = sizeof(arm_uc_mmContext_t);
 
 #if ARM_UC_MANIFEST_MANAGER_TRACE_ENABLE

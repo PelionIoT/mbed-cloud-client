@@ -30,17 +30,12 @@
 #include "mbedtls/aes.h"
 
 #include "pal.h"
-#include "sotp.h"
 
 #include <inttypes.h>
 
 /*****************************************************************************/
 /* Global variables                                                          */
 /*****************************************************************************/
-
-#ifndef MAX_FIRMWARE_LOCATIONS
-#define MAX_FIRMWARE_LOCATIONS 1
-#endif
 
 // state of the hub state machine
 static arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_STATE_UNINITIALIZED;
@@ -75,18 +70,8 @@ static arm_uc_installer_details_t arm_uc_installer_details = { 0 };
 static uint32_t firmware_offset = 0;
 
 // variable to store the firmware config during firmware manager setup
-static ARM_UCFM_Setup_t arm_uc_hub_firmware_config = { 0 };
-
-// the structure used to count the number of stored update images
-typedef struct {
-    uint32_t current_id;
-    uint32_t num_images;
-    uint64_t image_version;
-    arm_uc_firmware_details_t details;
-} arm_uc_stored_images_t;
-
-// variable to store the stored images structure above
-static arm_uc_stored_images_t stored_images = { 0 };
+// Initialisation with an enum silences a compiler warning for ARM ("188-D: enumerated type mixed with another type").
+static ARM_UCFM_Setup_t arm_uc_hub_firmware_config = { UCFM_MODE_UNINIT };
 
 // buffer to store the decoded firmware key
 #define PLAIN_FIRMWARE_KEY_SIZE 16
@@ -241,6 +226,10 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 new_state = ARM_UC_HUB_STATE_GET_ACTIVE_FIRMWARE_DETAILS;
                 break;
 
+            case ARM_UC_HUB_STATE_INITIALIZING:
+                UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZING");
+                break;
+
             /*****************************************************************/
             /* Report current firmware hash                                  */
             /*****************************************************************/
@@ -292,15 +281,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_GET_INSTALLER_DETAILS");
 
                 retval = ARM_UC_FirmwareManager.GetInstallerDetails(&arm_uc_installer_details);
-                if (retval.error != ERR_NONE)
-                {
-                    UC_HUB_ERR_MSG("Firmware manager GetInstallerDetails failed error code %s",
-                                   ARM_UC_err2Str(retval));
-                    new_state = ARM_UC_HUB_STATE_CHECK_OEM_MODE_RESET;
-                }
+                HANDLE_ERROR(retval, "Firmware manager GetInstallerDetails failed");
                 break;
 
             case ARM_UC_HUB_STATE_REPORT_INSTALLER_DETAILS:
+            {
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_REPORT_INSTALLER_DETAILS");
 
 #if 0
@@ -326,108 +311,9 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 ARM_UC_ControlCenter_ReportOEMBootloaderHash(&bootloader_hash);
 
                 /* set new state */
-                new_state = ARM_UC_HUB_STATE_CHECK_OEM_MODE_RESET;
+                new_state = ARM_UC_HUB_STATE_IDLE;
                 break;
-
-            /*****************************************************************/
-            /* Check if the OEM transfer mode needs to be reset              */
-            /*****************************************************************/
-            case ARM_UC_HUB_STATE_CHECK_OEM_MODE_RESET:
-                UC_HUB_TRACE("ARM_UC_HUB_STATE_CHECK_OEM_MODE_RESET");
-                {
-                    uint32_t temp32 = 0;
-                    /* read the "OEM transfer mode" flag and check if it is valid */
-                    arm_uc_error_t sotp_status = arm_uc_read_sotp_uint(SOTP_TYPE_OEM_TRANSFER_MODE_ENABLED,
-                                                                           sizeof(uint32_t), &temp32);
-                    /* if the "OEM transfer mode" is enabled, check if it needs to be reset */
-                    if (sotp_status.code == ERR_NONE && temp32 > 0)
-                    {
-                        UC_HUB_TRACE("Checking if the OEM transfer mode flag needs to be cleared");
-                        /* "OEM transfer mode" needs to be reset if there is exactly one
-                           candidate image and that it has the same timestamp as the active
-                           image. So start looking at the available update images by changing
-                           the state to ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS.
-                        */
-                        new_state = ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS;
-                    }
-                    else
-                    {
-                        new_state = ARM_UC_HUB_STATE_IDLE;
-                    }
-                }
-                break;
-
-            case ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS:
-                UC_HUB_TRACE("ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS");
-                /* Stop looking for firmware images either when the current image ID
-                   is too large or when we found more than one valid stored image.
-                */
-                while (new_state == ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS)
-                {
-                    if (stored_images.current_id == MAX_FIRMWARE_LOCATIONS || stored_images.num_images > 1)
-                    {
-                        if (stored_images.num_images == 1 &&
-                            stored_images.image_version == arm_uc_active_details.version)
-                        {
-                            /* set "OEM tranfer mode" to 0 */
-                            uint32_t temp32 = 0;
-                            arm_uc_error_t sotp_status = arm_uc_write_sotp_uint(SOTP_TYPE_OEM_TRANSFER_MODE_ENABLED,
-                                                                                    sizeof(uint32_t), &temp32);
-                            if (sotp_status.code == ERR_NONE)
-                            {
-                                UC_HUB_TRACE("OEM transfer mode flag cleared");
-                            }
-                            else
-                            {
-                                UC_HUB_ERR_MSG("Unable to clear the OEM tranfer mode flag");
-                            }
-                        }
-                        new_state = ARM_UC_HUB_STATE_IDLE;
-                    }
-                    else
-                    {
-                        UC_HUB_TRACE("GetFirmwareDetails for image %" PRIu32, stored_images.current_id);
-                        arm_uc_error_t ucp_status = ARM_UCP_GetFirmwareDetails(stored_images.current_id,
-                                                                            &stored_images.details);
-                        if (ucp_status.error != ERR_NONE)
-                        {
-                            UC_HUB_TRACE("GetFirmwareDetails for image %" PRIu32 " failed",
-                                        stored_images.current_id);
-                            /* error reading this image, try to read the next one */
-                            stored_images.current_id ++;
-                        }
-                        else
-                        {
-                            /* GetFirmwareDetails will raise an event when it's done, which will change
-                               the state to either ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_OK or
-                               ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_ERROR below */
-                            break;
-                        }
-                    }
-                }
-                break;
-
-            case ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_OK:
-                UC_HUB_TRACE("ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_OK");
-                stored_images.num_images ++;
-                if (stored_images.num_images == 1)
-                {
-                    /* Store the image version that will be checked only for the first image.
-                       If there are more images, the version is not relevant anymore, since
-                       the "OEM transfer mode" won't be reset anyway, because it requires
-                       exacly one valid stored image to be present.
-                    */
-                    stored_images.image_version = stored_images.details.version;
-                }
-                stored_images.current_id ++;
-                new_state = ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS;
-                break;
-
-            case ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_ERROR:
-                UC_HUB_TRACE("ARM_UC_HUB_STATE_STORED_FIRMWARE_DETAILS_ERROR");
-                stored_images.current_id ++;
-                new_state = ARM_UC_HUB_STATE_GET_STORED_FIRMWARE_DETAILS;
-                break;
+            }
 
             /*****************************************************************/
             /* Idle                                                          */
@@ -486,50 +372,25 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_CHECK_VERSION:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_CHECK_VERSION");
+
+                /* only continue if timestamp is newer than active version */
+                if (fwinfo.timestamp > arm_uc_active_details.version)
                 {
-                    /* check for OEM transfer mode and the minimal firmware version */
-                    uint64_t min_fw_version = arm_uc_active_details.version;
-                    uint32_t temp32 = 0;
-                    /* read the "OEM transfer mode" flag and check if it is valid */
-                    arm_uc_error_t sotp_status = arm_uc_read_sotp_uint(SOTP_TYPE_OEM_TRANSFER_MODE_ENABLED,
-                                                                           sizeof(uint32_t), &temp32);
-                    /* if the "OEM transfer mode" is enabled, read the minimum firmware version */
-                    if (sotp_status.code == ERR_NONE && temp32 > 0)
-                    {
-                        uint64_t temp64 = 0;
-                        sotp_status = arm_uc_read_sotp_uint(SOTP_TYPE_MIN_FW_VERSION, sizeof(uint64_t),
-                                                                &temp64);
-                        if (sotp_status.code == ERR_NONE)
-                        {
-                            min_fw_version = temp64;
-                            UC_HUB_TRACE("OEM transfer mode enabled, minimum FW version is %" PRIu64,
-                                        min_fw_version);
-                        }
-                        else
-                        {
-                            UC_HUB_TRACE("Can't read minimum FW version, OEM transfer mode disabled");
-                        }
-                    }
+                    /* set new state */
+                    new_state = ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP;
+                }
+                else
+                {
+                    UC_HUB_ERR_MSG("version: %" PRIu64 " <= %" PRIu64,
+                                fwinfo.timestamp,
+                                arm_uc_active_details.version);
 
-                    /* only continue if timestamp is newer than active version */
-                    if (fwinfo.timestamp > min_fw_version)
-                    {
-                        /* set new state */
-                        new_state = ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP;
-                    }
-                    else
-                    {
-                        UC_HUB_ERR_MSG("version: %" PRIu64 " <= %" PRIu64,
-                                    fwinfo.timestamp,
-                                    min_fw_version);
+                    /* signal warning through external handler */
+                    ARM_UC_HUB_ErrorHandler(HUB_ERR_ROLLBACK_PROTECTION,
+                                            ARM_UC_HUB_STATE_CHECK_VERSION);
 
-                        /* signal warning through external handler */
-                        ARM_UC_HUB_ErrorHandler(HUB_ERR_ROLLBACK_PROTECTION,
-                                                ARM_UC_HUB_STATE_CHECK_VERSION);
-
-                        /* set new state */
-                        new_state = ARM_UC_HUB_STATE_IDLE;
-                    }
+                    /* set new state */
+                    new_state = ARM_UC_HUB_STATE_IDLE;
                 }
                 break;
 
@@ -904,6 +765,15 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_ERROR_CONTROL_CENTER:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_ERROR_CONTROL_CENTER");
                 new_state = ARM_UC_HUB_STATE_IDLE;
+                break;
+
+            case ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK:
+                UC_HUB_TRACE("ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK");
+                /* Don't change state. The only place where this state is set is in
+                   update_client_hub_error_handler.c, right after reporting the update
+                   result, so we wait for a "report done" event (ARM_UCCC_EVENT_MONITOR_SEND_DONE
+                   in arm_uc_hub_event_handlers.c). The handler for this particular
+                   event will then set the state to 'idle' */
                 break;
 
             default:

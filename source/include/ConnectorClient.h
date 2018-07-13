@@ -73,6 +73,12 @@ public:
         State_Bootstrap_Started,
         State_Bootstrap_Success,
         State_Bootstrap_Failure,
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+        State_EST_Start,
+        State_EST_Started,
+        State_EST_Success,
+        State_EST_Failure,
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
         State_Registration_Start,
         State_Registration_Started,
         State_Registration_Success,
@@ -139,10 +145,34 @@ public:
     bool get_key(const char *key, const char *endpoint, char *&key_name);
 
     /**
-    * \brief Returns pointer to the ConnectorClientEndpointInfo object.
-    * \return ConnectorClientEndpointInfo pointer.
+     * \brief Returns pointer to the ConnectorClientEndpointInfo object.
+     * \return ConnectorClientEndpointInfo pointer.
     */
    const ConnectorClientEndpointInfo *endpoint_info() const;
+
+   void est_enrollment_result(bool success,
+                              const uint8_t *payload_ptr,
+                              const uint16_t payload_len);
+
+   static void est_post_data_cb(const uint8_t *buffer,
+                                size_t buffer_size,
+                                size_t total_size,
+                                void *context);
+
+   static void est_post_data_error_cb(get_data_req_error_t error_code,
+                                      void *context);
+
+   /**
+    * \brief Returns KCM Certificate chain handle pointer.
+    * \return KCM Certificate chain handle pointer.
+   */
+   void *certificate_chain_handle() const;
+
+   /**
+    * \brief Sets the KCM certificate chain handle pointer.
+    * \param cert_handle KCM Certificate chain handle.
+   */
+   void set_certificate_chain_handle(void *cert_handle);
 
 public:
     // implementation of M2MInterfaceObserver:
@@ -154,6 +184,12 @@ public:
      * to register with the LWM2M server. The object ownership is passed.
      */
     virtual void bootstrap_done(M2MSecurity *server_object);
+
+    /**
+     * \brief A callback indicating when all bootstrap data has been received.
+     * \param security_object, The security object that contains the security information.
+     */
+    virtual void bootstrap_data_ready(M2MSecurity *security_object);
 
     /**
      * \brief A callback indicating that the device object has been registered
@@ -241,6 +277,26 @@ private:
     void state_bootstrap_failure();
 
     /**
+     * When the EST (enrollment-over-secure-transport) enrollment starts.
+     */
+    void state_est_start();
+
+    /**
+     * When the EST (enrollment-over-secure-transport) enrollment has been started.
+     */
+    void state_est_started();
+
+    /**
+     * When the EST (enrollment-over-secure-transport) enrollment is successful.
+     */
+    void state_est_success();
+
+    /**
+     * When the EST (enrollment-over-secure-transport) enrollment failed.
+     */
+    void state_est_failure();
+
+    /**
     * When the registration starts.
     */
     void state_registration_start();
@@ -320,6 +376,12 @@ private:
     */
     static M2MInterface::BindingMode transport_mode();
 
+    /**
+    * \brief Initializes the security object and callbacks.
+    *
+    */
+    void init_security_object();
+
 private:
     // A callback to be called after the sequence is complete.
     ConnectorClientCallback*            _callback;
@@ -333,6 +395,7 @@ private:
     M2MTimer                            _rebootstrap_timer;
     uint16_t                            _bootstrap_security_instance;
     uint16_t                            _lwm2m_security_instance;
+    void                                *_certificate_chain_handle;
 };
 
 /**

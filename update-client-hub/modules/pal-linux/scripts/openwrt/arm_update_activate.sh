@@ -71,7 +71,7 @@ if [ ! -f $FIRMWARE ] || [ -z $FIRMWARE ]; then
 fi
 
 # write firmware to ubi partition
-ubiformat /dev/${UPDATE_SLOT_MTD} -f $FIRMWARE --yes
+ubiformat "/dev/${UPDATE_SLOT_MTD}" -f $FIRMWARE --yes
 VALUE=$?
 
 # exit if return code is not zero
@@ -80,8 +80,14 @@ if [ $VALUE -ne 0 ]; then
     exit $VALUE
 fi
 
+# Check if mtd-utils-flash-erase and mtd-utils-nandwrite are installed
+if ! which "nandwrite" &>/dev/null || ! which "flash_erase" &>/dev/null; then
+    echo "Either nandwrite or flash_erase tools are missing"
+    exit 1
+fi
+
 # erase sector
-flash_erase /dev/${UPDATE_FLAGS_MTD} 0 1
+flash_erase "/dev/${UPDATE_FLAGS_MTD}" 0 1
 VALUE=$?
 
 # exit if return code is not zero
@@ -92,7 +98,7 @@ fi
 
 # write header to update partition
 # if this is the default partition, this will activate it
-nandwrite -p -s 0 /dev/${UPDATE_FLAGS_MTD} $HEADER
+nandwrite -p -s 0 "/dev/${UPDATE_FLAGS_MTD}" $HEADER
 VALUE=$?
 
 # exit if return code is not zero
@@ -103,7 +109,7 @@ fi
 
 # erase active header
 # if this is the default partition, this will activate the update partition
-flash_erase /dev/${ACTIVE_FLAGS_MTD} 0 1
+flash_erase "/dev/${ACTIVE_FLAGS_MTD}" 0 1
 VALUE=$?
 
 # exit if return code is not zero

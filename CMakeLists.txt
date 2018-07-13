@@ -12,7 +12,7 @@ else()
 endif()
 
 
-SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client) 
+SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client)
 
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_EXCLUDE_HIGHRES_TIMER)
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_USE_PLATFORM_TICK_TIMER)
@@ -127,6 +127,8 @@ ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/atomic-queue)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/atomic-queue/atomic-queue)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/common)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/common/update-client-common)
+ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/resume-engine)
+ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/resume-engine/resume-engine)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/control-center)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/control-center/update-client-control-center)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/device-identity)
@@ -163,6 +165,7 @@ FILE(GLOB MBED_CLOUD_CLIENT_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
     "${MBED_CLIENT_SOURCE_DIR}/source/*.cpp"
+    "${MBED_CLIENT_SOURCE_DIR}/source/*.c"
     "${MBED_CLIENT_SOURCE_DIR}/mbed-client-c/source/*.c"
     "${MBED_CLIENT_SOURCE_DIR}/mbed-client-classic/source/*.cpp"
     "${MBED_CLIENT_SOURCE_DIR}/mbed-client-mbed-tls/source/*.cpp"
@@ -206,10 +209,12 @@ if ((${OS_BRAND} MATCHES "Linux"))
     "${UPDATE_SOURCE_DIR}/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/atomic-queue/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/common/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/resume-engine/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/control-center/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/device-identity/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/firmware-manager/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed/source/*.cpp"
+    "${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/manifest-manager/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/source-http/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/source-http-socket/source/*.c"

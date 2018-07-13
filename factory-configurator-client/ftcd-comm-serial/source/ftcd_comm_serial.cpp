@@ -20,16 +20,19 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include <stdlib.h>
-#include "pv_endian.h"
-#include "pal.h"
+#include <stdio.h>
 #include "pv_log.h"
 #include "ftcd_comm_serial.h"
 
 #define TRACE_GROUP "fcsr"
 
 FtcdCommSerial::FtcdCommSerial(PinName TX, PinName RX, uint32_t baud, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature)
-    : mbed::Serial(TX, RX, baud), FtcdCommBase(network_endianness, header_token, use_signature)
+    : FtcdCommBase(network_endianness, header_token, use_signature)
+{
+}
+
+FtcdCommSerial::FtcdCommSerial(ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature)
+    : FtcdCommBase(network_endianness, header_token, use_signature)
 {
 }
 
@@ -39,26 +42,36 @@ FtcdCommSerial::~FtcdCommSerial()
 
 size_t FtcdCommSerial::_serial_read(char *buffOut, size_t buffSize)
 {
-    size_t count;
-
-    // blocking read
-    // call directly to SerialBase::_base_getc to bypass Stream::getc which add a lot of overhead under ARMCC debug
-    lock();
-    for (count = 0; count < buffSize; count++) {
-        buffOut[count] = _base_getc();
+    ssize_t count = 0;
+    size_t left_to_read = buffSize;
+    char* buffer = buffOut;
+    while (left_to_read > 0) {
+        count = read(STDIN_FILENO, buffer, left_to_read);
+        if (count < 0) {
+            break;
+        }
+        buffer += count;
+        left_to_read -= count;
     }
-    unlock();
-    return count;
+
+    return buffSize - left_to_read;
 }
 
 size_t FtcdCommSerial::_serial_write(const char *buff, size_t buffSize)
 {
-    // lock is done inside Stream::putc
-    for (size_t i = 0; i < buffSize; i++) {
-        putc(buff[i]);
+    ssize_t count = 0;
+    size_t left_to_write = buffSize;
+    char* buffer = (char*)buff;
+    while (left_to_write > 0) {
+        count = write(STDOUT_FILENO, buffer, left_to_write);
+        if (count < 0) {
+            break;
+        }
+        buffer += count;
+        left_to_write -= count;
     }
 
-    return buffSize;
+    return buffSize - left_to_write;
 }
 
 ftcd_comm_status_e FtcdCommSerial::is_token_detected()

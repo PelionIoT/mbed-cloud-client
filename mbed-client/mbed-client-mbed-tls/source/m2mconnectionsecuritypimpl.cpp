@@ -31,6 +31,7 @@
 #include "mbed-client-mbedtls/m2mconnectionsecuritypimpl.h"
 #include "mbed-client/m2msecurity.h"
 #include "mbed-trace/mbed_trace.h"
+#include "mbed-client/m2mconstants.h"
 #include "pal.h"
 #include "m2mdevice.h"
 #include "m2minterfacefactory.h"
@@ -105,46 +106,68 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     M2MSecurity::SecurityModeType cert_mode =
         (M2MSecurity::SecurityModeType)security->resource_value_int(M2MSecurity::SecurityMode, security_instance_id);
 
-    if( cert_mode == M2MSecurity::Certificate ){
+    if( cert_mode == M2MSecurity::Certificate || cert_mode == M2MSecurity::EST ){
 
         palX509_t owncert;
         palPrivateKey_t privateKey;
         palX509_t caChain;
 
-        // Check if we are connecting to M2MServer and check if server and device certificates are valid, no need to do this
-        // for Bootstrap or direct LWM2M server case
-        if ((security->server_type(security_instance_id) == M2MSecurity::M2MServer) &&
-            (security->get_security_instance_id(M2MSecurity::Bootstrap) >= 0) &&
-            !check_security_object_validity(security, security_instance_id)) {
-            tr_error("M2MConnectionSecurityPimpl::init - M2MServer certificate invalid or device certificate expired!");
-            return -1;
-        }
+        uint8_t certificate[MAX_CERTIFICATE_SIZE];
+        uint8_t *certificate_ptr = (uint8_t *)&certificate;
 
-        owncert.size = 1 + security->resource_value_buffer(M2MSecurity::PublicKey, (const uint8_t*&)owncert.buffer, security_instance_id);
-        privateKey.size = 1 + security->resource_value_buffer(M2MSecurity::Secretkey, (const uint8_t*&)privateKey.buffer, security_instance_id);
-        caChain.size = 1 + security->resource_value_buffer(M2MSecurity::ServerPublicKey, (const uint8_t*&)caChain.buffer, security_instance_id);
+        caChain.size = MAX_CERTIFICATE_SIZE;
+        int ret_code = security->resource_value_buffer(M2MSecurity::ServerPublicKey, certificate_ptr, security_instance_id, (size_t*)&caChain.size);
+        caChain.buffer = certificate_ptr;
 
-        if(PAL_SUCCESS != pal_setOwnCertAndPrivateKey(_conf, &owncert, &privateKey)){
-            tr_error("pal_setOwnCertAndPrivateKey failed");
-            return -1;
-        }
-        if(PAL_SUCCESS != pal_setCAChain(_conf, &caChain, NULL)){
+        if (ret_code < 0 || PAL_SUCCESS != pal_setCAChain(_conf, &caChain, NULL)){
             tr_error("pal_setCAChain failed");
             return -1;
         }
 
-    }else if(cert_mode == M2MSecurity::Psk){
+        privateKey.size = MAX_CERTIFICATE_SIZE;
+        ret_code = security->resource_value_buffer(M2MSecurity::Secretkey, certificate_ptr, security_instance_id, (size_t*)&privateKey.size);
+        privateKey.buffer = certificate_ptr;
+        if (ret_code < 0 || PAL_SUCCESS != pal_setOwnPrivateKey(_conf, &privateKey)) {
+            tr_error("pal_setOwnPrivateKey failed");
+            return -1;
+        }
 
-        uint8_t *identity = NULL;
+        void *dummy;
+
+        // Open certificate chain, size parameter contains the depth of certificate chain
+        size_t cert_chain_size = 0;
+        security->resource_value_buffer(M2MSecurity::OpenCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
+        tr_info("M2MConnectionSecurityPimpl::init - cert chain length: %" PRIu32, cert_chain_size);
+
+        int index = 0;
+        while (index < cert_chain_size) {
+            owncert.size = MAX_CERTIFICATE_SIZE;
+            ret_code = security->resource_value_buffer(M2MSecurity::ReadDeviceCertificateChain, certificate_ptr, security_instance_id, (size_t*)&owncert.size);
+            owncert.buffer = certificate_ptr;
+
+            if (ret_code < 0 || PAL_SUCCESS != pal_setOwnCertChain(_conf, &owncert)){
+                tr_error("pal_setOwnCertChain failed");
+                security->resource_value_buffer(M2MSecurity::CloseCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
+                return -1;
+            }
+
+            index++;
+        }
+        security->resource_value_buffer(M2MSecurity::CloseCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
+
+    } else if (cert_mode == M2MSecurity::Psk){
+
+        uint8_t identity[MAX_CERTIFICATE_SIZE];
+        uint8_t *identity_ptr = (uint8_t *)&identity;
         uint32_t identity_len;
-        uint8_t *psk = NULL;
+        uint8_t psk[MAX_CERTIFICATE_SIZE];
+        uint8_t *psk_ptr = (uint8_t *)&psk;
         uint32_t psk_len;
 
-        identity_len = security->resource_value_buffer(M2MSecurity::PublicKey, identity, security_instance_id);
-        psk_len = security->resource_value_buffer(M2MSecurity::Secretkey, psk, security_instance_id);
-        palStatus_t ret = pal_setPSK(_conf, identity, identity_len, psk, psk_len);
-        free(identity);
-        free(psk);
+        security->resource_value_buffer(M2MSecurity::PublicKey, identity_ptr, security_instance_id, (size_t*)&identity_len);
+        security->resource_value_buffer(M2MSecurity::Secretkey, psk_ptr, security_instance_id, (size_t*)&psk_len);
+        palStatus_t ret = pal_setPSK(_conf, identity_ptr, identity_len, psk_ptr, psk_len);
+
 
         if(PAL_SUCCESS != ret){
             tr_error("pal_setPSK failed");
@@ -338,59 +361,3 @@ bool M2MConnectionSecurityPimpl::certificate_parse_valid_time(const char *certif
     pal_x509Free(&cert);
     return true;
 }
-
-bool M2MConnectionSecurityPimpl::check_security_object_validity(const M2MSecurity *security, uint16_t security_instance_id) {
-    // Get time from device object
-    M2MDevice *device = M2MInterfaceFactory::create_device();
-    const uint8_t *certificate = NULL;
-    int64_t device_time = 0;
-    uint32_t cert_len = 0;
-
-    if (device == NULL || security == NULL) {
-        tr_error("No time from device object or security object available, fail connector registration %p, %p\n", device, security);
-        return false;
-    }
-
-    // Get time from device object, returns -1 if resource not found
-    device_time = device->resource_value_int(M2MDevice::CurrentTime, 0);
-
-    tr_debug("Checking client certificate validity");
-
-    // Get client certificate
-    cert_len = security->resource_value_buffer(M2MSecurity::PublicKey, certificate, security_instance_id);
-    if (cert_len == 0 || certificate == NULL) {
-        tr_error("No certificate to check, return fail");
-        return false;
-    }
-
-    if (device_time == -1 || !check_certificate_validity(certificate, cert_len, device_time)) {
-        tr_error("Client certificate not valid!");
-        return false;
-    }
-    return true;
-}
-
-bool M2MConnectionSecurityPimpl::check_certificate_validity(const uint8_t *cert, const uint32_t cert_len, const int64_t device_time)
-{
-
-    // Get the validFrom and validTo fields from certificate
-    uint64_t server_validfrom = 0;
-    uint64_t server_validto = 0;
-    if(!certificate_parse_valid_time((const char*)cert, cert_len, &server_validfrom, &server_validto)) {
-        tr_error("Certificate time parsing failed");
-        return false;
-    }
-
-    tr_debug("M2MConnectionSecurityPimpl::check_certificate_validity - valid from: %" PRIu64, server_validfrom);
-    tr_debug("M2MConnectionSecurityPimpl::check_certificate_validity - valid to: %" PRIu64, server_validto);
-    // Cast to uint32_t since all platforms does not support PRId64 macro
-    tr_debug("M2MConnectionSecurityPimpl::check_certificate_validity - device time: %" PRIu32, (uint32_t)device_time);
-
-    if (device_time < (uint32_t)server_validfrom || device_time > (uint32_t)server_validto) {
-        tr_error("Invalid certificate validity or device time outside of certificate validity period!");
-        return false;
-    }
-
-    return true;
-}
-

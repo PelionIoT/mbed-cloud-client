@@ -74,7 +74,10 @@
 
 #define ESFS_FILE_COPY_CHUNK_SIZE       (256)
 
-#define MAX_FULL_PATH_SIZE (PAL_MAX_FOLDER_DEPTH_CHAR + 1 + PAL_MAX(sizeof(ESFS_BACKUP_DIRECTORY), sizeof(ESFS_WORKING_DIRECTORY)) + PAL_MAX(sizeof(FACTORY_RESET_DIR) + sizeof(FACTORY_RESET_FILE), ESFS_QUALIFIED_FILE_NAME_LENGTH))
+#define MAX_FULL_PATH_SIZE (PAL_MAX_FOLDER_DEPTH_CHAR + \
+                            1 + \
+                            PAL_MAX(sizeof(ESFS_BACKUP_DIRECTORY), sizeof(ESFS_WORKING_DIRECTORY)) + \
+                            PAL_MAX(sizeof(FACTORY_RESET_DIR) + sizeof(FACTORY_RESET_FILE), ESFS_QUALIFIED_FILE_NAME_LENGTH))
 
 static bool esfs_initialize = false;
 
@@ -114,7 +117,9 @@ esfs_result_e esfs_init(void)
             // Create the esfs subfolder working
             pal_result = pal_fsMkDir(dir_path);
             if ((pal_result == PAL_SUCCESS) || (pal_result == PAL_ERR_FS_NAME_ALREADY_EXIST))
+            {
                 break;
+            }
             tr_err("esfs_init() %d", i);
             pal_osDelay(50);
 
@@ -259,7 +264,7 @@ static size_t esfs_file_header_size(esfs_file_t *file_handle)
 // Helper function to calculate the cmac on data that is written.
 // Parameters :
 // pbuf        - [IN] A pointer to a buffer
-// num_bytes     [IN] number of bytes that we request to write.
+// num_bytes   - [IN] number of bytes that we request to write.
 // file_handle - [IN] A pointer to a file handle for which we calculate the size.
 // Return     : ESFS_SUCCESS on success. Error code otherwise
 static esfs_result_e esfs_fwrite_and_calc_cmac(const void *pbuf, size_t num_bytes, esfs_file_t *file_handle)
@@ -287,7 +292,7 @@ static esfs_result_e esfs_fwrite_and_calc_cmac(const void *pbuf, size_t num_byte
 // Helper function to start a cmac run.
 // Moves the file position to the start of the file.
 // Parameters :
-// file_handle - [IN]   A pointer to a file handle.
+// file_handle - [IN] A pointer to a file handle.
 // If successful it creates a cmac context which must be destroyed with a call to esfs_cmac_finish
 // Return     : ESFS_SUCCESS on success. Error code otherwise.
 static esfs_result_e esfs_cmac_start(esfs_file_t *file_handle)
@@ -330,10 +335,10 @@ static esfs_result_e esfs_cmac_start(esfs_file_t *file_handle)
 // The function will not update the cmac if there is no CMAC context in the file handle.
 // Updates the file position.
 // Parameters :
-// file_handle - [IN]   A pointer to a file handle for which we calculate the cmac.
-// pbuf          [OUT]  A pointer to a buffer containing the data that is read.
-// num_bytes     [IN]   number of bytes that we request to read.
-// num_bytes_read[OUT]  A pointer to a location in which will be written the number of bytes actually read.
+// file_handle    - [IN]   A pointer to a file handle for which we calculate the cmac.
+// pbuf           - [OUT]  A pointer to a buffer containing the data that is read.
+// num_bytes      - [IN]   number of bytes that we request to read.
+// num_bytes_read - [OUT]  A pointer to a location in which will be written the number of bytes actually read.
 // Return     : ESFS_SUCCESS on success. Error code otherwise
 static esfs_result_e esfs_cmac_read(esfs_file_t *file_handle, void *pbuf, size_t num_bytes, size_t *num_bytes_read)
 {
@@ -364,7 +369,7 @@ static esfs_result_e esfs_cmac_read(esfs_file_t *file_handle, void *pbuf, size_t
 // Updates the file position.
 // Parameters :
 // file_handle - [IN]   A pointer to a file handle.
-// to            [IN]   The absolute position from the start of the file to which skip.
+// to          - [IN]   The absolute position from the start of the file to which skip.
 //                      It must be greater than the current position and no longer that the file size.
 // Return     : ESFS_SUCCESS on success. Error code otherwise.
 static esfs_result_e esfs_cmac_skip_to(esfs_file_t *file_handle, int32_t to)
@@ -399,7 +404,7 @@ static esfs_result_e esfs_cmac_skip_to(esfs_file_t *file_handle, int32_t to)
 // Helper function to terminate a cmac run and return the resulting cmac.
 // Parameters :
 // file_handle - [IN]   A pointer to a file handle for which we calculate the cmac.
-// pcmac         [OUT]  A pointer to a buffer into which the cmac will be written. It must be at least ESFS_CMAC_SIZE_IN_BYTES.
+// pcmac       - [OUT]  A pointer to a buffer into which the cmac will be written. It must be at least ESFS_CMAC_SIZE_IN_BYTES.
 // Return     : ESFS_SUCCESS on success. Error code otherwise
 static esfs_result_e esfs_cmac_finish(esfs_file_t *file_handle, unsigned char *pcmac)
 {
@@ -420,8 +425,8 @@ static esfs_result_e esfs_cmac_finish(esfs_file_t *file_handle, unsigned char *p
 // Updates the file position.
 // Parameters :
 // file_handle - [IN]   A pointer to a file handle for which we check the cmac.
-// pcmac         [IN]   A pointer to a buffer containing the cmac that will be compared. It must be at least ESFS_CMAC_SIZE_IN_BYTES.
-// position      [IN]   The absolute position from the start of the file to which we restore the file position.
+// pcmac       - [IN]   A pointer to a buffer containing the cmac that will be compared. It must be at least ESFS_CMAC_SIZE_IN_BYTES.
+// position    - [IN]   The absolute position from the start of the file to which we restore the file position.
 // Return     : ESFS_SUCCESS on success. Error code otherwise.
 static esfs_result_e esfs_cmac_check_and_restore(esfs_file_t *file_handle, unsigned char *pcmac, int32_t position)
 {
@@ -814,7 +819,6 @@ static esfs_result_e esfs_encrypt_fwrite_and_calc_cmac(const void *buffer, size_
         }
     }
 
-
     return ESFS_SUCCESS;
 }
 
@@ -834,7 +838,6 @@ esfs_result_e esfs_reset(void)
     }
 
     strncat(dir_path, "/" ESFS_WORKING_DIRECTORY, sizeof(ESFS_WORKING_DIRECTORY));
-
 
     // delete the files in working dir
     pal_result = pal_fsRmFiles(dir_path);
@@ -869,7 +872,6 @@ esfs_result_e esfs_reset(void)
     }
 
     strncat(dir_path, "/" ESFS_BACKUP_DIRECTORY, sizeof(ESFS_BACKUP_DIRECTORY));
-
 
     // delete the files in backup dir
     pal_result = pal_fsRmFiles(dir_path);
@@ -1025,9 +1027,6 @@ esfs_result_e esfs_factory_reset(void) {
             goto errorExit;
         }
     }
-
-
-
 
     pal_result = pal_fsGetMountPoint(PAL_FS_PARTITION_SECONDARY, PAL_MAX_FOLDER_DEPTH_CHAR + 1, full_path_backup_dir);
     if (pal_result != PAL_SUCCESS)
@@ -1210,8 +1209,8 @@ errorExit:
 
 // Copy one file to another.
 // Parameters :
-//             src_file [IN] A pointer to a string containing the source file name.
-//             src_file [IN] A pointer to a string containing the destination file name.
+//             src_file  - [IN] A pointer to a string containing the source file name.
+//             src_file  - [IN] A pointer to a string containing the destination file name.
 // Return     : ESFS_SUCCESS on success. Error code otherwise
 static esfs_result_e esfs_copy_file(const char *src_file, const char *dst_file)
 {
@@ -1323,12 +1322,12 @@ errorExit:
 // Keep all the conditions that allow the file creation in a single function, esfs_create, while the
 // esfs_create_internal will concentrate on file creation mechanics.
 // Parameters:
-// name         [IN]    A pointer to an array of binary data that uniquely identifies the file.
-// name_length  [IN]    size in bytes of the name. The minimum is 1 and the maximum is ESFS_MAX_NAME_LENGTH.
-// meta_data    [IN]    A pointer to an array of TLVs structures with meta_data_qty members
-// meta_data_qty[IN]    number of tlvs in the array pointed by meta_data parameter. Minimum is 0 maximum is ESFS_MAX_TYPE_LENGTH_VALUES
-// esfs_mode    [IN]    a bit map combination of values from enum EsfsMode.
-// file_handle  [IN/OUT]  Pointer to the handle data structure into which to write the new handle.
+// name          - [IN]    A pointer to an array of binary data that uniquely identifies the file.
+// name_length   - [IN]    size in bytes of the name. The minimum is 1 and the maximum is ESFS_MAX_NAME_LENGTH.
+// meta_data     - [IN]    A pointer to an array of TLVs structures with meta_data_qty members
+// meta_data_qty - [IN]    number of tlvs in the array pointed by meta_data parameter. Minimum is 0 maximum is ESFS_MAX_TYPE_LENGTH_VALUES
+// esfs_mode     - [IN]    a bit map combination of values from enum EsfsMode.
+// file_handle   - [IN/OUT]  Pointer to the handle data structure into which to write the new handle.
 // returns ESFS_SUCCESS The file handle can be used in other esfs functions. It must be closed to release it.
 //          ESFS_ERROR - other problem
 static esfs_result_e esfs_create_internal( const uint8_t *name,
@@ -1367,7 +1366,7 @@ static esfs_result_e esfs_create_internal( const uint8_t *name,
     cmac_created = 1;
 
     // Write the version
-        if(esfs_fwrite_and_calc_cmac(&u16, sizeof(u16), file_handle) != ESFS_SUCCESS)
+    if(esfs_fwrite_and_calc_cmac(&u16, sizeof(u16), file_handle) != ESFS_SUCCESS)
     {
         tr_err("esfs_create_internal() - esfs_fwrite_and_calc_cmac() for esfs version failed");
         result = ESFS_ERROR;
@@ -2258,7 +2257,7 @@ esfs_result_e esfs_close(esfs_file_t *file_handle)
 {
     uint16_t failed_to_write_CMAC = 0;
     uint16_t file_esfs_mode = 0;
-    esfs_file_flag_e esfs_file_flag = 0;
+    esfs_file_flag_e esfs_file_flag;
     char esfs_short_file_name[ESFS_QUALIFIED_FILE_NAME_LENGTH] = {0};
     esfs_result_e result = ESFS_ERROR;
     char full_path_working_dir[MAX_FULL_PATH_SIZE];

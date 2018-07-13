@@ -28,11 +28,15 @@ void cn_cbor_free(cn_cbor* cb CBOR_CONTEXT) {
   assert(!p || !p->parent);
   while (p) {
     cn_cbor* p1;
-    while ((p1 = p->first_child)) { /* go down */
+    p1 = p->first_child;
+    while ((p1)) { /* go down */
       p = p1;
+      p1 = p->first_child;
     }
-    if (!(p1 = p->next)) {   /* go up next */
-      if ((p1 = p->parent))
+    p1 = p->next;
+    if (!(p1)) {   /* go up next */
+      p1 = p->parent;
+      if ((p1))
         p1->first_child = 0;
     }
     CN_CBOR_FREE_CONTEXT(p);
@@ -212,7 +216,8 @@ again:
     val <<= 1;
     /* fall through */
   case MT_ARRAY:
-    if ((cb->v.count = val)) {
+    cb->v.count = val;
+    if ((cb->v.count)) {
       cb->flags |= CN_CBOR_FL_COUNT;
       goto push;
     }
@@ -286,10 +291,12 @@ fail:
 }
 
 cn_cbor* cn_cbor_decode(const unsigned char* buf, size_t len CBOR_CONTEXT, cn_cbor_errback *errp) {
-  cn_cbor catcher = {CN_CBOR_INVALID, 0, {0}, 0, NULL, NULL, NULL, NULL};
+  cn_cbor catcher;
   struct parse_buf pb;
   cn_cbor* ret;
-
+  
+  memset(&catcher,0 , sizeof(cn_cbor));
+  catcher.type = CN_CBOR_INVALID;
   pb.buf  = (unsigned char *)buf;
   pb.ebuf = (unsigned char *)buf+len;
   pb.err  = CN_CBOR_NO_ERROR;

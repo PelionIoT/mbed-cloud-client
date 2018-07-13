@@ -178,9 +178,34 @@ bool M2MResourceBase::set_execute_function(execute_callback_2 callback)
     return M2MCallbackStorage::add_callback(*this, (void*)callback, M2MCallbackAssociation::M2MResourceInstanceExecuteCallback2);
 }
 
+bool M2MResourceBase::set_resource_read_callback(read_resource_value_callback callback, void *client_args)
+{
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueReadCallback);
+    M2MBase::lwm2m_parameters_s* param = M2MBase::get_lwm2m_parameters();
+    param->read_write_callback_set = true;
+    return M2MCallbackStorage::add_callback(*this,
+                                            (void*)callback,
+                                            M2MCallbackAssociation::M2MResourceBaseValueReadCallback,
+                                            client_args);
+
+}
+
+bool M2MResourceBase::set_resource_write_callback(write_resource_value_callback callback, void *client_args)
+{
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueWriteCallback);
+    M2MBase::lwm2m_parameters_s* param = M2MBase::get_lwm2m_parameters();
+    param->read_write_callback_set = true;
+
+    return M2MCallbackStorage::add_callback(*this,
+                                            (void*)callback,
+                                            M2MCallbackAssociation::M2MResourceBaseValueWriteCallback,
+                                            client_args);
+}
+
 void M2MResourceBase::clear_value()
 {
     tr_debug("M2MResourceBase::clear_value");
+
     sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
     free(res->resource);
     res->resource = NULL;
@@ -220,16 +245,21 @@ bool M2MResourceBase::set_value(const uint8_t *value,
     tr_debug("M2MResourceBase::set_value()");
     bool success = false;
     if( value != NULL && value_length > 0 ) {
-        uint8_t *value_copy = alloc_string_copy(value, value_length);
-        if (value_copy) {
-            value_set_callback callback = (value_set_callback)M2MCallbackStorage::get_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueSetCallback);
-            if (callback) {
-                (*callback)((const M2MResourceBase*)this, value_copy, value_length);
+        M2MBase::lwm2m_parameters_s* param = M2MBase::get_lwm2m_parameters();
+        if (param->read_write_callback_set) {
+            return write_resource_value(*this, value, value_length);
+        } else {
+            uint8_t *value_copy = alloc_string_copy(value, value_length);
+            if (value_copy) {
+                value_set_callback callback = (value_set_callback)M2MCallbackStorage::get_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueSetCallback);
+                if (callback) {
+                    (*callback)((const M2MResourceBase*)this, value_copy, value_length);
+                }
+                else {
+                    update_value(value_copy, value_length);
+                }
+                success = true;
             }
-            else {
-                update_value(value_copy, value_length);
-            }
-            success = true;
         }
     }
     return success;
@@ -375,6 +405,43 @@ void M2MResourceBase::execute(void *arguments)
     }
 }
 
+int M2MResourceBase::read_resource_value(const M2MResourceBase &resource, void *buffer, size_t *buffer_len)
+{
+    tr_debug("M2MResourceBase::read_resource_value");
+
+    M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(resource,
+                                                                            M2MCallbackAssociation::M2MResourceBaseValueReadCallback);
+
+    if (item) {
+        read_resource_value_callback callback = (read_resource_value_callback)item->_callback;
+        assert(callback);
+        return (*callback)(resource, buffer, buffer_len, item->_client_args);
+    } else {
+        if (value_length() > *buffer_len) {
+            return -1;
+        } else {
+            memcpy(buffer, value(), value_length());
+            *buffer_len = value_length();
+            return 0;
+        }
+    }
+}
+
+bool M2MResourceBase::write_resource_value(const M2MResourceBase &resource, const uint8_t *buffer, const size_t buffer_size)
+{
+    tr_debug("M2MResourceBase::write_resource_value");
+    M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(resource,
+                                                                            M2MCallbackAssociation::M2MResourceBaseValueWriteCallback);
+    if (item) {
+        write_resource_value_callback callback = (write_resource_value_callback)item->_callback;
+        if (callback) {
+            return (*callback)(resource, buffer, buffer_size, item->_client_args);
+        }
+    }
+
+    return false;
+}
+
 void M2MResourceBase::get_value(uint8_t *&value, uint32_t &value_length)
 {
     value_length = 0;
@@ -382,6 +449,7 @@ void M2MResourceBase::get_value(uint8_t *&value, uint32_t &value_length)
         free(value);
         value = NULL;
     }
+
     sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
     if(res->resource && res->resource_len > 0) {
         value = alloc_string_copy(res->resource, res->resource_len);

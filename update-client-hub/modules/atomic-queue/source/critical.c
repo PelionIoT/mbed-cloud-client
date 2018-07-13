@@ -55,7 +55,7 @@ void aq_critical_section_enter()
         critical_primask = primask & 0x1;
 #endif
     }
-
+#if 0
     /* If the interruptEnableCounter overflows or we are in a nested critical section and interrupts
        are enabled, then something has gone badly wrong thus assert an error.
     */
@@ -63,20 +63,26 @@ void aq_critical_section_enter()
     /* FIXME: This assertion needs to be commented out for the moment, as it
      *        triggers a fault when uVisor is enabled. For more information on
      *        the fault please checkout ARMmbed/mbed-drivers#176. */
-    /* assert(interruptEnableCounter < UINT32_MAX); */
+
+    assert(interruptEnableCounter < UINT32_MAX);
     if (interruptEnableCounter > 0) {
-        /* FIXME: This assertion needs to be commented out for the moment, as it
-         *        triggers a fault when uVisor is enabled. For more information
-         *        on the fault please checkout ARMmbed/mbed-drivers#176. */
-        /* assert(primask & 0x1); */
+         assert(primask & 0x1);
     }
-    interruptEnableCounter++;
+#endif
+
+    if (interruptEnableCounter < UINT32_MAX) {
+        interruptEnableCounter++;
+    }
 }
 
-void aq_critical_section_exit()
+void aq_critical_section_exit(void)
 {
     // If critical_section_enter has not previously been called, do nothing
     if (interruptEnableCounter) {
+#if 0
+        /* FIXME: This assertion needs to be commented out for the moment, as it
+         *        triggers a fault when uVisor is enabled. For more information
+         *        on the fault please checkout ARMmbed/mbed-drivers#176. */
 
         uint32_t primask;
 #if defined(__CORTEX_A9)
@@ -84,12 +90,11 @@ void aq_critical_section_exit()
 #else
         primask = __get_PRIMASK(); // get the current interrupt enabled state
 #endif
-        /* FIXME: This assertion needs to be commented out for the moment, as it
-         *        triggers a fault when uVisor is enabled. For more information
-         *        on the fault please checkout ARMmbed/mbed-drivers#176. */
-        /* assert(primask & 0x1); // Interrupts must be disabled on invoking an exit from a critical section */
+         assert(primask & 0x1); // Interrupts must be disabled on invoking an exit from a critical section
+#endif
 
         interruptEnableCounter--;
+
 
         /* Only re-enable interrupts if we are exiting the last of the nested critical sections and
            interrupts were enabled on entry to the first critical section.

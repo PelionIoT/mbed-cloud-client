@@ -41,7 +41,7 @@ void aq_critical_section_enter() {
     assert(rc == PAL_SUCCESS);
 }
 
-void aq_critical_section_exit() {
+void aq_critical_section_exit(void) {
     assert(irq_nesting_depth > 0);
     if (--irq_nesting_depth == 0) {
         palStatus_t rc = pal_osMutexRelease(mutex);

@@ -328,6 +328,7 @@ palStatus_t pal_getAddressInfo(const char* url, palSocketAddress_t* address, pal
 * @param[in] status The status of the operation - PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure
 * @param[in] callbackArgument The user callback argument
 */
+#ifndef PAL_DNS_API_V2
 typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument);
 
 /*! This function translates from a URL to `palSocketAddress_t` which can be used with PAL sockets. It supports both IP address as strings and URLs (using DNS lookup). \n
@@ -339,8 +340,53 @@ typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddres
 * @param[in] callbackArgument The user provided callback argument which will be passed back to the (user provided) callback function
 */
 palStatus_t pal_getAddressInfoAsync(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palGetAddressInfoAsyncCallback_t callback, void* callbackArgument);
+#else
+typedef int32_t palDNSQuery_t; /*! PAL DNS query handle, may be used to cancel the asynchronous DNS query. */
 
-#endif
+/*! Prototype of the callback function invoked when querying address info asynchronously (pal_getAddressInfoAsync).
+* @param[in] url The user provided url (or IP address string) that was requested to be translated
+* @param[out] address The address for the output of the translation
+* @param[out] status The status of the operation - PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure
+* @param[in] callbackArgument The user callback argument
+*/
+typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddress_t* address, palStatus_t status, void* callbackArgument);
+
+/*! structure used by pal_getAddressInfoAsync
+* @param[in] url The user provided url (or IP address string) that was requested to be translated
+* @param[out] address The address for the output of the translation
+* @param[in] callback address of palGetAddressInfoAsyncCallback_t.
+* @param[in] callbackArgument The user callback argument of palGetAddressInfoAsyncCallback_t
+* @param[out] queryHandle handler ID, which can be used for calcel request.
+*/
+typedef struct pal_asyncAddressInfo
+{
+    char* url;
+    palSocketAddress_t* address;
+    palGetAddressInfoAsyncCallback_t callback;
+    void* callbackArgument;
+    palDNSQuery_t *queryHandle;
+} pal_asyncAddressInfo_t;
+
+/*! This function translates from a URL to `palSocketAddress_t` which can be used with PAL sockets. It supports both IP address as strings and URLs (using DNS lookup). \n
+\note The function is a non-blocking function.
+* @param[in] url The user provided url (or IP address string) to be translated
+* @param[out] address The address for the output of the translation
+* @param[in] callback The user provided callback to be invoked once the function has completed
+* @param[out] queryHandle DNS query handler. Caller must take of care allocation. If not used then use NULL.
+*/
+palStatus_t pal_getAddressInfoAsync(const char* url, 
+                                     palSocketAddress_t* address, 
+                                     palGetAddressInfoAsyncCallback_t callback, 
+                                     void* callbackArgument, 
+                                     palDNSQuery_t* queryHandle);
+
+/*! This function is cancelation for pal_getAddressInfoAsync. 
+* @param[in] queryHandle Id of ongoing DNS query.
+*/
+palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
+#endif  // #ifndef PAL_DNS_API_V2
+
+#endif  // PAL_NET_DNS_SUPPORT
 
 #ifdef __cplusplus
 }

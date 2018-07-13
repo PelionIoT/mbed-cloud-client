@@ -54,24 +54,27 @@ arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location,
         /* copy the base directory of firmware into dest */
         int length = snprintf(dest, dest_size, "%s", pal_imageGetFolder());
 
-        /* add missing slash at end if needed */
-        if ((length < dest_size) && (dest[length - 1] != '/'))
+        if (length > 0)
         {
-            dest[length] = '/';
-            length++;
-        }
+            /* add missing slash at end if needed */
+            if (((uint32_t)length < dest_size) && (dest[length - 1] != '/'))
+            {
+                dest[length] = '/';
+                length++;
+            }
 
-        /* start snprintf after the mount point name and add length */
-        length += snprintf(&dest[length],
-                           dest_size - length,
-                           "%s_%" PRIu32 ".bin",
-                           what == FIRMWARE_IMAGE_ITEM_HEADER ? "header" : "image",
-                           location);
+            /* start snprintf after the mount point name and add length */
+            length += snprintf(&dest[length],
+                               dest_size - length,
+                               "%s_%" PRIu32 ".bin",
+                               what == FIRMWARE_IMAGE_ITEM_HEADER ? "header" : "image",
+                               location);
 
-        /* check that file path didn't overrun */
-        if (length < dest_size)
-        {
-            result.code = ERR_NONE;
+            /* check that file path didn't overrun */
+            if ((uint32_t)length < dest_size)
+            {
+                result.code = ERR_NONE;
+            }
         }
     }
 

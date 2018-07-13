@@ -45,7 +45,9 @@ typedef enum {
 
 #ifndef SOTP_PROBE_ONLY
 STATIC bool init_done = false;
+#ifdef SOTP_THREAD_SAFE
 STATIC int32_t init_attempts = 0;
+#endif
 STATIC uint8_t active_area;
 STATIC uint16_t active_area_version;
 // Must be aligned to the size of native integer, otherwise atomic add may not work
@@ -472,7 +474,7 @@ sotp_result_e sotp_garbage_collection(uint16_t type, uint16_t buf_len_bytes, con
     for (type = 0; type < SOTP_MAX_TYPES; type++) {
         curr_offset = offset_by_type[type];
         curr_area = (uint8_t) (curr_offset >> (sizeof(curr_offset)*8 - 1));
-        curr_offset &= ~(1 << (sizeof(curr_offset)*8 - 1));
+        curr_offset &= ~(1UL << (sizeof(curr_offset)*8 - 1));
         if ((!curr_offset) || (curr_area != active_area))
             continue;
         ret = copy_record(curr_area, curr_offset, new_area_offset, &next_offset);
@@ -500,7 +502,9 @@ sotp_result_e sotp_garbage_collection(uint16_t type, uint16_t buf_len_bytes, con
     active_area = 1 - active_area;
 
     // The older area doesn't concern us now. Erase it now.
-    ret = sotp_flash_erase_area(1 - active_area);
+    if (sotp_flash_erase_area(1 - active_area) != PAL_SUCCESS) {
+        ret = SOTP_WRITE_ERROR;
+    }
 
     SOTP_LOG_FINALIZE();
     return ret;
@@ -565,7 +569,7 @@ STATIC sotp_result_e sotp_do_get(uint8_t type, uint16_t buf_len_bytes, uint32_t 
         }
 
         area = (uint8_t) (record_offset >> (sizeof(record_offset)*8 - 1));
-        record_offset &= ~(1 << (sizeof(record_offset)*8 - 1));
+        record_offset &= ~(1UL << (sizeof(record_offset)*8 - 1));
 
         ret = read_record(area, record_offset, buf_len_bytes, buf,
                           actual_len_bytes, validate_only, &valid,
@@ -914,7 +918,7 @@ sotp_result_e sotp_init(void)
     }
 
 init_end:
-    init_done = TRUE;
+    init_done = true;
     return ret;
 }
 
@@ -924,7 +928,9 @@ sotp_result_e sotp_deinit(void)
         sotp_sh_lock_destroy(write_lock);
     }
 
+#ifdef SOTP_THREAD_SAFE
     init_attempts = 0;
+#endif
     init_done = false;
 
     return SOTP_SUCCESS;

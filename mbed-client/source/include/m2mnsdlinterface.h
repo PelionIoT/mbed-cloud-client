@@ -55,14 +55,16 @@ private:
 
 public:
 
-    struct get_data_request_s {
-        get_data_cb         on_get_data_cb;
-        get_data_error_cb   on_get_data_error_cb;
+    struct request_context_s {
+        request_data_cb     on_request_data_cb;
+        request_error_cb    on_request_error_cb;
         size_t              received_size;
         uint32_t            msg_token;
         char                *uri_path;
         void                *context;
         bool                async_req;
+        sn_coap_msg_code_e  msg_code;
+        bool                resend;
         ns_list_link_t      link;
     };
 
@@ -72,7 +74,7 @@ public:
         sn_nsdl_addr_s      address;
     };
 
-    typedef NS_LIST_HEAD(get_data_request_s, link) get_data_request_list_t;
+    typedef NS_LIST_HEAD(request_context_s, link) request_context_list_t;
 
     /**
     * @brief Constructor
@@ -155,30 +157,35 @@ public:
     bool send_register_message();
 
     /**
-     * @brief Sends the CoAP GET request to the server.
+     * @brief Sends the CoAP request to the server.
      * @uri Uri path to the data.
+     * @msg_code CoAP message code of request to send.
      * @offset Data offset.
      * @async In async mode application must call this API again with the updated offset.
      *        If set to false then client will automatically download the whole package.
-     * @get_data_cb Callback which is triggered once there is data available.
-     * @get_data_error_cb Callback which is trigged in case of any error.
+     * @payload_len Length of payload buffer.
+     * @payload_ptr Pointer to payload buffer.
+     * @request_data_cb Callback which is triggered once there is data available.
+     * @request_error_cb Callback which is trigged in case of any error.
      * @context Application context.
-    */
-    bool send_get_data_request(const char *uri,
-                               const size_t offset,
-                               const bool async,
-                               get_data_cb data_cb,
-                               get_data_error_cb error_cb,
-                               void *context);
+     */
+    void send_request(const char *uri,
+                      const sn_coap_msg_code_e msg_code,
+                      const size_t offset,
+                      const bool async,
+                      const uint16_t payload_len,
+                      uint8_t *payload_ptr,
+                      request_data_cb data_cb,
+                      request_error_cb error_cb,
+                      void *context);
 
     /**
      * @brief Sends the update registration message to the server.
      * @param lifetime, Updated lifetime value in seconds.
-     * @param clear_queue, Empties resending queue, by default it doesn't empties queue.
      * @return  true if sent successfully else false.
      *
     */
-    bool send_update_registration(const uint32_t lifetime = 0, bool clear_queue = false);
+    bool send_update_registration(const uint32_t lifetime = 0);
 
     /**
      * @brief Sends unregister message to the server.
@@ -306,7 +313,13 @@ public:
      * @brief Get unregister state.
      * @return Is unregistration ongoing.
      */
-    bool get_unregister_ongoing() const;
+    bool is_unregister_ongoing() const;
+
+    /**
+     * @brief Get update register state.
+     * @return Is updare registration ongoing.
+     */
+    bool is_update_register_ongoing() const;
 
     /**
      * @brief Starts the NSDL execution timer.
@@ -351,7 +364,41 @@ public:
     */
     void store_bs_finished_response_id(uint16_t msg_id);
 
+    /**
+     * @brief Store the registration state.
+     * @param registered Registered to lwm2m server or not.
+    */
     void set_registration_status(bool registered);
+
+    /**
+     * @brief Handle incoming bootstrap PUT message.
+     * @param coap_header, Received CoAP message
+     * @param address, Server address
+    */
+    void handle_bootstrap_put_message(sn_coap_hdr_s *coap_header, sn_nsdl_addr_s *address);
+
+    /**
+     * @brief Handle bootstrap finish acknowledgement.
+    */
+    void handle_bootstrap_finish_ack(uint16_t msg_id);
+
+    /**
+     * @brief Returns total retransmission time
+     * @resend_count Resend count
+     * @return Total retransmission time
+    */
+    uint32_t total_retransmission_time(int resend_count);
+
+    /**
+     * @brief Returns CoAP retransmission count
+     * @return CoAP retransmission count
+    */
+    uint8_t get_resend_count();
+
+    /**
+     * @brief Mark request to be resend again after network break
+    */
+    void set_request_context_to_be_resend();
 
 protected: // from M2MTimerObserver
 
@@ -469,13 +516,6 @@ private:
     void set_endpoint_lifetime_buffer(int lifetime);
 
     /**
-     * @brief Handle incoming bootstrap PUT message.
-     * @param coap_header, Received CoAP message
-     * @param address, Server address
-    */
-    void handle_bootstrap_put_message(sn_coap_hdr_s *coap_header, sn_nsdl_addr_s *address);
-
-    /**
      * @brief Handle bootstrap finished message.
      * @param coap_header, Received CoAP message
      * @param address, Server address
@@ -551,9 +591,10 @@ private:
 
     void execute_notification_delivery_status_cb(M2MBase* object, int32_t msgid);
 
-    bool is_response_to_get_req(const sn_coap_hdr_s *coap_header, get_data_request_s &get_data);
+    bool is_response_to_request(const sn_coap_hdr_s *coap_header,
+                                struct request_context_s &get_data);
 
-    void free_get_request_list(const sn_coap_hdr_s *coap_header = NULL);
+    void free_request_context_list(const sn_coap_hdr_s *coap_header = NULL);
 
     /**
      * @brief Send next notification for object, return true if notification sent, false
@@ -583,7 +624,7 @@ private:
 
     void handle_register_update_response(const sn_coap_hdr_s *coap_header);
 
-    void handle_get_response(const sn_coap_hdr_s *coap_header, get_data_request_s *get_data);
+    void handle_request_response(const sn_coap_hdr_s *coap_header, struct request_context_s *request_context);
 
     void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
 
@@ -598,10 +639,15 @@ private:
                               bool is_bootstrap_msg);
 
     bool is_blockwise_needed(uint32_t length) const;
+
+    void set_retransmission_parameters();
+
+    void send_pending_request();
+
 private:
 
     M2MNsdlObserver                         &_observer;
-    M2MBaseList                            _base_list;
+    M2MBaseList                             _base_list;
     sn_nsdl_ep_parameters_s                 *_endpoint;
     nsdl_s                                  *_nsdl_handle;
     M2MSecurity                             *_security; // Not owned
@@ -609,24 +655,24 @@ private:
     M2MTimer                                _nsdl_execution_timer;
     M2MTimer                                _registration_timer;
     M2MConnectionHandler                    &_connection_handler;
-    sn_nsdl_addr_s                          _sn_nsdl_address;
     String                                  _endpoint_name;
+    String                                  _internal_endpoint_name;
     uint32_t                                _counter_for_nsdl;
     uint32_t                                _next_coap_ping_send_time;
-    uint16_t                                _bootstrap_id;
     char                                    *_server_address; // BS or M2M address
-    bool                                    _unregister_ongoing;
+    request_context_list_t                  _request_context_list;
+    char                                    *_custom_uri_query_params;
+    M2MNotificationHandler                  *_notification_handler;
+    arm_event_storage_t                     _event;
+    uint16_t                                _auto_obs_token;
+    uint16_t                                _bootstrap_id;
+    static int8_t                           _tasklet_id;
+    uint8_t                                 _binding_mode;
     bool                                    _identity_accepted;
     bool                                    _nsdl_execution_timer_running;
-    uint8_t                                 _binding_mode;
-    uint16_t                                _auto_obs_token;
-    get_data_request_list_t                 _get_request_list;
-    char                                    *_custom_uri_query_params;
-    static int8_t                           _tasklet_id;
-    M2MNotificationHandler                  *_notification_handler;
     bool                                    _notification_send_ongoing;
-    arm_event_storage_t                     _event;
     bool                                    _registered;
+    bool                                    _bootstrap_finish_ack_received;
 
 friend class Test_M2MNsdlInterface;
 

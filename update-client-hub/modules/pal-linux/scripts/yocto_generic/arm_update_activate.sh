@@ -47,7 +47,7 @@ iedDirectory="$1"
 
     [ -d "$iedDirectory" ] || return 1
 
-    iedContents=`ls -A -1 "$iedDirectory" | grep -v 'lost+found'`
+    iedContents=$(ls -A -1 "$iedDirectory" | grep -v 'lost+found')
     [ -z "$iedContents" ]
 }
 
@@ -109,17 +109,17 @@ crpodImageFile="$3"
 }
 
 # Detect root partitions
-root1=`get_device_for_label rootfs1`
+root1=$(get_device_for_label rootfs1)
 exit_on_error "$?"
 
-root2=`get_device_for_label rootfs2`
+root2=$(get_device_for_label rootfs2)
 exit_on_error "$?"
 
-FLAGS=`get_device_for_label bootflags`
+FLAGS=$(get_device_for_label bootflags)
 exit_on_error "$?"
 
 # Find the partition that is currently mounted to /
-activePartition=`get_active_root_device`
+activePartition=$(get_active_root_device)
 
 if [ "$activePartition" = "$root1" ]; then
     activePartitionLabel=rootfs1

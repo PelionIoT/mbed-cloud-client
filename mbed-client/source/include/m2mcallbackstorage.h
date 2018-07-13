@@ -72,8 +72,15 @@ public:
 
         // typedef void(*value_set_callback) (const M2MResourceBase *resource,
         // uint8_t *value, const uint32_t value_length);
-        M2MResourceBaseValueSetCallback
+        M2MResourceBaseValueSetCallback,
 
+        // typedef size_t(*read_resource_value_callback) (const M2MResourceBase& resource,
+        // void *buffer, void *client_args);
+        M2MResourceBaseValueReadCallback,
+
+        // typedef bool(*write_resource_value_callback) (const M2MResourceBase& resource,
+        // const uint8_t *buffer, const size_t buffer_size, void *client_args);
+        M2MResourceBaseValueWriteCallback
     };
 
     /**

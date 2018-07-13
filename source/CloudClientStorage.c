@@ -17,9 +17,11 @@
 // ----------------------------------------------------------------------------
 
 #include <string.h>
+#include <assert.h>
 #include "key_config_manager.h"
 #include "CloudClientStorage.h"
 #include "mbed-trace/mbed_trace.h"
+#include "mbed-client-libservice/common_functions.h"
 
 #define TRACE_GROUP "mClt"
 
@@ -46,35 +48,13 @@ ccs_status_e initialize_storage(void)
     return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e get_config_parameter(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length)
-{
-    if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::get_config_parameter error, invalid parameters");
-        return CCS_STATUS_ERROR;
-    }
-
-    tr_debug("CloudClientStorage::get_config_parameter [%s]", key);
-
-    // Get parameter value to buffer
-    kcm_status_e kcm_status = kcm_item_get_data((const uint8_t*)key,
-                                    strlen(key),
-                                    KCM_CONFIG_ITEM,
-                                    buffer,
-                                    buffer_size,
-                                    value_length);
-
-    if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::get_config_parameter [%s] kcm get error %d", key, kcm_status);
-        return CCS_STATUS_ERROR;
-    }
-
-    return CCS_STATUS_SUCCESS;
-}
-
-ccs_status_e get_config_parameter_string(const char* key, uint8_t *buffer, const size_t buffer_size)
+ccs_status_e ccs_get_string_item(const char* key,
+                                 uint8_t *buffer,
+                                 const size_t buffer_size,
+                                 ccs_item_type_e item_type)
 {
     size_t len = 0;
-    ccs_status_e status = get_config_parameter(key, buffer, buffer_size - 1, &len);
+    ccs_status_e status = ccs_get_item(key, buffer, buffer_size - 1, &len, item_type);
 
     if (status == CCS_STATUS_SUCCESS) {
         // Null terminate after buffer value
@@ -84,323 +64,296 @@ ccs_status_e get_config_parameter_string(const char* key, uint8_t *buffer, const
     return status;
 }
 
-
-ccs_status_e set_config_parameter(const char* key, const uint8_t *buffer, const size_t buffer_size)
-{
-    if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::set_config_parameter error, invalid parameters");
-        return CCS_STATUS_ERROR;
-    }
-
-    tr_debug("CloudClientStorage::set_config_parameter [%s]", key);
-
-    // Set parameter to storage
-    kcm_status_e kcm_status = kcm_item_store((const uint8_t*)key,
-                                 strlen(key),
-                                 KCM_CONFIG_ITEM,
-                                 false,
-                                 buffer,
-                                 buffer_size,
-                                 NULL);
-
-    if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::set_config_parameter [%s] kcm get error %d", key, kcm_status);
-        return CCS_STATUS_ERROR;
-    }
-
-    return CCS_STATUS_SUCCESS;
-}
-
-ccs_status_e check_config_parameter(const char* key)
+ccs_status_e ccs_check_item(const char* key, ccs_item_type_e item_type)
 {
     if (key == NULL) {
         return CCS_STATUS_ERROR;
     }
 
     size_t real_size = 0;
-    kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key, strlen(key), KCM_CONFIG_ITEM, &real_size);
+    kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key, strlen(key), item_type, &real_size);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return CCS_STATUS_KEY_DOESNT_EXIST;
     }
     return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e delete_config_parameter(const char* key)
+ccs_status_e ccs_delete_item(const char* key, ccs_item_type_e item_type)
 {
     if (key == NULL) {
-        tr_error("CloudClientStorage::delete_config_parameter error, invalid parameters");
+        tr_error("CloudClientStorage::ccs_delete_item error, invalid parameters");
         return CCS_STATUS_ERROR;
     }
 
-    ccs_status_e status = check_config_parameter(key);
+    ccs_status_e status = ccs_check_item(key, item_type);
     if (status == CCS_STATUS_KEY_DOESNT_EXIST) {
         // No need to call delete as item does not exist.
-        tr_debug("CloudClientStorage::delete_config_parameter [%s] does not exist.", key);
+        tr_debug("CloudClientStorage::ccs_delete_item [%s], type [%d] does not exist.", key, item_type);
         return CCS_STATUS_SUCCESS;
     } else if (status == CCS_STATUS_ERROR) {
         return CCS_STATUS_ERROR;
     }
 
     // Delete parameter from storage
-    tr_debug("CloudClientStorage::delete_config_parameter [%s]", key);
+    tr_debug("CloudClientStorage::ccs_delete_item [%s], type [%d] ", key, item_type);
     kcm_status_e kcm_status = kcm_item_delete((const uint8_t*)key,
                                   strlen(key),
-                                  KCM_CONFIG_ITEM);
+                                  item_type);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::delete_config_parameter [%s] kcm get error %d", key, kcm_status);
+        tr_debug("CloudClientStorage::ccs_delete_item [%s] kcm get error %d", key, kcm_status);
         return CCS_STATUS_ERROR;
     }
 
     return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e size_config_parameter(const char* key, size_t* size_out)
+ccs_status_e ccs_item_size(const char* key, size_t* size_out, ccs_item_type_e item_type)
 {
     if (key == NULL) {
-        tr_error("CloudClientStorage::size_config_parameter error, invalid parameters");
+        tr_error("CloudClientStorage::ccs_item_size error, invalid parameters");
         return CCS_STATUS_ERROR;
     }
 
-    tr_debug("CloudClientStorage::size_config_parameter [%s]", key);
+    tr_debug("CloudClientStorage::ccs_item_size [%s], item [%d]", key, item_type);
 
     // Get kcm item size
     kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key,
                                          strlen(key),
-                                         KCM_CONFIG_ITEM,
+                                         item_type,
                                          size_out);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::size_config_parameter [%s] kcm get error %d", key, kcm_status);
+        tr_debug("CloudClientStorage::ccs_item_size [%s] kcm get error %d", key, kcm_status);
         return CCS_STATUS_ERROR;
     }
 
     return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e get_config_private_key(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length)
+ccs_status_e ccs_get_item(const char* key,
+                          uint8_t *buffer,
+                          const size_t buffer_size,
+                          size_t *value_length,
+                          ccs_item_type_e item_type)
 {
     if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::get_connector_private_key error, invalid parameters");
+        tr_error("CloudClientStorage::ccs_get_item error, invalid parameters");
         return CCS_STATUS_ERROR;
     }
 
-    tr_debug("CloudClientStorage::get_connector_private_key [%s]", key);
+    tr_debug("CloudClientStorage::ccs_get_item [%s], type [%d]", key, item_type);
 
-    // Get private key from storage
     kcm_status_e kcm_status = kcm_item_get_data((const uint8_t*)key,
                                     strlen(key),
-                                    KCM_PRIVATE_KEY_ITEM,
+                                    item_type,
                                     buffer,
                                     buffer_size,
                                     value_length);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::get_connector_private_key [%s] kcm get error %d", key, kcm_status);
+        tr_debug("CloudClientStorage::ccs_get_item [%s] kcm get error %d", key, kcm_status);
         return CCS_STATUS_ERROR;
     }
 
     return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e set_config_private_key(const char* key, const uint8_t *buffer, const size_t buffer_size)
+ccs_status_e ccs_set_item(const char* key,
+                          const uint8_t *buffer,
+                          const size_t buffer_size,
+                          ccs_item_type_e item_type)
 {
     if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::set_connector_private_key error, invalid parameters");
+        tr_error("CloudClientStorage::ccs_set_item error, invalid parameters");
         return CCS_STATUS_ERROR;
     }
 
-    tr_debug("CloudClientStorage::set_connector_private_key kcm [%s]", key);
+    tr_debug("CloudClientStorage::ccs_set_item kcm [%s], type [%d]", key, item_type);
 
-    // Set private key to storage
     kcm_status_e kcm_status = kcm_item_store((const uint8_t*)key,
                                  strlen(key),
-                                 KCM_PRIVATE_KEY_ITEM,
+                                 item_type,
                                  false,
                                  buffer,
                                  buffer_size,
                                  NULL);
 
     if (kcm_status == KCM_CRYPTO_STATUS_PRIVATE_KEY_VERIFICATION_FAILED) {
-        tr_error("CloudClientStorage::set_connector_private_key kcm validation error");
+        tr_error("CloudClientStorage::ccs_set_item kcm validation error");
         return CCS_STATUS_VALIDATION_FAIL;
     }
     else if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::set_connector_private_key kcm [%s] get error %d", key, kcm_status);
+        tr_debug("CloudClientStorage::ccs_set_item kcm [%s] get error %d", key, kcm_status);
         return CCS_STATUS_ERROR;
     }
 
     return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e delete_config_private_key(const char* key)
+void *ccs_create_certificate_chain(const char *chain_file_name, size_t chain_len)
 {
-    if (key == NULL) {
-        tr_error("CloudClientStorage::delete_config_private_key error, invalid parameters");
-        return CCS_STATUS_ERROR;
-    }
+    kcm_status_e kcm_status;
+    kcm_cert_chain_handle chain_handle;
 
-    tr_debug("CloudClientStorage::delete_config_private_key [%s]", key);
-
-    // Delete private key from storage
-    kcm_status_e kcm_status = kcm_item_delete((const uint8_t*)key,
-                                  strlen(key),
-                                  KCM_PRIVATE_KEY_ITEM);
+    kcm_status = kcm_cert_chain_create(&chain_handle,
+                                       (uint8_t*)chain_file_name,
+                                       strlen(chain_file_name),
+                                       chain_len,
+                                       false);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::delete_config_private_key [%s] kcm get error %d", key, kcm_status);
-        return CCS_STATUS_ERROR;
+        tr_error("CloudClientStorage::ccs_create_certificate_chain - error %d", kcm_status);
+        return NULL;
+    } else {
+        return (void*)chain_handle;
     }
-
-    return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e get_config_public_key(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length)
+void *ccs_open_certificate_chain(const char *chain_file_name, size_t *chain_size)
 {
-    if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::get_config_public_key error, invalid parameters");
-        return CCS_STATUS_ERROR;
+    kcm_status_e kcm_status;
+    kcm_cert_chain_handle handle;
+
+    kcm_status = kcm_cert_chain_open(&handle,
+                                     (uint8_t*)chain_file_name,
+                                     strlen(chain_file_name),
+                                     chain_size);
+
+    if (kcm_status == KCM_STATUS_SUCCESS) {
+        return (void*)handle;
+    } else {
+        tr_error("CloudClientStorage::ccs_open_certificate_chain - error %d", kcm_status);
+        return NULL;
     }
+}
 
-    tr_debug("CloudClientStorage::get_config_public_key [%s]", key);
+ccs_status_e ccs_get_next_cert_chain(void *chain_handle, void *cert_data, size_t *data_size)
+{
+    kcm_status_e kcm_status;
+    size_t max_size = 1024;
 
-    // Get parameter value to buffer
-    kcm_status_e kcm_status = kcm_item_get_data((const uint8_t*)key,
-                                    strlen(key),
-                                    KCM_PUBLIC_KEY_ITEM,
-                                    buffer,
-                                    buffer_size,
-                                    value_length);
+    kcm_status = kcm_cert_chain_get_next_size((kcm_cert_chain_handle *) chain_handle, data_size);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::get_config_public_key [%s] kcm get error %d", key, kcm_status);
+        tr_error("CloudClientStorage::ccs_get_next_cert_chain - get_next_size error %d", kcm_status);
+        data_size = 0;
         return CCS_STATUS_ERROR;
     }
 
-    return CCS_STATUS_SUCCESS;
-}
 
-ccs_status_e set_config_public_key(const char* key, const uint8_t *buffer, const size_t buffer_size)
-{
-    if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::set_config_public_key error, invalid parameters");
-        return CCS_STATUS_ERROR;
-    }
-
-    tr_debug("CloudClientStorage::set_config_public_key - kcm [%s]", key);
-
-    // Set public key to storage
-    kcm_status_e kcm_status = kcm_item_store((const uint8_t*)key,
-                                 strlen(key),
-                                 KCM_PUBLIC_KEY_ITEM,
-                                 false,
-                                 buffer,
-                                 buffer_size,
-                                 NULL);
-
-    if (kcm_status == KCM_CRYPTO_STATUS_PUBLIC_KEY_VERIFICATION_FAILED) {
-        tr_error("CloudClientStorage::set_config_public_key - kcm validation error");
-        return CCS_STATUS_VALIDATION_FAIL;
-    }
-    else if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::set_config_public_key - kcm [%s] get error %d", key, kcm_status);
-        return CCS_STATUS_ERROR;
-    }
-
-    return CCS_STATUS_SUCCESS;
-}
-
-ccs_status_e delete_config_public_key(const char* key)
-{
-    if (key == NULL) {
-        tr_error("CloudClientStorage::delete_config_public_key error, invalid parameters");
-        return CCS_STATUS_ERROR;
-    }
-
-    tr_debug("CloudClientStorage::delete_config_public_key [%s]", key);
-
-    // Delete the public key
-    kcm_status_e kcm_status = kcm_item_delete((const uint8_t*)key,
-                                  strlen(key),
-                                  KCM_PUBLIC_KEY_ITEM);
+    kcm_status = kcm_cert_chain_get_next_data((kcm_cert_chain_handle *) chain_handle, (uint8_t*)cert_data, max_size, data_size);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::delete_config_public_key [%s] kcm get error %d", key, kcm_status);
+        tr_error("CloudClientStorage::ccs_get_next_cert_chain - get_next_data error %d", kcm_status);
+        data_size = 0;
         return CCS_STATUS_ERROR;
+    } else {
+        return CCS_STATUS_SUCCESS;
     }
-
-    return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e get_config_certificate(const char* key, uint8_t *buffer, const size_t buffer_size, size_t *value_length)
+ccs_status_e ccs_close_certificate_chain(void *chain_handle)
 {
-    if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::get_config_certificate error, invalid parameters");
-        return CCS_STATUS_ERROR;
-    }
-
-    tr_debug("CloudClientStorage::get_config_certificate kcm [%s]", key);
-
-    // Get parameter value to buffer
-    kcm_status_e kcm_status = kcm_item_get_data((const uint8_t*)key,
-                                    strlen(key),
-                                    KCM_CERTIFICATE_ITEM,
-                                    buffer,
-                                    buffer_size,
-                                    value_length);
-
+    kcm_status_e kcm_status;
+    kcm_cert_chain_handle *handle = (kcm_cert_chain_handle *) chain_handle;
+    kcm_status = kcm_cert_chain_close(handle);
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::get_config_certificate kcm [%s] get error %d", key, kcm_status);
+        tr_error("CloudClientStorage::ccs_close_certificate_chain - error %d", kcm_status);
         return CCS_STATUS_ERROR;
+    } else {
+        return CCS_STATUS_SUCCESS;
     }
-
-    return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e set_config_certificate(const char* key, const uint8_t *buffer, const size_t buffer_size)
+ccs_status_e ccs_add_next_cert_chain(void *chain_handle, const uint8_t *cert_data, size_t data_size)
 {
-    if (key == NULL || buffer == NULL || buffer_size == 0) {
-        tr_error("CloudClientStorage::set_config_certificate error, invalid parameters");
-        return CCS_STATUS_ERROR;
-    }
-
-    tr_debug("CloudClientStorage::set_config_certificate kcm [%s]", key);
-
-    // Get parameter value to buffer
-    kcm_status_e kcm_status = kcm_item_store((const uint8_t*)key,
-                                 strlen(key),
-                                 KCM_CERTIFICATE_ITEM,
-                                 false,
-                                 buffer,
-                                 buffer_size,
-                                 NULL);
+    kcm_status_e kcm_status;
+    kcm_status = kcm_cert_chain_add_next((kcm_cert_chain_handle *) chain_handle, cert_data, data_size);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::set_config_certificate kcm [%s] get error %d", key, kcm_status);
+        tr_error("CloudClientStorage::ccs_add_next_cert_chain - error %d", kcm_status);
         return CCS_STATUS_ERROR;
+    } else {
+        return CCS_STATUS_SUCCESS;
     }
-
-    return CCS_STATUS_SUCCESS;
 }
 
-ccs_status_e delete_config_certificate(const char* key)
+ccs_status_e ccs_parse_cert_chain_and_store(const uint8_t *cert_chain_name,
+                                            const size_t cert_chain_name_len,
+                                            const uint8_t *cert_chain_data,
+                                            const uint16_t cert_chain_data_len)
 {
-    if (key == NULL) {
-        tr_error("CloudClientStorage::delete_config_certificate error, invalid parameters");
-        return CCS_STATUS_ERROR;
+    assert(cert_chain_data);
+    assert(cert_chain_data_len > 0);
+
+    const uint8_t *ptr = cert_chain_data;
+    uint8_t version = *ptr++;
+    uint8_t chain_length = *ptr++;
+    ccs_status_e success = CCS_STATUS_SUCCESS;
+    kcm_cert_chain_handle chain_handle;
+    kcm_status_e status = KCM_STATUS_ERROR;
+
+    // Check overflow
+    if (ptr - cert_chain_data > cert_chain_data_len) {
+        success = CCS_STATUS_VALIDATION_FAIL;
     }
 
-    tr_debug("CloudClientStorage::delete_config_certificate kcm [%s]", key);
-
-    // Get parameter value to buffer
-    kcm_status_e kcm_status = kcm_item_delete((const uint8_t*)key,
-                                  strlen(key),
-                                  KCM_CERTIFICATE_ITEM);
-
-    if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::delete_config_certificate kcm [%s] get error %d", key, kcm_status);
-        return CCS_STATUS_ERROR;
+    // Check version is correct and there are certs in the chain
+    if (version != 1 || chain_length == 0) {
+        success = CCS_STATUS_VALIDATION_FAIL;
     }
 
-    return CCS_STATUS_SUCCESS;
+    // Create KCM cert chain
+    if (success == CCS_STATUS_SUCCESS) {
+        status = kcm_cert_chain_create(&chain_handle,
+                                       cert_chain_name,
+                                       cert_chain_name_len,
+                                       chain_length,
+                                       false);
+        tr_debug("Cert chain create %d", status);
+        if (status != KCM_STATUS_SUCCESS) {
+            success = CCS_STATUS_ERROR;
+        }
+    }
+
+    if (success == CCS_STATUS_SUCCESS) {
+        for (uint8_t i = 0; i < chain_length; i++) {
+            // Parse certificate length (2 bytes)
+            uint16_t cert_len = common_read_16_bit(ptr);
+            ptr += 2;
+            // Check overflow
+            if (ptr - cert_chain_data > cert_chain_data_len) {
+                success = CCS_STATUS_VALIDATION_FAIL;
+                break;
+            }
+
+            // Store certificate
+            tr_debug("Storing cert\r\n%s", tr_array(ptr, cert_len));
+            status = kcm_cert_chain_add_next(chain_handle, ptr, cert_len);
+            if (status != KCM_STATUS_SUCCESS) {
+                success = CCS_STATUS_ERROR;
+                break;
+            }
+
+            ptr += cert_len;
+
+            // Check overflow
+            if (ptr - cert_chain_data > cert_chain_data_len) {
+                success = CCS_STATUS_VALIDATION_FAIL;
+                break;
+            }
+        }
+    }
+
+    status = kcm_cert_chain_close(chain_handle);
+    if (status != KCM_STATUS_SUCCESS) {
+        success = CCS_STATUS_ERROR;
+    }
+
+    if (success != CCS_STATUS_SUCCESS) {
+        kcm_cert_chain_delete(cert_chain_name, cert_chain_name_len);
+    }
+
+    return success;
 }

@@ -115,6 +115,31 @@ M2MObjectInstance* M2MSecurity::create_object_instance(ServerType server_type)
         if (res) {
             res->set_operation(M2MBase::NOT_ALLOWED);
         }
+
+        res = server_instance->create_dynamic_resource(SECURITY_OPEN_CERTIFICATE_CHAIN,
+                                                        OMA_RESOURCE_TYPE,
+                                                        M2MResourceInstance::OPAQUE,
+                                                        false);
+        if (res) {
+            res->set_operation(M2MBase::NOT_ALLOWED);
+        }
+
+        res = server_instance->create_dynamic_resource(SECURITY_CLOSE_CERTIFICATE_CHAIN,
+                                                        OMA_RESOURCE_TYPE,
+                                                        M2MResourceInstance::OPAQUE,
+                                                        false);
+        if (res) {
+            res->set_operation(M2MBase::NOT_ALLOWED);
+        }
+
+        res = server_instance->create_dynamic_resource(SECURITY_READ_CERTIFICATE_CHAIN,
+                                                        OMA_RESOURCE_TYPE,
+                                                        M2MResourceInstance::OPAQUE,
+                                                        false);
+        if (res) {
+            res->set_operation(M2MBase::NOT_ALLOWED);
+        }
+
         if (M2MSecurity::M2MServer == server_type) {
             res = server_instance->create_dynamic_resource(SECURITY_SHORT_SERVER_ID,
                                                             OMA_RESOURCE_TYPE,
@@ -288,20 +313,24 @@ String M2MSecurity::resource_value_string(SecurityResource resource, uint16_t in
     return value;
 }
 
-uint32_t M2MSecurity::resource_value_buffer(SecurityResource resource,
+int M2MSecurity::resource_value_buffer(SecurityResource resource,
                                             uint8_t *&data,
-                                            uint16_t instance_id) const
+                                            uint16_t instance_id,
+                                            size_t *buffer_len) const
 {
-    uint32_t size = 0;
     M2MResource* res = get_resource(resource, instance_id);
     if (res) {
         if (M2MSecurity::PublicKey == resource        ||
-           M2MSecurity::ServerPublicKey == resource  ||
-           M2MSecurity::Secretkey == resource) {
-            res->get_value(data,size);
+            M2MSecurity::ServerPublicKey == resource  ||
+            M2MSecurity::Secretkey == resource ||
+            M2MSecurity::OpenCertificateChain == resource ||
+            M2MSecurity::CloseCertificateChain == resource ||
+            M2MSecurity::ReadDeviceCertificateChain == resource) {
+            return res->read_resource_value(*(M2MResourceBase *)res, data, buffer_len);
         }
     }
-    return size;
+
+    return -1;
 }
 
 uint32_t M2MSecurity::resource_value_buffer(SecurityResource resource,
@@ -312,8 +341,8 @@ uint32_t M2MSecurity::resource_value_buffer(SecurityResource resource,
     M2MResource* res = get_resource(resource, instance_id);
     if (res) {
         if (M2MSecurity::PublicKey == resource        ||
-           M2MSecurity::ServerPublicKey == resource  ||
-           M2MSecurity::Secretkey == resource) {
+            M2MSecurity::ServerPublicKey == resource  ||
+            M2MSecurity::Secretkey == resource) {
             data = res->value();
             size = res->value_length();
         }
@@ -417,6 +446,15 @@ M2MResource* M2MSecurity::get_resource(SecurityResource res, uint16_t instance_i
             case ClientHoldOffTime:
                 res_name_ptr = SECURITY_CLIENT_HOLD_OFF_TIME;
                 break;
+            case OpenCertificateChain:
+                res_name_ptr = SECURITY_OPEN_CERTIFICATE_CHAIN;
+                break;
+            case CloseCertificateChain:
+                res_name_ptr = SECURITY_CLOSE_CERTIFICATE_CHAIN;
+                break;
+            case ReadDeviceCertificateChain:
+                res_name_ptr = SECURITY_READ_CERTIFICATE_CHAIN;
+                break;
         }
 
         if (res_name_ptr) {
@@ -438,15 +476,19 @@ void M2MSecurity::clear_resources(uint16_t instance_id)
 
 int32_t M2MSecurity::get_security_instance_id(ServerType ser_type) const
 {
-    M2MObjectInstanceList::const_iterator it;
-    M2MObjectInstanceList insts = instances();
-    it = insts.begin();
     int32_t instance_id = -1;
-    for ( ; it != insts.end(); it++ ) {
-        uint16_t id = (*it)->instance_id();
-        if (server_type(id) == ser_type) {
-            instance_id = id;
-            break;
+
+    const M2MObjectInstanceList &insts = instances();
+
+    if (!insts.empty()) {
+        M2MObjectInstanceList::const_iterator it;
+        it = insts.begin();
+        for ( ; it != insts.end(); it++ ) {
+            uint16_t id = (*it)->instance_id();
+            if (server_type(id) == ser_type) {
+                instance_id = id;
+                break;
+            }
         }
     }
     return instance_id;

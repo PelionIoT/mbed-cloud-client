@@ -18,13 +18,13 @@
 
 #include <stddef.h>
 #include "atomic.h"
+#include "aq_critical.h"
 
 #if defined(TARGET_LIKE_MBED)
 #include "cmsis.h"
 #endif
 
 #if !defined(__CORTEX_M) || (__CORTEX_M < 0x03)
-#include "aq_critical.h"
 
 int aq_atomic_cas_deref_uintptr(uintptr_t* volatile * ptrAddr,
                             uintptr_t** currentPtrValue,

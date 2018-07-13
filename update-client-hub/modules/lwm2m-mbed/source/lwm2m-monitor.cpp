@@ -16,6 +16,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-lwm2m-mbed-apis.h"
 #include "update-client-lwm2m/lwm2m-monitor.h"
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
 #include "update-client-lwm2m/DeviceMetadataResource.h"
@@ -35,9 +36,10 @@ uint32_t ARM_UCS_LWM2M_MONITOR_GetVersion(void)
  */
 ARM_MONITOR_CAPABILITIES ARM_UCS_LWM2M_MONITOR_GetCapabilities(void)
 {
-    ARM_MONITOR_CAPABILITIES result = { .state   = 1,
-                                        .result  = 1,
-                                        .version = 1 };
+    ARM_MONITOR_CAPABILITIES result;
+    result.state   = 1;
+    result.result  = 1;
+    result.version = 1;
 
    return result;
 }
@@ -48,7 +50,7 @@ ARM_MONITOR_CAPABILITIES ARM_UCS_LWM2M_MONITOR_GetCapabilities(void)
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_Initialize(void (*notification_handler)(void))
 {
-    arm_uc_error_t retval = { .code = SRCE_ERR_NONE };
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_NONE);
 
     FirmwareUpdateResource::Initialize();
     FirmwareUpdateResource::addNotificationCallback(notification_handler);
@@ -64,7 +66,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_Initialize(void (*notification_handler)(voi
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_Uninitialize(void)
 {
-    arm_uc_error_t retval = { .code = SRCE_ERR_NONE };
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_NONE);
 
     return retval;
 }
@@ -103,7 +105,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_Uninitialize(void)
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendState(arm_uc_monitor_state_t state)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = -1;
 
@@ -170,7 +172,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendState(arm_uc_monitor_state_t state)
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendUpdateResult(arm_uc_monitor_result_t updateResult)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = -1;
 
@@ -237,7 +239,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendUpdateResult(arm_uc_monitor_result_t up
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendName(arm_uc_buffer_t* name)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = -1;
 
@@ -264,7 +266,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendName(arm_uc_buffer_t* name)
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendVersion(uint64_t version)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = FirmwareUpdateResource::sendPkgVersion(version);
 
@@ -286,7 +288,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendVersion(uint64_t version)
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetBootloaderHash(arm_uc_buffer_t* hash)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = DeviceMetadataResource::setBootloaderHash(hash);
 
@@ -308,7 +310,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetBootloaderHash(arm_uc_buffer_t* hash)
  */
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetOEMBootloaderHash(arm_uc_buffer_t* hash)
 {
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+    ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = DeviceMetadataResource::setOEMBootloaderHash(hash);
 
@@ -320,18 +322,3 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetOEMBootloaderHash(arm_uc_buffer_t* hash)
     return result;
 }
 
-ARM_UPDATE_MONITOR ARM_UCS_LWM2M_MONITOR =
-{
-    .GetVersion           = ARM_UCS_LWM2M_MONITOR_GetVersion,
-    .GetCapabilities      = ARM_UCS_LWM2M_MONITOR_GetCapabilities,
-    .Initialize           = ARM_UCS_LWM2M_MONITOR_Initialize,
-    .Uninitialize         = ARM_UCS_LWM2M_MONITOR_Uninitialize,
-
-    .SendState            = ARM_UCS_LWM2M_MONITOR_SendState,
-    .SendUpdateResult     = ARM_UCS_LWM2M_MONITOR_SendUpdateResult,
-    .SendName             = ARM_UCS_LWM2M_MONITOR_SendName,
-    .SendVersion          = ARM_UCS_LWM2M_MONITOR_SendVersion,
-
-    .SetBootloaderHash    = ARM_UCS_LWM2M_MONITOR_SetBootloaderHash,
-    .SetOEMBootloaderHash = ARM_UCS_LWM2M_MONITOR_SetOEMBootloaderHash
-};

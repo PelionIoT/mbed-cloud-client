@@ -47,7 +47,9 @@ typedef enum palTLSSuites{
 	PAL_TLS_PSK_WITH_AES_256_CCM_8,
 	PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
 	PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-	PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256,
+    PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256
 }palTLSSuites_t;
 
 typedef void* palTLSSocketHandle_t;
@@ -222,6 +224,24 @@ palStatus_t pal_plat_tlsSetSocket(palTLSConfHandle_t palTLSConf, palTLSSocket_t*
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
 palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey);
+
+/*! Set your own certificate chain.
+*
+* @param[in] palTLSConf: The TLS configuration context.
+* @param[in] ownCert: Your own public certificate chain.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_plat_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCert);
+
+/*! Set your own private key.
+*
+* @param[in] palTLSConf: The TLS configuration context.
+* @param[in] privateKey: Your own private key.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateKey_t* privateKey);
 
 /*! Set the data required to verify a peer certificate.
 *

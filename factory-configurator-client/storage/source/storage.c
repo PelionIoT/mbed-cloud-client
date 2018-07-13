@@ -424,6 +424,8 @@ kcm_status_e storage_file_read_with_ctx(kcm_ctx_s *ctx, uint8_t *buffer_out, siz
     SA_PV_ERR_RECOVERABLE_RETURN_IF((buffer_out == NULL && buffer_size != 0), KCM_STATUS_INVALID_PARAMETER, "Invalid pointer to read buffer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((buffer_actual_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid pointer to output size");
 
+    *buffer_actual_size_out = 0;
+
     if (ctx->is_file_size_checked == false) {
         kcm_status = storage_file_size_get_with_ctx(ctx, buffer_actual_size_out);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed getting file data size (kcm_status %d)", kcm_status);

@@ -328,6 +328,20 @@ public:
      */
     const char *error_description() const;
 
+    /**
+     * @brief Sends the CoAP GET request to the server.
+     * API must be called again with the updated offset to complete the whole transfer.
+     * @uri Uri path to the data.
+     * @offset Data offset.
+     * @get_data_cb Callback which is triggered once there is data available.
+     * @get_data_error_cb Callback which is trigged in case of any error.
+    */
+    void send_get_request(const char *uri,
+                          const size_t offset,
+                          get_data_cb data_cb,
+                          get_data_error_cb error_cb,
+                          void *context);
+
 protected: // from ServiceClientCallback
 
     /**

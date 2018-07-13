@@ -67,25 +67,20 @@ struct nsdl_s {
     uint32_t unregister_token;
     uint32_t bootstrap_token;
     uint32_t token_seed;
-    uint16_t oma_bs_port;                                                       /* Bootstrap port */
-    uint8_t oma_bs_address_len;                                                 /* Bootstrap address length */
     unsigned int sn_nsdl_endpoint_registered:1;
+    unsigned int is_bs_server:1;
 
     struct grs_s *grs;
-    uint8_t *oma_bs_address_ptr;                                                /* Bootstrap address pointer. If null, no bootstrap in use */
-    sn_nsdl_ep_parameters_s *ep_information_ptr;                                // Endpoint parameters, Name, Domain etc..
-    sn_nsdl_oma_server_info_t *nsp_address_ptr;                                 // NSP server address information
+    sn_nsdl_ep_parameters_s *ep_information_ptr;     // Endpoint parameters, Name, Domain etc..
+    sn_nsdl_addr_s server_address;                   // server address information
     /* Application definable context. This is useful for example when interfacing with c++ objects where a pointer to object is set as the
      * context, and in the callback functions the context pointer can be used to call methods for the correct instance of the c++ object. */
     void *context;
 
-    void (*sn_nsdl_oma_bs_done_cb)(sn_nsdl_oma_server_info_t *server_info_ptr); /* Callback to inform application when bootstrap is done */
     void *(*sn_nsdl_alloc)(uint16_t);
     void (*sn_nsdl_free)(void *);
     uint8_t (*sn_nsdl_tx_callback)(struct nsdl_s *, sn_nsdl_capab_e , uint8_t *, uint16_t, sn_nsdl_addr_s *);
     uint8_t (*sn_nsdl_rx_callback)(struct nsdl_s *, sn_coap_hdr_s *, sn_nsdl_addr_s *);
-    void (*sn_nsdl_oma_bs_done_cb_handle)(sn_nsdl_oma_server_info_t *server_info_ptr,
-                                          struct nsdl_s *handle); /* Callback to inform application when bootstrap is done with nsdl handle */
     uint8_t (*sn_nsdl_auto_obs_token_callback)(struct nsdl_s *, const char*, uint8_t*);
 };
 

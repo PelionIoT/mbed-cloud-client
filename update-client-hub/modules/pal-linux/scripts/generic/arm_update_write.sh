@@ -31,7 +31,7 @@
 FILESIZE="$(wc -c <"/tmp/extended/firmware_${LOCATION}.bin")"
 
 # insert firmware fragment into binary file
-VALUE=$(dd if=$FIRMWARE of=/tmp/extended/firmware_${LOCATION}.bin ibs=1 obs=1 count=${FILESIZE} seek=${OFFSET})
+VALUE=$(dd if=$FIRMWARE of="/tmp/extended/firmware_${LOCATION}.bin" ibs=1 obs=1 count="${FILESIZE}" seek="${OFFSET}")
 
 # clean up
 rm $FIRMWARE

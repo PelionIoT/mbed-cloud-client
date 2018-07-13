@@ -40,7 +40,7 @@ extern "C" {
      * @brief Start the initialization of the hub.
      * @details When initilisation finishes, the user callback function
      *          will be called. The "event" parameter to the callback
-     *          function should be ignored.
+     *          is currently a placeholder that always returns ARM_UC_INIT_DONE.
      *
      * @param  function to be called when initilisation is finished.
      * @return Error code.
@@ -255,7 +255,7 @@ extern "C" {
     /**
      * @brief Delete any global allocations.
      */
-    arm_uc_error_t ARM_UC_HUB_Uninitialize();
+    arm_uc_error_t ARM_UC_HUB_Uninitialize(void);
 
     /**
      * @brief Return the details of the active firmware.

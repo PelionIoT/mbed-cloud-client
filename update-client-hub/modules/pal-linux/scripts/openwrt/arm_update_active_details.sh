@@ -40,7 +40,7 @@ HEADER_SIZE=112
 echo "/tmp/${HEADER_NAME}.bin"
 
 # dump to temporary file
-nanddump -f /tmp/${HEADER_NAME}.tmp /dev/${ACTIVE_FLAGS_MTD} 2>/dev/null
+nanddump -f "/tmp/${HEADER_NAME}.tmp" "/dev/${ACTIVE_FLAGS_MTD}" 2>/dev/null
 VALUE=$?
 
 # exit if return code is not zero
