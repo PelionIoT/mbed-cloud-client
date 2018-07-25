@@ -1417,6 +1417,7 @@ PAL_PRIVATE void moveDataToBufferStart(unsigned char* buffer, size_t bufferSize,
     }
 }
 
+#if (PAL_ENABLE_X509_WRITE == 1)
 palStatus_t pal_plat_writePrivateKeyToDer(palECKeyHandle_t key, unsigned char* derBuffer, size_t bufferSize, size_t* actualSize)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -1468,6 +1469,7 @@ palStatus_t pal_plat_writePublicKeyToDer(palECKeyHandle_t key, unsigned char* de
 
     return status;
 }
+#endif
 
 palStatus_t pal_plat_ECKeyGenerateKey(palGroupIndex_t grpID, palECKeyHandle_t key)
 {

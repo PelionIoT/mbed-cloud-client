@@ -82,10 +82,6 @@
     #define MBEDTLS_ASN1_PARSE_C
 #endif //MBEDTLS_ASN1_PARSE_C
 
-#ifndef MBEDTLS_ASN1_WRITE_C
-    #define MBEDTLS_ASN1_WRITE_C
-#endif //MBEDTLS_ASN1_WRITE_C
-
 #ifndef MBEDTLS_BIGNUM_C
     #define MBEDTLS_BIGNUM_C
 #endif //MBEDTLS_BIGNUM_C
@@ -121,6 +117,10 @@
 #ifndef MBEDTLS_PK_PARSE_C
     #define MBEDTLS_PK_PARSE_C
 #endif //MBEDTLS_PK_PARSE_C
+
+#ifdef MBEDTLS_PK_WRITE_C
+    #undef MBEDTLS_PK_WRITE_C
+#endif
 
 #ifndef MBEDTLS_SHA256_C
     #define MBEDTLS_SHA256_C

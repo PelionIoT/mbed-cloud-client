@@ -434,20 +434,28 @@ palStatus_t pal_parseECPublicKeyFromDER(const unsigned char* pubDERKey, size_t k
 
 palStatus_t pal_writePrivateKeyToDer(palECKeyHandle_t key, unsigned char* derBuffer, size_t bufferSize, size_t* actualSize)
 {
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == key || NULL == derBuffer || NULL == actualSize))
 
     status = pal_plat_writePrivateKeyToDer(key, derBuffer, bufferSize, actualSize);
     return status;
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif
 }
 
 palStatus_t pal_writePublicKeyToDer(palECKeyHandle_t key, unsigned char* derBuffer, size_t bufferSize, size_t* actualSize)
 {
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == key || NULL == derBuffer || NULL == actualSize))
 
     status = pal_plat_writePublicKeyToDer(key, derBuffer, bufferSize, actualSize);
     return status;
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif
 }
 palStatus_t pal_ECGroupInitAndLoad(palCurveHandle_t* grp, palGroupIndex_t index)
 {
