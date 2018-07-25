@@ -220,12 +220,12 @@ palStatus_t pal_verifySignature(palX509Handle_t x509, palMDType_t mdType, const 
 	return PAL_ERR_NOT_SUPPORTED;
 #endif
 }
- 
+
 palStatus_t pal_ASN1GetTag(unsigned char **position, const unsigned char *end, size_t *len, uint8_t tag )
 {
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULL == position || NULL == end || NULL == len))
-    
+
     status = pal_plat_ASN1GetTag(position, end, len, tag);
     return status;
 }
@@ -257,9 +257,9 @@ palStatus_t pal_CCMSetKey(palCCMHandle_t ctx, const unsigned char *key, uint32_t
     return status;
 }
 
-palStatus_t pal_CCMDecrypt(palCCMHandle_t ctx, unsigned char* input, size_t inLen, 
-							unsigned char* iv, size_t ivLen, unsigned char* add, 
-							size_t addLen, unsigned char* tag, size_t tagLen, 
+palStatus_t pal_CCMDecrypt(palCCMHandle_t ctx, unsigned char* input, size_t inLen,
+							unsigned char* iv, size_t ivLen, unsigned char* add,
+							size_t addLen, unsigned char* tag, size_t tagLen,
 							unsigned char* output)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -269,9 +269,9 @@ palStatus_t pal_CCMDecrypt(palCCMHandle_t ctx, unsigned char* input, size_t inLe
     return status;
 }
 
-palStatus_t pal_CCMEncrypt(palCCMHandle_t ctx, unsigned char* input, 
-							size_t inLen, unsigned char* iv, size_t ivLen, 
-							unsigned char* add, size_t addLen, unsigned char* output, 
+palStatus_t pal_CCMEncrypt(palCCMHandle_t ctx, unsigned char* input,
+							size_t inLen, unsigned char* iv, size_t ivLen,
+							unsigned char* add, size_t addLen, unsigned char* output,
 							unsigned char* tag, size_t tagLen)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -330,10 +330,10 @@ palStatus_t pal_cipherCMAC(const unsigned char *key, size_t keyLenInBits, const 
 	PAL_VALIDATE_ARGUMENTS((NULL == key || NULL == input || NULL == output))
 #if PAL_CMAC_SUPPORT
     status = pal_plat_cipherCMAC(key, keyLenInBits, input, inputLenInBytes, output);
-#else   // no CMAC support		
+#else   // no CMAC support
     status = PAL_ERR_NOT_SUPPORTED;
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
-#endif 
+    PAL_LOG(ERR, "CMAC support in PAL is disabled");
+#endif
     return status;
 }
 
@@ -343,9 +343,9 @@ palStatus_t pal_CMACStart(palCMACHandle_t *ctx, const unsigned char *key, size_t
 	PAL_VALIDATE_ARGUMENTS((NULLPTR == ctx || NULL == key))
 #if PAL_CMAC_SUPPORT
     status = pal_plat_CMACStart(ctx, key, keyLenBits, cipherID);
-#else   // no CMAC support		
+#else   // no CMAC support
     status = PAL_ERR_NOT_SUPPORTED;
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
+    PAL_LOG(ERR, "CMAC support in PAL is disabled");
 #endif
     return status;
 }
@@ -357,10 +357,10 @@ palStatus_t pal_CMACUpdate(palCMACHandle_t ctx, const unsigned char *input, size
     PAL_VALIDATE_ARGUMENTS((NULLPTR == ctx || NULL == input))
 
     status = pal_plat_CMACUpdate(ctx, input, inLen);
-#else   // no CMAC support		
-    palStatus_t status = PAL_ERR_NOT_SUPPORTED;		
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
-#endif 
+#else   // no CMAC support
+    palStatus_t status = PAL_ERR_NOT_SUPPORTED;
+    PAL_LOG(ERR, "CMAC support in PAL is disabled");
+#endif
     return status;
 }
 
@@ -371,10 +371,10 @@ palStatus_t pal_CMACFinish(palCMACHandle_t *ctx, unsigned char *output, size_t* 
     PAL_VALIDATE_ARGUMENTS(NULLPTR == ctx || NULLPTR == *ctx || NULL == output || NULL == outLen)
 
     status = pal_plat_CMACFinish(ctx, output, outLen);
-#else   // no CMAC support		
-    palStatus_t status = PAL_ERR_NOT_SUPPORTED;		
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
-#endif 
+#else   // no CMAC support
+    palStatus_t status = PAL_ERR_NOT_SUPPORTED;
+    PAL_LOG(ERR, "CMAC support in PAL is disabled");
+#endif
     return status;
 }
 
@@ -434,20 +434,28 @@ palStatus_t pal_parseECPublicKeyFromDER(const unsigned char* pubDERKey, size_t k
 
 palStatus_t pal_writePrivateKeyToDer(palECKeyHandle_t key, unsigned char* derBuffer, size_t bufferSize, size_t* actualSize)
 {
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == key || NULL == derBuffer || NULL == actualSize))
 
     status = pal_plat_writePrivateKeyToDer(key, derBuffer, bufferSize, actualSize);
     return status;
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif
 }
 
 palStatus_t pal_writePublicKeyToDer(palECKeyHandle_t key, unsigned char* derBuffer, size_t bufferSize, size_t* actualSize)
 {
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == key || NULL == derBuffer || NULL == actualSize))
 
     status = pal_plat_writePublicKeyToDer(key, derBuffer, bufferSize, actualSize);
     return status;
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif
 }
 palStatus_t pal_ECGroupInitAndLoad(palCurveHandle_t* grp, palGroupIndex_t index)
 {
@@ -487,7 +495,7 @@ palStatus_t pal_ECKeyGetCurve(palECKeyHandle_t key, palGroupIndex_t* grpID)
 
 palStatus_t pal_x509CSRInit(palx509CSRHandle_t *x509CSR)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULL == x509CSR))
 
@@ -500,7 +508,7 @@ palStatus_t pal_x509CSRInit(palx509CSRHandle_t *x509CSR)
 
 palStatus_t pal_x509CSRSetSubject(palx509CSRHandle_t x509CSR, const char* subjectName)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR || NULL == subjectName))
 
@@ -513,7 +521,7 @@ palStatus_t pal_x509CSRSetSubject(palx509CSRHandle_t x509CSR, const char* subjec
 
 palStatus_t pal_x509CSRSetKey(palx509CSRHandle_t x509CSR, palECKeyHandle_t pubKey, palECKeyHandle_t prvKey)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR || NULLPTR == pubKey))
 
@@ -526,7 +534,7 @@ palStatus_t pal_x509CSRSetKey(palx509CSRHandle_t x509CSR, palECKeyHandle_t pubKe
 
 palStatus_t pal_x509CSRSetMD(palx509CSRHandle_t x509CSR, palMDType_t mdType)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR))
 
@@ -539,7 +547,7 @@ palStatus_t pal_x509CSRSetMD(palx509CSRHandle_t x509CSR, palMDType_t mdType)
 
 palStatus_t pal_x509CSRSetKeyUsage(palx509CSRHandle_t x509CSR, uint32_t keyUsage)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR))
 
@@ -552,7 +560,7 @@ palStatus_t pal_x509CSRSetKeyUsage(palx509CSRHandle_t x509CSR, uint32_t keyUsage
 
 palStatus_t pal_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint32_t extKeyUsage)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR))
 
@@ -565,7 +573,7 @@ palStatus_t pal_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint32_t 
 
 palStatus_t pal_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* oid, size_t oidLen, const unsigned char* value, size_t valueLen)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR || NULL == oid || NULL == value))
 
@@ -578,7 +586,7 @@ palStatus_t pal_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* oid, 
 
 palStatus_t pal_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerLen)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR || NULL == derBuf))
 
@@ -591,7 +599,7 @@ palStatus_t pal_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* derBu
 
 palStatus_t pal_x509CSRFree(palx509CSRHandle_t *x509CSR)
 {
-#if (PAL_ENABLE_X509 == 1)
+#if (PAL_ENABLE_X509_WRITE == 1)
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULL == x509CSR || NULLPTR == *x509CSR))
 
@@ -602,7 +610,7 @@ palStatus_t pal_x509CSRFree(palx509CSRHandle_t *x509CSR)
 #endif
 }
 
-palStatus_t pal_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHandle_t peerPublicKey, 
+palStatus_t pal_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHandle_t peerPublicKey,
                             const palECKeyHandle_t privateKey, palECKeyHandle_t outKey)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -612,22 +620,22 @@ palStatus_t pal_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHandle_
     return status;
 }
 
-palStatus_t pal_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKeyHandle_t prvKey, unsigned char* dgst, 
+palStatus_t pal_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKeyHandle_t prvKey, unsigned char* dgst,
 							uint32_t dgstLen, unsigned char *sig, size_t *sigLen)
 {
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == grp || NULLPTR == prvKey || NULL == dgst || NULL == sig || NULL == sigLen))
-    
+
     status = pal_plat_ECDSASign(grp, mdType, prvKey, dgst, dgstLen, sig, sigLen);
     return status;
 }
 
-palStatus_t pal_ECDSAVerify(palECKeyHandle_t pubKey, unsigned char* dgst, uint32_t dgstLen, 
+palStatus_t pal_ECDSAVerify(palECKeyHandle_t pubKey, unsigned char* dgst, uint32_t dgstLen,
                             unsigned char* sig, size_t sigLen, bool* verified)
 {
     palStatus_t status = PAL_SUCCESS;
     PAL_VALIDATE_ARGUMENTS((NULLPTR == pubKey || NULL == dgst || NULL == sig || NULL == verified))
-    
+
     status = pal_plat_ECDSAVerify(pubKey, dgst, dgstLen, sig, sigLen, verified);
     return status;
 }

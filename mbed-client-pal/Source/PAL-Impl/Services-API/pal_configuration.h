@@ -104,7 +104,7 @@
     #define PAL_NET_DNS_IP_SUPPORT  0 /* sets the type of IP addresses returned by  pal_getAddressInfo*/
 #elif PAL_SUPPORT_IP_V6 == true
     #define PAL_NET_DNS_IP_SUPPORT  4 /* sets the type of IP addresses returned by  pal_getAddressInfo*/
-#else 
+#else
     #define PAL_NET_DNS_IP_SUPPORT  2 /* sets the type of IP addresses returned by  pal_getAddressInfo*/
 #endif
 
@@ -169,7 +169,7 @@
 
 //! 32 or 48 (depends on the curve) bytes for the X,Y coordinates and 1 for the normalized/non-normalized
 #ifndef PAL_CERT_ID_SIZE
-    #define PAL_CERT_ID_SIZE 33 
+    #define PAL_CERT_ID_SIZE 33
 #endif
 
 
@@ -179,7 +179,11 @@
 
 #ifndef PAL_ENABLE_X509
 	#define PAL_ENABLE_X509 1
-#endif 
+#endif
+
+#ifndef PAL_ENABLE_X509_WRITE
+    #define PAL_ENABLE_X509_WRITE 1
+#endif
 
 //! Define the cipher suites for TLS (only one cipher suite per device available).
 #define PAL_TLS_PSK_WITH_AES_128_CBC_SHA256_SUITE               0x01
@@ -281,7 +285,7 @@
 #endif
 
 /*\brief If flash existed set to 1 else 0, the flash is used for none volatile backup*/
-#ifndef PAL_USE_INTERNAL_FLASH 
+#ifndef PAL_USE_INTERNAL_FLASH
     #define PAL_USE_INTERNAL_FLASH  0
 #endif
 
@@ -289,7 +293,7 @@
     #define PAL_INT_FLASH_NUM_SECTIONS 0
 #endif
 
-#ifndef PAL_USE_HW_ROT 
+#ifndef PAL_USE_HW_ROT
     #define PAL_USE_HW_ROT     1
 #endif
 
@@ -304,7 +308,7 @@
 //! The number of valid priorities limits the number of concurrent running threads.
 #ifndef PAL_MAX_NUMBER_OF_THREADS
     #if PAL_USE_HW_TRNG
-        #define PAL_MAX_NUMBER_OF_THREADS 9    
+        #define PAL_MAX_NUMBER_OF_THREADS 9
     #else
         #define PAL_MAX_NUMBER_OF_THREADS 8
     #endif
@@ -327,7 +331,7 @@
 
 #ifndef PAL_DEVICE_KEY_DERIVATION_BACKWARD_COMPATIBILITY_CALC
     #define PAL_DEVICE_KEY_DERIVATION_BACKWARD_COMPATIBILITY_CALC 0
-#endif    
+#endif
 
 /*\brief  Starting Address for  section 1 Minimum requirement size is 1KB and section must be consecutive sectors*/
 #ifndef PAL_INTERNAL_FLASH_SECTION_1_ADDRESS
@@ -352,7 +356,7 @@
 
 
 
-#if (PAL_SIMULATOR_TEST_ENABLE == 1) 
+#if (PAL_SIMULATOR_TEST_ENABLE == 1)
 
     #undef PAL_SIMULATE_RTOS_REBOOT
     #define PAL_SIMULATE_RTOS_REBOOT 1
@@ -374,7 +378,7 @@
 #if PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
 
 
-    #undef PAL_USE_INTERNAL_FLASH 
+    #undef PAL_USE_INTERNAL_FLASH
     #define PAL_USE_INTERNAL_FLASH  1
 
     #undef PAL_INT_FLASH_NUM_SECTIONS
@@ -436,7 +440,7 @@
         #pragma message(VAR_NAME_VALUE(PAL_USE_HW_RTC))
         #pragma message(VAR_NAME_VALUE(PAL_USE_HW_TRNG))
         #pragma message(VAR_NAME_VALUE(PAL_INT_FLASH_NUM_SECTIONS))
-    #error Minimum configuration setting does not meet the requirements     
+    #error Minimum configuration setting does not meet the requirements
 #endif
 
 #if (((PAL_ENABLE_PSK == 1) && (PAL_ENABLE_X509 == 1)) && !(defined(__LINUX__)))
