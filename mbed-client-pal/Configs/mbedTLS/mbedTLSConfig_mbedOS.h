@@ -16,7 +16,7 @@
 #define PAL_MBEDTLS_USER_CONFIG_H
 
 
-/*! All of the following definitions are mandatory requirements for correct 
+/*! All of the following definitions are mandatory requirements for correct
 *   fucntionality of PAL TLS and Crypto components.
 *   Please do not disable them.
 */
@@ -169,14 +169,6 @@
 #ifndef MBEDTLS_X509_CSR_PARSE_C
     #define MBEDTLS_X509_CSR_PARSE_C
 #endif //MBEDTLS_X509_CSR_PARSE_C
-
-#ifndef MBEDTLS_X509_CREATE_C
-    #define MBEDTLS_X509_CREATE_C
-#endif //MBEDTLS_X509_CREATE_C
-
-#ifndef MBEDTLS_X509_CSR_WRITE_C
-    #define MBEDTLS_X509_CSR_WRITE_C
-#endif //MBEDTLS_X509_CSR_WRITE_C
 
 #ifndef MBEDTLS_CTR_DRBG_MAX_REQUEST
     #define MBEDTLS_CTR_DRBG_MAX_REQUEST 2048
