@@ -147,6 +147,14 @@ class Vector
         }
     }
 
+    ObjectTemplate & at(int idx) {
+        return _object_template[idx];
+    }
+
+    const ObjectTemplate& at(int idx) const {
+        return _object_template[idx];
+    }
+
     enum {
         MIN_CAPACITY = 1
     };

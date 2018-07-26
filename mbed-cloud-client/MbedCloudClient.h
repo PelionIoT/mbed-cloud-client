@@ -20,13 +20,77 @@
 #ifndef __MBED_CLOUD_CLIENT_H__
 #define __MBED_CLOUD_CLIENT_H__
 
-#include <map>
-#include <string>
-#include <vector>
 #include "include/ServiceClient.h"
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 
-using namespace std;
+#include "mbed-client/m2mvector.h"
+#include "mbed-client/m2mstring.h"
+
+namespace m2m
+{
+    template <typename First, typename Second>
+    struct Pair {
+        Pair() {} 
+        Pair(const Pair& p) {} 
+        Pair(const First& first, const Second& second) {
+
+        }
+
+        First first;
+        Second second;
+    };
+
+    template <typename Key, typename Value>
+    struct UnorderedMap {
+        typedef typename Vector<Pair<Key, Value> >::iterator iterator;
+        typedef typename Vector<Pair<Key, Value> >::const_iterator const_iterator;
+
+        Value& operator[](const Key& key) {
+            // Find or push and create
+            iterator it = find(key);
+
+            return it->second;
+        }
+
+        const Value& operator[](const Key& key) const {
+            // Find or fail
+            const_iterator it = find(key);
+
+            return it->second;
+        }
+
+        iterator find( const Key& key ) {
+
+        }
+	
+        const_iterator find( const Key& key ) const {
+
+        }
+
+        iterator begin() {
+        }
+
+        const_iterator begin() const {
+        }
+
+        iterator end() {
+        }
+
+        const_iterator end() const {
+        }
+
+        size_t count(const Key& key) const {
+            //return _kv_pairs.size();
+        }
+
+        Pair<iterator, bool> insert (const Pair<Key, Value>& val) {
+
+        }
+    private:
+        Vector<Pair<Key, Value> > _kv_pairs;
+    };
+}
+
 class SimpleM2MResourceBase;
 
 /**
@@ -300,7 +364,7 @@ public:
      * \return True if successful, false otherwise.
      */
     bool set_device_resource_value(M2MDevice::DeviceResource resource,
-                                   const std::string &value);
+                                   const m2m::String &value);
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     /**
@@ -375,16 +439,16 @@ private:
     * \param route The URI path of the registered resource such as "/Test/0/res/".
     * \param resource Object of the SimpleM2MResourceBase.
     */
-    void register_update_callback(string route, SimpleM2MResourceBase* resource);
+    void register_update_callback(m2m::String route, SimpleM2MResourceBase* resource);
 
 private:
 
     ServiceClient                                   _client;
     MbedCloudClientCallback                         *_value_callback;
-    map<string, M2MObject*>                         _objects;
-    map<string, M2MResource*>                       _resources;
+    m2m::UnorderedMap<m2m::String, M2MObject*>               _objects;
+    m2m::UnorderedMap<m2m::String, M2MResource*>             _resources;
     M2MBaseList                                     _object_list;
-    map<string, SimpleM2MResourceBase*>             _update_values;
+    m2m::UnorderedMap<m2m::String, SimpleM2MResourceBase*>   _update_values;
     FP0<void>                                       _on_registered;
     FP0<void>                                       _on_unregistered;
     FP0<void>                                       _on_registration_updated;

@@ -87,7 +87,7 @@ namespace m2m
     /// swap contents
     void swap( String& );
 
-    String substr(const size_type pos, size_type length) const;
+    String substr(const size_type pos = 0, size_type length = SIZE_MAX) const;
 
     // unchecked access:
     char& operator[](const size_type i)       { return p[i]; }
@@ -110,6 +110,7 @@ namespace m2m
     int compare( size_type pos, size_type len, const String& str ) const;
     int compare( size_type pos, size_type len, const char*   str ) const;
 
+    size_t find_first_of (const char* s, size_t pos = 0) const {}
     int find_last_of(char c) const;
 
     static uint8_t* convert_integer_to_array(int64_t value, uint8_t &size, const uint8_t *array = NULL, const uint32_t array_size = 0);

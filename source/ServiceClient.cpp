@@ -23,7 +23,6 @@
 #endif
 #include <inttypes.h>
 
-#include <string>
 #include "include/ServiceClient.h"
 #include "include/CloudClientStorage.h"
 #include "include/UpdateClientResources.h"
@@ -465,7 +464,7 @@ M2MDevice* ServiceClient::device_object_from_storage()
  * \return True if successful, false otherwise.
  */
 bool ServiceClient::set_device_resource_value(M2MDevice::DeviceResource resource,
-                                              const std::string& value)
+                                              const m2m::String& value)
 {
     return set_device_resource_value(resource,
                                      value.c_str(),

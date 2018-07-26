@@ -32,7 +32,7 @@ SimpleM2MResourceBase::SimpleM2MResourceBase()
     tr_debug("SimpleM2MResourceBase::SimpleM2MResourceBase()");
 }
 
-SimpleM2MResourceBase::SimpleM2MResourceBase(MbedCloudClient* client, string route)
+SimpleM2MResourceBase::SimpleM2MResourceBase(MbedCloudClient* client, m2m::String route)
 : _client(client),_route(route)
 {
     tr_debug("SimpleM2MResourceBase::SimpleM2MResourceBase(), resource name %s\r\n", _route.c_str());
@@ -42,11 +42,11 @@ SimpleM2MResourceBase::~SimpleM2MResourceBase()
 {
 }
 
-bool SimpleM2MResourceBase::define_resource_internal(std::string v, M2MBase::Operation opr, bool observable)
+bool SimpleM2MResourceBase::define_resource_internal(m2m::String v, M2MBase::Operation opr, bool observable)
 {
     tr_debug("SimpleM2MResourceBase::define_resource_internal(), resource name %s!\r\n", _route.c_str());
 
-    vector<string> segments = parse_route(_route.c_str());
+    m2m::Vector<m2m::String> segments = parse_route(_route.c_str());
     if (segments.size() != 3) {
         tr_debug("[SimpleM2MResourceBase] [ERROR] define_resource_internal(), Route needs to have three segments, split by '/' (%s)\r\n", _route.c_str());
         return false;
@@ -62,7 +62,7 @@ bool SimpleM2MResourceBase::define_resource_internal(std::string v, M2MBase::Ope
 
     // Check if object exists
     M2MObject* obj;
-    map<string,M2MObject*>::iterator obj_it = _client->_objects.find(segments[0]) ;
+    m2m::UnorderedMap<m2m::String,M2MObject*>::iterator obj_it = _client->_objects.find(segments[0]) ;
     if(obj_it != _client->_objects.end()) {
       tr_debug("Found object... %s\r\n", segments.at(0).c_str());
       obj = obj_it->second;
@@ -72,7 +72,7 @@ bool SimpleM2MResourceBase::define_resource_internal(std::string v, M2MBase::Ope
         if (!obj) {
             return false;
         }
-        _client->_objects.insert(std::pair<string, M2MObject*>(segments.at(0), obj));
+        _client->_objects.insert(m2m::Pair<m2m::String, M2MObject*>(segments.at(0), obj));
     }
 
     // Check if object instance exists
@@ -96,36 +96,36 @@ bool SimpleM2MResourceBase::define_resource_internal(std::string v, M2MBase::Ope
         res->set_operation(opr);
         res->set_value((uint8_t*)v.c_str(), v.length());
 
-        _client->_resources.insert(pair<string, M2MResource*>(_route, res));
+        _client->_resources.insert(Pair<m2m::String, M2MResource*>(_route, res));
         _client->register_update_callback(_route, this);
     }
 
     return true;
 }
 
-vector<string> SimpleM2MResourceBase::parse_route(const char* route)
+m2m::Vector<m2m::String> SimpleM2MResourceBase::parse_route(const char* route)
 {
-    string s(route);
-    vector<string> v;
-    std::size_t found = s.find_first_of("/");
+    m2m::String s(route);
+    m2m::Vector<m2m::String> v;
+    size_t found = s.find_first_of("/");
 
-    while (found!=std::string::npos) {
+    while (found!=m2m::String::npos) {
         v.push_back(s.substr(0,found));
         s = s.substr(found+1);
         found=s.find_first_of("/");
-        if(found == std::string::npos) {
+        if(found == m2m::String::npos) {
             v.push_back(s);
         }
     }
     return v;
 }
 
-string SimpleM2MResourceBase::get() const
+m2m::String SimpleM2MResourceBase::get() const
 {
     tr_debug("SimpleM2MResourceBase::get() resource (%s)", _route.c_str());
     if (!_client->_resources.count(_route)) {
         tr_debug("[SimpleM2MResourceBase] [ERROR] No such route (%s)\r\n", _route.c_str());
-        return string();
+        return m2m::String();
     }
 
     // otherwise ask mbed Client...
@@ -133,13 +133,13 @@ string SimpleM2MResourceBase::get() const
     uint32_t sizeIn;
     _client->_resources[_route]->get_value(buffIn, sizeIn);
 
-    string s((char*)buffIn, sizeIn);
+    m2m::String s((char*)buffIn, sizeIn);
     tr_debug("SimpleM2MResourceBase::get() resource value (%s)", s.c_str());
     free(buffIn);
     return s;
 }
 
-bool SimpleM2MResourceBase::set(string v)
+bool SimpleM2MResourceBase::set(m2m::String v)
 {
     // Potentially set() happens in InterruptContext. That's not good.
     tr_debug("SimpleM2MResourceBase::set() resource (%s)", _route.c_str());
@@ -162,7 +162,7 @@ bool SimpleM2MResourceBase::set(const int& v)
 {
     char buffer[20];
     int size = sprintf(buffer,"%d",v);
-    std::string stringified(buffer,size);
+    m2m::String stringified(buffer,size);
 
     return set(stringified);
 }
@@ -209,10 +209,10 @@ M2MResource* SimpleM2MResourceBase::get_resource()
 
 SimpleM2MResourceString::SimpleM2MResourceString(MbedCloudClient* client,
                                const char* route,
-                               string v,
+                               m2m::String v,
                                M2MBase::Operation opr,
                                bool observable,
-                               FP1<void, string> on_update)
+                               FP1<void, m2m::String> on_update)
 : SimpleM2MResourceBase(client,route),_on_update(on_update)
 {
     tr_debug("SimpleM2MResourceString::SimpleM2MResourceString() creating (%s)\r\n", route);
@@ -221,15 +221,15 @@ SimpleM2MResourceString::SimpleM2MResourceString(MbedCloudClient* client,
 
 SimpleM2MResourceString::SimpleM2MResourceString(MbedCloudClient* client,
                                const char* route,
-                               string v,
+                               m2m::String v,
                                M2MBase::Operation opr,
                                bool observable,
-                               void(*on_update)(string))
+                               void(*on_update)(m2m::String))
 
 : SimpleM2MResourceBase(client,route)
 {
     tr_debug("SimpleM2MResourceString::SimpleM2MResourceString() overloaded creating (%s)\r\n", route);
-    FP1<void, string> fp;
+    FP1<void, m2m::String> fp;
     fp.attach(on_update);
     _on_update = fp;
     define_resource_internal(v, opr, observable);
@@ -239,23 +239,23 @@ SimpleM2MResourceString::~SimpleM2MResourceString()
 {
 }
 
-string SimpleM2MResourceString::operator=(const string& new_value)
+m2m::String SimpleM2MResourceString::operator=(const m2m::String& new_value)
 {
     tr_debug("SimpleM2MResourceString::operator=()");
     set(new_value);
     return new_value;
 }
 
-SimpleM2MResourceString::operator string() const
+SimpleM2MResourceString::operator m2m::String() const
 {
-    tr_debug("SimpleM2MResourceString::operator string()");
-    string value = get();
+    tr_debug("SimpleM2MResourceString::operator m2m::String()");
+    m2m::String value = get();
     return value;
 }
 
 void SimpleM2MResourceString::update()
 {
-    string v = get();
+    m2m::String v = get();
     _on_update(v);
 }
 
@@ -270,7 +270,7 @@ SimpleM2MResourceInt::SimpleM2MResourceInt(MbedCloudClient* client,
     tr_debug("SimpleM2MResourceInt::SimpleM2MResourceInt() creating (%s)\r\n", route);
     char buffer[20];
     int size = sprintf(buffer,"%d",v);
-    std::string stringified(buffer,size);
+    m2m::String stringified(buffer,size);
     define_resource_internal(stringified, opr, observable);
 }
 
@@ -288,7 +288,7 @@ SimpleM2MResourceInt::SimpleM2MResourceInt(MbedCloudClient* client,
     _on_update = fp;
     char buffer[20];
     int size = sprintf(buffer,"%d",v);
-    std::string stringified(buffer,size);
+    m2m::String stringified(buffer,size);
     define_resource_internal(stringified, opr, observable);
 }
 
@@ -304,7 +304,7 @@ int SimpleM2MResourceInt::operator=(int new_value)
 
 SimpleM2MResourceInt::operator int() const
 {
-    string v = get();
+    m2m::String v = get();
     if (v.empty()) return 0;
 
     return atoi((const char*)v.c_str());
@@ -312,7 +312,7 @@ SimpleM2MResourceInt::operator int() const
 
 void SimpleM2MResourceInt::update()
 {
-    string v = get();
+    m2m::String v = get();
     if (v.empty()) {
         _on_update(0);
     } else {

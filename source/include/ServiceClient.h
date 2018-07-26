@@ -27,7 +27,7 @@
 #include "mbed-client/m2mdevice.h"
 #include "ConnectorClient.h"
 
-#include <string>
+#include "mbed-client/m2mstring.h"
 
 class M2MSecurity;
 class ConnectorClientCallback;
@@ -140,7 +140,7 @@ public:
      * \return True if successful, false otherwise.
      */
     bool set_device_resource_value(M2MDevice::DeviceResource resource,
-                                   const std::string& value);
+                                   const m2m::String& value);
 
     /**
      * \brief Set resource value in the Device Object

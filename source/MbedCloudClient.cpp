@@ -91,7 +91,7 @@ bool MbedCloudClient::setup(void* iface)
 {
     tr_debug("MbedCloudClient setup()");
     // Add objects to list
-    map<string, M2MObject*>::iterator it;
+    m2m::UnorderedMap<m2m::String, M2MObject*>::iterator it;
     for (it = _objects.begin(); it != _objects.end(); it++)
     {
         _object_list.push_back((M2MBase*)it->second);
@@ -163,7 +163,7 @@ void MbedCloudClient::set_entropy_callback(entropy_cb callback)
 }
 
 bool MbedCloudClient::set_device_resource_value(M2MDevice::DeviceResource resource,
-                                                const std::string &value)
+                                                const m2m::String &value)
 {
     return _client.set_device_resource_value(resource, value);
 }
@@ -191,7 +191,7 @@ const char *MbedCloudClient::error_description() const
 }
 
 
-void MbedCloudClient::register_update_callback(string route,
+void MbedCloudClient::register_update_callback(m2m::String route,
                                                SimpleM2MResourceBase* resource)
 {
     _update_values[route] = resource;

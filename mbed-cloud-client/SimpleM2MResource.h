@@ -42,7 +42,7 @@ protected:
     // Prevents the use of copy constructor
     SimpleM2MResourceBase( const M2MBase& /*other*/ );
 
-    SimpleM2MResourceBase(MbedCloudClient* client, string route);
+    SimpleM2MResourceBase(MbedCloudClient* client, m2m::String route);
 
     /**
      * \brief Destructor
@@ -61,7 +61,7 @@ public:
      * \param observable True if the resource is observable, else false.
      * \return True if resource is created, else false.
      */
-    bool define_resource_internal(string v,
+    bool define_resource_internal(m2m::String v,
                                   M2MBase::Operation opr,
                                   bool observable);
 
@@ -69,14 +69,14 @@ public:
      * \brief Gets the value set in a resource in text format.
      * \return The value set in the resource.
      */
-    string get() const;
+    m2m::String get() const;
 
     /**
      * \brief Sets the value in a resource in text format.
      * \param v The value to be set.
      * \return True if set successfully, else false.
      */
-    bool set(string v);
+    bool set(m2m::String v);
 
     /**
      * \brief Sets the value in a resource in integer format.
@@ -124,11 +124,11 @@ private:
     * \param route The URI path in the format "Test/0/res".
     * \return A list of strings parsed from the URI path.
     */
-    vector<string> parse_route(const char* route);
+    m2m::Vector<m2m::String> parse_route(const char* route);
 
 private:
     MbedCloudClient*                    _client;   // Not owned
-    string                              _route;
+    m2m::String                              _route;
 };
 
 /**
@@ -155,10 +155,10 @@ public:
      */
     SimpleM2MResourceString(MbedCloudClient* client,
                    const char* route,
-                   string v,
+                   m2m::String v,
                    M2MBase::Operation opr = M2MBase::GET_PUT_ALLOWED,
                    bool observable = true,
-                   FP1<void, string> on_update = NULL);
+                   FP1<void, m2m::String> on_update = NULL);
 
     /**
      *  \brief Constructor. This is overloaded function.
@@ -173,10 +173,10 @@ public:
      */
     SimpleM2MResourceString(MbedCloudClient* client,
                    const char* route,
-                   string v,
+                   m2m::String v,
                    M2MBase::Operation opr,
                    bool observable,
-                   void(*on_update)(string));
+                   void(*on_update)(m2m::String));
 
 
     /**
@@ -187,12 +187,12 @@ public:
     /**
      * \brief Overloaded operator for = operation.
      */
-    string operator=(const string& new_value);
+    m2m::String operator=(const m2m::String& new_value);
 
     /**
      * \brief Overloaded operator for string() operation.
      */
-    operator string() const;
+    operator m2m::String() const;
 
     /**
     * \brief Calls when there is an indication that the value of the resource
@@ -201,7 +201,7 @@ public:
     virtual void update();
 
 private:
-    FP1<void, string>                   _on_update;
+    FP1<void, m2m::String>                   _on_update;
 };
 
 /**
