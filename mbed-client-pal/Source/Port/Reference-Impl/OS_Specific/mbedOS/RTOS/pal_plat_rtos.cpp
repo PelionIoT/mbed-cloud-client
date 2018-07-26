@@ -384,9 +384,19 @@ palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
     }
 
     threadName = osThreadGetName(sysThreadID);
-    if ((NULL == threadName) || (1 != sscanf(threadName, "%p", &threadData))) // this may happen if the thread has not tranistioned into its final state yet (altered in thread function)
+    // this may happen if the thread has not tranistioned into its final state yet (altered in thread function)
+    if (NULL == threadName)
     {
         goto end;
+    }
+    else
+    {
+        char *ptr;
+        threadData = (palThreadData_t*)(strtoul(threadName+2, &ptr, 16));
+        if ((threadName + 2) == ptr)
+        {
+            goto end;
+        }
     }
 
     sysStatus = osThreadTerminate(sysThreadID);

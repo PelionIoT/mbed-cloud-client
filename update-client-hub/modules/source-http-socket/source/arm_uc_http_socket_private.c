@@ -23,6 +23,7 @@
 #include <pal.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
 
@@ -891,12 +892,11 @@ void arm_uc_socket_process_header()
                                 request_buffer->ptr[request_buffer->size] = '\0';
 
                                 /* parse full length of content */
-                                int parsed = sscanf((char *) request_buffer->ptr,
-                                                    "%10" SCNu32,
-                                                    &context->expected_remaining);
+                                char *ptr;
+                                context->expected_remaining = strtoul(request_buffer->ptr, &ptr, 10);
 
                                 /* only continue if exactly one argument was parsed */
-                                if (parsed == 1)
+                                if (ptr != request_buffer->ptr)
                                 {
                                     UC_SRCE_TRACE("content: %" PRIu32,
                                                   context->expected_remaining);
