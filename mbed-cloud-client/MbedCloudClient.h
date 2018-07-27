@@ -25,71 +25,8 @@
 
 #include "mbed-client/m2mvector.h"
 #include "mbed-client/m2mstring.h"
+#include "mbed-client/m2munorderedmap.h"
 
-namespace m2m
-{
-    template <typename First, typename Second>
-    struct Pair {
-        Pair() {} 
-        Pair(const Pair& p) {} 
-        Pair(const First& first, const Second& second) {
-
-        }
-
-        First first;
-        Second second;
-    };
-
-    template <typename Key, typename Value>
-    struct UnorderedMap {
-        typedef typename Vector<Pair<Key, Value> >::iterator iterator;
-        typedef typename Vector<Pair<Key, Value> >::const_iterator const_iterator;
-
-        Value& operator[](const Key& key) {
-            // Find or push and create
-            iterator it = find(key);
-
-            return it->second;
-        }
-
-        const Value& operator[](const Key& key) const {
-            // Find or fail
-            const_iterator it = find(key);
-
-            return it->second;
-        }
-
-        iterator find( const Key& key ) {
-
-        }
-	
-        const_iterator find( const Key& key ) const {
-
-        }
-
-        iterator begin() {
-        }
-
-        const_iterator begin() const {
-        }
-
-        iterator end() {
-        }
-
-        const_iterator end() const {
-        }
-
-        size_t count(const Key& key) const {
-            //return _kv_pairs.size();
-        }
-
-        Pair<iterator, bool> insert (const Pair<Key, Value>& val) {
-
-        }
-    private:
-        Vector<Pair<Key, Value> > _kv_pairs;
-    };
-}
 
 class SimpleM2MResourceBase;
 
