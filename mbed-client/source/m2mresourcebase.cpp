@@ -57,33 +57,9 @@ M2MResourceBase::M2MResourceBase(
                                          M2MBase::DataType type,
                                          char* path,
                                          bool external_blockwise_store,
-                                         bool multiple_instance)
-: M2MBase(res_name,
-          resource_mode,
-#ifndef DISABLE_RESOURCE_TYPE
-          resource_type,
-#endif
-          path,
-          external_blockwise_store,
-          multiple_instance,
-          type)
-#ifndef DISABLE_BLOCK_MESSAGE
- ,_block_message_data(NULL),
-#endif
-  _notification_status(M2MResourceBase::INIT)
-{
-}
-
-M2MResourceBase::M2MResourceBase(
-                                         const String &res_name,
-                                         M2MBase::Mode resource_mode,
-                                         const String &resource_type,
-                                         M2MBase::DataType type,
+                                         bool multiple_instance,
                                          const uint8_t *value,
-                                         const uint8_t value_length,
-                                         char* path,
-                                         bool external_blockwise_store,
-                                         bool multiple_instance)
+                                         const uint8_t value_length)
 : M2MBase(res_name,
           resource_mode,
 #ifndef DISABLE_RESOURCE_TYPE
@@ -98,8 +74,8 @@ M2MResourceBase::M2MResourceBase(
 #endif
  _notification_status(M2MResourceBase::INIT)
 {
-    M2MBase::set_base_type(M2MBase::ResourceInstance);
     if( value != NULL && value_length > 0 ) {
+        M2MBase::set_base_type(M2MBase::ResourceInstance);
         sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
         res->resource = alloc_string_copy(value, value_length);
         res->resource_len = value_length;
@@ -155,8 +131,7 @@ M2MResourceBase::~M2MResourceBase()
 M2MResourceBase::ResourceType M2MResourceBase::resource_instance_type() const
 {
     M2MBase::lwm2m_parameters_s* param = M2MBase::get_lwm2m_parameters();
-    M2MBase::DataType type = param->data_type;
-    return convert_data_type(type);
+    return (M2MResourceBase::ResourceType)(param->data_type);
 }
 
 
@@ -874,35 +849,6 @@ void M2MResourceBase::notification_status(const uint16_t msg_id, const Notificat
             (*callback2)(msg_id, status);
         }
     }
-}
-
-M2MResourceBase::ResourceType M2MResourceBase::convert_data_type(M2MBase::DataType type) const
-{
-    M2MResourceBase::ResourceType res_type = M2MResourceBase::OBJLINK;
-    switch(type) {
-        case M2MBase::STRING:
-            res_type = M2MResourceBase::STRING;
-            break;
-        case M2MBase::INTEGER:
-            res_type = M2MResourceBase::INTEGER;
-            break;
-        case M2MBase::FLOAT:
-            res_type = M2MResourceBase::FLOAT;
-            break;
-        case M2MBase::OPAQUE:
-            res_type = M2MResourceBase::OPAQUE;
-            break;
-        case M2MBase::BOOLEAN:
-            res_type = M2MResourceBase::BOOLEAN;
-            break;
-        case M2MBase::TIME:
-            res_type = M2MResourceBase::TIME;
-            break;
-        case M2MBase::OBJLINK:
-            res_type = M2MResourceBase::OBJLINK;
-            break;
-    }
-    return res_type;
 }
 
 M2MResourceBase::NotificationStatus M2MResourceBase::notification_status() const

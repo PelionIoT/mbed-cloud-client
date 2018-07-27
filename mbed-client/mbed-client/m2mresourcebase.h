@@ -114,48 +114,30 @@ protected: // Constructor and destructor are private
     M2MResourceBase(
                         const lwm2m_parameters_s* s,
                         M2MBase::DataType type);
-    /**
-     * \brief A constructor for creating a resource.
-     * \param resource_name The name of the resource.
-     * \param resource_type The type of the resource.
-     * \param type The resource data type of the object.
-     * \param object_name Object name where resource exists.
-     * \param path Path of the object like 3/0/1
-     * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
-     *        otherwise handled in mbed-client-c.
-     */
-    M2MResourceBase(
-                        const String &resource_name,
-                        M2MBase::Mode mode,
-                        const String &resource_type,
-                        M2MBase::DataType type,
-                        char* path,
-                        bool external_blockwise_store,
-                        bool multiple_instance);
+
 
     /**
      * \brief A Constructor for creating a resource.
      * \param resource_name The name of the resource.
      * \param resource_type The type of the resource.
      * \param type The resource data type of the object.
-     * \param value The value pointer of the object.
-     * \param value_length The length of the value pointer.
-     * \param value_length The length of the value pointer.
      * \param object_name Object name where resource exists.
      * \param path Path of the object like 3/0/1
      * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
      *        otherwise handled in mbed-client-c.
+     * \param value The value pointer of the object.
+     * \param value_length The length of the value pointer.
      */
     M2MResourceBase(
                         const String &resource_name,
                         M2MBase::Mode mode,
                         const String &resource_type,
                         M2MBase::DataType type,
-                        const uint8_t *value,
-                        const uint8_t value_length,
                         char* path,
                         bool external_blockwise_store,
-                        bool multiple_instance);
+                        bool multiple_instance,
+                        const uint8_t *value = NULL,
+                        const uint8_t value_length = 0);
 
     // Prevents the use of default constructor.
     M2MResourceBase();
@@ -476,8 +458,6 @@ private:
     void report_value_change();
 
     bool has_value_changed(const uint8_t* value, const uint32_t value_len);
-
-    M2MResourceBase::ResourceType convert_data_type(M2MBase::DataType type) const;
 
 private:
 

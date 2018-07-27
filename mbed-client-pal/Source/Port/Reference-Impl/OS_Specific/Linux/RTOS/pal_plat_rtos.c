@@ -1261,10 +1261,11 @@ palStatus_t pal_plat_osSetRtcTime(uint64_t rtcSetTime)
 #if RTC_PRIVILEGE
     int fd = 0;
     int retval = 0;
-    struct tm * convertedTime = gmtime((time_t*)&rtcSetTime);
+    struct tm convertedTime;
+    _rtc_localtime(rtcSetTime, &convertedTime, RTC_4_YEAR_LEAP_YEAR_SUPPORT);
 
     fd = open (default_rtc, O_RDONLY);
-    retval = ioctl(fd, RTC_SET_TIME, (struct rtc_time*)convertedTime);
+    retval = ioctl(fd, RTC_SET_TIME, (struct rtc_time*)&convertedTime);
     if (retval == -1)
     {
         ret = PAL_ERR_RTOS_RTC_OPEN_IOCTL_ERROR;

@@ -33,39 +33,18 @@ M2MResourceInstance::M2MResourceInstance(M2MResource &parent,
                                          M2MBase::DataType type,
                                          char* path,
                                          bool external_blockwise_store,
-                                         bool multiple_instance)
-: M2MResourceBase(res_name,
-          resource_mode,
-          resource_type,
-          type,
-          path,
-          external_blockwise_store,
-          multiple_instance
-          ),
- _parent_resource(parent)
-{
-    set_base_type(M2MBase::ResourceInstance);
-}
-
-M2MResourceInstance::M2MResourceInstance(M2MResource &parent,
-                                         const String &res_name,
-                                         M2MBase::Mode resource_mode,
-                                         const String &resource_type,
-                                         M2MBase::DataType type,
+                                         bool multiple_instance,
                                          const uint8_t *value,
-                                         const uint8_t value_length,
-                                         char* path,
-                                         bool external_blockwise_store,
-                                         bool multiple_instance)
+                                         const uint8_t value_length)
 : M2MResourceBase(res_name,
           resource_mode,
           resource_type,
           type,
-          value,
-          value_length,
           path,
           external_blockwise_store,
-          multiple_instance),
+          multiple_instance,
+          value,
+          value_length),
  _parent_resource(parent)
 {
     set_base_type(M2MBase::ResourceInstance);
