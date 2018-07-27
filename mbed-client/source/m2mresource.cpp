@@ -30,13 +30,14 @@ M2MResource::M2MResource(M2MObjectInstance &parent,
                          M2MBase::Mode resource_mode,
                          const String &resource_type,
                          M2MBase::DataType type,
-                         const uint8_t *value,
-                         const uint8_t value_length,
                          char *path,
                          bool multiple_instance,
-                         bool external_blockwise_store)
-: M2MResourceBase(resource_name, resource_mode, resource_type, type, value, value_length,
-                      path, external_blockwise_store, multiple_instance),
+                         bool external_blockwise_store,
+                         const uint8_t *value,
+                         const uint8_t value_length,
+                         bool observable)
+: M2MResourceBase(resource_name, resource_mode, resource_type, type,
+                      path, external_blockwise_store, multiple_instance, value, value_length),
   _parent(parent)
 #ifndef DISABLE_DELAYED_RESPONSE
   ,_delayed_token(NULL),
@@ -46,7 +47,7 @@ M2MResource::M2MResource(M2MObjectInstance &parent,
 {
     M2MBase::set_base_type(M2MBase::Resource);
     M2MBase::set_operation(M2MBase::GET_ALLOWED);
-    M2MBase::set_observable(false);
+    M2MBase::set_observable(observable);
     if (multiple_instance) {
         M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
     }
@@ -66,33 +67,6 @@ M2MResource::M2MResource(M2MObjectInstance &parent,
 {
     // verify, that the client has hardcoded proper type to the structure
     assert(base_type() == M2MBase::Resource);
-}
-
-M2MResource::M2MResource(M2MObjectInstance &parent,
-                         const String &resource_name,
-                         M2MBase::Mode resource_mode,
-                         const String &resource_type,
-                         M2MBase::DataType type,
-                         bool observable,
-                         char *path,
-                         bool multiple_instance,
-                         bool external_blockwise_store)
-: M2MResourceBase(resource_name, resource_mode, resource_type, type,
-                      path,
-                      external_blockwise_store,multiple_instance),
-  _parent(parent)
-#ifndef DISABLE_DELAYED_RESPONSE
-  ,_delayed_token(NULL),
-  _delayed_token_len(0),
-  _delayed_response(false)
-#endif
-{
-    M2MBase::set_base_type(M2MBase::Resource);
-    M2MBase::set_operation(M2MBase::GET_PUT_ALLOWED);
-    M2MBase::set_observable(observable);
-    if (multiple_instance) {
-        M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
-    }
 }
 
 

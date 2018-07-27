@@ -57,33 +57,9 @@ M2MResourceBase::M2MResourceBase(
                                          M2MBase::DataType type,
                                          char* path,
                                          bool external_blockwise_store,
-                                         bool multiple_instance)
-: M2MBase(res_name,
-          resource_mode,
-#ifndef DISABLE_RESOURCE_TYPE
-          resource_type,
-#endif
-          path,
-          external_blockwise_store,
-          multiple_instance,
-          type)
-#ifndef DISABLE_BLOCK_MESSAGE
- ,_block_message_data(NULL),
-#endif
-  _notification_status(M2MResourceBase::INIT)
-{
-}
-
-M2MResourceBase::M2MResourceBase(
-                                         const String &res_name,
-                                         M2MBase::Mode resource_mode,
-                                         const String &resource_type,
-                                         M2MBase::DataType type,
+                                         bool multiple_instance,
                                          const uint8_t *value,
-                                         const uint8_t value_length,
-                                         char* path,
-                                         bool external_blockwise_store,
-                                         bool multiple_instance)
+                                         const uint8_t value_length)
 : M2MBase(res_name,
           resource_mode,
 #ifndef DISABLE_RESOURCE_TYPE
@@ -98,8 +74,8 @@ M2MResourceBase::M2MResourceBase(
 #endif
  _notification_status(M2MResourceBase::INIT)
 {
-    M2MBase::set_base_type(M2MBase::ResourceInstance);
     if( value != NULL && value_length > 0 ) {
+        M2MBase::set_base_type(M2MBase::ResourceInstance);
         sn_nsdl_dynamic_resource_parameters_s* res = get_nsdl_resource();
         res->resource = alloc_string_copy(value, value_length);
         res->resource_len = value_length;
