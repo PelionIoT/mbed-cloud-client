@@ -284,8 +284,17 @@ int String::compare( size_type pos, size_type len, const char* str ) const {
     return r;
 }
 
-size_t String::find_first_of (char c) const {
-    char* char_pos = strchr(p , c); // p is the C-string backing this implementation
+size_t String::find_first_of (char c, size_t pos) const {
+    char* str = p; // p is the C-string backing this implementation
+
+    if( pos >= size() ) // Past the end
+    {
+        return String::npos;
+    }
+
+    str += pos;
+
+    char* char_pos = strchr(str , c);
     if(char_pos == NULL) {
         // Not found
         return String::npos;
@@ -304,6 +313,11 @@ size_t String::find_last_of(char c) const {
 
     // Otherwise return the character's position within the string
     return char_pos - p;
+}
+
+size_t String::find(char c, size_t pos) const
+{
+    return find_first_of(c, pos);
 }
 
 void String::new_realloc( size_type n) {
