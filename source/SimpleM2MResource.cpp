@@ -107,12 +107,12 @@ m2m::Vector<m2m::String> SimpleM2MResourceBase::parse_route(const char* route)
 {
     m2m::String s(route);
     m2m::Vector<m2m::String> v;
-    size_t found = s.find_first_of("/");
+    size_t found = s.find_first_of('/');
 
     while (found!=m2m::String::npos) {
         v.push_back(s.substr(0,found));
         s = s.substr(found+1);
-        found=s.find_first_of("/");
+        found=s.find_first_of('/');
         if(found == m2m::String::npos) {
             v.push_back(s);
         }
