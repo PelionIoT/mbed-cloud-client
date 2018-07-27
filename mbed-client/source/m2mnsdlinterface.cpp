@@ -1899,10 +1899,12 @@ void M2MNsdlInterface::handle_bootstrap_put_message(sn_coap_hdr_s *coap_header,
             if (success && object_type == M2MNsdlInterface::SECURITY) {
                 success = validate_security_object();
                 if (!success) {
+#ifndef DISABLE_ERROR_DESCRIPTION
                     const char *desc = "Invalid security object";
                     if (strlen(ERROR_REASON_22) + strlen(desc) <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
                         snprintf(buffer, sizeof(buffer), ERROR_REASON_22, desc);
                     }
+#endif
                     response_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
                 }
             }
@@ -1929,9 +1931,11 @@ void M2MNsdlInterface::handle_bootstrap_put_message(sn_coap_hdr_s *coap_header,
     if (!success) {
         // Do not overwrite ERROR_REASON_22
         if (strlen(buffer) == 0) {
+#ifndef DISABLE_ERROR_DESCRIPTION
             if (strlen(ERROR_REASON_20) + resource_name.size() <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
                 snprintf(buffer, sizeof(buffer), ERROR_REASON_20, resource_name.c_str());
             }
+#endif
         }
         handle_bootstrap_error(buffer, true);
     }
@@ -2082,9 +2086,11 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
     // Accept only '/bs' path and check that needed data is in security object
     if (object_name.size() != 2 ||
         object_name.compare(0, 2, BOOTSTRAP_URI) != 0) {
+#ifndef DISABLE_ERROR_DESCRIPTION
         if (strlen(ERROR_REASON_22) + object_name.size() <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
             snprintf(buffer, sizeof(buffer), ERROR_REASON_22, object_name.c_str());
         }
+#endif
         msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
     }
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
@@ -2092,14 +2098,18 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
              m2m_id >= 0 &&
              _security->resource_value_int(M2MSecurity::SecurityMode, m2m_id) == M2MSecurity::EST) {
         tr_error("M2MNsdlInterface::handle_bootstrap_finished - EST mode but missing iep parameter!");
+#ifndef DISABLE_ERROR_DESCRIPTION
         snprintf(buffer, sizeof(buffer), ERROR_REASON_26);
+#endif
         msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
     }
 #endif
     else {
         // Add short server id to server object
         if (m2m_id == -1) {
+#ifndef DISABLE_ERROR_DESCRIPTION
             snprintf(buffer,sizeof(buffer), ERROR_REASON_4);
+#endif
             msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
         }
         else {
@@ -2143,11 +2153,12 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
             _endpoint->endpoint_name_ptr = alloc_string_copy((uint8_t*)_endpoint_name.c_str(), _endpoint_name.length());
             _endpoint->endpoint_name_len = _endpoint_name.length();
         } else {
+#ifndef DISABLE_ERROR_DESCRIPTION
             const char *desc = "memory allocation failed";
             if (strlen(ERROR_REASON_22) + strlen(desc) <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
                 snprintf(buffer, sizeof(buffer), ERROR_REASON_22, desc);
             }
-
+#endif
             handle_bootstrap_error(buffer, true);
         }
     }
@@ -2174,16 +2185,20 @@ void M2MNsdlInterface::handle_bootstrap_delete(sn_coap_hdr_s *coap_header,sn_nsd
     }
     // Only following paths are accepted, 0, 0/0
     else if (object_name.size() == 2 || object_name.size() > 3) {
+#ifndef DISABLE_ERROR_DESCRIPTION
         if (strlen(ERROR_REASON_21) + object_name.size() <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
             snprintf(buffer, sizeof(buffer), ERROR_REASON_21,object_name.c_str());
         }
+#endif
         msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
     }
     else if ((object_name.size() == 1 && object_name.compare(0,1,"0") != 0) ||
             (object_name.size() == 3 && object_name.compare(0,3,"0/0") != 0)) {
+#ifndef DISABLE_ERROR_DESCRIPTION
         if (strlen(ERROR_REASON_21) + object_name.size() <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
             snprintf(buffer, sizeof(buffer), ERROR_REASON_21, object_name.c_str());
         }
+#endif
         msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
     }
 
@@ -3147,8 +3162,10 @@ void M2MNsdlInterface::handle_bootstrap_finish_ack(uint16_t msg_id)
     } else {
         tr_error("M2MNsdlInterface::handle_empty_ack - empty ACK id does not match to BS finished response id!");
         char buffer[MAX_ALLOWED_ERROR_STRING_LENGTH];
+#ifndef DISABLE_ERROR_DESCRIPTION
         const char *desc = "message id does not match";
         snprintf(buffer, sizeof(buffer), ERROR_REASON_22, desc);
+#endif
         handle_bootstrap_error(buffer, false);
     }
 }
