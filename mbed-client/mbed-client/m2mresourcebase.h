@@ -459,8 +459,6 @@ private:
 
     bool has_value_changed(const uint8_t* value, const uint32_t value_len);
 
-    M2MResourceBase::ResourceType convert_data_type(M2MBase::DataType type) const;
-
 private:
 
 #ifndef DISABLE_BLOCK_MESSAGE

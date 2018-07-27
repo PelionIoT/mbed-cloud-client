@@ -131,8 +131,7 @@ M2MResourceBase::~M2MResourceBase()
 M2MResourceBase::ResourceType M2MResourceBase::resource_instance_type() const
 {
     M2MBase::lwm2m_parameters_s* param = M2MBase::get_lwm2m_parameters();
-    M2MBase::DataType type = param->data_type;
-    return convert_data_type(type);
+    return (M2MResourceBase::ResourceType)(param->data_type);
 }
 
 
@@ -850,35 +849,6 @@ void M2MResourceBase::notification_status(const uint16_t msg_id, const Notificat
             (*callback2)(msg_id, status);
         }
     }
-}
-
-M2MResourceBase::ResourceType M2MResourceBase::convert_data_type(M2MBase::DataType type) const
-{
-    M2MResourceBase::ResourceType res_type = M2MResourceBase::OBJLINK;
-    switch(type) {
-        case M2MBase::STRING:
-            res_type = M2MResourceBase::STRING;
-            break;
-        case M2MBase::INTEGER:
-            res_type = M2MResourceBase::INTEGER;
-            break;
-        case M2MBase::FLOAT:
-            res_type = M2MResourceBase::FLOAT;
-            break;
-        case M2MBase::OPAQUE:
-            res_type = M2MResourceBase::OPAQUE;
-            break;
-        case M2MBase::BOOLEAN:
-            res_type = M2MResourceBase::BOOLEAN;
-            break;
-        case M2MBase::TIME:
-            res_type = M2MResourceBase::TIME;
-            break;
-        case M2MBase::OBJLINK:
-            res_type = M2MResourceBase::OBJLINK;
-            break;
-    }
-    return res_type;
 }
 
 M2MResourceBase::NotificationStatus M2MResourceBase::notification_status() const
