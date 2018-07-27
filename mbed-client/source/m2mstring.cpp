@@ -295,19 +295,15 @@ size_t String::find_first_of (char c) const {
     return char_pos - p;
 }
 
-int String::find_last_of(char c) const {
-    int r = -1;
-    char *v;
-    v = strrchr(p,c);
-    if (v != NULL) {
-        r = 0;
-        char* i = p;
-        while (v != i) {
-            i++;
-            r++;
-        }
+size_t String::find_last_of(char c) const {
+    char* char_pos = strrchr(p , c); // p is the C-string backing this implementation
+    if(char_pos == NULL) {
+        // Not found
+        return String::npos;
     }
-    return r;
+
+    // Otherwise return the character's position within the string
+    return char_pos - p;
 }
 
 void String::new_realloc( size_type n) {
