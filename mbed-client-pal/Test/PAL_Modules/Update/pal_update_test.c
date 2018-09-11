@@ -20,6 +20,7 @@
 #include "string.h"
 #include "mbed_trace.h"
 
+#define TRACE_GROUP "PAL"
 
 #define KILOBYTE 1024
 
@@ -40,7 +41,7 @@ uint8_t numberofBlocks = 0;
 */
 TEST_SETUP(pal_update)
 {
-    PAL_LOG(INFO, "running new test\r\n");
+    PAL_LOG_INFO("running new test\r\n");
 
 }
 

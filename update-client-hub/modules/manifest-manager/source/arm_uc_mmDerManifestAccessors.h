@@ -32,32 +32,33 @@ enum {
     ARM_UC_MFST_CRYPTOMODE_MAX,
 };
 
-uint32_t ARM_UC_mmGetUint32_t(arm_uc_buffer_t* buffer, uint32_t offset);
-arm_uc_error_t ARM_UC_mmGetMagic(arm_uc_buffer_t* buffer, uint32_t* val);
-arm_uc_error_t ARM_UC_mmGetVersion(arm_uc_buffer_t* buffer, uint32_t* val);
-arm_uc_error_t ARM_UC_mmGetCryptoMode(arm_uc_buffer_t* buffer, uint32_t* val);
-arm_uc_error_t ARM_UC_mmGetNonce(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetVendorGuid(arm_uc_buffer_t* buffer, arm_uc_buffer_t* guid);
-arm_uc_error_t ARM_UC_mmGetClassGuid(arm_uc_buffer_t* buffer, arm_uc_buffer_t* guid);
-arm_uc_error_t ARM_UC_mmGetDeviceGuid(arm_uc_buffer_t* buffer, arm_uc_buffer_t* guid);
-arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t* buffer, uint64_t* val);
-arm_uc_error_t ARM_UC_mmGetValidFrom(arm_uc_buffer_t* buffer, uint64_t* val);
-arm_uc_error_t ARM_UC_mmGetValidTo(arm_uc_buffer_t* buffer, uint64_t* val);
-arm_uc_error_t ARM_UC_mmGetCertificateId(arm_uc_buffer_t* buffer, uint32_t sigIdx, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetFwInitVector(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetFwUri(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetFwSize(arm_uc_buffer_t* buffer, uint32_t* val);
-arm_uc_error_t ARM_UC_mmGetFwHash(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetFwSymmKey(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetFwCertId(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetDescription(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetManifestLinksUri(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetManifestLinksHash(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
-arm_uc_error_t ARM_UC_mmGetManifestLinksElementCount(arm_uc_buffer_t* buffer, uint32_t* val);
-uint32_t ARM_UC_mmGetManifestLinksElementSize(arm_uc_buffer_t* buffer, uint32_t baseOffset);
-arm_uc_error_t ARM_UC_mmGetManifestLinksElement(arm_uc_buffer_t* buffer, uint32_t index, arm_uc_buffer_t* element);
-arm_uc_error_t ARM_UC_mmGetManifestHash(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
+uint32_t ARM_UC_mmGetUint32_t(arm_uc_buffer_t *buffer, uint32_t offset);
+arm_uc_error_t ARM_UC_mmGetMagic(arm_uc_buffer_t *buffer, uint32_t *val);
+arm_uc_error_t ARM_UC_mmGetVersion(arm_uc_buffer_t *buffer, uint32_t *val);
+arm_uc_error_t ARM_UC_mmGetCryptoMode(arm_uc_buffer_t *buffer, uint32_t *val);
+arm_uc_error_t ARM_UC_mmGetNonce(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetVendorGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid);
+arm_uc_error_t ARM_UC_mmGetClassGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid);
+arm_uc_error_t ARM_UC_mmGetDeviceGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid);
+arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t *buffer, uint64_t *val);
+arm_uc_error_t ARM_UC_mmGetValidFrom(arm_uc_buffer_t *buffer, uint64_t *val);
+arm_uc_error_t ARM_UC_mmGetValidTo(arm_uc_buffer_t *buffer, uint64_t *val);
+arm_uc_error_t ARM_UC_mmGetCertificateId(arm_uc_buffer_t *buffer, uint32_t sigIdx, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetFwInitVector(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetFwUri(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetFwSize(arm_uc_buffer_t *buffer, uint32_t *val);
+arm_uc_error_t ARM_UC_mmGetFwHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetFwSymmKey(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetFwCertId(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetDescription(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetManifestLinksUri(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetManifestLinksHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetManifestLinksElementCount(arm_uc_buffer_t *buffer, uint32_t *val);
+uint32_t ARM_UC_mmGetManifestLinksElementSize(arm_uc_buffer_t *buffer, uint32_t baseOffset);
+arm_uc_error_t ARM_UC_mmGetManifestLinksElement(arm_uc_buffer_t *buffer, uint32_t index, arm_uc_buffer_t *element);
+arm_uc_error_t ARM_UC_mmGetManifestHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
 
-arm_uc_error_t ARM_UC_mmDERSignedResourceGetSingleValue(arm_uc_buffer_t* buffer, const int32_t fieldID, arm_uc_buffer_t* val);
+arm_uc_error_t ARM_UC_mmDERSignedResourceGetSingleValue(arm_uc_buffer_t *buffer, const int32_t fieldID,
+                                                        arm_uc_buffer_t *val);
 
 #endif // ARM_UPDATE_CLIENT_MANIFEST_MANAGER_ACCESSORS_H

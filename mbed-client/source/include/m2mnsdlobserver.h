@@ -60,8 +60,9 @@ public :
     * registration.
     * @param error_code, Error code for registration error
     * @param retry, Indicates state machine to re-establish connection
+    * @param full_registration, Indicates that after DTLS handshake continue with a full registration
     */
-    virtual void registration_error(uint8_t error_code, bool retry = false) = 0;
+    virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false) = 0;
 
     /**
     * @brief Informs that client is unregistered successfully.

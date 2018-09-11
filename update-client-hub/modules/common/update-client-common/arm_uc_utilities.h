@@ -43,7 +43,7 @@ extern const uint8_t arm_uc_hex_table[16];
  * @param size String length.
  * @param uri The arm_uc_uri_t struct to be populated
  */
-arm_uc_error_t arm_uc_str2uri(const uint8_t* str, uint32_t size, arm_uc_uri_t* uri);
+arm_uc_error_t arm_uc_str2uri(const uint8_t *str, uint32_t size, arm_uc_uri_t *uri);
 
 /**
  * @brief Find substring inside string.
@@ -57,9 +57,9 @@ arm_uc_error_t arm_uc_str2uri(const uint8_t* str, uint32_t size, arm_uc_uri_t* u
  * @return Index to where the substring was found inside the string. If the
  *         string doesn't contain the subtring, UINT32_MAX is returned.
  */
-uint32_t arm_uc_strnstrn(const uint8_t* big_buffer,
+uint32_t arm_uc_strnstrn(const uint8_t *big_buffer,
                          uint32_t big_length,
-                         const uint8_t* little_buffer,
+                         const uint8_t *little_buffer,
                          uint32_t little_length);
 
 /**
@@ -72,7 +72,7 @@ uint32_t arm_uc_strnstrn(const uint8_t* big_buffer,
  *
  * @return String length or max_length.
  */
-uint32_t arm_uc_strnlen(const uint8_t* buffer, uint32_t max_length);
+uint32_t arm_uc_strnlen(const uint8_t *buffer, uint32_t max_length);
 
 /**
  * @brief Convert string to unsigned 32 bit integer.
@@ -85,9 +85,9 @@ uint32_t arm_uc_strnlen(const uint8_t* buffer, uint32_t max_length);
  * @param success Pointer to boolean indicating whether the parsing was successful.
  * @return Parsed value. Only valid if success it true.
  */
-uint32_t arm_uc_str2uint32(const uint8_t* buffer,
+uint32_t arm_uc_str2uint32(const uint8_t *buffer,
                            uint32_t max_length,
-                           bool* success);
+                           bool *success);
 
 /**
  * @brief Calculate CRC 32
@@ -97,7 +97,7 @@ uint32_t arm_uc_str2uint32(const uint8_t* buffer,
  *
  * @return 32 bit CRC.
  */
-uint32_t arm_uc_crc32(const uint8_t* buffer, uint32_t length);
+uint32_t arm_uc_crc32(const uint8_t *buffer, uint32_t length);
 
 /**
  * @brief Parse 4 byte array into uint32_t
@@ -105,7 +105,7 @@ uint32_t arm_uc_crc32(const uint8_t* buffer, uint32_t length);
  * @param input 4 byte array.
  * @return uint32_t
  */
-uint32_t arm_uc_parse_uint32(const uint8_t* input);
+uint32_t arm_uc_parse_uint32(const uint8_t *input);
 
 /**
  * @brief Parse 8 byte array into uint64_t
@@ -113,7 +113,7 @@ uint32_t arm_uc_parse_uint32(const uint8_t* input);
  * @param input 8 byte array.
  * @return uint64_t
  */
-uint64_t arm_uc_parse_uint64(const uint8_t* input);
+uint64_t arm_uc_parse_uint64(const uint8_t *input);
 
 /**
  * @brief Write uint32_t to array.
@@ -121,7 +121,7 @@ uint64_t arm_uc_parse_uint64(const uint8_t* input);
  * @param buffer Pointer to buffer.
  * @param value Value to be written.
  */
-void arm_uc_write_uint32(uint8_t* buffer, uint32_t value);
+void arm_uc_write_uint32(uint8_t *buffer, uint32_t value);
 
 /**
  * @brief Write uint64_t to array.
@@ -129,7 +129,7 @@ void arm_uc_write_uint32(uint8_t* buffer, uint32_t value);
  * @param buffer Pointer to buffer.
  * @param value Value to be written.
  */
-void arm_uc_write_uint64(uint8_t* buffer, uint64_t value);
+void arm_uc_write_uint64(uint8_t *buffer, uint64_t value);
 
 /**
  * @brief Do a shallow copy of a buffer.
@@ -139,7 +139,8 @@ void arm_uc_write_uint64(uint8_t* buffer, uint64_t value);
  * @param[out] dest Pointer to a buffer structure that will receive a reference to the buffer that backs `src`
  * @param[in] src Pointer to a buffer to copy into dest
  */
-static inline void ARM_UC_buffer_shallow_copy(arm_uc_buffer_t* dest, arm_uc_buffer_t* src) {
+static inline void ARM_UC_buffer_shallow_copy(arm_uc_buffer_t *dest, arm_uc_buffer_t *src)
+{
     dest->size_max = src->size_max;
     dest->size     = src->size;
     dest->ptr      = src->ptr;
@@ -157,41 +158,35 @@ static inline void ARM_UC_buffer_shallow_copy(arm_uc_buffer_t* dest, arm_uc_buff
  * @retval MFST_ERR_NULL_PTR when any expected pointer is NULL
  * @retval MFST_ERR_NONE on success
  */
-static inline arm_uc_error_t ARM_UC_buffer_deep_copy(arm_uc_buffer_t* dest, arm_uc_buffer_t* src)
+static inline arm_uc_error_t ARM_UC_buffer_deep_copy(arm_uc_buffer_t *dest, arm_uc_buffer_t *src)
 {
     ARM_UC_INIT_ERROR(retval, MFST_ERR_NULL_PTR);
 
     /* NULL pointer check */
     if (dest &&
-        dest->ptr &&
-        src &&
-        src->ptr)
-    {
+            dest->ptr &&
+            src &&
+            src->ptr) {
         /* destination buffer is large enough */
-        if (src->size <= dest->size_max)
-        {
+        if (src->size <= dest->size_max) {
             /* copy content and set new size */
             memcpy(dest->ptr, src->ptr, src->size);
             dest->size = src->size;
 
             ARM_UC_CLEAR_ERROR(retval);
-        }
-        else
-        {
+        } else {
             ARM_UC_SET_ERROR(retval, MFST_ERR_SIZE);
         }
-    }
-    else
-    {
+    } else {
         ARM_UC_SET_ERROR(retval, MFST_ERR_NULL_PTR);
     }
 
     return retval;
 }
 
-uint32_t ARM_UC_BinCompareCT(const arm_uc_buffer_t* a, const arm_uc_buffer_t* b);
-uint8_t * ARM_UC_Base64Enc(uint8_t *buf, const uint32_t size, const arm_uc_buffer_t* bin);
-void ARM_UC_Base64Dec(arm_uc_buffer_t* bin, const uint32_t size, const uint8_t* buf);
+uint32_t ARM_UC_BinCompareCT(const arm_uc_buffer_t *a, const arm_uc_buffer_t *b);
+uint8_t *ARM_UC_Base64Enc(uint8_t *buf, const uint32_t size, const arm_uc_buffer_t *bin);
+void ARM_UC_Base64Dec(arm_uc_buffer_t *bin, const uint32_t size, const uint8_t *buf);
 
 #ifdef __cplusplus
 }

@@ -22,7 +22,7 @@
 #include "update-client-common/arm_uc_error.h"
 #include "update-client-common/arm_uc_types.h"
 
-arm_uc_error_t getLatestManifestTimestamp(uint64_t *ts, arm_uc_buffer_t* key);
+arm_uc_error_t getLatestManifestTimestamp(uint64_t *ts, arm_uc_buffer_t *key);
 arm_uc_error_t getLatestManifestTimestampFSM(uint32_t event);
 
 #endif // ARM_UC_MM_GET_LATEST_TIMESTAMP_H

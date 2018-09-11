@@ -30,6 +30,7 @@
 #include "pal_plat_rtos.h"
 #include <stdlib.h>
 
+#define TRACE_GROUP "PAL"
 
 #define PAL_RTOS_TRANSLATE_CMSIS_ERROR_CODE(cmsisCode)\
     ((int32_t)(cmsisCode + PAL_ERR_RTOS_ERROR_BASE))
@@ -85,7 +86,7 @@ PAL_PRIVATE palThreadData_t* g_threadsArray[PAL_MAX_CONCURRENT_THREADS] = { 0 };
         status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); \
         if (PAL_SUCCESS != status)\
         { \
-            PAL_LOG(ERR, "%s mutex wait failed\n", __FUNCTION__); \
+            PAL_LOG_ERR("%s mutex wait failed\n", __FUNCTION__); \
         } \
     }
 
@@ -94,7 +95,7 @@ PAL_PRIVATE palThreadData_t* g_threadsArray[PAL_MAX_CONCURRENT_THREADS] = { 0 };
         status = pal_osMutexRelease(g_threadsMutex); \
         if (PAL_SUCCESS != status)\
         { \
-            PAL_LOG(ERR, "%s mutex release failed\n", __FUNCTION__); \
+            PAL_LOG_ERR("%s mutex release failed\n", __FUNCTION__); \
         } \
     }
 
@@ -443,7 +444,7 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
 		{
 			free(timer);
 			timer = NULLPTR;
-			PAL_LOG(ERR, "Rtos timer create failure");
+            PAL_LOG_ERR("Rtos timer create failure");
 			status = PAL_ERR_GENERIC_FAILURE;
 		}
 		else
@@ -611,7 +612,7 @@ palStatus_t pal_plat_osMutexCreate(palMutexID_t* mutexID)
 		{
 			free(mutex);
 			mutex = NULL;
-			PAL_LOG(ERR, "Rtos mutex create failure");
+            PAL_LOG_ERR("Rtos mutex create failure");
 			status = PAL_ERR_GENERIC_FAILURE;
 		}
 		*mutexID = (palMutexID_t)mutex;
@@ -684,7 +685,7 @@ palStatus_t pal_plat_osMutexRelease(palMutexID_t mutexID)
 	}
 	else
 	{
-		PAL_LOG(ERR, "Rtos mutex release failure %ld", res);
+        PAL_LOG_ERR("Rtos mutex release failure %ld", res);
 		status = PAL_ERR_GENERIC_FAILURE;
 	}
 	return status;
@@ -710,7 +711,7 @@ palStatus_t pal_plat_osMutexDelete(palMutexID_t* mutexID)
 	}
 	else
 	{
-		PAL_LOG(ERR, "Rtos mutex delete failure");
+        PAL_LOG_ERR("Rtos mutex delete failure");
 		status = PAL_ERR_GENERIC_FAILURE;
 	}
 	return status;
@@ -740,7 +741,7 @@ palStatus_t pal_plat_osSemaphoreCreate(uint32_t count, palSemaphoreID_t* semapho
 		{
 			free(semaphore);
 			semaphore = NULLPTR;
-			PAL_LOG(ERR, "Rtos semaphore create error");
+            PAL_LOG_ERR("Rtos semaphore create error");
 			status = PAL_ERR_GENERIC_FAILURE;
 		}
 		else
@@ -861,7 +862,7 @@ palStatus_t pal_plat_osSemaphoreDelete(palSemaphoreID_t* semaphoreID)
 	}
 	else
 	{
-		PAL_LOG(ERR, "Rtos semaphore destroy error");
+        PAL_LOG_ERR("Rtos semaphore destroy error");
 		status = PAL_ERR_GENERIC_FAILURE;
 	}
 	return status;

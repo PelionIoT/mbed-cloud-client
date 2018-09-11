@@ -28,6 +28,26 @@
         "firmware-header-version": {
             "help": "Version of the firmware metadata header.",
             "value": "0"
+        },
+        "http-resume-attempt-test-messages-enable": {
+            "help": "Print messages indicating HTTP-resume actions for test purposes.",
+            "value": "0"
+        },
+        "http-resume-exponentiation-factor": {
+            "help": "Multiplier for consecutive resume-attempt delay periods.",
+            "value": "2"
+        },
+        "http-resume-initial-delay-secs": {
+            "help": "Initial delay for HTTP-resume actions after which period resume goes active.",
+            "value": "5"
+        },
+        "http-resume-maximum-delay-secs": {
+            "help": "Maximum delay for HTTP-resume actions after which period resume goes active.",
+            "value": "(60*60)"
+        },
+        "http-resume-maximum-download-time-secs": {
+            "help": "Period for HTTP-resume actions after which resume gives up and terminates.",
+            "value": "(7*24*60*60)"
         }
     }
 }

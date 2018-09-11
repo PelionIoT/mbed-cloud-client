@@ -23,6 +23,8 @@
 #include "sotp.h"
 #include "pal_plat_rtos.h"
 
+#define TRACE_GROUP "PAL"
+
 TEST_GROUP(pal_rtos);
 
 //Sometimes you may want to get local data in a module,

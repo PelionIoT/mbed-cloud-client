@@ -16,6 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
 #if defined(TARGET_IS_PC_LINUX)
 
 #include "update-client-paal/arm_uc_paal_update_api.h"
@@ -89,8 +91,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Initialize_OpenWRT(ARM_UC_PAAL_UPDATE_SignalEven
     return ARM_UC_PAL_Linux_Initialize(callback);
 }
 
-const ARM_UC_PAAL_UPDATE ARM_UCP_LINUX_OPENWRT =
-{
+const ARM_UC_PAAL_UPDATE ARM_UCP_LINUX_OPENWRT = {
     .Initialize                 = ARM_UC_PAL_Linux_Initialize_OpenWRT,
     .GetCapabilities            = ARM_UC_PAL_Linux_GetCapabilities_OpenWRT,
     .GetMaxID                   = ARM_UC_PAL_Linux_GetMaxID,
@@ -104,4 +105,5 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_LINUX_OPENWRT =
     .GetInstallerDetails        = ARM_UC_PAL_Linux_GetInstallerDetails
 };
 
-#endif
+#endif /* TARGET_IS_PC_LINUX */
+#endif /* ARM_UC_FEATURE_PAL_LINUX */

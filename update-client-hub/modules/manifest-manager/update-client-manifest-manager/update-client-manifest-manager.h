@@ -97,7 +97,8 @@ enum arm_uc_mmResultCode {
  * @param  api Pointer to API structure for the key/value storage
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_mmInit(arm_uc_mmContext_t** ctxbuf, void (*event_handler)(uint32_t), const arm_pal_key_value_api* api);
+arm_uc_error_t ARM_UC_mmInit(arm_uc_mmContext_t **ctxbuf, void (*event_handler)(uint32_t),
+                             const arm_pal_key_value_api *api);
 
 /**
  * @brief Insert manifest.
@@ -109,7 +110,8 @@ arm_uc_error_t ARM_UC_mmInit(arm_uc_mmContext_t** ctxbuf, void (*event_handler)(
  * @param[out] ID Pointer to a manifest handle. This handle will be populated on success.
  * @return Error code, indicating parsing errors, validity of the manifest, etc. Error codes are TBD.
  */
-arm_uc_error_t ARM_UC_mmInsert(arm_uc_mmContext_t** ctx, arm_uc_buffer_t* buffer, arm_uc_buffer_t* certificateStorage, arm_uc_manifest_handle_t* ID);
+arm_uc_error_t ARM_UC_mmInsert(arm_uc_mmContext_t **ctx, arm_uc_buffer_t *buffer, arm_uc_buffer_t *certificateStorage,
+                               arm_uc_manifest_handle_t *ID);
 
 /**
  * @brief Get manifest firmware information
@@ -133,7 +135,8 @@ arm_uc_error_t ARM_UC_mmInsert(arm_uc_mmContext_t** ctx, arm_uc_buffer_t* buffer
  *
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_mmFetchFirmwareInfo(arm_uc_mmContext_t** ctx, struct manifest_firmware_info_t* info, const arm_uc_manifest_handle_t* ID);
+arm_uc_error_t ARM_UC_mmFetchFirmwareInfo(arm_uc_mmContext_t **ctx, struct manifest_firmware_info_t *info,
+                                          const arm_uc_manifest_handle_t *ID);
 
 /**
  * @brief Starts extracting firmware information from a tree of manifests
@@ -166,7 +169,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfo(arm_uc_mmContext_t** ctx, struct manif
  *
  * @return     An error code on failure, MFST_ERR_NONE on success, or MFST_ERR_PENDING if the find has not completed.
  */
-arm_uc_error_t ARM_UC_mmFetchNextFirmwareInfo(struct manifest_firmware_info_t* info);
+arm_uc_error_t ARM_UC_mmFetchNextFirmwareInfo(struct manifest_firmware_info_t *info);
 
 /**
  * @brief Extract the last error reported to a callback with `ARM_UC_MM_RC_ERROR`
@@ -188,7 +191,7 @@ arm_uc_error_t ARM_UC_mmGetError(void);
  * @param[out] uri The buffer where the manifest URI should be stored.
  * @return     An error code on failure or MFST_ERR_NONE on success.
  */
-arm_uc_error_t ARM_UC_mmGetCurrentManifestDependency(arm_uc_buffer_t* uri);
+arm_uc_error_t ARM_UC_mmGetCurrentManifestDependency(arm_uc_buffer_t *uri);
 
 #if ARM_UC_MM_ENABLE_TEST_VECTORS
 arm_uc_error_t ARM_UC_mmRegisterTestHook(ARM_UC_mmTestHook_t hook);

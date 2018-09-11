@@ -200,7 +200,7 @@ kcm_status_e cs_verify_x509_cert(palX509Handle_t x509_cert,palX509Handle_t x509_
 
     //Verify certificate using created certificate chain
     pal_status = pal_x509CertVerify(x509_cert, x509_ca_cert);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), exit, "pal_x509CertVerify failed %" PRIu32 "", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), exit, "pal_x509CertVerify failed %" PRIx32 "", pal_status);
 
 exit:
     return kcm_status;

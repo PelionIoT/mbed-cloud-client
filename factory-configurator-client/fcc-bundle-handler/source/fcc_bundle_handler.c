@@ -46,7 +46,7 @@ const char fcc_bundle_scheme_version[] = "0.0.1";
 extern bool g_is_session_finished;
 
 // FIXME: temporary. Will be removed when migration to tinycbor is complete
-void g_csr_buf_free();
+void g_csr_buf_free(void);
 
 /**
 * Types of configuration parameter groups
@@ -513,7 +513,9 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
                 case FCC_CSR_REQUESTS_GROUP_TYPE:
                     SA_PV_ERR_RECOVERABLE_GOTO_IF((session_id == NULL), fcc_status = FCC_STATUS_BUNDLE_ERROR, free_cbor_list_and_out, "Session ID is required when providing CSR requests");
                     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_verify_status || fcc_disable_status), fcc_status = FCC_STATUS_BUNDLE_ERROR, free_cbor_list_and_out, "Verify and Disable flags must not exist with CSR requests");
+                    FCC_SET_START_TIMER(fcc_gen_timer);
                     fcc_status = fcc_bundle_process_csrs(group_value_cb, response_cbor);
+                    FCC_END_TIMER("Total keys and CSR creation process", 0, fcc_gen_timer);
                     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_csrs failed");
                     break;
                 default:

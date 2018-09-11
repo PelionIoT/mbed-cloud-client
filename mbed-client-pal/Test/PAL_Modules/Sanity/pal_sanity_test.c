@@ -19,6 +19,7 @@
 #include "unity_fixture.h"
 #include "pal.h"
 
+#define TRACE_GROUP "PAL"
 
 TEST_GROUP(pal_sanity);
 
@@ -35,6 +36,6 @@ TEST_TEAR_DOWN(pal_sanity)
 
 TEST(pal_sanity, bringupPassed)
 {
-    PAL_LOG(INFO, "device bringup passed\r\n");
+    PAL_LOG_INFO("device bringup passed\r\n");
 }
 

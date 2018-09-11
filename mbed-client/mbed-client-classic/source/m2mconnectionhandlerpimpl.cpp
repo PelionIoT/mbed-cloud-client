@@ -40,8 +40,8 @@
 #define MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY 60
 #endif
 
-#ifndef MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-#define MBED_CONF_MBED_CLIENT_DNS_USE_THREAD 0
+#if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
+#error "For async PAL DNS only API v2 or greater is supported on Mbed."
 #endif
 
 int8_t M2MConnectionHandlerPimpl::_tasklet_id = -1;
@@ -171,16 +171,15 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
  _server_port(0),
  _listen_port(0),
  _net_iface(0),
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 0)
+ _socket_address_len(0),
+#elif (PAL_DNS_API_VERSION == 2)
   _handler_async_DNS(0),
 #endif
  _socket_state(ESocketStateDisconnected),
  _handshake_retry(0),
  _suppressable_event_in_flight(false),
  _secure_connection(false)
-#if (PAL_DNS_API_VERSION < 2)
- ,_socket_address_len(0)
-#endif
 {
 #ifndef PAL_NET_TCP_AND_TLS_SUPPORT
     if (is_tcp_connection()) {
@@ -209,12 +208,10 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
 M2MConnectionHandlerPimpl::~M2MConnectionHandlerPimpl()
 {
     tr_debug("~M2MConnectionHandlerPimpl()");
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
 #if (PAL_DNS_API_VERSION == 2)
     if ( _handler_async_DNS > 0) {
         pal_cancelAddressInfoAsync(_handler_async_DNS);
     }
-#endif
 #endif
 
     close_socket();
@@ -243,13 +240,10 @@ bool M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
     return !eventOS_event_send(&event);
 }
 
+
 // This callback is used from PAL pal_getAddressInfoAsync,
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-#if (PAL_DNS_API_VERSION < 2)
-extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument)
-#else
+#if (PAL_DNS_API_VERSION == 2)
 extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address, palStatus_t status, void* callbackArgument)
-#endif
 {
     tr_debug("M2MConnectionHandlerPimpl::address_resolver callback");
     M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)callbackArgument;
@@ -272,15 +266,10 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     palStatus_t status;
     bool ret = false;
 
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
+#if (PAL_DNS_API_VERSION == 2)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:asynchronous DNS");
-
-#if (PAL_DNS_API_VERSION < 2)
-    status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len, &address_resolver_cb, this);
-#else
     _handler_async_DNS = 0;
     status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
-#endif
     if (PAL_SUCCESS != status) {
        tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. 0x%X", status);
        _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
@@ -288,7 +277,7 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     else {
         ret = true;
     }
-#else
+#else // #if (PAL_DNS_API_VERSION == 0)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:synchronous DNS");
     status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
     if (PAL_SUCCESS != status) {
@@ -310,10 +299,8 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
 
 void M2MConnectionHandlerPimpl::handle_dns_result(bool success)
 {
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
 #if (PAL_DNS_API_VERSION == 2)
     _handler_async_DNS = 0;
-#endif
 #endif
     if (_socket_state != ESocketStateDNSResolving) {
         tr_warn("M2MConnectionHandlerPimpl::handle_dns_result() called, not in ESocketStateDNSResolving state!");
@@ -334,14 +321,12 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String& server_addr
                                                        M2MConnectionObserver::ServerType server_type,
                                                        const M2MSecurity* security)
 {
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
 #if (PAL_DNS_API_VERSION == 2)
     if ( _handler_async_DNS > 0) {
         if (pal_cancelAddressInfoAsync(_handler_async_DNS) != PAL_SUCCESS) {
             return false;
         }
     }
-#endif
 #endif
     _socket_state = ESocketStateDNSResolving;
     _security = security;

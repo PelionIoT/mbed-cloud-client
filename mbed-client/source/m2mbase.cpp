@@ -329,7 +329,7 @@ void M2MBase::set_under_observation(bool observed,
             // This saves 76 bytes of memory on most usual case.
             if (observed) {
                 if(!_report_handler) {
-                    _report_handler = new M2MReportHandler(*this);
+                    _report_handler = new M2MReportHandler(*this, _sn_resource->data_type);
                 }
             }
             if (_report_handler) {
@@ -399,19 +399,23 @@ uint16_t M2MBase::instance_id() const
 
 #ifndef RESOURCE_ATTRIBUTES_LIST
 #ifndef DISABLE_INTERFACE_DESCRIPTION
+#ifndef MEMORY_OPTIMIZED_API
 const char* M2MBase::interface_description() const
 {
     return (reinterpret_cast<char*>(
         _sn_resource->dynamic_resource_params->static_resource_parameters->interface_description_ptr));
 }
 #endif
+#endif
 
 #ifndef DISABLE_RESOURCE_TYPE
+#ifndef MEMORY_OPTIMIZED_API
 const char* M2MBase::resource_type() const
 {
     return (reinterpret_cast<char*>(
         _sn_resource->dynamic_resource_params->static_resource_parameters->resource_type_ptr));
 }
+#endif
 #endif
 #else // RESOURCE_ATTRIBUTES_LIST
 #ifndef DISABLE_INTERFACE_DESCRIPTION
@@ -490,7 +494,7 @@ bool M2MBase::handle_observation_attribute(const char *query)
     // Create handler if not already exists. Client must able to parse write attributes even when
     // observation is not yet set
     if (!_report_handler) {
-        _report_handler = new M2MReportHandler(*this);
+        _report_handler = new M2MReportHandler(*this, _sn_resource->data_type);
     }
 
     success = _report_handler->parse_notification_attribute(query,base_type());
@@ -626,7 +630,7 @@ bool M2MBase::validate_string_length(const char* string, size_t min_length, size
 M2MReportHandler* M2MBase::create_report_handler()
 {
     if (!_report_handler) {
-        _report_handler = new M2MReportHandler(*this);
+        _report_handler = new M2MReportHandler(*this, _sn_resource->data_type);
     }
     return _report_handler;
 }
@@ -858,12 +862,12 @@ M2MBase::lwm2m_parameters_s* M2MBase::get_lwm2m_parameters() const
 
 uint16_t M2MBase::get_notification_msgid() const
 {
-    return _sn_resource->dynamic_resource_params->msg_id;
+    return 0;
 }
 
-void M2MBase::set_notification_msgid(uint16_t msgid)
+void M2MBase::set_notification_msgid(uint16_t /*msgid*/)
 {
-    _sn_resource->dynamic_resource_params->msg_id = msgid;
+
 }
 
 bool M2MBase::set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args)
@@ -877,6 +881,16 @@ bool M2MBase::set_notification_delivery_status_cb(notification_delivery_status_c
                                             client_args);
 }
 
+bool M2MBase::set_message_delivery_status_cb(message_delivery_status_cb callback, void *client_args)
+{
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MBaseMessageDeliveryStatusCallback);
+
+    return M2MCallbackStorage::add_callback(*this,
+                                            (void*)callback,
+                                            M2MCallbackAssociation::M2MBaseMessageDeliveryStatusCallback,
+                                            client_args);
+}
+
 void M2MBase::send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status)
 {
     M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(object,
@@ -885,6 +899,18 @@ void M2MBase::send_notification_delivery_status(const M2MBase& object, const Not
         notification_delivery_status_cb callback = (notification_delivery_status_cb)item->_callback;
         if (callback) {
             (*callback)(object, status, item->_client_args);
+        }
+    }
+}
+
+void M2MBase::send_message_delivery_status(const M2MBase& object, const MessageDeliveryStatus status, const MessageType type)
+{
+    M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(object,
+                                                                            M2MCallbackAssociation::M2MBaseMessageDeliveryStatusCallback);
+    if (item) {
+        message_delivery_status_cb callback = (message_delivery_status_cb)item->_callback;
+        if (callback) {
+            (*callback)(object, status, type, item->_client_args);
         }
     }
 }

@@ -26,11 +26,6 @@
 
 #define TRACE_GROUP "fcsr"
 
-FtcdCommSerial::FtcdCommSerial(PinName TX, PinName RX, uint32_t baud, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature)
-    : FtcdCommBase(network_endianness, header_token, use_signature)
-{
-}
-
 FtcdCommSerial::FtcdCommSerial(ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature)
     : FtcdCommBase(network_endianness, header_token, use_signature)
 {

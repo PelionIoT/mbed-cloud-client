@@ -33,14 +33,6 @@ typedef enum {
 } arm_uc_psk_event_t;
 
 /**
- * @brief Register event handler.
- *
- * @param callback Event handler to signal result.
- * @return Error code.
- */
-arm_uc_error_t ARM_UC_PreSharedKey_Initialize(void (*callback)(uint32_t));
-
-/**
  * @brief Set pointer to pre-shared-key with the given size.
  *
  * @param key Pointer to pre-shared-key.
@@ -48,22 +40,17 @@ arm_uc_error_t ARM_UC_PreSharedKey_Initialize(void (*callback)(uint32_t));
  *
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_PreSharedKey_SetKey(const uint8_t* key, uint16_t bits);
+arm_uc_error_t ARM_UC_PreSharedKey_SetSecret(const uint8_t *key, uint16_t bits);
 
 /**
  * @brief Get pointer to pre-shared-key with the given size.
- * @details This call will generate an event upon completion because the key
- *          pointing to might have to be loaded from asynchronous storage.
- *
- *          If the event is ARM_UC_PSK_GET_DONE, key will point to a valid
- *          pre-shared-key, which memory is handled internally.
  *
  * @param key Pointer-pointer to the shared key.
  * @param bits Key size in bits.
  *
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_PreSharedKey_GetKey(const uint8_t** key, uint16_t bits);
+arm_uc_error_t ARM_UC_PreSharedKey_GetSecret(const uint8_t **key, uint16_t bits);
 
 #ifdef __cplusplus
 }

@@ -17,6 +17,9 @@ SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client)
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_EXCLUDE_HIGHRES_TIMER)
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_USE_PLATFORM_TICK_TIMER)
 
+add_definitions(-DARM_UC_PROFILE_MBED_CLOUD_CLIENT=1)
+add_definitions(-DARM_UC_FEATURE_PAL_FILESYSTEM=1)
+
 project(mbedCloudClient)
 
 # mbed-cloud-client
@@ -117,6 +120,12 @@ include_directories(${FACTORY_CLIENT_SOURCE_DIR}/fcc-bundle-handler/fcc-bundle-h
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/fcc-bundle-handler/source/include)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/fcc-output-info-handler/fcc-output-info-handler)
 
+# Certificate Enrollment Client
+SET(CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/certificate-enrollment-client)
+ADD_GLOBALDIR(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment-client)
+include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment-client)
+include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/include)
+
 # update-client
 
 SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)
@@ -192,6 +201,7 @@ endif()
     "${CMAKE_CURRENT_SOURCE_DIR}/ns-hal-pal/arm_hal_timer.cpp"
     "${FACTORY_CLIENT_SOURCE_DIR}/source/*.c"
     "${FACTORY_CLIENT_SOURCE_DIR}/storage/source/*.c"
+    "${FACTORY_CLIENT_SOURCE_DIR}/mbed-client-esfs/source/sotp/*.c"
     "${FACTORY_CLIENT_SOURCE_DIR}/secure_store/source/*.c"
     "${FACTORY_CLIENT_SOURCE_DIR}/key-config-manager/source/*.c"
     "${FACTORY_CLIENT_SOURCE_DIR}/utils/source/*.c"
@@ -202,6 +212,8 @@ endif()
     "${FACTORY_CLIENT_SOURCE_DIR}/crypto-service/source/*.c"
     "${FACTORY_CLIENT_SOURCE_DIR}/fcc-bundle-handler/source/*.c"
     "${FACTORY_CLIENT_SOURCE_DIR}/fcc-output-info-handler/source/*.c"
+    "${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/*.c"
+    "${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/*.cpp"
     )
 
 if ((${OS_BRAND} MATCHES "Linux"))

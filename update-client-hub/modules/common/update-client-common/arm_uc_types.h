@@ -21,29 +21,30 @@
 
 #include <stdint.h>
 
-typedef struct
-{
+typedef struct {
     uint32_t size_max; // maximum size of the buffer
     uint32_t size;     // index of the first empty byte in the buffer
-    uint8_t* ptr;      // pointer to buffer's memory
+    uint8_t *ptr;      // pointer to buffer's memory
 } arm_uc_buffer_t;
 
 typedef enum {
     URI_SCHEME_NONE,
     URI_SCHEME_HTTP,
+    URI_SCHEME_COAPS,
 } arm_uc_uri_scheme_t;
 
-typedef struct
-{
+typedef struct {
     uint32_t            size_max; // maximum size of the buffer
     uint32_t            size;     // index of the first empty byte in the buffer
-    uint8_t*            ptr;      // pointer to buffer's memory
+    uint8_t            *ptr;      // pointer to buffer's memory
     arm_uc_uri_scheme_t scheme;     // URI type
     uint16_t            port;     // connection port
-    char*               host;     // \0 terminated string with host name
-    char*               path;     // \0 terminated string with resource path
+    char               *host;     // \0 terminated string with host name
+    char               *path;     // \0 terminated string with resource path
 } arm_uc_uri_t;
 
+#define UC_COAPS_STRING  "coaps://"
+#define UC_HTTP_STRING   "http://"
 #define ARM_UC_GUID_SIZE       (128/8)
 #define ARM_UC_SHA256_SIZE     (256/8)
 #define ARM_UC_SHA512_SIZE     (512/8)
@@ -70,8 +71,7 @@ typedef uint8_t arm_uc_hash_t[ARM_UC_SHA256_SIZE];
  * @details Struct for passing information between the Update client and the
  *          PAAL implementation describing the firmware image.
  */
-typedef struct _arm_uc_firmware_details_t
-{
+typedef struct _arm_uc_firmware_details_t {
     uint64_t version;
     uint64_t size;
     arm_uc_hash_t hash;
@@ -84,8 +84,7 @@ typedef struct _arm_uc_firmware_details_t
  * @brief Installer details struct.
  * @details Struct for reading the installer information.
  */
-typedef struct _arm_uc_installer_details_t
-{
+typedef struct _arm_uc_installer_details_t {
     arm_uc_hash_t arm_hash;
     arm_uc_hash_t oem_hash;
     uint32_t layout;

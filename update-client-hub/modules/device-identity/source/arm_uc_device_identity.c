@@ -19,14 +19,18 @@
 #include "pal4life-device-identity/pal_device_identity.h"
 #include "update-client-common/arm_uc_config.h"
 
-#if ARM_UC_USE_KCM
+#if defined(ARM_UC_FEATURE_IDENTITY_KCM) && (ARM_UC_FEATURE_IDENTITY_KCM == 1)
 extern const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_kcm;
-static const ARM_PAL_DEVICE_IDENTITY* arm_uc_device_identity =
+static const ARM_PAL_DEVICE_IDENTITY *arm_uc_device_identity =
     &arm_uc_device_identity_kcm;
-#elif ARM_UC_USE_CFSTORE
-extern const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_cfstore;
-static const ARM_PAL_DEVICE_IDENTITY* arm_uc_device_identity =
-    &arm_uc_device_identity_cfstore;
+#elif defined(ARM_UC_FEATURE_IDENTITY_RAW_CONFIG) && (ARM_UC_FEATURE_IDENTITY_RAW_CONFIG == 1)
+extern const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_raw;
+static const ARM_PAL_DEVICE_IDENTITY *arm_uc_device_identity =
+    &arm_uc_device_identity_raw;
+#elif defined(ARM_UC_FEATURE_IDENTITY_NVSTORE) && (ARM_UC_FEATURE_IDENTITY_NVSTORE == 1)
+extern const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_nvstore;
+static const ARM_PAL_DEVICE_IDENTITY *arm_uc_device_identity =
+    &arm_uc_device_identity_nvstore;
 #else
 #error No configuration store set
 #endif
@@ -37,12 +41,11 @@ static const ARM_PAL_DEVICE_IDENTITY* arm_uc_device_identity =
  * @param vendor_guid Pointer to a arm_uc_guid_t GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_setVendorGuid(const arm_uc_guid_t* vendor_guid)
+arm_uc_error_t pal_setVendorGuid(const arm_uc_guid_t *vendor_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (arm_uc_device_identity)
-    {
+    if (arm_uc_device_identity) {
         result = arm_uc_device_identity->SetVendorGuid(vendor_guid);
     }
 
@@ -54,12 +57,11 @@ arm_uc_error_t pal_setVendorGuid(const arm_uc_guid_t* vendor_guid)
  * @param vendor_guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_getVendorGuid(arm_uc_guid_t* vendor_guid)
+arm_uc_error_t pal_getVendorGuid(arm_uc_guid_t *vendor_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (arm_uc_device_identity)
-    {
+    if (arm_uc_device_identity) {
         result = arm_uc_device_identity->GetVendorGuid(vendor_guid);
     }
 
@@ -72,12 +74,11 @@ arm_uc_error_t pal_getVendorGuid(arm_uc_guid_t* vendor_guid)
  * @param class_guid Pointer to a arm_uc_guid_t GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_setClassGuid(const arm_uc_guid_t* class_guid)
+arm_uc_error_t pal_setClassGuid(const arm_uc_guid_t *class_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (arm_uc_device_identity)
-    {
+    if (arm_uc_device_identity) {
         result = arm_uc_device_identity->SetClassGuid(class_guid);
     }
 
@@ -89,12 +90,11 @@ arm_uc_error_t pal_setClassGuid(const arm_uc_guid_t* class_guid)
  * @param class_guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_getClassGuid(arm_uc_guid_t* class_guid)
+arm_uc_error_t pal_getClassGuid(arm_uc_guid_t *class_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (arm_uc_device_identity)
-    {
+    if (arm_uc_device_identity) {
         result = arm_uc_device_identity->GetClassGuid(class_guid);
     }
 
@@ -107,12 +107,11 @@ arm_uc_error_t pal_getClassGuid(arm_uc_guid_t* class_guid)
  * @param device_guid Pointer to a arm_uc_guid_t GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_setDeviceGuid(const arm_uc_guid_t* device_guid)
+arm_uc_error_t pal_setDeviceGuid(const arm_uc_guid_t *device_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (arm_uc_device_identity)
-    {
+    if (arm_uc_device_identity) {
         result = arm_uc_device_identity->SetDeviceGuid(device_guid);
     }
 
@@ -124,12 +123,11 @@ arm_uc_error_t pal_setDeviceGuid(const arm_uc_guid_t* device_guid)
  * @param device_guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_getDeviceGuid(arm_uc_guid_t* device_guid)
+arm_uc_error_t pal_getDeviceGuid(arm_uc_guid_t *device_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (arm_uc_device_identity)
-    {
+    if (arm_uc_device_identity) {
         result = arm_uc_device_identity->GetDeviceGuid(device_guid);
     }
 
@@ -144,17 +142,16 @@ arm_uc_error_t pal_getDeviceGuid(arm_uc_guid_t* device_guid)
  * @param device_guid Buffer pointer to the device GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_deviceIdentityCheck(const arm_uc_buffer_t* vendor_guid,
-                                       const arm_uc_buffer_t* class_guid,
-                                       const arm_uc_buffer_t* device_guid)
+arm_uc_error_t pal_deviceIdentityCheck(const arm_uc_buffer_t *vendor_guid,
+                                       const arm_uc_buffer_t *class_guid,
+                                       const arm_uc_buffer_t *device_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (arm_uc_device_identity)
-    {
+    if (arm_uc_device_identity) {
         result = arm_uc_device_identity->DeviceIdentityCheck(vendor_guid,
-                                                       class_guid,
-                                                       device_guid);
+                                                             class_guid,
+                                                             device_guid);
     }
 
     return result;

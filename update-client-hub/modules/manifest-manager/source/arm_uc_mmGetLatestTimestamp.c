@@ -35,23 +35,23 @@
     ENUM_AUTO(ARM_UC_MM_GET_LATEST_TS_STATE_FETCH_NAME)\
 
 enum arm_uc_mm_get_latest_ts_state {
-    #define ENUM_AUTO(name) name,
-    #define ENUM_FIXED(name, val) name = val,
+#define ENUM_AUTO(name) name,
+#define ENUM_FIXED(name, val) name = val,
     ARM_UC_MM_GET_LATEST_TS_STATE_LIST
-    #undef ENUM_AUTO
-    #undef ENUM_FIXED
+#undef ENUM_AUTO
+#undef ENUM_FIXED
 };
 
-const char* ARM_UC_mmGetLatestTsState2Str(uint32_t state)
+const char *ARM_UC_mmGetLatestTsState2Str(uint32_t state)
 {
     switch (state) {
-        #define ENUM_AUTO(name) case name: return #name;
-        #define ENUM_FIXED(name, val) ENUM_AUTO(name)
-        ARM_UC_MM_GET_LATEST_TS_STATE_LIST
-        #undef ENUM_FIXED
-        #undef ENUM_AUTO
-    default:
-        return "Unknown State";
+#define ENUM_AUTO(name) case name: return #name;
+#define ENUM_FIXED(name, val) ENUM_AUTO(name)
+            ARM_UC_MM_GET_LATEST_TS_STATE_LIST
+#undef ENUM_FIXED
+#undef ENUM_AUTO
+        default:
+            return "Unknown State";
     }
 }
 
@@ -66,10 +66,10 @@ const char* ARM_UC_mmGetLatestTsState2Str(uint32_t state)
  * @param[out] key Pointer to a buffer; the location to store the key that contained the largest timestamp.
  * @retval MFST_ERR_NONE Always returns success.
  */
-arm_uc_error_t getLatestManifestTimestamp(uint64_t *ts, arm_uc_buffer_t* key)
+arm_uc_error_t getLatestManifestTimestamp(uint64_t *ts, arm_uc_buffer_t *key)
 {
     *ts = 0;
-    return (arm_uc_error_t){MFST_ERR_NONE};
+    return (arm_uc_error_t) {MFST_ERR_NONE};
 }
 
 /**
@@ -83,5 +83,5 @@ arm_uc_error_t getLatestManifestTimestamp(uint64_t *ts, arm_uc_buffer_t* key)
  */
 arm_uc_error_t getLatestManifestTimestampFSM(uint32_t event)
 {
-    return (arm_uc_error_t){MFST_ERR_NONE};
+    return (arm_uc_error_t) {MFST_ERR_NONE};
 }

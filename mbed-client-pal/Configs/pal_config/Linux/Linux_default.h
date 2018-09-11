@@ -53,8 +53,9 @@
     #define PAL_NET_TEST_MAX_ASYNC_SOCKETS 5
 #endif
 
+// 16KB does not seem to be enough, some tests are failing with it
 #ifndef PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE
-    #define PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE (1024 * 16)
+    #define PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE (1024 * 24)
 #endif
 
 
@@ -120,7 +121,7 @@
 #if PAL_USE_HW_TRNG
     //! Stack size for TRNG noise collecting thread
     #ifndef PAL_NOISE_TRNG_THREAD_STACK_SIZE
-        #define PAL_NOISE_TRNG_THREAD_STACK_SIZE (1024 * 16)
+        #define PAL_NOISE_TRNG_THREAD_STACK_SIZE (1024 * 32)
     #endif
 #endif
 

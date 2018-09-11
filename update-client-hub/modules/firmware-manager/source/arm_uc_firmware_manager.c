@@ -26,7 +26,7 @@
 
 static ARM_UCFM_SignalEvent_t ucfm_handler = NULL;
 
-static ARM_UCFM_Setup_t* package_configuration = NULL;
+static ARM_UCFM_Setup_t *package_configuration = NULL;
 static uint32_t package_offset = 0;
 static bool ready_to_receive = false;
 
@@ -34,8 +34,8 @@ static arm_uc_callback_t arm_uc_event_handler_callback = { 0 };
 
 static arm_uc_mdHandle_t mdHandle = { 0 };
 static arm_uc_cipherHandle_t cipherHandle = { 0 };
-static arm_uc_buffer_t* front_buffer = NULL;
-static arm_uc_buffer_t* back_buffer = NULL;
+static arm_uc_buffer_t *front_buffer = NULL;
+static arm_uc_buffer_t *back_buffer = NULL;
 
 #define UCFM_DEBUG_OUTPUT 0
 
@@ -48,65 +48,47 @@ static void arm_uc_signal_ucfm_handler(uint32_t event);
 
 #if UCFM_DEBUG_OUTPUT
 
-static void debug_output_decryption(const uint8_t* encrypted,
-                                    arm_uc_buffer_t* decrypted)
+static void debug_output_decryption(const uint8_t *encrypted,
+                                    arm_uc_buffer_t *decrypted)
 {
-    for (size_t index = 0; index < UCFM_MAX_BLOCK_SIZE; index++)
-    {
-        if (index < decrypted->size)
-        {
+    for (size_t index = 0; index < UCFM_MAX_BLOCK_SIZE; index++) {
+        if (index < decrypted->size) {
             uint8_t symbol = encrypted[index];
 
             printf("%02X", symbol);
-        }
-        else
-        {
+        } else {
             printf("  ");
         }
     }
 
     printf("\t:\t");
 
-    for (size_t index = 0; index < UCFM_MAX_BLOCK_SIZE; index++)
-    {
-        if (index < decrypted->size)
-        {
+    for (size_t index = 0; index < UCFM_MAX_BLOCK_SIZE; index++) {
+        if (index < decrypted->size) {
             uint8_t symbol = encrypted[index];
 
-            if ((symbol > 32) && (symbol < 127))
-            {
+            if ((symbol > 32) && (symbol < 127)) {
                 printf("%c", symbol);
-            }
-            else
-            {
+            } else {
                 printf(" ");
             }
-        }
-        else
-        {
+        } else {
             printf(" ");
         }
     }
 
     printf("\t:\t");
 
-    for (size_t index = 0; index < decrypted->size_max; index++)
-    {
-        if (index < decrypted->size)
-        {
+    for (size_t index = 0; index < decrypted->size_max; index++) {
+        if (index < decrypted->size) {
             uint8_t symbol = decrypted->ptr[index];
 
-            if ((symbol > 32) && (symbol < 127))
-            {
+            if ((symbol > 32) && (symbol < 127)) {
                 printf("%c", symbol);
-            }
-            else
-            {
+            } else {
                 printf(" ");
             }
-        }
-        else
-        {
+        } else {
             printf(" ");
         }
     }
@@ -114,20 +96,18 @@ static void debug_output_decryption(const uint8_t* encrypted,
     printf("\r\n");
 }
 
-static void debug_output_validation(arm_uc_buffer_t* hash,
-                                    arm_uc_buffer_t* output_buffer)
+static void debug_output_validation(arm_uc_buffer_t *hash,
+                                    arm_uc_buffer_t *output_buffer)
 {
     printf("\r\n");
     printf("expected hash  : ");
-    for (size_t index = 0; index < hash->size; index++)
-    {
+    for (size_t index = 0; index < hash->size; index++) {
         printf("%02X", hash->ptr[index]);
     }
     printf("\r\n");
 
     printf("calculated hash: ");
-    for (size_t index = 0; index < output_buffer->size; index++)
-    {
+    for (size_t index = 0; index < output_buffer->size; index++) {
         printf("%02X", output_buffer->ptr[index]);
     }
     printf("\r\n");
@@ -148,8 +128,7 @@ static void arm_uc_internal_process_hash(void)
     arm_uc_error_t status = { .code = ERR_NONE };
     uint32_t error_event = UCFM_EVENT_FINALIZE_ERROR;
 
-    if (double_buffering && needs_more_data)
-    {
+    if (double_buffering && needs_more_data) {
 #if UCFM_DEBUG_OUTPUT
         printf("double buffering: %p %" PRIX32 "\r\n", back_buffer, back_buffer->size_max);
 #endif
@@ -157,8 +136,8 @@ static void arm_uc_internal_process_hash(void)
         /* if using double buffering, initiate a new data read as soon as possible */
         /* Indicate read size */
         uint32_t bytes_remaining = package_configuration->package_size - package_offset;
-        back_buffer->size = (bytes_remaining > back_buffer->size_max)?
-                                back_buffer->size_max : bytes_remaining;
+        back_buffer->size = (bytes_remaining > back_buffer->size_max) ?
+                            back_buffer->size_max : bytes_remaining;
 
         /* initiate read from PAL */
         status = ARM_UCP_Read(package_configuration->package_id,
@@ -166,35 +145,30 @@ static void arm_uc_internal_process_hash(void)
                               back_buffer);
     }
 
-    if (status.error == ERR_NONE)
-    {
+    if (status.error == ERR_NONE) {
         /* process data in front buffer */
         ARM_UC_cryptoHashUpdate(&mdHandle, front_buffer);
 
-        if (needs_more_data)
-        {
+        if (needs_more_data) {
             /* if we're actually using two buffers, the read operation was initiated earlier,
              * otherwise it needs to be initiated now, after we're done hashing the only
              * buffer that we're using
              */
-            if (!double_buffering)
-            {
+            if (!double_buffering) {
 #if UCFM_DEBUG_OUTPUT
                 printf("single buffering: %p\r\n", front_buffer);
 #endif
                 /* Indicate read size */
                 uint32_t bytes_remaining = package_configuration->package_size - package_offset;
-                back_buffer->size = (bytes_remaining > back_buffer->size_max)?
-                                        back_buffer->size_max : bytes_remaining;
+                back_buffer->size = (bytes_remaining > back_buffer->size_max) ?
+                                    back_buffer->size_max : bytes_remaining;
 
                 /* initiate read from PAL */
                 status = ARM_UCP_Read(package_configuration->package_id,
                                       package_offset,
                                       back_buffer);
             }
-        }
-        else
-        {
+        } else {
             /* invert status code so that it has to be set explicitly for success */
             status.code = ERR_INVALID_PARAMETER;
 
@@ -209,8 +183,7 @@ static void arm_uc_internal_process_hash(void)
             ARM_UC_cryptoHashFinish(&mdHandle, &hash_buffer);
 
             /* size check before memcmp call */
-            if (hash_buffer.size == package_configuration->hash->size)
-            {
+            if (hash_buffer.size == package_configuration->hash->size) {
                 int diff = memcmp(hash_buffer.ptr,
                                   package_configuration->hash->ptr,
                                   package_configuration->hash->size);
@@ -221,15 +194,12 @@ static void arm_uc_internal_process_hash(void)
 #endif
 
                 /* hash matches */
-                if (diff == 0)
-                {
+                if (diff == 0) {
                     UC_FIRM_TRACE("UCFM_EVENT_FINALIZE_DONE");
 
                     arm_uc_signal_ucfm_handler(UCFM_EVENT_FINALIZE_DONE);
                     status.code = ERR_NONE;
-                }
-                else
-                {
+                } else {
                     /* use specific event for "invalid hash" */
                     UC_FIRM_ERR_MSG("Invalid image hash");
 
@@ -241,14 +211,13 @@ static void arm_uc_internal_process_hash(void)
         /* Front buffer is processed, back buffer might be reading more data.
            Swap buffer so that data will be ready in front buffer
         */
-        arm_uc_buffer_t* temp = front_buffer;
+        arm_uc_buffer_t *temp = front_buffer;
         front_buffer = back_buffer;
         back_buffer = temp;
     }
 
     /* signal error if status is not clean */
-    if (status.error != ERR_NONE)
-    {
+    if (status.error != ERR_NONE) {
         UC_FIRM_TRACE("UCFM_EVENT_FINALIZE_ERROR");
         arm_uc_signal_ucfm_handler(error_event);
     }
@@ -266,14 +235,13 @@ static void event_handler_finalize(void)
     arm_uc_mdType_t mdtype = ARM_UC_CU_SHA256;
     arm_uc_error_t result = ARM_UC_cryptoHashSetup(&mdHandle, mdtype);
 
-    if (result.error == ERR_NONE)
-    {
+    if (result.error == ERR_NONE) {
         /* initiate hash calculation */
         package_offset = 0;
 
         /* indicate number of bytes needed */
-        front_buffer->size = (package_configuration->package_size < front_buffer->size_max)?
-                              package_configuration->package_size : front_buffer->size_max;
+        front_buffer->size = (package_configuration->package_size < front_buffer->size_max) ?
+                             package_configuration->package_size : front_buffer->size_max;
 
         /* initiate read from PAL */
         result = ARM_UCP_Read(package_configuration->package_id,
@@ -281,8 +249,7 @@ static void event_handler_finalize(void)
                               front_buffer);
     }
 
-    if (result.error != ERR_NONE)
-    {
+    if (result.error != ERR_NONE) {
         UC_FIRM_ERR_MSG("ARM_UC_cryptoHashSetup failed");
         arm_uc_signal_ucfm_handler(UCFM_EVENT_FINALIZE_ERROR);
     }
@@ -296,12 +263,10 @@ static void event_handler_read(void)
 #endif
 
     /* check that read succeeded in reading data into buffer */
-    if (front_buffer->size > 0)
-    {
+    if (front_buffer->size > 0) {
         /* check if read over shot */
         if ((package_offset + front_buffer->size) >
-            package_configuration->package_size)
-        {
+                package_configuration->package_size) {
             /* trim buffer */
             front_buffer->size = package_configuration->package_size - package_offset;
         }
@@ -309,9 +274,7 @@ static void event_handler_read(void)
         /* update offset and continue reading data from PAL */
         package_offset += front_buffer->size;
         arm_uc_internal_process_hash();
-    }
-    else
-    {
+    } else {
         /* error - no data processed */
         UC_FIRM_TRACE("UCFM_EVENT_FINALIZE_ERROR");
         arm_uc_signal_ucfm_handler(UCFM_EVENT_FINALIZE_ERROR);
@@ -320,16 +283,14 @@ static void event_handler_read(void)
 
 static void arm_uc_signal_ucfm_handler(uint32_t event)
 {
-    if (ucfm_handler)
-    {
+    if (ucfm_handler) {
         ucfm_handler(event);
     }
 }
 
 static void arm_uc_internal_event_handler(uint32_t event)
 {
-    switch (event)
-    {
+    switch (event) {
         case ARM_UC_PAAL_EVENT_FINALIZE_DONE:
             event_handler_finalize();
             break;
@@ -355,14 +316,12 @@ static arm_uc_error_t ARM_UCFM_Initialize(ARM_UCFM_SignalEvent_t handler)
 {
     UC_FIRM_TRACE("ARM_UCFM_Initialize");
 
-    arm_uc_error_t result = (arm_uc_error_t){ FIRM_ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_INVALID_PARAMETER };
 
-    if (handler)
-    {
+    if (handler) {
         result = ARM_UCP_Initialize(ARM_UCFM_PALEventHandler);
 
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             ucfm_handler = handler;
         }
     }
@@ -370,53 +329,47 @@ static arm_uc_error_t ARM_UCFM_Initialize(ARM_UCFM_SignalEvent_t handler)
     return result;
 }
 
-static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t* configuration,
-                                       const arm_uc_firmware_details_t* details,
-                                       arm_uc_buffer_t* buffer)
+static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t *configuration,
+                                       const arm_uc_firmware_details_t *details,
+                                       arm_uc_buffer_t *buffer)
 {
     UC_FIRM_TRACE("ARM_UCFM_Setup");
 
-    arm_uc_error_t result = (arm_uc_error_t){ FIRM_ERR_NONE };
+    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_NONE };
 
     /* sanity checks */
-    if (!ucfm_handler)
-    {
+    if (!ucfm_handler) {
         UC_FIRM_ERR_MSG("Event handler not set. Should call Initialise before calling Setup");
-        result =  (arm_uc_error_t){ FIRM_ERR_UNINITIALIZED };
+        result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
     }
     /* check configuration is defined and contains key and iv. */
     else if ((!(configuration &&
-              ((configuration->mode == UCFM_MODE_NONE_SHA_256) ||
-               (configuration->key && configuration->iv)))) ||
+                ((configuration->mode == UCFM_MODE_NONE_SHA_256) ||
+                 (configuration->key && configuration->iv)))) ||
              !buffer ||
-             !buffer->ptr)
-    {
-        result =  (arm_uc_error_t){ FIRM_ERR_INVALID_PARAMETER };
+             !buffer->ptr) {
+        result = (arm_uc_error_t) { FIRM_ERR_INVALID_PARAMETER };
     }
 
     /* allocate space using PAL */
-    if (result.error == ERR_NONE)
-    {
+    if (result.error == ERR_NONE) {
         result = ARM_UCP_Prepare(configuration->package_id,
                                  details,
                                  buffer);
 
-        if (result.error != ERR_NONE)
-        {
+        if (result.error != ERR_NONE) {
             UC_FIRM_ERR_MSG("ARM_UCP_Prepare failed");
         }
     }
 
     /* setup encryption if requested by mode */
     if ((result.error == ERR_NONE) &&
-        (configuration->mode != UCFM_MODE_NONE_SHA_256))
-    {
+            (configuration->mode != UCFM_MODE_NONE_SHA_256)) {
         /* A previously aborted firmware write will have left the cipherHandler
            in an inconsistent state. If the IV is not NULL, clear the context
            using the call to finish and set the struct to zero.
         */
-        if (cipherHandle.aes_iv != NULL)
-        {
+        if (cipherHandle.aes_iv != NULL) {
             ARM_UC_cryptoDecryptFinish(&cipherHandle, buffer);
             memset(&cipherHandle, 0, sizeof(arm_uc_cipherHandle_t));
         }
@@ -428,42 +381,36 @@ static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t* configuration,
                                            configuration->iv,
                                            bits);
 
-        if (result.error != ERR_NONE)
-        {
+        if (result.error != ERR_NONE) {
             UC_FIRM_ERR_MSG("ARM_UC_cryptoDecryptSetup failed in %" PRIu32 " bit mode", bits);
         }
     }
 
     /* Initialise the internal state */
-    if (result.error == ERR_NONE)
-    {
+    if (result.error == ERR_NONE) {
         package_configuration = configuration;
         package_offset = 0;
         ready_to_receive = true;
+    } else {
+        arm_uc_signal_ucfm_handler(UCFM_EVENT_PREPARE_ERROR);
     }
 
     return result;
 }
 
-static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t* fragment)
+static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t *fragment)
 {
     UC_FIRM_TRACE("ARM_UCFM_Write");
 
-    arm_uc_error_t result = (arm_uc_error_t){ FIRM_ERR_NONE };
+    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_NONE };
 
-    if (!fragment || fragment->size_max == 0 || fragment->size > fragment->size_max || !fragment->ptr)
-    {
-        result = (arm_uc_error_t){ FIRM_ERR_INVALID_PARAMETER };
-    }
-    else if (!ready_to_receive)
-    {
-        result = (arm_uc_error_t){ FIRM_ERR_UNINITIALIZED };
-    }
-    else
-    {
+    if (!fragment || fragment->size_max == 0 || fragment->size > fragment->size_max || !fragment->ptr) {
+        result = (arm_uc_error_t) { FIRM_ERR_INVALID_PARAMETER };
+    } else if (!ready_to_receive) {
+        result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
+    } else {
         /* decrypt fragment before writing to PAL */
-        if (package_configuration->mode != UCFM_MODE_NONE_SHA_256)
-        {
+        if (package_configuration->mode != UCFM_MODE_NONE_SHA_256) {
             /* temporary buffer for decrypting in place */
             uint8_t decrypt_output_ptr[2 * UCFM_MAX_BLOCK_SIZE];
             arm_uc_buffer_t decrypt_buffer = {
@@ -473,14 +420,12 @@ static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t* fragment)
             };
 
             uint32_t fragment_offset = 0;
-            while (fragment_offset < fragment->size)
-            {
+            while (fragment_offset < fragment->size) {
                 /* default to max length */
                 uint32_t length_update = decrypt_buffer.size_max;
 
                 /* adjust size to not overshoot */
-                if (fragment_offset + length_update > fragment->size)
-                {
+                if (fragment_offset + length_update > fragment->size) {
                     length_update = fragment->size - fragment_offset;
                 }
 
@@ -510,8 +455,7 @@ static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t* fragment)
                                package_offset,
                                fragment);
 
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             package_offset += fragment->size;
         }
     }
@@ -519,24 +463,19 @@ static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t* fragment)
     return result;
 }
 
-static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t* front, arm_uc_buffer_t* back)
+static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t *front, arm_uc_buffer_t *back)
 {
     UC_FIRM_TRACE("ARM_UCFM_Finish");
 
-    arm_uc_error_t result = (arm_uc_error_t){ FIRM_ERR_NONE };
+    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_NONE };
 
-    if (!ready_to_receive)
-    {
-        result = (arm_uc_error_t){ FIRM_ERR_UNINITIALIZED };
-    }
-    else if ((front == NULL) ||
-             (front != NULL && ((front->size_max % ARM_UC_SHA256_SIZE) != 0)) ||
-             (back != NULL && ((back->size_max % ARM_UC_SHA256_SIZE) != 0)))
-    {
-        result = (arm_uc_error_t){ FIRM_ERR_INVALID_PARAMETER };
-    }
-    else
-    {
+    if (!ready_to_receive) {
+        result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
+    } else if ((front == NULL) ||
+               (front != NULL && ((front->size_max % ARM_UC_SHA256_SIZE) != 0)) ||
+               (back != NULL && ((back->size_max % ARM_UC_SHA256_SIZE) != 0))) {
+        result = (arm_uc_error_t) { FIRM_ERR_INVALID_PARAMETER };
+    } else {
         /* flush decryption buffer, discard data */
         ARM_UC_cryptoDecryptFinish(&cipherHandle, front);
         memset(&cipherHandle, 0, sizeof(arm_uc_cipherHandle_t));
@@ -561,22 +500,20 @@ static arm_uc_error_t ARM_UCFM_Activate(uint32_t location)
 
     arm_uc_error_t result = { .code = FIRM_ERR_ACTIVATE };
 
-    if (ucfm_handler)
-    {
+    if (ucfm_handler) {
         result = ARM_UCP_Activate(location);
     }
 
     return result;
 }
 
-static arm_uc_error_t ARM_UCFM_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details)
+static arm_uc_error_t ARM_UCFM_GetActiveFirmwareDetails(arm_uc_firmware_details_t *details)
 {
     UC_FIRM_TRACE("ARM_UCFM_GetActiveFirmwareDetails");
 
     arm_uc_error_t result = { .code = FIRM_ERR_INVALID_PARAMETER };
 
-    if (ucfm_handler && details)
-    {
+    if (ucfm_handler && details) {
         result = ARM_UCP_GetActiveFirmwareDetails(details);
     }
 
@@ -584,28 +521,26 @@ static arm_uc_error_t ARM_UCFM_GetActiveFirmwareDetails(arm_uc_firmware_details_
 }
 
 static arm_uc_error_t ARM_UCFM_GetFirmwareDetails(uint32_t location,
-                                                  arm_uc_firmware_details_t* details)
+                                                  arm_uc_firmware_details_t *details)
 {
     UC_FIRM_TRACE("ARM_UCFM_GetFirmwareDetails");
 
     arm_uc_error_t result = { .code = FIRM_ERR_INVALID_PARAMETER };
 
-    if (ucfm_handler && details)
-    {
+    if (ucfm_handler && details) {
         result = ARM_UCP_GetFirmwareDetails(location, details);
     }
 
     return result;
 }
 
-static arm_uc_error_t ARM_UCFM_GetInstallerDetails(arm_uc_installer_details_t* details)
+static arm_uc_error_t ARM_UCFM_GetInstallerDetails(arm_uc_installer_details_t *details)
 {
     UC_FIRM_TRACE("ARM_UCFM_GetInstallerDetails");
 
     arm_uc_error_t result = { .code = FIRM_ERR_INVALID_PARAMETER };
 
-    if (ucfm_handler && details)
-    {
+    if (ucfm_handler && details) {
         result = ARM_UCP_GetInstallerDetails(details);
     }
 

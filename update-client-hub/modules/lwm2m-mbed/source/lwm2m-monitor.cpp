@@ -41,7 +41,7 @@ ARM_MONITOR_CAPABILITIES ARM_UCS_LWM2M_MONITOR_GetCapabilities(void)
     result.result  = 1;
     result.version = 1;
 
-   return result;
+    return result;
 }
 
 /**
@@ -109,30 +109,44 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendState(arm_uc_monitor_state_t state)
 
     int32_t retval = -1;
 
-    switch (state)
-    {
+    switch (state) {
         case ARM_UC_MONITOR_STATE_IDLE:
             retval = FirmwareUpdateResource::sendState(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_IDLE);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_IDLE);
+            break;
+        case ARM_UC_MONITOR_STATE_PROCESSING_MANIFEST:
+            retval = FirmwareUpdateResource::sendState(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_PROCESSING_MANIFEST);
+            break;
+        case ARM_UC_MONITOR_STATE_AWAITING_DOWNLOAD_APPROVAL:
+            retval = FirmwareUpdateResource::sendState(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_AWAITING_DOWNLOAD_APPROVAL);
             break;
         case ARM_UC_MONITOR_STATE_DOWNLOADING:
             retval = FirmwareUpdateResource::sendState(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_DOWNLOADING);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_DOWNLOADING);
             break;
         case ARM_UC_MONITOR_STATE_DOWNLOADED:
             retval = FirmwareUpdateResource::sendState(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_DOWNLOADED);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_DOWNLOADED);
+            break;
+        case ARM_UC_MONITOR_STATE_AWAITING_APP_APPROVAL:
+            retval = FirmwareUpdateResource::sendState(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_AWAITING_APP_APPROVAL);
             break;
         case ARM_UC_MONITOR_STATE_UPDATING:
             retval = FirmwareUpdateResource::sendState(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_UPDATING);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_UPDATING);
+            break;
+        case ARM_UC_MONITOR_STATE_REBOOTING:
+            retval = FirmwareUpdateResource::sendState(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_STATE_REBOOTING);
             break;
         default:
             break;
     }
 
-    if (retval == 0)
-    {
+    if (retval == 0) {
         result.code = ERR_NONE;
     }
 
@@ -147,19 +161,37 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendState(arm_uc_monitor_state_t state)
  *          0: Initial value. Once the updating process is initiated
  *             (Download /Update), this Resource MUST be reset to Initial
  *             value.
- *          1: Firmware updated successfully,
- *          2: Not enough storage for the new firmware package.
- *          3. Out of memory during downloading process.
- *          4: Connection lost during downloading process.
- *          5: CRC check failure for new downloaded package.
- *          6: Unsupported package type.
- *          7: Invalid URI
- *          8: Firmware update failed
+ *          1: Success
+ *          2: Manifest timeout. The Manifest URI has timed-out.
+ *          3: Manifest not found. The Manifest URI not found.
+ *          4: Unsupported package type.
+ *          5: Manifest rejected. The Manifest attributes do not apply to this device.
+ *          6: Manifest certificate not found
+ *          7: Manifest signature failed. The Manifest signature is not recognised by this device.
+ *          8: Dependent manifest not found
+ *          9: Not enough storage for the new firmware package.
+ *          10. Out of memory during downloading process.
+ *          11: Connection lost during downloading process.
+ *          12: CRC check failure for new downloaded package.
+ *          13: Unsupported asset type
+ *          14: Invalid URI
+ *          15: Timed out downloading asset
+ *          16: Unsupported delta format
+ *          17: Unsupported encryption format
+ *          18: Asset update successfully completed
+ *          19: Asset updated successfully after recovery
  *
  *          This Resource MAY be reported by sending Observe operation.
  *
  * @param result Valid results: ARM_UC_MONITOR_RESULT_INITIAL
  *                              ARM_UC_MONITOR_RESULT_SUCCESS
+ *                              ARM_UC_MONITOR_RESULT_MANIFEST_TIMEOUT
+ *                              ARM_UC_MONITOR_RESULT_MANIFEST_NOT_FOUND
+ *                              ARM_UC_MONITOR_RESULT_MANIFEST_FAILED_INTEGRITY
+ *                              ARM_UC_MONITOR_RESULT_MANIFEST_REJECTED
+ *                              ARM_UC_MONITOR_RESULT_MANIFEST_CERT_NOT_FOUND
+ *                              ARM_UC_MONITOR_RESULT_MANIFEST_SIGNATURE_FAILED
+ *                              ARM_UC_MONITOR_RESULT_DEPENDENT_MANIFEST_NOT_FOUND
  *                              ARM_UC_MONITOR_RESULT_ERROR_STORAGE
  *                              ARM_UC_MONITOR_RESULT_ERROR_MEMORY
  *                              ARM_UC_MONITOR_RESULT_ERROR_CONNECTION
@@ -167,6 +199,10 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendState(arm_uc_monitor_state_t state)
  *                              ARM_UC_MONITOR_RESULT_ERROR_TYPE
  *                              ARM_UC_MONITOR_RESULT_ERROR_URI
  *                              ARM_UC_MONITOR_RESULT_ERROR_UPDATE
+ *                              ARM_UC_MONITOR_RESULT_UNSUPPORTED_DELTA_FORMAT
+ *                              ARM_UC_MONITOR_RESULT_ERROR_HASH
+ *                              ARM_UC_MONITOR_RESULT_ASSET_UPDATE_COMPLETED
+ *                              ARM_UC_MONITOR_RESULT_ASSET_UPDATED_AFTER_RECOVERY
  *
  * @return Error code.
  */
@@ -176,54 +212,92 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendUpdateResult(arm_uc_monitor_result_t up
 
     int32_t retval = -1;
 
-    switch (updateResult)
-    {
+    switch (updateResult) {
         case ARM_UC_MONITOR_RESULT_INITIAL:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_INITIAL);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_INITIAL);
             break;
         case ARM_UC_MONITOR_RESULT_SUCCESS:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_SUCCESS);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_SUCCESS);
+            break;
+        case ARM_UC_MONITOR_RESULT_MANIFEST_TIMEOUT:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_MANIFEST_TIMEOUT);
+            break;
+        case ARM_UC_MONITOR_RESULT_MANIFEST_NOT_FOUND:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_MANIFEST_NOT_FOUND);
+            break;
+        case ARM_UC_MONITOR_RESULT_MANIFEST_FAILED_INTEGRITY:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_MANIFEST_FAILED_INTEGRITY);
+            break;
+        case ARM_UC_MONITOR_RESULT_MANIFEST_REJECTED:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_MANIFEST_REJECTED);
+            break;
+        case ARM_UC_MONITOR_RESULT_MANIFEST_CERT_NOT_FOUND:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_MANIFEST_CERT_NOT_FOUND);
+            break;
+        case ARM_UC_MONITOR_RESULT_MANIFEST_SIGNATURE_FAILED:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_MANIFEST_SIGNATURE_FAILED);
+            break;
+        case ARM_UC_MONITOR_RESULT_DEPENDENT_MANIFEST_NOT_FOUND:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_DEPENDENT_MANIFEST_NOT_FOUND);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_STORAGE:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_STORAGE);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_STORAGE);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_MEMORY:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_MEMORY);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_MEMORY);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_CONNECTION:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_CONNECTION);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_CONNECTION);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_CRC:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_CRC);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_CRC);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_TYPE:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_TYPE);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_TYPE);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_URI:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_URI);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_URI);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_UPDATE:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_UPDATE);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_UPDATE);
+            break;
+        case ARM_UC_MONITOR_RESULT_UNSUPPORTED_DELTA_FORMAT:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_UNSUPPORTED_DELTA_FORMAT);
             break;
         case ARM_UC_MONITOR_RESULT_ERROR_HASH:
             retval = FirmwareUpdateResource::sendUpdateResult(
-                FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_HASH);
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ERROR_HASH);
+            break;
+        case ARM_UC_MONITOR_RESULT_ASSET_UPDATE_COMPLETED:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ASSET_UPDATE_COMPLETED);
+            break;
+        case ARM_UC_MONITOR_RESULT_ASSET_UPDATED_AFTER_RECOVERY:
+            retval = FirmwareUpdateResource::sendUpdateResult(
+                         FirmwareUpdateResource::ARM_UCS_LWM2M_RESULT_ASSET_UPDATED_AFTER_RECOVERY);
             break;
         default:
             break;
     }
 
-    if (retval == 0)
-    {
+    if (retval == 0) {
         result.code = ERR_NONE;
     }
 
@@ -237,19 +311,17 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendUpdateResult(arm_uc_monitor_result_t up
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendName(arm_uc_buffer_t* name)
+arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendName(arm_uc_buffer_t *name)
 {
     ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = -1;
 
-    if (name && name->ptr)
-    {
+    if (name && name->ptr) {
         retval = FirmwareUpdateResource::sendPkgName(name->ptr, name->size);
     }
 
-    if (retval == 0)
-    {
+    if (retval == 0) {
         result.code = ERR_NONE;
     }
 
@@ -270,8 +342,7 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendVersion(uint64_t version)
 
     int32_t retval = FirmwareUpdateResource::sendPkgVersion(version);
 
-    if (retval == 0)
-    {
+    if (retval == 0) {
         result.code = ERR_NONE;
     }
 
@@ -286,14 +357,13 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendVersion(uint64_t version)
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetBootloaderHash(arm_uc_buffer_t* hash)
+arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetBootloaderHash(arm_uc_buffer_t *hash)
 {
     ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = DeviceMetadataResource::setBootloaderHash(hash);
 
-    if (retval == 0)
-    {
+    if (retval == 0) {
         result.code = ERR_NONE;
     }
 
@@ -308,14 +378,13 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetBootloaderHash(arm_uc_buffer_t* hash)
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetOEMBootloaderHash(arm_uc_buffer_t* hash)
+arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetOEMBootloaderHash(arm_uc_buffer_t *hash)
 {
     ARM_UC_INIT_ERROR(result, ERR_INVALID_PARAMETER);
 
     int32_t retval = DeviceMetadataResource::setOEMBootloaderHash(hash);
 
-    if (retval == 0)
-    {
+    if (retval == 0) {
         result.code = ERR_NONE;
     }
 

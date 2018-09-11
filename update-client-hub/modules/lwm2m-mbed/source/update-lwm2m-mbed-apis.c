@@ -3,8 +3,7 @@
 #include "update-lwm2m-mbed-apis.h"
 
 
-ARM_UPDATE_MONITOR ARM_UCS_LWM2M_MONITOR =
-{
+ARM_UPDATE_MONITOR ARM_UCS_LWM2M_MONITOR = {
     .GetVersion           = ARM_UCS_LWM2M_MONITOR_GetVersion,
     .GetCapabilities      = ARM_UCS_LWM2M_MONITOR_GetCapabilities,
     .Initialize           = ARM_UCS_LWM2M_MONITOR_Initialize,
@@ -19,8 +18,7 @@ ARM_UPDATE_MONITOR ARM_UCS_LWM2M_MONITOR =
     .SetOEMBootloaderHash = ARM_UCS_LWM2M_MONITOR_SetOEMBootloaderHash
 };
 
-ARM_UPDATE_SOURCE ARM_UCS_LWM2M_SOURCE =
-{
+ARM_UPDATE_SOURCE ARM_UCS_LWM2M_SOURCE = {
     .GetVersion             = ARM_UCS_LWM2M_SOURCE_GetVersion,
     .GetCapabilities        = ARM_UCS_LWM2M_SOURCE_GetCapabilities,
     .Initialize             = ARM_UCS_LWM2M_SOURCE_Initialize,

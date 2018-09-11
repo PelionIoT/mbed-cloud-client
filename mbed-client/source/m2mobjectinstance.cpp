@@ -512,6 +512,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
                                             set_under_observation(true,observation_handler);
                                             add_observation_level(M2MBase::OI_Attribute);
                                             send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
+                                            send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_SUBSCRIBED, M2MBase::NOTIFICATION);
                                             if (coap_response->options_list_ptr) {
                                                 coap_response->options_list_ptr->observe = observation_number();
                                             }
@@ -527,6 +528,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
                                         set_under_observation(false,NULL);
                                         remove_observation_level(M2MBase::OI_Attribute);
                                         send_notification_delivery_status(*this, NOTIFICATION_STATUS_UNSUBSCRIBED);
+                                        send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
                                     }
                                     msg_code = COAP_MSG_CODE_RESPONSE_CONTENT;
                                 }

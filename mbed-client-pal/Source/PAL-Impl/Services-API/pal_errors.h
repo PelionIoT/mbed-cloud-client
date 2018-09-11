@@ -63,6 +63,7 @@ typedef enum {
 	PAL_ERR_GET_DEV_KEY =           PAL_ERR_GENERAL_BASE + 0x0B,  /*! Failure deriving the key from RoT. */
 	PAL_ERR_TIME_TRANSLATE =        PAL_ERR_GENERAL_BASE + 0x0C,  /*! Failure to translate the time from "struct tm" to epoch time. */
 	PAL_ERR_SYSCALL_FAILED =		PAL_ERR_GENERAL_BASE + 0x0D,  /*! Failure of calling a system call using system, popen, exec and ect.*/
+	PAL_ERR_INIT_SOTP_FAILED =		PAL_ERR_GENERAL_BASE + 0x0E,  /*! Failure of sotp initialization.*/
 
 	// pal errors
 	PAL_ERR_NOT_IMPLEMENTED =                               PAL_ERR_MODULE_PAL_BASE, /*! Currently not implemented. */

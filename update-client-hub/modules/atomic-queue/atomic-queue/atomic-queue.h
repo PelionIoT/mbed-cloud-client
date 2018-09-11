@@ -29,33 +29,33 @@
  *    primitives wherever possible.
  * 3. Atomic operations have the least effect on all other execution contexts
  *    on the device. Critical sections have performance and responsiveness side
- *    effects. Mutexes can disrupt the execution of other threads. Atomics do 
+ *    effects. Mutexes can disrupt the execution of other threads. Atomics do
  *    not affect the execution of other contexts and are immune to priority
  *    inversion.
- * 
+ *
  * In short, the atomics are the most cooperative way of building a queue.
- * 
+ *
  * Theory of Operation:
  * The queue is intended to be multi-writer/multi-reader. Multi-writer
  * semantics have been fully validated, but multi-reader semantics still
  * require additional validation. It is recommended that the atomic queue be
  * treated as multi-writer/single-reader until this validation is complete.
- * 
+ *
  * Assumptions:
  * The queue MUST own all memory currently in the queue. Any modification
  * to a queue element that is already enqueued can result in undefined
  * behaviour.
  * Because of this, the queue expects queue elements to be pool-allocated prior
  * to insertion and freed after extraction.
- * 
+ *
  * To mitigate the possibility of a double-insert, the queue elements are
  * populated with a "lock" field. This is used to indicate when the element is
  * in use, to ensure that a parallel thread of execution cannot accidentally
  * reuse an element that has already been inserted.
- * 
+ *
  * *NB:* Element locks are unnecessary when the atomic queue is used
  * exclusively with pool allocated queue elements.
- * 
+ *
  * Queue Organization:
  * The queue is a singly linked list. The list pointer is the tail pointer of
  * the queue. The tail pointer points to the last element in the queue. To find
@@ -65,27 +65,27 @@
  * * Next pointer
  * * Lock element
  * * Data (void* by default, custom element possible)
- * 
+ *
  * Element Insertion:
  * To insert an element:
- * Do: 
+ * Do:
  * * Read the tail pointer (load exclusive).
  * * Write the tail pointer into the next pointer of the new element.
- * * Write the tail pointer with the address of the new element 
+ * * Write the tail pointer with the address of the new element
  *   (store exclusive).
  * Until the store is successful.
- * 
+ *
  * If a different thread of higher priority executed between the read and the
  * last write, it will cause the new element to have the wrong next pointer.
  * This is why the load-exclusive and store-exclusive are used. These are ARMv7
  * instructions that allow a given thread of execution to recognize whether it
  * has been interrupted. If another thread has set the exclusive bit, then the
  * store will fail.
- * 
+ *
  * Element Extraction:
  * Extracting an element is much more complex than element insertion due to the
  * need to traverse the queue.
- * 
+ *
  * 1. Read the tail pointer
  * 2. If the tail pointer is NULL, return NULL.
  * 3. Set the current element to the tail pointer.
@@ -96,7 +96,7 @@
  * 8. If it is non-NULL, set the current element pointer to the next element and go to 4.
  * 9. Otherwise, set the current element's next pointer to NULL (store exclusive).
  * 10. Return the next element.
- * 
+ *
  * There is the potential for another thread of execution to interrupt the
  * search for the head of the queue. This should cause the dequeue mechanism to
  * find a NULL next pointer in the current element. However, this may depend on
@@ -117,14 +117,14 @@ extern "C" {
 
 #ifndef ATOMIC_QUEUE_CUSTOM_ELEMENT
 struct atomic_queue_element {
-    struct atomic_queue_element * volatile next;
+    struct atomic_queue_element *volatile next;
     uintptr_t lock;
-    void * data;
+    void *data;
 };
 #endif
 
 struct atomic_queue {
-    struct atomic_queue_element * volatile tail;
+    struct atomic_queue_element *volatile tail;
 };
 
 enum aq_failure_codes {
@@ -132,7 +132,7 @@ enum aq_failure_codes {
     ATOMIC_QUEUE_NULL_QUEUE,
     ATOMIC_QUEUE_NULL_ELEMENT,
     ATOMIC_QUEUE_DUPLICATE_ELEMENT,
-    
+
 };
 
 /**
@@ -142,10 +142,10 @@ enum aq_failure_codes {
  *
  * Element Insertion:
  * To insert an element:
- * Do: 
+ * Do:
  * * Read the tail pointer (load exclusive).
  * * Write the tail pointer into the next pointer of the new element.
- * * Write the tail pointer with the address of the new element 
+ * * Write the tail pointer with the address of the new element
  *   (store exclusive).
  * Until the store is successful.
  *
@@ -154,12 +154,12 @@ enum aq_failure_codes {
  * This is why the load-exclusive and store-exclusive are used. These are ARMv7
  * instructions that allow a given thread of execution to recognize whether it
  * has been interrupted. If another thread has set the exclusive bit, then the
- * store will fail. 
- * 
+ * store will fail.
+ *
  * @param[in,out] q the queue structure to operate on
  * @param[in] e The element to add to the queue
  */
-int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e);
+int aq_push_tail(struct atomic_queue *q, struct atomic_queue_element *e);
 /**
  * \brief Get an element from the head of the queue
  *
@@ -169,7 +169,7 @@ int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e);
  * Element Extraction:
  * Extracting an element is much more complex than element insertion due to the
  * need to traverse the queue.
- * 
+ *
  * 1. Read the tail pointer
  * 2. If the tail pointer is NULL, return NULL.
  * 3. Set the current element to the tail pointer.
@@ -180,18 +180,18 @@ int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e);
  * 8. If it is non-NULL, set the current element pointer to the next element and go to 4.
  * 9. Otherwise, set the current element's next pointer to NULL (store exclusive).
  * 10. Return the next element.
- * 
+ *
  * There is the potential for another thread of execution to interrupt the
  * search for the head of the queue. This should cause the dequeue mechanism to
  * find a NULL next pointer in the current element. However, this may depend on
  * other circumstances in the system, which might break the behaviour of the
  * queue. Until this is fully analyzed, the queue should be treated as single-
  * reader/multi-writer.
- * 
+ *
  * @param[in,out] q The queue to pop from
  * @return The popped element or NULL if the queue was empty
  */
-struct atomic_queue_element * aq_pop_head(struct atomic_queue * q);
+struct atomic_queue_element *aq_pop_head(struct atomic_queue *q);
 /**
  * Check if there are any elements in the queue
  *
@@ -201,7 +201,7 @@ struct atomic_queue_element * aq_pop_head(struct atomic_queue * q);
  * @retval non-zero when the queue is empty
  * @retval 0 when the queue is not empty
  */
-int aq_empty(struct atomic_queue * q);
+int aq_empty(struct atomic_queue *q);
 /**
  * Iterates over the queue and counts the elements in the queue
  *
@@ -210,7 +210,7 @@ int aq_empty(struct atomic_queue * q);
  *
  * @return the number of elements in the queue
  */
-unsigned aq_count(struct atomic_queue * q);
+unsigned aq_count(struct atomic_queue *q);
 
 /**
  * Initialize an atomic queue element.
@@ -219,28 +219,28 @@ unsigned aq_count(struct atomic_queue * q);
  *
  * @param[in] element Element to initialize
  */
-void aq_initialize_element(struct atomic_queue_element* e);
+void aq_initialize_element(struct atomic_queue_element *e);
 
 /**
  * Take an element (this acquires the element lock)
- * 
+ *
  * @param[in] element Element to take
  */
-int aq_element_take(struct atomic_queue_element * e);
+int aq_element_take(struct atomic_queue_element *e);
 
 /**
  * Release an element (this releases the element lock)
- * 
+ *
  * @param[in] element Element to release
  */
-int aq_element_release(struct atomic_queue_element * e);
+int aq_element_release(struct atomic_queue_element *e);
 
 /**
  * Atomic Compare and Set
- * 
+ *
  * Take a pointer to a uintptr_t, compare its current value to oldval. If it is
  * as expected, try to write newval to the pointer target. Fail if interrupted.
- * 
+ *
  * @param[in,out] ptr A pointer to the target of the atomic compare and set
  * @param[in]     oldval A value to compare with the target of ptr.
  * @param[in]     newval A new value to store to the target of ptr.
@@ -251,11 +251,11 @@ int aq_atomic_cas_uintptr(uintptr_t *ptr, uintptr_t oldval, uintptr_t newval);
 
 /**
  * Atomic increment
- * 
+ *
  * Increment the value pointed to by ptr and increment it by inc atomically
  * This is just a passthrough to __sync_add_and_fetch on platforms where it
  * is supported.
- * 
+ *
  * @param[in,out] ptr A pointer to the target of the increment
  * @param[in]     inc A value by which to increment *ptr
  * @return the new value of *ptr

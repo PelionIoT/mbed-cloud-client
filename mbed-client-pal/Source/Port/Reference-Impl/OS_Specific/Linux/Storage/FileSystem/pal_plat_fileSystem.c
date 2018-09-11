@@ -29,6 +29,7 @@
 #include "pal_plat_fileSystem.h"
 #include "pal_plat_rtos.h"
 
+#define TRACE_GROUP "PAL"
 
 #define PAL_FS_COPY_BUFFER_SIZE 256                                                            //!< Size of the chunk to copy files
 
@@ -550,7 +551,7 @@ palStatus_t pal_plat_fsFormat(pal_fsStorageID_t dataID)
         char deviceName[PAL_DEVICE_NAME_MAX_LENGTH] = {0};
         
 		ret = snprintf(buffer, sizeof(buffer),"df -h | grep %s | awk -F\' \' \'{print $1}\' 2>&1",rootFolder); // get the partition name or the error
-		PAL_LOG(DBG,"system call command is %s ret = %d\r\n",buffer,ret);
+        PAL_LOG_DBG("system call command is %s ret = %d\r\n",buffer,ret);
 		if (ret > 0) // snprintf succeeded
 		{
 			fp = popen(buffer,"r");
@@ -574,45 +575,45 @@ palStatus_t pal_plat_fsFormat(pal_fsStorageID_t dataID)
 								ret = mount(deviceName, rootFolder, PAL_PARTITION_FORMAT_TYPE, 0 ,PARTITION_FORMAT_ADDITIONAL_PARAMS);
 								if (ret < 0)
 								{
-									PAL_LOG(ERR,"(%s:%d)cannot mount %s on %s using " PAL_PARTITION_FORMAT_TYPE,__FILE__,__LINE__,deviceName,rootFolder);
+                                    PAL_LOG_ERR("(%s:%d)cannot mount %s on %s using " PAL_PARTITION_FORMAT_TYPE,__FILE__,__LINE__,deviceName,rootFolder);
 									result = PAL_ERR_GENERIC_FAILURE;
 								}
 							}
 							else
 							{
-								PAL_LOG(ERR,"(%s:%d)system call to format failed ",__FILE__,__LINE__);
+                                PAL_LOG_ERR("(%s:%d)system call to format failed ",__FILE__,__LINE__);
 								result = PAL_ERR_SYSCALL_FAILED;
 							}
 						}
 						else
 						{
-							PAL_LOG(ERR,"(%s:%d)cannot create command with snprintf ",__FILE__,__LINE__);
+                            PAL_LOG_ERR("(%s:%d)cannot create command with snprintf ",__FILE__,__LINE__);
 							result = PAL_ERR_BUFFER_TOO_SMALL;
 						}
 					}
 					else
 					{
-						PAL_LOG(ERR,"(%s:%d)cannot unmount %s",__FILE__,__LINE__,rootFolder);
+                        PAL_LOG_ERR("(%s:%d)cannot unmount %s",__FILE__,__LINE__,rootFolder);
 						result = PAL_ERR_GENERIC_FAILURE;
 					}
 				}
 
 				else
 				{
-					PAL_LOG(ERR,"(%s:%d)cannot read from pipe",__FILE__,__LINE__);
+                    PAL_LOG_ERR("(%s:%d)cannot read from pipe",__FILE__,__LINE__);
 					result = PAL_ERR_GENERIC_FAILURE;
 				}
 				pclose(fp);
 			}
 			else
 			{
-				PAL_LOG(ERR,"(%s:%d)popen had failed ",__FILE__,__LINE__);
+                PAL_LOG_ERR("(%s:%d)popen had failed ",__FILE__,__LINE__);
 				result = PAL_ERR_SYSCALL_FAILED;
 			}
 		}
 		else
 		{
-			PAL_LOG(ERR,"(%s:%d)cannot create command with snprintf ",__FILE__,__LINE__);
+            PAL_LOG_ERR("(%s:%d)cannot create command with snprintf ",__FILE__,__LINE__);
 			result = PAL_ERR_BUFFER_TOO_SMALL;
         }
     }

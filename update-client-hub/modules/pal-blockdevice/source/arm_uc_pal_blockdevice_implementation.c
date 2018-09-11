@@ -12,7 +12,8 @@
 //   from ARM Limited or its affiliates.
 //----------------------------------------------------------------------------
 
-#if defined(ARM_UC_USE_PAL_BLOCKDEVICE)
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) && (ARM_UC_FEATURE_PAL_BLOCKDEVICE == 1)
 
 #define __STDC_FORMAT_MACROS
 
@@ -66,12 +67,11 @@ static ARM_UC_PAAL_UPDATE_SignalEvent_t pal_blockdevice_event_handler = NULL;
 static uint32_t pal_blockdevice_firmware_size = 0;
 static uint32_t pal_blockdevice_page_size = 0;
 static uint32_t pal_blockdevice_sector_size = 0;
-static uint32_t pal_blockdevice_hdr_size =0;
+static uint32_t pal_blockdevice_hdr_size = 0;
 
 static void pal_blockdevice_signal_internal(uint32_t event)
 {
-    if (pal_blockdevice_event_handler)
-    {
+    if (pal_blockdevice_event_handler) {
         pal_blockdevice_event_handler(event);
     }
 }
@@ -84,7 +84,7 @@ static void pal_blockdevice_signal_internal(uint32_t event)
  */
 static uint32_t pal_blockdevice_round_up_to_page(uint32_t size)
 {
-    return ((size - 1)/pal_blockdevice_page_size + 1) * pal_blockdevice_page_size;
+    return ((size - 1) / pal_blockdevice_page_size + 1) * pal_blockdevice_page_size;
 }
 
 /**
@@ -95,7 +95,7 @@ static uint32_t pal_blockdevice_round_up_to_page(uint32_t size)
  */
 static uint32_t pal_blockdevice_round_down_to_page(uint32_t size)
 {
-    return (size/pal_blockdevice_page_size) * pal_blockdevice_page_size;
+    return (size / pal_blockdevice_page_size) * pal_blockdevice_page_size;
 }
 
 /**
@@ -106,7 +106,7 @@ static uint32_t pal_blockdevice_round_down_to_page(uint32_t size)
  */
 static uint32_t pal_blockdevice_round_up_to_sector(uint32_t size)
 {
-    return ((size - 1)/pal_blockdevice_sector_size + 1) * pal_blockdevice_sector_size;
+    return ((size - 1) / pal_blockdevice_sector_size + 1) * pal_blockdevice_sector_size;
 }
 
 /**
@@ -130,20 +130,19 @@ static uint32_t pal_blockdevice_round_down_to_sector(uint32_t size)
  *         Returns ERR_INVALID_PARAMETER on error.
  */
 static arm_uc_error_t pal_blockdevice_get_slot_addr_size(uint32_t slot_id,
-                                                         uint32_t* slot_addr,
-                                                         uint32_t* slot_size)
+                                                         uint32_t *slot_addr,
+                                                         uint32_t *slot_size)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
     if ((slot_id < MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS) &&
-        (slot_addr != NULL) &&
-        (slot_size != NULL))
-    {
+            (slot_addr != NULL) &&
+            (slot_size != NULL)) {
         /* find the start address of the whole storage area. It needs to be aligned to
            sector boundary and we cannot go outside user defined storage area, hence
            rounding up to sector boundary */
         uint32_t storage_start_addr = pal_blockdevice_round_up_to_sector(
-                                        MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS);
+                                          MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS);
         /* find the end address of the whole storage area. It needs to be aligned to
            sector boundary and we cannot go outside user defined storage area, hence
            rounding down to sector boundary */
@@ -153,11 +152,11 @@ static arm_uc_error_t pal_blockdevice_get_slot_addr_size(uint32_t slot_id,
         /* find the maximum size each slot can have given the start and end, without
            considering the alignment of individual slots */
         uint32_t max_slot_size = (storage_end_addr - storage_start_addr) / \
-                                        MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS;
+                                 MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS;
         /* find the start address of slot. It needs to align to sector boundary. We
            choose here to round down at each slot boundary */
         *slot_addr = storage_start_addr + pal_blockdevice_round_down_to_sector(
-                                        slot_id * max_slot_size);
+                         slot_id * max_slot_size);
         /* Rounding down slot size to sector boundary same as
            the slot start address so that we make sure two slot don't overlap */
         *slot_size  = pal_blockdevice_round_down_to_sector(max_slot_size);
@@ -179,8 +178,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (callback)
-    {
+    if (callback) {
         UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Initialize");
 
         int status = arm_uc_blockdevice_init();
@@ -188,8 +186,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_
         pal_blockdevice_sector_size = arm_uc_blockdevice_get_erase_size();
         pal_blockdevice_hdr_size   = pal_blockdevice_round_up_to_page(ARM_UC_EXTERNAL_HEADER_SIZE_V2);
 
-        if (status == ARM_UC_BLOCKDEVICE_SUCCESS)
-        {
+        if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
             pal_blockdevice_event_handler = callback;
             pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_INITIALIZE_DONE);
             result.code = ERR_NONE;
@@ -222,24 +219,22 @@ uint32_t ARM_UC_PAL_BlockDevice_GetMaxID(void)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
-                                              const arm_uc_firmware_details_t* details,
-                                              arm_uc_buffer_t* buffer)
+                                              const arm_uc_firmware_details_t *details,
+                                              arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details && buffer && buffer->ptr)
-    {
+    if (details && buffer && buffer->ptr) {
         UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Prepare: %" PRIX32 " %" PRIX32,
-                 slot_id, details->size);
+                      slot_id, details->size);
 
         /* encode firmware details in buffer */
         arm_uc_error_t header_status = arm_uc_create_external_header_v2(details,
                                                                         buffer);
-        if (header_status.error == ERR_NONE)
-        {
+        if (header_status.error == ERR_NONE) {
             /* find the size needed to erase. Header is stored contiguous with firmware */
             uint32_t erase_size = pal_blockdevice_round_up_to_sector(pal_blockdevice_hdr_size + \
-                                                                details->size);
+                                                                     details->size);
 
             /* find address of slot */
             uint32_t slot_addr = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
@@ -249,29 +244,23 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
             UC_PAAL_TRACE("erase: %" PRIX32 " %" PRIX32 " %" PRIX32, slot_addr, erase_size, slot_size);
 
             int status = ARM_UC_BLOCKDEVICE_FAIL;
-            if (result.error == ERR_NONE)
-            {
-                if (erase_size <= slot_size)
-                {
+            if (result.error == ERR_NONE) {
+                if (erase_size <= slot_size) {
                     /* erase */
                     status = arm_uc_blockdevice_erase(slot_addr, erase_size);
-                }
-                else
-                {
+                } else {
                     UC_PAAL_ERR_MSG("not enough space for firmware image");
                     result.code = ERR_INVALID_PARAMETER;
                 }
             }
 
-            if (status == ARM_UC_BLOCKDEVICE_SUCCESS)
-            {
+            if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
                 /* write header */
                 status = arm_uc_blockdevice_program(buffer->ptr,
                                                     slot_addr,
                                                     pal_blockdevice_hdr_size);
 
-                if (status == ARM_UC_BLOCKDEVICE_SUCCESS)
-                {
+                if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
                     /* set return code */
                     result.code = ERR_NONE;
 
@@ -280,19 +269,13 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
 
                     /* signal done */
                     pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_PREPARE_DONE);
-                }
-                else
-                {
+                } else {
                     UC_PAAL_ERR_MSG("arm_uc_blockdevice_program failed");
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("arm_uc_blockdevice_erase failed");
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("arm_uc_create_external_header_v2 failed");
         }
     }
@@ -315,14 +298,13 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_Write(uint32_t slot_id,
                                             uint32_t offset,
-                                            const arm_uc_buffer_t* buffer)
+                                            const arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer && buffer->ptr)
-    {
+    if (buffer && buffer->ptr) {
         UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Write: %" PRIX32 " %" PRIX32 " %" PRIX32,
-                 slot_id, offset, buffer->size);
+                      slot_id, offset, buffer->size);
         int status = ARM_UC_BLOCKDEVICE_SUCCESS;
 
         /* find address of slot */
@@ -333,36 +315,27 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Write(uint32_t slot_id,
 
         /* check that we are not writing too much */
         uint32_t aligned_size = 0;
-        if (pal_blockdevice_firmware_size < offset + buffer->size)
-        {
+        if (pal_blockdevice_firmware_size < offset + buffer->size) {
             UC_PAAL_ERR_MSG("programming more than firmware size %" PRIu32
                             " < %" PRIu32 " + %" PRIu32,
                             pal_blockdevice_firmware_size, offset, buffer->size);
-        }
-        else if ((pal_blockdevice_firmware_size > offset + buffer->size) &&
-                 (buffer->size % pal_blockdevice_page_size != 0))
-        {
+        } else if ((pal_blockdevice_firmware_size > offset + buffer->size) &&
+                   (buffer->size % pal_blockdevice_page_size != 0)) {
             UC_PAAL_ERR_MSG("program size %" PRIu32 " does not align to page size %" PRIu32,
-                buffer->size, pal_blockdevice_page_size);
-        }
-        else if(pal_blockdevice_firmware_size == offset + buffer->size)
-        {
+                            buffer->size, pal_blockdevice_page_size);
+        } else if (pal_blockdevice_firmware_size == offset + buffer->size) {
             /* last chunk write page aligned data first */
             aligned_size = pal_blockdevice_round_down_to_page(buffer->size);
-        }
-        else
-        {
+        } else {
             aligned_size = buffer->size;
         }
 
         /* aligned write */
-        if (result.error == ERR_NONE && aligned_size > 0)
-        {
+        if (result.error == ERR_NONE && aligned_size > 0) {
             status = arm_uc_blockdevice_program(buffer->ptr,
                                                 physical_address,
                                                 aligned_size);
-            if (status == ARM_UC_BLOCKDEVICE_FAIL)
-            {
+            if (status == ARM_UC_BLOCKDEVICE_FAIL) {
                 UC_PAAL_ERR_MSG("arm_uc_blockdevice_program failed");
             }
         }
@@ -370,34 +343,27 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Write(uint32_t slot_id,
         /* last chunk write remainder */
         uint32_t remainder_size = buffer->size - aligned_size;
 
-        if ((status == ARM_UC_BLOCKDEVICE_SUCCESS) && (remainder_size > 0))
-        {
+        if ((status == ARM_UC_BLOCKDEVICE_SUCCESS) && (remainder_size > 0)) {
             /* check if it is safe to use buffer, i.e. buffer is larger than a page */
-            if (buffer->size_max >= pal_blockdevice_page_size)
-            {
+            if (buffer->size_max >= pal_blockdevice_page_size) {
                 memmove(buffer->ptr, &(buffer->ptr[aligned_size]), remainder_size);
                 status = arm_uc_blockdevice_program(buffer->ptr,
                                                     physical_address + aligned_size,
                                                     pal_blockdevice_page_size);
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("arm_uc_blockdevice_program failed");
 
                 status = ARM_UC_BLOCKDEVICE_FAIL;
             }
         }
 
-        if (status == ARM_UC_BLOCKDEVICE_SUCCESS)
-        {
+        if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
             /* set return code */
             result.code = ERR_NONE;
 
             /* signal done */
             pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_WRITE_DONE);
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("arm_uc_blockdevice_program failed");
         }
     }
@@ -441,42 +407,37 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Finalize(uint32_t slot_id)
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_Read(uint32_t slot_id,
                                            uint32_t offset,
-                                           arm_uc_buffer_t* buffer)
+                                           arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer && buffer->ptr)
-    {
+    if (buffer && buffer->ptr) {
         UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Read: %" PRIX32 " %" PRIX32 " %" PRIX32,
-                 slot_id, offset, buffer->size);
+                      slot_id, offset, buffer->size);
 
         /* find address of slot */
         uint32_t slot_addr = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
         uint32_t slot_size = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
         result = pal_blockdevice_get_slot_addr_size(slot_id,
-                                               &slot_addr,
-                                               &slot_size);
+                                                    &slot_addr,
+                                                    &slot_size);
         uint32_t physical_address = slot_addr + pal_blockdevice_hdr_size + offset;
         uint32_t read_size = pal_blockdevice_round_up_to_page(buffer->size);
         int32_t status = ARM_UC_BLOCKDEVICE_FAIL;
 
-        if (read_size <= buffer->size_max)
-        {
+        if (read_size <= buffer->size_max) {
             status = arm_uc_blockdevice_read(buffer->ptr,
                                              physical_address,
                                              read_size);
         }
 
-        if (status == ARM_UC_BLOCKDEVICE_SUCCESS)
-        {
+        if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
             /* set return code */
             result.code = ERR_NONE;
 
             /* signal done */
             pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_READ_DONE);
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("arm_uc_blockdevice_read failed");
         }
     }
@@ -525,13 +486,12 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Activate(uint32_t slot_id)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
-                                        uint32_t slot_id,
-                                        arm_uc_firmware_details_t* details)
+    uint32_t slot_id,
+    arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_GetFirmwareDetails");
 
         /* find address of slot */
@@ -544,22 +504,16 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
                                              slot_addr,
                                              pal_blockdevice_hdr_size);
 
-        if (status == ARM_UC_BLOCKDEVICE_SUCCESS)
-        {
+        if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
             result = arm_uc_parse_external_header_v2(buffer, details);
 
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* signal done */
                 pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE);
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("arm_uc_parse_external_header_v2 failed");
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("arm_uc_blockdevice_read failed");
         }
     }
@@ -567,4 +521,4 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
     return result;
 }
 
-#endif // #if defined(ARM_UC_USE_PAL_BLOCKDEVICE)
+#endif // #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE)

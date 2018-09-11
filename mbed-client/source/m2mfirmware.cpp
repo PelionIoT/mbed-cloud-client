@@ -185,14 +185,14 @@ static sn_nsdl_dynamic_resource_parameters_s firmware_package_params_dynamic = {
     {NULL, NULL},                     // link
     0,
     COAP_CONTENT_OMA_PLAIN_TEXT_TYPE, // coap_content_type
-    0, // msg_id
     M2MBase::PUT_ALLOWED,   // access
     0,                      // registered
     false,                  // publish_uri
     false,                  // free_on_delete
     true,                   // observable
     false,                  // auto-observable
-    NOTIFICATION_STATUS_INIT
+    false,                  // always_publish
+    0                       // publish_value
 };
 
 static sn_nsdl_dynamic_resource_parameters_s firmware_package_uri_params_dynamic = {
@@ -202,14 +202,14 @@ static sn_nsdl_dynamic_resource_parameters_s firmware_package_uri_params_dynamic
     {NULL, NULL},                     // link
     0,
     COAP_CONTENT_OMA_PLAIN_TEXT_TYPE, // coap_content_type
-    0, // msg_id
     M2MBase::PUT_ALLOWED,   // access
     0,                      // registered
     false,                  // publish_uri
     false,                  // free_on_delete
     true,                   // observable
     false,                  // auto-observable
-    NOTIFICATION_STATUS_INIT
+    false,                  // always_publish
+    0                       // publish_value
 };
 
 static sn_nsdl_dynamic_resource_parameters_s firmware_update_params_dynamic = {
@@ -219,14 +219,14 @@ static sn_nsdl_dynamic_resource_parameters_s firmware_update_params_dynamic = {
     {NULL, NULL},                     // link
     0,
     COAP_CONTENT_OMA_PLAIN_TEXT_TYPE, // coap_content_type
-    0, // msg_id
     M2MBase::NOT_ALLOWED,   // access
     0,                      // registered
     false,                  // publish_uri
     false,                  // free_on_delete
     true,                   // observable
     false,                  // auto-observable
-    NOTIFICATION_STATUS_INIT
+    false,                  // always_publish
+    0                       // publish_value
 };
 
 static sn_nsdl_dynamic_resource_parameters_s firmware_state_params_dynamic = {
@@ -236,14 +236,14 @@ static sn_nsdl_dynamic_resource_parameters_s firmware_state_params_dynamic = {
     {NULL, NULL},           // link
     0,                      // resourcelen
     COAP_CONTENT_OMA_PLAIN_TEXT_TYPE, // coap_content_type
-    0, // msg_id
     M2MBase::GET_ALLOWED,   // access
     0,                      // registered
     false,                  // publish_uri
     false,                  // free_on_delete
     true,                   // observable
     false,                  // auto-observable
-    NOTIFICATION_STATUS_INIT
+    false,                  // always_publish
+    0                       // publish_value
 };
 
 static sn_nsdl_dynamic_resource_parameters_s firmware_update_result_params_dynamic = {
@@ -253,14 +253,14 @@ static sn_nsdl_dynamic_resource_parameters_s firmware_update_result_params_dynam
     {NULL, NULL},           // link
     0,                      // resourcelen
     COAP_CONTENT_OMA_PLAIN_TEXT_TYPE, // coap_content_type
-    0, // msg_id
     M2MBase::GET_ALLOWED,   // access
     0,                      // registered
     false,                  // publish_uri
     false,                  // free_on_delete
     true,                   // observable
     false,                  // auto-observable
-    NOTIFICATION_STATUS_INIT
+    false,                  // always_publish
+    0                       // publish_value
 };
 
 const static M2MBase::lwm2m_parameters firmware_package_params = {
@@ -733,6 +733,21 @@ bool M2MFirmware::set_resource_notification_sent_callback(FirmwareResource resou
 
     if(m2mresource) {
         m2mresource->set_notification_delivery_status_cb(callback, 0);
+        return true;
+    }
+
+    return false;
+}
+
+bool M2MFirmware::set_resource_notification_sent_callback(FirmwareResource resource,
+                                             message_delivery_status_cb callback)
+{
+    M2MResource* m2mresource;
+
+    m2mresource = get_resource(resource);
+
+    if(m2mresource) {
+        m2mresource->set_message_delivery_status_cb(callback, 0);
         return true;
     }
 

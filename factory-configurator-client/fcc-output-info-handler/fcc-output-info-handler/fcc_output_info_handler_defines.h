@@ -68,6 +68,7 @@ extern const char g_fcc_crypto_cert_public_key_type_error_str[];
 extern const char g_fcc_crypto_cert_public_key_error_str[];
 extern const char g_fcc_crypto_cert_not_trusted_error_str[];
 extern const char g_fcc_crypto_invalid_x509_attr_error_str[];
+extern const char g_fcc_crypto_invalid_x509_extension_error_str[];
 extern const char g_fcc_wrong_bootstrap_use_value_error_str[];
 extern const char g_fcc_crypto_invalid_pk_key_format_error_str[];
 extern const char g_fcc_crypto_invalid_public_key_error_str[];

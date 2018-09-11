@@ -38,6 +38,13 @@ void ARM_UC_HUB_AddErrorCallbackInternal(void (*callback)(int32_t error))
  *
  *          ARM_UC_MONITOR_RESULT_INITIAL
  *          ARM_UC_MONITOR_RESULT_SUCCESS
+ *          ARM_UC_MONITOR_RESULT_MANIFEST_TIMEOUT
+ *          ARM_UC_MONITOR_RESULT_MANIFEST_NOT_FOUND
+ *          ARM_UC_MONITOR_RESULT_MANIFEST_FAILED_INTEGRITY
+ *          ARM_UC_MONITOR_RESULT_MANIFEST_REJECTED
+ *          ARM_UC_MONITOR_RESULT_MANIFEST_CERT_NOT_FOUND
+ *          ARM_UC_MONITOR_RESULT_MANIFEST_SIGNATURE_FAILED
+ *          ARM_UC_MONITOR_RESULT_DEPENDENT_MANIFEST_NOT_FOUND
  *          ARM_UC_MONITOR_RESULT_ERROR_STORAGE
  *          ARM_UC_MONITOR_RESULT_ERROR_MEMORY
  *          ARM_UC_MONITOR_RESULT_ERROR_CONNECTION
@@ -45,11 +52,16 @@ void ARM_UC_HUB_AddErrorCallbackInternal(void (*callback)(int32_t error))
  *          ARM_UC_MONITOR_RESULT_ERROR_TYPE
  *          ARM_UC_MONITOR_RESULT_ERROR_URI
  *          ARM_UC_MONITOR_RESULT_ERROR_UPDATE
+ *          ARM_UC_MONITOR_RESULT_UNSUPPORTED_DELTA_FORMAT
  *          ARM_UC_MONITOR_RESULT_ERROR_HASH
- *
+ *          ARM_UC_MONITOR_RESULT_ASSET_UPDATE_COMPLETED
+ *          ARM_UC_MONITOR_RESULT_ASSET_UPDATED_AFTER_RECOVERY
+
  * @param error arm_uc_error_t code.
  * @param state Internal Hub state.
  */
+uint32_t error_inner = 0;
+
 void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
 {
     UC_HUB_TRACE("error: %" PRIX32 " %d", (uint32_t) error, state);
@@ -58,14 +70,14 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
     arm_uc_monitor_result_t error_monitor = ARM_UC_MONITOR_RESULT_INITIAL;
     arm_uc_hub_state_t next_state = ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK;
 
-    switch (error)
-    {
+    error_inner = error;
+    switch (error) {
         /* Certificate Manager */
         case ARM_UC_CM_ERR_NOT_FOUND:
             UC_HUB_ERR_MSG("ARM_UC_CM_ERR_NOT_FOUND: %" PRIX32,
                            (uint32_t) ARM_UC_CM_ERR_NOT_FOUND);
             error_external = ARM_UC_WARNING_CERTIFICATE_NOT_FOUND;
-            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_TYPE;
+            error_monitor = ARM_UC_MONITOR_RESULT_MANIFEST_CERT_NOT_FOUND;
             break;
 
         /* Firmware Manager */
@@ -87,7 +99,7 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             UC_HUB_ERR_MSG("FIRM_ERR_INVALID_HASH: %" PRIX32,
                            (uint32_t) FIRM_ERR_INVALID_HASH);
             error_external = ARM_UC_ERROR_INVALID_HASH;
-            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_HASH;
+            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_CRC;
             break;
 
         /* Manifest Manager */
@@ -95,7 +107,7 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             UC_HUB_ERR_MSG("MFST_ERR_NULL_PTR: %" PRIX32,
                            (uint32_t) MFST_ERR_NULL_PTR);
             error_external = ARM_UC_WARNING_IDENTITY_NOT_FOUND;
-            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_TYPE;
+            error_monitor = ARM_UC_MONITOR_RESULT_MANIFEST_NOT_FOUND;
             break;
 
         case MFST_ERR_GUID_VENDOR:
@@ -123,22 +135,47 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             UC_HUB_ERR_MSG("MFST_ERR_CERT_INVALID: %" PRIX32,
                            (uint32_t) MFST_ERR_CERT_INVALID);
             error_external = ARM_UC_WARNING_CERTIFICATE_INVALID;
-            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_TYPE;
+            error_monitor = ARM_UC_MONITOR_RESULT_MANIFEST_CERT_NOT_FOUND;
             break;
 
         case MFST_ERR_INVALID_SIGNATURE:
             UC_HUB_ERR_MSG("MFST_ERR_INVALID_SIGNATURE: %" PRIX32,
                            (uint32_t) MFST_ERR_INVALID_SIGNATURE);
             error_external = ARM_UC_WARNING_SIGNATURE_INVALID;
-            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_TYPE;
+            error_monitor = ARM_UC_MONITOR_RESULT_MANIFEST_SIGNATURE_FAILED;
+            break;
+
+        case MFST_ERR_BAD_KEYTABLE:
+            UC_HUB_ERR_MSG("MFST_ERR_BAD_KEYTABLE: %" PRIX32,
+                           (uint32_t) MFST_ERR_BAD_KEYTABLE);
+            error_external = ARM_UC_WARNING_BAD_KEYTABLE;
+            error_monitor = ARM_UC_MONITOR_RESULT_MANIFEST_FAILED_INTEGRITY;
             break;
 
         /* Source Manager */
+        case SOMA_ERR_NO_ROUTE_TO_SOURCE:
+        case SOMA_ERR_SOURCE_REGISTRY_FULL:
+        case SOMA_ERR_SOURCE_NOT_FOUND:
+            UC_HUB_ERR_MSG("SOMA_ERR_(CONNECTION): %" PRIX32,
+                           (uint32_t) error_inner);
+            error_external = ARM_UC_WARNING_UNKNOWN;
+            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_CONNECTION;
+            break;
+        case SOMA_ERR_INVALID_URI:
+        case SOMA_ERR_INVALID_REQUEST:
         case SOMA_ERR_INVALID_PARAMETER:
-            UC_HUB_ERR_MSG("SOMA_ERR_INVALID_PARAMETER: %" PRIX32,
-                           (uint32_t) SOMA_ERR_INVALID_PARAMETER);
+            UC_HUB_ERR_MSG("SOMA_ERR_INVALID_(PARAMETER): %" PRIX32,
+                           (uint32_t) error_inner);
             error_external = ARM_UC_WARNING_URI_NOT_FOUND;
             error_monitor = ARM_UC_MONITOR_RESULT_ERROR_URI;
+            break;
+        case SOMA_ERR_INVALID_MANIFEST_STATE:
+        case SOMA_ERR_INVALID_FW_STATE:
+        case SOMA_ERR_INVALID_EVENT:
+            UC_HUB_ERR_MSG("SOMA_ERR_INVALID_(STATE): %" PRIX32,
+                           (uint32_t) error_inner);
+            error_external = ARM_UC_WARNING_UNKNOWN;
+            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_UPDATE;
             break;
 
         /* Hub */
@@ -174,7 +211,7 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
         default:
             UC_HUB_ERR_MSG("Unknown error");
             error_external = ARM_UC_WARNING_UNKNOWN;
-            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_TYPE;
+            error_monitor = ARM_UC_MONITOR_RESULT_ERROR_UPDATE;
             break;
     }
 

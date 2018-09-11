@@ -54,7 +54,7 @@
 typedef int32_t (*arm_ucp_c_runner_t)();
 
 typedef struct {
-    const char* command;
+    const char *command;
     bool header;
     bool firmware;
     bool location;
@@ -66,15 +66,15 @@ typedef struct {
 } arm_ucp_worker_t;
 
 typedef struct {
-    arm_ucp_worker_t* activate;
-    arm_ucp_worker_t* active_details;
-    arm_ucp_worker_t* details;
-    arm_ucp_worker_t* finalize;
-    arm_ucp_worker_t* initialize;
-    arm_ucp_worker_t* installer;
-    arm_ucp_worker_t* prepare;
-    arm_ucp_worker_t* read;
-    arm_ucp_worker_t* write;
+    arm_ucp_worker_t *activate;
+    arm_ucp_worker_t *active_details;
+    arm_ucp_worker_t *details;
+    arm_ucp_worker_t *finalize;
+    arm_ucp_worker_t *initialize;
+    arm_ucp_worker_t *installer;
+    arm_ucp_worker_t *prepare;
+    arm_ucp_worker_t *read;
+    arm_ucp_worker_t *write;
 } arm_ucp_worker_config_t;
 
 #if defined(TARGET_IS_PC_LINUX)
@@ -92,46 +92,46 @@ void arm_uc_pal_linux_signal_callback(uint32_t event, bool from_thread);
 /* set module variables */
 void arm_uc_pal_linux_internal_set_callback(ARM_UC_PAAL_UPDATE_SignalEvent_t callback);
 void arm_uc_pal_linux_internal_set_offset(uint32_t offset);
-void arm_uc_pal_linux_internal_set_buffer(arm_uc_buffer_t* buffer);
-void arm_uc_pal_linux_internal_set_details(arm_uc_firmware_details_t* details);
-void arm_uc_pal_linux_internal_set_installer(arm_uc_installer_details_t* details);
-void arm_uc_pal_linux_internal_set_location(uint32_t* location);
+void arm_uc_pal_linux_internal_set_buffer(arm_uc_buffer_t *buffer);
+void arm_uc_pal_linux_internal_set_details(arm_uc_firmware_details_t *details);
+void arm_uc_pal_linux_internal_set_installer(arm_uc_installer_details_t *details);
+void arm_uc_pal_linux_internal_set_location(uint32_t *location);
 
 /* construct file path */
-arm_uc_error_t arm_uc_pal_linux_internal_file_path(char* buffer,
+arm_uc_error_t arm_uc_pal_linux_internal_file_path(char *buffer,
                                                    size_t buffer_length,
-                                                   const char* folder,
-                                                   const char* type,
-                                                   uint32_t* location);
+                                                   const char *folder,
+                                                   const char *type,
+                                                   uint32_t *location);
 
 /* read firmware header */
-arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t* location,
-                                                     arm_uc_firmware_details_t* details);
+arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t *location,
+                                                     arm_uc_firmware_details_t *details);
 
 /* read installer header */
-arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details_t* details);
+arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details_t *details);
 
 /* write firmware header*/
-arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t* location,
-                                                      const arm_uc_firmware_details_t* details);
+arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t *location,
+                                                      const arm_uc_firmware_details_t *details);
 
 /* read file */
-arm_uc_error_t arm_uc_pal_linux_internal_read(const char* file_path,
+arm_uc_error_t arm_uc_pal_linux_internal_read(const char *file_path,
                                               uint32_t offset,
-                                              arm_uc_buffer_t* buffer);
+                                              arm_uc_buffer_t *buffer);
 
 /**
  * @brief Function to run script in a worker thread before file operations.
  *
  * @param params Pointer to arm_ucp_worker_t struct.
  */
-void* arm_uc_pal_linux_extended_pre_worker(void* params);
+void *arm_uc_pal_linux_extended_pre_worker(void *params);
 
 /**
  * @brief Function to run script in a worker thread before file operations.
  *
  * @param params Pointer to arm_ucp_worker_t struct.
  */
-void* arm_uc_pal_linux_extended_post_worker(void* params);
+void *arm_uc_pal_linux_extended_post_worker(void *params);
 
 #endif /* ARM_UC_PAL_LINUX_IMPLEMENTATION_INTERNAL_H */

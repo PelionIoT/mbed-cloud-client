@@ -31,6 +31,8 @@
 
 TEST_GROUP(pal_socket);
 
+#define TRACE_GROUP "PAL"
+
 //Sometimes you may want to get local data in a module,
 //for example if you need to pass a reference.
 //However, you should usually avoid this.
@@ -88,7 +90,7 @@ TEST_SETUP(pal_socket)
     pal_init();
     if ( NULL == g_palTestNetworkInterface )
     {
-        PAL_LOG(ERR, "error: net interface not configutred correctly");
+        PAL_LOG_ERR("error: net interface not configutred correctly");
     }
     else
     {
@@ -276,7 +278,7 @@ TEST(pal_socket, basicTCPclientSendRecieve)
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &address, &addrlen);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         goto end;
     }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
@@ -345,7 +347,7 @@ TEST(pal_socket, basicUDPclientSendRecieve)
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME_UDP, &address, &addrlen);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration can't continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration can't continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         goto end;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
@@ -462,7 +464,7 @@ TEST(pal_socket, basicSocketScenario3)
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &address, &addrlen);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         return;
     }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
@@ -629,7 +631,7 @@ TEST(pal_socket, ServerSocketScenario)
     result = pal_getNetInterfaceInfo(PAL_NET_TEST_LOCAL_LOOPBACK_IF_INDEX, &interfaceInfo);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         return;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
@@ -776,7 +778,7 @@ TEST(pal_socket, nonBlockingAsyncTest)
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &address, &addrlen);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         return;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
@@ -872,7 +874,7 @@ TEST(pal_socket, tProvUDPTest)
     result = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME_UDP, &address, &addrlen);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         goto end;
     }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
@@ -1021,7 +1023,7 @@ PAL_PRIVATE void socketUDPBuffered(size_t bufSize)
     result = pal_getNetInterfaceInfo(0, &(data.interfaceInfo));
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         goto end;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
@@ -1192,7 +1194,7 @@ PAL_PRIVATE void socketTCPBuffered(size_t bufSize)
     result = test_getAddressInfo(PAL_NET_TEST_GOOGLE_CDN_HOST, &address, &addrlen);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         return;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
@@ -1340,13 +1342,14 @@ TEST(pal_socket, getAddressInfoAsync)
     status = pal_getAddressInfo(PAL_NET_TEST_SERVER_NAME, &addressSync, &addrlenSync);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         return;
     }
     TEST_ASSERT_TRUE_MESSAGE((PAL_SUCCESS == status), "synchronous call to pal_getAddressInfo failed");
 
     /*#2*/
     statusCallback = PAL_ERR_SOCKET_ERROR_BASE;
+
     status = pal_getAddressInfoAsync(PAL_NET_TEST_SERVER_NAME, &addressAsync, &addrlenAsync, getAddressInfoAsyncCallback, &statusCallback);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1468,7 +1471,7 @@ PAL_PRIVATE void keepAliveFunc(bool keepalive)
     result = pal_getAddressInfo(PAL_TEST_KEEPALIVE_SERVER_ADDRESS, &address, &addrlen);
     if ((PAL_ERR_SOCKET_DNS_ERROR == result) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == result))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration)");
         goto end;
     }
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);

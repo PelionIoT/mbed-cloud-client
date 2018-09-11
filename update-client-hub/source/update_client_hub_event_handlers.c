@@ -35,19 +35,15 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
-    switch(event)
-    {
+    switch (event) {
         /* Firmware writing setup complete */
         case UCFM_EVENT_PREPARE_DONE:
             UC_HUB_TRACE("UCFM_EVENT_PREPARE_DONE");
 
-            /* Storage prepared for firmware. Download first fragment. */
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_SETUP_FIRMWARE)
-            {
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FETCH_FIRST_FRAGMENT);
-            }
-            else
-            {
+            /* Storage prepared for firmware. Await setup completion. */
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_AWAIT_FIRMWARE_SETUP) {
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FIRMWARE_SETUP_DONE);
+            } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
             }
@@ -64,8 +60,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
                Action:
                 - wait for network to complete
             */
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_WAIT_FOR_NETWORK);
             }
             /* Fragment stored after network finished,
@@ -74,20 +69,16 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
                 - store fragment
                 - download next fragment
             */
-            else if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_STORAGE)
-            {
+            else if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_STORAGE) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD);
             }
             /* Last fragment stored.
                Action:
                 - finalize storage
             */
-            else if (arm_uc_hub_state == ARM_UC_HUB_STATE_STORE_LAST_FRAGMENT)
-            {
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FINALIZE_STORAGE);
-            }
-            else
-            {
+            else if (arm_uc_hub_state == ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_STORED) {
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
+            } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
             }
@@ -98,12 +89,9 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
             UC_HUB_TRACE("UCFM_EVENT_FINALIZE_DONE");
 
             /* Firmware stored and verified. */
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_FINALIZE_STORAGE)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_FINALIZE_STORAGE) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_STORAGE_FINALIZED);
-            }
-            else
-            {
+            } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
             }
@@ -114,12 +102,9 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
             UC_HUB_TRACE("UCFM_EVENT_ACTIVATE_DONE");
 
             /* Firmware activated. Reboot system. */
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE)
-            {
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_REBOOT);
-            }
-            else
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE) {
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PREP_REBOOT);
+            } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
             }
@@ -142,14 +127,11 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
             UC_HUB_TRACE("UCFM_EVENT_WRITE_ERROR");
 
             if ((arm_uc_hub_state == ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD) ||
-                (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_STORAGE) ||
-                (arm_uc_hub_state == ARM_UC_HUB_STATE_STORE_LAST_FRAGMENT))
-            {
+                    (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_STORAGE) ||
+                    (arm_uc_hub_state == ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_STORED)) {
                 /* write error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_WRITE, arm_uc_hub_state);
-            }
-            else
-            {
+            } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
             }
@@ -210,6 +192,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
 
         case UCFM_EVENT_PREPARE_ERROR:
             UC_HUB_TRACE("UCFM_EVENT_PREPARE_ERROR");
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
             break;
 
         case UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR:
@@ -233,16 +216,13 @@ void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
-    if (event == ARM_UC_MM_RC_ERROR && arm_uc_hub_state == ARM_UC_HUB_STATE_INITIALIZING)
-    {
+    if (event == ARM_UC_MM_RC_ERROR && arm_uc_hub_state == ARM_UC_HUB_STATE_UNINITIALIZED) {
         // TODO: An empty config store may be an error in the future.
-        if (ARM_UC_mmGetError().code == MFST_ERR_NO_MANIFEST)
-        {
+        if (ARM_UC_mmGetError().code == MFST_ERR_NO_MANIFEST) {
             event = ARM_UC_MM_RC_DONE;
         }
     }
-    switch(event)
-    {
+    switch (event) {
         /* Status: The manifest manager failed during the previous operation.
            Extract further error information using ARM_UC_mmGetError.
         */
@@ -280,12 +260,9 @@ void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event)
             UC_HUB_TRACE("ARM_UC_MM_RC_NEED_FW");
 
             /* Download firmware by first reading information from manifest */
-            if(arm_uc_hub_state == ARM_UC_HUB_STATE_MANIFEST_COMPLETE)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_MANIFEST_COMPLETE) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_CHECK_VERSION);
-            }
-            else
-            {
+            } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(MFST_ERR_INVALID_STATE, arm_uc_hub_state);
             }
@@ -295,19 +272,15 @@ void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event)
         case ARM_UC_MM_RC_DONE:
             UC_HUB_TRACE("ARM_UC_MM_RC_DONE");
 
-            /* Update Hub has been initialized. */
-            if(arm_uc_hub_state == ARM_UC_HUB_STATE_INITIALIZING)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_INITIALIZING) {
+                /* Update Hub has been initialized. */
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INITIALIZED);
-            }
-            /* Manifest processed */
-            else if(arm_uc_hub_state == ARM_UC_HUB_STATE_MANIFEST_FETCHED)
-            {
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_MANIFEST_COMPLETE);
-            }
-            else
-            {
+            } else if (arm_uc_hub_state == ARM_UC_HUB_STATE_MANIFEST_AWAIT_INSERT) {
+                /* Manifest processed */
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_MANIFEST_INSERT_DONE);
+            } else {
                 /* Invalid state, abort and report error. */
+                UC_HUB_TRACE("MFST_ERR_INVALID_STATE");
                 ARM_UC_HUB_ErrorHandler(MFST_ERR_INVALID_STATE, arm_uc_hub_state);
             }
             break;
@@ -329,15 +302,13 @@ void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
-    switch(event)
-    {
+    switch (event) {
         /* Received notification */
         case ARM_UC_SM_EVENT_NOTIFICATION:
             UC_HUB_TRACE("ARM_UC_SM_EVENT_NOTIFICATION");
 
             /* Fetch manifest */
-            if(arm_uc_hub_state == ARM_UC_HUB_STATE_IDLE)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_IDLE) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_NOTIFIED);
             }
             /* No else. All notifications are ignored during an ongoing update. */
@@ -348,14 +319,11 @@ void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
             UC_HUB_TRACE("ARM_UC_SM_EVENT_MANIFEST");
 
             /* Process the newly downloaded manifest */
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_NOTIFIED)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_NOTIFIED) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
-            }
-            else
-            {
+            } else {
                 /* Invalid state, abort and report error. */
-                ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+                ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_MANIFEST_STATE, arm_uc_hub_state);
             }
             break;
 
@@ -372,22 +340,19 @@ void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
                 - download next fragment
             */
             if ((arm_uc_hub_state == ARM_UC_HUB_STATE_FETCH_FIRST_FRAGMENT) ||
-                (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_NETWORK))
-            {
+                    (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_NETWORK)) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD);
             }
             /* 1. N fragment received, storing still in progress,
                i.e., the storage is the bottleneck:
                - All buffers are in use, wait for storage
             */
-            else if (arm_uc_hub_state == ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD)
-            {
+            else if (arm_uc_hub_state == ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_WAIT_FOR_STORAGE);
             }
             /* Invalid state, abort and report error. */
-            else
-            {
-                ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+            else {
+                ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_FW_STATE, arm_uc_hub_state);
             }
             break;
 
@@ -401,17 +366,22 @@ void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
 
         /* Source Manager encountered an error */
         case ARM_UC_SM_EVENT_ERROR:
+            // TODO check the impact of raising this for a busy-get
             UC_HUB_TRACE("ARM_UC_SM_EVENT_ERROR");
 
             /* Invalid state, abort and report error. */
-            ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+            ARM_UC_HUB_ErrorHandler(SOMA_ERR_UNSPECIFIED, arm_uc_hub_state);
+            break;
+        case ARM_UC_SM_EVENT_ERROR_SOURCE:
+            UC_HUB_TRACE("ARM_UC_SM_EVENT_ERROR_SOURCE");
+            ARM_UC_HUB_ErrorHandler(SOMA_ERR_SOURCE_NOT_FOUND, arm_uc_hub_state);
             break;
 
         default:
             UC_HUB_TRACE("Source Manager: Invalid Event");
 
             /* Invalid state, abort and report error. */
-            ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+            ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_EVENT, arm_uc_hub_state);
             break;
     }
 }
@@ -420,13 +390,11 @@ void ARM_UC_HUB_ControlCenterEventHandler(uint32_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
-    switch(event)
-    {
+    switch (event) {
         case ARM_UCCC_EVENT_AUTHORIZE_DOWNLOAD:
             UC_HUB_TRACE("ARM_UCCC_EVENT_AUTHORIZE_DOWNLOAD");
 
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION) {
                 /* Download approved. Download firmware. */
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED);
             }
@@ -435,29 +403,50 @@ void ARM_UC_HUB_ControlCenterEventHandler(uint32_t event)
         case ARM_UCCC_EVENT_AUTHORIZE_INSTALL:
             UC_HUB_TRACE("ARM_UCCC_EVENT_AUTHORIZE_INSTALL");
 
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION) {
                 /* Installation approved. Set firmware as active image and reboot. */
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
             }
             break;
 
         case ARM_UCCC_EVENT_MONITOR_SEND_DONE:
-            UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE");
-
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK)
-            {
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK) {
                 /* Switch to 'idle' after receiving report notification */
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_IDLE);
             }
 
-/* TODO: use timeout to ensure callback doesn't stall reboot */
-#if 0
-            if (arm_uc_hub_state == ARM_UC_HUB_STATE_INSTALL_AUTHORIZED)
-            {
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_REBOOT);
+            /* TODO: use timeout to ensure callback doesn't stall reboot */
+            switch (arm_uc_hub_state) {
+                case ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_SETUP_FIRMWARE);
+                    break;
+                case ARM_UC_HUB_STATE_AWAIT_FIRMWARE_MONITOR_REPORT_DONE:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_AWAIT_FIRMWARE_MONITOR_REPORT_DONE");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FETCH_FIRST_FRAGMENT);
+                    break;
+                case ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_MONITOR_REPORT_DONE:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_MONITOR_REPORT_DONE");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FINALIZE_STORAGE);
+                    break;
+                case ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
+                    break;
+                case ARM_UC_HUB_STATE_INSTALL_AUTHORIZED:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_INSTALL_AUTHORIZED");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE);
+                    break;
+                case ARM_UC_HUB_STATE_PREP_REBOOT:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_PREP_REBOOT");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_REBOOT);
+                    break;
+                case ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_MANIFEST_COMPLETE);
+                    break;
+                default:
+                    break;
             }
-#endif
             break;
 
         default:

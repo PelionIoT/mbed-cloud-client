@@ -25,6 +25,9 @@
 #include <vector>
 #include "include/ServiceClient.h"
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#include "CertificateEnrollmentClient.h"
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
 using namespace std;
 class SimpleM2MResourceBase;
@@ -99,8 +102,13 @@ public:
         UpdateErrorUserActionRequired           = UpdateClient::ErrorBase,
         UpdateErrorWriteToStorage               = UpdateClient::ErrorWriteToStorage,
         UpdateErrorInvalidHash                  = UpdateClient::ErrorInvalidHash,
-        UpdateFatalRebootRequired
+        UpdateFatalRebootRequired,
 #endif
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+        // Certificate Enrollment error 0x0500 - 0x05ff. Defined in ce_status.h 
+        EnrollmentErrorBase = CE_STATUS_RANGE_BASE,
+        EnrollmentErrorEnd = CE_STATUS_RANGE_END
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
     }Error;
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
@@ -331,16 +339,53 @@ public:
     /**
      * @brief Sends the CoAP GET request to the server.
      * API must be called again with the updated offset to complete the whole transfer.
+     * @type Download type.
      * @uri Uri path to the data.
      * @offset Data offset.
      * @get_data_cb Callback which is triggered once there is data available.
      * @get_data_error_cb Callback which is trigged in case of any error.
     */
-    void send_get_request(const char *uri,
+    void send_get_request(DownloadType type,
+                          const char *uri,
                           const size_t offset,
                           get_data_cb data_cb,
                           get_data_error_cb error_cb,
                           void *context);
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+    /**
+    * \brief Initiate a renewal for a specific certificate.
+    * The process will generate new keys in order to create a CSR. The CSR is then sent to the EST service to retrieve the renewed certificate.
+    * The new certificate is then safely stored in the device, along with its corresponding private key.
+    * Note: The certificate to be removed *must* already exist in the device.
+    * \param cert_name A null terminated C string indicating the name of the certificate to be renewed.
+    * \return CE_STATUS_SUCCESS if the asynchronous operation has started successfully. In this case, user callback will be executed at the end of the operation, indicating completion status.
+    *         If any other ce_status_e:: status is returned - operation encountered some error prior to the start of the asynchronous stage and user callback will NOT be executed.
+    */
+    ce_status_e certificate_renew(const char *cert_name)
+    {
+        return CertificateEnrollmentClient::certificate_renew(cert_name);
+    }
+
+    /**
+    * \brief Sets the callback function that is called when the certificate renewal process has completed.
+    * Must be called before any certificate renewal operation.
+    * \param user_cb A function pointer to the user callback. If `user_cb` is NULL - no callback is called when the process has completed.
+    */
+    void on_certificate_renewal(cert_renewal_cb_f user_cb)
+    {
+        CertificateEnrollmentClient::on_certificate_renewal(user_cb);
+    }
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    /**
+     * @brief Returns the pointer to the inner object list.
+     * The list is not allowed to be modified and is owned by the Mbed Cloud Client instance.
+     * @return The inner object list pointer.
+     */
+    const M2MBaseList *get_object_list() const;
+#endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION
 
 protected: // from ServiceClientCallback
 

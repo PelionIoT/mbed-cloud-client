@@ -79,11 +79,7 @@
 #endif
 
 #if (PAL_NET_DNS_SUPPORT == true) && !(defined(PAL_DNS_API_VERSION))
-#define PAL_DNS_API_VERSION 1
-#endif
-
-#if (PAL_DNS_API_VERSION == 2)
-#define PAL_DNS_API_V2
+#define PAL_DNS_API_VERSION 0 // syncronous DNS API
 #endif
 
 #ifndef PAL_SUPPORT_IP_V4

@@ -37,31 +37,47 @@ typedef struct _ARM_MONITOR_CAPABILITIES {
 } ARM_MONITOR_CAPABILITIES;
 
 /**
- *
+ * New State & Result -enums based on http://www.openmobilealliance.org/tech/profiles/lwm2m/10252.xml
  */
 typedef enum {
-    ARM_UC_MONITOR_STATE_FIRST       = 0,
-    ARM_UC_MONITOR_STATE_IDLE        = ARM_UC_MONITOR_STATE_FIRST,
-    ARM_UC_MONITOR_STATE_DOWNLOADING = 1,
-    ARM_UC_MONITOR_STATE_DOWNLOADED  = 2,
-    ARM_UC_MONITOR_STATE_UPDATING    = 3,
-    ARM_UC_MONITOR_STATE_LAST        = ARM_UC_MONITOR_STATE_UPDATING
+    ARM_UC_MONITOR_STATE_FIRST                      = 0,
+    ARM_UC_MONITOR_STATE_UNINITIALISED              = ARM_UC_MONITOR_STATE_FIRST,
+    ARM_UC_MONITOR_STATE_IDLE                       = 1,
+    ARM_UC_MONITOR_STATE_PROCESSING_MANIFEST        = 2,
+    ARM_UC_MONITOR_STATE_AWAITING_DOWNLOAD_APPROVAL = 3,
+    ARM_UC_MONITOR_STATE_DOWNLOADING                = 4,
+    ARM_UC_MONITOR_STATE_DOWNLOADED                 = 5,
+    ARM_UC_MONITOR_STATE_AWAITING_APP_APPROVAL      = 6,
+    ARM_UC_MONITOR_STATE_UPDATING                   = 7,
+    ARM_UC_MONITOR_STATE_REBOOTING                  = 8,
+    ARM_UC_MONITOR_STATE_LAST                       = ARM_UC_MONITOR_STATE_REBOOTING
 } arm_uc_monitor_state_t;
 
 typedef enum {
-    ARM_UC_MONITOR_RESULT_FIRST            = 0,
-    ARM_UC_MONITOR_RESULT_INITIAL          = ARM_UC_MONITOR_RESULT_FIRST,
-    ARM_UC_MONITOR_RESULT_SUCCESS          = 1,
-    ARM_UC_MONITOR_RESULT_ERROR_STORAGE    = 2,
-    ARM_UC_MONITOR_RESULT_ERROR_MEMORY     = 3,
-    ARM_UC_MONITOR_RESULT_ERROR_CONNECTION = 4,
-    ARM_UC_MONITOR_RESULT_ERROR_CRC        = 5,
-    ARM_UC_MONITOR_RESULT_ERROR_TYPE       = 6,
-    ARM_UC_MONITOR_RESULT_ERROR_URI        = 7,
-    ARM_UC_MONITOR_RESULT_ERROR_UPDATE     = 8,
-    ARM_UC_MONITOR_RESULT_ERROR_HASH       = 9,
-    ARM_UC_MONITOR_RESULT_LAST             = ARM_UC_MONITOR_RESULT_ERROR_HASH
+    ARM_UC_MONITOR_RESULT_FIRST                        = 0,
+    ARM_UC_MONITOR_RESULT_INITIAL                      = ARM_UC_MONITOR_RESULT_FIRST,
+    ARM_UC_MONITOR_RESULT_SUCCESS                      = 1,
+    ARM_UC_MONITOR_RESULT_MANIFEST_TIMEOUT             = 2,
+    ARM_UC_MONITOR_RESULT_MANIFEST_NOT_FOUND           = 3,
+    ARM_UC_MONITOR_RESULT_MANIFEST_FAILED_INTEGRITY    = 4,
+    ARM_UC_MONITOR_RESULT_MANIFEST_REJECTED            = 5,
+    ARM_UC_MONITOR_RESULT_MANIFEST_CERT_NOT_FOUND      = 6,
+    ARM_UC_MONITOR_RESULT_MANIFEST_SIGNATURE_FAILED    = 7,
+    ARM_UC_MONITOR_RESULT_DEPENDENT_MANIFEST_NOT_FOUND = 8,
+    ARM_UC_MONITOR_RESULT_ERROR_STORAGE                = 9,
+    ARM_UC_MONITOR_RESULT_ERROR_MEMORY                 = 10,
+    ARM_UC_MONITOR_RESULT_ERROR_CONNECTION             = 11,
+    ARM_UC_MONITOR_RESULT_ERROR_CRC                    = 12,
+    ARM_UC_MONITOR_RESULT_ERROR_TYPE                   = 13,
+    ARM_UC_MONITOR_RESULT_ERROR_URI                    = 14,
+    ARM_UC_MONITOR_RESULT_ERROR_UPDATE                 = 15,
+    ARM_UC_MONITOR_RESULT_UNSUPPORTED_DELTA_FORMAT     = 16,
+    ARM_UC_MONITOR_RESULT_ERROR_HASH                   = 17,
+    ARM_UC_MONITOR_RESULT_ASSET_UPDATE_COMPLETED       = 18,
+    ARM_UC_MONITOR_RESULT_ASSET_UPDATED_AFTER_RECOVERY = 19,
+    ARM_UC_MONITOR_RESULT_LAST                         = ARM_UC_MONITOR_RESULT_ASSET_UPDATED_AFTER_RECOVERY
 } arm_uc_monitor_result_t;
+
 
 /**
  * @brief Structure definition holding API function pointers.
@@ -78,7 +94,7 @@ typedef struct _ARM_UPDATE_MONITOR {
      * @brief Get Source capabilities.
      * @return Struct containing capabilites. See definition above.
      */
-    ARM_MONITOR_CAPABILITIES (*GetCapabilities)(void);
+    ARM_MONITOR_CAPABILITIES(*GetCapabilities)(void);
 
     /**
      * @brief Initialize Monitor.
@@ -96,12 +112,17 @@ typedef struct _ARM_UPDATE_MONITOR {
      * @brief Send Update Client state.
      * @details From the OMA LWM2M Technical Specification:
      *
-     *          Indicates current state with respect to this firmware update.
+     *          Indicates current state of manifest processing.
      *          This value is set by the LWM2M Client.
-     *          0: Idle (before downloading or after successful updating)
-     *          1: Downloading (The data sequence is on the way)
-     *          2: Downloaded
-     *          3: Updating
+     *          0: Uninitialised
+     *          1: Idle (before downloading or after successful updating)
+     *          2: Processing manifest
+     *          3: Awaiting download approval
+     *          4: Downloading (The data sequence is on the way)
+     *          5: Downloaded
+     *          6: Awaiting application approval
+     *          7: Updating
+     *          8: Rebooting
      *
      *          If writing the firmware package to Package Resource is done,
      *          or, if the device has downloaded the firmware package from the
@@ -117,10 +138,15 @@ typedef struct _ARM_UPDATE_MONITOR {
      *          If performing the Update Resource was successful, the state
      *          changes from Updating to Idle.
      *
-     * @param state Valid states: ARM_UC_MONITOR_STATE_IDLE
+     * @param state Valid states: ARM_UC_MONITOR_STATE_UNINITIALISED
+     *                            ARM_UC_MONITOR_STATE_IDLE
+     *                            ARM_UC_MONITOR_STATE_PROCESSING_MANIFEST
+     *                            ARM_UC_MONITOR_STATE_AWAITING_DOWNLOAD_APPROVAL
      *                            ARM_UC_MONITOR_STATE_DOWNLOADING
      *                            ARM_UC_MONITOR_STATE_DOWNLOADED
+     *                            ARM_UC_MONITOR_STATE_AWAITING_APP_APPROVAL
      *                            ARM_UC_MONITOR_STATE_UPDATING
+     *                            ARM_UC_MONITOR_STATE_REBOOTING
      *
      * @return Error code.
      */
@@ -134,19 +160,37 @@ typedef struct _ARM_UPDATE_MONITOR {
      *          0: Initial value. Once the updating process is initiated
      *             (Download /Update), this Resource MUST be reset to Initial
      *             value.
-     *          1: Firmware updated successfully,
-     *          2: Not enough storage for the new firmware package.
-     *          3. Out of memory during downloading process.
-     *          4: Connection lost during downloading process.
-     *          5: CRC check failure for new downloaded package.
-     *          6: Unsupported package type.
-     *          7: Invalid URI
-     *          8: Firmware update failed
+     *          1: Success
+     *          2: Manifest timeout. The Manifest URI has timed-out.
+     *          3: Manifest not found. The Manifest URI not found.
+     *          4: Unsupported package type.
+     *          5: Manifest rejected. The Manifest attributes do not apply to this device.
+     *          6: Manifest certificate not found
+     *          7: Manifest signature failed. The Manifest signature is not recognised by this device.
+     *          8: Dependent manifest not found
+     *          9: Not enough storage for the new firmware package.
+     *          10. Out of memory during downloading process.
+     *          11: Connection lost during downloading process.
+     *          12: CRC check failure for new downloaded package.
+     *          13: Unsupported asset type
+     *          14: Invalid URI
+     *          15: Timed out downloading asset
+     *          16: Unsupported delta format
+     *          17: Unsupported encryption format
+     *          18: Asset update successfully completed
+     *          19: Asset updated successfully after recovery
      *
      *          This Resource MAY be reported by sending Observe operation.
      *
      * @param result Valid results: ARM_UC_MONITOR_RESULT_INITIAL
      *                              ARM_UC_MONITOR_RESULT_SUCCESS
+     *                              ARM_UC_MONITOR_RESULT_MANIFEST_TIMEOUT
+     *                              ARM_UC_MONITOR_RESULT_MANIFEST_NOT_FOUND
+     *                              ARM_UC_MONITOR_RESULT_MANIFEST_FAILED_INTEGRITY
+     *                              ARM_UC_MONITOR_RESULT_MANIFEST_REJECTED
+     *                              ARM_UC_MONITOR_RESULT_MANIFEST_CERT_NOT_FOUND
+     *                              ARM_UC_MONITOR_RESULT_MANIFEST_SIGNATURE_FAILED
+     *                              ARM_UC_MONITOR_RESULT_DEPENDENT_MANIFEST_NOT_FOUND
      *                              ARM_UC_MONITOR_RESULT_ERROR_STORAGE
      *                              ARM_UC_MONITOR_RESULT_ERROR_MEMORY
      *                              ARM_UC_MONITOR_RESULT_ERROR_CONNECTION
@@ -154,7 +198,10 @@ typedef struct _ARM_UPDATE_MONITOR {
      *                              ARM_UC_MONITOR_RESULT_ERROR_TYPE
      *                              ARM_UC_MONITOR_RESULT_ERROR_URI
      *                              ARM_UC_MONITOR_RESULT_ERROR_UPDATE
+     *                              ARM_UC_MONITOR_RESULT_UNSUPPORTED_DELTA_FORMAT
      *                              ARM_UC_MONITOR_RESULT_ERROR_HASH
+     *                              ARM_UC_MONITOR_RESULT_ASSET_UPDATE_COMPLETED
+     *                              ARM_UC_MONITOR_RESULT_ASSET_UPDATED_AFTER_RECOVERY
      *
      * @return Error code.
      */
@@ -167,7 +214,7 @@ typedef struct _ARM_UPDATE_MONITOR {
      * @param name Pointer to buffer struct. Hash is stored as byte array.
      * @return Error code.
      */
-    arm_uc_error_t (*SendName)(arm_uc_buffer_t* name);
+    arm_uc_error_t (*SendName)(arm_uc_buffer_t *name);
 
     /**
      * @brief Send current firmware version.
@@ -187,7 +234,7 @@ typedef struct _ARM_UPDATE_MONITOR {
      * @param name Pointer to buffer struct. Hash is stored as byte array.
      * @return Error code.
      */
-    arm_uc_error_t (*SetBootloaderHash)(arm_uc_buffer_t* hash);
+    arm_uc_error_t (*SetBootloaderHash)(arm_uc_buffer_t *hash);
 
     /**
      * @brief Set the OEM bootloader hash.
@@ -197,7 +244,7 @@ typedef struct _ARM_UPDATE_MONITOR {
      * @param name Pointer to buffer struct. Hash is stored as byte array.
      * @return Error code.
      */
-    arm_uc_error_t (*SetOEMBootloaderHash)(arm_uc_buffer_t* hash);
+    arm_uc_error_t (*SetOEMBootloaderHash)(arm_uc_buffer_t *hash);
 } ARM_UPDATE_MONITOR;
 
 #endif /* __ARM_UPDATE_MONITOR_H__ */

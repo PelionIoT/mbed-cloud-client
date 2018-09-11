@@ -34,14 +34,6 @@
 #define PAL_INTERNAL_FLASH_SECTION_2_SIZE       0x20000
 #endif
 
-#ifndef PAL_INT_FLASH_NUM_SECTIONS
-#define PAL_INT_FLASH_NUM_SECTIONS 2
-#endif
-
-#ifndef PAL_USE_INTERNAL_FLASH 
-#define PAL_USE_INTERNAL_FLASH  1
-#endif
-
 #ifndef PAL_USE_HW_ROT 
 #define PAL_USE_HW_ROT     0
 #endif

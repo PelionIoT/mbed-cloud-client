@@ -197,11 +197,13 @@ fcc_status_e fcc_is_factory_disabled(bool *fcc_factory_disable);
 /** This API is for developers only.
 *   You can download the `mbed_cloud_dev_credentials.c` file from the portal and thus, skip running FCU on PC side.
 *   The API reads all credentials from the `mbed_cloud_dev_credentials.c` file and stores them in the KCM.
-*   RoT, Entropy and Time configurations are not a part of fcc_developer_flow() API. Devices that need to set RoT or Entropy
-*   should call `fcc_rot_set()`/`fcc_entropy_set()` APIs before fcc_developer_flow().
-*   If device does not have it's own time configuration and `fcc_time_set()` was not called before  fcc_developer_flow(),
-*   during fcc_verify_device_configured_4mbed_cloud() certificate time validity will not be checked.
 *
+*   RoT, Entropy and Time configurations are not a part of `fcc_developer_flow()` API. Devices that need to set RoT or Entropy
+*   should call `fcc_rot_set()`/`fcc_entropy_set()` APIs before `fcc_developer_flow()`.
+*   If a device does not have its own time configuration and `fcc_time_set()` was not called before `fcc_developer_flow()`, 
+*   `fcc_verify_device_configured_4mbed_cloud()` will not check the validity of the certificate time.
+*
+*   If this API is called twice, without cleaning the non-volatile storage between two sequential calls, FCC_STATUS_KCM_FILE_EXIST_ERROR will be returned.
 *
 *   @returns
 *       FCC_STATUS_SUCCESS in case of success or one of the `::fcc_status_e` errors otherwise.

@@ -39,12 +39,11 @@ static void arm_uccc_override_task(uint32_t unused);
 static void (*arm_uc_progress_callback)(uint32_t, uint32_t) = NULL;
 
 /* function pointer structs */
-static const ARM_UPDATE_MONITOR* arm_uc_monitor_struct = NULL;
+static const ARM_UPDATE_MONITOR *arm_uc_monitor_struct = NULL;
 
 static void ARM_UC_ControlCenter_Notification_Handler(void)
 {
-    if (arm_uccc_event_handler)
-    {
+    if (arm_uccc_event_handler) {
         ARM_UC_PostCallback(&arm_uccc_monitor_callback,
                             arm_uccc_event_handler,
                             ARM_UCCC_EVENT_MONITOR_SEND_DONE);
@@ -63,7 +62,7 @@ arm_uc_error_t ARM_UC_ControlCenter_Initialize(void (*callback)(uint32_t))
 
     arm_uccc_event_handler = callback;
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
@@ -72,16 +71,15 @@ arm_uc_error_t ARM_UC_ControlCenter_Initialize(void (*callback)(uint32_t))
  * @param monitor Pointer to an ARM_UPDATE_MONITOR struct.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_AddMonitor(const ARM_UPDATE_MONITOR* monitor)
+arm_uc_error_t ARM_UC_ControlCenter_AddMonitor(const ARM_UPDATE_MONITOR *monitor)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_AddMonitor: %p", monitor);
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
     arm_uc_monitor_struct = monitor;
 
-    if (arm_uc_monitor_struct)
-    {
+    if (arm_uc_monitor_struct) {
         result = arm_uc_monitor_struct->Initialize(ARM_UC_ControlCenter_Notification_Handler);
     }
 
@@ -102,7 +100,7 @@ arm_uc_error_t ARM_UC_ControlCenter_SetProgressHandler(void (*callback)(uint32_t
 
     arm_uc_progress_callback = callback;
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
@@ -120,7 +118,7 @@ arm_uc_error_t ARM_UC_ControlCenter_SetAuthorityHandler(void (*callback)(int32_t
 
     arm_uc_authority_callback = callback;
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
@@ -133,20 +131,16 @@ arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_GetAuthorization: %d", (int) request);
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    switch (request)
-    {
+    switch (request) {
         case ARM_UCCC_REQUEST_DOWNLOAD:
             /* Arm callback token */
             arm_uc_download_token_armed = true;
 
-            if (arm_uc_authority_callback)
-            {
+            if (arm_uc_authority_callback) {
                 arm_uc_authority_callback(ARM_UCCC_REQUEST_DOWNLOAD);
-            }
-            else
-            {
+            } else {
                 ARM_UC_ControlCenter_Authorize(ARM_UCCC_REQUEST_DOWNLOAD);
             }
             result.code = ERR_NONE;
@@ -156,12 +150,9 @@ arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request)
             /* Arm callback token */
             arm_uc_install_token_armed = true;
 
-            if (arm_uc_authority_callback)
-            {
+            if (arm_uc_authority_callback) {
                 arm_uc_authority_callback(ARM_UCCC_REQUEST_INSTALL);
-            }
-            else
-            {
+            } else {
                 ARM_UC_ControlCenter_Authorize(ARM_UCCC_REQUEST_INSTALL);
             }
             result.code = ERR_NONE;
@@ -182,13 +173,11 @@ arm_uc_error_t ARM_UC_ControlCenter_Authorize(arm_uc_request_t request)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_Authorize: %d", (int) request);
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    switch (request)
-    {
+    switch (request) {
         case ARM_UCCC_REQUEST_DOWNLOAD:
-            if (arm_uccc_event_handler && arm_uc_download_token_armed)
-            {
+            if (arm_uccc_event_handler && arm_uc_download_token_armed) {
                 arm_uc_download_token_armed = false;
 
                 ARM_UC_PostCallback(&arm_uccc_authorize_callback,
@@ -200,8 +189,7 @@ arm_uc_error_t ARM_UC_ControlCenter_Authorize(arm_uc_request_t request)
             break;
 
         case ARM_UCCC_REQUEST_INSTALL:
-            if (arm_uccc_event_handler && arm_uc_install_token_armed)
-            {
+            if (arm_uccc_event_handler && arm_uc_install_token_armed) {
                 arm_uc_install_token_armed = false;
 
                 ARM_UC_PostCallback(&arm_uccc_authorize_callback,
@@ -238,23 +226,18 @@ static void arm_uccc_override_task(uint32_t unused)
 
     UC_CONT_TRACE("arm_uccc_override_task");
 
-    if (arm_uc_download_token_armed)
-    {
+    if (arm_uc_download_token_armed) {
         arm_uc_download_token_armed = false;
 
         /* force authorization */
-        if (arm_uccc_event_handler)
-        {
+        if (arm_uccc_event_handler) {
             arm_uccc_event_handler(ARM_UCCC_EVENT_AUTHORIZE_DOWNLOAD);
         }
-    }
-    else if (arm_uc_install_token_armed)
-    {
+    } else if (arm_uc_install_token_armed) {
         arm_uc_install_token_armed = false;
 
         /* force authorization */
-        if (arm_uccc_event_handler)
-        {
+        if (arm_uccc_event_handler) {
             arm_uccc_event_handler(ARM_UCCC_EVENT_AUTHORIZE_INSTALL);
         }
     }
@@ -278,12 +261,11 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportProgress(uint32_t progress, uint32_t t
     UC_CONT_TRACE("ARM_UC_ControlCenter_ReportProgress: %" PRIu32 " / %" PRIu32, progress, total);
 
     /* only forward request if callback is set. */
-    if (arm_uc_progress_callback)
-    {
+    if (arm_uc_progress_callback) {
         arm_uc_progress_callback(progress, total);
     }
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
@@ -296,10 +278,9 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportState(arm_uc_monitor_state_t state)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_ReportState: %d", (int) state);
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    if (arm_uc_monitor_struct)
-    {
+    if (arm_uc_monitor_struct) {
         arm_uc_monitor_struct->SendState(state);
         result.code = ERR_NONE;
     }
@@ -317,10 +298,9 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportUpdateResult(arm_uc_monitor_result_t u
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_ReportUpdateResult: %d", (int) updateResult);
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    if (arm_uc_monitor_struct)
-    {
+    if (arm_uc_monitor_struct) {
         arm_uc_monitor_struct->SendUpdateResult(updateResult);
         result.code = ERR_NONE;
     }
@@ -337,14 +317,13 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportUpdateResult(arm_uc_monitor_result_t u
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_ReportName(arm_uc_buffer_t* name)
+arm_uc_error_t ARM_UC_ControlCenter_ReportName(arm_uc_buffer_t *name)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_ReportName: %p", name);
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    if (arm_uc_monitor_struct)
-    {
+    if (arm_uc_monitor_struct) {
         arm_uc_monitor_struct->SendName(name);
         result.code = ERR_NONE;
     }
@@ -361,12 +340,11 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportName(arm_uc_buffer_t* name)
  */
 arm_uc_error_t ARM_UC_ControlCenter_ReportVersion(uint64_t version)
 {
-    UC_CONT_TRACE("ARM_UC_ControlCenter_ReportVersion: %llu", version);
+    UC_CONT_TRACE("ARM_UC_ControlCenter_ReportVersion: %" PRIu64, version);
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    if (arm_uc_monitor_struct)
-    {
+    if (arm_uc_monitor_struct) {
         arm_uc_monitor_struct->SendVersion(version);
         result.code = ERR_NONE;
     }
@@ -382,14 +360,13 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportVersion(uint64_t version)
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t* hash)
+arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t *hash)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_ReportBootloaderHash");
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    if (arm_uc_monitor_struct && arm_uc_monitor_struct->SetBootloaderHash)
-    {
+    if (arm_uc_monitor_struct && arm_uc_monitor_struct->SetBootloaderHash) {
         result = arm_uc_monitor_struct->SetBootloaderHash(hash);
     }
 
@@ -404,14 +381,13 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t* hash)
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_ReportOEMBootloaderHash(arm_uc_buffer_t* hash)
+arm_uc_error_t ARM_UC_ControlCenter_ReportOEMBootloaderHash(arm_uc_buffer_t *hash)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_ReportOEMBootloaderHash");
 
-    arm_uc_error_t result = (arm_uc_error_t){ ERR_INVALID_PARAMETER };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
 
-    if (arm_uc_monitor_struct && arm_uc_monitor_struct->SetOEMBootloaderHash)
-    {
+    if (arm_uc_monitor_struct && arm_uc_monitor_struct->SetOEMBootloaderHash) {
         result = arm_uc_monitor_struct->SetOEMBootloaderHash(hash);
     }
 

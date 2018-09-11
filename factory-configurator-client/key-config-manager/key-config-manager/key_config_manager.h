@@ -65,7 +65,10 @@ extern "C" {
     *    @param[in] security_desc Security descriptor.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        KCM_STATUS_SUCCESS in success.
+    *        KCM_STATUS_FILE_EXIST if trying to store an item that already exists.
+    
+    *        One of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_item_store(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, bool kcm_item_is_factory, const uint8_t *kcm_item_data, size_t kcm_item_data_size, const kcm_security_desc_s security_desc);
 
@@ -112,13 +115,13 @@ extern "C" {
 
     /* === Certificates chain APIs === */
 
-    /** The API initializes chain context for write chain operation,
-    *   This API should be called prior to ::kcm_cert_chain_add_next API.
+    /** The API initializes the chain context for the write chain operation.
+    *   It should be called before `::kcm_cert_chain_add_next` API.
     *
-    *    @param[out] kcm_chain_handle                 pointer to certificate chain handle.
-    *    @param[in]  kcm_chain_name                   pointer to certificate chain name.
-    *    @param[in]  kcm_chain_name_len               length of certificate name buffer.
-    *    @param[in]  kcm_chain_len                    number of certificates in the chain.
+    *    @param[out] kcm_chain_handle                 A pointer to the certificate chain handle.
+    *    @param[in]  kcm_chain_name                   A pointer to the certificate chain name.
+    *    @param[in]  kcm_chain_name_len               The length of the certificate name buffer.
+    *    @param[in]  kcm_chain_len                    The number of certificates in the chain.
     *    @param[in]  kcm_chain_is_factory             True if the KCM chain is a factory item, otherwise false.
     *
     *    @returns
@@ -130,13 +133,13 @@ extern "C" {
                                        size_t kcm_chain_len,
                                        bool kcm_chain_is_factory);
 
-    /** The API initializes chain context for read chain operation.
-    *   This API should be called prior to ::kcm_cert_chain_get_next_size and ::kcm_cert_chain_get_next_data APIs
+    /** The API initializes the chain context for the read chain operation.
+    *   This API should be called before `::kcm_cert_chain_get_next_size` and `::kcm_cert_chain_get_next_data` APIs.
     *
-    *    @param[out] kcm_chain_handle                  pointer to certificate chain handle.
-    *    @param[in]  kcm_chain_name                    pointer to certificate chain name.
-    *    @param[in]  kcm_chain_name_len                size of certificate name buffer.
-    *    @param[out] kcm_chain_len                     length of certificate chain.
+    *    @param[out] kcm_chain_handle                  A pointer to the certificate chain handle.
+    *    @param[in]  kcm_chain_name                    A pointer to the certificate chain name.
+    *    @param[in]  kcm_chain_name_len                The size of the certificate name buffer.
+    *    @param[out] kcm_chain_len                     The length of the certificate chain.
     *
     *    @returns
     *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
@@ -146,19 +149,19 @@ extern "C" {
                                      size_t kcm_chain_name_len,
                                      size_t *kcm_chain_len_out);
 
-    /** This API adds next certificate of chain to the storage. 
+    /** This API adds the next chain of certificates to the storage. 
     *
-    *  It also validates the previous certificate (unless it is the first certificate) with the public key from kcm_cert_data.
+    *  It also validates the previous certificate (unless it is the first certificate) with the public key from `kcm_cert_data`.
     *  The certificates should be added in the order from lowest child, followed by the certificate that signs it and so on, all the way to the root of the chain.
     *
-    *    @param[in] kcm_chain_handle                 certificate chain handle.
-    *    @param[in] kcm_cert_data                    pointer to certificate data in DER format.
-    *    @param[in] kcm_cert_data_size               size of certificate data buffer.
+    *    @param[in] kcm_chain_handle                 The certificate chain handle.
+    *    @param[in] kcm_cert_data                    A pointer to the certificate data in DER format.
+    *    @param[in] kcm_cert_data_size               The size of the certificate data buffer.
     *
     *    @returns
     *        KCM_STATUS_SUCCESS in case of success. 
-    *        KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED in case that one of the certificate in the chain failed to verify its predecessor
-    *        In other casese - one of the `::kcm_status_e` errors.
+    *        KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED if one of the certificates in the chain failed to verify its predecessor.
+    *        In other cases, one of the `::kcm_status_e` errors.
     *       
     */
     kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle,
@@ -167,43 +170,43 @@ extern "C" {
 
     /** The API deletes all certificates of the chain from the storage.
     *
-    *    @param[in] kcm_chain_name                pointer to certificate chain name.
-    *    @param[in] kcm_chain_name_len            length of certificate chain name.
+    *    @param[in] kcm_chain_name                A pointer to certificate chain name.
+    *    @param[in] kcm_chain_name_len            The length of certificate chain name.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        KCM_STATUS_SUCCESS in success or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_cert_chain_delete(const uint8_t *kcm_chain_name,
                                        size_t kcm_chain_name_len);
 
-    /** The API returns size of the next certificate in the chain.
-    *  This API should be called prior to ::kcm_cert_chain_get_next_data.
-    *  This operation does not increase chain's context iterator.
+    /** This API returns the size of the next certificate in the chain.
+    *  It should be called before `::kcm_cert_chain_get_next_data`.
+    *  This operation does not increase the chain's context iterator.
     *
-    *    @param[in]  kcm_chain_handle        certificate chain handle.
-    *    @param[out] kcm_cert_data_size      pointer size of next certificate.
+    *    @param[in]  kcm_chain_handle        The certificate chain handle.
+    *    @param[out] kcm_cert_data_size      The pointer size of the next certificate.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success.
-    *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN in case we reached the end of the chain
-    *        Otherwise one of the `::kcm_status_e` errors.
+    *        KCM_STATUS_SUCCESS in success.
+    *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN if the end of the chain was reached.
+    *        Otherwise, one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_cert_chain_get_next_size(kcm_cert_chain_handle kcm_chain_handle,
                                               size_t *kcm_cert_data_size);
 
-    /** The API returns data of the next certificate in the chain.
-    *   To get exact size of a next certificate use ::kcm_cert_chain_get_next_size.
-    *   In the end of get data operation, chain context points to the next certificate of current chain.
+    /** This API returns the data of the next certificate in the chain.
+    *   To get the exact size of the next certificate, use `::kcm_cert_chain_get_next_size`.
+    *   In the end of the get data operation, the chain context points to the next certificate of the current chain.
     *
-    *    @param[in] kcm_chain_handle                    certificate chain handle.
-    *    @param[in/out] kcm_cert_data                   pointer to certificate data in DER format.
-    *    @param[in] kcm_max_cert_data_size              max size of certificate data buffer.
-    *    @param[out] kcm_actual_cert_data_size          actual size of certificate data.
+    *    @param[in] kcm_chain_handle                    The certificate chain handle.
+    *    @param[in/out] kcm_cert_data                   A pointer to the certificate data in DER format.
+    *    @param[in] kcm_max_cert_data_size              The max size of the certificate data buffer.
+    *    @param[out] kcm_actual_cert_data_size          The actual size of the certificate data.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success.
-    *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN in case we reached the end of the chain
-    *        Otherwise one of the `::kcm_status_e` errors.
+    *        KCM_STATUS_SUCCESS in success.
+    *        KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN if the end of the chain was reached.
+    *        Otherwise, one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_cert_chain_get_next_data(kcm_cert_chain_handle kcm_chain_handle,
                                               uint8_t *kcm_cert_data,
@@ -212,15 +215,15 @@ extern "C" {
 
 
     /** The API releases the context and frees allocated resources.
-    *   When operation type is creation--> if total number of added/stored certificates is not equal to number
-    *   of certificates in the chain, the API will return an error.
+    *   When the operation type is creation and if the total number of added/stored certificates is not equal to the number
+    *   of certificates in the chain, the API returns an error.
     *
-    *    @param[in] kcm_chain_handle                    certificate chain handle.
+    *    @param[in] kcm_chain_handle                    The certificate chain handle.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success.
-    *        KCM_STATUS_CLOSE_INCOMPLETE_CHAIN in case of not all certificates were saved. In this case the chain will be deleted.
-    *        Otherwise one of the `::kcm_status_e` errors.
+    *        ::KCM_STATUS_SUCCESS in success.
+    *        ::KCM_STATUS_CLOSE_INCOMPLETE_CHAIN if all certificates were not saved. In this case the chain will be deleted.
+    *        Otherwise, one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle);
 
@@ -230,26 +233,28 @@ extern "C" {
     /**  Reset the KCM secure storage to factory state.
     *
     *    @returns
-    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        ::KCM_STATUS_SUCCESS in success.
+    *        Otherwise, one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_factory_reset(void);
 
 
     /** Generate a key pair complying the given cryptographic scheme in DER format.
-    *    Saves private key and public key if provided.
+    *    Saves the private and public key if provided.
     *
     *      @param key_scheme The cryptographic scheme.
     *      @param private_key_name The private key name for which a key pair is generated.
-    *      @param private_key_name_len Private key name length
+    *      @param private_key_name_len The length of the private key name.
     *      @param public_key_name The public key name for which a key pair is generated.
     *      This parameter is optional. If not provided, the key will be generated, but not stored.
-    *      @param public_key_name_len Public key name length.
-    *      Must be 0, if ::public_key_name not provided.
+    *      @param public_key_name_len The length of the public key name.
+    *      Must be 0, if `::public_key_name` not provided.
     *      @param kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
-    *      @param kcm_params Additional kcm_params. Currently void.
+    *      @param kcm_params Additional `kcm_params`. Currently void.
     *
     *      @returns
-    *         KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *         KCM_STATUS_SUCCESS in success.
+    *         Otherwise, one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_key_pair_generate_and_store(
         const kcm_crypto_key_scheme_e     key_scheme,
@@ -265,14 +270,15 @@ extern "C" {
     /** Generate a general CSR from the given private key.
    *
    *     @param private_key_name The private key name to fetch from storage.
-   *     @param private_key_name_len The private key name len.
+   *     @param private_key_name_len The length of the private key name.
    *     @param csr_params CSR parameters.
-   *     @param csr_buff_out Pointer to generated CSR buffer to fill.
-   *     @param csr_buff_max_size Size of the supplied CSR buffer.
-   *     @param csr_buff_act_size Actual size of the filled CSR buffer.
+   *     @param csr_buff_out A pointer to the generated CSR buffer to fill.
+   *     @param csr_buff_max_size The size of the supplied CSR buffer.
+   *     @param csr_buff_act_size The actual size of the filled CSR buffer.
    *
    *     @returns
-   *         KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+   *         KCM_STATUS_SUCCESS in success.
+   *         Otherwise, one of the `::kcm_status_e` errors.
    */
     kcm_status_e kcm_csr_generate(
         const uint8_t              *private_key_name,
@@ -288,20 +294,21 @@ extern "C" {
     *
     *     @param key_scheme The cryptographic scheme.
     *     @param private_key_name The private key name to generate.
-    *     @param private_key_name_len The private key name len.
+    *     @param private_key_name_len The length of the private key name.
     *     @param public_key_name The public key name for which a key pair is generated.
     *     This parameter is optional. If not provided, the key will be generated, but not stored.
-    *     @param public_key_name_len Public key name length.
-    *     Must be 0, if ::public_key_name not provided.
+    *     @param public_key_name_len The length of the public key name.
+    *     Must be 0, if `::public_key_name` is not provided.
     *     @param kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
     *     @param csr_params CSR parameters.
-    *     @param csr_buff_out Pointer to generated CSR buffer to fill.
-    *     @param csr_buff_max_size Size of the supplied CSR buffer.
-    *     @param csr_buff_act_size Actual size of the filled CSR buffer.
-    *     @param kcm_data_pkcm_params Additional kcm_params. Currently void.
+    *     @param csr_buff_out A pointer to the generated CSR buffer to fill.
+    *     @param csr_buff_max_size The size of the supplied CSR buffer.
+    *     @param csr_buff_act_size The actual size of the filled CSR buffer.
+    *     @param kcm_data_pkcm_params Additional `kcm_params`. Currently void.
     *
     *     @returns
-    *         KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *         KCM_STATUS_SUCCESS in success.
+    *         Otherwise, one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_generate_keys_and_csr(
         kcm_crypto_key_scheme_e     key_scheme,
@@ -317,19 +324,19 @@ extern "C" {
         const kcm_security_desc_s   *kcm_params
     );
 
-    /** Verify the device-generated certificate against given private key name from storage.
-    * This function can be called when certificate creation is initiated by device using `kcm_generate_keys_and_csr` or `kcm_csr_generate` functions.
-    * In this case, the function checks correlation between certificate's public key and given private key generated by the device and saved in device storage.
+    /** Verify the device-generated certificate against the given private key name from storage.
+    * This function can be called when the certificate creation is initiated by the device using `kcm_generate_keys_and_csr` or `kcm_csr_generate` functions.
+    * In this case, the function checks the correlation between certificate's public key and given private key generated by the device and saved in device storage.
     *
-    *    @param[in] kcm_cert_data DER certificate data buffer.
-    *    @param[in] kcm_cert_data_size DER certificate data buffer size in bytes.
-    *    @param[in] kcm_priv_key_name Private key name of the certificate, the function assumes that the key was generated by the device and saved in the storage.
-    *    @param[in] kcm_priv_key_name_len Private key name length of the certificate.
+    *    @param[in] kcm_cert_data The DER certificate data buffer.
+    *    @param[in] kcm_cert_data_size The size of the DER certificate data buffer in bytes.
+    *    @param[in] kcm_priv_key_name The private key name of the certificate. The function assumes that the key was generated by the device and saved in the storage.
+    *    @param[in] kcm_priv_key_name_len The length of the private key name of the certificate.
     *
     *    @returns
     *        KCM_STATUS_SUCCESS in case of success.
-    *        KCM_STATUS_ITEM_NOT_FOUND  in case private key wasn't found in the storage,
-    *            otherwise one of the `::kcm_status_e` errors.
+    *        KCM_STATUS_ITEM_NOT_FOUND if the private key was not found in the storage.
+    *        Otherwise, one of the `::kcm_status_e` errors.
     */
     kcm_status_e kcm_certificate_verify_with_private_key(
         const uint8_t * kcm_cert_data,

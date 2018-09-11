@@ -58,7 +58,7 @@ int32_t arm_uc_flashiap_erase(uint32_t address, uint32_t size);
  *  @param size     Size to write in bytes, must be a multiple of program and sector sizes
  *  @return         0 on success, negative error code on failure
  */
-int32_t arm_uc_flashiap_program(const uint8_t* buffer,
+int32_t arm_uc_flashiap_program(const uint8_t *buffer,
                                 uint32_t address,
                                 uint32_t size);
 
@@ -71,7 +71,7 @@ int32_t arm_uc_flashiap_program(const uint8_t* buffer,
  *  @param size     Size to read in bytes
  *  @return         0 on success, negative error code on failure
  */
-int32_t arm_uc_flashiap_read(uint8_t* buffer,
+int32_t arm_uc_flashiap_read(uint8_t *buffer,
                              uint32_t address,
                              uint32_t size);
 

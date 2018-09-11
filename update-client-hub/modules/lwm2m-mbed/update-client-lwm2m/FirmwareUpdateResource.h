@@ -20,63 +20,86 @@
 #define __ARM_UCS_FIRMWARE_UPDATE_RESOURCE_H__
 
 #include "mbed-client/m2minterfacefactory.h"
+#include "mbed-client/m2minterface.h"
 #include "mbed-client/m2mresource.h"
 #include "mbed-client/m2mobject.h"
+#include "update-client-common/arm_uc_config.h"
 
 namespace FirmwareUpdateResource {
 
-    typedef enum {
-        ARM_UCS_LWM2M_STATE_FIRST       = 0,
-        ARM_UCS_LWM2M_STATE_IDLE        = ARM_UCS_LWM2M_STATE_FIRST,
-        ARM_UCS_LWM2M_STATE_DOWNLOADING = 1,
-        ARM_UCS_LWM2M_STATE_DOWNLOADED  = 2,
-        ARM_UCS_LWM2M_STATE_UPDATING    = 3,
-        ARM_UCS_LWM2M_STATE_LAST        = ARM_UCS_LWM2M_STATE_UPDATING
-    } arm_ucs_lwm2m_state_t;
+// New enums based on http://www.openmobilealliance.org/tech/profiles/lwm2m/10252.xml
+typedef enum {
+    ARM_UCS_LWM2M_STATE_FIRST                      = 0,
+    ARM_UCS_LWM2M_STATE_UNINITIALISED              = ARM_UCS_LWM2M_STATE_FIRST, //Uninitialised
+    ARM_UCS_LWM2M_STATE_IDLE                       = 1, //Idle
+    ARM_UCS_LWM2M_STATE_PROCESSING_MANIFEST        = 2, //Processing manifest
+    ARM_UCS_LWM2M_STATE_AWAITING_DOWNLOAD_APPROVAL = 3, //Awaiting download approval
+    ARM_UCS_LWM2M_STATE_DOWNLOADING                = 4, //Downloading
+    ARM_UCS_LWM2M_STATE_DOWNLOADED                 = 5, //Downloaded
+    ARM_UCS_LWM2M_STATE_AWAITING_APP_APPROVAL      = 6, //Awaiting application approval
+    ARM_UCS_LWM2M_STATE_UPDATING                   = 7, //Updating
+    ARM_UCS_LWM2M_STATE_REBOOTING                  = 8, //Rebooting
+    ARM_UCS_LWM2M_STATE_LAST                       = ARM_UCS_LWM2M_STATE_REBOOTING
+} arm_ucs_lwm2m_state_t;
 
-    typedef enum {
-        ARM_UCS_LWM2M_RESULT_FIRST            = 0,
-        ARM_UCS_LWM2M_RESULT_INITIAL          = ARM_UCS_LWM2M_RESULT_FIRST,
-        ARM_UCS_LWM2M_RESULT_SUCCESS          = 1,
-        ARM_UCS_LWM2M_RESULT_ERROR_STORAGE    = 2,
-        ARM_UCS_LWM2M_RESULT_ERROR_MEMORY     = 3,
-        ARM_UCS_LWM2M_RESULT_ERROR_CONNECTION = 4,
-        ARM_UCS_LWM2M_RESULT_ERROR_CRC        = 5,
-        ARM_UCS_LWM2M_RESULT_ERROR_TYPE       = 6,
-        ARM_UCS_LWM2M_RESULT_ERROR_URI        = 7,
-        ARM_UCS_LWM2M_RESULT_ERROR_UPDATE     = 8,
-        ARM_UCS_LWM2M_RESULT_ERROR_HASH       = 9,
-        ARM_UCS_LWM2M_RESULT_LAST             = ARM_UCS_LWM2M_RESULT_ERROR_HASH
-    } arm_ucs_lwm2m_result_t;
+typedef enum {
+    ARM_UCS_LWM2M_RESULT_FIRST                        = 0,
+    ARM_UCS_LWM2M_RESULT_INITIAL                      = ARM_UCS_LWM2M_RESULT_FIRST, // Uninitialised
+    ARM_UCS_LWM2M_RESULT_SUCCESS                      = 1,  //Success
+    ARM_UCS_LWM2M_RESULT_MANIFEST_TIMEOUT             = 2,  //Manifest timeout. The Manifest URI has timed-out.
+    ARM_UCS_LWM2M_RESULT_MANIFEST_NOT_FOUND           = 3,  //Manifest not found. The Manifest URI not found.
+    ARM_UCS_LWM2M_RESULT_MANIFEST_FAILED_INTEGRITY    = 4,  //Manifest failed integrity check. The manifest integrity check failed.
+    ARM_UCS_LWM2M_RESULT_MANIFEST_REJECTED            = 5,  //Manifest rejected. The Manifest attributes do not apply to this device.
+    ARM_UCS_LWM2M_RESULT_MANIFEST_CERT_NOT_FOUND      = 6,  //Manifest certificate not found
+    ARM_UCS_LWM2M_RESULT_MANIFEST_SIGNATURE_FAILED    = 7,  //Manifest signature failed. The Manifest signature is not recognised by this device.
+    ARM_UCS_LWM2M_RESULT_DEPENDENT_MANIFEST_NOT_FOUND = 8,  //Dependent manifest not found
+    ARM_UCS_LWM2M_RESULT_ERROR_STORAGE                = 9,  //Not enough storage for the new asset
+    ARM_UCS_LWM2M_RESULT_ERROR_MEMORY                 = 10, //Out of memory during download process
+    ARM_UCS_LWM2M_RESULT_ERROR_CONNECTION             = 11, //Connection lost during download process
+    ARM_UCS_LWM2M_RESULT_ERROR_CRC                    = 12, //Asset failed integrity check
+    ARM_UCS_LWM2M_RESULT_ERROR_TYPE                   = 13, //Unsupported asset type
+    ARM_UCS_LWM2M_RESULT_ERROR_URI                    = 14, //Invalid asset URI
+    ARM_UCS_LWM2M_RESULT_ERROR_UPDATE                 = 15, //Timed out downloading asset
+    ARM_UCS_LWM2M_RESULT_UNSUPPORTED_DELTA_FORMAT     = 16, //Unsupported delta format
+    ARM_UCS_LWM2M_RESULT_ERROR_HASH                   = 17, //Unsupported encryption format
+    ARM_UCS_LWM2M_RESULT_ASSET_UPDATE_COMPLETED       = 18, //Asset update successfully completed
+    ARM_UCS_LWM2M_RESULT_ASSET_UPDATED_AFTER_RECOVERY = 19, //Asset updated successfully after recovery
+    ARM_UCS_LWM2M_RESULT_LAST                         = ARM_UCS_LWM2M_RESULT_ASSET_UPDATED_AFTER_RECOVERY
+} arm_ucs_lwm2m_result_t;
 
-    void Initialize(void);
-    void Uninitialize(void);
+void Initialize(void);
+void Uninitialize(void);
 
-    M2MObject* getObject(void);
+M2MObject *getObject(void);
 
-    /* Add callback for resource /5/0/0, Package */
-    int32_t addPackageCallback(void (*cb)(const uint8_t* buffer, uint16_t length));
+/* Add callback for resource /10252/0/1, Package */
+int32_t addPackageCallback(void (*cb)(const uint8_t *buffer, uint16_t length));
 
-    /* Add callback for resource /5/0/1, Package URI */
-    int32_t addPackageURICallback(void (*cb)(const uint8_t* buffer, uint16_t length));
+#if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE == 0)
+/* Add callback for resource /5/0/2, Update */
+int32_t addUpdateCallback(void (*cb)(void));
+#endif
 
-    /* Add callback for resource /5/0/2, Update */
-    int32_t addUpdateCallback(void (*cb)(void));
+/* Add callback for when send{State, UpdateResult} is done */
+int32_t addNotificationCallback(void (*notification_handler)(void));
 
-    /* Add callback for when send{State, UpdateResult} is done */
-    int32_t addNotificationCallback(void (*notification_handler)(void));
+/* Send state for resource /10252/0/2, State */
+int32_t sendState(arm_ucs_lwm2m_state_t state);
 
-    /* Send state for resource /5/0/3, State */
-    int32_t sendState(arm_ucs_lwm2m_state_t state);
+/* Send result for resource /10252/0/3, Update Result */
+int32_t sendUpdateResult(arm_ucs_lwm2m_result_t result);
 
-    /* Send result for resource /5/0/5, Update Result */
-    int32_t sendUpdateResult(arm_ucs_lwm2m_result_t result);
+/* Send name for resource /10252/0/5, PkgName */
+int32_t sendPkgName(const uint8_t *name, uint16_t length);
 
-    /* Send name for resource /5/0/6, PkgName */
-    int32_t sendPkgName(const uint8_t* name, uint16_t length);
+/* Send version for resource /10252/0/6, PkgVersion */
+int32_t sendPkgVersion(uint64_t version);
 
-    /* Send version for resource /5/0/7, PkgVersion */
-    int32_t sendPkgVersion(uint64_t version);
+#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
+int32_t setM2MInterface(M2MInterface *interface);
+
+M2MInterface *getM2MInterface(void);
+#endif //ARM_UC_FEATURE_FW_SOURCE_COAP
 }
 
 #endif // __ARM_UCS_FIRMWARE_UPDATE_RESOURCE_H__

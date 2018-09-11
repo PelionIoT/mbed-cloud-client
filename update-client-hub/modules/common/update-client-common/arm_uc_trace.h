@@ -31,12 +31,16 @@
     Available update client trace flags:
     ARM_UC_ALL_TRACE_ENABLE
     ARM_UC_HUB_TRACE_ENABLE
+    ARM_UC_ERROR_TRACE_ENABLE
     ARM_UC_COMMON_TRACE_ENABLE
     ARM_UC_FIRMWARE_MANAGER_TRACE_ENABLE
     ARM_UC_CONTROL_CENTER_TRACE_ENABLE
+    ARM_UC_RESUME_TRACE_ENABLE
     ARM_UC_MANIFEST_MANAGER_TRACE_ENABLE
     ARM_UC_SOURCE_MANAGER_TRACE_ENABLE
     ARM_UC_PAAL_TRACE_ENABLE
+    ARM_UC_QA_TRACE_ENABLE
+    ARM_UC_SDLR_TRACE_ENABLE
 */
 
 /* if the global trace flag is enabled, enable trace for all hub modules */
@@ -47,6 +51,8 @@
 #endif // if MBED_CONF_MBED_TRACE_ENABLE
 
 #if defined(ARM_UC_ALL_TRACE_ENABLE) && ARM_UC_ALL_TRACE_ENABLE == 1
+#undef ARM_UC_ERROR_TRACE_ENABLE
+#define ARM_UC_ERROR_TRACE_ENABLE 1
 #undef ARM_UC_HUB_TRACE_ENABLE
 #define ARM_UC_HUB_TRACE_ENABLE 1
 #undef ARM_UC_FIRMWARE_MANAGER_TRACE_ENABLE
@@ -61,7 +67,29 @@
 #define ARM_UC_COMMON_TRACE_ENABLE 1
 #undef ARM_UC_PAAL_TRACE_ENABLE
 #define ARM_UC_PAAL_TRACE_ENABLE 1
+#undef ARM_UC_QA_TRACE_ENABLE
+#define ARM_UC_QA_TRACE_ENABLE 1
+#ifndef ARM_UC_SDLR_TRACE_ENABLE
+#define ARM_UC_SDLR_TRACE_ENABLE 0
+#endif
+#ifndef ARM_UC_RESUME_TRACE_ENABLE
+#define ARM_UC_RESUME_TRACE_ENABLE 0
+#endif
 #endif // if ARM_UC_ALL_TRACE_ENABLE
+
+#if ARM_UC_ERROR_TRACE_ENABLE
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#if MBED_CONF_MBED_TRACE_ENABLE
+#define UC_ERROR_TRACE(fmt, ...) mbed_tracef(TRACE_LEVEL_DEBUG, "ERR ", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_ERROR_ERR_MSG(fmt, ...) mbed_tracef(TRACE_LEVEL_ERROR, "ERR ", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#else
+#define UC_ERROR_TRACE(fmt, ...) printf("[TRACE][ERR]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_ERROR_ERR_MSG(fmt, ...) printf("[ERROR][ERR]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#endif // if MBED_CONF_MBED_TRACE_ENABLE
+#else
+#define UC_ERROR_TRACE(fmt, ...)
+#define UC_ERROR_ERR_MSG(fmt, ...)
+#endif // if ARM_UC_ERROR_TRACE_ENABLE
 
 #if ARM_UC_HUB_TRACE_ENABLE
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -133,6 +161,20 @@
 #define UC_CONT_ERR_MSG(fmt, ...)
 #endif // if ARM_UC_FIRMWARE_MANAGER_TRACE_ENABLE
 
+#if ARM_UC_RESUME_TRACE_ENABLE
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#if MBED_CONF_MBED_TRACE_ENABLE
+#define UC_RESUME_TRACE(fmt, ...) mbed_tracef(TRACE_LEVEL_DEBUG, "RESM", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_RESUME_ERR_MSG(fmt, ...) mbed_tracef(TRACE_LEVEL_ERROR, "RESM", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#else
+#define UC_RESUME_TRACE(fmt, ...) printf("[TRACE][RESM]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_RESUME_ERR_MSG(fmt, ...) printf("[ERROR][RESM]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#endif // if MBED_CONF_MBED_TRACE_ENABLE
+#else
+#define UC_RESUME_TRACE(fmt, ...)
+#define UC_RESUME_ERR_MSG(fmt, ...)
+#endif // if ARM_UC_RESUME_TRACE_ENABLE
+
 #if ARM_UC_COMMON_TRACE_ENABLE
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #if MBED_CONF_MBED_TRACE_ENABLE
@@ -160,5 +202,33 @@
 #define UC_PAAL_TRACE(fmt, ...)
 #define UC_PAAL_ERR_MSG(fmt, ...)
 #endif // if ARM_UC_COMMON_TRACE_ENABLE
+
+#if ARM_UC_QA_TRACE_ENABLE
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#if MBED_CONF_MBED_TRACE_ENABLE
+#define UC_QA_TRACE(fmt, ...) mbed_tracef(TRACE_LEVEL_DEBUG, "QA  ", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_QA_ERR_MSG(fmt, ...) mbed_tracef(TRACE_LEVEL_ERROR, "QA  ", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#else
+#define UC_QA_TRACE(fmt, ...) printf("[TRACE][QA  ]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_QA_ERR_MSG(fmt, ...) printf("[ERROR][QA  ]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#endif // if MBED_CONF_MBED_TRACE_ENABLE
+#else
+#define UC_QA_TRACE(fmt, ...)
+#define UC_QA_ERR_MSG(fmt, ...)
+#endif // if ARM_UC_COMMON_TRACE_ENABLE
+
+#if ARM_UC_SDLR_TRACE_ENABLE
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#if MBED_CONF_MBED_TRACE_ENABLE
+#define UC_SDLR_TRACE(fmt, ...) mbed_tracef(TRACE_LEVEL_DEBUG, "SDLR", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_SDLR_ERR_MSG(fmt, ...) mbed_tracef(TRACE_LEVEL_ERROR, "SDLR", "%s:%d: " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#else
+#define UC_SDLR_TRACE(fmt, ...) printf("[TRACE][SDLR]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define UC_SDLR_ERR_MSG(fmt, ...) printf("[ERROR][SDLR]" "%s:%d: " fmt "\r\n", __FILENAME__, __LINE__, ##__VA_ARGS__)
+#endif // if MBED_CONF_MBED_TRACE_ENABLE
+#else
+#define UC_SDLR_TRACE(fmt, ...)
+#define UC_SDLR_ERR_MSG(fmt, ...)
+#endif // if ARM_UC_SDLR_TRACE_ENABLE
 
 #endif // ARM_UPDATE_TRACE_H

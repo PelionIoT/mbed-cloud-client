@@ -126,6 +126,28 @@ public:
         GET_PUT_POST_DELETE_ALLOWED = 0x0F
     }Operation;
 
+    /**
+     * Enum defining an status codes that can happen when
+     * sending confirmable message.
+    */
+    typedef enum {
+        MESSAGE_STATUS_INIT = 0,           // Initial state.
+        MESSAGE_STATUS_BUILD_ERROR,        // CoAP message building fails.
+        MESSAGE_STATUS_RESEND_QUEUE_FULL,  // CoAP resend queue full.
+        MESSAGE_STATUS_SENT,               // Message sent to the server but ACK not yet received.
+        MESSAGE_STATUS_DELIVERED,          // Received ACK from server.
+        MESSAGE_STATUS_SEND_FAILED,        // Message sending failed (retransmission completed).
+        MESSAGE_STATUS_SUBSCRIBED,         // Server has started the observation
+        MESSAGE_STATUS_UNSUBSCRIBED,       // Server has stopped the observation (RESET message or GET with observe 1)
+        MESSAGE_STATUS_REJECTED            // Server has rejected the response
+    } MessageDeliveryStatus;
+
+    typedef enum {
+        NOTIFICATION,
+        DELAYED_POST_RESPONSE
+    } MessageType;
+
+
     enum MaxPathSize {
         MAX_NAME_SIZE = 64,
         MAX_INSTANCE_SIZE = 5,
@@ -138,7 +160,13 @@ public:
 
     typedef void(*notification_delivery_status_cb) (const M2MBase& base,
                                                     const NotificationDeliveryStatus status,
-                                                    void *client_args);
+                                                    void *client_args) m2m_deprecated;
+
+    typedef void(*message_delivery_status_cb) (const M2MBase& base,
+                                               const MessageDeliveryStatus status,
+                                               const MessageType type,
+                                               void *client_args);
+
 
     typedef struct lwm2m_parameters {
         //add multiple_instances
@@ -438,7 +466,12 @@ public:
     /**
      * \brief Executes the function that is set in "set_notification_delivery_status_cb".
      */
-    void send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status);
+    void send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status) m2m_deprecated;
+
+    /**
+     * \brief Executes the function that is set in "set_message_delivery_status_cb".
+     */
+    void send_message_delivery_status(const M2MBase& object, const MessageDeliveryStatus status, const MessageType type);
 
     /**
      * \brief Sets whether this resource is published to server or not.
@@ -508,21 +541,29 @@ public:
      * @brief Returns the notification message id.
      * @return Message id.
      */
-    uint16_t get_notification_msgid() const;
+    uint16_t get_notification_msgid() const m2m_deprecated;
 
     /**
      * @brief Sets the notification message id.
      * This is used to map RESET and EMPTY ACK messages.
      * @param msgid The message id.
      */
-    void set_notification_msgid(uint16_t msgid);
+    void set_notification_msgid(uint16_t msgid) m2m_deprecated;
 
     /**
      * @brief Sets the function that is executed when notification message state changes.
      * @param callback The function pointer that is called.
      * @param client_args The argument which is passed to the callback function.
      */
-    bool set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args);
+    bool set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args) m2m_deprecated;
+
+    /**
+     * @brief Sets the function that is executed when message state changes.
+     * Currently this is used to track notifications and delayed response delivery statuses.
+     * @param callback The function pointer that is called.
+     * @param client_args The argument which is passed to the callback function.
+     */
+    bool set_message_delivery_status_cb(message_delivery_status_cb callback, void *client_args);
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     static char* create_path(const M2MEndpoint &parent, const char *name);
@@ -619,12 +660,12 @@ protected:
      * \brief Returns notification send status.
      * \return Notification status.
      */
-    NotificationDeliveryStatus get_notification_delivery_status() const;
+    NotificationDeliveryStatus get_notification_delivery_status() const m2m_deprecated;
 
     /**
      * \brief Clears the notification send status to initial state.
      */
-    void clear_notification_delivery_status();
+    void clear_notification_delivery_status() m2m_deprecated;
 
     /**
      * \brief Provides the observation token of the object.
@@ -641,7 +682,7 @@ protected:
     void set_observation_token(const uint8_t *token,
                                const uint8_t length);
 
-    /*
+    /**
      * \brief The data has changed and it needs to be updated into Mbed Cloud.
      *        Current implementation maintains the changed state only in M2MEndpoint. If any of the changes in an
      *        object changes the M2M registration structure, the information is propagated to M2MEndpoint using
@@ -649,7 +690,7 @@ protected:
      */
     virtual void set_changed();
 
-    /*
+    /**
      * \brief Returns the owner object. Can return NULL if the object has no parent.
      */
     virtual M2MBase *get_parent() const;

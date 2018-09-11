@@ -219,8 +219,6 @@ extern "C" {
 	assert(0);\
 }
 
-
-
 #define PAL_LOG_ERR_FUNC  tr_err
 #define PAL_LOG_WARN_FUNC tr_warn
 #define PAL_LOG_INFO_FUNC tr_info
@@ -238,16 +236,13 @@ extern "C" {
 #define PAL_LOG_DBG( ARGS...)   PAL_LOG_DBG_FUNC(ARGS);
 
 
-#define PAL_LOG(LOG_LEVEL, ARGS...)  tracef(PAL_LOG_LEVEL_##LOG_LEVEL, "PAL" , ARGS);
-
-
 #ifdef DEBUG
 #ifdef VERBOSE
 #define PAL_PRINTF( ARGS...) \
-        #define PAL_PRINTF(fmt, ...) PAL_LOG(DBG, "%s:%d: " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__);
+        #define PAL_PRINTF(fmt, ...) PAL_LOG_DBG("%s:%d: " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__);
 #else
 #define PAL_PRINTF( ARGS...) \
-		PAL_LOG(DBG, ARGS);
+        PAL_LOG_DBG(ARGS);
 #endif
 #else
 	#define PAL_PRINTF( ARGS...)
@@ -266,7 +261,7 @@ extern "C" {
     {\
         if ((condition)) \
         { \
-            PAL_LOG(ERR,"(%s,%d): Parameters  values is illegal\r\n",__FUNCTION__,__LINE__); \
+            PAL_LOG_ERR("(%s,%d): Parameters  values is illegal\r\n",__FUNCTION__,__LINE__); \
             return error; \
         } \
     }

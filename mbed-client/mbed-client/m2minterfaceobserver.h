@@ -86,7 +86,7 @@ public:
      * \brief A callback indicating when all bootstrap data has been received.
      * \param security_object, The security object that contains the security information.
      */
-    virtual void bootstrap_data_ready(M2MSecurity *security_object) { };
+    virtual void bootstrap_data_ready(M2MSecurity */*security_object*/) { }
 
 };
 

@@ -16,6 +16,7 @@
 #include "pal.h"
 #include "pal_plat_Crypto.h"
 
+#define TRACE_GROUP "PAL"
 
 palStatus_t pal_initAes(palAesHandle_t *aes)
 {
@@ -297,7 +298,7 @@ palStatus_t pal_CtrDRBGInit(palCtrDrbgCtxHandle_t* ctx, const void* seed, size_t
             tmpStatus = pal_CtrDRBGFree(ctx);
             if (PAL_SUCCESS != tmpStatus)
             {
-                PAL_LOG(ERR, "Failed to release CTR-DRBG context %" PRId32 ".", tmpStatus);
+                PAL_LOG_ERR("Failed to release CTR-DRBG context %" PRId32 ".", tmpStatus);
             }
         }
     }
@@ -332,7 +333,7 @@ palStatus_t pal_cipherCMAC(const unsigned char *key, size_t keyLenInBits, const 
     status = pal_plat_cipherCMAC(key, keyLenInBits, input, inputLenInBytes, output);
 #else   // no CMAC support		
     status = PAL_ERR_NOT_SUPPORTED;
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
+    PAL_LOG_ERR("CMAC support in PAL is disabled");
 #endif 
     return status;
 }
@@ -345,7 +346,7 @@ palStatus_t pal_CMACStart(palCMACHandle_t *ctx, const unsigned char *key, size_t
     status = pal_plat_CMACStart(ctx, key, keyLenBits, cipherID);
 #else   // no CMAC support		
     status = PAL_ERR_NOT_SUPPORTED;
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
+    PAL_LOG_ERR("CMAC support in PAL is disabled");
 #endif
     return status;
 }
@@ -359,7 +360,7 @@ palStatus_t pal_CMACUpdate(palCMACHandle_t ctx, const unsigned char *input, size
     status = pal_plat_CMACUpdate(ctx, input, inLen);
 #else   // no CMAC support		
     palStatus_t status = PAL_ERR_NOT_SUPPORTED;		
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
+    PAL_LOG_ERR("CMAC support in PAL is disabled");
 #endif 
     return status;
 }
@@ -373,7 +374,7 @@ palStatus_t pal_CMACFinish(palCMACHandle_t *ctx, unsigned char *output, size_t* 
     status = pal_plat_CMACFinish(ctx, output, outLen);
 #else   // no CMAC support		
     palStatus_t status = PAL_ERR_NOT_SUPPORTED;		
-    PAL_LOG(ERR, "CMAC support in PAL is disabled");		
+    PAL_LOG_ERR("CMAC support in PAL is disabled");
 #endif 
     return status;
 }
@@ -583,6 +584,19 @@ palStatus_t pal_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* derBu
     PAL_VALIDATE_ARGUMENTS((NULLPTR == x509CSR || NULL == derBuf))
 
     status = pal_plat_x509CSRWriteDER(x509CSR, derBuf, derBufLen, actualDerLen);
+    return status;
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif
+}
+
+palStatus_t pal_x509CSRFromCertWriteDER(palX509Handle_t x509Cert, palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerBufLen)
+{
+#if (PAL_ENABLE_X509 == 1)
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS((0 == x509Cert || 0 == x509CSR || NULL == derBuf || NULL == actualDerBufLen))
+
+    status = pal_plat_x509CSRFromCertWriteDER(x509Cert, x509CSR, derBuf, derBufLen, actualDerBufLen);
     return status;
 #else
     return PAL_ERR_NOT_SUPPORTED;

@@ -30,6 +30,10 @@
 #include "mbed-client/m2mtimer.h"
 #include "include/CloudClientStorage.h"
 
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+#include "include/EstClient.h"
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
+
 class ConnectorClientCallback;
 
 using namespace std;
@@ -150,29 +154,28 @@ public:
     */
    const ConnectorClientEndpointInfo *endpoint_info() const;
 
-   void est_enrollment_result(bool success,
-                              const uint8_t *payload_ptr,
-                              const uint16_t payload_len);
-
-   static void est_post_data_cb(const uint8_t *buffer,
-                                size_t buffer_size,
-                                size_t total_size,
-                                void *context);
-
-   static void est_post_data_error_cb(get_data_req_error_t error_code,
-                                      void *context);
-
    /**
     * \brief Returns KCM Certificate chain handle pointer.
     * \return KCM Certificate chain handle pointer.
-   */
+    */
    void *certificate_chain_handle() const;
 
    /**
     * \brief Sets the KCM certificate chain handle pointer.
     * \param cert_handle KCM Certificate chain handle.
-   */
+    */
    void set_certificate_chain_handle(void *cert_handle);
+
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+   static void est_enrollment_result(est_enrollment_result_e result,
+                                     cert_chain_context_s *cert_chain,
+                                     void *context);
+
+   /**
+    * \brief Get reference to the EST client instance.
+   */
+   const EstClient &est_client();
+#endif /* MBED_CLIENT_DISABLE_EST_FEATURE */
 
 public:
     // implementation of M2MInterfaceObserver:
@@ -276,6 +279,7 @@ private:
     */
     void state_bootstrap_failure();
 
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
     /**
      * When the EST (enrollment-over-secure-transport) enrollment starts.
      */
@@ -295,6 +299,7 @@ private:
      * When the EST (enrollment-over-secure-transport) enrollment failed.
      */
     void state_est_failure();
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 
     /**
     * When the registration starts.
@@ -396,6 +401,9 @@ private:
     uint16_t                            _bootstrap_security_instance;
     uint16_t                            _lwm2m_security_instance;
     void                                *_certificate_chain_handle;
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+    EstClient                           _est_client;
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 };
 
 /**

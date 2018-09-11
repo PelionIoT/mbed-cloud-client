@@ -31,6 +31,9 @@
 #include "factory_configurator_client.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-trace/mbed_trace.h"
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#include "CertificateEnrollmentClient.h"
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 #include <assert.h>
 
 #define TRACE_GROUP "mClt"
@@ -64,6 +67,9 @@ ServiceClient::~ServiceClient()
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     ARM_UC_HUB_Uninitialize();
 #endif
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+    CertificateEnrollmentClient::finalize();
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 }
 
 void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
@@ -131,7 +137,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 
             /* Initialize Update Client */
             FP1<void, int32_t> callback(this, &ServiceClient::update_error_callback);
-            UpdateClient::UpdateClient(callback);
+            UpdateClient::UpdateClient(callback, _connector_client.m2m_interface());
         }
 #endif /* MBED_CLOUD_CLIENT_SUPPORT_UPDATE */
 
@@ -139,23 +145,15 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
            Get instance and add it to object list
         */
         M2MDevice *device_object = device_object_from_storage();
+		
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+        // Initialize the certificate enrollment resources and module
+        if (CertificateEnrollmentClient::init(*_client_objs, &_connector_client.est_client()) != CE_STATUS_SUCCESS) {
+            // FIXME: Fail the setup
+        }
+#endif  MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
         if (device_object) {
-            M2MObjectInstance* instance = device_object->object_instance(0);
-            if (instance) {
-                M2MResource *res = instance->resource(DEVICE_MANUFACTURER);
-                if (res) {
-                    res->publish_value_in_registration_msg(true);
-                }
-                res = instance->resource(DEVICE_MODEL_NUMBER);
-                if (res) {
-                    res->publish_value_in_registration_msg(true);
-                }
-                res = instance->resource(DEVICE_SERIAL_NUMBER);
-                if (res) {
-                    res->publish_value_in_registration_msg(true);
-                }
-             }
             /* Publish device object resource to mds */
             M2MResourceList list = device_object->object_instance()->resources();
             if(!list.empty()) {
@@ -324,97 +322,97 @@ M2MDevice* ServiceClient::device_object_from_storage()
     if (device_object == NULL) {
         return NULL;
     }
+    M2MObjectInstance* instance = device_object->object_instance(0);
+    if(instance == NULL) {
+        return NULL;
+    }
 
     const size_t buffer_size = 128;
     uint8_t buffer[buffer_size];
     size_t size = 0;
+    M2MResource *res = NULL;
 
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
-    uint8_t guid[sizeof(arm_uc_guid_t)] = {0};
-    // Read out the binary Vendor UUID
-    ccs_status_e status = (ccs_status_e)UpdateClient::getVendorId(guid, sizeof(arm_uc_guid_t), &size);
-
-    // Format the binary Vendor UUID into a hex string
-    if (status == CCS_STATUS_SUCCESS) {
-        size_t j = 0;
-        for(size_t i = 0; i < size; i++)
-        {
-            buffer[j++] = hex_table[(guid[i] >> 4) & 0xF];
-            buffer[j++] = hex_table[(guid[i] >> 0) & 0xF];
-        }
-        buffer[j] = '\0';
-        const String data((char*)buffer, size * 2);
-        // create_resource() returns NULL if resource already exists
-        if (device_object->create_resource(M2MDevice::Manufacturer, data) == NULL) {
-            device_object->set_resource_value(M2MDevice::Manufacturer, data);
-        }
-    }
-
-    // Read out the binary Class UUID
-    status = (ccs_status_e)UpdateClient::getClassId(guid, sizeof(arm_uc_guid_t), &size);
-
-    // Format the binary Class UUID into a hex string
-    if (status == CCS_STATUS_SUCCESS) {
-        size_t j = 0;
-        for(size_t i = 0; i < size; i++)
-        {
-            buffer[j++] = hex_table[(guid[i] >> 4) & 0xF];
-            buffer[j++] = hex_table[(guid[i] >> 0) & 0xF];
-        }
-        buffer[j] = '\0';
-        const String data((char*)buffer, size * 2);
-        // create_resource() returns NULL if resource already exists
-        if (device_object->create_resource(M2MDevice::ModelNumber, data) == NULL) {
-            device_object->set_resource_value(M2MDevice::ModelNumber, data);
-        }
-    }
-#else
     // Read values to device object
     // create_resource() function returns NULL if resource already exists
     ccs_status_e status = ccs_get_item(g_fcc_manufacturer_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::Manufacturer, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::Manufacturer, data);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_MANUFACTURER);
             device_object->set_resource_value(M2MDevice::Manufacturer, data);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
     }
     status = ccs_get_item(g_fcc_model_number_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::ModelNumber, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::ModelNumber, data);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_MODEL_NUMBER);
             device_object->set_resource_value(M2MDevice::ModelNumber, data);
         }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
+        }
     }
-#endif
     status = ccs_get_item(g_fcc_device_serial_number_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::SerialNumber, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::SerialNumber, data);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_SERIAL_NUMBER);
             device_object->set_resource_value(M2MDevice::SerialNumber, data);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
     }
 
     status = ccs_get_item(g_fcc_device_type_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::DeviceType, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::DeviceType, data);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_DEVICE_TYPE);
             device_object->set_resource_value(M2MDevice::DeviceType, data);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
     }
 
     status = ccs_get_item(g_fcc_hardware_version_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::HardwareVersion, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::HardwareVersion, data);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_HARDWARE_VERSION);
             device_object->set_resource_value(M2MDevice::HardwareVersion, data);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
     }
 
     status = ccs_get_item(KEY_DEVICE_SOFTWAREVERSION, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::SoftwareVersion, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::SoftwareVersion, data);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_SOFTWARE_VERSION);
             device_object->set_resource_value(M2MDevice::SoftwareVersion, data);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
     }
 
@@ -423,8 +421,14 @@ M2MDevice* ServiceClient::device_object_from_storage()
     status = ccs_get_item(g_fcc_memory_size_parameter_name, data, 4, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         memcpy(&value, data, 4);
-        if (device_object->create_resource(M2MDevice::MemoryTotal, value) == NULL) {
+        res = device_object->create_resource(M2MDevice::MemoryTotal, value);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_MEMORY_TOTAL);
             device_object->set_resource_value(M2MDevice::MemoryTotal, value);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
         tr_debug("ServiceClient::device_object_from_storage() - setting memory total value %" PRIu32 " (%s)", value, tr_array(data, 4));
     }
@@ -432,8 +436,14 @@ M2MDevice* ServiceClient::device_object_from_storage()
     status = ccs_get_item(g_fcc_current_time_parameter_name, data, 4, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         memcpy(&value, data, 4);
-        if (device_object->create_resource(M2MDevice::CurrentTime, value) == NULL) {
+        res = device_object->create_resource(M2MDevice::CurrentTime, value);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_CURRENT_TIME);
             device_object->set_resource_value(M2MDevice::CurrentTime, value);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
         tr_debug("ServiceClient::device_object_from_storage() - setting current time value %" PRIu32 " (%s)", value, tr_array(data, 4));
     }
@@ -441,16 +451,28 @@ M2MDevice* ServiceClient::device_object_from_storage()
     status = ccs_get_item(g_fcc_device_time_zone_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::Timezone, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::Timezone, data);
+        if ( res == NULL) {
+            res = instance->resource(DEVICE_TIMEZONE);
             device_object->set_resource_value(M2MDevice::Timezone, data);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
     }
 
     status = ccs_get_item(g_fcc_offset_from_utc_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
         const String data((char*)buffer, size);
-        if (device_object->create_resource(M2MDevice::UTCOffset, data) == NULL) {
+        res = device_object->create_resource(M2MDevice::UTCOffset, data);
+        if (res == NULL) {
+            res = instance->resource(DEVICE_UTC_OFFSET);
             device_object->set_resource_value(M2MDevice::UTCOffset, data);
+        }
+        if(res) {
+            res->publish_value_in_registration_msg(true);
+            res->set_auto_observable(true);
         }
     }
 
@@ -469,7 +491,7 @@ bool ServiceClient::set_device_resource_value(M2MDevice::DeviceResource resource
 {
     return set_device_resource_value(resource,
                                      value.c_str(),
-                                     value.size() - 1);
+                                     value.size());
 }
 
 /**
@@ -504,67 +526,6 @@ bool ServiceClient::set_device_resource_value(M2MDevice::DeviceResource resource
                 break;
         }
 #endif
-
-        /* Convert resource to printable string if necessary */
-
-        /* Getting object instance from factory */
-        M2MDevice *device_object = M2MInterfaceFactory::create_device();
-
-        /* Check device object and resource both are present */
-        if (device_object && device_object->is_resource_present(resource)) {
-            /* set counter to not-zero */
-            uint8_t printable_length = 0xFF;
-
-            /* set printable_length to 0 if the buffer is not printable */
-            for (uint8_t index = 0; index < length; index++) {
-                /* break if character is not printable */
-                if ((value[index] < ' ') || (value[index] > '~')) {
-                    printable_length = 0;
-                    break;
-                }
-            }
-
-            /* resource is a string */
-            if (printable_length != 0) {
-                /* reset counter */
-                printable_length = 0;
-
-                /* find actual printable length */
-                for ( ; printable_length < length; printable_length++) {
-                    /* break prematurely if end-of-string character is found */
-                    if (value[printable_length] == '\0') {
-                        break;
-                    }
-                }
-
-                /* convert to string and set value in object */
-                String string_value(value, printable_length);
-                retval = device_object->set_resource_value(resource, string_value);
-            }
-            else
-            {
-                /* resource is a byte array */
-                char value_buffer[0xFF] = { 0 };
-
-                /* count length */
-                uint8_t index = 0;
-
-                /* convert byte array to string */
-                for ( ;
-                    (index < length) && ((2*index +1) < 0xFF);
-                    index++) {
-
-                    uint8_t byte = value[index];
-
-                    value_buffer[2 * index]     = hex_table[byte >> 4];
-                    value_buffer[2 * index + 1] = hex_table[byte & 0x0F];
-                }
-
-                /* convert to string and set value in object */
-                String string_value(value_buffer, 2 * (index - 1));
-                retval = device_object->set_resource_value(resource, string_value);
-            }
-        }
     }
 
     return retval;

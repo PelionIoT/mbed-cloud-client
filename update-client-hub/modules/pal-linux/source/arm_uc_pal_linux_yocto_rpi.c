@@ -16,6 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
 #if defined(TARGET_IS_PC_LINUX)
 
 #include "update-client-paal/arm_uc_paal_update_api.h"
@@ -87,8 +89,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Initialize_Yocto_RPi(ARM_UC_PAAL_UPDATE_SignalEv
     return ARM_UC_PAL_Linux_Initialize(callback);
 }
 
-const ARM_UC_PAAL_UPDATE ARM_UCP_LINUX_YOCTO_RPI =
-{
+const ARM_UC_PAAL_UPDATE ARM_UCP_LINUX_YOCTO_RPI = {
     .Initialize                 = ARM_UC_PAL_Linux_Initialize_Yocto_RPi,
     .GetCapabilities            = ARM_UC_PAL_Linux_GetCapabilities_Yocto_RPi,
     .GetMaxID                   = ARM_UC_PAL_Linux_GetMaxID,
@@ -102,4 +103,5 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_LINUX_YOCTO_RPI =
     .GetInstallerDetails        = ARM_UC_PAL_Linux_GetInstallerDetails
 };
 
-#endif
+#endif /* TARGET_IS_PC_LINUX */
+#endif /* ARM_UC_FEATURE_PAL_LINUX */

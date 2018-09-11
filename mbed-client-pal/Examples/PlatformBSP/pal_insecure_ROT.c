@@ -16,6 +16,8 @@
 #include "pal.h"
 #define PAL_DEVICE_KEY_SIZE_IN_BYTES 16
 
+#define TRACE_GROUP "PAL"
+
 //THIS CODE IS FOR TESTING PURPOSES ONLY. DO NOT USE IN PRODUCTION ENVIRONMENTS. REPLACE WITH A PROPER IMPLEMENTATION BEFORE USE
 palStatus_t  __attribute__((weak)) pal_plat_osGetRoTFromHW(uint8_t *keyBuf, size_t keyLenBytes)
 {
@@ -25,7 +27,7 @@ palStatus_t  __attribute__((weak)) pal_plat_osGetRoTFromHW(uint8_t *keyBuf, size
     #pragma message ("You are using insecure Root Of Trust implementation, DO NOT USE IN PRODUCTION ENVIRONMENTS. REPLACE WITH A PROPER IMPLEMENTATION BEFORE USE")
     #endif
 
-	PAL_LOG(WARN, "You are using insecure Root Of Trust implementation");
+    PAL_LOG_WARN("You are using insecure Root Of Trust implementation");
 
     if (keyLenBytes < PAL_DEVICE_KEY_SIZE_IN_BYTES)
 	{

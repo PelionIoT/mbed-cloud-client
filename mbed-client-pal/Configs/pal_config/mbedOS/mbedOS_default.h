@@ -28,8 +28,8 @@
  *        if not, the default file will be included - if needed
  */
 #ifndef PAL_BOARD_SPECIFIC_CONFIG
-    #if defined(TARGET_K64F)
-        #include "K64F_default.h"
+    #if defined(TARGET_K64F) || defined(TARGET_K66F)
+        #include "K64F_and_K66F_default.h"
     #elif defined(TARGET_NUCLEO_F429ZI)
         #include "NUCLEO_default.h"
     #elif defined(TARGET_UBLOX_EVK_ODIN_W2)
@@ -50,8 +50,8 @@
 
 
 #ifndef PAL_FS_MOUNT_POINT_PRIMARY
-    #if (PAL_NUMBER_OF_PARTITIONS == 2)
-        #define PAL_FS_MOUNT_POINT_PRIMARY    "/sd"           //!< User should change this for the his working folder
+    #if (MBED_VERSION >= 51000)  // 5.10 or above
+        #define PAL_FS_MOUNT_POINT_PRIMARY    "/fs"           //!< User should change this for the his working folder
     #else
         #define PAL_FS_MOUNT_POINT_PRIMARY    "/sd"
     #endif
@@ -59,9 +59,13 @@
 
 #ifndef PAL_FS_MOUNT_POINT_SECONDARY
     #if (PAL_NUMBER_OF_PARTITIONS == 2)
-        #define PAL_FS_MOUNT_POINT_SECONDARY    "/sd2"
+        #if (MBED_VERSION >= 51000)  // 5.10 or above
+            #define PAL_FS_MOUNT_POINT_SECONDARY    "/fs2"
+        #else
+            #define PAL_FS_MOUNT_POINT_SECONDARY    "/sd2"
+        #endif
     #else
-        #define PAL_FS_MOUNT_POINT_SECONDARY    "/sd"         //!< User should change this for the his working folder
+        #define PAL_FS_MOUNT_POINT_SECONDARY PAL_FS_MOUNT_POINT_PRIMARY      //!< User should change this for the his working folder
     #endif
 #endif
 
@@ -73,6 +77,12 @@
     #define PAL_MAX_SEMAPHORE_COUNT 1024
 #endif
 
+#ifndef PAL_USE_INTERNAL_FLASH
+    #define PAL_USE_INTERNAL_FLASH  1
+#endif
 
+#ifndef PAL_INT_FLASH_NUM_SECTIONS
+    #define PAL_INT_FLASH_NUM_SECTIONS 2
+#endif
 
 #endif /* PAL_MBEDOS_CONFIGURATION_H_ */

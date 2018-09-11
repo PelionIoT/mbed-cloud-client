@@ -109,7 +109,8 @@ typedef enum palGroupIndex{
 typedef enum palKeyUsage{
 	PAL_X509_KU_DIGITAL_SIGNATURE = 0x1,
 	PAL_X509_KU_NON_REPUDIATION = 0x2,
-	PAL_X509_KU_KEY_CERT_SIGN = 0x4
+	PAL_X509_KU_KEY_CERT_SIGN = 0x4,
+	PAL_X509_KU_KEY_AGREEMENT = 0x8
 }palKeyUsage_t;
 
 //! Extended key usage options
@@ -706,6 +707,18 @@ palStatus_t pal_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* oid, 
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
 palStatus_t pal_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerLen);
+
+/*! Writes a CSR from a given X509 Certificate
+*
+* @param[in] x509Cert:      The parsed x509 certificate on which we generate the CSR from.
+* @param[in/out] x509CSR:   The x509 CSR that has been already initialized with a private key.
+* @param[out] derBuf:  	 	A buffer to write to.
+* @param[in] derBufLen: 	The buffer length.
+* @param[out] actualDerBufLen: The actual length of the written data.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_x509CSRFromCertWriteDER(palX509Handle_t x509Cert, palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerBufLen);
 
 /*! Free the x509 CSR context.
 *

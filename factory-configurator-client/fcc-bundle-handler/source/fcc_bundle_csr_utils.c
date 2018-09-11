@@ -21,6 +21,8 @@
 #include "fcc_utils.h"
 #include "kcm_internal.h"
 #include "fcc_bundle_fields.h"
+#include "fcc_time_profiling.h"
+
 
 // For convenience when migrating to tinycbor
 #define CN_CBOR_NEXT_GET(cn) cn->next 
@@ -219,6 +221,8 @@ static fcc_status_e encode_next_csr(const cn_cbor *parser, cn_cbor *encoder)
         *csr_buf = fcc_malloc(csr_buf_len);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((*csr_buf == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, Exit, "Error generating CSR");
 
+        FCC_SET_START_TIMER(fcc_generate_csr_timer);
+
         // Generate the CSR into the encoder 
         // FIXME: when migrating to tinycbor we might want to try to encode it directly into the encoder buffer. This may require manually creating the cbor byte-array prefix (major type 3)
         // Requires understanding the CBOR mechanism but could save significant space since this way the CSR will not be duplicated.
@@ -226,6 +230,9 @@ static fcc_status_e encode_next_csr(const cn_cbor *parser, cn_cbor *encoder)
                                                public_key_name, public_key_name_len, true, &csr_params,
                                                *csr_buf, csr_buf_len, &csr_len,
                                                NULL);
+        
+        FCC_END_TIMER(private_key_name, private_key_name_len, fcc_generate_csr_timer);
+                                               
         if (kcm_status == KCM_STATUS_SUCCESS) {
             break;
         } else if (kcm_status == KCM_STATUS_INSUFFICIENT_BUFFER) { // If buffer insufficient - attempt with larger buffer

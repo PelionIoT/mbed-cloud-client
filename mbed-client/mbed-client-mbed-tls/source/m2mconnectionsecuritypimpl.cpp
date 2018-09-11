@@ -192,7 +192,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 
     _init_done = M2MConnectionSecurityPimpl::INIT_DONE;
 
-#ifdef MBED_CONF_MBED_TRACE_ENABLE
+#if MBED_CONF_MBED_TRACE_ENABLE
     // Note: This call is not enough, one also needs the MBEDTLS_DEBUG_C to be defined globally
     // on build and if using default mbedtls configuration file, the
     // "#undef MBEDTLS_DEBUG_C" -line needs to be removed from mbedtls_mbed_client_config.h
@@ -219,13 +219,13 @@ int M2MConnectionSecurityPimpl::start_handshake()
     }
 
     if(ret != PAL_SUCCESS){ //We loose the original error here!
-        tr_debug("M2MConnectionSecurityPimpl::start_handshake pal_handShake() error %" PRId32, ret);
+        tr_debug("M2MConnectionSecurityPimpl::start_handshake pal_handShake() error %" PRIx32, ret);
         return -1;
     }
 
     ret = pal_sslGetVerifyResult(_ssl);
     if(PAL_SUCCESS != ret){
-        tr_debug("M2MConnectionSecurityPimpl::start_handshake pal_sslGetVerifyResult() error %" PRId32, ret);
+        tr_debug("M2MConnectionSecurityPimpl::start_handshake pal_sslGetVerifyResult() error %" PRIx32, ret);
         return -1;
     }
 

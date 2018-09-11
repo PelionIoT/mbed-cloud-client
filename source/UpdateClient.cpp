@@ -91,15 +91,20 @@ namespace UpdateClient
     static void queue_handler(void);
     static void schedule_event(void);
     static void error_handler(int32_t error);
+    static M2MInterface *_m2m_interface;
 }
 
-void UpdateClient::UpdateClient(FP1<void, int32_t> callback)
+void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface)
 {
     tr_info("Update Client External Initialization: %p", (void*)pal_osThreadGetId());
 
     /* store callback handler */
     error_callback = callback;
 
+    if (m2mInterface) {
+        _m2m_interface = m2mInterface;
+    }
+    
     /* create event */
     eventOS_scheduler_mutex_wait();
     if (update_client_tasklet_id == -1) {
@@ -153,13 +158,27 @@ static void UpdateClient::initialization(void)
     tr_info("internal initialization: %p", (void*)pal_osThreadGetId());
 
     /* Register sources */
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL) && MBED_CONF_MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL == MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP
+    static const ARM_UPDATE_SOURCE* sources[] = {
+        &ARM_UCS_LWM2M_SOURCE
+    };
+#else
     static const ARM_UPDATE_SOURCE* sources[] = {
         &ARM_UCS_HTTPSource,
         &ARM_UCS_LWM2M_SOURCE
     };
+#endif
 
     ARM_UC_HUB_SetSources(sources, sizeof(sources)/sizeof(ARM_UPDATE_SOURCE*));
 
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL) && MBED_CONF_MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL == MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP
+    /* LWM2M Source needs to have access to M2MInterface for calling
+       API M2MInterface::get_data_request() for firmware over COAP
+       Blockwise transfer
+    */
+    ARM_UC_CONTROL_SetM2MInterface(_m2m_interface);
+#endif
+    
     /* Register sink for telemetry */
     ARM_UC_HUB_AddMonitor(&ARM_UCS_LWM2M_MONITOR);
 

@@ -19,6 +19,8 @@
 #include "pal_plat_TLS.h"
 #include "sotp.h"
 
+#define TRACE_GROUP "PAL"
+
 PAL_PRIVATE uint8_t g_storedCertSerial[PAL_CERT_ID_SIZE] __attribute__ ((aligned(4))) = {0};
 PAL_PRIVATE bool g_trustedServerValid = false;
 PAL_PRIVATE palMutexID_t g_palTLSHandshakeMutex = NULLPTR;
@@ -42,7 +44,7 @@ palStatus_t pal_initTLSLibrary(void)
 	status = pal_osMutexCreate(&g_palTLSHandshakeMutex);
     if(PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to Create TLS handshake Mutex error: %" PRId32 ".", status);
+        PAL_LOG_ERR("Failed to Create TLS handshake Mutex error: %" PRId32 ".", status);
 	}
 	else
 	{
@@ -57,7 +59,7 @@ palStatus_t pal_cleanupTLS(void)
 	status = pal_osMutexDelete(&g_palTLSHandshakeMutex);
     if(PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to Delete TLS handshake Mutex error: %" PRId32 ".", status);
+        PAL_LOG_ERR("Failed to Delete TLS handshake Mutex error: %" PRId32 ".", status);
 	}
 	status = pal_plat_cleanupTLS();
 	return status;
@@ -76,7 +78,7 @@ palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHan
 	mutexStatus = pal_osMutexWait(g_palTLSHandshakeMutex, PAL_RTOS_WAIT_FOREVER);
 	if (PAL_SUCCESS != mutexStatus)
 	{
-		PAL_LOG(ERR, "Failed to get TLS context init Mutex error: %" PRId32 ".", mutexStatus);
+        PAL_LOG_ERR("Failed to get TLS context init Mutex error: %" PRId32 ".", mutexStatus);
 		goto finish;
 	}
 
@@ -102,7 +104,7 @@ finish:
 		mutexStatus = pal_osMutexRelease(g_palTLSHandshakeMutex);
 		if (PAL_SUCCESS != mutexStatus)
 		{
-			PAL_LOG(ERR, "Failed to release TLS context init Mutex error: %" PRId32 ".", mutexStatus);
+            PAL_LOG_ERR("Failed to release TLS context init Mutex error: %" PRId32 ".", mutexStatus);
 		}
 	}
 	
@@ -131,7 +133,7 @@ palStatus_t pal_freeTLS(palTLSHandle_t* palTLSHandle)
 	mutexStatus = pal_osMutexWait(g_palTLSHandshakeMutex, PAL_RTOS_WAIT_FOREVER);
 	if (PAL_SUCCESS != mutexStatus)
 	{
-		PAL_LOG(ERR, "Failed to get TLS context init Mutex error: %" PRId32 ".", mutexStatus);
+        PAL_LOG_ERR("Failed to get TLS context init Mutex error: %" PRId32 ".", mutexStatus);
 		goto finish;
 	}
 
@@ -146,7 +148,7 @@ palStatus_t pal_freeTLS(palTLSHandle_t* palTLSHandle)
 	mutexStatus = pal_osMutexRelease(g_palTLSHandshakeMutex);
 	if (PAL_SUCCESS != mutexStatus)
 	{
-		PAL_LOG(ERR, "Failed to release TLS context init Mutex error: %" PRId32 ".", mutexStatus);
+        PAL_LOG_ERR("Failed to release TLS context init Mutex error: %" PRId32 ".", mutexStatus);
 	}
 finish:
 	if (PAL_SUCCESS == status)
@@ -394,7 +396,7 @@ PAL_PRIVATE palStatus_t pal_updateTime(uint64_t serverTime, bool trustedTimeServ
 		status = pal_osSetStrongTime(serverTime);
 		if (PAL_SUCCESS != status)
 		{
-			PAL_LOG(DBG, "Setting strong time failed! return code %" PRId32 ".", status);
+            PAL_LOG_DBG("Setting strong time failed! return code %" PRId32 ".", status);
 		}
 	}
 	else
@@ -402,7 +404,7 @@ PAL_PRIVATE palStatus_t pal_updateTime(uint64_t serverTime, bool trustedTimeServ
 		status = pal_osSetWeakTime(serverTime);
 		if (PAL_SUCCESS != status)
 		{
-			PAL_LOG(DBG, "Setting weak time failed! return code %" PRId32 ".", status);
+            PAL_LOG_DBG("Setting weak time failed! return code %" PRId32 ".", status);
 		}
 	}
 	return status;
@@ -436,7 +438,7 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
 			{
 				if ((PAL_ERR_X509_BADCERT_FUTURE & verifyResult) || ((true == palTLSConfCtx->trustedTimeServer) && (PAL_ERR_X509_BADCERT_EXPIRED & verifyResult)))
 				{
-					PAL_LOG(DBG, "SSL EXPIRED OR FUTURE - retry");
+                    PAL_LOG_DBG("SSL EXPIRED OR FUTURE - retry");
 					palTLSCtx->retryHandShake = true;
 					status = PAL_SUCCESS;
 				}
@@ -458,7 +460,7 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
 #if PAL_USE_SECURE_TIME
 	if ((PAL_SUCCESS == status) && (palTLSCtx->retryHandShake))
 	{
-		PAL_LOG(DBG, "SSL START RENEGOTIATE");
+        PAL_LOG_DBG("SSL START RENEGOTIATE");
 		if (!palTLSConfCtx->trustedTimeServer) //! if we are not proccessing handshake with the time trusted server we 
 		{									  //! will use PAL_TLS_VERIFY_REQUIRED authentication mode
 			status = pal_plat_setAuthenticationMode(palTLSConfCtx->platTlsConfHandle, PAL_TLS_VERIFY_REQUIRED);

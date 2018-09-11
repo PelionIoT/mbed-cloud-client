@@ -30,14 +30,29 @@
 #include "common_utils.h"
 #include "kcm_internal.h"
 #include "fcc_utils.h"
+#include "pv_macros.h"
 
 #define FCC_10_YEARS_IN_SECONDS 315360000//10*365*24*60*60
+
+/**
+* Group lookup table, correlating for each group its type and name
+*/
+static const fcc_config_param_lookup_record_s fcc_config_param_lookup_table[FCC_MAX_CONFIG_PARAM_TYPE] = {
+    { FCC_MANUFACTURER_NAME_CONFIG_PARAM_TYPE,     g_fcc_manufacturer_parameter_name },
+    { FCC_MODEL_NUMBER_CONFIG_PARAM_TYPE,          g_fcc_model_number_parameter_name },
+    { FCC_DEVICE_TYPE_CONFIG_PARAM_TYPE,           g_fcc_device_type_parameter_name },
+    { FCC_HARDWARE_VERSION_CONFIG_PARAM_TYPE,      g_fcc_hardware_version_parameter_name },
+    { FCC_MEMORY_TOTAL_SIZE_CONFIG_PARAM_TYPE,     g_fcc_memory_size_parameter_name },
+    { FCC_DEVICE_SERIAL_NUMBER_CONFIG_PARAM_TYPE,  g_fcc_device_serial_number_parameter_name },
+};
 
 /*
 * The function checks that UTC offset value is inside defined range of valid offsets :-12:00 - +14:00
 */
 static bool check_utc_offset_data(char *utc_offset_data, size_t utc_data_size)
 {
+    PV_DEBUG_USE(utc_data_size);
+
     uint8_t symbol_index = 0;
     uint8_t first_digit_of_hour = 1;
     uint8_t second_digit_of_hour = 2;
@@ -225,7 +240,7 @@ static fcc_status_e verify_certificate_expiration(palX509Handle_t x509_cert, con
         SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_WARNING_CREATE_ERROR, exit, "Failed to create warning");
     } else {
         //Check that the certificate is not expired
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((time > (valid_until_attr)), fcc_status = FCC_STATUS_EXPIRED_CERTIFICATE, exit, "The certificate is expired");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((time > (valid_until_attr)), fcc_status = FCC_STATUS_EXPIRED_CERTIFICATE, exit, "The certificate is expired. Device time is %" PRIuMAX ", cert time is %"PRIuMAX "", time, valid_until_attr);
 
         //Check that start of validity is less than current time
         if (time + diff_time < (valid_from_attr)) {

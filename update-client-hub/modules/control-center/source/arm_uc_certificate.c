@@ -19,17 +19,25 @@
 #include "update-client-control-center/arm_uc_certificate.h"
 #include "update-client-common/arm_uc_config.h"
 
-#if ARM_UC_USE_KCM
+#if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
+
+#if defined(ARM_UC_FEATURE_CERT_STORE_KCM) && (ARM_UC_FEATURE_CERT_STORE_KCM==1)
+
 extern const struct arm_uc_certificate_api arm_uc_certificate_kcm_api;
-static const struct arm_uc_certificate_api* arm_uc_registered_certificate_api =
-    &arm_uc_certificate_kcm_api;
-#elif ARM_UC_USE_CFSTORE
-extern const struct arm_uc_certificate_api arm_uc_certificate_cfstore_api;
-static const struct arm_uc_certificate_api* arm_uc_registered_certificate_api =
-    &arm_uc_certificate_cfstore_api;
+static const struct arm_uc_certificate_api *arm_uc_registered_certificate_api =
+        &arm_uc_certificate_kcm_api;
+
+#elif defined(ARM_UC_FEATURE_CERT_STORE_RAW) && (ARM_UC_FEATURE_CERT_STORE_RAW==1)
+
+extern const struct arm_uc_certificate_api arm_uc_certificate_raw_api;
+static const struct arm_uc_certificate_api *arm_uc_registered_certificate_api =
+        &arm_uc_certificate_raw_api;
+
 #else
+
 #error No configuration store set
-#endif
+
+#endif /* ARM_UC_FEATURE_CERT_STORE_KCM/RAW */
 
 /**
  * @brief Add certificate.
@@ -41,11 +49,11 @@ static const struct arm_uc_certificate_api* arm_uc_registered_certificate_api =
  * @param fingerprint_size Fingerprint length.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_Certificate_Add(const uint8_t* certificate,
+arm_uc_error_t ARM_UC_Certificate_Add(const uint8_t *certificate,
                                       uint16_t certificate_size,
-                                      const uint8_t* fingerprint,
+                                      const uint8_t *fingerprint,
                                       uint16_t fingerprint_size,
-                                      void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*))
+                                      void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *))
 {
     //cert Name: base64(fingerprint)
     const arm_uc_buffer_t fingerprintBuffer = {
@@ -60,33 +68,32 @@ arm_uc_error_t ARM_UC_Certificate_Add(const uint8_t* certificate,
         .ptr = (uint8_t *)certificate /* Const Cast safe because target is in a const struct */
     };
 
-    const struct arm_uc_certificate_api* api = arm_uc_registered_certificate_api;
+    const struct arm_uc_certificate_api *api = arm_uc_registered_certificate_api;
 
-    if (api == NULL || api->store == NULL)
-    {
-        return (arm_uc_error_t){ ARM_UC_CM_ERR_INVALID_PARAMETER};
+    if (api == NULL || api->store == NULL) {
+        return (arm_uc_error_t) { ARM_UC_CM_ERR_INVALID_PARAMETER};
     }
 
     arm_uc_error_t err = api->store(&certBuffer, &fingerprintBuffer, callback);
 
-    if (err.error != 0)
-    {
+    if (err.error != 0) {
         return err;
     }
 
-    return (arm_uc_error_t){ARM_UC_CM_ERR_NONE};
+    return (arm_uc_error_t) {ARM_UC_CM_ERR_NONE};
 }
 
-arm_uc_error_t ARM_UC_certificateFetch(arm_uc_buffer_t* certificate,
-    const arm_uc_buffer_t* fingerprint,
-    const arm_uc_buffer_t* DERCertificateList,
-    void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*, const arm_uc_buffer_t*))
+arm_uc_error_t ARM_UC_certificateFetch(arm_uc_buffer_t *certificate,
+                                       const arm_uc_buffer_t *fingerprint,
+                                       const arm_uc_buffer_t *DERCertificateList,
+                                       void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *, const arm_uc_buffer_t *))
 {
     if (arm_uc_registered_certificate_api == NULL ||
-        arm_uc_registered_certificate_api->fetch == NULL)
-    {
-        return (arm_uc_error_t){ARM_UC_CM_ERR_INVALID_PARAMETER};
+            arm_uc_registered_certificate_api->fetch == NULL) {
+        return (arm_uc_error_t) {ARM_UC_CM_ERR_INVALID_PARAMETER};
     }
 
     return arm_uc_registered_certificate_api->fetch(certificate, fingerprint, DERCertificateList, callback);
 }
+
+#endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */

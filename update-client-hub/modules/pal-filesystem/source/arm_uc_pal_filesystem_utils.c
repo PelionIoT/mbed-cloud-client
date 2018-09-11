@@ -16,6 +16,9 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_FILESYSTEM) && (ARM_UC_FEATURE_PAL_FILESYSTEM == 1)
+
 #include "arm_uc_pal_filesystem_utils.h"
 #include "update-client-common/arm_uc_utilities.h"
 
@@ -49,16 +52,13 @@ arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location,
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (dest && dest_size > 0)
-    {
+    if (dest && dest_size > 0) {
         /* copy the base directory of firmware into dest */
         int length = snprintf(dest, dest_size, "%s", pal_imageGetFolder());
 
-        if (length > 0)
-        {
+        if (length > 0) {
             /* add missing slash at end if needed */
-            if (((uint32_t)length < dest_size) && (dest[length - 1] != '/'))
-            {
+            if (((uint32_t)length < dest_size) && (dest[length - 1] != '/')) {
                 dest[length] = '/';
                 length++;
             }
@@ -71,8 +71,7 @@ arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location,
                                location);
 
             /* check that file path didn't overrun */
-            if ((uint32_t)length < dest_size)
-            {
+            if ((uint32_t)length < dest_size) {
                 result.code = ERR_NONE;
             }
         }
@@ -80,3 +79,5 @@ arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location,
 
     return result;
 }
+
+#endif /* ARM_UC_FEATURE_PAL_FILESYSTEM */

@@ -23,6 +23,11 @@
 #include "include/ConnectorClient.h"
 #include "include/CloudClientStorage.h"
 #include "include/CertificateParser.h"
+
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+#include "include/EstClient.h"
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
+
 #include "MbedCloudClient.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2minterfacefactory.h"
@@ -57,7 +62,7 @@
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #define ERROR_EST_ENROLLMENT_REQUEST_FAILED   "EST enrollment request failed"
 #define LWM2M_CSR_SUBJECT_FORMAT              "L=%s,OU=%s,CN=%s"
-#endif
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 
 // XXX: nothing here yet
 class EventData {
@@ -216,7 +221,11 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
   _event_generated(false), _state_engine_running(false),
   _interface(NULL), _security(NULL),
   _endpoint_info(M2MSecurity::Certificate), _client_objs(NULL),
-  _rebootstrap_timer(*this), _bootstrap_security_instance(1), _lwm2m_security_instance(0), _certificate_chain_handle(NULL)
+  _rebootstrap_timer(*this), _bootstrap_security_instance(1),
+  _lwm2m_security_instance(0), _certificate_chain_handle(NULL)
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+  ,_est_client(*this)
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 {
     assert(_callback != NULL);
 
@@ -250,6 +259,13 @@ ConnectorClient::~ConnectorClient()
     M2MSecurity::delete_instance();
     delete _interface;
 }
+
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+const EstClient &ConnectorClient::est_client()
+{
+    return _est_client;
+}
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 
 void ConnectorClient::start_bootstrap()
 {
@@ -713,11 +729,13 @@ void ConnectorClient::state_est_start()
              _endpoint_info.account_id.c_str(),
              _endpoint_info.endpoint_name.c_str());
 
-    tr_debug("est csr subject '%s'", csr_params.subject);
-
     csr_params.md_type = KCM_MD_SHA256;
     csr_params.key_usage = KCM_CSR_KU_NONE;
     csr_params.ext_key_usage = KCM_CSR_EXT_KU_NONE;
+
+    // Delete existing keys
+    ccs_delete_item(g_fcc_lwm2m_device_certificate_name, CCS_CERTIFICATE_ITEM);
+    ccs_delete_item(g_fcc_lwm2m_device_private_key_name, CCS_PRIVATE_KEY_ITEM);
 
     kcm_status_e status = kcm_generate_keys_and_csr(KCM_SCHEME_EC_SECP256R1,
                                                     (const uint8_t*)g_fcc_lwm2m_device_private_key_name,
@@ -742,13 +760,17 @@ void ConnectorClient::state_est_start()
 
     // Update state and start the enrollment by sending the enroll request
     internal_event(State_EST_Started);
-    _interface->post_data_request("est/sen",
-                                 false,
-                                 real_size,
-                                 buffer,
-                                 ConnectorClient::est_post_data_cb,
-                                 ConnectorClient::est_post_data_error_cb,
-                                 this);
+    est_status_e est_status = _est_client.est_request_enrollment(NULL,
+                                                                 0,
+                                                                 buffer,
+                                                                 real_size,
+                                                                 ConnectorClient::est_enrollment_result,
+                                                                 this);
+
+    if (est_status != EST_STATUS_SUCCESS) {
+        tr_error("ConnectorClient::state_est_start - EST enrollment failed with error %" PRIu32, est_status);
+        internal_event(State_EST_Failure);
+    }
 
     free(buffer);
 }
@@ -1227,56 +1249,67 @@ void ConnectorClient::timer_expired(M2MTimerObserver::Type type)
 }
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
-void ConnectorClient::est_enrollment_result(bool success,
-                                            const uint8_t *payload_ptr,
-                                            const uint16_t payload_len)
+void ConnectorClient::est_enrollment_result(est_enrollment_result_e result,
+                                            cert_chain_context_s *cert_chain,
+                                            void *context)
 {
-    tr_debug("ConnectorClient::est_enrollment_result - %s", success ? "successful" : "failed");
-    tr_debug("ConnectorClient::est_enrollment_result - PublicKey size %d", (int)payload_len);
-
-    assert(_security != NULL);
-    int32_t m2m_id = _security->get_security_instance_id(M2MSecurity::M2MServer);
-    StartupSubStateRegistration state = State_EST_Failure;
-
-    if (success && payload_ptr && payload_len > 0 && m2m_id >= 0) {
-        const uint8_t *ptr = payload_ptr;
-        tr_debug("Payload start: %s", tr_array(payload_ptr, 10));
-        ccs_status_e ccs_status = ccs_parse_cert_chain_and_store((const uint8_t*)g_fcc_lwm2m_device_certificate_name,
-                                                                 strlen(g_fcc_lwm2m_device_certificate_name),
-                                                                 payload_ptr,
-                                                                 payload_len);
-        if (ccs_status != CCS_STATUS_SUCCESS) {
-            tr_error("ConnectorClient::est_enrollment_result - storing certificate chain failed!");
-        }
-        else {
-            tr_info("ConnectorClient::est_enrollment_result() - Storing lwm2m credentials");
-            if (set_connector_credentials(_security) == CCS_STATUS_SUCCESS) {
-                state = State_EST_Success;
-            }
-        }
-
+    tr_debug("ConnectorClient::est_enrollment_result - %s", result == EST_ENROLLMENT_SUCCESS ? "successful" : "failed");
+    if (result == EST_ENROLLMENT_SUCCESS) {
+        tr_debug("ConnectorClient::est_enrollment_result - PublicKey size %d", cert_chain->chain_length);
     }
 
-    internal_event(state);
-}
-
-void ConnectorClient::est_post_data_cb(const uint8_t *buffer,
-                                       size_t buffer_size,
-                                       size_t total_size,
-                                       void *context)
-{
     ConnectorClient *cc = static_cast<ConnectorClient*>(context);
     assert(cc);
-    cc->est_enrollment_result(true, buffer, buffer_size);
+    assert(cc->_security != NULL);
 
-}
+    int32_t m2m_id = cc->_security->get_security_instance_id(M2MSecurity::M2MServer);
+    StartupSubStateRegistration state = State_EST_Failure;
 
-void ConnectorClient::est_post_data_error_cb(get_data_req_error_t error_code,
-                                             void *context)
-{
-    ConnectorClient *cc = static_cast<ConnectorClient*>(context);
-    assert(cc);
-    cc->est_enrollment_result(false, NULL, 0);
+    if (result == EST_ENROLLMENT_SUCCESS &&
+        m2m_id >= 0 &&
+        cert_chain != NULL &&
+        cert_chain->chain_length > 0)
+    {
+
+        kcm_cert_chain_handle chain_handle;
+        kcm_status_e status = KCM_STATUS_ERROR;
+        status = kcm_cert_chain_create(&chain_handle,
+                                       (const uint8_t*)g_fcc_lwm2m_device_certificate_name,
+                                       strlen(g_fcc_lwm2m_device_certificate_name),
+                                       cert_chain->chain_length,
+                                       false);
+        tr_debug("Cert chain create %d", status);
+        if (status == KCM_STATUS_SUCCESS) {
+            cert_context_s *cert = cert_chain->certs;
+            while (cert != NULL) {
+
+                // Store certificate
+                status = kcm_cert_chain_add_next(chain_handle, cert->cert, cert->cert_length);
+                if (status != KCM_STATUS_SUCCESS) {
+                    break;
+                }
+
+                cert = cert->next;
+            }
+
+            status = kcm_cert_chain_close(chain_handle);
+            if (status == KCM_STATUS_SUCCESS) {
+                tr_info("ConnectorClient::est_enrollment_result() - Certificates stored successfully");
+                tr_info("ConnectorClient::est_enrollment_result() - Storing lwm2m credentials");
+                if (cc->set_connector_credentials(cc->_security) == CCS_STATUS_SUCCESS) {
+                    state = State_EST_Success;
+                }
+            }
+            else {
+                tr_error("ConnectorClient::est_enrollment_result - storing certificate chain failed!");
+            }
+        }
+    }
+
+    // Finally free the certificate chain context
+    EstClient::free_cert_chain_context(cert_chain);
+
+    cc->internal_event(state);
 }
 #endif /* !MBED_CLIENT_DISABLE_EST_FEATURE */
 

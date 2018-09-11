@@ -161,6 +161,15 @@ typedef enum {
     NOTIFICATION_STATUS_UNSUBSCRIBED        // Server has stopped the observation (RESET message or GET with observe 1)
 } NotificationDeliveryStatus;
 
+/**
+ * Enum defining an different download types.
+ * This is used for 'uri-path' when sending a GET request.
+*/
+typedef enum {
+    FIRMWARE_DOWNLOAD = 0,
+    GENERIC_DOWNLOAD
+} DownloadType;
+
 /** Dummy alias to maintain compatibility with older version which had a typo in the enum name. */
 typedef NotificationDeliveryStatus NoticationDeliveryStatus;
 
@@ -199,21 +208,20 @@ typedef struct sn_nsdl_resource_parameters_ {
 #else
     sn_nsdl_static_resource_parameters_s        *static_resource_parameters;
 #endif
-    uint8_t                                     *resource;          /**< NULL if dynamic resource */
+    uint8_t                                     *resource;           /**< NULL if dynamic resource */
     ns_list_link_t                              link;
     uint16_t                                    resource_len;        /**< 0 if dynamic resource, resource information in static resource */
-    uint16_t                                    coap_content_type;  /**< CoAP content type */
-    uint16_t                                    msg_id;             /**< Notification message id. */
-    unsigned                                    access:4;           /**< Allowed operation mode, GET, PUT, etc,
+    uint16_t                                    coap_content_type;   /**< CoAP content type */
+    unsigned                                    access:4;            /**< Allowed operation mode, GET, PUT, etc,
                                                                          TODO! This should be in static struct but current
                                                                          mbed-client implementation requires this to be changed at runtime */
-    unsigned                                    registered:2;       /**< Is resource registered or not */
-    bool                                        publish_uri:1;      /**< 1 if resource to be published to server */
-    bool                                        free_on_delete:1;   /**< 1 if struct is dynamic allocted --> to be freed */
-    bool                                        observable:1;       /**< Is resource observable or not */
-    bool                                        auto_observable:1;  /**< Is resource auto observable or not */
-    bool                                        always_publish:1;  /**< 1 if resource should always be published in registration or registration update **/
-    unsigned                                    publish_value:2;    /**< 0 for non-publishing,1 if resource value to be published in registration message,
+    unsigned                                    registered:2;        /**< Is resource registered or not */
+    bool                                        publish_uri:1;       /**< 1 if resource to be published to server */
+    bool                                        free_on_delete:1;    /**< 1 if struct is dynamic allocted --> to be freed */
+    bool                                        observable:1;        /**< Is resource observable or not */
+    bool                                        auto_observable:1;   /**< Is resource auto observable or not */
+    bool                                        always_publish:1;    /**< 1 if resource should always be published in registration or registration update **/
+    unsigned                                    publish_value:2;     /**< 0 for non-publishing,1 if resource value to be published in registration message,
                                                                          2 if resource value to be published in Base64 encoded format */
 } sn_nsdl_dynamic_resource_parameters_s;
 
@@ -485,6 +493,7 @@ extern int8_t sn_nsdl_send_coap_message(struct nsdl_s *handle, sn_nsdl_addr_s *a
  * \param   offset        Offset within response body to request
  * \param   payload_len   Message payload length, can be 0 for no payload
  * \param   *payload_ptr  Message payload pointer, can be NULL for no payload
+ * \param   type          Type of the download
  *
  * \Return  > 0 Success else Failure
  */
@@ -494,7 +503,8 @@ extern int32_t sn_nsdl_send_request(struct nsdl_s *handle,
                                     const uint32_t token,
                                     const size_t offset,
                                     const uint16_t payload_len,
-                                    uint8_t* payload_ptr);
+                                    uint8_t* payload_ptr,
+                                    DownloadType type);
 
 /**
  * \fn extern int8_t set_NSP_address(struct nsdl_s *handle, uint8_t *NSP_address, uint8_t address_length, uint16_t port, sn_nsdl_addr_type_e address_type);
@@ -669,6 +679,28 @@ extern int8_t sn_nsdl_clear_coap_resending_queue(struct nsdl_s *handle);
  * \return  0 = success, -1 = failure
  */
 extern int8_t sn_nsdl_clear_coap_sent_blockwise_messages(struct nsdl_s *handle);
+
+/**
+ * \fn int8_t sn_nsdl_clear_coap_received_blockwise_messages(struct nsdl_s *handle)
+ *
+ * \brief Clears the received blockwise messages from the linked list.
+ *
+ * \param *handle Pointer to library handle
+ * \return  0 = success, -1 = failure
+ */
+extern int8_t sn_nsdl_clear_coap_received_blockwise_messages(struct nsdl_s *handle);
+
+/**
+ * \fn int8_t sn_nsdl_remove_msg_from_retransmission(struct nsdl_s *handle)
+ *
+ * \brief Clears item from the resend queue.
+ *
+ * \param *handle Pointer to library handle
+ * \param *token Token to be removed
+ * \param token_len Length of the token
+ * \return  0 = success, -1 = failure
+ */
+extern int8_t sn_nsdl_remove_msg_from_retransmission(struct nsdl_s *handle, uint8_t *token, uint8_t token_len);
 
 /**
  * \fn int8_t sn_nsdl_handle_block2_response_internally(struct nsdl_s *handle, uint8_t handle_response)

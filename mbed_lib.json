@@ -1,5 +1,20 @@
 {
     "name": "mbed-cloud-client",
+    "config": {
+        "update-download-protocol": {
+            "help": "Set up download protocol for update firmware",
+            "required": true,
+            "options": ["MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP", "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_HTTP"],
+            "default": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_HTTP",
+            "value": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_HTTP"
+        },
+        "disable-certificate-enrollment": {
+            "help": "Enables or disables certificate enrollment feature",
+            "options": ["null", "1"],
+            "default": null,
+            "value": null
+        }
+    },
     "macros" : [
         "MBEDTLS_PEM_WRITE_C",
         "MBEDTLS_CMAC_C",
@@ -8,7 +23,8 @@
         "PB_FIELD_32BIT",
         "PB_ENABLE_MALLOC",
         "PB_BUFFER_ONLY",
-        "PV_PROFILE_STD"
+        "PV_PROFILE_STD",
+        "ARM_UC_PROFILE_MBED_CLOUD_CLIENT=1"
     ],
     "target_overrides": {
         "*": {

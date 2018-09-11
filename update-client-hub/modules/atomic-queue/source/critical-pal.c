@@ -29,7 +29,8 @@
 static palMutexID_t mutex = NULLPTR;
 static volatile unsigned irq_nesting_depth = 0;
 
-void aq_critical_section_enter() {
+void aq_critical_section_enter()
+{
     if (mutex == NULLPTR) {
         palStatus_t rc = pal_osMutexCreate(&mutex);
         assert(rc == PAL_SUCCESS);
@@ -41,7 +42,8 @@ void aq_critical_section_enter() {
     assert(rc == PAL_SUCCESS);
 }
 
-void aq_critical_section_exit(void) {
+void aq_critical_section_exit(void)
+{
     assert(irq_nesting_depth > 0);
     if (--irq_nesting_depth == 0) {
         palStatus_t rc = pal_osMutexRelease(mutex);

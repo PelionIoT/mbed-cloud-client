@@ -12,7 +12,8 @@
 //   from ARM Limited or its affiliates.
 //----------------------------------------------------------------------------
 
-#if defined(ARM_UC_USE_PAL_BLOCKDEVICE)
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) && (ARM_UC_FEATURE_PAL_BLOCKDEVICE == 1)
 
 #include "update-client-paal/arm_uc_paal_update_api.h"
 
@@ -31,17 +32,13 @@ arm_uc_error_t ARM_UCP_FashIAP_BlockDevice_Initialize(ARM_UC_PAAL_UPDATE_SignalE
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (callback)
-    {
+    if (callback) {
         arm_uc_error_t status1 = ARM_UC_PAL_FlashIAP_Initialize(callback);
         arm_uc_error_t status2 = ARM_UC_PAL_BlockDevice_Initialize(callback);
 
-        if ((status1.error == ERR_NONE) && (status2.error == ERR_NONE))
-        {
+        if ((status1.error == ERR_NONE) && (status2.error == ERR_NONE)) {
             result.code = ERR_NONE;
-        }
-        else
-        {
+        } else {
             result.code = ERR_NOT_READY;
         }
     }
@@ -65,8 +62,7 @@ ARM_UC_PAAL_UPDATE_CAPABILITIES ARM_UCP_FashIAP_BlockDevice_GetCapabilities(void
     return result;
 }
 
-const ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP_BLOCKDEVICE =
-{
+const ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP_BLOCKDEVICE = {
     .Initialize                 = ARM_UCP_FashIAP_BlockDevice_Initialize,
     .GetCapabilities            = ARM_UCP_FashIAP_BlockDevice_GetCapabilities,
     .GetMaxID                   = ARM_UC_PAL_BlockDevice_GetMaxID,
@@ -80,4 +76,4 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP_BLOCKDEVICE =
     .GetInstallerDetails        = ARM_UC_PAL_FlashIAP_GetInstallerDetails
 };
 
-#endif // #if defined(ARM_UC_USE_PAL_BLOCKDEVICE)
+#endif // #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE)

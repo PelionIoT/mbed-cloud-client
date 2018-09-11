@@ -23,7 +23,7 @@
 #include "sotp.h"
 #include "test_runners.h"
 
-#define TRACE_GROUP "TLS_TESTS"
+#define TRACE_GROUP "PAL"
 #define PAL_TEST_PSK_IDENTITY "Client_identity"
 
 #define PAL_TEST_PSK {0x12,0x34,0x45,0x67,0x89,0x10}
@@ -49,7 +49,7 @@ PAL_PRIVATE const uint8_t g_coapHelloWorldRequest[16] = { 0x50,0x01,0x57,0x3e,0x
 #define PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(a, b) \
     if (a != b) \
     {\
-        PAL_LOG(ERR,"Expected: %" PRId32 " , Actual: %" PRId32 " , Line: %d\n", (int32_t)a, (int32_t)b, __LINE__);\
+        PAL_LOG_ERR("Expected: %" PRId32 " , Actual: %" PRId32 " , Line: %d\n", (int32_t)a, (int32_t)b, __LINE__);\
         goto finish;\
     }
 
@@ -74,7 +74,7 @@ TEST_SETUP(pal_tls)
 
     if (g_palTestTLSInterfaceCTX == NULL)
     {
-        PAL_LOG(ERR, "error: net interface not configutred correctly");
+        PAL_LOG_ERR("error: net interface not configutred correctly");
     }
     else
     {
@@ -173,7 +173,7 @@ static void handshakeUDP(bool socketNonBlocking)
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -282,7 +282,7 @@ static void handshakeTCP(bool socketNonBlocking)
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -670,7 +670,7 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -793,7 +793,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -931,7 +931,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -1091,7 +1091,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -1251,7 +1251,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -1483,7 +1483,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -1706,7 +1706,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         status = pal_close(&g_socket);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         return;
@@ -1990,19 +1990,19 @@ finish:
     tmpStatus = pal_freeTLS(&palTLSHandle);
     if (PAL_SUCCESS != tmpStatus)
     {
-        PAL_LOG(ERR,"Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
+        PAL_LOG_ERR("Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
     }
     /*#16*/
     tmpStatus = pal_tlsConfigurationFree(&palTLSConf);
     if (PAL_SUCCESS != tmpStatus)
     {
-        PAL_LOG(ERR,"Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
+        PAL_LOG_ERR("Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
     }
     /*#17*/
     tmpStatus = pal_close(&socketTCP);
     if (PAL_SUCCESS != tmpStatus)
     {
-        PAL_LOG(ERR,"Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
+        PAL_LOG_ERR("Expected: %d , Actual: %d , Line: %d\n", (int)PAL_SUCCESS, (int)tmpStatus, __LINE__);
     }
     if (PAL_SUCCESS == status)
     {
@@ -2050,7 +2050,7 @@ void pal_CertVerify(void const *argument)
     status = pal_x509CertParse(certHandle, (const void*)pal_test_cas, sizeof(pal_test_cas));
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    PAL_LOG(INFO,"Calling Cert Verify..");
+    PAL_LOG_INFO("Calling Cert Verify..");
     *arg = pal_x509CertVerifyExtended(certHandle, certHandle, &verifyResult);
     TEST_ASSERT_TRUE(PAL_ERR_X509_BADCERT_FUTURE & verifyResult);
     
@@ -2154,7 +2154,7 @@ TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
     status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
-        PAL_LOG(ERR, "error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
+        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
         return;
     }
 

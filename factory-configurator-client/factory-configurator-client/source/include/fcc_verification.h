@@ -56,18 +56,6 @@ typedef struct fcc_config_param_lookup_record_ {
     const char *config_param_name;
 } fcc_config_param_lookup_record_s;
 
-/**
-* Group lookup table, correlating for each group its type and name
-*/
-static const fcc_config_param_lookup_record_s fcc_config_param_lookup_table[FCC_MAX_CONFIG_PARAM_TYPE] = {
-    { FCC_MANUFACTURER_NAME_CONFIG_PARAM_TYPE,     g_fcc_manufacturer_parameter_name },
-    { FCC_MODEL_NUMBER_CONFIG_PARAM_TYPE,          g_fcc_model_number_parameter_name },
-    { FCC_DEVICE_TYPE_CONFIG_PARAM_TYPE,           g_fcc_device_type_parameter_name },
-    { FCC_HARDWARE_VERSION_CONFIG_PARAM_TYPE,      g_fcc_hardware_version_parameter_name },
-    { FCC_MEMORY_TOTAL_SIZE_CONFIG_PARAM_TYPE,     g_fcc_memory_size_parameter_name },
-    { FCC_DEVICE_SERIAL_NUMBER_CONFIG_PARAM_TYPE,  g_fcc_device_serial_number_parameter_name },
-};
-
 
 /** Checks entropy initialization
 *

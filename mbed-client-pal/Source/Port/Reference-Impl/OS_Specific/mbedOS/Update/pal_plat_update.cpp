@@ -18,6 +18,7 @@
 #include <pal.h>
 #include <pal_plat_update.h>
 
+#define TRACE_GROUP "PAL"
 
 #ifndef PAL_UPDATE_ACTIVE_METADATA_HEADER_OFFSET
 #ifdef MBED_CONF_MBED_CLIENT_PAL_UPDATE_ACTIVE_METADATA_HEADER_OFFSET
@@ -69,7 +70,7 @@ palStatus_t pal_plat_imageGetActiveHash(palBuffer_t *hash)
     rc = flash.init();
     if (rc != 0)
     {
-        DEBUG_PRINT("flash init failed\r\n");
+        PAL_LOG_ERR("flash init failed\r\n");
         goto exit;
     }
 
@@ -77,7 +78,7 @@ palStatus_t pal_plat_imageGetActiveHash(palBuffer_t *hash)
     rc = flash.read(hash->buffer, read_offset, SIZEOF_SHA256);
     if (rc != 0)
     {
-        DEBUG_PRINT("flash read failed\r\n");
+        PAL_LOG_ERR("flash read failed\r\n");
         goto exit;
     }
 
@@ -86,7 +87,7 @@ palStatus_t pal_plat_imageGetActiveHash(palBuffer_t *hash)
     rc = flash.deinit();
     if (rc != 0)
     {
-        DEBUG_PRINT("flash deinit failed\r\n");
+        PAL_LOG_ERR("flash deinit failed\r\n");
         goto exit;
     }
 

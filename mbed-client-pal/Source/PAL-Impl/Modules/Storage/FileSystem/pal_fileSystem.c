@@ -24,6 +24,8 @@
 #include "pal_fileSystem.h"
 #include "pal_plat_fileSystem.h"
 
+#define TRACE_GROUP "PAL"
+
 PAL_PRIVATE char* g_RootFolder[PAL_FS_PARTITION_LAST] = { NULL , NULL };      //!< global var that holds the  root folder
 PAL_PRIVATE bool g_RootFolderIsSet[PAL_FS_PARTITION_LAST] = { false, false };    //!< global var that holds the state root folder
 
@@ -58,7 +60,7 @@ palStatus_t pal_fsMkDir(const char *pathName)
 	ret = pal_plat_fsMkdir(pathName);
 	if ((PAL_SUCCESS != ret) && (PAL_ERR_FS_NAME_ALREADY_EXIST != ret))
 	{
-		PAL_LOG(ERR, "Failed to create folder, was the storage properly initialized?");
+        PAL_LOG_ERR("Failed to create folder, was the storage properly initialized?");
 	}
 
     return ret;
@@ -253,7 +255,7 @@ palStatus_t pal_fsFormat(pal_fsStorageID_t dataID)
 		ret = pal_plat_fsRmFiles(rootFolder);
 		if (PAL_SUCCESS != ret)
 		{
-			PAL_LOG(ERR,"(%s:%d) pal_plat_fsRmFiles  failed ",__FILE__,__LINE__);
+            PAL_LOG_ERR("(%s:%d) pal_plat_fsRmFiles  failed ",__FILE__,__LINE__);
 		}
 	}
 #else //Real life scenario

@@ -25,13 +25,13 @@
  * @brief Get driver version.
  * @return Driver version.
  */
-uint32_t ARM_UCS_GetVersion(void);
+uint32_t ARM_UCS_Http_GetVersion(void);
 
 /**
  * @brief Get Source capabilities.
  * @return Struct containing capabilites. See definition above.
  */
-ARM_SOURCE_CAPABILITIES ARM_UCS_GetCapabilities(void);
+ARM_SOURCE_CAPABILITIES ARM_UCS_Http_GetCapabilities(void);
 
 /**
  * @brief Initialize Source.
@@ -40,13 +40,13 @@ ARM_SOURCE_CAPABILITIES ARM_UCS_GetCapabilities(void);
  * @param cb_event Function pointer to event handler. See events above.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_Initialize(ARM_SOURCE_SignalEvent_t cb_event);
+arm_uc_error_t ARM_UCS_Http_Initialize(ARM_SOURCE_SignalEvent_t cb_event);
 
 /**
  * @brief Uninitialized Source.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_Uninitialize(void);
+arm_uc_error_t ARM_UCS_Http_Uninitialize(void);
 
 /**
  * @brief Cost estimation for retrieving manifest from the default location.
@@ -57,7 +57,7 @@ arm_uc_error_t ARM_UCS_Uninitialize(void);
  * @param cost Pointer to variable for the return value.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetManifestDefaultCost(uint32_t* cost);
+arm_uc_error_t ARM_UCS_Http_GetManifestDefaultCost(uint32_t *cost);
 
 /**
  * @brief Cost estimation for retrieving manifest from URL.
@@ -69,7 +69,7 @@ arm_uc_error_t ARM_UCS_GetManifestDefaultCost(uint32_t* cost);
  * @param cost Pointer to variable for the return value.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetManifestURLCost(arm_uc_uri_t* uri, uint32_t* cost);
+arm_uc_error_t ARM_UCS_Http_GetManifestURLCost(arm_uc_uri_t *uri, uint32_t *cost);
 
 /**
  * @brief Cost estimation for retrieving firmware from URL.
@@ -81,7 +81,7 @@ arm_uc_error_t ARM_UCS_GetManifestURLCost(arm_uc_uri_t* uri, uint32_t* cost);
  * @param cost Pointer to variable for the return value.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetFirmwareURLCost(arm_uc_uri_t* uri, uint32_t* cost);
+arm_uc_error_t ARM_UCS_Http_GetFirmwareURLCost(arm_uc_uri_t *uri, uint32_t *cost);
 
 /**
  * @brief Cost estimation for retrieving key table from URL.
@@ -93,7 +93,7 @@ arm_uc_error_t ARM_UCS_GetFirmwareURLCost(arm_uc_uri_t* uri, uint32_t* cost);
  * @param cost Pointer to variable for the return value.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetKeytableURLCost(arm_uc_uri_t* uri, uint32_t* cost);
+arm_uc_error_t ARM_UCS_Http_GetKeytableURLCost(arm_uc_uri_t *uri, uint32_t *cost);
 
 /**
  * @brief Retrieve manifest from the default location.
@@ -104,7 +104,7 @@ arm_uc_error_t ARM_UCS_GetKeytableURLCost(arm_uc_uri_t* uri, uint32_t* cost);
  * @param offset Manifest offset in bytes where the requested fragment begins.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetManifestDefault(arm_uc_buffer_t* buffer, uint32_t offset);
+arm_uc_error_t ARM_UCS_Http_GetManifestDefault(arm_uc_buffer_t *buffer, uint32_t offset);
 
 /**
  * @brief Retrieve manifest from URL.
@@ -117,7 +117,7 @@ arm_uc_error_t ARM_UCS_GetManifestDefault(arm_uc_buffer_t* buffer, uint32_t offs
  *
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetManifestURL(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer, uint32_t offset);
+arm_uc_error_t ARM_UCS_Http_GetManifestURL(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
 /**
  * @brief Retrieve firmware fragment.
@@ -129,7 +129,7 @@ arm_uc_error_t ARM_UCS_GetManifestURL(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer
  * @param offset Firmware offset to retrieve fragment from.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetFirmwareFragment(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer, uint32_t offset);
+arm_uc_error_t ARM_UCS_Http_GetFirmwareFragment(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
 /**
  * @brief Retrieve a key table from a URL.
@@ -140,7 +140,7 @@ arm_uc_error_t ARM_UCS_GetFirmwareFragment(arm_uc_uri_t* uri, arm_uc_buffer_t* b
  * @param buffer Struct containing byte array, maximum size, and actual size.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_GetKeytableURL(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer);
+arm_uc_error_t ARM_UCS_Http_GetKeytableURL(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer);
 
 extern ARM_UPDATE_SOURCE ARM_UCS_HTTPSource;
 

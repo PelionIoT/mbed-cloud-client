@@ -81,6 +81,7 @@ typedef enum {
     KCM_CRYPTO_STATUS_INVALID_OID,                            //!< Operation failed due to invalid OID.
     KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT,                    //!< Operation failed due to invalid name format.
     KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR, //!< Verification of self-generated certificate against stored private key failed
+    KCM_CRYPTO_STATUS_SET_EXTENSION_FAILED,                   //!< Copying the extension from certificate to CSR failed
     KCM_MAX_STATUS,
 } kcm_status_e;
 

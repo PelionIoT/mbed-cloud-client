@@ -28,6 +28,7 @@ typedef enum {
     ARM_UC_SM_EVENT_FIRMWARE,
     ARM_UC_SM_EVENT_KEYTABLE,
     ARM_UC_SM_EVENT_ERROR,
+    ARM_UC_SM_EVENT_ERROR_SOURCE,
     ARM_UC_SM_EVENT_ERROR_BUFFER_SIZE
 } ARM_UC_SM_Event_t;
 
@@ -58,8 +59,8 @@ typedef struct _ARM_UC_SOURCE_MANAGER {
      * @param source Collection of function pointers to source.
      * @return Error code.
      */
-    arm_uc_error_t (*AddSource)(const ARM_UPDATE_SOURCE* source);
-    arm_uc_error_t (*RemoveSource)(const ARM_UPDATE_SOURCE* source);
+    arm_uc_error_t (*AddSource)(const ARM_UPDATE_SOURCE *source);
+    arm_uc_error_t (*RemoveSource)(const ARM_UPDATE_SOURCE *source);
 
     /**
      * @brief Copy manifest into provided buffer.
@@ -70,7 +71,7 @@ typedef struct _ARM_UC_SOURCE_MANAGER {
      *
      * @return Error code.
      */
-    arm_uc_error_t (*GetManifest)(arm_uc_buffer_t* buffer, uint32_t offset);
+    arm_uc_error_t (*GetManifest)(arm_uc_buffer_t *buffer, uint32_t offset);
 
     /**
      * @brief Copy manifest into provided buffer.
@@ -82,7 +83,7 @@ typedef struct _ARM_UC_SOURCE_MANAGER {
      *
      * @return Error code.
      */
-    arm_uc_error_t (*GetManifestFrom)(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer, uint32_t offset);
+    arm_uc_error_t (*GetManifestFrom)(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
     /**
      * @brief Copy firmware fragment into provided buffer.
@@ -94,7 +95,7 @@ typedef struct _ARM_UC_SOURCE_MANAGER {
      * @param offset Firmware offset in bytes where the next fragment begins.
      * @return Error code.
      */
-    arm_uc_error_t (*GetFirmwareFragment)(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer, uint32_t offset);
+    arm_uc_error_t (*GetFirmwareFragment)(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
     /**
      * @brief Retrieve key table and write it into provided buffer.
@@ -104,7 +105,7 @@ typedef struct _ARM_UC_SOURCE_MANAGER {
      * @param buffer Struct holding a byte array, maximum size, and actual size.
      * @return Error code.
      */
-    arm_uc_error_t (*GetKeytable)(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer);
+    arm_uc_error_t (*GetKeytable)(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer);
 
 } ARM_UC_SOURCE_MANAGER_t;
 

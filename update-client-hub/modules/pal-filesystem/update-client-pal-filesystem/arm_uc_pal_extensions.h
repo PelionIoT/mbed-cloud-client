@@ -29,9 +29,9 @@ extern "C" {
 
 arm_uc_error_t pal_ext_imageInitAPI(ARM_UC_PAAL_UPDATE_SignalEvent_t callback);
 
-arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t* details);
+arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details);
 
-arm_uc_error_t pal_ext_installerGetDetails(arm_uc_installer_details_t* details);
+arm_uc_error_t pal_ext_installerGetDetails(arm_uc_installer_details_t *details);
 
 arm_uc_error_t pal_ext_imageActivate(uint32_t location);
 

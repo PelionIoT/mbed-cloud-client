@@ -6,6 +6,10 @@ SET(PAL_PLATFORM_BSP_DIR ${PAL_BSP_DIR}/pal_config)
 add_definitions(-DESFS_INTERACTIVE_TEST)
 add_definitions(-DSOTP_LOG=0)
 
+# these are used & required by the unit tests
+add_definitions(-DPAL_NET_DNS_SUPPORT)
+add_definitions(-DPAL_DNS_API_VERSION=1)
+
 if (${TLS_LIBRARY} MATCHES mbedTLS)
 	# PAL specific configurations for mbedTLS
     if (NOT (${OS_BRAND} MATCHES "FreeRTOS"))

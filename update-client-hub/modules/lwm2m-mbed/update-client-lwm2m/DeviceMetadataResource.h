@@ -27,16 +27,16 @@
 
 namespace DeviceMetadataResource {
 
-    void Initialize(void);
-    void Uninitialize(void);
+void Initialize(void);
+void Uninitialize(void);
 
-    M2MObject* getObject(void);
+M2MObject *getObject(void);
 
-    /* set bootloader hash resource /10255/0/1 */
-    int32_t setBootloaderHash(arm_uc_buffer_t* hash);
+/* set bootloader hash resource /10255/0/1 */
+int32_t setBootloaderHash(arm_uc_buffer_t *hash);
 
-    /* set OEM bootloader hash resource /10255/0/2 */
-    int32_t setOEMBootloaderHash(arm_uc_buffer_t* hash);
+/* set OEM bootloader hash resource /10255/0/2 */
+int32_t setOEMBootloaderHash(arm_uc_buffer_t *hash);
 }
 
 #endif // __ARM_UCS_DEVICE_METADATA_RESOURCE_H__

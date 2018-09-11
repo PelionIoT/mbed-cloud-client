@@ -29,7 +29,7 @@ extern "C" {
 
 void ARM_UC_HUB_AddErrorCallbackInternal(void (*callback)(int32_t error));
 
-void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state);
+extern void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state);
 
 #ifdef __cplusplus
 }

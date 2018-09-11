@@ -19,6 +19,8 @@
 #include "pal_network.h"
 #include "pal_plat_network.h"
 
+#define TRACE_GROUP "PAL"
+
 typedef struct pal_in_addr {
     uint32_t s_addr; // that's a 32-bit int (4 bytes)
 } pal_in_addr_t;
@@ -45,7 +47,7 @@ typedef struct pal_socketAddressInternal6{
 #if PAL_NET_DNS_SUPPORT
 
 // structure used by pal_getAddressInfoAsync
-#ifndef PAL_DNS_API_V2
+#if (PAL_DNS_API_VERSION == 1)
 typedef struct pal_asyncAddressInfo
 {
     char* url;
@@ -54,7 +56,7 @@ typedef struct pal_asyncAddressInfo
     palGetAddressInfoAsyncCallback_t callback;
     void* callbackArgument;
 } pal_asyncAddressInfo_t;
-#endif // PAL_DNS_API_V2
+#endif // PAL_DNS_API_VERSION
 #endif // PAL_NET_DNS_SUPPORT
 
 palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t* interfaceIndex)
@@ -394,7 +396,7 @@ palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSock
 #endif
 
 #if PAL_NET_DNS_SUPPORT
-
+#if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
 palStatus_t pal_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* addressLength)
 {    
     PAL_VALIDATE_ARGUMENTS ((NULL == url) || (NULL == address) || (NULL == addressLength));
@@ -403,16 +405,17 @@ palStatus_t pal_getAddressInfo(const char *url, palSocketAddress_t *address, pal
     result = pal_plat_getAddressInfo(url, address, addressLength);
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
+#endif
 
 // the function invoked by the thread created in pal_getAddressInfoAsync
-#ifndef PAL_DNS_API_V2
+#if (PAL_DNS_API_VERSION == 1)
 PAL_PRIVATE void getAddressInfoAsyncThreadFunc(void const* arg)
 {
     pal_asyncAddressInfo_t* info = (pal_asyncAddressInfo_t*)arg;
     palStatus_t status = pal_getAddressInfo(info->url, info->address, info->addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR, "getAddressInfoAsyncThreadFunc: pal_getAddressInfo failed\n");
+        PAL_LOG_ERR("getAddressInfoAsyncThreadFunc: pal_getAddressInfo failed\n");
     }
     info->callback(info->url, info->address, info->addressLength, status, info->callbackArgument); // invoke callback
     free(info);
@@ -447,9 +450,9 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
     }
     return status;
 }
-#else
+#elif (PAL_DNS_API_VERSION == 2)
 #ifndef TARGET_LIKE_MBED
-#error "PAL_DNS_API_V2 is only supported with mbed-os"
+#error "PAL_DNS_API_VERSION 2 is only supported with mbed-os"
 #endif
 palStatus_t pal_getAddressInfoAsync(const char* url, 
                                      palSocketAddress_t* address, 
@@ -483,6 +486,6 @@ palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
 {
     return pal_plat_cancelAddressInfoAsync(queryHandle);
 }
-#endif //  #ifndef PAL_DNS_API_V2
+#endif //  PAL_DNS_API_VERSION
 
 #endif // PAL_NET_DNS_SUPPORT
