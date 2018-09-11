@@ -51,8 +51,8 @@ uint32_t ARM_UC_PAL_BlockDevice_GetMaxID(void);
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
-                                              const arm_uc_firmware_details_t* details,
-                                              arm_uc_buffer_t* buffer);
+                                              const arm_uc_firmware_details_t *details,
+                                              arm_uc_buffer_t *buffer);
 
 /**
  * @brief Write a fragment to the indicated storage location.
@@ -69,7 +69,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_Write(uint32_t slot_id,
                                             uint32_t offset,
-                                            const arm_uc_buffer_t* buffer);
+                                            const arm_uc_buffer_t *buffer);
 
 /**
  * @brief Close storage location for writing and flush pending data.
@@ -98,7 +98,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Finalize(uint32_t slot_id);
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_Read(uint32_t slot_id,
                                            uint32_t offset,
-                                           arm_uc_buffer_t* buffer);
+                                           arm_uc_buffer_t *buffer);
 
 /**
  * @brief Set the firmware image in the slot to be the new active image.
@@ -132,8 +132,8 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Activate(uint32_t slot_id);
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
-                                        uint32_t slot_id,
-                                        arm_uc_firmware_details_t* details);
+    uint32_t slot_id,
+    arm_uc_firmware_details_t *details);
 
 #ifdef __cplusplus
 }

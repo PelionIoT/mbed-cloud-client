@@ -66,7 +66,7 @@ void aq_critical_section_enter()
 
     assert(interruptEnableCounter < UINT32_MAX);
     if (interruptEnableCounter > 0) {
-         assert(primask & 0x1);
+        assert(primask & 0x1);
     }
 #endif
 
@@ -90,7 +90,7 @@ void aq_critical_section_exit(void)
 #else
         primask = __get_PRIMASK(); // get the current interrupt enabled state
 #endif
-         assert(primask & 0x1); // Interrupts must be disabled on invoking an exit from a critical section
+        assert(primask & 0x1); // Interrupts must be disabled on invoking an exit from a critical section
 #endif
 
         interruptEnableCounter--;

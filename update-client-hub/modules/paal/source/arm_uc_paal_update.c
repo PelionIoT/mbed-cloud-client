@@ -27,7 +27,7 @@
 #define TRACE_GROUP "UCPI"
 #include "update-client-common/arm_uc_trace.h"
 
-static const ARM_UC_PAAL_UPDATE* paal_update_implementation = NULL;
+static const ARM_UC_PAAL_UPDATE *paal_update_implementation = NULL;
 
 /**
  * @brief Set PAAL Update implementation.
@@ -35,13 +35,13 @@ static const ARM_UC_PAAL_UPDATE* paal_update_implementation = NULL;
  * @param implementation Function pointer struct to implementation.
  * @return Returns ERR_NONE on accept and ERR_INVALID_PARAMETER otherwise.
  */
-arm_uc_error_t ARM_UCP_SetPAALUpdate(const ARM_UC_PAAL_UPDATE* implementation)
+arm_uc_error_t ARM_UCP_SetPAALUpdate(const ARM_UC_PAAL_UPDATE *implementation)
 {
     UC_PAAL_TRACE("ARM_UCP_SetPAALUpdate");
 
     paal_update_implementation = implementation;
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
@@ -58,8 +58,7 @@ arm_uc_error_t ARM_UCP_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_t callback)
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation)
-    {
+    if (paal_update_implementation) {
         result = paal_update_implementation->Initialize(callback);
     }
 
@@ -80,8 +79,7 @@ ARM_UC_PAAL_UPDATE_CAPABILITIES ARM_UCP_GetCapabilities(void)
 
     ARM_UC_PAAL_UPDATE_CAPABILITIES result = { 0 };
 
-    if (paal_update_implementation)
-    {
+    if (paal_update_implementation) {
         result = paal_update_implementation->GetCapabilities();
     }
 
@@ -99,8 +97,7 @@ uint32_t ARM_UCP_GetMaxID(void)
 
     uint32_t result = 0;
 
-    if (paal_update_implementation)
-    {
+    if (paal_update_implementation) {
         result = paal_update_implementation->GetMaxID();
     }
 
@@ -120,15 +117,14 @@ uint32_t ARM_UCP_GetMaxID(void)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UCP_Prepare(uint32_t location,
-                               const arm_uc_firmware_details_t* details,
-                               arm_uc_buffer_t* buffer)
+                               const arm_uc_firmware_details_t *details,
+                               arm_uc_buffer_t *buffer)
 {
     UC_PAAL_TRACE("ARM_UCP_Prepare");
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation && details && buffer)
-    {
+    if (paal_update_implementation && details && buffer) {
         result = paal_update_implementation->Prepare(location,
                                                      details,
                                                      buffer);
@@ -152,14 +148,13 @@ arm_uc_error_t ARM_UCP_Prepare(uint32_t location,
  */
 arm_uc_error_t ARM_UCP_Write(uint32_t location,
                              uint32_t offset,
-                             const arm_uc_buffer_t* buffer)
+                             const arm_uc_buffer_t *buffer)
 {
     UC_PAAL_TRACE("ARM_UCP_Write: %p %p", paal_update_implementation, buffer);
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation && buffer)
-    {
+    if (paal_update_implementation && buffer) {
         result = paal_update_implementation->Write(location, offset, buffer);
     }
 
@@ -180,8 +175,7 @@ arm_uc_error_t ARM_UCP_Finalize(uint32_t location)
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation)
-    {
+    if (paal_update_implementation) {
         result = paal_update_implementation->Finalize(location);
     }
 
@@ -205,14 +199,13 @@ arm_uc_error_t ARM_UCP_Finalize(uint32_t location)
  */
 arm_uc_error_t ARM_UCP_Read(uint32_t location,
                             uint32_t offset,
-                            arm_uc_buffer_t* buffer)
+                            arm_uc_buffer_t *buffer)
 {
     UC_PAAL_TRACE("ARM_UCP_Read: %" PRIX32 " %p", offset, buffer);
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation && buffer)
-    {
+    if (paal_update_implementation && buffer) {
         result = paal_update_implementation->Read(location, offset, buffer);
     }
 
@@ -241,8 +234,7 @@ arm_uc_error_t ARM_UCP_Activate(uint32_t location)
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation)
-    {
+    if (paal_update_implementation) {
         result = paal_update_implementation->Activate(location);
     }
 
@@ -261,14 +253,13 @@ arm_uc_error_t ARM_UCP_Activate(uint32_t location)
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UCP_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details)
+arm_uc_error_t ARM_UCP_GetActiveFirmwareDetails(arm_uc_firmware_details_t *details)
 {
     UC_PAAL_TRACE("ARM_UCP_GetActiveFirmwareDetails");
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation && details)
-    {
+    if (paal_update_implementation && details) {
         result = paal_update_implementation->GetActiveFirmwareDetails(details);
     }
 
@@ -288,14 +279,13 @@ arm_uc_error_t ARM_UCP_GetActiveFirmwareDetails(arm_uc_firmware_details_t* detai
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UCP_GetFirmwareDetails(uint32_t location,
-                                          arm_uc_firmware_details_t* details)
+                                          arm_uc_firmware_details_t *details)
 {
     UC_PAAL_TRACE("ARM_UCP_GetFirmwareDetails");
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation && details)
-    {
+    if (paal_update_implementation && details) {
         result = paal_update_implementation->GetFirmwareDetails(location,
                                                                 details);
     }
@@ -317,14 +307,13 @@ arm_uc_error_t ARM_UCP_GetFirmwareDetails(uint32_t location,
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UCP_GetInstallerDetails(arm_uc_installer_details_t* details)
+arm_uc_error_t ARM_UCP_GetInstallerDetails(arm_uc_installer_details_t *details)
 {
     UC_PAAL_TRACE("ARM_UCP_GetInstallerDetails");
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_update_implementation && details)
-    {
+    if (paal_update_implementation && details) {
         result = paal_update_implementation->GetInstallerDetails(details);
     }
 

@@ -16,6 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
 #if defined(TARGET_IS_PC_LINUX)
 
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation_internal.h"
@@ -37,15 +39,14 @@
 /* pointer to external callback handler */
 static ARM_UC_PAAL_UPDATE_SignalEvent_t arm_uc_pal_external_callback = NULL;
 
-linux_worker_thread_info_t linux_worker_thread = {0, PTHREAD_MUTEX_INITIALIZER};
+linux_worker_thread_info_t linux_worker_thread = { .attr_initialized = 0, .mutex = PTHREAD_MUTEX_INITIALIZER };
 
 // storage set aside for adding event_cb to the event queue
 static arm_uc_callback_t event_cb_storage = { 0 };
 
 void arm_uc_pal_linux_signal_callback(uint32_t event, bool from_thread)
 {
-    if (arm_uc_pal_external_callback)
-    {
+    if (arm_uc_pal_external_callback) {
         if (from_thread) {
             /* Run given callback in the update client's thread */
             ARM_UC_PostCallback(&event_cb_storage, arm_uc_pal_external_callback, event);
@@ -66,10 +67,10 @@ void arm_uc_pal_linux_internal_set_callback(ARM_UC_PAAL_UPDATE_SignalEvent_t cal
 }
 
 static uint32_t arm_uc_offset = 0;
-static arm_uc_buffer_t* arm_uc_buffer = NULL;
-static arm_uc_firmware_details_t* arm_uc_details = NULL;
-static arm_uc_installer_details_t* arm_uc_installer = NULL;
-static uint32_t* arm_uc_location = NULL;
+static arm_uc_buffer_t *arm_uc_buffer = NULL;
+static arm_uc_firmware_details_t *arm_uc_details = NULL;
+static arm_uc_installer_details_t *arm_uc_installer = NULL;
+static uint32_t *arm_uc_location = NULL;
 static uint32_t arm_uc_location_buffer = 0;
 
 void arm_uc_pal_linux_internal_set_offset(uint32_t offset)
@@ -77,62 +78,54 @@ void arm_uc_pal_linux_internal_set_offset(uint32_t offset)
     arm_uc_offset = offset;
 }
 
-void arm_uc_pal_linux_internal_set_buffer(arm_uc_buffer_t* buffer)
+void arm_uc_pal_linux_internal_set_buffer(arm_uc_buffer_t *buffer)
 {
     arm_uc_buffer = buffer;
 }
 
-void arm_uc_pal_linux_internal_set_details(arm_uc_firmware_details_t* details)
+void arm_uc_pal_linux_internal_set_details(arm_uc_firmware_details_t *details)
 {
     arm_uc_details = details;
 }
 
-void arm_uc_pal_linux_internal_set_installer(arm_uc_installer_details_t* details)
+void arm_uc_pal_linux_internal_set_installer(arm_uc_installer_details_t *details)
 {
     arm_uc_installer = details;
 }
 
-void arm_uc_pal_linux_internal_set_location(uint32_t* location)
+void arm_uc_pal_linux_internal_set_location(uint32_t *location)
 {
-    if (location)
-    {
+    if (location) {
         arm_uc_location_buffer = *location;
         arm_uc_location = &arm_uc_location_buffer;
-    }
-    else
-    {
+    } else {
         arm_uc_location = NULL;
     }
 }
 
-arm_uc_error_t arm_uc_pal_linux_internal_file_path(char* buffer,
+arm_uc_error_t arm_uc_pal_linux_internal_file_path(char *buffer,
                                                    size_t buffer_length,
-                                                   const char* folder,
-                                                   const char* type,
-                                                   uint32_t* location)
+                                                   const char *folder,
+                                                   const char *type,
+                                                   uint32_t *location)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer && folder && type)
-    {
+    if (buffer && folder && type) {
         int actual_length = 0;
 
-        if (location)
-        {
+        if (location) {
             /* construct file path using location */
             actual_length = snprintf(buffer, buffer_length,
                                      "%s/%s_%" PRIu32 ".bin", folder, type, *location);
-        }
-        else
-        {
+        } else {
             /* construct file path without location */
             actual_length = snprintf(buffer, buffer_length,
                                      "%s/%s.bin", folder, type);
         }
 
         /* check that the buffer is large enough */
-        if (actual_length < buffer_length)
-        {
+        if (actual_length < buffer_length) {
             result.code = ERR_NONE;
         }
     }
@@ -140,15 +133,14 @@ arm_uc_error_t arm_uc_pal_linux_internal_file_path(char* buffer,
     return result;
 }
 
-static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
-                                              char* command,
+static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
+                                              char *command,
                                               size_t command_length)
 {
     /* default to failed */
     bool valid = false;
 
-    if (parameters && command)
-    {
+    if (parameters && command) {
         /* invert status */
         valid = true;
 
@@ -161,8 +153,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
         int remaining = command_length - length;
 
         /* add header parameter if requested */
-        if ((remaining > 0) && (parameters->header))
-        {
+        if ((remaining > 0) && (parameters->header)) {
             char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
             /* construct header file path */
@@ -174,8 +165,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
                                                     arm_uc_location);
 
             /* generated valid file path */
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* add parameter to command line */
                 length += snprintf(&command[length],
                                    remaining,
@@ -191,8 +181,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
         }
 
         /* add firmware parameter if requested */
-        if ((valid) && (parameters->firmware))
-        {
+        if ((valid) && (parameters->firmware)) {
             char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
             /* construct firmware file path */
@@ -204,8 +193,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
                                                     arm_uc_location);
 
             /* generated valid file path */
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* add parameter to command line */
                 length += snprintf(&command[length],
                                    remaining,
@@ -221,8 +209,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
         }
 
         /* add location parameter if requested */
-        if ((valid) && (parameters->location))
-        {
+        if ((valid) && (parameters->location)) {
             /* add parameter to command line */
             length += snprintf(&command[length],
                                remaining,
@@ -237,8 +224,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
         }
 
         /* add offset parameter if requested */
-        if ((valid) && (parameters->offset))
-        {
+        if ((valid) && (parameters->offset)) {
             /* add parameter to command line */
             length += snprintf(&command[length],
                                remaining,
@@ -253,10 +239,8 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
         }
 
         /* add size parameter if requested */
-        if ((valid) && (parameters->size))
-        {
-            if (arm_uc_buffer)
-            {
+        if ((valid) && (parameters->size)) {
+            if (arm_uc_buffer) {
                 /* add parameter to command line */
                 length += snprintf(&command[length],
                                    remaining,
@@ -268,9 +252,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
 
                 /* check validity */
                 valid = (remaining > 0);
-            }
-            else
-            {
+            } else {
                 valid = false;
             }
         }
@@ -279,28 +261,25 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t* parameters,
     return valid;
 }
 
-arm_uc_error_t arm_uc_pal_linux_internal_read(const char* file_path,
+arm_uc_error_t arm_uc_pal_linux_internal_read(const char *file_path,
                                               uint32_t offset,
-                                              arm_uc_buffer_t* buffer)
+                                              arm_uc_buffer_t *buffer)
 {
     /* default to failure result */
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (file_path && buffer)
-    {
+    if (file_path && buffer) {
         /* open file */
         errno = 0;
-        FILE* descriptor = fopen(file_path, "rb");
+        FILE *descriptor = fopen(file_path, "rb");
 
         /* continue if file is open */
-        if (descriptor != NULL)
-        {
+        if (descriptor != NULL) {
             /* set read position */
             int status = fseek(descriptor, offset, SEEK_SET);
 
             /* continue if position is set */
-            if (status == 0)
-            {
+            if (status == 0) {
                 /* read buffer */
                 errno = 0;
                 size_t xfer_size = fread(buffer->ptr,
@@ -311,15 +290,12 @@ arm_uc_error_t arm_uc_pal_linux_internal_read(const char* file_path,
                 /* set buffer size if read succeeded */
                 status = ferror(descriptor);
 
-                if (status == 0)
-                {
+                if (status == 0) {
                     buffer->size = xfer_size;
 
                     /* set successful result */
                     result.code = ERR_NONE;
-                }
-                else
-                {
+                } else {
                     /* set error code if read failed */
                     UC_PAAL_ERR_MSG("failed to read %s: %s", file_path, strerror(errno));
                     buffer->size = 0;
@@ -327,14 +303,10 @@ arm_uc_error_t arm_uc_pal_linux_internal_read(const char* file_path,
 
                 /* close file after read */
                 fclose(descriptor);
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("failed to seek in: %s", file_path);
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("failed to open %s: %s", file_path, strerror(errno));
         }
     }
@@ -342,13 +314,12 @@ arm_uc_error_t arm_uc_pal_linux_internal_read(const char* file_path,
     return result;
 }
 
-arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t* location,
-                                                     arm_uc_firmware_details_t* details)
+arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t *location,
+                                                     arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         /* construct header file path */
         char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
@@ -359,8 +330,7 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t* location,
                                                      location);
 
         /* file path is valid */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             /* allocate external header sized read buffer since it will be
                large enough to hold either an internal or external header.
              */
@@ -376,8 +346,7 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t* location,
             result = arm_uc_pal_linux_internal_read(file_path, 0, &buffer);
 
             /* check return code */
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 UC_PAAL_TRACE("header bytes: %u", buffer.size);
 
                 /* read out header magic */
@@ -388,33 +357,24 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t* location,
 
                 /* choose version to decode */
                 if ((headerMagic == ARM_UC_INTERNAL_HEADER_MAGIC_V2) &&
-                    (headerVersion == ARM_UC_INTERNAL_HEADER_VERSION_V2) &&
-                    (buffer.size == ARM_UC_INTERNAL_HEADER_SIZE_V2))
-                {
+                        (headerVersion == ARM_UC_INTERNAL_HEADER_VERSION_V2) &&
+                        (buffer.size == ARM_UC_INTERNAL_HEADER_SIZE_V2)) {
                     result = arm_uc_parse_internal_header_v2(read_buffer, details);
-                }
-                else if ((headerMagic == ARM_UC_EXTERNAL_HEADER_MAGIC_V2) &&
-                         (headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2) &&
-                         (buffer.size == ARM_UC_EXTERNAL_HEADER_SIZE_V2))
-                {
+                } else if ((headerMagic == ARM_UC_EXTERNAL_HEADER_MAGIC_V2) &&
+                           (headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2) &&
+                           (buffer.size == ARM_UC_EXTERNAL_HEADER_SIZE_V2)) {
                     result = arm_uc_parse_external_header_v2(read_buffer, details);
-                }
-                else
-                {
-                    UC_PAAL_ERR_MSG("invalid header in slot %" PRIu32, location);
+                } else {
+                    UC_PAAL_ERR_MSG("invalid header in slot %" PRIu32, *location);
 
                     /* invalid header format */
                     result.code = ERR_INVALID_PARAMETER;
                 }
-            }
-            else
-            {
+            } else {
                 /* unsuccessful read */
-                UC_PAAL_ERR_MSG("unable to read header in slot %" PRIX32, location);
+                UC_PAAL_ERR_MSG("unable to read header in slot %" PRIX32, *location);
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("header file name and path too long");
         }
     }
@@ -422,12 +382,11 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t* location,
     return result;
 }
 
-arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details_t* details)
+arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         /* construct file path */
         char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
@@ -438,8 +397,7 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details
                                                      NULL);
 
         /* file path is valid */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             uint8_t read_buffer[2 * sizeof(arm_uc_hash_t) + sizeof(uint32_t)] = { 0 };
 
             arm_uc_buffer_t buffer = {
@@ -455,8 +413,7 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details
 
             /* check return code */
             if ((result.error == ERR_NONE) &&
-                (buffer.size == sizeof(read_buffer)))
-            {
+                    (buffer.size == sizeof(read_buffer))) {
                 memcpy(details->arm_hash,
                        buffer.ptr,
                        sizeof(arm_uc_hash_t));
@@ -466,15 +423,11 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details
                        sizeof(arm_uc_hash_t));
 
                 details->layout = arm_uc_parse_uint32(&buffer.ptr[2 * sizeof(arm_uc_hash_t)]);
-            }
-            else
-            {
+            } else {
                 /* unsuccessful read */
                 UC_PAAL_ERR_MSG("unable to read installer details");
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("installer file name and path too long");
         }
     }
@@ -482,13 +435,12 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details
     return result;
 }
 
-arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t* location,
-                                                      const arm_uc_firmware_details_t* details)
+arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t *location,
+                                                      const arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         /* allocate external header sized buffer since it will be
            large enough to hold either an internal or external header.
          */
@@ -508,8 +460,7 @@ arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t* location,
 #endif
 
         /* write header file */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
             /* construct header file path */
@@ -519,51 +470,40 @@ arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t* location,
                                                          "header",
                                                          location);
 
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* inverse result */
                 result.code = ERR_INVALID_PARAMETER;
 
                 /* open file and get file handler */
                 errno = 0;
-                FILE* file = fopen(file_path, "wb");
+                FILE *file = fopen(file_path, "wb");
 
-                if (file != NULL)
-                {
+                if (file != NULL) {
                     /* write buffer to file */
                     size_t xfer_size = fwrite(buffer.ptr,
                                               sizeof(uint8_t),
                                               buffer.size,
                                               file);
 
-                    UC_PAAL_TRACE("written: %u", xfer_size);
+                    UC_PAAL_TRACE("written: %" PRIu64, xfer_size);
 
                     /* close file after write */
                     int status = fclose(file);
 
                     if ((xfer_size == buffer.size) &&
-                        (status != EOF))
-                    {
+                            (status != EOF)) {
                         /* set return code if write was successful */
                         result.code = ERR_NONE;
-                    }
-                    else
-                    {
+                    } else {
                         UC_PAAL_ERR_MSG("failed to write header");
                     }
-                }
-                else
-                {
+                } else {
                     UC_PAAL_ERR_MSG("file open failed: %s", strerror(errno));
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("header file name and path too long");
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("header too large for buffer");
         }
 
@@ -577,13 +517,13 @@ arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t* location,
  *
  * @param params Pointer to arm_ucp_worker_t struct.
  */
-void* arm_uc_pal_linux_extended_pre_worker(void* params)
+void *arm_uc_pal_linux_extended_pre_worker(void *params)
 {
     /* default to failure */
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
     /* get parameters */
-    arm_ucp_worker_t* parameters = (arm_ucp_worker_t*) params;
+    arm_ucp_worker_t *parameters = (arm_ucp_worker_t *) params;
 
     /* file path to script result */
     char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
@@ -591,22 +531,19 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
     /* construct script command */
     char command[ARM_UC_MAXIMUM_COMMAND_LENGTH] = { 0 };
 
-    int error = 0;
     int valid = arm_uc_pal_linux_internal_command(parameters,
                                                   command,
                                                   ARM_UC_MAXIMUM_COMMAND_LENGTH);
 
     /* command is valid */
-    if (valid)
-    {
+    if (valid) {
         UC_PAAL_TRACE("Extended pre-script command: %s", command);
 
         /* execute script */
         errno = 0;
-        FILE* pipe = popen(command, "r");
+        FILE *pipe = popen(command, "r");
 
-        if (pipe)
-        {
+        if (pipe) {
             /* read pipe */
             size_t xfer_size = fread(file_path,
                                      sizeof(uint8_t),
@@ -614,11 +551,9 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
                                      pipe);
 
             /* trim non-printable characters */
-            for (size_t index = 0; index < xfer_size; index++)
-            {
+            for (size_t index = 0; index < xfer_size; index++) {
                 /* space is the first printable character */
-                if (file_path[index] < ' ')
-                {
+                if (file_path[index] < ' ') {
                     /* truncate string */
                     file_path[index] = '\0';
                     break;
@@ -629,43 +564,31 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
 
             /* check fread error status */
             status = ferror(pipe);
-            if (status == 0)
-            {
+            if (status == 0) {
                 /* Wait for child thread termination and check exit status */
                 status = pclose(pipe);
 
                 /* make sure child thread terminated correctly and scirpt exit status is 0 */
-                if (status != -1 && WIFEXITED(status))
-                {
-                    if (WEXITSTATUS(status) == 0)
-                    {
+                if (status != -1 && WIFEXITED(status)) {
+                    if (WEXITSTATUS(status) == 0) {
                         /* switch from boolean result to arm_uc_error_t */
                         result.code = ERR_NONE;
-                    }
-                    else
-                    {
+                    } else {
                         UC_PAAL_ERR_MSG("Script exited with non-zero status %" PRId32, status);
                     }
-                }
-                else
-                {
+                } else {
                     UC_PAAL_ERR_MSG("pipe terminated incorrectly %" PRId32, status);
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("failed to read pipe: %" PRId32, status);
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("failed to execute script: %" PRId32, errno);
         }
     }
 
     /* file path is valid */
-    if (result.error == ERR_NONE)
-    {
+    if (result.error == ERR_NONE) {
         /* invert status */
         result.code = ERR_INVALID_PARAMETER;
 
@@ -673,8 +596,7 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
 
         /* perform read operation */
         if ((parameters == arm_uc_worker_parameters.read) &&
-            (arm_uc_buffer != NULL))
-        {
+                (arm_uc_buffer != NULL)) {
             result = arm_uc_pal_linux_internal_read(file_path, 0, arm_uc_buffer);
 
             /* reset global buffer */
@@ -683,8 +605,7 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
 
         /* read details */
         if ((parameters == arm_uc_worker_parameters.details) &&
-                 (arm_uc_details != NULL))
-        {
+                (arm_uc_details != NULL)) {
             result = arm_uc_pal_linux_internal_read_header(arm_uc_location,
                                                            arm_uc_details);
 
@@ -694,8 +615,7 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
 
         /* read active details */
         if ((parameters == arm_uc_worker_parameters.active_details) &&
-                 (arm_uc_details != NULL))
-        {
+                (arm_uc_details != NULL)) {
             result = arm_uc_pal_linux_internal_read_header(NULL,
                                                            arm_uc_details);
 
@@ -705,8 +625,7 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
 
         /* read installer details */
         if ((parameters == arm_uc_worker_parameters.installer) &&
-                 (arm_uc_installer != NULL))
-        {
+                (arm_uc_installer != NULL)) {
             result = arm_uc_pal_linux_internal_read_installer(arm_uc_installer);
 
             /* reset global installer pointer */
@@ -714,18 +633,16 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
         }
     }
 
-    if (result.error == ERR_NONE)
-    {
+    if (result.error == ERR_NONE) {
         UC_PAAL_TRACE("pre-script complete");
 
         arm_uc_pal_linux_signal_callback(parameters->success_event, true);
-    }
-    else
-    {
+    } else {
         UC_PAAL_ERR_MSG("pre-script failed");
 
         arm_uc_pal_linux_signal_callback(parameters->failure_event, true);
     }
+    return NULL;
 }
 
 /**
@@ -733,10 +650,10 @@ void* arm_uc_pal_linux_extended_pre_worker(void* params)
  *
  * @param params Pointer to arm_ucp_worker_t struct.
  */
-void* arm_uc_pal_linux_extended_post_worker(void* params)
+void *arm_uc_pal_linux_extended_post_worker(void *params)
 {
     /* get parameters */
-    arm_ucp_worker_t* parameters = (arm_ucp_worker_t*) params;
+    arm_ucp_worker_t *parameters = (arm_ucp_worker_t *) params;
 
     /* construct script command */
     char command[ARM_UC_MAXIMUM_COMMAND_LENGTH] = { 0 };
@@ -747,8 +664,7 @@ void* arm_uc_pal_linux_extended_post_worker(void* params)
                                                   command,
                                                   ARM_UC_MAXIMUM_COMMAND_LENGTH);
 
-    if (valid)
-    {
+    if (valid) {
         UC_PAAL_TRACE("Extended post-script command: %s", command);
 
         /* execute script command */
@@ -759,27 +675,26 @@ void* arm_uc_pal_linux_extended_post_worker(void* params)
         valid = (error == 0);
     }
 
-    if (valid)
-    {
+    if (valid) {
         UC_PAAL_TRACE("post-script completed");
 
         event = parameters->success_event;
 
         /* execute the post runner if it exists and the script succeeded */
-        if (parameters->post_runner)
-        {
+        if (parameters->post_runner) {
             event = parameters->post_runner();
             UC_PAAL_TRACE("post runner returned event %" PRId32, event);
         }
-    }
-    else
-    {
+    } else {
         UC_PAAL_ERR_MSG("post-script failed: %" PRId32, error);
 
         event = parameters->failure_event;
     }
 
     arm_uc_pal_linux_signal_callback(event, true);
+
+    return NULL;
 }
 
-#endif
+#endif /* TARGET_IS_PC_LINUX */
+#endif /* ARM_UC_FEATURE_PAL_LINUX */

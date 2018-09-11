@@ -247,7 +247,17 @@ public:
      * \return True if successfully set, else false.
      */
     bool set_resource_notification_sent_callback(FirmwareResource resource,
-                                                 notification_delivery_status_cb callback);
+                                                 notification_delivery_status_cb callback) m2m_deprecated;
+
+
+    /**
+     * \brief Sets the callback function that is executed when notification message state changes.
+     * \param resource The resource enum.
+     * \param callback The function pointer that is called.
+     * \return True if successfully set, else false.
+     */
+    bool set_resource_notification_sent_callback(FirmwareResource resource,
+                                                 message_delivery_status_cb callback);
 
 #ifndef DISABLE_BLOCK_MESSAGE
     /**

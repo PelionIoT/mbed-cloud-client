@@ -21,21 +21,19 @@
 #include "update-client-common/arm_uc_utilities.h"
 #include "update-client-common/arm_uc_crypto.h"
 
-arm_uc_error_t arm_uc_parse_internal_header_v2(const uint8_t* input,
-                                               arm_uc_firmware_details_t* details)
+arm_uc_error_t arm_uc_parse_internal_header_v2(const uint8_t *input,
+                                               arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (input && details)
-    {
+    if (input && details) {
         /* calculate CRC */
         uint32_t calculatedChecksum = arm_uc_crc32(input, ARM_UC_INTERNAL_HEADER_CRC_OFFSET_V2);
 
         /* read out CRC */
         uint32_t temp32 = arm_uc_parse_uint32(&input[ARM_UC_INTERNAL_HEADER_CRC_OFFSET_V2]);
 
-        if (temp32 == calculatedChecksum)
-        {
+        if (temp32 == calculatedChecksum) {
             /* parse content */
             details->version = arm_uc_parse_uint64(&input[ARM_UC_INTERNAL_FIRMWARE_VERSION_OFFSET_V2]);
             details->size = arm_uc_parse_uint64(&input[ARM_UC_INTERNAL_FIRMWARE_SIZE_OFFSET_V2]);
@@ -56,15 +54,14 @@ arm_uc_error_t arm_uc_parse_internal_header_v2(const uint8_t* input,
     return result;
 }
 
-arm_uc_error_t arm_uc_create_internal_header_v2(const arm_uc_firmware_details_t* input,
-                                                arm_uc_buffer_t* output)
+arm_uc_error_t arm_uc_create_internal_header_v2(const arm_uc_firmware_details_t *input,
+                                                arm_uc_buffer_t *output)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
     if (input &&
-        output &&
-        (output->size_max >= ARM_UC_INTERNAL_HEADER_SIZE_V2))
-    {
+            output &&
+            (output->size_max >= ARM_UC_INTERNAL_HEADER_SIZE_V2)) {
         /* zero buffer */
         memset(output->ptr, 0, ARM_UC_INTERNAL_HEADER_SIZE_V2);
 
@@ -110,13 +107,12 @@ arm_uc_error_t arm_uc_create_internal_header_v2(const arm_uc_firmware_details_t*
     return result;
 }
 
-arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t* input,
-                                               arm_uc_firmware_details_t* details)
+arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t *input,
+                                               arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (input && details)
-    {
+    if (input && details) {
 
         /* read 128 bit root-of-trust */
         uint8_t key_buf[ARM_UC_DEVICE_KEY_SIZE] = { 0 };
@@ -127,8 +123,7 @@ arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t* input,
         };
         arm_uc_error_t status = ARM_UC_getDeviceKey256Bit(&key);
 
-        if (status.error == ERR_NONE)
-        {
+        if (status.error == ERR_NONE) {
             arm_uc_buffer_t input_buf = {
                 .size_max = ARM_UC_EXTERNAL_HMAC_OFFSET_V2,
                 .size = ARM_UC_EXTERNAL_HMAC_OFFSET_V2,
@@ -144,16 +139,14 @@ arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t* input,
             /* calculate header HMAC */
             status = ARM_UC_cryptoHMACSHA256(&key, &input_buf, &output_buf);
 
-            if (status.error == ERR_NONE)
-            {
+            if (status.error == ERR_NONE) {
                 input_buf.size_max = sizeof(arm_uc_hash_t);
                 input_buf.size = sizeof(arm_uc_hash_t);
                 input_buf.ptr = (uint8_t *) &input[ARM_UC_EXTERNAL_HMAC_OFFSET_V2];
 
                 int diff = ARM_UC_BinCompareCT(&input_buf, &output_buf);
 
-                if (diff == 0)
-                {
+                if (diff == 0) {
                     details->version = arm_uc_parse_uint64(&input[ARM_UC_EXTERNAL_FIRMWARE_VERSION_OFFSET_V2]);
                     details->size = arm_uc_parse_uint64(&input[ARM_UC_EXTERNAL_FIRMWARE_SIZE_OFFSET_V2]);
 
@@ -176,15 +169,14 @@ arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t* input,
     return result;
 }
 
-arm_uc_error_t arm_uc_create_external_header_v2(const arm_uc_firmware_details_t* input,
-                                                arm_uc_buffer_t* output)
+arm_uc_error_t arm_uc_create_external_header_v2(const arm_uc_firmware_details_t *input,
+                                                arm_uc_buffer_t *output)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
     if (input &&
-        output &&
-        (output->size_max >= ARM_UC_EXTERNAL_HEADER_SIZE_V2))
-    {
+            output &&
+            (output->size_max >= ARM_UC_EXTERNAL_HEADER_SIZE_V2)) {
         /* zero buffer and reset size*/
         memset(output->ptr, 0, ARM_UC_EXTERNAL_HEADER_SIZE_V2);
         output->size = 0;
@@ -232,8 +224,7 @@ arm_uc_error_t arm_uc_create_external_header_v2(const arm_uc_firmware_details_t*
 
         arm_uc_error_t status = ARM_UC_getDeviceKey256Bit(&key);
 
-        if (status.error == ERR_NONE)
-        {
+        if (status.error == ERR_NONE) {
             arm_uc_buffer_t input_buf = {
                 .size_max = ARM_UC_EXTERNAL_HMAC_OFFSET_V2,
                 .size = ARM_UC_EXTERNAL_HMAC_OFFSET_V2,
@@ -247,8 +238,7 @@ arm_uc_error_t arm_uc_create_external_header_v2(const arm_uc_firmware_details_t*
 
             /* calculate header HMAC */
             result = ARM_UC_cryptoHMACSHA256(&key, &input_buf, &output_buf);
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* set output size */
                 output->size = ARM_UC_EXTERNAL_HEADER_SIZE_V2;
             }

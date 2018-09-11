@@ -18,31 +18,40 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define TRACE_GROUP "PAL"
 
 palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes)
 {
-	palStatus_t status = PAL_SUCCESS;
-	FILE *fp;
-	size_t actualRead = 0;
+    palStatus_t status = PAL_SUCCESS;
+    FILE *fp;
+    size_t actualRead = 0;
+    char dev_random[] = "/dev/random";
 
-	fp = fopen("/dev/random", "r");
-	if (NULL != fp)
-	{
-		actualRead = fread(randomBuf, 1, bufSizeBytes, fp);
-		if (0 == actualRead)
-		{
-			status = PAL_ERR_RTOS_TRNG_FAILED;
-		}
-		else if (actualRead != bufSizeBytes)
-		{
-			status = PAL_ERR_RTOS_TRNG_PARTIAL_DATA;
-		}
-		 fclose(fp);
-	}
-	else
-	{
-		status = PAL_ERR_FS_NO_FILE;
-	}
+    // Random generation can be really slow, entropy collection on a freshly booted device
+    // can take up to 10-20 minutes! Installing rng-tools can speed things up.
+
+    PAL_LOG_INFO("Generating random from %s, this can take a long time!", dev_random);
+    fp = fopen(dev_random, "r");
+    if (NULL != fp)
+    {
+        actualRead = fread(randomBuf, 1, bufSizeBytes, fp);
+        if (0 == actualRead)
+        {
+            status = PAL_ERR_RTOS_TRNG_FAILED;
+        }
+        else if (actualRead != bufSizeBytes)
+        {
+            status = PAL_ERR_RTOS_TRNG_PARTIAL_DATA;
+        }
+        fclose(fp);
+    }
+    else
+    {
+        status = PAL_ERR_FS_NO_FILE;
+    }
 
     if (NULL != actualRandomSizeBytes)
     {

@@ -141,6 +141,18 @@ extern "C" {
     ENUM_AUTO(ARM_UC_MM_DER_SIG_CERT)\
     ENUM_AUTO(ARM_UC_MM_DER_SIG_CERT_FINGERPRINT)\
     ENUM_AUTO(ARM_UC_MM_DER_SIG_CERT_URL)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MACS)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MAC_BLOCK)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MAC_PSKID)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_IV)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_REF)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_VERSION)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_INDEX_SIZE)\
+    ENUM_AUTO(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_RECORD_SIZE)\
+    ENUM_AUTO(ARM_UC_MM_KT_ROOT)\
+    ENUM_AUTO(ARM_UC_MM_KT_HASH)\
+    ENUM_AUTO(ARM_UC_MM_KT_PAYLOAD_KEY)\
+
 
 enum derIDs {
 #define ENUM_AUTO(X) X,
@@ -150,10 +162,9 @@ enum derIDs {
 
 #define ARM_UC_DER_PARSER_ERROR_PREFIX TWO_CC('D', 'P')
 
-struct arm_uc_mmDerElement
-{
+struct arm_uc_mmDerElement {
     uint32_t id;
-    const struct arm_uc_mmDerElement* subElements;
+    const struct arm_uc_mmDerElement *subElements;
     uint8_t tag;
     uint8_t optional;
     uint8_t nSubElements;
@@ -165,12 +176,17 @@ extern const struct arm_uc_mmDerElement arm_uc_mmManifestFirmwareDescription[];
 extern const struct arm_uc_mmDerElement arm_uc_mmResourceSignature[];
 extern const struct arm_uc_mmDerElement arm_uc_mmSignatures[];
 extern const struct arm_uc_mmDerElement arm_uc_mmSignatureCertificateReferences[];
+extern const struct arm_uc_mmDerElement arm_uc_mmMacs[];
+extern const struct arm_uc_mmDerElement arm_uc_mmKeyTableEntry[];
+extern const struct arm_uc_mmDerElement arm_uc_mmMacs[];
 
-int32_t ARM_UC_mmDERGetSignedResourceValues(arm_uc_buffer_t* buffer, uint32_t nValues, const int32_t* valueIDs, arm_uc_buffer_t* buffers);
-uint32_t ARM_UC_mmDerBuf2Uint(arm_uc_buffer_t* buf);
-uint64_t ARM_UC_mmDerBuf2Uint64(arm_uc_buffer_t* buf);
-int32_t ARM_UC_mmDERGetSequenceElement(arm_uc_buffer_t* buffer, uint32_t index, arm_uc_buffer_t* element);
-int32_t ARM_UC_mmDERParseTree(const struct arm_uc_mmDerElement* desc, arm_uc_buffer_t* buffer, uint32_t nValues, const int32_t* valueIDs, arm_uc_buffer_t* buffers);
+int32_t ARM_UC_mmDERGetSignedResourceValues(arm_uc_buffer_t *buffer, uint32_t nValues, const int32_t *valueIDs,
+                                            arm_uc_buffer_t *buffers);
+uint32_t ARM_UC_mmDerBuf2Uint(arm_uc_buffer_t *buf);
+uint64_t ARM_UC_mmDerBuf2Uint64(arm_uc_buffer_t *buf);
+int32_t ARM_UC_mmDERGetSequenceElement(arm_uc_buffer_t *buffer, uint32_t index, arm_uc_buffer_t *element);
+int32_t ARM_UC_mmDERParseTree(const struct arm_uc_mmDerElement *desc, arm_uc_buffer_t *buffer, uint32_t nValues,
+                              const int32_t *valueIDs, arm_uc_buffer_t *buffers);
 
 
 #ifdef __cplusplus

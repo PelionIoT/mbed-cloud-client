@@ -22,6 +22,7 @@
 #include "pal_macros.h"
 #include "sotp.h"
 
+#define TRACE_GROUP "PAL"
 
 //this variable must be a int32_t for using atomic increment
 PAL_PRIVATE int32_t g_palIntialized = 0;
@@ -98,7 +99,7 @@ palStatus_t pal_init(void)
                             if (SOTP_SUCCESS != sotpStatus)
                             {
                                 DEBUG_PRINT("init of SOTP module has failed with status %" PRIx32 "\r\n", (int32_t)sotpStatus);
-                                status = PAL_ERR_NOT_INITIALIZED;
+                                status = PAL_ERR_INIT_SOTP_FAILED;
                             }
                             if (PAL_SUCCESS == status)
                             {
@@ -125,7 +126,7 @@ palStatus_t pal_init(void)
             pal_modulesCleanup();
             pal_osAtomicIncrement(&g_palIntialized, -1);
 #endif
-            PAL_LOG(ERR,"\nInit failed\r\n");
+            PAL_LOG_ERR("\nInit failed\r\n");
         }
     }
 

@@ -86,6 +86,7 @@ fcc_status_e fcc_init(void)
     }
     
     pal_status = pal_init();
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_INIT_SOTP_FAILED), FCC_STATUS_STORE_ERROR, "Failed initializing internal storage (%" PRIu32 ")", pal_status);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), FCC_STATUS_ERROR, "Failed initializing PAL (%" PRIu32 ")", pal_status);
     
     //Initialize output info handler

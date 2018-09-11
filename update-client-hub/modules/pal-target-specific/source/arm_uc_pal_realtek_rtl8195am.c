@@ -16,6 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_RTL8195AM) && (ARM_UC_FEATURE_PAL_RTL8195AM == 1)
 #if defined(TARGET_REALTEK_RTL8195AM)
 
 #include "update-client-paal/arm_uc_paal_update_api.h"
@@ -60,8 +62,7 @@ static void (*arm_uc_pal_rtl8195am_callback)(uint32_t) = NULL;
  */
 static void arm_uc_pal_rtl8195am_signal_internal(uint32_t event)
 {
-    if (arm_uc_pal_rtl8195am_callback)
-    {
+    if (arm_uc_pal_rtl8195am_callback) {
         arm_uc_pal_rtl8195am_callback(event);
     }
 }
@@ -74,12 +75,12 @@ static void arm_uc_pal_rtl8195am_signal_internal(uint32_t event)
  *
  * @return     ERR_NONE on success. ERR_INVALID_PARAMETER on failure.
  */
-static arm_uc_error_t arm_uc_pal_create_realtek_header(const arm_uc_firmware_details_t* details, arm_uc_buffer_t* buffer)
+static arm_uc_error_t arm_uc_pal_create_realtek_header(const arm_uc_firmware_details_t *details,
+                                                       arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details && buffer && buffer->ptr && (buffer->size_max >= HEADER_SIZE))
-    {
+    if (details && buffer && buffer->ptr && (buffer->size_max >= HEADER_SIZE)) {
         /* set tag */
         buffer->ptr[OTA_TAG_OFS    ] =  OTA_TAG_ID        & 0xFF;
         buffer->ptr[OTA_TAG_OFS + 1] = (OTA_TAG_ID >>  8) & 0xFF;
@@ -111,14 +112,12 @@ static arm_uc_error_t arm_uc_pal_create_realtek_header(const arm_uc_firmware_det
         buffer->ptr[OTA_SIZE_OFS + 3] = (size_with_header >> 24) & 0xFF;
 
         /* copy hash */
-        for (size_t index = 0; index < ARM_UC_SHA256_SIZE; index++)
-        {
+        for (size_t index = 0; index < ARM_UC_SHA256_SIZE; index++) {
             buffer->ptr[OTA_HASH_OFS + index] = details->hash[index];
         }
 
         /* copy campaign */
-        for (size_t index = 0; index < ARM_UC_GUID_SIZE; index++)
-        {
+        for (size_t index = 0; index < ARM_UC_GUID_SIZE; index++) {
             buffer->ptr[OTA_CAMPAIGN_OFS + index] = details->campaign[index];
         }
 
@@ -140,22 +139,19 @@ static arm_uc_error_t arm_uc_pal_create_realtek_header(const arm_uc_firmware_det
  * @return     ERR_NONE on success, ERR_INVALID_PARAMETER on failure.
  */
 static arm_uc_error_t arm_uc_pal_get_realtek_header(base_slot_t base_slot,
-                                                    arm_uc_firmware_details_t* details)
+                                                    arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if ((base_slot != BASE_SLOT_INVALID) && details)
-    {
+    if ((base_slot != BASE_SLOT_INVALID) && details) {
         uint8_t buffer[HEADER_SIZE] = { 0 };
 
         int rc = arm_uc_flashiap_read(buffer, arm_uc_address_header[base_slot], sizeof(buffer));
 
-        if (rc == 0)
-        {
+        if (rc == 0) {
 #if 0
             printf("debug: \r\n");
-            for (size_t index = 0; index < sizeof(buffer); index++)
-            {
+            for (size_t index = 0; index < sizeof(buffer); index++) {
                 printf("%02X", buffer[index]);
             }
             printf("\r\n");
@@ -177,8 +173,7 @@ static arm_uc_error_t arm_uc_pal_get_realtek_header(base_slot_t base_slot,
             UC_PAAL_TRACE("version_tag: %" PRIX32, version_tag);
 
             /* check tags */
-            if ((tag == OTA_TAG_ID) && (version_tag == OTA_VER_ID))
-            {
+            if ((tag == OTA_TAG_ID) && (version_tag == OTA_VER_ID)) {
                 /* parse CRC */
                 uint32_t crc_header = buffer[OTA_CRC32_OFS + 3];
                 crc_header = (crc_header << 8) | buffer[OTA_CRC32_OFS + 2];
@@ -192,8 +187,7 @@ static arm_uc_error_t arm_uc_pal_get_realtek_header(base_slot_t base_slot,
                 UC_PAAL_TRACE("CRC calculated: %" PRIX32, crc_calculated);
 
                 /* check crc before proceeding */
-                if (crc_header == crc_calculated)
-                {
+                if (crc_header == crc_calculated) {
                     /* parse size */
                     uint32_t size = buffer[OTA_SIZE_OFS + 3];
                     size = (size << 8) | buffer[OTA_SIZE_OFS + 2];
@@ -211,8 +205,7 @@ static arm_uc_error_t arm_uc_pal_get_realtek_header(base_slot_t base_slot,
                     version = (version << 8) | buffer[OTA_EPOCH_OFS + 0];
 
                     /* copy hash */
-                    for (size_t index = 0; index < ARM_UC_SHA256_SIZE; index++)
-                    {
+                    for (size_t index = 0; index < ARM_UC_SHA256_SIZE; index++) {
                         details->hash[index] = buffer[OTA_HASH_OFS + index];
                     }
 
@@ -224,27 +217,20 @@ static arm_uc_error_t arm_uc_pal_get_realtek_header(base_slot_t base_slot,
 
 #if 0
                     printf("hash: ");
-                    for (size_t index = 0; index < ARM_UC_SHA256_SIZE; index++)
-                    {
+                    for (size_t index = 0; index < ARM_UC_SHA256_SIZE; index++) {
                         printf("%02X", details->hash[index]);
                     }
                     printf("\r\n");
 #endif
 
                     result.code = ERR_NONE;
-                }
-                else
-                {
+                } else {
                     UC_PAAL_ERR_MSG("header crc check failed");
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("invalid header");
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("error reading from flash");
         }
     }
@@ -271,44 +257,33 @@ static base_slot_t arm_uc_pal_find_base_slot(base_address_t find)
     arm_uc_error_t result_1 = arm_uc_pal_get_realtek_header(BASE_SLOT_1, &slot_1);
 
     /* both headers are valid */
-    if ((result_0.error == ERR_NONE) && (result_1.error == ERR_NONE))
-    {
+    if ((result_0.error == ERR_NONE) && (result_1.error == ERR_NONE)) {
         /* running firmware has the highest version number */
-        if (find == BASE_ADDRESS_RUNNING)
-        {
+        if (find == BASE_ADDRESS_RUNNING) {
             base_slot = (slot_0.version >= slot_1.version) ? BASE_SLOT_0 : BASE_SLOT_1;
         }
         /* spare firmware has the lowest version number */
-        else
-        {
+        else {
             /* same test, swap result */
             base_slot = (slot_0.version >= slot_1.version) ? BASE_SLOT_1 : BASE_SLOT_0;
         }
     }
     /* only slot0 has a valid header */
-    else if (result_0.error == ERR_NONE)
-    {
-        if (find == BASE_ADDRESS_RUNNING)
-        {
+    else if (result_0.error == ERR_NONE) {
+        if (find == BASE_ADDRESS_RUNNING) {
             /* only valid header must be the running one */
             base_slot = BASE_SLOT_0;
-        }
-        else
-        {
+        } else {
             /* slot with invalid header can be used as spare */
             base_slot = BASE_SLOT_1;
         }
     }
     /* only slot1 has a valid header */
-    else if (result_1.error == ERR_NONE)
-    {
-        if (find == BASE_ADDRESS_RUNNING)
-        {
+    else if (result_1.error == ERR_NONE) {
+        if (find == BASE_ADDRESS_RUNNING) {
             /* only valid header must be the running one */
             base_slot = BASE_SLOT_1;
-        }
-        else
-        {
+        } else {
             /* slot with invalid header can be used as spare */
             base_slot = BASE_SLOT_0;
         }
@@ -325,6 +300,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Initialize(void (*callback)(uint32_t))
 {
     arm_uc_error_t result = { .code = ERR_NONE };
 
+    arm_uc_flashiap_init();
     arm_uc_pal_rtl8195am_callback = callback;
 
     return result;
@@ -353,13 +329,12 @@ uint32_t ARM_UC_PAL_RTL8195AM_GetMaxID(void)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
-                                            const arm_uc_firmware_details_t* details,
-                                            arm_uc_buffer_t* buffer)
+                                            const arm_uc_firmware_details_t *details,
+                                            arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details && buffer && buffer->ptr)
-    {
+    if (details && buffer && buffer->ptr) {
         UC_PAAL_TRACE("Prepare: %" PRIX32 " %" PRIX64 " %" PRIu64,
                       location,
                       details->size,
@@ -372,23 +347,20 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
 
         /* check that the firmware can fit the spare slot */
         if (((arm_uc_base_slot == BASE_SLOT_0) &&
-             (details->size < (OTA_REGION1_SIZE - FLASH_SECTOR_SIZE))) ||
-            ((arm_uc_base_slot == BASE_SLOT_1) &&
-             (details->size < (OTA_REGION2_SIZE - FLASH_SECTOR_SIZE))))
-        {
+                (details->size < (OTA_REGION1_SIZE - FLASH_SECTOR_SIZE))) ||
+                ((arm_uc_base_slot == BASE_SLOT_1) &&
+                 (details->size < (OTA_REGION2_SIZE - FLASH_SECTOR_SIZE)))) {
             /* encode firmware details in buffer */
             result  = arm_uc_pal_create_realtek_header(details, buffer);
 
             /* make space for new firmware */
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* erase header */
                 uint32_t erase_address = arm_uc_address_header[arm_uc_base_slot];
                 uint32_t end_address = erase_address + HEADER_SIZE;
 
                 /* erase */
-                while (erase_address < end_address)
-                {
+                while (erase_address < end_address) {
                     uint32_t sector_size = arm_uc_flashiap_get_sector_size(erase_address);
                     int status = arm_uc_flashiap_erase(erase_address, sector_size);
 
@@ -397,27 +369,22 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
                                   sector_size,
                                   status);
 
-                    if (status == 0)
-                    {
+                    if (status == 0) {
                         erase_address += sector_size;
-                    }
-                    else
-                    {
+                    } else {
                         result.code = ERR_INVALID_PARAMETER;
                         break;
                     }
                 }
 
                 /* erase firmware */
-                if (result.error == ERR_NONE)
-                {
+                if (result.error == ERR_NONE) {
                     /* find end address */
                     erase_address = arm_uc_address_firmware[arm_uc_base_slot];
                     end_address = erase_address + details->size;
 
                     /* erase */
-                    while (erase_address < end_address)
-                    {
+                    while (erase_address < end_address) {
                         uint32_t sector_size = arm_uc_flashiap_get_sector_size(erase_address);
                         int status = arm_uc_flashiap_erase(erase_address, sector_size);
 
@@ -426,20 +393,16 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
                                       sector_size,
                                       status);
 
-                        if (status == 0)
-                        {
+                        if (status == 0) {
                             erase_address += sector_size;
-                        }
-                        else
-                        {
+                        } else {
                             result.code = ERR_INVALID_PARAMETER;
                             break;
                         }
                     }
 
                     /* write header */
-                    if (result.error == ERR_NONE)
-                    {
+                    if (result.error == ERR_NONE) {
                         UC_PAAL_TRACE("program: %u %" PRIu32,
                                       arm_uc_address_header[arm_uc_base_slot],
                                       buffer->size);
@@ -452,39 +415,27 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
                                                              arm_uc_address_header[arm_uc_base_slot],
                                                              buffer->size);
 
-                        if (status != 0)
-                        {
+                        if (status != 0) {
                             /* set return code */
                             result.code = ERR_INVALID_PARAMETER;
                         }
 
-                        if (result.error == ERR_NONE)
-                        {
+                        if (result.error == ERR_NONE) {
                             /* signal done */
                             arm_uc_pal_rtl8195am_signal_internal(ARM_UC_PAAL_EVENT_PREPARE_DONE);
-                        }
-                        else
-                        {
+                        } else {
                             UC_PAAL_ERR_MSG("flash program failed");
                         }
-                    }
-                    else
-                    {
+                    } else {
                         UC_PAAL_ERR_MSG("flash erase failed");
                     }
-                }
-                else
-                {
+                } else {
                     UC_PAAL_ERR_MSG("erase header failed");
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("create header failed");
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("firmware larger than slot");
         }
     }
@@ -507,44 +458,39 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_Write(uint32_t location,
                                           uint32_t offset,
-                                          const arm_uc_buffer_t* buffer)
+                                          const arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer && buffer->ptr && (arm_uc_base_slot != BASE_SLOT_INVALID))
-    {
+    if (buffer && buffer->ptr && (arm_uc_base_slot != BASE_SLOT_INVALID)) {
         /* find location address */
         uint32_t physical_address = arm_uc_address_firmware[arm_uc_base_slot] + offset;
 
         UC_PAAL_TRACE("Write: %p %" PRIX32 " %" PRIX32 " %" PRIX32,
-                 buffer->ptr,
-                 buffer->size,
-                 offset,
-                 physical_address);
+                      buffer->ptr,
+                      buffer->size,
+                      offset,
+                      physical_address);
 
         /* set default return code */
         result.code = ERR_NONE;
 
-        for (size_t index = 0; index < buffer->size; )
-        {
+        for (size_t index = 0; index < buffer->size;) {
             /* write aligned */
             size_t modulo = (physical_address + index) % FLASH_PAGE_SIZE;
             size_t remaining = buffer->size - index;
             size_t write_size = 0;
 
             /* fill remaining flash page */
-            if (modulo > 0)
-            {
+            if (modulo > 0) {
                 write_size = modulo;
             }
             /* write last page */
-            else if (remaining < FLASH_PAGE_SIZE)
-            {
+            else if (remaining < FLASH_PAGE_SIZE) {
                 write_size = remaining;
             }
             /* write full page */
-            else
-            {
+            else {
                 write_size = FLASH_PAGE_SIZE;
             }
 
@@ -552,8 +498,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Write(uint32_t location,
                                                  physical_address + index,
                                                  write_size);
 
-            if (status != 0)
-            {
+            if (status != 0) {
                 /* set return code */
                 result.code = ERR_INVALID_PARAMETER;
                 break;
@@ -562,13 +507,10 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Write(uint32_t location,
             index += write_size;
         }
 
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             /* signal done */
             arm_uc_pal_rtl8195am_signal_internal(ARM_UC_PAAL_EVENT_WRITE_DONE);
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("flash program failed");
         }
     }
@@ -612,15 +554,13 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Finalize(uint32_t location)
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_Read(uint32_t location,
                                          uint32_t offset,
-                                         arm_uc_buffer_t* buffer)
+                                         arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer && buffer->ptr)
-    {
+    if (buffer && buffer->ptr) {
         /* find the base address for the spare slot if not already set */
-        if (arm_uc_base_slot == BASE_SLOT_INVALID)
-        {
+        if (arm_uc_base_slot == BASE_SLOT_INVALID) {
             arm_uc_base_slot = arm_uc_pal_find_base_slot(BASE_ADDRESS_SPARE);
         }
 
@@ -636,8 +576,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Read(uint32_t location,
 
         int status = arm_uc_flashiap_read(buffer->ptr, physical_address, read_size);
 
-        if (status == 0)
-        {
+        if (status == 0) {
             /* set buffer size */
             buffer->size = read_size;
 
@@ -646,9 +585,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Read(uint32_t location,
 
             /* signal done */
             arm_uc_pal_rtl8195am_signal_internal(ARM_UC_PAAL_EVENT_READ_DONE);
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("flash read failed");
         }
     }
@@ -678,14 +615,12 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Activate(uint32_t location)
 
     UC_PAAL_TRACE("Activate");
 
-    if (arm_uc_base_slot != BASE_SLOT_INVALID) 
-    {
+    if (arm_uc_base_slot != BASE_SLOT_INVALID) {
         uint8_t buffer[HEADER_SIZE] = { 0 };
 
         int status = arm_uc_flashiap_read(buffer, arm_uc_address_header[arm_uc_base_slot], sizeof(buffer));
 
-        if (status == 0)
-        {
+        if (status == 0) {
             /* calculate CRC */
             uint32_t crc = arm_uc_crc32(buffer, OTA_CRC32_OFS);
 
@@ -697,8 +632,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Activate(uint32_t location)
             /* set crc in header to signal the bootloader that the image is ready */
             status = arm_uc_flashiap_program(buffer, arm_uc_address_header[arm_uc_base_slot] + OTA_CRC32_OFS, 4);
 
-            if (status == 0)
-            {
+            if (status == 0) {
                 /* set return code */
                 result.code = ERR_NONE;
 
@@ -724,8 +658,8 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Activate(uint32_t location)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetFirmwareDetails(
-                                        uint32_t location,
-                                        arm_uc_firmware_details_t* details)
+    uint32_t location,
+    arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
@@ -736,12 +670,11 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetFirmwareDetails(
 
 /*****************************************************************************/
 
-arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetActiveDetails(arm_uc_firmware_details_t* details)
+arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetActiveDetails(arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         UC_PAAL_TRACE("GetActiveDetails");
 
         /* find running slot */
@@ -752,8 +685,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetActiveDetails(arm_uc_firmware_details_t* 
         result = arm_uc_pal_get_realtek_header(base_slot, details);
 
         /* signal event if operation was successful */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             arm_uc_pal_rtl8195am_signal_internal(ARM_UC_PAAL_EVENT_GET_ACTIVE_FIRMWARE_DETAILS_DONE);
         }
     }
@@ -761,12 +693,11 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetActiveDetails(arm_uc_firmware_details_t* 
     return result;
 }
 
-arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetInstallerDetails(arm_uc_installer_details_t* details)
+arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetInstallerDetails(arm_uc_installer_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         /* reset installer details struct */
         memset(&details->arm_hash, 0, ARM_UC_SHA256_SIZE);
         memset(&details->oem_hash, 0, ARM_UC_SHA256_SIZE);
@@ -807,8 +738,7 @@ ARM_UC_PAAL_UPDATE_CAPABILITIES ARM_UC_PAL_RTL8195AM_GetCapabilities(void)
     return result;
 }
 
-const ARM_UC_PAAL_UPDATE ARM_UCP_REALTEK_RTL8195AM =
-{
+const ARM_UC_PAAL_UPDATE ARM_UCP_REALTEK_RTL8195AM = {
     .Initialize                 = ARM_UC_PAL_RTL8195AM_Initialize,
     .GetCapabilities            = ARM_UC_PAL_RTL8195AM_GetCapabilities,
     .GetMaxID                   = ARM_UC_PAL_RTL8195AM_GetMaxID,
@@ -823,3 +753,4 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_REALTEK_RTL8195AM =
 };
 
 #endif
+#endif /* ARM_UC_FEATURE_PAL_RTL8195AM */

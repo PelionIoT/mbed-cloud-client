@@ -24,6 +24,7 @@
 PAL_PRIVATE uint8_t palUpdateInitFlag = 0;
 
 #define PAL_KILOBYTE 1024
+#define TRACE_GROUP "PAL"
 
 #ifndef PAL_UPDATE_IMAGE_LOCATION
 #error "Please definee PAL_UPDATE_IMAGE_LOCATION to UPDATE_USE_FLASH (value 1) or UPDATE_USE_FS(2)"
@@ -138,7 +139,9 @@ palStatus_t pal_imagePrepare(palImageId_t imageId, palImageHeaderDeails_t *heade
 			}
 			else
 			{
-				pal_fsUnlink(image_path_alloc_from_index(imageId));
+				char *image_path=(char *)image_path_alloc_from_index(imageId);
+				pal_fsUnlink(image_path);
+				free(image_path);
 			}
         }
         else
@@ -242,7 +245,7 @@ palStatus_t pal_imageGetFirmwareHeaderData(palImageId_t imageId, palBuffer_t *he
         }
 		if (headerData->maxBufferLength < sizeof(palFirmwareHeader_t))
 		{
-			PAL_LOG(ERR, "Firmware header buffer size is too small(is %" PRIu32 " needs to be at least %zu)\r\n"
+            PAL_LOG_ERR("Firmware header buffer size is too small(is %" PRIu32 " needs to be at least %zu)\r\n"
 					    ,headerData->maxBufferLength, sizeof(palFirmwareHeader_t));
 			return PAL_ERR_INVALID_ARGUMENT;
 		}
@@ -314,7 +317,7 @@ palStatus_t pal_imageWriteDataToMemory(palImagePlatformData_t dataId, const palC
         break;
     default:
         {
-            PAL_LOG(ERR, "Update image write to memory error");
+            PAL_LOG_ERR("Update image write to memory error");
             status = PAL_ERR_GENERIC_FAILURE;
         }
     }
@@ -700,7 +703,7 @@ palStatus_t pal_imageWriteDataToMemory(palImagePlatformData_t dataId, const palC
         break;
     default:
         {
-            PAL_LOG(ERR, "Update write data to mem status %d", (int)dataId);
+            PAL_LOG_ERR("Update write data to mem status %d", (int)dataId);
             status = PAL_ERR_GENERIC_FAILURE;
         }
     }

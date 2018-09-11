@@ -554,7 +554,7 @@ palStatus_t pal_plat_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* 
 
 /*! Write a CSR to a DER structure.
 *
-* @param[in] x509CSR:      The CSR context to use.
+* @param[in] x509CSR:       The CSR context to use.
 * @param[in] derBuf:  		A buffer to write to.
 * @param[in] derBufLen: 	The buffer length.
 * @param[in] actualDerLen: 	The actual length of the written data.
@@ -562,6 +562,18 @@ palStatus_t pal_plat_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* 
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
 palStatus_t pal_plat_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerLen);
+
+/*! Writes a CSR from a given X509 Certificate
+*
+* @param[in] x509Cert:      The parsed x509 certificate.
+* @param[in/out] x509CSR:   A valid handle to CSR that already been initialized with at least private key.
+* @param[out] derBuf:  		A buffer to write to.
+* @param[out] derBufLen: 	The buffer length.
+* @param[out] actualDerBufLen: The actual length of the written data.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_plat_x509CSRFromCertWriteDER(palX509Handle_t x509Cert, palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerBufLen);
 
 /*! Calculate the hash of the To Be Signed part of an X509 certificate.
 * This function may be used to validate a certificate signature: Simply retrieve this hash, verify the signature using this hash, the public key and the signature of the X509

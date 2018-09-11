@@ -17,6 +17,8 @@
 #include "pal_plat_internalFlash.h"
 #include "stdio.h"
 
+#define TRACE_GROUP "PAL"
+
 #if (PAL_USE_INTERNAL_FLASH)
 
 #define BITS_ALIGNED_TO_32 	0x3
@@ -25,7 +27,7 @@
 //////////////////////////GLOBALS SECTION ////////////////////////////
 #if PAL_THREAD_SAFETY	
 // Use semaphore and not mutex, as mutexes don't behave well when trying to delete them while taken (which may happen in our tests).
-static palSemaphoreID_t flashSem = NULLPTR;
+static palSemaphoreID_t flashSem = 0;
 #endif
 
 #if PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
@@ -199,14 +201,13 @@ palStatus_t pal_internalFlashInit(void)
 		ret = pal_osSemaphoreCreate(1, &flashSem);
 		if (PAL_SUCCESS != ret) 
 		{
-			PAL_LOG(ERR, "Semaphore Create Error %" PRId32 ".", ret);		
+            PAL_LOG_ERR("Semaphore Create Error %" PRId32 ".", ret);
 		}
 		else
 #endif		
 		{
 #if PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
 			char buffer[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
-			int32_t ctrs = 0;
 
 			if(SIMULATE_FLASH_DIR[0] != '\0')
 			{						
@@ -223,7 +224,7 @@ palStatus_t pal_internalFlashInit(void)
 			if (PAL_SUCCESS == ret )
 			{											
 #if PAL_THREAD_SAFETY							
-				ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, &ctrs);
+				ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, NULL);
 				if (PAL_SUCCESS == ret)	
 #endif					
 				{
@@ -232,7 +233,7 @@ palStatus_t pal_internalFlashInit(void)
 					palStatus_t error = pal_osSemaphoreRelease(flashSem);
 					if(PAL_SUCCESS != error)
 					{
-						PAL_LOG(ERR, "SemaphoreRelease Error %" PRId32 ".", error);
+                        PAL_LOG_ERR("SemaphoreRelease Error %" PRId32 ".", error);
 					}
 #endif						
 				}
@@ -254,33 +255,36 @@ palStatus_t pal_internalFlashInit(void)
 
 palStatus_t pal_internalFlashDeInit(void)
 {
-	palStatus_t ret = PAL_SUCCESS;
-#if !PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM	
-	ret = pal_plat_internalFlashDeInit();
+    palStatus_t ret = PAL_SUCCESS;
+#if !PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
+    ret = pal_plat_internalFlashDeInit();
 #endif
 
-	// Semaphore may be taken, so deleting it would fail. Try releasing (without checking return code).
-	if(PAL_SUCCESS == ret)
-	{
+    if(PAL_SUCCESS == ret)
+    {
 #if PAL_THREAD_SAFETY
-		pal_osSemaphoreRelease(flashSem);
-		ret = pal_osSemaphoreDelete(&flashSem);
-#endif		
-	}
-	return ret;
+        ret = pal_osSemaphoreRelease(flashSem);
+        if(PAL_SUCCESS != ret) {
+            PAL_LOG_ERR("SemaphoreRelease Error %" PRId32 ".", ret);
+        }
+        ret = pal_osSemaphoreDelete(&flashSem);
+        if(PAL_SUCCESS != ret) {
+            PAL_LOG_ERR("pal_osSemaphoreDelete Error %" PRId32 ".", ret);
+        }
+#endif
+    }
+    return ret;
 }
 
 palStatus_t pal_internalFlashRead(const size_t size, const uint32_t address, uint32_t * buffer)
 {
 	palStatus_t ret = PAL_SUCCESS;
-	int32_t ctrs = 0;
-
 
 	PAL_VALIDATE_CONDITION_WITH_ERROR ((buffer == NULL), PAL_ERR_INTERNAL_FLASH_NULL_PTR_RECEIVED)
 	PAL_VALIDATE_CONDITION_WITH_ERROR ((size == 0),PAL_ERR_INTERNAL_FLASH_WRONG_SIZE)
 
 #if PAL_THREAD_SAFETY
-	ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, &ctrs);
+	ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, NULL);
 	if (PAL_SUCCESS != ret)	
 	{
 		return ret;
@@ -310,7 +314,7 @@ palStatus_t pal_internalFlashRead(const size_t size, const uint32_t address, uin
 	palStatus_t error = pal_osSemaphoreRelease(flashSem);
 	if(PAL_SUCCESS != error)
 	{
-		PAL_LOG(ERR, "SemaphoreRelease Error %" PRId32 ".", error);
+        PAL_LOG_ERR("SemaphoreRelease Error %" PRId32 ".", error);
 	}
 #endif
 
@@ -322,14 +326,12 @@ palStatus_t pal_internalFlashErase(uint32_t address, size_t size)
 {
 	palStatus_t ret = PAL_SUCCESS;
 
-	int32_t ctrs = 0;
-	
 	PAL_VALIDATE_CONDITION_WITH_ERROR ((size == 0),PAL_ERR_INTERNAL_FLASH_WRONG_SIZE)
 	PAL_VALIDATE_ARG_RLZ ((address & BITS_ALIGNED_TO_32),PAL_ERR_INTERNAL_FLASH_BUFFER_ADDRESS_NOT_ALIGNED)//Address not aligned to 32 bit
 	PAL_VALIDATE_ARG_RLZ ((!pal_isAlignedToSector(address,size)),PAL_ERR_INTERNAL_FLASH_SECTOR_NOT_ALIGNED)//not aligned to sector
 
 #if PAL_THREAD_SAFETY
-	ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, &ctrs);
+	ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, NULL);
 	if (PAL_SUCCESS != ret)	
 	{
 		return ret;
@@ -376,7 +378,7 @@ palStatus_t pal_internalFlashErase(uint32_t address, size_t size)
 	palStatus_t error = pal_osSemaphoreRelease(flashSem);
 	if(PAL_SUCCESS != error)
 	{
-		PAL_LOG(ERR, "SemaphoreRelease Error %" PRId32 ".", error);
+        PAL_LOG_ERR("SemaphoreRelease Error %" PRId32 ".", error);
 	}
 #endif	
 	return ret;
@@ -387,7 +389,6 @@ palStatus_t pal_internalFlashWrite(const size_t size, const uint32_t address, co
 {
 	palStatus_t ret = PAL_SUCCESS;
 	uint32_t pageSize = 0;
-	int32_t ctrs = 0;
 
 	PAL_VALIDATE_CONDITION_WITH_ERROR ((buffer == NULL), PAL_ERR_INTERNAL_FLASH_NULL_PTR_RECEIVED)
 	PAL_VALIDATE_ARG_RLZ ((address & BITS_ALIGNED_TO_32),PAL_ERR_INTERNAL_FLASH_BUFFER_ADDRESS_NOT_ALIGNED)//Address not aligned to 32 bit
@@ -402,7 +403,7 @@ palStatus_t pal_internalFlashWrite(const size_t size, const uint32_t address, co
 	else
 	{	
 #if PAL_THREAD_SAFETY
-		ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, &ctrs);
+		ret = pal_osSemaphoreWait(flashSem, PAL_RTOS_WAIT_FOREVER, NULL);
 		if (PAL_SUCCESS != ret)	
 		{
 			return ret;
@@ -479,7 +480,7 @@ palStatus_t pal_internalFlashWrite(const size_t size, const uint32_t address, co
 		palStatus_t error = pal_osSemaphoreRelease(flashSem);
 		if(PAL_SUCCESS != error)
 		{
-			PAL_LOG(ERR, "SemaphoreRelease Error %" PRId32 ".", error);
+            PAL_LOG_ERR("SemaphoreRelease Error %" PRId32 ".", error);
 		}
 #endif		
 		

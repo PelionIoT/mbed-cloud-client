@@ -23,8 +23,7 @@
 #include "clock_config.h"
 #include "fsl_flash.h"
 
-
-  
+#define TRACE_GROUP "PAL"
 
 #define PAL_UPDATE_JOURNAL_SIZE 0x80000UL
 #define PAL_UPDATE_JOURNAL_START_OFFSET 0x80000UL
@@ -126,7 +125,7 @@ palStatus_t pal_plat_imageWriteHashToMemory(const palConstBuffer_t* const hashVa
 //fill the image header data for writing, the writing will occur in the 1st image write
 palStatus_t pal_plat_imageSetHeader(palImageId_t imageId,palImageHeaderDeails_t *details)
 {
-    DEBUG_PRINT(">>%s\r\n",__FUNCTION__);
+    PAL_LOG_DBG(">>%s\r\n",__FUNCTION__);
     palStatus_t status = PAL_SUCCESS;
     g_headerWasWritten = false; // set that the image was not written yet
     memset(&g_palFirmwareHeader,0,sizeof(g_palFirmwareHeader));
@@ -273,8 +272,8 @@ palStatus_t pal_plat_imageReadToBuffer(palImageId_t imageId, size_t offset, palB
 
 palStatus_t pal_plat_imageFlush(palImageId_t package_id)
 {
-    DEBUG_PRINT(">>%s\r\n",__FUNCTION__);
+    PAL_LOG_DBG(">>%s\r\n",__FUNCTION__);
     g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_FINALIZE);
-    DEBUG_PRINT("<<%s\r\n",__FUNCTION__);
+    PAL_LOG_DBG("<<%s\r\n",__FUNCTION__);
     return PAL_SUCCESS;
 }

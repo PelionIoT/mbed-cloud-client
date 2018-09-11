@@ -34,14 +34,14 @@ extern "C" {
  * @param vendor_guid Pointer to a arm_uc_guid_t GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_setVendorGuid(const arm_uc_guid_t* vendor_guid);
+arm_uc_error_t pal_setVendorGuid(const arm_uc_guid_t *vendor_guid);
 
 /**
  * @brief Function for getting a pointer to the vendor GUID.
  * @param vendor_guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_getVendorGuid(arm_uc_guid_t* vendor_guid);
+arm_uc_error_t pal_getVendorGuid(arm_uc_guid_t *vendor_guid);
 
 /**
  * @brief Function for setting the device class GUID.
@@ -49,14 +49,14 @@ arm_uc_error_t pal_getVendorGuid(arm_uc_guid_t* vendor_guid);
  * @param class_guid Pointer to a arm_uc_guid_t GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_setClassGuid(const arm_uc_guid_t* class_guid);
+arm_uc_error_t pal_setClassGuid(const arm_uc_guid_t *class_guid);
 
 /**
  * @brief Function for getting a pointer to the device class GUID.
  * @param class_guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_getClassGuid(arm_uc_guid_t* class_guid);
+arm_uc_error_t pal_getClassGuid(arm_uc_guid_t *class_guid);
 
 /**
  * @brief Function for setting the device GUID.
@@ -64,14 +64,14 @@ arm_uc_error_t pal_getClassGuid(arm_uc_guid_t* class_guid);
  * @param device_guid Pointer to a arm_uc_guid_t GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_setDeviceGuid(const arm_uc_guid_t* device_guid);
+arm_uc_error_t pal_setDeviceGuid(const arm_uc_guid_t *device_guid);
 
 /**
  * @brief Function for getting a pointer to the device GUID.
  * @param device_guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_getDeviceGuid(arm_uc_guid_t* device_guid);
+arm_uc_error_t pal_getDeviceGuid(arm_uc_guid_t *device_guid);
 
 /**
  * @brief Check whether the three GUIDs provided are valid on the device.
@@ -81,9 +81,9 @@ arm_uc_error_t pal_getDeviceGuid(arm_uc_guid_t* device_guid);
  * @param device_guid Buffer pointer to the device GUID.
  * @return Error code.
  */
-arm_uc_error_t pal_deviceIdentityCheck(const arm_uc_buffer_t* vendor_guid,
-                                       const arm_uc_buffer_t* class_guid,
-                                       const arm_uc_buffer_t* device_guid);
+arm_uc_error_t pal_deviceIdentityCheck(const arm_uc_buffer_t *vendor_guid,
+                                       const arm_uc_buffer_t *class_guid,
+                                       const arm_uc_buffer_t *device_guid);
 
 /**
  * @brief Structure definition holding API function pointers.
@@ -95,14 +95,14 @@ typedef struct _ARM_PAL_DEVICE_IDENTITY {
      * @param vendor_guid Pointer to a arm_uc_guid_t GUID.
      * @return Error code.
      */
-    arm_uc_error_t (*SetVendorGuid)(const arm_uc_guid_t* vendor_guid);
+    arm_uc_error_t (*SetVendorGuid)(const arm_uc_guid_t *vendor_guid);
 
     /**
      * @brief Function for getting a pointer to the vendor GUID.
      * @param vendor_guid Pointer to a arm_uc_guid_t pointer.
      * @return Error code.
      */
-    arm_uc_error_t (*GetVendorGuid)(arm_uc_guid_t* vendor_guid);
+    arm_uc_error_t (*GetVendorGuid)(arm_uc_guid_t *vendor_guid);
 
     /**
      * @brief Function for setting the device class GUID.
@@ -110,14 +110,14 @@ typedef struct _ARM_PAL_DEVICE_IDENTITY {
      * @param class_guid Pointer to a arm_uc_guid_t GUID.
      * @return Error code.
      */
-    arm_uc_error_t (*SetClassGuid)(const arm_uc_guid_t* class_guid);
+    arm_uc_error_t (*SetClassGuid)(const arm_uc_guid_t *class_guid);
 
     /**
      * @brief Function for getting a pointer to the device class GUID.
      * @param class_guid Pointer to a arm_uc_guid_t pointer.
      * @return Error code.
      */
-    arm_uc_error_t (*GetClassGuid)(arm_uc_guid_t* class_guid);
+    arm_uc_error_t (*GetClassGuid)(arm_uc_guid_t *class_guid);
 
     /**
      * @brief Function for setting the device GUID.
@@ -125,14 +125,14 @@ typedef struct _ARM_PAL_DEVICE_IDENTITY {
      * @param device_guid Pointer to a arm_uc_guid_t GUID.
      * @return Error code.
      */
-    arm_uc_error_t (*SetDeviceGuid)(const arm_uc_guid_t* device_guid);
+    arm_uc_error_t (*SetDeviceGuid)(const arm_uc_guid_t *device_guid);
 
     /**
      * @brief Function for getting a pointer to the device GUID.
      * @param device_guid Pointer to a arm_uc_guid_t pointer.
      * @return Error code.
      */
-    arm_uc_error_t (*GetDeviceGuid)(arm_uc_guid_t* device_guid);
+    arm_uc_error_t (*GetDeviceGuid)(arm_uc_guid_t *device_guid);
 
     /**
      * @brief Check whether the three GUIDs provided are valid on the device.
@@ -142,9 +142,9 @@ typedef struct _ARM_PAL_DEVICE_IDENTITY {
      * @param device_guid Buffer pointer to the device GUID.
      * @return Error code.
      */
-    arm_uc_error_t (*DeviceIdentityCheck)(const arm_uc_buffer_t* vendor_guid,
-                                          const arm_uc_buffer_t* class_guid,
-                                          const arm_uc_buffer_t* device_guid);
+    arm_uc_error_t (*DeviceIdentityCheck)(const arm_uc_buffer_t *vendor_guid,
+                                          const arm_uc_buffer_t *class_guid,
+                                          const arm_uc_buffer_t *device_guid);
 } ARM_PAL_DEVICE_IDENTITY;
 
 #ifdef __cplusplus

@@ -16,6 +16,9 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_FILESYSTEM) && (ARM_UC_FEATURE_PAL_FILESYSTEM == 1)
+
 #include "update-client-paal/arm_uc_paal_update_api.h"
 
 #include "update-client-pal-filesystem/arm_uc_pal_extensions.h"
@@ -37,8 +40,7 @@ static ARM_UC_PAAL_UPDATE_SignalEvent_t arm_uc_pal_external_callback = NULL;
 
 static void arm_uc_pal_classic_signal_callback(uint32_t event)
 {
-    if (arm_uc_pal_external_callback)
-    {
+    if (arm_uc_pal_external_callback) {
         arm_uc_pal_external_callback(event);
     }
 }
@@ -67,8 +69,7 @@ static void arm_uc_pal_classic_callback(palImageEvents_t event)
     */
     tr_debug("arm_uc_pal_classic_callback");
 
-    switch (event)
-    {
+    switch (event) {
         case PAL_IMAGE_EVENT_INIT:
             arm_uc_pal_classic_signal_callback(ARM_UC_PAAL_EVENT_INITIALIZE_DONE);
             break;
@@ -104,20 +105,16 @@ arm_uc_error_t ARM_UC_Classic_PAL_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_t ca
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (callback)
-    {
+    if (callback) {
         palStatus_t status1 = pal_imageInitAPI(arm_uc_pal_classic_callback);
         arm_uc_error_t status2 = pal_ext_imageInitAPI(arm_uc_pal_classic_signal_callback);
 
-        if ((status1 == PAL_SUCCESS) && (status2.error == ERR_NONE))
-        {
+        if ((status1 == PAL_SUCCESS) && (status2.error == ERR_NONE)) {
             arm_uc_pal_external_callback = callback;
             arm_uc_pal_classic_signal_callback(ARM_UC_PAAL_EVENT_INITIALIZE_DONE);
 
             result.code = ERR_NONE;
-        }
-        else
-        {
+        } else {
             result.code = ERR_NOT_READY;
         }
     }
@@ -172,19 +169,17 @@ uint32_t ARM_UC_Classic_PAL_GetMaxID(void)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
-                                          const arm_uc_firmware_details_t* details,
-                                          arm_uc_buffer_t* buffer)
+                                          const arm_uc_firmware_details_t *details,
+                                          arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details && buffer)
-    {
+    if (details && buffer) {
         /* encode firmware details in buffer */
         arm_uc_error_t header_status = arm_uc_create_external_header_v2(details,
                                                                         buffer);
 
-        if (header_status.error == ERR_NONE)
-        {
+        if (header_status.error == ERR_NONE) {
             /* format file name and path */
             char file_path[PAL_MAX_FILE_AND_FOLDER_LENGTH] = { 0 };
 
@@ -193,8 +188,7 @@ arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
                                                     file_path,
                                                     PAL_MAX_FILE_AND_FOLDER_LENGTH);
 
-            if (result.code == ERR_NONE)
-            {
+            if (result.code == ERR_NONE) {
                 tr_debug("file_path: %s", file_path);
 
                 palFileDescriptor_t file = 0;
@@ -204,8 +198,7 @@ arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
                                                  PAL_FS_FLAG_READWRITETRUNC,
                                                  &file);
 
-                if (status == PAL_SUCCESS)
-                {
+                if (status == PAL_SUCCESS) {
                     size_t xfer_size = 0;
 
                     /* write buffer to file */
@@ -218,8 +211,7 @@ arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
 
                     /* call event hadnler and set return code if write was successful */
                     if ((status == PAL_SUCCESS) &&
-                        (xfer_size == buffer->size))
-                    {
+                            (xfer_size == buffer->size)) {
                         result.code = ERR_NONE;
 
                         arm_uc_pal_classic_signal_callback(ARM_UC_PAAL_EVENT_PREPARE_DONE);
@@ -228,23 +220,16 @@ arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
                     /* close file after write */
                     status = pal_fsFclose(&file);
 
-                    if (status != PAL_SUCCESS)
-                    {
+                    if (status != PAL_SUCCESS) {
                         tr_error("pal_fsFclose failed: %" PRId32, status);
                     }
-                }
-                else
-                {
+                } else {
                     tr_error("pal_fsFopen failed: %" PRId32, status);
                 }
-            }
-            else
-            {
+            } else {
                 tr_error("file name and path too long");
             }
-        }
-        else
-        {
+        } else {
             tr_error("header too large for buffer");
         }
     }
@@ -267,22 +252,18 @@ arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
  */
 arm_uc_error_t ARM_UC_Classic_PAL_Write(uint32_t location,
                                         uint32_t offset,
-                                        const arm_uc_buffer_t* buffer)
+                                        const arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer)
-    {
+    if (buffer) {
         palStatus_t status = pal_imageWrite(location,
                                             offset,
-                                            (palConstBuffer_t*) buffer);
+                                            (palConstBuffer_t *) buffer);
 
-        if (status == PAL_SUCCESS)
-        {
+        if (status == PAL_SUCCESS) {
             result.code = ERR_NONE;
-        }
-        else
-        {
+        } else {
             result.code = ERR_NOT_READY;
         }
     }
@@ -304,8 +285,7 @@ arm_uc_error_t ARM_UC_Classic_PAL_Finalize(uint32_t location)
 
     palStatus_t status = pal_imageFinalize(location);
 
-    if (status == PAL_SUCCESS)
-    {
+    if (status == PAL_SUCCESS) {
         result.code = ERR_NONE;
     }
 
@@ -329,23 +309,19 @@ arm_uc_error_t ARM_UC_Classic_PAL_Finalize(uint32_t location)
  */
 arm_uc_error_t ARM_UC_Classic_PAL_Read(uint32_t location,
                                        uint32_t offset,
-                                       arm_uc_buffer_t* buffer)
+                                       arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer)
-    {
+    if (buffer) {
         palStatus_t status = pal_imageReadToBuffer(location,
                                                    offset,
-                                                   (palBuffer_t*) buffer);
+                                                   (palBuffer_t *) buffer);
 
-        if (status == PAL_SUCCESS)
-        {
+        if (status == PAL_SUCCESS) {
             tr_debug("pal_imageReadToBuffer succeeded: %" PRIX32, buffer->size);
             result.code = ERR_NONE;
-        }
-        else
-        {
+        } else {
             tr_error("pal_imageReadToBuffer failed");
             result.code = ERR_NOT_READY;
         }
@@ -391,12 +367,11 @@ arm_uc_error_t ARM_UC_Classic_PAL_Activate(uint32_t location)
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_Classic_PAL_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details)
+arm_uc_error_t ARM_UC_Classic_PAL_GetActiveFirmwareDetails(arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         result = pal_ext_imageGetActiveDetails(details);
     }
 
@@ -416,37 +391,33 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetActiveFirmwareDetails(arm_uc_firmware_detai
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
-                                                     arm_uc_firmware_details_t* details)
+                                                     arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
-        char file_path[PAL_MAX_FILE_AND_FOLDER_LENGTH+1] = { 0 };
+    if (details) {
+        char file_path[PAL_MAX_FILE_AND_FOLDER_LENGTH + 1] = { 0 };
 
         palStatus_t status = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY,
                                                  PAL_MAX_FILE_AND_FOLDER_LENGTH,
                                                  file_path);
 
-        if (status == PAL_SUCCESS)
-        {
+        if (status == PAL_SUCCESS) {
             /* keep track of file and folder length */
             /* add mount point name length */
             int length = arm_uc_strnlen((const uint8_t *)file_path, PAL_MAX_FILE_AND_FOLDER_LENGTH);
 
             /* add slash if needed */
-            if (( length == 0) || 
-                ((length < PAL_MAX_FILE_AND_FOLDER_LENGTH) &&
-                    (file_path[length - 1] != '/')))
-            {
+            if ((length == 0) ||
+                    ((length < PAL_MAX_FILE_AND_FOLDER_LENGTH) &&
+                     (file_path[length - 1] != '/'))) {
                 file_path[length] = '/';
                 file_path[++length] = 0;
             }
-            
+
 
             /* check that path didn't overrun */
-            if (length < PAL_MAX_FILE_AND_FOLDER_LENGTH)
-            {
+            if (length < PAL_MAX_FILE_AND_FOLDER_LENGTH) {
                 /* start snprintf after the mount point name and add length */
                 length += snprintf(&file_path[length],
                                    PAL_MAX_FILE_AND_FOLDER_LENGTH - length,
@@ -454,8 +425,7 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
                                    location);
 
                 /* check that file path didn't overrun */
-                if (length < PAL_MAX_FILE_AND_FOLDER_LENGTH)
-                {
+                if (length < PAL_MAX_FILE_AND_FOLDER_LENGTH) {
                     tr_debug("file_path: %d %s", length, file_path);
 
                     palFileDescriptor_t file = 0;
@@ -465,8 +435,7 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
                                                      PAL_FS_FLAG_READONLY,
                                                      &file);
 
-                    if (pal_rc == PAL_SUCCESS)
-                    {
+                    if (pal_rc == PAL_SUCCESS) {
                         size_t xfer_size = 0;
 
                         /* read metadata header */
@@ -479,8 +448,7 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
 
                         /* check return code */
                         if ((pal_rc == PAL_SUCCESS) &&
-                            (xfer_size == ARM_UC_EXTERNAL_HEADER_SIZE_V2))
-                        {
+                                (xfer_size == ARM_UC_EXTERNAL_HEADER_SIZE_V2)) {
                             tr_debug("read bytes: %lu", (unsigned long)xfer_size);
 
                             /* read out header magic */
@@ -491,31 +459,23 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
 
                             /* choose version to decode */
                             if ((headerMagic == ARM_UC_EXTERNAL_HEADER_MAGIC_V2) &&
-                                (headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2))
-                            {
+                                    (headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2)) {
                                 result = arm_uc_parse_external_header_v2(read_buffer, details);
 
                                 tr_debug("version: %" PRIu64, details->version);
                                 tr_debug("size: %"PRIu64, details->size);
 
-                                if (result.error == ERR_NONE)
-                                {
+                                if (result.error == ERR_NONE) {
                                     arm_uc_pal_classic_signal_callback(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE);
                                 }
-                            }
-                            else
-                            {
+                            } else {
                                 /* invalid header format */
                                 tr_error("invalid header in slot %" PRIu32, location);
                             }
-                        }
-                        else if (xfer_size != ARM_UC_EXTERNAL_HEADER_SIZE_V2)
-                        {
+                        } else if (xfer_size != ARM_UC_EXTERNAL_HEADER_SIZE_V2) {
                             /* invalid header format */
                             tr_error("invalid header in slot %" PRIu32, location);
-                        }
-                        else
-                        {
+                        } else {
                             /* unsuccessful read */
                             tr_error("pal_fsFread returned 0x%" PRIX32, (uint32_t) pal_rc);
                         }
@@ -523,13 +483,10 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
                         /* close file after use */
                         pal_rc = pal_fsFclose(&file);
 
-                        if (pal_rc != PAL_SUCCESS)
-                        {
+                        if (pal_rc != PAL_SUCCESS) {
                             tr_error("pal_fsFclose failed: %" PRId32, pal_rc);
                         }
-                    }
-                    else
-                    {
+                    } else {
                         /* header file not present, slot is either invalid or unused. */
                         result.code = ERR_NOT_READY;
                     }
@@ -555,20 +512,18 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_Classic_PAL_GetInstallerDetails(arm_uc_installer_details_t* details)
+arm_uc_error_t ARM_UC_Classic_PAL_GetInstallerDetails(arm_uc_installer_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         result = pal_ext_installerGetDetails(details);
     }
 
     return result;
 }
 
-const ARM_UC_PAAL_UPDATE ARM_UCP_FILESYSTEM =
-{
+const ARM_UC_PAAL_UPDATE ARM_UCP_FILESYSTEM = {
     .Initialize                 = ARM_UC_Classic_PAL_Initialize,
     .GetCapabilities            = ARM_UC_Classic_PAL_GetCapabilities,
     .GetMaxID                   = ARM_UC_Classic_PAL_GetMaxID,
@@ -581,3 +536,5 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_FILESYSTEM =
     .GetFirmwareDetails         = ARM_UC_Classic_PAL_GetFirmwareDetails,
     .GetInstallerDetails        = ARM_UC_Classic_PAL_GetInstallerDetails
 };
+
+#endif /* ARM_UC_FEATURE_PAL_FILESYSTEM */

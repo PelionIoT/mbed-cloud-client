@@ -37,8 +37,7 @@
  *     validTo       INTEGER
  * }
  */
-static const struct arm_uc_mmDerElement ManifestApplyPeriod[] =
-{
+static const struct arm_uc_mmDerElement ManifestApplyPeriod[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_VALID_FROM, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_VALID_TO, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
 };
@@ -55,8 +54,7 @@ static const struct arm_uc_mmDerElement ManifestApplyPeriod[] =
  *     objectId    OBJECT IDENTIFIER
  * }
  */
-static const struct arm_uc_mmDerElement encryptionModeChoice[] =
-{
+static const struct arm_uc_mmDerElement encryptionModeChoice[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_ENC_ENUM, ARM_UC_MM_ASN1_ENUMERATED, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_ENC_OID, ARM_UC_MM_ASN1_OID, DER_MANDATORY),
 };
@@ -68,8 +66,7 @@ static const struct arm_uc_mmDerElement encryptionModeChoice[] =
  *     url         Url
  * }
  */
-static const struct arm_uc_mmDerElement manifestResourceAlias[] =
-{
+static const struct arm_uc_mmDerElement manifestResourceAlias[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_RESOURCE_ALIAS_HASH, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_RESOURCE_ALIAS_URL, ARM_UC_MM_ASN1_UTF8_STRING, DER_MANDATORY),
 };
@@ -77,8 +74,7 @@ static const struct arm_uc_mmDerElement manifestResourceAlias[] =
  * @brief Descriptor of an Alias container
  *
  */
-static const struct arm_uc_mmDerElement manifestResourceAliases[] =
-{
+static const struct arm_uc_mmDerElement manifestResourceAliases[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_RESOURCE_ALIAS, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, manifestResourceAlias)
 };
 
@@ -92,8 +88,7 @@ static const struct arm_uc_mmDerElement manifestResourceAliases[] =
  *     objectId    OBJECT IDENTIFIER
  * },
  */
-static const struct arm_uc_mmDerElement manifestFwFmtChoice[] =
-{
+static const struct arm_uc_mmDerElement manifestFwFmtChoice[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_FMT_ENUM, ARM_UC_MM_ASN1_ENUMERATED, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_FMT_OID, ARM_UC_MM_ASN1_OID, DER_MANDATORY),
 };
@@ -110,8 +105,7 @@ static const struct arm_uc_mmDerElement manifestFwFmtChoice[] =
  * }
  *
  */
-static const struct arm_uc_mmDerElement manifestFwCryptIdCertRef[] =
-{
+static const struct arm_uc_mmDerElement manifestFwCryptIdCertRef[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_CRYPT_ID_CERT_FINGERPRINT, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_CRYPT_ID_CERT_URL, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
 };
@@ -124,8 +118,7 @@ static const struct arm_uc_mmDerElement manifestFwCryptIdCertRef[] =
  *     certificate CertificateReference
  * },
  */
-static const struct arm_uc_mmDerElement manifestFwCryptIdChoice[] =
-{
+static const struct arm_uc_mmDerElement manifestFwCryptIdChoice[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_CRYPT_ID_LOCAL, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_FW_CRYPT_ID_CERT_REF, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, manifestFwCryptIdCertRef),
 };
@@ -141,8 +134,7 @@ static const struct arm_uc_mmDerElement manifestFwCryptIdChoice[] =
  * } OPTIONAL
  *
  */
-static const struct arm_uc_mmDerElement manifestFwCryptKeyChoice[] =
-{
+static const struct arm_uc_mmDerElement manifestFwCryptKeyChoice[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_CRYPT_KEY_KEYTABLE_REF, ARM_UC_MM_ASN1_UTF8_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_CRYPT_KEY_CIPHERKEY, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
 };
@@ -155,8 +147,7 @@ static const struct arm_uc_mmDerElement manifestFwCryptKeyChoice[] =
  *     key
  * } OPTIONAL,
  */
-static const struct arm_uc_mmDerElement manifestFwCryptInfo[] =
-{
+static const struct arm_uc_mmDerElement manifestFwCryptInfo[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_CRYPT_IV, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_FW_CRYPT_ID_CHOICE, ARM_UC_MM_ASN1_CHOICE, DER_MANDATORY, manifestFwCryptIdChoice),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_FW_CRYPT_KEY_CHOICE, ARM_UC_MM_ASN1_CHOICE, DER_OPTIONAL, manifestFwCryptKeyChoice),
@@ -172,8 +163,7 @@ static const struct arm_uc_mmDerElement manifestFwCryptInfo[] =
  *   size    INTEGER
  * }
  */
-static const struct arm_uc_mmDerElement manifestFwRsrcRef[] =
-{
+static const struct arm_uc_mmDerElement manifestFwRsrcRef[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_RSRC_REF_HASH, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_RSRC_REF_URL, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_RSRC_REF_SIZE, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
@@ -196,8 +186,7 @@ static const struct arm_uc_mmDerElement manifestFwRsrcRef[] =
  *    version     UTF8String OPTIONAL
  * }
  */
-static const struct arm_uc_mmDerElement arm_uc_mmManifestFirmwareDescriptionElements[] =
-{
+static const struct arm_uc_mmDerElement arm_uc_mmManifestFirmwareDescriptionElements[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_FW_FMT_CHOICE, ARM_UC_MM_ASN1_CHOICE, DER_MANDATORY, manifestFwFmtChoice),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_FW_CRYPT_INFO, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_OPTIONAL, manifestFwCryptInfo),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_STRG_ID, ARM_UC_MM_ASN1_UTF8_STRING, DER_MANDATORY),
@@ -205,8 +194,7 @@ static const struct arm_uc_mmDerElement arm_uc_mmManifestFirmwareDescriptionElem
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_FW_VER, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
 };
 
-const struct arm_uc_mmDerElement arm_uc_mmManifestFirmwareDescription[] =
-{
+const struct arm_uc_mmDerElement arm_uc_mmManifestFirmwareDescription[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_FIRMWARE, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_OPTIONAL, arm_uc_mmManifestFirmwareDescriptionElements),
 };
 
@@ -219,8 +207,7 @@ const struct arm_uc_mmDerElement arm_uc_mmManifestFirmwareDescription[] =
  *     size    INTEGER
  * }
  */
-static const struct arm_uc_mmDerElement arm_uc_mmManifestDependency[] =
-{
+static const struct arm_uc_mmDerElement arm_uc_mmManifestDependency[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_DEP_REF_HASH, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_DEP_REF_URL, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_DEP_REF_SIZE, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
@@ -229,8 +216,7 @@ static const struct arm_uc_mmDerElement arm_uc_mmManifestDependency[] =
  * @brief Descriptor of a manifest dependency container
  * @details Contains manifest dependency references
  */
-const struct arm_uc_mmDerElement arm_uc_mmManifestDependencies[] =
-{
+const struct arm_uc_mmDerElement arm_uc_mmManifestDependencies[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST_DEP, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, arm_uc_mmManifestDependency)
 };
 
@@ -264,8 +250,7 @@ const struct arm_uc_mmDerElement arm_uc_mmManifestDependencies[] =
  *     dependencies    SEQUENCE OF ResourceReference,
  *     firmware        FirmwareDescription OPTIONAL
  */
-static const struct arm_uc_mmDerElement ManifestElements[] =
-{
+static const struct arm_uc_mmDerElement ManifestElements[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_VERSION, ARM_UC_MM_ASN1_ENUMERATED, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_DESC, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_MFST_TIMESTAMP, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
@@ -293,8 +278,7 @@ static const struct arm_uc_mmDerElement ManifestElements[] =
  *     firmware Firmware
  * }
  */
-static const struct arm_uc_mmDerElement ResourceChoiceElements[] =
-{
+static const struct arm_uc_mmDerElement ResourceChoiceElements[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_MFST, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, ManifestElements),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_FW_IMAGE, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
 };
@@ -311,8 +295,7 @@ static const struct arm_uc_mmDerElement ResourceChoiceElements[] =
  *     resource
  * }
  */
-static const struct arm_uc_mmDerElement ResourceElements[] =
-{
+static const struct arm_uc_mmDerElement ResourceElements[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_RESOURCE_URL, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_RESOURCE_TYPE, ARM_UC_MM_ASN1_ENUMERATED, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_RESOURCE_CHOICE, ARM_UC_MM_ASN1_CHOICE, DER_MANDATORY, ResourceChoiceElements),
@@ -329,27 +312,34 @@ static const struct arm_uc_mmDerElement ResourceElements[] =
 * }
 
  */
-static const struct arm_uc_mmDerElement arm_uc_mmSignatureCertificateReference[] =
-{
+static const struct arm_uc_mmDerElement arm_uc_mmSignatureCertificateReference[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_CERT_FINGERPRINT, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_CERT_URL, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
 };
 /**
  * @brief Certificate Reference container
  */
-const struct arm_uc_mmDerElement arm_uc_mmSignatureCertificateReferences[] =
-{
+const struct arm_uc_mmDerElement arm_uc_mmSignatureCertificateReferences[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_SIG_CERT, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, arm_uc_mmSignatureCertificateReference),
 };
 
-const struct arm_uc_mmDerElement arm_uc_mmSignatureBlock[] =
-{
+const struct arm_uc_mmDerElement arm_uc_mmSignatureBlock[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_SIGNATURE, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_SIG_CERTS, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, arm_uc_mmSignatureCertificateReferences),
 };
-const struct arm_uc_mmDerElement arm_uc_mmSignatures[] =
-{
+const struct arm_uc_mmDerElement arm_uc_mmSignatures[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_SIG_SIGNATURE_BLOCK, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, arm_uc_mmSignatureBlock),
+};
+const struct arm_uc_mmDerElement arm_uc_mmMacBlock[] = {
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_MAC_PSKID, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_VERSION, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_IV, ARM_UC_MM_ASN1_OCTET_STRING, DER_OPTIONAL),
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_REF, ARM_UC_MM_ASN1_UTF8_STRING, DER_OPTIONAL),
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_INDEX_SIZE, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_MAC_KEYTABLE_RECORD_SIZE, ARM_UC_MM_ASN1_INTEGER, DER_MANDATORY),
+};
+const struct arm_uc_mmDerElement arm_uc_mmMacs[] = {
+    ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_SIG_MAC_BLOCK, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, arm_uc_mmMacBlock),
 };
 /**
  * @brief Descriptor of a resource signature
@@ -362,10 +352,10 @@ const struct arm_uc_mmDerElement arm_uc_mmSignatures[] =
  *     signature   OCTET STRING
  * }
  */
-const struct arm_uc_mmDerElement arm_uc_mmResourceSignature[] =
-{
+const struct arm_uc_mmDerElement arm_uc_mmResourceSignature[] = {
     ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_DER_SIG_HASH, ARM_UC_MM_ASN1_OCTET_STRING, DER_MANDATORY),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_SIG_SIGNATURES, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, arm_uc_mmSignatures),
+    ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_SIG_MACS, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_OPTIONAL, arm_uc_mmMacs),
 };
 /**
  * @brief Descriptor of a signed resource.
@@ -375,8 +365,7 @@ const struct arm_uc_mmDerElement arm_uc_mmResourceSignature[] =
  *     signature ResourceSignature
  * }
  */
-static const struct arm_uc_mmDerElement SignedResourceElements[] =
-{
+static const struct arm_uc_mmDerElement SignedResourceElements[] = {
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_RESOURCE, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, ResourceElements),
     ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_SIG, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, arm_uc_mmResourceSignature),
 };
@@ -384,7 +373,16 @@ static const struct arm_uc_mmDerElement SignedResourceElements[] =
  * @brief Container of a Signed Resource.
  */
 static const struct arm_uc_mmDerElement SignedResource =
-    ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_ROOT, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, SignedResourceElements);
+    ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_DER_ROOT, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY,
+                               SignedResourceElements);
+
+static const struct arm_uc_mmDerElement KeyTableEntryElements[] = {
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_KT_HASH, ARM_UC_MM_ASN1_CONTEXT_SPECIFIC | 0, DER_OPTIONAL),
+    ARM_UC_MM_DER_ELEMENT_INIT_LEAF(ARM_UC_MM_KT_PAYLOAD_KEY, ARM_UC_MM_ASN1_CONTEXT_SPECIFIC | 1, DER_OPTIONAL),
+};
+const struct arm_uc_mmDerElement arm_uc_mmKeyTableEntry[] = {
+    ARM_UC_MM_DER_ELEMENT_INIT(ARM_UC_MM_KT_ROOT, ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE, DER_MANDATORY, KeyTableEntryElements)
+};
 
 #include "update-client-common/arm_uc_trace.h"
 
@@ -431,88 +429,94 @@ do { \
 /*
  * ASN.1 DER decoding routines
  */
-int ARM_UC_MM_ASN1_get_len( unsigned char **p,
-                  const unsigned char *end,
-                  size_t *len )
+int ARM_UC_MM_ASN1_get_len(unsigned char **p,
+                           const unsigned char *end,
+                           size_t *len)
 {
-    if( ( end - *p ) < 1 )
-        return( ARM_UC_DP_ERR_ASN1_OUT_OF_DATA );
+    if ((end - *p) < 1) {
+        return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
+    }
 
-    if( ( **p & 0x80 ) == 0 )
+    if ((**p & 0x80) == 0) {
         *len = *(*p)++;
-    else
-    {
-        switch( **p & 0x7F )
-        {
-        case 1:
-            if( ( end - *p ) < 2 )
-                return( ARM_UC_DP_ERR_ASN1_OUT_OF_DATA );
+    } else {
+        switch (**p & 0x7F) {
+            case 1:
+                if ((end - *p) < 2) {
+                    return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
+                }
 
-            *len = (*p)[1];
-            (*p) += 2;
-            break;
+                *len = (*p)[1];
+                (*p) += 2;
+                break;
 
-        case 2:
-            if( ( end - *p ) < 3 )
-                return( ARM_UC_DP_ERR_ASN1_OUT_OF_DATA );
+            case 2:
+                if ((end - *p) < 3) {
+                    return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
+                }
 
-            *len = ( (size_t)(*p)[1] << 8 ) | (*p)[2];
-            (*p) += 3;
-            break;
+                *len = ((size_t)(*p)[1] << 8) | (*p)[2];
+                (*p) += 3;
+                break;
 
-        case 3:
-            if( ( end - *p ) < 4 )
-                return( ARM_UC_DP_ERR_ASN1_OUT_OF_DATA );
+            case 3:
+                if ((end - *p) < 4) {
+                    return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
+                }
 
-            *len = ( (size_t)(*p)[1] << 16 ) |
-                   ( (size_t)(*p)[2] << 8  ) | (*p)[3];
-            (*p) += 4;
-            break;
+                *len = ((size_t)(*p)[1] << 16) |
+                       ((size_t)(*p)[2] << 8) | (*p)[3];
+                (*p) += 4;
+                break;
 
-        case 4:
-            if( ( end - *p ) < 5 )
-                return( ARM_UC_DP_ERR_ASN1_OUT_OF_DATA );
+            case 4:
+                if ((end - *p) < 5) {
+                    return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
+                }
 
-            *len = ( (size_t)(*p)[1] << 24 ) | ( (size_t)(*p)[2] << 16 ) |
-                   ( (size_t)(*p)[3] << 8  ) |           (*p)[4];
-            (*p) += 5;
-            break;
+                *len = ((size_t)(*p)[1] << 24) | ((size_t)(*p)[2] << 16) |
+                       ((size_t)(*p)[3] << 8) | (*p)[4];
+                (*p) += 5;
+                break;
 
-        default:
-            return( ARM_UC_DP_ERR_ASN1_INVALID_LENGTH );
+            default:
+                return (ARM_UC_DP_ERR_ASN1_INVALID_LENGTH);
         }
     }
 
-    if( *len > (size_t) ( end - *p ) )
-        return( ARM_UC_DP_ERR_ASN1_OUT_OF_DATA );
+    if (*len > (size_t)(end - *p)) {
+        return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
+    }
 
-    return( 0 );
+    return (0);
 }
 
-int ARM_UC_MM_ASN1_get_tag( unsigned char **p,
-                  const unsigned char *end,
-                  size_t *len, int tag )
+int ARM_UC_MM_ASN1_get_tag(unsigned char **p,
+                           const unsigned char *end,
+                           size_t *len, int tag)
 {
-    if( ( end - *p ) < 1 )
-        return( ARM_UC_DP_ERR_ASN1_OUT_OF_DATA );
+    if ((end - *p) < 1) {
+        return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
+    }
 
-    if( **p != tag )
-        return( ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG );
+    if (**p != tag) {
+        return (ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG);
+    }
 
     (*p)++;
 
-    return( ARM_UC_MM_ASN1_get_len( p, end, len ) );
+    return (ARM_UC_MM_ASN1_get_len(p, end, len));
 }
 
 
-const char* ARM_UC_mmDERDescID2Str(uint32_t id)
+const char *ARM_UC_mmDERDescID2Str(uint32_t id)
 {
     switch (id) {
-        #define ENUM_AUTO(name) case name: return #name;
-        ARM_UC_MM_DER_ID_LIST
-        #undef ENUM_AUTO
-    default:
-        return "Unknown DER ID";
+#define ENUM_AUTO(name) case name: return #name;
+            ARM_UC_MM_DER_ID_LIST
+#undef ENUM_AUTO
+        default:
+            return "Unknown DER ID";
     }
 }
 
@@ -521,8 +525,8 @@ const char* ARM_UC_mmDERDescID2Str(uint32_t id)
  */
 struct ARM_UC_MM_DERParserState {
     uint32_t nValues;         //!< Number of values remaining to parse
-    const int32_t* valueIDs; //!< Current element of the value identifier array
-    arm_uc_buffer_t* buffers; //!< Current buffer of the value output array
+    const int32_t *valueIDs; //!< Current element of the value identifier array
+    arm_uc_buffer_t *buffers; //!< Current buffer of the value output array
 };
 /**
  * @brief Converts a buffer to an unsigned 32-bit integer
@@ -535,12 +539,11 @@ struct ARM_UC_MM_DERParserState {
  * @param[in] buf The buffer to convert to an integer
  * @return The integer value of the buffer
  */
-uint32_t ARM_UC_mmDerBuf2Uint(arm_uc_buffer_t* buf)
+uint32_t ARM_UC_mmDerBuf2Uint(arm_uc_buffer_t *buf)
 {
     uint32_t rc = 0;
     unsigned i;
-    for (i = 0; i < buf->size && i < sizeof(uint32_t); i++)
-    {
+    for (i = 0; i < buf->size && i < sizeof(uint32_t); i++) {
         rc = (rc << 8) | buf->ptr[i];
     }
     return rc;
@@ -556,12 +559,11 @@ uint32_t ARM_UC_mmDerBuf2Uint(arm_uc_buffer_t* buf)
  * @param[in] buf The buffer to convert to an integer
  * @return The integer value of the buffer
  */
-uint64_t ARM_UC_mmDerBuf2Uint64(arm_uc_buffer_t* buf)
+uint64_t ARM_UC_mmDerBuf2Uint64(arm_uc_buffer_t *buf)
 {
     uint64_t rc = 0;
     unsigned i;
-    for (i = 0; i < buf->size && i < sizeof(uint64_t); i++)
-    {
+    for (i = 0; i < buf->size && i < sizeof(uint64_t); i++) {
         rc = (rc << 8) | buf->ptr[i];
     }
     return rc;
@@ -579,11 +581,10 @@ uint64_t ARM_UC_mmDerBuf2Uint64(arm_uc_buffer_t* buf)
  * @retval 1 if the end has been encountered
  * @retval 0 if the tag was successfully retrieved
  */
-int ARM_UC_mmDERPeekTag(uint8_t* p, uint8_t* end, int* tag)
+int ARM_UC_mmDERPeekTag(uint8_t *p, uint8_t *end, int *tag)
 {
-    if( ( end - p ) < 1 )
-    {
-        return( 1 );
+    if ((end - p) < 1) {
+        return (1);
     }
     *tag = *p;
     return 0;
@@ -636,38 +637,35 @@ int ARM_UC_mmDERPeekTag(uint8_t* p, uint8_t* end, int* tag)
  * @retval ARM_UC_DP_ERR_ASN1_LENGTH_MISMATCH The elements of the DER tree do not have consistent lengths.
  * @retval 0                                Success!
  */
-int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** pos, uint8_t* end, struct ARM_UC_MM_DERParserState* state)
+int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement *desc, uint8_t **pos, uint8_t *end,
+                              struct ARM_UC_MM_DERParserState *state)
 {
     size_t len;
     int rc;
-    uint8_t* ElementEnd;
+    uint8_t *ElementEnd;
     DER_PARSER_LOG_INDENT(DER_PARSER_LOG_LEVEL_DESCRIPTORS);
     DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, "%s", ARM_UC_mmDERDescID2Str(desc->id));
 
     // TODO: return a choice result when a choice ID is in the list.
     // Resolve the a choice. Cannot distinguish choices between two sequences.
-    if (desc->tag == ARM_UC_MM_ASN1_CHOICE)
-    {
+    if (desc->tag == ARM_UC_MM_ASN1_CHOICE) {
         int tag;
         unsigned i;
         DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, "\n");
         // Get the tag of the next element and identify the descriptor that matches that tag.
         rc = ARM_UC_mmDERPeekTag(*pos, end, &tag);
-        if (rc)
+        if (rc) {
             return rc;
-        rc = ( ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG );
+        }
+        rc = (ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG);
         arm_uc_mm_derRecurseDepth++;
-        for (i = 0; i < desc->nSubElements; i++)
-        {
-            if (tag == desc->subElements[i].tag)
-            {
+        for (i = 0; i < desc->nSubElements; i++) {
+            if (tag == desc->subElements[i].tag) {
                 // desc = &desc->subElements[i];
                 // rc = 0;
                 rc = ARM_UC_mmDERGetValues(&desc->subElements[i], pos, end, state);
                 break;
-            }
-            else
-            {
+            } else {
                 DER_PARSER_LOG_INDENT(DER_PARSER_LOG_LEVEL_DESCRIPTORS);
                 DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, "%s (skipped)\n", ARM_UC_mmDERDescID2Str(desc->subElements[i].id));
             }
@@ -678,33 +676,27 @@ int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** 
         return rc;
     }
     // Store the entry position for saving sequences
-    uint8_t* seqpos = *pos;
+    uint8_t *seqpos = *pos;
     // Get the next tag & length, advancing the parse position to just after the tag/length pair.
     rc = ARM_UC_MM_ASN1_get_tag(pos, end, &len, desc->tag);
     // If an optional tag was expected, but not encountered, it is not an error unless it was requested by the user.
-    if (rc == ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG && desc->optional && desc->id != (unsigned)(state->valueIDs[0]))
-    {
+    if (rc == ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG && desc->optional && desc->id != (unsigned)(state->valueIDs[0])) {
         DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, " (skipped)\n");
         return 0;
     } // TODO evaluate length handling in ARM_UC_MM_ASN1_get_tag
     // If an error was encountered, abort.
-    if (rc)
-    {
+    if (rc) {
         DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, " (error %d)\n", rc);
         return rc;
     }
     // If the encountered tag is one of the requested IDs, record its location and size, then move on to the next value
-    if (desc->id == (unsigned)(state->valueIDs[0]))
-    {
+    if (desc->id == (unsigned)(state->valueIDs[0])) {
         // If the element is a sequence, store the whole element, not just the content.
-        if (desc->tag == (ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE) && desc->nSubElements != 1)
-        {
+        if (desc->tag == (ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE) && desc->nSubElements != 1) {
             state->buffers[0].ptr = seqpos;
             state->buffers[0].size = len + (*pos - seqpos);
             state->buffers[0].size_max = len + (*pos - seqpos);
-        }
-        else
-        {
+        } else {
             state->buffers[0].ptr = *pos;
             state->buffers[0].size = len;
             state->buffers[0].size_max = len;
@@ -713,25 +705,18 @@ int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** 
         state->valueIDs++;
         state->buffers++;
         DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, " (stored)\n");
-    }
-    else
-    {
+    } else {
         DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_DESCRIPTORS, "\n");
     }
     DER_PARSER_LOG_INDENT(DER_PARSER_LOG_LEVEL_TAGS);
     DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_TAGS, "%02X", desc->tag);
     DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_SIZES, " %X", len);
-    if (desc->tag != (ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE))
-    {
+    if (desc->tag != (ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE)) {
         DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_VALUES, " ");
-        for (uint32_t i = 0; i < len; i++)
-        {
-            if (desc->tag == ARM_UC_MM_ASN1_UTF8_STRING)
-            {
+        for (uint32_t i = 0; i < len; i++) {
+            if (desc->tag == ARM_UC_MM_ASN1_UTF8_STRING) {
                 DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_VALUES, "%c", (char)(*pos)[i]);
-            }
-            else
-            {
+            } else {
                 DER_PARSER_LOG(DER_PARSER_LOG_LEVEL_VALUES, "%X", (*pos)[i]);
             }
         }
@@ -744,19 +729,16 @@ int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** 
     // Update the end of the current element to pos+len
     ElementEnd = *pos + len;
     // If the element is a sequence, parse the sequence.
-    if (desc->tag == (ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE))
-    {
+    if (desc->tag == (ARM_UC_MM_ASN1_CONSTRUCTED | ARM_UC_MM_ASN1_SEQUENCE)) {
         /* Sequences with only a single element are treated as a SEQUENCE OF, which has special semantics. In order to
          * extract the contents of a SEQUENCE OF, the caller must request the SEQUENCE OF element ID, then use
          * ARM_UC_mmDERGetSequenceElement to extract the contents of the sequence, passing each one to
          * ARM_UC_mmDERParseTree in order to extract any */
-        if (desc->nSubElements != 1) // SEQUENCE
-        {
+        if (desc->nSubElements != 1) { // SEQUENCE
             int i;
             end = *pos + len;
             arm_uc_mm_derRecurseDepth++;
-            for ( i = 0; rc == 0 && state->nValues != 0 && i < desc->nSubElements; i++ )
-            {
+            for (i = 0; rc == 0 && state->nValues != 0 && i < desc->nSubElements; i++) {
                 // Escape if the end has been reached and the parsing elements are optional
                 if (!(*pos >= end && desc->subElements[i].optional)) {
                     // Parse a sub-tree
@@ -767,13 +749,10 @@ int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** 
         }
     }
 
-    if (*pos > ElementEnd) // TODO: Add length mismatch check
-    {
+    if (*pos > ElementEnd) { // TODO: Add length mismatch check
         // Fail if there is a length mismatch
         return ARM_UC_DP_ERR_ASN1_LENGTH_MISMATCH;
-    }
-    else
-    {
+    } else {
         // Update the current parsing position
         *pos = ElementEnd;
     }
@@ -795,38 +774,33 @@ int32_t ARM_UC_mmDERGetValues(const struct arm_uc_mmDerElement* desc, uint8_t** 
  * @retval ARM_UC_DP_ERR_ASN1_LENGTH_MISMATCH The elements of the DER tree do not have consistent lengths.
  * @retval 0                                Success!
  */
-int32_t ARM_UC_mmDERGetSequenceElement(arm_uc_buffer_t* buffer, uint32_t index, arm_uc_buffer_t* element)
+int32_t ARM_UC_mmDERGetSequenceElement(arm_uc_buffer_t *buffer, uint32_t index, arm_uc_buffer_t *element)
 {
-    uint8_t* pos      = buffer->ptr;
-    uint8_t* end      = pos + buffer->size;
+    uint8_t *pos      = buffer->ptr;
+    uint8_t *end      = pos + buffer->size;
     int rc            = 0;
     size_t len        = 0;
     element->ptr      = NULL;
     element->size     = 0;
     element->size_max = 0;
-    for(; !rc; index--)
-    {
+    for (; !rc; index--) {
         int tag;
         rc = ARM_UC_mmDERPeekTag(pos, end, &tag);
-        if (rc)
-        {
+        if (rc) {
             // Peek-tag can only fail if pos >= end, so there was no element
             // This is not an error, since the parser may not know how many elements are in the sequence.
             return 0;
         }
-        if (!index)
-        {
+        if (!index) {
             element->ptr = pos;
         }
         rc = ARM_UC_MM_ASN1_get_tag(&pos, end, &len, tag);
-        if (!index && !rc)
-        {
+        if (!index && !rc) {
             element->size     = len + pos - element->ptr;
             element->size_max = element->size;
             break;
         }
-        if (rc)
-        {
+        if (rc) {
             element->ptr = NULL;
             break;
         }
@@ -849,18 +823,18 @@ int32_t ARM_UC_mmDERGetSequenceElement(arm_uc_buffer_t* buffer, uint32_t index, 
  * @retval 0                                Success!
  * @retval >0                               Number of remaining elements
  */
-int32_t ARM_UC_mmDERParseTree(const struct arm_uc_mmDerElement* desc, arm_uc_buffer_t* buffer, uint32_t nValues, const int32_t* valueIDs, arm_uc_buffer_t* buffers)
+int32_t ARM_UC_mmDERParseTree(const struct arm_uc_mmDerElement *desc, arm_uc_buffer_t *buffer, uint32_t nValues,
+                              const int32_t *valueIDs, arm_uc_buffer_t *buffers)
 {
     uint8_t *pos = buffer->ptr;
     uint8_t *end = pos + buffer->size;
     struct ARM_UC_MM_DERParserState state = {
-        nValues, valueIDs, buffers
+        nValues, (uint32_t *)valueIDs, buffers
     };
     arm_uc_mm_derRecurseDepth = 0;
     int32_t rc = ARM_UC_mmDERGetValues(desc, &pos, end, &state);
     // printf("Failed at: index %lu: %lu with return code: %ld\n", nValues-state.nValues, *state.valueIDs, rc);
-    if (rc == 0 && state.nValues != 0)
-    {
+    if (rc == 0 && state.nValues != 0) {
         return state.nValues;
     }
     return rc;
@@ -879,7 +853,8 @@ int32_t ARM_UC_mmDERParseTree(const struct arm_uc_mmDerElement* desc, arm_uc_buf
  * @retval 0                                Success!
  * @retval >0                               Number of remaining elements
  */
-int32_t ARM_UC_mmDERGetSignedResourceValues(arm_uc_buffer_t* buffer, uint32_t nValues, const int32_t* valueIDs, arm_uc_buffer_t* buffers)
+int32_t ARM_UC_mmDERGetSignedResourceValues(arm_uc_buffer_t *buffer, uint32_t nValues, const int32_t *valueIDs,
+                                            arm_uc_buffer_t *buffers)
 {
     return ARM_UC_mmDERParseTree(&SignedResource, buffer, nValues, valueIDs, buffers);
 }

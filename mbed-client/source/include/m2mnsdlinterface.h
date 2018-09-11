@@ -65,6 +65,7 @@ public:
         bool                async_req;
         sn_coap_msg_code_e  msg_code;
         bool                resend;
+        DownloadType        download_type;
         ns_list_link_t      link;
     };
 
@@ -74,7 +75,16 @@ public:
         sn_nsdl_addr_s      address;
     };
 
+    struct coap_response_s {
+        char                 *uri_path;
+        int32_t              msg_id;
+        M2MBase::MessageType type;
+        ns_list_link_t       link;
+    };
+
     typedef NS_LIST_HEAD(request_context_s, link) request_context_list_t;
+
+    typedef NS_LIST_HEAD(coap_response_s, link) response_list_t;
 
     /**
     * @brief Constructor
@@ -158,21 +168,25 @@ public:
 
     /**
      * @brief Sends the CoAP request to the server.
+     * @type Download type.
      * @uri Uri path to the data.
      * @msg_code CoAP message code of request to send.
      * @offset Data offset.
      * @async In async mode application must call this API again with the updated offset.
      *        If set to false then client will automatically download the whole package.
+     * @token The token to use for the request, 0 value will generate new token.
      * @payload_len Length of payload buffer.
      * @payload_ptr Pointer to payload buffer.
      * @request_data_cb Callback which is triggered once there is data available.
      * @request_error_cb Callback which is trigged in case of any error.
      * @context Application context.
      */
-    void send_request(const char *uri,
+    void send_request(DownloadType type,
+                      const char *uri,
                       const sn_coap_msg_code_e msg_code,
                       const size_t offset,
                       const bool async,
+                      uint32_t token,
                       const uint16_t payload_len,
                       uint8_t *payload_ptr,
                       request_data_cb data_cb,
@@ -354,6 +368,11 @@ public:
     void clear_sent_blockwise_messages();
 
     /**
+     * @brief Clears the received blockwise message list in CoAP library.
+     */
+    void clear_received_blockwise_messages();
+
+    /**
      * @brief Send next notification message.
     */
     void send_next_notification(bool clear_token);
@@ -461,22 +480,18 @@ private:
 
     uint64_t registration_time() const;
 
-    M2MBase* find_resource(const String &object,
-                           const uint16_t msg_id) const;
+    M2MBase* find_resource(const String &object) const;
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     M2MBase* find_resource(const M2MEndpoint *endpoint,
-                                             const String &object_name,
-                                             const uint16_t msg_id) const;
+                                             const String &object_name) const;
 #endif
 
     M2MBase* find_resource(const M2MObject *object,
-                           const String &object_instance,
-                           const uint16_t msg_id) const;
+                           const String &object_instance) const;
 
     M2MBase* find_resource(const M2MObjectInstance *object_instance,
-                           const String &resource_instance,
-                           const uint16_t msg_id) const;
+                           const String &resource_instance) const;
 
     M2MBase* find_resource(const M2MResource *resource,
                            const String &object_name,
@@ -596,6 +611,8 @@ private:
 
     void free_request_context_list(const sn_coap_hdr_s *coap_header = NULL);
 
+    void free_response_list(const int32_t msg_id = 0);
+
     /**
      * @brief Send next notification for object, return true if notification sent, false
      *        if no notification to send or send already in progress.
@@ -628,7 +645,7 @@ private:
 
     void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
 
-    void handle_notification_delivered(M2MBase *base);
+    void handle_message_delivered(M2MBase *base, const M2MBase::MessageType type);
 
     void handle_empty_ack(const sn_coap_hdr_s *coap_header, bool is_bootstrap_msg);
 
@@ -643,6 +660,12 @@ private:
     void set_retransmission_parameters();
 
     void send_pending_request();
+
+    void store_to_response_list(const char *uri, int32_t msg_id, M2MBase::MessageType type);
+
+    struct coap_response_s* find_response(int32_t msg_id);
+
+    struct coap_response_s* find_delayed_post_response(const char* uri_path);
 
 private:
 
@@ -661,6 +684,7 @@ private:
     uint32_t                                _next_coap_ping_send_time;
     char                                    *_server_address; // BS or M2M address
     request_context_list_t                  _request_context_list;
+    response_list_t                         _response_list;
     char                                    *_custom_uri_query_params;
     M2MNotificationHandler                  *_notification_handler;
     arm_event_storage_t                     _event;

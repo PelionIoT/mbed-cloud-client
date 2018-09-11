@@ -55,9 +55,9 @@ typedef enum {
 
 typedef struct _ARM_UCFM_Setup {
     ARM_UCFM_mode_t mode;
-    arm_uc_buffer_t* key;
-    arm_uc_buffer_t* iv;
-    arm_uc_buffer_t* hash;
+    arm_uc_buffer_t *key;
+    arm_uc_buffer_t *iv;
+    arm_uc_buffer_t *hash;
     uint32_t package_id;
     uint32_t package_size;
 } ARM_UCFM_Setup_t;
@@ -77,9 +77,9 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      * @param buffer Scratch pad for temporary storage.
      * @return Error code.
      */
-    arm_uc_error_t (*Prepare)(ARM_UCFM_Setup_t* configuration,
-                              const arm_uc_firmware_details_t* details,
-                              arm_uc_buffer_t* buffer);
+    arm_uc_error_t (*Prepare)(ARM_UCFM_Setup_t *configuration,
+                              const arm_uc_firmware_details_t *details,
+                              arm_uc_buffer_t *buffer);
 
     /**
      * @brief Function for adding a package fragment.
@@ -89,7 +89,7 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      * @param input Buffer struct.
      * @return Error code.
      */
-    arm_uc_error_t (*Write)(const arm_uc_buffer_t* input);
+    arm_uc_error_t (*Write)(const arm_uc_buffer_t *input);
 
     /**
      * @brief Function for finalizing the current package.
@@ -112,7 +112,7 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      *          NOTE: the buffer size must be a multiple of ARM_UC_SHA256_SIZE.
      * @return Error code.
      */
-    arm_uc_error_t (*Finalize)(arm_uc_buffer_t* front, arm_uc_buffer_t* back);
+    arm_uc_error_t (*Finalize)(arm_uc_buffer_t *front, arm_uc_buffer_t *back);
 
     /**
      * @brief Function for activating or installing the current package.
@@ -130,7 +130,7 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      * @param details Pointer to firmware details struct.
      * @return Error code.
      */
-    arm_uc_error_t (*GetActiveFirmwareDetails)(arm_uc_firmware_details_t* details);
+    arm_uc_error_t (*GetActiveFirmwareDetails)(arm_uc_firmware_details_t *details);
 
     /**
      * @brief Get the firmware details for the specified location.
@@ -140,7 +140,7 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      * @return Error code.
      */
     arm_uc_error_t (*GetFirmwareDetails)(uint32_t location,
-                                         arm_uc_firmware_details_t* details);
+                                         arm_uc_firmware_details_t *details);
 
     /**
      * @brief Get the installer details.
@@ -149,7 +149,7 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      * @param details Pointer to installer details struct.
      * @return Error code.
      */
-    arm_uc_error_t (*GetInstallerDetails)(arm_uc_installer_details_t* details);
+    arm_uc_error_t (*GetInstallerDetails)(arm_uc_installer_details_t *details);
 
 } ARM_UC_FIRMWARE_MANAGER_t;
 

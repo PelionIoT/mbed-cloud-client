@@ -385,6 +385,7 @@ sn_coap_hdr_s* M2MResource::handle_get_request(nsdl_s *nsdl,
                                             set_under_observation(true,observation_handler);
                                             M2MBase::add_observation_level(M2MBase::R_Attribute);
                                             send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
+                                            send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_SUBSCRIBED, M2MBase::NOTIFICATION);
                                             if (coap_response->options_list_ptr) {
                                                 coap_response->options_list_ptr->observe = observation_number();
                                             }
@@ -400,6 +401,7 @@ sn_coap_hdr_s* M2MResource::handle_get_request(nsdl_s *nsdl,
                                         set_under_observation(false,NULL);
                                         M2MBase::remove_observation_level(M2MBase::R_Attribute);
                                         send_notification_delivery_status(*this,NOTIFICATION_STATUS_UNSUBSCRIBED);
+                                        send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
                                         M2MResourceInstanceList::const_iterator it;
                                         it = _resource_instance_list.begin();
                                         for (; it!=_resource_instance_list.end(); it++ ) {
@@ -550,7 +552,15 @@ sn_coap_hdr_s* M2MResource::handle_post_request(nsdl_s *nsdl,
     // process the POST if we have registered a callback for it
     if(received_coap_header) {
         if ((operation() & SN_GRS_POST_ALLOWED) != 0) {
+#ifndef MEMORY_OPTIMIZED_API
+            const String &obj_name = object_name();
+            const String &res_name = name();
+            M2MResource::M2MExecuteParameter exec_params(obj_name, res_name, object_instance_id());
+#else
             M2MResource::M2MExecuteParameter exec_params(object_name(), name(), object_instance_id());
+#endif
+
+
 
             uint16_t coap_content_type = 0;
             if(received_coap_header->payload_ptr) {
@@ -638,7 +648,7 @@ const char* M2MResource::object_name() const
 
 #ifdef MEMORY_OPTIMIZED_API
 M2MResource::M2MExecuteParameter::M2MExecuteParameter(const char *object_name, const char *resource_name,
-                                                        uint16_t object_instance_id) :
+                                                      uint16_t object_instance_id) :
 _object_name(object_name),
 _resource_name(resource_name),
 _value(NULL),
@@ -647,8 +657,9 @@ _object_instance_id(object_instance_id)
 {
 }
 #else
-M2MResource::M2MExecuteParameter::M2MExecuteParameter(const String &object_name, const String &resource_name,
-                                                        uint16_t object_instance_id) :
+M2MResource::M2MExecuteParameter::M2MExecuteParameter(const String &object_name,
+                                                      const String &resource_name,
+                                                      uint16_t object_instance_id) :
 _object_name(object_name),
 _resource_name(resource_name),
 _value(NULL),

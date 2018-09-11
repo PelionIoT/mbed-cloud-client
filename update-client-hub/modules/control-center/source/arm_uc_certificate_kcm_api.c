@@ -16,23 +16,18 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_crypto.h"
+#if defined(ARM_UC_FEATURE_CERT_STORE_KCM) && (ARM_UC_FEATURE_CERT_STORE_KCM == 1)
+
 #include "update-client-control-center/arm_uc_certificate.h"
 #include "update-client-common/arm_uc_config.h"
-#include "update-client-common/arm_uc_crypto.h"
-
-#ifndef ARM_UC_USE_KCM
-#define ARM_UC_USE_KCM 0
-#endif
-
-#if ARM_UC_USE_KCM
 
 #include "key-config-manager/key_config_manager.h"
 
 static arm_uc_error_t kerr2ucerr(int kerr)
 {
     arm_uc_error_t err;
-    switch(kerr)
-    {
+    switch (kerr) {
         case KCM_STATUS_SUCCESS:
             err.code = ARM_UC_CM_ERR_NONE;
             break;
@@ -57,10 +52,10 @@ static arm_uc_error_t kerr2ucerr(int kerr)
     return err;
 }
 
-static arm_uc_error_t arm_uc_kcm_cert_fetcher(arm_uc_buffer_t* certificate,
-    const arm_uc_buffer_t* fingerprint,
-    const arm_uc_buffer_t* DERCertificateList,
-    void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*, const arm_uc_buffer_t*))
+static arm_uc_error_t arm_uc_kcm_cert_fetcher(arm_uc_buffer_t *certificate,
+                                              const arm_uc_buffer_t *fingerprint,
+                                              const arm_uc_buffer_t *DERCertificateList,
+                                              void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *, const arm_uc_buffer_t *))
 {
     uint8_t certName[MBED_CLOUD_CLIENT_UPDATE_CERTIFICATE_NAME_SIZE] = MBED_CLOUD_CLIENT_UPDATE_CERTIFICATE_DEFAULT;
     // uint8_t certName[MBED_CLOUD_CLIENT_UPDATE_CERTIFICATE_NAME_SIZE] = MBED_CLOUD_CLIENT_UPDATE_CERTIFICATE_PREFIX;
@@ -78,7 +73,7 @@ static arm_uc_error_t arm_uc_kcm_cert_fetcher(arm_uc_buffer_t* certificate,
 
     // Look up the certificate by fingerprint
     kcm_status_e kerr = kcm_item_get_data(certName,
-                                          strlen((char*)certName),
+                                          strlen((char *)certName),
                                           KCM_CERTIFICATE_ITEM,
                                           certificate->ptr,
                                           certificate->size_max,
@@ -107,27 +102,23 @@ static arm_uc_error_t arm_uc_kcm_cert_fetcher(arm_uc_buffer_t* certificate,
     arm_uc_buffer_t fingerprintLocalBuffer = {
         .size_max = sizeof(fingerprintLocal),
         .size = 0,
-        .ptr = fingerprintLocal};
+        .ptr = fingerprintLocal
+    };
 
     // Check for overflow before continuing. This is actually unnecessary
     // belts and suspenders type of code, as the max value given to kcm_item_get_data()
     // is at most UINT32_MAX, but the Coverity might point this as a error.
-    if (cert_data_size <= UINT32_MAX)
-    {
+    if (cert_data_size <= UINT32_MAX) {
         certificate->size = (uint32_t)cert_data_size;
-    }
-    else
-    {
+    } else {
         err.code = ARM_UC_CM_ERR_INVALID_CERT;
     }
 
     // Calculate the fingerprint of the certificate
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = ARM_UC_cryptoHashSetup(&h, ARM_UC_CU_SHA256);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = ARM_UC_cryptoHashUpdate(&h, certificate);
 
         // The cryptoHashFinish needs to be called no matter if the update succeeded or not as
@@ -136,21 +127,16 @@ static arm_uc_error_t arm_uc_kcm_cert_fetcher(arm_uc_buffer_t* certificate,
         errFinish = ARM_UC_cryptoHashFinish(&h, &fingerprintLocalBuffer);
 
         // Compare the calculated fingerprint to the requested fingerprint.
-        if ((err.error == ERR_NONE) && (errFinish.error == ERR_NONE))
-        {
+        if ((err.error == ERR_NONE) && (errFinish.error == ERR_NONE)) {
             uint32_t rc = ARM_UC_BinCompareCT(fingerprint, &fingerprintLocalBuffer);
-            if (rc)
-            {
+            if (rc) {
                 err.code = ARM_UC_CM_ERR_NOT_FOUND;
-            }
-            else
-            {
+            } else {
                 UC_CONT_TRACE("Certificate lookup fingerprint matched.");
                 err.code = ARM_UC_CM_ERR_NONE;
             }
 
-            if (callback && (err.error == ERR_NONE))
-            {
+            if (callback && (err.error == ERR_NONE)) {
                 callback(err, certificate, fingerprint);
             }
         }
@@ -160,9 +146,9 @@ static arm_uc_error_t arm_uc_kcm_cert_fetcher(arm_uc_buffer_t* certificate,
 }
 
 static arm_uc_error_t arm_uc_kcm_cert_storer(
-    const arm_uc_buffer_t* cert,
-    const arm_uc_buffer_t* fingerprint,
-    void(*callback)(arm_uc_error_t, const arm_uc_buffer_t*))
+    const arm_uc_buffer_t *cert,
+    const arm_uc_buffer_t *fingerprint,
+    void(*callback)(arm_uc_error_t, const arm_uc_buffer_t *))
 {
     // uint8_t certName[MBED_CLOUD_CLIENT_UPDATE_CERTIFICATE_NAME_SIZE] = MBED_CLOUD_CLIENT_UPDATE_CERTIFICATE_PREFIX;
     // uint8_t* b64hash = &certName[sizeof(MBED_CLOUD_CLIENT_UPDATE_CERTIFICATE_PREFIX)-1];
@@ -172,7 +158,7 @@ static arm_uc_error_t arm_uc_kcm_cert_storer(
     // ARM_UC_Base64Enc(b64hash, sizeof(b64hash), fingerprint);
 
     kcm_status_e kerr = kcm_item_store(certName,
-                                       strlen((char*) certName),
+                                       strlen((char *) certName),
                                        KCM_CERTIFICATE_ITEM,
                                        true,
                                        cert->ptr,
@@ -181,8 +167,7 @@ static arm_uc_error_t arm_uc_kcm_cert_storer(
 
     arm_uc_error_t err = kerr2ucerr(kerr);
 
-    if (callback && (err.code == ARM_UC_CM_ERR_NONE))
-    {
+    if (callback && (err.code == ARM_UC_CM_ERR_NONE)) {
         callback(err, fingerprint);
     }
 
@@ -194,4 +179,4 @@ const struct arm_uc_certificate_api arm_uc_certificate_kcm_api = {
     .store = arm_uc_kcm_cert_storer
 };
 
-#endif // ARM_UC_USE_KCM
+#endif /* ARM_UC_FEATURE_CERT_STORE_KCM */

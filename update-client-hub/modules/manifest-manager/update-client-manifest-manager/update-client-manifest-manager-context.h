@@ -23,6 +23,7 @@
 #include "update-client-manifest-manager/../source/arm_uc_mmConfig.h"
 #include "update-client-common/arm_uc_error.h"
 #include "update-client-common/arm_uc_types.h"
+#include "update-client-common/arm_uc_config.h"
 #include "update-client-common/arm_uc_scheduler.h"
 #include "update-client-manifest-manager/arm-pal-kv.h"
 
@@ -36,11 +37,11 @@ struct arm_uc_mmInitContext_t {
 
     arm_uc_callback_t callbackStorage; // initialized in hub
     struct {
-        unsigned root:1;
-        unsigned depidx:3;
-        unsigned missingDep:1;
+        unsigned root: 1;
+        unsigned depidx: 3;
+        unsigned missingDep: 1;
     };
-    uint8_t rootManifestBasePath[sizeof(MANIFEST_PREFIX ".." ) + CFSTORE_HASH_ID_SIZE];
+    uint8_t rootManifestBasePath[sizeof(MANIFEST_PREFIX "..") + CFSTORE_HASH_ID_SIZE];
     uint8_t pathBuffer[220];
     uint8_t manifestBuffer[640];
     uint8_t currentHash [MAX_HASH_BYTES];
@@ -49,7 +50,7 @@ struct arm_uc_mmInitContext_t {
 
 struct arm_uc_mm_get_latest_ts_context {
     uint64_t current_ts;
-    uint64_t* max_ts;
+    uint64_t *max_ts;
     uint32_t state;
     arm_uc_buffer_t current_data;
     arm_uc_buffer_t max_ts_key;
@@ -57,21 +58,51 @@ struct arm_uc_mm_get_latest_ts_context {
 
 enum arm_uc_mm_pk_sig_state {
     UCMM_PKSIG_STATE_INVALID = 0,
+    UCMM_PKSIG_STATE_IDLE,
     UCMM_PKSIG_STATE_FIND_CA,
     UCMM_PKSIG_STATE_FINDING_CA,
     UCMM_PKSIG_STATE_CHECK,
-    UCMM_PKSIG_STATE_IDLE,
 };
 
-typedef struct arm_uc_mm_validate_signature_context{
-    enum arm_uc_mm_pk_sig_state  state;
-                         void (* applicationEventHandler)(uint32_t);
-                arm_uc_buffer_t  fingerprint;
-                arm_uc_buffer_t  certList;
-                arm_uc_buffer_t  cert;
-                arm_uc_buffer_t* manifest;
-                arm_uc_error_t   storedError;
-                uint32_t         sigIndex;
+enum arm_uc_mm_psk_sig_state {
+    ARM_UC_MM_PSKSIG_STATE_INVALID = 0,
+    ARM_UC_MM_PSKSIG_STATE_IDLE,
+    ARM_UC_MM_PSKSIG_STATE_FIND_PSK,
+    ARM_UC_MM_PSKSIG_STATE_FINDING_PSK,
+    ARM_UC_MM_PSKSIG_STATE_FIND_SIG_START,
+    ARM_UC_MM_PSKSIG_STATE_FIND_SIG,
+    ARM_UC_MM_PSKSIG_STATE_VERIFY,
+};
+
+typedef struct arm_uc_mm_validate_signature_context {
+    union {
+        enum arm_uc_mm_pk_sig_state  pk_state;
+        enum arm_uc_mm_psk_sig_state psk_state;
+    };
+    void (* applicationEventHandler)(uint32_t);
+    union {
+#if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
+        struct {
+            arm_uc_buffer_t  fingerprint;
+            arm_uc_buffer_t  certList;
+            arm_uc_buffer_t  cert;
+        };
+#endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */
+#if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
+        struct {
+            arm_uc_buffer_t  PSKid;
+            int              keyTableVersion;
+            arm_uc_buffer_t  keyTableRef;
+            arm_uc_buffer_t  keyTableIV;
+            arm_uc_buffer_t  PSK;
+            arm_uc_buffer_t  cipherText;
+        };
+#endif /* ARM_UC_FEATURE_MANIFEST_PSK */
+    };
+    arm_uc_buffer_t *manifest;
+    arm_uc_error_t   storedError;
+    uint32_t         sigIndex;
+    uint32_t         encryptionMode;
 } arm_uc_mm_validate_signature_context_t;
 
 #define ARM_UC_MM_FW_STATE_LIST\
@@ -100,23 +131,23 @@ typedef struct arm_uc_mm_validate_signature_context{
 
 
 enum arm_uc_mm_fw_state {
-    #define ENUM_AUTO(name) name,
-    #define ENUM_FIXED(name, val) name = val,
+#define ENUM_AUTO(name) name,
+#define ENUM_FIXED(name, val) name = val,
     ARM_UC_MM_FW_STATE_LIST
-    #undef ENUM_AUTO
-    #undef ENUM_FIXED
+#undef ENUM_AUTO
+#undef ENUM_FIXED
 };
 
 struct arm_uc_mm_fw_context_t {
     struct arm_uc_mm_get_latest_ts_context getLatestTs;
-                                  uint64_t ts;
-                 arm_uc_manifest_handle_t* ID;
-                   enum arm_uc_mm_fw_state state;
-          struct manifest_firmware_info_t* info;
-                         arm_uc_callback_t callbackStorage; // initialized in hub
-                           arm_uc_buffer_t current_data;
-                                      char hashIDbuffer[CFSTORE_HASH_ID_SIZE];
-                                   uint8_t keyBuffer[ARM_PAL_KV_KEY_MAX_PATH];
+    uint64_t ts;
+    arm_uc_manifest_handle_t *ID;
+    enum arm_uc_mm_fw_state state;
+    struct manifest_firmware_info_t *info;
+    arm_uc_callback_t callbackStorage; // initialized in hub
+    arm_uc_buffer_t current_data;
+    char hashIDbuffer[CFSTORE_HASH_ID_SIZE];
+    uint8_t keyBuffer[ARM_PAL_KV_KEY_MAX_PATH];
 };
 
 #define ARM_UC_MM_INS_STATE_LIST\
@@ -157,25 +188,25 @@ struct arm_uc_mm_fw_context_t {
 
 
 enum arm_uc_mm_insert_state {
-    #define ENUM_AUTO(name) name,
-    #define ENUM_FIXED(name, val) name = val,
+#define ENUM_AUTO(name) name,
+#define ENUM_FIXED(name, val) name = val,
     ARM_UC_MM_INS_STATE_LIST
-    #undef ENUM_AUTO
-    #undef ENUM_FIXED
+#undef ENUM_AUTO
+#undef ENUM_FIXED
 };
 
 struct arm_uc_mmInsertContext_t {
     struct arm_uc_mm_get_latest_ts_context getLatestTs;
     arm_uc_mm_validate_signature_context_t signatureContext;
-                                  uint64_t max_ts;
-                                  uint64_t current_ts;
-                 arm_uc_manifest_handle_t* ID;
-               enum arm_uc_mm_insert_state state;
-                         arm_uc_callback_t callbackStorage; // initialized in hub
-                           arm_uc_buffer_t manifest;
-                  arm_uc_mm_crypto_flags_t cryptoMode;
-                           arm_uc_buffer_t certificateStorage;
-                                  uint32_t loopCounters[1];
+    uint64_t max_ts;
+    uint64_t current_ts;
+    arm_uc_manifest_handle_t *ID;
+    enum arm_uc_mm_insert_state state;
+    arm_uc_callback_t callbackStorage; // initialized in hub
+    arm_uc_buffer_t manifest;
+    arm_uc_mm_crypto_flags_t cryptoMode;
+    arm_uc_buffer_t certificateStorage;
+    uint32_t loopCounters[1];
 };
 
 struct arm_uc_mmContext_t {
@@ -190,7 +221,7 @@ typedef struct arm_uc_mmContext_t arm_uc_mmContext_t;
 
 
 enum arm_uc_mmState_t {
-    ARM_UC_MM_STATE_INVALID=0,
+    ARM_UC_MM_STATE_INVALID = 0,
     ARM_UC_MM_STATE_IDLE,
     ARM_UC_MM_STATE_INIT,
     ARM_UC_MM_STATE_INSERTING,
@@ -199,30 +230,32 @@ enum arm_uc_mmState_t {
     ARM_UC_MM_STATE_TEST,
 };
 
-typedef void (*ARM_UC_mmTestHook_t)(const char*, arm_uc_mmContext_t*, uint32_t, uint32_t, arm_uc_error_t);
+typedef void (*ARM_UC_mmTestHook_t)(const char *, arm_uc_mmContext_t *, uint32_t, uint32_t, arm_uc_error_t);
 
 struct arm_uc_mmPersistentContext_t {
-          enum arm_uc_mmState_t state;
-                 arm_uc_error_t reportedError;
-                    const char* errorFile;
-                       uint32_t errorLine;
-    struct arm_uc_mmContext_t** ctx;
-              arm_uc_callback_t applicationCallbackStorage; // initialized in mmCommon
-                           void (*applicationEventHandler)(uint32_t);
-                 arm_uc_error_t (*testFSM)(uint32_t event);
+    enum arm_uc_mmState_t state;
+    arm_uc_error_t reportedError;
+    const char *errorFile;
+    uint32_t errorLine;
+    struct arm_uc_mmContext_t **ctx;
+    arm_uc_callback_t applicationCallbackStorage; // initialized in mmCommon
+    void (*applicationEventHandler)(uint32_t);
+    arm_uc_error_t (*testFSM)(uint32_t event);
 #if ARM_UC_MM_ENABLE_TEST_VECTORS
-            ARM_UC_mmTestHook_t testHook;
+    ARM_UC_mmTestHook_t testHook;
 #endif
 };
 
 typedef struct arm_uc_mmPersistentContext_t arm_uc_mmPersistentContext_t;
 extern arm_uc_mmPersistentContext_t arm_uc_mmPersistentContext;
 
-static inline arm_uc_mmContext_t* arm_uc_mmBuf2Context(arm_uc_buffer_t* b) {
-    return (arm_uc_mmContext_t*)b->ptr;
+static inline arm_uc_mmContext_t *arm_uc_mmBuf2Context(arm_uc_buffer_t *b)
+{
+    return (arm_uc_mmContext_t *)b->ptr;
 }
 
-static inline arm_uc_error_t arm_uc_mmContextBufSizeCheck(arm_uc_buffer_t* b) {
+static inline arm_uc_error_t arm_uc_mmContextBufSizeCheck(arm_uc_buffer_t *b)
+{
     arm_uc_error_t err = { .code = MFST_ERR_NONE };
     if (b->size_max < sizeof(arm_uc_mmContext_t)) {
         err.code = MFST_ERR_SIZE;

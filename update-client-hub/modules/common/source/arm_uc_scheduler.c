@@ -27,7 +27,8 @@ static struct atomic_queue arm_uc_queue = { 0 };
 static void (*arm_uc_notificationHandler)(void) = NULL;
 static volatile int32_t arm_uc_queue_counter = 0;
 
-int32_t ARM_UC_SchedulerGetQueuedCount(void) {
+int32_t ARM_UC_SchedulerGetQueuedCount(void)
+{
     return arm_uc_queue_counter;
 }
 
@@ -37,7 +38,7 @@ int32_t ARM_UC_SchedulerGetQueuedCount(void) {
  * callback that is already locked or a callback that is NULL.
  */
 static arm_uc_callback_t callback_pool_storage[ARM_UC_SCHEDULER_STORAGE_POOL_SIZE];
-static arm_uc_callback_t* callback_pool_root;
+static arm_uc_callback_t *callback_pool_root;
 #endif
 
 static void (*scheduler_error_cb)(uint32_t parameter);
@@ -51,16 +52,15 @@ void ARM_UC_SchedulerInit(void)
 #if ARM_UC_SCHEDULER_STORAGE_POOL_SIZE
     /* Initialize the storage pool */
     callback_pool_root = callback_pool_storage;
-    for (size_t i = 0; i < ARM_UC_SCHEDULER_STORAGE_POOL_SIZE-1; i++)
-    {
-        callback_pool_storage[i].next = &callback_pool_storage[i+1];
+    for (size_t i = 0; i < ARM_UC_SCHEDULER_STORAGE_POOL_SIZE - 1; i++) {
+        callback_pool_storage[i].next = &callback_pool_storage[i + 1];
         /* watermark pool elements by setting the lock to POOL_WATERMARK.
          * This allows checking of the maximum number of concurrent allocations.
          */
         callback_pool_storage[i].lock = POOL_WATERMARK;
     }
-    callback_pool_storage[ARM_UC_SCHEDULER_STORAGE_POOL_SIZE-1].next = NULL;
-    callback_pool_storage[ARM_UC_SCHEDULER_STORAGE_POOL_SIZE-1].lock = POOL_WATERMARK;
+    callback_pool_storage[ARM_UC_SCHEDULER_STORAGE_POOL_SIZE - 1].next = NULL;
+    callback_pool_storage[ARM_UC_SCHEDULER_STORAGE_POOL_SIZE - 1].lock = POOL_WATERMARK;
 #endif
     memset(&callback_pool_exhausted_error_callback, 0, sizeof(arm_uc_callback_t));
     memset(&callback_failed_take_error_callback, 0, sizeof(arm_uc_callback_t));
@@ -69,48 +69,48 @@ void ARM_UC_SchedulerInit(void)
 /**
  * @brief Allocate a block from the pool
  * @details Gets a non-null block from the callback pool.
- * 
+ *
  * Theory of operation:
  * * callback_pool_alloc starts by fetching the current value of the pool's
- *   root. This value should be the next free item in the pool. 
- * * If the value is NULL, then there are no elements left in the pool, so 
+ *   root. This value should be the next free item in the pool.
+ * * If the value is NULL, then there are no elements left in the pool, so
  *   callback_pool_alloc returns NULL.
  * * callback_pool_alloc tries to take this element by replacing the root
  *   node with the following element. If replacement fails, callback_pool_alloc
  *   tries the whole process again. This is repeated until allocation succeeds
  *   or the root pointer is NULL.
- * 
+ *
  * @retval NULL the no element was available to allocate
  * @retval non-NULL An allocated element
  */
-static arm_uc_callback_t* callback_pool_alloc()
+static arm_uc_callback_t *callback_pool_alloc()
 {
     while (true) {
-        arm_uc_callback_t* prev_free = callback_pool_root;
-        if (NULL == prev_free){
+        arm_uc_callback_t *prev_free = callback_pool_root;
+        if (NULL == prev_free) {
             return NULL;
         }
-        arm_uc_callback_t* new_free = prev_free->next;
-        
-        if (aq_atomic_cas_uintptr((uintptr_t*)&callback_pool_root, (uintptr_t)prev_free, (uintptr_t)new_free)) {
+        arm_uc_callback_t *new_free = prev_free->next;
+
+        if (aq_atomic_cas_uintptr((uintptr_t *)&callback_pool_root, (uintptr_t)prev_free, (uintptr_t)new_free)) {
             return prev_free;
         }
     }
 }
 
 /**
- * @brief Check if the pool owns a block 
+ * @brief Check if the pool owns a block
  * @detail callback_pool_owns() checks whether the pointer supplied exists
  * within the callback_pool_storage array. If it does, that means that the pool
  * should own the block.
- * 
+ *
  * @param[in] e the element to evaluate for pool ownership
- * 
+ *
  * @retval 1 the pool owns the callback
  * @retval 0 the pool does not own the callback
  */
 
-static int callback_pool_owns(arm_uc_callback_t* e)
+static int callback_pool_owns(arm_uc_callback_t *e)
 {
     int isGreater = e >= callback_pool_storage;
     int isLesser = (uintptr_t)e < ((uintptr_t)callback_pool_storage + sizeof(callback_pool_storage));
@@ -121,31 +121,30 @@ static int callback_pool_owns(arm_uc_callback_t* e)
  * @brief Free a block owned by the pool.
  * @details Checks whether the supplied callback is owned by the pool and frees
  * it if so. Performs no operation for a callback that is not owned by the pool.
- * 
+ *
  * @param[in] e the element to free
  */
-static void callback_pool_free(arm_uc_callback_t* e)
+static void callback_pool_free(arm_uc_callback_t *e)
 {
-    UC_COMM_TRACE("%s (%p)", __PRETTY_FUNCTION__, e);
+    UC_SDLR_TRACE("%s (%p)", __PRETTY_FUNCTION__, e);
     if (callback_pool_owns(e)) {
         while (true) {
-            arm_uc_callback_t* prev_free = callback_pool_root;
+            arm_uc_callback_t *prev_free = callback_pool_root;
 
             e->next = prev_free;
-            UC_COMM_TRACE("%s inserting r:%p p:%p, e:%p, ", __PRETTY_FUNCTION__, callback_pool_root, prev_free, e);
-            if (aq_atomic_cas_uintptr((uintptr_t*)&callback_pool_root, (uintptr_t)prev_free, (uintptr_t)e)) {
+            UC_SDLR_TRACE("%s inserting r:%p p:%p, e:%p, ", __PRETTY_FUNCTION__, callback_pool_root, prev_free, e);
+            if (aq_atomic_cas_uintptr((uintptr_t *)&callback_pool_root, (uintptr_t)prev_free, (uintptr_t)e)) {
                 break;
             }
-            UC_COMM_TRACE("%s inserting failed", __PRETTY_FUNCTION__);
+            UC_SDLR_TRACE("%s inserting failed", __PRETTY_FUNCTION__);
         }
-    } 
+    }
 }
 
 uint32_t ARM_UC_SchedulerGetHighWatermark(void)
 {
     uint32_t i;
-    for (i = 0; i < ARM_UC_SCHEDULER_STORAGE_POOL_SIZE; i++)
-    {
+    for (i = 0; i < ARM_UC_SCHEDULER_STORAGE_POOL_SIZE; i++) {
         if (callback_pool_storage[i].lock == POOL_WATERMARK) {
             break;
         }
@@ -164,42 +163,37 @@ void ARM_UC_SetSchedulerErrorHandler(void(*handler)(uint32_t))
     scheduler_error_cb = handler;
 }
 
-bool ARM_UC_PostCallback(arm_uc_callback_t* _storage,
+bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
                          void (*_callback)(uint32_t),
                          uint32_t _parameter)
 {
     bool success = true;
-    UC_COMM_TRACE("%s Scheduling %p(%lu) with %p", __PRETTY_FUNCTION__, _callback, _parameter, _storage);
+    UC_SDLR_TRACE("%s Scheduling %p(%lu) with %p", __PRETTY_FUNCTION__, _callback, _parameter, _storage);
 
-    if (_callback == NULL)
-    {
+    if (_callback == NULL) {
         return false;
     }
 
-    if (_storage)
-    {
+    if (_storage) {
         int result = aq_element_take((void *) _storage);
-        if (result != ATOMIC_QUEUE_SUCCESS)
-        {
+        if (result != ATOMIC_QUEUE_SUCCESS) {
 
 // NOTE: This may be useful for detecting double-allocation of callbacks on mbed-os too
 #if defined(TARGET_IS_PC_LINUX)
             /* On Linux, issue an error message if the callback was not added
                to the queue. This is dangerous in mbed-os, since writing to the
                console from an interrupt context might crash the program. */
-                UC_COMM_TRACE("ARM_UC_PostCallback failed to acquire lock on: %p %p; allocating a temporary callback",
-                                _storage,
-                                _callback);
+            UC_SDLR_TRACE("ARM_UC_PostCallback failed to acquire lock on: %p %p; allocating a temporary callback",
+                          _storage,
+                          _callback);
 
 #endif
             _storage = NULL;
         }
     }
-    if (_storage == NULL)
-    {
+    if (_storage == NULL) {
         _storage = callback_pool_alloc();
-        if (_storage == NULL)
-        {
+        if (_storage == NULL) {
             success = false;
             /* Handle a failed alloc */
 
@@ -207,62 +201,51 @@ bool ARM_UC_PostCallback(arm_uc_callback_t* _storage,
             /* On Linux, issue an error message if the callback was not added
                to the queue. This is dangerous in mbed-os, since writing to the
                console from an interrupt context might crash the program. */
-            UC_COMM_ERR_MSG("Failed to allocate a callback block");
+            UC_SDLR_ERR_MSG("Failed to allocate a callback block");
 #endif
-            if (scheduler_error_cb)
-            {
+            if (scheduler_error_cb) {
                 _storage = &callback_pool_exhausted_error_callback;
                 int result = aq_element_take((void *) _storage);
                 if (result == ATOMIC_QUEUE_SUCCESS) {
                     _parameter = ARM_UC_EQ_ERR_POOL_EXHAUSTED;
                     _callback = scheduler_error_cb;
-                }
-                else 
-                {
+                } else {
                     _storage = NULL;
                 }
             }
-        }
-        else
-        {
+        } else {
             /* This thread is guaranteed to exclusively own _storage here */
-            aq_initialize_element((void*) _storage);
-            int result = aq_element_take((void*) _storage);
-            if (result != ATOMIC_QUEUE_SUCCESS)
-            {
+            aq_initialize_element((void *) _storage);
+            int result = aq_element_take((void *) _storage);
+            if (result != ATOMIC_QUEUE_SUCCESS) {
                 success = false;
                 /* This should be impossible */
-                UC_COMM_ERR_MSG("Failed to take an allocated a callback block... this should be impossible...");
-                if (scheduler_error_cb)
-                {
+                UC_SDLR_ERR_MSG("Failed to take an allocated a callback block... this should be impossible...");
+                if (scheduler_error_cb) {
                     _storage = &callback_failed_take_error_callback;
                     int result = aq_element_take((void *) _storage);
                     if (result == ATOMIC_QUEUE_SUCCESS) {
                         _parameter = ARM_UC_EQ_ERR_FAILED_TAKE;
                         _callback = scheduler_error_cb;
-                    }
-                    else
-                    {
+                    } else {
                         _storage = NULL;
                     }
                 }
             }
         }
     }
-    if (_storage)
-    {
+    if (_storage) {
         /* populate callback struct */
         _storage->callback = _callback;
         _storage->parameter = _parameter;
 
-        UC_COMM_TRACE("%s Queueing %p(%lu) in %p", __PRETTY_FUNCTION__, _callback, _parameter, _storage);
+        UC_SDLR_TRACE("%s Queueing %p(%lu) in %p", __PRETTY_FUNCTION__, _callback, _parameter, _storage);
 
         /* push struct to atomic queue */
         int result = aq_push_tail(&arm_uc_queue, (void *) _storage);
 
-        if (result == ATOMIC_QUEUE_SUCCESS)
-        {
-            UC_COMM_TRACE("%s Scheduling success!", __PRETTY_FUNCTION__);
+        if (result == ATOMIC_QUEUE_SUCCESS) {
+            UC_SDLR_TRACE("%s Scheduling success!", __PRETTY_FUNCTION__);
 
             /*  The queue is processed by removing an element first and then
                 decrementing the queue counter. This continues until the counter
@@ -283,24 +266,21 @@ bool ARM_UC_PostCallback(arm_uc_callback_t* _storage,
 
                 Therefore, If the queue is empty at this point, the counter is
                 -1 and incrementing the counter will return 0. This does not
-                trigger a notification, which is correct since the queue is 
+                trigger a notification, which is correct since the queue is
                 empty.
             */
-            int32_t count = aq_atomic_inc_int32((int32_t*) &arm_uc_queue_counter, 1);
+            int32_t count = aq_atomic_inc_int32((int32_t *) &arm_uc_queue_counter, 1);
 
             /* if notification handler is set, check if this is the first
             insertion
             */
-            if ((arm_uc_notificationHandler) && (count == 1))
-            {
-                UC_COMM_TRACE("%s Invoking notify!", __PRETTY_FUNCTION__);
+            if ((arm_uc_notificationHandler) && (count == 1)) {
+                UC_SDLR_TRACE("%s Invoking notify!", __PRETTY_FUNCTION__);
 
-                /* disable: UC_COMM_TRACE("notify nanostack scheduler"); */
+                /* disable: UC_SDLR_TRACE("notify nanostack scheduler"); */
                 arm_uc_notificationHandler();
             }
-        }
-        else
-        {
+        } else {
             success = false;
         }
     }
@@ -310,21 +290,20 @@ bool ARM_UC_PostCallback(arm_uc_callback_t* _storage,
 
 void ARM_UC_ProcessQueue(void)
 {
-    arm_uc_callback_t* element = (arm_uc_callback_t*) aq_pop_head(&arm_uc_queue);
+    arm_uc_callback_t *element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
 
-    while (element != NULL)
-    {
-        UC_COMM_TRACE("%s Invoking %p(%lu)", __PRETTY_FUNCTION__, element->callback, element->parameter);
+    while (element != NULL) {
+        UC_SDLR_TRACE("%s Invoking %p(%lu)", __PRETTY_FUNCTION__, element->callback, element->parameter);
         /* Store the callback locally */
         void (*callback)(uint32_t) = element->callback;
         /* Store the parameter locally */
         uint32_t parameter = element->parameter;
         /* Release the lock on the element */
-        UC_COMM_TRACE("%s Releasing %p", __PRETTY_FUNCTION__, element);
-        aq_element_release((void*) element);
+        UC_SDLR_TRACE("%s Releasing %p", __PRETTY_FUNCTION__, element);
+        aq_element_release((void *) element);
         /* Free the element if it was pool allocated */
-        UC_COMM_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
-        callback_pool_free((void*) element);
+        UC_SDLR_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
+        callback_pool_free((void *) element);
 
         /* execute callback */
         callback(parameter);
@@ -333,13 +312,12 @@ void ARM_UC_ProcessQueue(void)
             otherwise further callbacks posted inside this callback could
             trigger notifications eventhough we are still processing the queue.
         */
-        int32_t count = aq_atomic_inc_int32((int32_t*) &arm_uc_queue_counter, -1);
+        int32_t count = aq_atomic_inc_int32((int32_t *) &arm_uc_queue_counter, -1);
 
         if (count > 0) {
             /* get next element */
-            element = (arm_uc_callback_t*) aq_pop_head(&arm_uc_queue);
-        }
-        else {
+            element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
+        } else {
             element = NULL;
         }
     }
@@ -351,26 +329,25 @@ bool ARM_UC_ProcessSingleCallback(void)
     int32_t count = 0;
 
     /* get first element */
-    arm_uc_callback_t* element = (arm_uc_callback_t*) aq_pop_head(&arm_uc_queue);
+    arm_uc_callback_t *element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
 
-    if (element != NULL)
-    {
-        UC_COMM_TRACE("%s Invoking %p(%lu)", __PRETTY_FUNCTION__, element->callback, element->parameter);
+    if (element != NULL) {
+        UC_SDLR_TRACE("%s Invoking %p(%lu)", __PRETTY_FUNCTION__, element->callback, element->parameter);
         /* Store the callback locally */
         void (*callback)(uint32_t) = element->callback;
         /* Store the parameter locally */
         uint32_t parameter = element->parameter;
         /* Release the lock on the element */
-        UC_COMM_TRACE("%s Releasing %p", __PRETTY_FUNCTION__, element);
-        aq_element_release((void*) element);
+        UC_SDLR_TRACE("%s Releasing %p", __PRETTY_FUNCTION__, element);
+        aq_element_release((void *) element);
         /* Free the element if it was pool allocated */
-        UC_COMM_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
-        callback_pool_free((void*) element);
+        UC_SDLR_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
+        callback_pool_free((void *) element);
 
         /* execute callback */
         callback(parameter);
 
-        UC_COMM_TRACE("%s Decrementing callback counter", __PRETTY_FUNCTION__);
+        UC_SDLR_TRACE("%s Decrementing callback counter", __PRETTY_FUNCTION__);
 
         /*  decrement element counter after executing the callback.
             otherwise further callbacks posted inside this callback could
@@ -381,7 +358,7 @@ bool ARM_UC_ProcessSingleCallback(void)
             the queue, it means the counter hasn't been incremented yet, and
             incrmenting it will return 1, which will trigger a notification.
         */
-        count = aq_atomic_inc_int32((int32_t*) &arm_uc_queue_counter, -1);
+        count = aq_atomic_inc_int32((int32_t *) &arm_uc_queue_counter, -1);
     }
 
     return (count > 0);

@@ -51,6 +51,7 @@ typedef enum _ARM_SOURCE_EVENT {
     EVENT_FIRMWARE,
     EVENT_KEYTABLE,
     EVENT_ERROR,
+    EVENT_ERROR_SOURCE,
     EVENT_ERROR_BUFFER_SIZE
 } ARM_SOURCE_EVENT;
 
@@ -74,7 +75,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @brief Get Source capabilities.
      * @return Struct containing capabilites. See definition above.
      */
-    ARM_SOURCE_CAPABILITIES (*GetCapabilities)(void);
+    ARM_SOURCE_CAPABILITIES(*GetCapabilities)(void);
 
     /**
      * @brief Initialize Source.
@@ -100,7 +101,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @param cost Pointer to variable for the return value.
      * @return Error code.
      */
-    arm_uc_error_t (*GetManifestDefaultCost)(uint32_t* cost);
+    arm_uc_error_t (*GetManifestDefaultCost)(uint32_t *cost);
 
     /**
      * @brief Cost estimation for retrieving manifest from URL.
@@ -112,7 +113,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @param cost Pointer to variable for the return value.
      * @return Error code.
      */
-    arm_uc_error_t (*GetManifestURLCost)(arm_uc_uri_t* uri, uint32_t* cost);
+    arm_uc_error_t (*GetManifestURLCost)(arm_uc_uri_t *uri, uint32_t *cost);
 
     /**
      * @brief Cost estimation for retrieving firmware from URL.
@@ -124,7 +125,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @param cost Pointer to variable for the return value.
      * @return Error code.
      */
-    arm_uc_error_t (*GetFirmwareURLCost)(arm_uc_uri_t* uri, uint32_t* cost);
+    arm_uc_error_t (*GetFirmwareURLCost)(arm_uc_uri_t *uri, uint32_t *cost);
 
     /**
      * @brief Cost estimation for retrieving key table from URL.
@@ -136,7 +137,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @param cost Pointer to variable for the return value.
      * @return Error code.
      */
-    arm_uc_error_t (*GetKeytableURLCost)(arm_uc_uri_t* uri, uint32_t* cost);
+    arm_uc_error_t (*GetKeytableURLCost)(arm_uc_uri_t *uri, uint32_t *cost);
 
     /**
      * @brief Retrieve manifest from the default location.
@@ -147,7 +148,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @param offset Manifest offset in bytes where the requested fragment begins.
      * @return Error code.
      */
-    arm_uc_error_t (*GetManifestDefault)(arm_uc_buffer_t* buffer, uint32_t offset);
+    arm_uc_error_t (*GetManifestDefault)(arm_uc_buffer_t *buffer, uint32_t offset);
 
     /**
      * @brief Retrieve manifest from URL.
@@ -160,7 +161,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      *
      * @return Error code.
      */
-    arm_uc_error_t (*GetManifestURL)(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer, uint32_t offset);
+    arm_uc_error_t (*GetManifestURL)(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
     /**
      * @brief Retrieve firmware fragment.
@@ -172,7 +173,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @param offset Firmware offset to retrieve fragment from.
      * @return Error code.
      */
-    arm_uc_error_t (*GetFirmwareFragment)(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer, uint32_t offset);
+    arm_uc_error_t (*GetFirmwareFragment)(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
     /**
      * @brief Retrieve a key table from a URL.
@@ -183,7 +184,7 @@ typedef struct _ARM_UPDATE_SOURCE {
      * @param buffer Struct containing byte array, maximum size, and actual size.
      * @return Error code.
      */
-    arm_uc_error_t (*GetKeytableURL)(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer);
+    arm_uc_error_t (*GetKeytableURL)(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer);
 
 } ARM_UPDATE_SOURCE;
 

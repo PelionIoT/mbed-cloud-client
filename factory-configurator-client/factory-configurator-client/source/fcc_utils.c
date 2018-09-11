@@ -138,6 +138,7 @@ fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
         case KCM_CRYPTO_STATUS_INVALID_OID:
         case KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT:
         case KCM_CRYPTO_STATUS_FAILED_TO_WRITE_CSR:
+        case KCM_CRYPTO_STATUS_SET_EXTENSION_FAILED:
         case KCM_MAX_STATUS:
             fcc_status = FCC_STATUS_KCM_CRYPTO_ERROR;
             break;

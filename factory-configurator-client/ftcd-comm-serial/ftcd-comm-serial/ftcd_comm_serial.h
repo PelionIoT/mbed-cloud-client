@@ -27,10 +27,6 @@ public:
     /** Initialize serial object that communicate via stdin and stdout */
     FtcdCommSerial(ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature);
 
-    /** Deprecated constructor for backward compatibility.
-        Note, the TX, RX and baud params are ignored */
-    FtcdCommSerial(PinName TX, PinName RX, uint32_t baud, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature);
-
     /** Not certain that we need to do anything here, but just in case we need
      * to do some clean-up at some point.
      */

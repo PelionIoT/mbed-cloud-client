@@ -25,6 +25,8 @@
 #include "unity.h"
 #include "unity_fixture.h"
 
+#define TRACE_GROUP "PAL"
+
 extern struct _Unity Unity;
 
 #define PAL_TEST_STATUS_FILE_LOCATION "/tstSts"
@@ -73,12 +75,12 @@ palStatus_t getPalTestStatus(void)
              status2 = pal_fsFclose(&fd);
              if (PAL_SUCCESS != status2) 
              {
-                 PAL_LOG(ERR,"Failed to close data file of test status after read");
+                 PAL_LOG_ERR("Failed to close data file of test status after read");
              }
              status2 = pal_fsUnlink(filePath);
              if (PAL_SUCCESS != status2) 
              {
-                 PAL_LOG(ERR,"Failed to delete data file of test status after read");
+                 PAL_LOG_ERR("Failed to delete data file of test status after read");
              }
          }
         else if (PAL_ERR_FS_NO_FILE == status) {
@@ -87,7 +89,7 @@ palStatus_t getPalTestStatus(void)
         }
     }
 
-    PAL_LOG(DBG,"*********************************\n"
+    PAL_LOG_DBG("*********************************\n"
     		"** Test status: 				**\n"
     		"** Module %d    				**\n"
     		"** Test %d      				**\n"
@@ -110,7 +112,7 @@ void updatePalTestStatusAfterReboot(void)
 		Unity.TestFailures = palTestStatus.numOfTestsFailures;
 		Unity.NumberOfTests = palTestStatus.numberOfTests;
 		Unity.CurrentTestIgnored =palTestStatus.numberOfIgnoredTests;
-		PAL_LOG(DBG,"Unity number of tests was updated\r\n");
+        PAL_LOG_DBG("Unity number of tests was updated\r\n");
 	}
 }
 
@@ -136,7 +138,7 @@ palStatus_t setPalTestStatus(palTestsStatusData_t palRebootTestStatus)
              pal_fsFclose(&fd);
              if (PAL_SUCCESS != status2) 
              {
-                 PAL_LOG(ERR,"Failed to close data file of test status after write");
+                 PAL_LOG_ERR("Failed to close data file of test status after write");
              }
          }
     }
@@ -158,7 +160,7 @@ palStatus_t palTestReboot(palTestModules_t module ,palTestSOTPTests_t test )
     status = setPalTestStatus(palRebootTestStatus);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR,"Failed to set test status before reboot");
+        PAL_LOG_ERR("Failed to set test status before reboot");
     }
     else
     {
@@ -242,7 +244,7 @@ void palTestMain(palTestModules_t modules,void* network)
     palStatus_t getTestStatusReturnValue = getPalTestStatus();
     if (PAL_SUCCESS != getTestStatusReturnValue) 
     {
-        PAL_LOG(ERR,"%s: Failed to get current status of tests 0x%" PRIu32 "\r\n",__FUNCTION__,getTestStatusReturnValue);
+        PAL_LOG_ERR("%s: Failed to get current status of tests 0x%" PRIu32 "\r\n",__FUNCTION__,getTestStatusReturnValue);
     }
 
     UnityPrint("*****PAL_TEST_START*****");

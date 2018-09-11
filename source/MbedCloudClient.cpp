@@ -235,16 +235,25 @@ void MbedCloudClient::value_updated(M2MBase *base, M2MBase::BaseType type)
     }
 }
 
-void MbedCloudClient::send_get_request(const char *uri,
+void MbedCloudClient::send_get_request(DownloadType type,
+                                       const char *uri,
                                        const size_t offset,
                                        get_data_cb data_cb,
                                        get_data_error_cb error_cb,
                                        void *context)
 {
-    _client.connector_client().m2m_interface()->get_data_request(uri,
+    _client.connector_client().m2m_interface()->get_data_request(type,
+                                                                uri,
                                                                 offset,
                                                                 true,
                                                                 data_cb,
                                                                 error_cb,
                                                                 context);
 }
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+const M2MBaseList* MbedCloudClient::get_object_list() const
+{
+    return &_object_list;
+}
+#endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION

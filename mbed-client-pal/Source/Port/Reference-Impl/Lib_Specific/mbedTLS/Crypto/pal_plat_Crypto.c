@@ -38,6 +38,7 @@
 #include "mbedtls/oid.h"
 #include "mbedtls/platform_time.h"
 
+#define TRACE_GROUP "PAL"
 
 typedef mbedtls_ccm_context palCCM_t;
 typedef mbedtls_ecp_group palECGroup_t;
@@ -173,7 +174,7 @@ palStatus_t pal_plat_aesCTR(palAesHandle_t aes, const unsigned char* input, unsi
     platStatus = mbedtls_aes_crypt_ctr(&localCtx->platCtx, inLen, &localCtx->nc_off, iv, localCtx->stream_block, input, output);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
-        PAL_LOG(ERR, "Crypto aes ctr status %" PRId32 "", platStatus);
+        PAL_LOG_ERR("Crypto aes ctr status %" PRId32 "", platStatus);
         status = PAL_ERR_GENERIC_FAILURE;
     }
     return status;
@@ -188,7 +189,7 @@ palStatus_t pal_plat_aesECB(palAesHandle_t aes, const unsigned char input[PAL_CR
     platStatus = mbedtls_aes_crypt_ecb(&localCtx->platCtx, (PAL_AES_ENCRYPT == mode ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT), input, output);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
-        PAL_LOG(ERR, "Crypto aes ecb status  %" PRId32 "", platStatus);
+        PAL_LOG_ERR("Crypto aes ecb status  %" PRId32 "", platStatus);
         status = PAL_ERR_GENERIC_FAILURE;
     }
     return status;
@@ -298,7 +299,7 @@ PAL_PRIVATE palStatus_t pal_plat_X509GetField(palX509Ctx_t* x509Ctx, const char*
     return status;
 }
 
-PAL_PRIVATE bool pal_isLeapYear(uint8_t year)
+PAL_PRIVATE bool pal_isLeapYear(uint16_t year)
 {
     bool result = false;
     if (year % 4 != 0)
@@ -617,7 +618,7 @@ palStatus_t pal_plat_mdInit(palMDHandle_t* md, palMDType_t mdType)
             }
         default: 
             {
-                PAL_LOG(ERR, "Crypto md start setup  %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto md start setup  %" PRId32 "", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
                 goto finish;
             }
@@ -635,7 +636,7 @@ palStatus_t pal_plat_mdInit(palMDHandle_t* md, palMDType_t mdType)
             }
         default: 
             {
-                PAL_LOG(ERR, "Crypto md start status  %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto md start status  %" PRId32 "", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
                 goto finish;
             }
@@ -666,7 +667,7 @@ palStatus_t pal_plat_mdUpdate(palMDHandle_t md, const unsigned char* input, size
             break;
         default: 
             {
-                PAL_LOG(ERR, "Crypto md update status %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto md update status %" PRId32 "", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
     }
@@ -684,7 +685,7 @@ palStatus_t pal_plat_mdGetOutputSize(palMDHandle_t md, size_t* bufferSize)
     }
     else
     {
-        PAL_LOG(ERR, "Crypto md get size error");
+        PAL_LOG_ERR("Crypto md get size error");
         status = PAL_ERR_GENERIC_FAILURE;
     }
     
@@ -707,7 +708,7 @@ palStatus_t pal_plat_mdFinal(palMDHandle_t md, unsigned char* output)
             break;
         default: 
             {
-                PAL_LOG(ERR, "Crypto md finish status %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto md finish status %" PRId32 "", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
     } 
@@ -897,7 +898,7 @@ palStatus_t pal_plat_CCMSetKey(palCCMHandle_t ctx, palCipherID_t id, const unsig
         break;
     default:
         {
-            PAL_LOG(ERR, "Crypto ccm setkey status %" PRId32 "", platStatus);
+            PAL_LOG_ERR("Crypto ccm setkey status %" PRId32 "", platStatus);
             status = PAL_ERR_GENERIC_FAILURE;
         }
     }
@@ -917,7 +918,7 @@ palStatus_t pal_plat_CCMDecrypt(palCCMHandle_t ctx, unsigned char* input, size_t
         {
         default:
             {
-                PAL_LOG(ERR, "Crypto ccm decrypt status %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto ccm decrypt status %" PRId32 "", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
         }
@@ -938,7 +939,7 @@ palStatus_t pal_plat_CCMEncrypt(palCCMHandle_t ctx, unsigned char* input, size_t
         {
         default:
             {
-                PAL_LOG(ERR, "Crypto ccm encrypt status %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto ccm encrypt status %" PRId32 "", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
         }
@@ -995,7 +996,7 @@ palStatus_t pal_plat_CtrDRBGSeed(palCtrDrbgCtxHandle_t ctx, const void* seed, si
                 break;
             default:
                 {
-                    PAL_LOG(ERR, "Crypto ctrdrbg seed status %" PRId32 "", platStatus);
+                    PAL_LOG_ERR("Crypto ctrdrbg seed status %" PRId32 "", platStatus);
                     status = PAL_ERR_GENERIC_FAILURE;
                 }
         }
@@ -1028,7 +1029,7 @@ palStatus_t pal_plat_CtrDRBGGenerateWithAdditional(palCtrDrbgCtxHandle_t ctx, un
                 break;
             default:
             {
-                PAL_LOG(ERR, "Crypto ctrdrbg generate status %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto ctrdrbg generate status %" PRId32 "", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
         }
@@ -1046,7 +1047,7 @@ palStatus_t pal_plat_cipherCMAC(const unsigned char *key, size_t keyLenInBits, c
     cipherInfo = mbedtls_cipher_info_from_values(MBEDTLS_CIPHER_ID_AES, keyLenInBits, MBEDTLS_MODE_ECB);
     if (NULL == cipherInfo)
     {
-        PAL_LOG(ERR, "Crypto cipher cmac error");
+        PAL_LOG_ERR("Crypto cipher cmac error");
         status = PAL_ERR_CMAC_GENERIC_FAILURE;
         goto finish;
     }
@@ -1054,7 +1055,7 @@ palStatus_t pal_plat_cipherCMAC(const unsigned char *key, size_t keyLenInBits, c
     platStatus = mbedtls_cipher_cmac( cipherInfo, key, keyLenInBits, input, inputLenInBytes, output);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
-        PAL_LOG(ERR, "Crypto cipher cmac status %" PRId32 "", platStatus);
+        PAL_LOG_ERR("Crypto cipher cmac status %" PRId32 "", platStatus);
         status = PAL_ERR_CMAC_GENERIC_FAILURE;
     }
 finish:
@@ -1082,7 +1083,7 @@ palStatus_t pal_plat_CMACStart(palCMACHandle_t *ctx, const unsigned char *key, s
     cipherInfo = mbedtls_cipher_info_from_type(platType);
     if (NULL == cipherInfo)
     {
-        PAL_LOG(ERR, "Crypto cmac cipher info error");
+        PAL_LOG_ERR("Crypto cmac cipher info error");
         status = PAL_ERR_CMAC_GENERIC_FAILURE;
         goto finish;
     }
@@ -1098,7 +1099,7 @@ palStatus_t pal_plat_CMACStart(palCMACHandle_t *ctx, const unsigned char *key, s
     platStatus = mbedtls_cipher_setup(localCipher, cipherInfo);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
-        PAL_LOG(ERR, "Crypto cmac cipher setup status %" PRId32 ".", platStatus);
+        PAL_LOG_ERR("Crypto cmac cipher setup status %" PRId32 ".", platStatus);
         status = PAL_ERR_CMAC_GENERIC_FAILURE;
         goto finish;
     }
@@ -1167,7 +1168,7 @@ palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes
     md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
     if (NULL == md_info)
     {
-        PAL_LOG(ERR, "Crypto hmac sha256 md info error");
+        PAL_LOG_ERR("Crypto hmac sha256 md info error");
         status = PAL_ERR_HMAC_GENERIC_FAILURE;
     }
 
@@ -1182,7 +1183,7 @@ palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes
             }
             else
             {
-                PAL_LOG(ERR, "Crypto hmac status %" PRId32 "", platStatus);
+                PAL_LOG_ERR("Crypto hmac status %" PRId32 "", platStatus);
                 status = PAL_ERR_HMAC_GENERIC_FAILURE;
             }
         }
@@ -1742,7 +1743,7 @@ palStatus_t pal_plat_x509CSRSetSubject(palx509CSRHandle_t x509CSR, const char* s
             break;
         default:
             {
-                PAL_LOG(ERR, "Crypto x509 CSR set subject status %" PRId32 ".", platStatus);
+                PAL_LOG_ERR("Crypto x509 CSR set subject status %" PRId32 ".", platStatus);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
     }
@@ -1828,6 +1829,9 @@ palStatus_t pal_plat_x509CSRSetKeyUsage(palx509CSRHandle_t x509CSR, uint32_t key
     if (PAL_X509_KU_NON_REPUDIATION & keyUsage)
     {
         localKeyUsage |= MBEDTLS_X509_KU_NON_REPUDIATION;
+    }
+    if (PAL_X509_KU_KEY_AGREEMENT & keyUsage) {
+        localKeyUsage |= MBEDTLS_X509_KU_KEY_AGREEMENT;
     }
 
     if (0 == localKeyUsage)
@@ -1992,6 +1996,131 @@ palStatus_t pal_plat_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_
     return status;
 }
 
+static int copy_X509_v3_extensions_to_CSR(unsigned char *ext_v3_start, size_t ext_v3_len, palx509CSR_t *x509CSR)
+{
+    int ret;
+    size_t len;
+    unsigned char *p = ext_v3_start;
+    const unsigned char *end = (ext_v3_start + ext_v3_len);
+
+    // bail out if certificate has no extensions
+    if (ext_v3_len == 0) {
+        return(0);
+    }
+
+    // skip root ext.
+    if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
+        MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0) {
+        return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
+    }
+
+    while (p < end) {
+        /*
+        * Extension  ::=  SEQUENCE  {
+        *      extnID      OBJECT IDENTIFIER,
+        *      critical    BOOLEAN DEFAULT FALSE,
+        *      extnValue   OCTET STRING  }
+        */
+        mbedtls_x509_buf extn_oid = { 0, 0, NULL };
+        int is_critical = 0; /* DEFAULT FALSE */
+
+        if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
+            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0) {
+            return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
+        }
+
+        /* Get extension ID */
+        extn_oid.tag = *p;
+
+        if ((ret = mbedtls_asn1_get_tag(&p, end, &extn_oid.len, MBEDTLS_ASN1_OID)) != 0) {
+            return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
+        }
+
+        extn_oid.p = p;
+        p += extn_oid.len;
+
+        if ((end - p) < 1) {
+            return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
+                   MBEDTLS_ERR_ASN1_OUT_OF_DATA);
+        }
+
+        /* Get optional critical */
+        if ((ret = mbedtls_asn1_get_bool(&p, end, &is_critical)) != 0 &&
+            (ret != MBEDTLS_ERR_ASN1_UNEXPECTED_TAG)) {
+            return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
+        }
+
+        /* Data should be octet string type */
+        if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
+            MBEDTLS_ASN1_OCTET_STRING)) != 0) {
+            return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
+        }
+
+        // some extensions should be set by the CA, skip those...
+        if (memcmp(extn_oid.p, MBEDTLS_OID_AUTHORITY_KEY_IDENTIFIER, extn_oid.len) == 0 ||
+            memcmp(extn_oid.p, MBEDTLS_OID_SUBJECT_KEY_IDENTIFIER, extn_oid.len) == 0) {
+            p += len;
+            continue;
+        }
+
+        /* Set extension in CSR */
+        ret = mbedtls_x509_set_extension(&x509CSR->extensions, (const char *)extn_oid.p, extn_oid.len, is_critical, p, len);
+        if (ret != 0) {
+            return ret;
+        }
+
+        p += len;
+    }
+
+    if (p != end) {
+        return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
+               MBEDTLS_ERR_ASN1_LENGTH_MISMATCH);
+    }
+
+    return(0);
+}
+
+palStatus_t pal_plat_x509CSRFromCertWriteDER(palX509Handle_t x509Cert, palx509CSRHandle_t x509CSR, unsigned char* derBuf, size_t derBufLen, size_t* actualDerBufLen)
+{
+    palX509Ctx_t *localCert = (palX509Ctx_t*)x509Cert;
+    palx509CSR_t *localCSR = (palx509CSR_t*)x509CSR;
+    char subject[512];
+    int mbedtls_ret;
+
+    /** Note - we assume that the x509CSR object is already 
+    * initialized and contain at list a private key.
+    */
+
+    // subject
+
+    mbedtls_ret = mbedtls_x509_dn_gets(subject, sizeof(subject), &localCert->crt.subject);
+    if (mbedtls_ret < 0) {
+        return PAL_ERR_INVALID_X509_ATTR;
+    }
+
+    mbedtls_ret = mbedtls_x509write_csr_set_subject_name(localCSR, subject);
+    if (mbedtls_ret != 0) {
+        return PAL_ERR_INVALID_X509_ATTR;
+    }
+
+    // message digest alg
+    mbedtls_x509write_csr_set_md_alg(localCSR, localCert->crt.sig_md);
+
+    // optional extensions
+
+#if !defined(MBEDTLS_X509_ALLOW_EXTENSIONS_NON_V3)
+    if (localCert->crt.version == 3)
+#endif
+    {
+        mbedtls_ret = copy_X509_v3_extensions_to_CSR((unsigned char *)localCert->crt.v3_ext.p, localCert->crt.v3_ext.len, localCSR);
+        if (mbedtls_ret != 0) {
+            return PAL_ERR_SET_EXTENSION_FAILED;
+        }
+    }
+
+    // write CSR
+    return pal_plat_x509CSRWriteDER(x509CSR, derBuf, derBufLen, actualDerBufLen);
+}
 #endif
 PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len)
 {
@@ -2015,14 +2144,19 @@ PAL_PRIVATE int pal_plat_entropySource( void *data, unsigned char *output, size_
     }
 }
 
-#ifdef __arm__ // we are compiling using the ARM compiler
+#if defined(__CC_ARM) || (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) // ARMC5 and ARMC6
 /* This function is provided for ARM-CC compiler, since mbedTLS uses it and it returns NULL
  * in ARM-CC, we need to provide replacement function to keep correct functionality
  * mbedTLS will change the internal implementation which uses gmtime()
- */ 
+ */
+// For mbedtls version < 2.13.0
 struct tm *gmtime(const time_t *timep)
 {
     return localtime(timep);
 }
-
+// mbedtls version > 2.13.0
+struct tm *gmtime_r(const time_t *timep, struct tm * result)
+{
+    return _localtime_r(timep, result);
+}
 #endif

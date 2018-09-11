@@ -62,6 +62,13 @@ enum manifest_crypto_mode {
                                         *   pre-shared key. Firmware plaintext is hashed with SHA256. */
     MFST_CRYPT_SHA256_ECC,             //!< Manifest is signed with ECDSA. Firmware is hashed with SHA256
     MFST_CRYPT_SHA256,                 //!< Manifest and firmware are hashed with SHA256. Not recommended for production
+    MFST_CRYPT_NONE_PSK_AES128CCM_SHA256, /*!< Manifest is "signed" by adding an hash of the manifest, encrypted with
+                                           * AES-CCM (an authenticated encryption mode). Then ciphertext can be delivered
+                                           * in a variety of ways. */
+    MFST_CRYPT_PSK_AES128CCM_SHA256,      /*!< Manifest is "signed" by adding an hash of the manifest and a content
+                                           * encryption key, encrypted with AES-CCM (an authenticated encryption mode).
+                                           * Then ciphertext can be delivered in a variety of ways. */
+
     // MFST_CRYPT_SHA256_HMAC,            //!< Manifest is signed with HMAC. Firmware is hashed with SHA256
     // MFST_CRYPT_SHA256_HMAC_AES128_PSK, /*!< Manifest is signed with HMAC. Firmware is encrypted with AES128-CTR, using a
     //                                     *   pre-shared key. Firmware plaintext is hashed with SHA256. */
@@ -73,12 +80,12 @@ enum manifest_crypto_mode {
  * This structure converts the cryptomode to testable flags
  */
 typedef struct arm_uc_mm_crypto_flags_t {
-    unsigned hash:2;
-    unsigned hmac:1;
-    unsigned rsa:2;
-    unsigned ecc:2;
-    unsigned aes:2;
-    unsigned psk:1;
+    unsigned hash: 2;
+    unsigned hmac: 1;
+    unsigned rsa: 2;
+    unsigned ecc: 2;
+    unsigned aes: 2;
+    unsigned psk: 1;
 } arm_uc_mm_crypto_flags_t;
 
 enum arm_uc_mmCipherMode_t {

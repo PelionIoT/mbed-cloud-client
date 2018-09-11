@@ -162,7 +162,7 @@ void pv_log_trace_buffer(int level, const char* filename, int line, const char *
 /* Should only be called once, additional calls do nothing. */
 #define _SA_PV_LOG(level, file, line, func, format, ...) \
 do{ \
-        mbed_tracef(level, "fcc","%s:%d:%s:"format, file, line, func, ##__VA_ARGS__);\
+        mbed_tracef(level, "fcc","%s:%d:%s:" format, file, line, func, ##__VA_ARGS__);\
 } while (0)
 
 #define _SA_PV_BYTE_BUFF_LOG(level, file, line, func, name, buff, buff_size) ( mbed_tracef(level, "fcc", "%s"name, mbed_trace_array(buff, buff_size)))

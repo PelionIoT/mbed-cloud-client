@@ -30,7 +30,7 @@ extern "C" {
         FCC_STATUS_ERROR,                      //!< Operation ended with an unspecified error.
         FCC_STATUS_MEMORY_OUT,                 //!< An out-of-memory condition occurred.
         FCC_STATUS_INVALID_PARAMETER,          //!< A parameter provided to the function was invalid.
-        FCC_STATUS_STORE_ERROR,                //!< Storage internal error.
+        FCC_STATUS_STORE_ERROR,                //!< Internal storage error.
         FCC_STATUS_INTERNAL_ITEM_ALREADY_EXIST,//!< Current item already exists in storage.
         FCC_STATUS_CA_ERROR,                   //!< CA Certificate already exist in storage (currently only bootstrap CA)
         FCC_STATUS_ROT_ERROR,                  //!< ROT already exist in storage

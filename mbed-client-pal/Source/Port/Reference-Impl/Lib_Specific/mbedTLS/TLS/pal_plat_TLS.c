@@ -23,6 +23,7 @@
 #include "string.h"
 #include "sotp.h"
 
+#define TRACE_GROUP "PAL"
 
 #define SSL_LIB_SUCCESS 0
 
@@ -162,7 +163,7 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
 #endif
 		default:
 			{
-				PAL_LOG(ERR, "SSL handshake return code 0x%" PRIx32 ".", -error);
+                PAL_LOG_ERR("SSL handshake return code 0x%" PRIx32 ".", -error);
 				status = PAL_ERR_GENERIC_FAILURE;
 			}
 	};
@@ -210,7 +211,7 @@ palStatus_t pal_plat_initTLSLibrary(void)
 		status = pal_osMutexCreate(&g_palTLSTimeMutex);
 		if(PAL_SUCCESS != status)
 		{
-			PAL_LOG(ERR, "Failed to Create TLS time Mutex error: %" PRId32 ".", status);
+            PAL_LOG_ERR("Failed to Create TLS time Mutex error: %" PRId32 ".", status);
 		}
 #endif //PAL_USE_SECURE_TIME
 finish:
@@ -234,19 +235,19 @@ palStatus_t pal_plat_cleanupTLS(void)
 	status = pal_osMutexWait(g_palTLSTimeMutex, PAL_RTOS_WAIT_FOREVER);
 	if (PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to get TLS time Mutex error: %" PRId32 ".", status);
+        PAL_LOG_ERR("Failed to get TLS time Mutex error: %" PRId32 ".", status);
 	}
 
 	status = pal_osMutexRelease(g_palTLSTimeMutex);
 	if (PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to release TLS time Mutex error: %" PRId32 ".", status);
+        PAL_LOG_ERR("Failed to release TLS time Mutex error: %" PRId32 ".", status);
 	}
 
 	status = pal_osMutexDelete(&g_palTLSTimeMutex);
 	if(PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to Delete TLS time Mutex");
+        PAL_LOG_ERR("Failed to Delete TLS time Mutex");
 	}
 #endif //PAL_USE_SECURE_TIME
 	return status;
@@ -338,7 +339,7 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
 	platStatus = mbedtls_ssl_config_defaults(localConfigCtx->confCtx, endpoint, transport, MBEDTLS_SSL_PRESET_DEFAULT);
 	if (SSL_LIB_SUCCESS != platStatus)
 	{
-		PAL_LOG(ERR, "TLS Init conf status %" PRId32 ".", platStatus);
+        PAL_LOG_ERR("TLS Init conf status %" PRId32 ".", platStatus);
 		status = PAL_ERR_TLS_CONFIG_INIT;
 		goto finish;
 	}								
@@ -595,11 +596,11 @@ palStatus_t pal_plat_sslRead(palTLSHandle_t palTLSHandle, void *buffer, uint32_t
 		status = translateTLSErrToPALError(platStatus);
 		if (MBEDTLS_ERR_SSL_WANT_READ != platStatus)
 		{
-			PAL_LOG(ERR, "SSL Read return code %" PRId32 ".", platStatus);
+            PAL_LOG_ERR("SSL Read return code %" PRId32 ".", platStatus);
 		}
 		else
 		{
-			PAL_LOG(DBG, "SSL Read return code %" PRId32 ".", platStatus);
+            PAL_LOG_DBG("SSL Read return code %" PRId32 ".", platStatus);
 		}
 	}
 		
@@ -623,11 +624,11 @@ palStatus_t pal_plat_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, u
 		status = translateTLSErrToPALError(platStatus);
 		if (MBEDTLS_ERR_SSL_WANT_WRITE != platStatus)
 		{
-			PAL_LOG(ERR, "SSL Write platform return code %" PRId32 ".", platStatus);
+            PAL_LOG_ERR("SSL Write platform return code %" PRId32 ".", platStatus);
 		}
 		else
 		{
-			PAL_LOG(DBG, "SSL Write platform return code %" PRId32 ".", platStatus);
+            PAL_LOG_DBG("SSL Write platform return code %" PRId32 ".", platStatus);
 		}
 	}
 
@@ -676,7 +677,7 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
 				status = PAL_ERR_NO_MEMORY;
 				goto finish;
 			}
-			PAL_LOG(ERR, "SSL setup return code %" PRId32 ".", platStatus);
+            PAL_LOG_ERR("SSL setup return code %" PRId32 ".", platStatus);
 			status = PAL_ERR_GENERIC_FAILURE;
 			goto finish;
 		}
@@ -724,7 +725,7 @@ palStatus_t pal_plat_renegotiate(palTLSHandle_t palTLSHandle, uint64_t serverTim
 	status = pal_osMutexWait(g_palTLSTimeMutex, PAL_RTOS_WAIT_FOREVER);
 	if (PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to get TLS time Mutex error: %" PRId32 ".", status);
+        PAL_LOG_ERR("Failed to get TLS time Mutex error: %" PRId32 ".", status);
 		goto finish;
 	}
 
@@ -748,7 +749,7 @@ finish:
 	mutexStatus = pal_osMutexRelease(g_palTLSTimeMutex);
 	if (PAL_SUCCESS != mutexStatus)
 	{
-		PAL_LOG(ERR, "Failed to get TLS time Mutex error: %" PRId32 ".", mutexStatus);
+        PAL_LOG_ERR("Failed to get TLS time Mutex error: %" PRId32 ".", mutexStatus);
 	}
 	if (PAL_SUCCESS == status)
 	{
@@ -793,7 +794,7 @@ palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX
 	localConfigCtx->hasKeys = true;
 
 finish:
-	PAL_LOG(DBG, "TLS set and parse status %" PRIu32 ".", platStatus);
+    PAL_LOG_DBG("TLS set and parse status %" PRIu32 ".", platStatus);
 	return status;
 }
 
@@ -816,7 +817,7 @@ palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateK
 	localConfigCtx->hasKeys = true;
 
 finish:
-	PAL_LOG(DBG, "Privatekey set and parse status %" PRIu32 ".", platStatus);
+    PAL_LOG_DBG("Privatekey set and parse status %" PRIu32 ".", platStatus);
 	return status;
 }
 
@@ -842,7 +843,7 @@ palStatus_t pal_plat_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* o
 	localConfigCtx->hasKeys = true;
 
 finish:
-	PAL_LOG(DBG, "Own cert chain set and parse status %" PRIu32 ".", platStatus);
+    PAL_LOG_DBG("Own cert chain set and parse status %" PRIu32 ".", platStatus);
 	return status;
 }
 
@@ -856,7 +857,7 @@ palStatus_t pal_plat_setCAChain(palTLSConfHandle_t palTLSConf, palX509_t* caChai
 	platStatus = mbedtls_x509_crt_parse_der(&localConfigCtx->cacert, (const unsigned char *)caChain->buffer, caChain->size);
 	if (SSL_LIB_SUCCESS != platStatus)
 	{
-		PAL_LOG(ERR, "TLS CA chain status %" PRId32 ".", platStatus);
+        PAL_LOG_ERR("TLS CA chain status %" PRId32 ".", platStatus);
 		status = PAL_ERR_GENERIC_FAILURE;
 		goto finish;
 	}
@@ -883,7 +884,7 @@ palStatus_t pal_plat_setPSK(palTLSConfHandle_t palTLSConf, const unsigned char *
 			status = PAL_ERR_TLS_INIT;
 			goto finish;
 		}
-		PAL_LOG(ERR, "TLS set psk status %" PRId32 ".", platStatus);
+        PAL_LOG_ERR("TLS set psk status %" PRId32 ".", platStatus);
 		status = PAL_ERR_GENERIC_FAILURE;
 	}
 finish:
@@ -1059,18 +1060,23 @@ PAL_PRIVATE int palBIOSend(palTLSSocketHandle_t socket, const unsigned char *buf
 	}
 	else if (PAL_DTLS_MODE == localSocket->transportationMode)
 	{
+		#if defined(PAL_UDP_MTU_SIZE)
+		if(len > PAL_UDP_MTU_SIZE) {
+		    len = PAL_UDP_MTU_SIZE;
+		}
+		#endif
 		status = pal_sendTo(localSocket->socket, buf, len, localSocket->socketAddress, localSocket->addressLength, &sentDataSize);
 	}
 	else
 	{
-		PAL_LOG(ERR, "TLS BIO send error");
+        PAL_LOG_ERR("TLS BIO send error");
 		status = PAL_ERR_GENERIC_FAILURE;
 	}
 	if (PAL_SUCCESS == status || PAL_ERR_NO_MEMORY == status || PAL_ERR_SOCKET_WOULD_BLOCK == status)
 	{
         if (PAL_ERR_NO_MEMORY == status) 
         { 
-            PAL_LOG(DBG, "Network module returned out of memory error, retrying..."); //Network module can return NO_MEMORY error since it was not able to allocate 
+            PAL_LOG_DBG("Network module returned out of memory error, retrying..."); //Network module can return NO_MEMORY error since it was not able to allocate
 																					  //memory at this point of time. In this case we translate the error to WANT_WRITE 
 																					  //in order to let the Network module retry to allocate the memory. 
 																					  //In case of real out of memory the handshake timeout will break the handshake process. 
@@ -1115,6 +1121,11 @@ PAL_PRIVATE int palBIORecv(palTLSSocketHandle_t socket, unsigned char *buf, size
 	}
 	else if (PAL_DTLS_MODE == localSocket->transportationMode)
 	{
+		#if defined(PAL_UDP_MTU_SIZE)
+		if(len > PAL_UDP_MTU_SIZE) {
+		    len = PAL_UDP_MTU_SIZE;
+		}
+		#endif
 		status = pal_receiveFrom(localSocket->socket, buf, len, localSocket->socketAddress, &localSocket->addressLength, &recievedDataSize);
 		if (PAL_SUCCESS == status)
 		{
@@ -1134,7 +1145,7 @@ PAL_PRIVATE int palBIORecv(palTLSSocketHandle_t socket, unsigned char *buf, size
 	}
 	else
 	{
-		PAL_LOG(ERR, "TLS BIO recv error");
+        PAL_LOG_ERR("TLS BIO recv error");
 		status = PAL_ERR_GENERIC_FAILURE;
 	}
 
@@ -1205,7 +1216,7 @@ PAL_PRIVATE int palBIORecv_timeout(palTLSSocketHandle_t socket, unsigned char *b
 	}
 	else
 	{
-		PAL_LOG(ERR, "TLS BIO recv timeout error");
+        PAL_LOG_ERR("TLS BIO recv timeout error");
 		status = PAL_ERR_GENERIC_FAILURE;
 	}
 
@@ -1223,7 +1234,7 @@ PAL_PRIVATE mbedtls_time_t pal_mbedtlsTimeCB(mbedtls_time_t* timer)
 	status = pal_osMutexWait(g_palTLSTimeMutex, PAL_RTOS_WAIT_FOREVER);
 	if (PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to get TLS time Mutex error: %" PRId32 ".", status);
+        PAL_LOG_ERR("Failed to get TLS time Mutex error: %" PRId32 ".", status);
 		goto finish;
 	}
 
@@ -1240,7 +1251,7 @@ PAL_PRIVATE mbedtls_time_t pal_mbedtlsTimeCB(mbedtls_time_t* timer)
 	status = pal_osMutexRelease(g_palTLSTimeMutex);
 	if (PAL_SUCCESS != status)
 	{
-		PAL_LOG(ERR, "Failed to release TLS time Mutex error: %" PRId32 ".", status);
+        PAL_LOG_ERR("Failed to release TLS time Mutex error: %" PRId32 ".", status);
 	}
 finish:
 	if (PAL_SUCCESS != status)
@@ -1255,7 +1266,7 @@ finish:
 PAL_PRIVATE void palDebug(void *ctx, int debugLevel, const char *fileName, int line, const char *message)
 {
 	(void)ctx;
-	PAL_LOG(DBG, "%s: %d: %s", fileName, line, message);
+    PAL_LOG_DBG("%s: %d: %s", fileName, line, message);
 }
 
 #ifdef MBEDTLS_ENTROPY_NV_SEED

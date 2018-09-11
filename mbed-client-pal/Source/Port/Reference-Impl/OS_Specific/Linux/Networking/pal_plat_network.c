@@ -42,6 +42,8 @@
 #include <assert.h>
 #endif
 
+#define TRACE_GROUP "PAL"
+
 #ifdef PAL_NET_TCP_AND_TLS_SUPPORT
 #include <netinet/tcp.h>
 #endif
@@ -98,6 +100,10 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     case ECONNABORTED:
         status = PAL_ERR_SOCKET_CONNECTION_ABORTED;
         break;
+    case ECONNRESET:
+    case ECONNREFUSED:
+        status = PAL_ERR_SOCKET_CONNECTION_RESET;
+        break;
     case ENOBUFS:
     case ENOMEM:
         status = PAL_ERR_SOCKET_NO_BUFFERS;
@@ -106,6 +112,7 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
         status = PAL_ERR_SOCKET_INTERRUPTED;
         break;
     default:
+        PAL_LOG_ERR("translateErrorToPALError() cannot translate %d", errnoValue);
         status = PAL_ERR_SOCKET_GENERIC;
         break;
     }
@@ -160,7 +167,7 @@ PAL_PRIVATE void clearSocketFilter( int socketFD)
     result = pal_osMutexWait(s_mutexSocketEventFilter, PAL_RTOS_WAIT_FOREVER);
     if (PAL_SUCCESS != result)
     {
-        PAL_LOG(ERR, "error waiting for mutex"); // we want to zero the flag even if this fails beacuse it is better to get an extra event than miss one.
+        PAL_LOG_ERR("error waiting for mutex"); // we want to zero the flag even if this fails beacuse it is better to get an extra event than miss one.
     }
     for (i = 0; i < PAL_NET_TEST_MAX_ASYNC_SOCKETS; i++)
     {
@@ -174,7 +181,7 @@ PAL_PRIVATE void clearSocketFilter( int socketFD)
     result = pal_osMutexRelease(s_mutexSocketEventFilter);
     if (PAL_SUCCESS != result)
     {
-        PAL_LOG(ERR, "error releasing mutex");
+        PAL_LOG_ERR("error releasing mutex");
     }
 }
 
@@ -219,7 +226,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     result = pal_osSemaphoreRelease(s_socketCallbackSemaphore);
     if (result != PAL_SUCCESS)
     {
-        PAL_LOG(ERR, "Error in async socket manager on semaphore release");
+        PAL_LOG_ERR("Error in async socket manager on semaphore release");
     }
 
 
@@ -235,7 +242,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
         if (PAL_SUCCESS != result)
         {
-            PAL_LOG(ERR, "Error in async socket manager on mutex wait");
+            PAL_LOG_ERR("Error in async socket manager on mutex wait");
             break;
         }
 
@@ -245,7 +252,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             result = pal_osMutexRelease(s_mutexSocketCallbacks);
             if (result != PAL_SUCCESS)
             {
-                PAL_LOG(ERR, "Error in async socket manager on mutex release during termination");
+                PAL_LOG_ERR("Error in async socket manager on mutex release during termination");
             }
             s_nfds = 0; // Reset s_ndfs
             s_socketThreadTerminateSignaled = true; // mark that the thread has receieved the termination request
@@ -270,7 +277,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         result = pal_osMutexRelease(s_mutexSocketCallbacks);
         if (result != PAL_SUCCESS)
         {
-            PAL_LOG(ERR, "Error in async socket manager on mutex release");
+            PAL_LOG_ERR("Error in async socket manager on mutex release");
             break;
         }
 
@@ -305,7 +312,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                             result = pal_osMutexWait(s_mutexSocketEventFilter, PAL_RTOS_WAIT_FOREVER);
                             if (PAL_SUCCESS != result)
                             {
-                                PAL_LOG(ERR, "error waiting for mutex");
+                                PAL_LOG_ERR("error waiting for mutex");
                             }
                             else
                             {
@@ -313,7 +320,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                                 result = pal_osMutexRelease(s_mutexSocketEventFilter);
                                 if (PAL_SUCCESS != result)
                                 {
-                                    PAL_LOG(ERR, "error releasing mutex");
+                                    PAL_LOG_ERR("error releasing mutex");
                                 }
                             }
 
@@ -330,7 +337,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         }
         else
         {
-            PAL_LOG(ERR, "Error in async socket manager");
+            PAL_LOG_ERR("Error in async socket manager");
         }
     }  // while
 }
@@ -824,7 +831,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
 
     if  (*socket == (void *)PAL_LINUX_INVALID_SOCKET) // socket already closed - return success.
     {
-        PAL_LOG(DBG, "socket close called on socket which was already closed");
+        PAL_LOG_DBG("socket close called on socket which was already closed");
         return result;
     }
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
@@ -934,7 +941,7 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
     //interface not found error
     if (found != 1 && result == PAL_SUCCESS)
     {
-        PAL_LOG(ERR, "Network failed reading interface info");
+        PAL_LOG_ERR("Network failed reading interface info");
         result = PAL_ERR_GENERIC_FAILURE;
     }
 
@@ -995,6 +1002,9 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
     result = pal_plat_SockAddrToSocketAddress(address, (struct sockaddr *)&internalAddr);
     if (result == PAL_SUCCESS)
     {
+        // clean filter to get the callback on first attempt
+        clearSocketFilter((intptr_t)socket);
+
         res = connect((intptr_t)socket,(struct sockaddr *)&internalAddr, addressLen);
         if(res == -1)
         {
@@ -1087,6 +1097,10 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
             // TODO print error using logging mechanism when available.
             return result;
         }
+
+        // make sure a recycled socket structure does not contain obsolete event filter
+        clearSocketFilter((intptr_t)*socket);
+
         s_fds[s_nfds].fd = (intptr_t)*socket;
         s_fds[s_nfds].events = POLLIN|POLLERR;  //TODO POLLOUT missing is not documented
         s_callbacks[s_nfds] = callback;

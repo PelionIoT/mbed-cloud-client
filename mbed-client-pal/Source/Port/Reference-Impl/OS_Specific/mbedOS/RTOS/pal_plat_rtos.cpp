@@ -22,6 +22,8 @@
 #include "mbed.h"
 #include "entropy_poll.h"
 
+#define TRACE_GROUP "PAL"
+
 /*
     mbedOS latest version RTOS support
 */
@@ -146,21 +148,21 @@ PAL_PRIVATE void timerFunctionThreadCleanup(const void* arg)
         status = pal_osTimerDelete(&timerID);
         if (PAL_SUCCESS != status)
         {
-            PAL_LOG(ERR, "timerFunctionThreadCleanup timer delete failed\n");
+            PAL_LOG_ERR("timerFunctionThreadCleanup timer delete failed\n");
         }
         goto end;
     }
 
     if (osThreadError == threadState)
     {
-        PAL_LOG(ERR, "timerFunctionThreadCleanup threadState is osThreadError\n");
+        PAL_LOG_ERR("timerFunctionThreadCleanup threadState is osThreadError\n");
         goto end;
     }
 
     status = pal_osTimerStart(timerID, PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC); // thread has not transitioned into its final so start the timer again
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR, "timerFunctionThreadCleanup timer start failed\n");
+        PAL_LOG_ERR("timerFunctionThreadCleanup timer start failed\n");
     }
 end:
     return;
@@ -177,7 +179,7 @@ PAL_PRIVATE void threadFunction(void* arg)
     palStatus_t status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // avoid race condition with thread terminate
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR, "threadFunction mutex wait failed (pre)\n");
+        PAL_LOG_ERR("threadFunction mutex wait failed (pre)\n");
         goto end;
     }
 
@@ -188,7 +190,7 @@ PAL_PRIVATE void threadFunction(void* arg)
     status = pal_osMutexRelease(g_threadsMutex);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR, "threadFunction mutex release failed (pre)\n");
+        PAL_LOG_ERR("threadFunction mutex release failed (pre)\n");
         goto end;
     }
 
@@ -197,7 +199,7 @@ PAL_PRIVATE void threadFunction(void* arg)
     status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // avoid race condition with thread terminate
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR, "threadFunction mutex wait failed (post)\n");
+        PAL_LOG_ERR("threadFunction mutex wait failed (post)\n");
         goto end;
     }
 
@@ -205,7 +207,7 @@ PAL_PRIVATE void threadFunction(void* arg)
     cleanupData = (palThreadCleanupData_t*)malloc(sizeof(palThreadCleanupData_t));
     if (NULL == cleanupData)
     {
-        PAL_LOG(ERR, "threadFunction malloc palThreadCleanupData_t failed\n");
+        PAL_LOG_ERR("threadFunction malloc palThreadCleanupData_t failed\n");
         goto end;
     }
 
@@ -213,7 +215,7 @@ PAL_PRIVATE void threadFunction(void* arg)
     if (PAL_SUCCESS != status)
     {
         free(cleanupData);
-        PAL_LOG(ERR, "threadFunction create timer failed\n");
+        PAL_LOG_ERR("threadFunction create timer failed\n");
         goto end;
     }
 
@@ -225,11 +227,11 @@ PAL_PRIVATE void threadFunction(void* arg)
     if (PAL_SUCCESS != status)
     {
         free(cleanupData); // timer failed to start so cleanup dynamically allocated palThreadCleanupData_t
-        PAL_LOG(ERR, "threadFunction timer start failed\n");
+        PAL_LOG_ERR("threadFunction timer start failed\n");
         status = pal_osTimerDelete(&timerID);
         if (PAL_SUCCESS != status)
         {
-            PAL_LOG(ERR, "threadFunction timer delete failed\n");
+            PAL_LOG_ERR("threadFunction timer delete failed\n");
         }
     }
 end:
@@ -238,7 +240,7 @@ end:
         status = pal_osMutexRelease(g_threadsMutex);
         if (PAL_SUCCESS != status)
         {
-            PAL_LOG(ERR, "threadFunction mutex release failed (post)\n");
+            PAL_LOG_ERR("threadFunction mutex release failed (post)\n");
         }
     }
 }
@@ -372,7 +374,7 @@ palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
     status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); // avoid race condition with thread function
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR, "thread terminate mutex wait failed\n");
+        PAL_LOG_ERR("thread terminate mutex wait failed\n");
         goto end;
     }
 
@@ -404,7 +406,7 @@ end:
     {
         if (PAL_SUCCESS != pal_osMutexRelease(g_threadsMutex))
         {
-            PAL_LOG(ERR, "thread terminate mutex release failed\n");
+            PAL_LOG_ERR("thread terminate mutex release failed\n");
         }
     }
     return status;

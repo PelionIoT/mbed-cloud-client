@@ -55,7 +55,7 @@ void aq_critical_section_enter()
         _use_softdevice_routine = true;
     } else {
         // if interrupts where enabled, disable them
-        if(primask == 0) {
+        if (primask == 0) {
             __disable_irq();
         }
 

@@ -27,11 +27,12 @@ extern "C" {
 #endif
 
 typedef enum {
-   FIRMWARE_IMAGE_ITEM_HEADER = 0,
-   FIRMWARE_IMAGE_ITEM_DATA
+    FIRMWARE_IMAGE_ITEM_HEADER = 0,
+    FIRMWARE_IMAGE_ITEM_DATA
 } firmwareImageItemType;
 
-arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location, firmwareImageItemType what, char *dest, uint32_t dest_size);
+arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location, firmwareImageItemType what, char *dest,
+                                              uint32_t dest_size);
 
 #ifdef __cplusplus
 }

@@ -32,11 +32,11 @@
 // Module include
 #include "aq_critical.h"
 
-static pthread_mutex_t* get_mutex() {
+static pthread_mutex_t *get_mutex()
+{
     static int initialized = 0;
     static pthread_mutex_t Mutex;
-    if (!initialized)
-    {
+    if (!initialized) {
         pthread_mutexattr_t Attr;
         pthread_mutexattr_init(&Attr);
         pthread_mutexattr_settype(&Attr, PTHREAD_MUTEX_RECURSIVE);
@@ -49,7 +49,8 @@ static pthread_mutex_t* get_mutex() {
 static volatile unsigned irq_nesting_depth = 0;
 static sigset_t old_sig_set;
 
-void aq_critical_section_enter() {
+void aq_critical_section_enter()
+{
     pthread_mutex_lock(get_mutex());
     if (++irq_nesting_depth == 1) {
         int rc;
@@ -61,7 +62,8 @@ void aq_critical_section_enter() {
     }
 }
 
-void aq_critical_section_exit(void) {
+void aq_critical_section_exit(void)
+{
     assert(irq_nesting_depth > 0);
     if (--irq_nesting_depth == 0) {
         int rc = sigprocmask(SIG_SETMASK, &old_sig_set, NULL);

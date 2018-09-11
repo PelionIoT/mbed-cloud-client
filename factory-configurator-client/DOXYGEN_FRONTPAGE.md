@@ -2,17 +2,18 @@ Factory Configurator Client API
 ===============================
 
 This is the Doxygen generated documentation of Factory Configurator Client (FCC) and Key and Configuration Manager (KCM).
-It should be used together with the [Mbed Cloud documentation](https://cloud.mbed.com/docs/latest). See the [Files](files.html) section to find documentation about a specific API.
+You should use them together with the [Device Management documentation](https://cloud.mbed.com/docs/current). See the [Files](files.html) section to find documentation about a specific API.
 
 ## FCC
 
 The FCC APIs initialize the factory flow, store the factory configurations using KCM APIs or FCC bundle handler and
-verify that the device is ready for mbed Cloud connection.
+verify that the device is ready to connect.
  
 The FCC APIs allow the following operations:
 
 - Initiating and finalizing of the FCC flow. 
-- After items injection, verifying that the device is ready for Mbed Cloud connection.
+- Injecting factory items to the device.
+- Verifying that the device is ready for connection to Device Management.
 - Retrieving errors and warnings during the injection process.
 - Cleaning all data that was injected to the device.
 

@@ -45,7 +45,7 @@ arm_uc_error_t ARM_UC_ControlCenter_Initialize(void (*callback)(uint32_t));
  * @param monitor Pointer to an ARM_UPDATE_MONITOR struct.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_AddMonitor(const ARM_UPDATE_MONITOR* monitor);
+arm_uc_error_t ARM_UC_ControlCenter_AddMonitor(const ARM_UPDATE_MONITOR *monitor);
 
 /**
  * @brief Set callback for receiving download progress.
@@ -189,7 +189,7 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportUpdateResult(arm_uc_monitor_result_t u
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_ReportName(arm_uc_buffer_t* name);
+arm_uc_error_t ARM_UC_ControlCenter_ReportName(arm_uc_buffer_t *name);
 
 /**
  * @brief Set current firmware version.
@@ -211,7 +211,7 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportVersion(uint64_t version);
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t* hash);
+arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t *hash);
 
 /**
  * @brief Send the OEM bootloader hash to monitor.
@@ -221,7 +221,7 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t* hash);
  * @param name Pointer to buffer struct. Hash is stored as byte array.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_ReportOEMBootloaderHash(arm_uc_buffer_t* hash);
+arm_uc_error_t ARM_UC_ControlCenter_ReportOEMBootloaderHash(arm_uc_buffer_t *hash);
 
 #endif // __ARM_UPDATE_CONTROL_CENTER_H__
 

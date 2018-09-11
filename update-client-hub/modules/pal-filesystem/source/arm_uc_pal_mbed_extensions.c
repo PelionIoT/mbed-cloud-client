@@ -16,6 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_FILESYSTEM) && (ARM_UC_FEATURE_PAL_FILESYSTEM == 1)
 #if defined(TARGET_LIKE_MBED)
 
 #include "update-client-pal-filesystem/arm_uc_pal_extensions.h"
@@ -31,12 +33,12 @@ arm_uc_error_t pal_ext_imageInitAPI(void (*callback)(uint32_t))
     return ARM_UC_PAL_FlashIAP_Initialize(callback);
 }
 
-arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t* details)
+arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
 {
     return ARM_UC_PAL_FlashIAP_GetActiveDetails(details);
 }
 
-arm_uc_error_t pal_ext_installerGetDetails(arm_uc_installer_details_t* details)
+arm_uc_error_t pal_ext_installerGetDetails(arm_uc_installer_details_t *details)
 {
     return ARM_UC_PAL_FlashIAP_GetInstallerDetails(details);
 }
@@ -51,4 +53,5 @@ arm_uc_error_t pal_ext_imageActivate(uint32_t location)
     return result;
 }
 
-#endif
+#endif /* TARGET_LIKE_MBED */
+#endif /* ARM_UC_FEATURE_PAL_FILESYSTEM */

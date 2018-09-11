@@ -47,25 +47,26 @@ extern "C" {
     } kcm_md_type_e;
 
 
-    /** key usage extension bit-mask options */
+    /** X.509 v3 Key Usage Extension bit-mask options */    
     typedef enum {
         KCM_CSR_KU_NONE = 0x0,
-        KCM_CSR_KU_DIGITAL_SIGNATURE = 0x1, //!< Digital signature key usage extension bit        
-        KCM_CSR_KU_NON_REPUDIATION = 0x2,   //!< Non repudiation key usage extension bit
-        KCM_CSR_KU_KEY_CERT_SIGN = 0x4      //!< Certificate signing key usage extension bit
+        KCM_CSR_KU_DIGITAL_SIGNATURE = 0x1, //!< Digital signature key usage extension bit.
+        KCM_CSR_KU_NON_REPUDIATION = 0x2,   //!< Non repudiation key usage extension bit.
+        KCM_CSR_KU_KEY_CERT_SIGN = 0x4,     //!< Certificate signing key usage extension bit.
+        KCM_CSR_KU_KEY_AGREEMENT = 0x8      //!< Key agreement key usage extension bit.
     } kcm_csr_key_usage_e;
 
 
-    /** extended key usage extension bit-mask options */
+    /** X.509 v3 Extended Key Usage Extension bit-mask options */
     typedef enum {
         KCM_CSR_EXT_KU_NONE =             0,
         KCM_CSR_EXT_KU_ANY =              (1 << 0),
-        KCM_CSR_EXT_KU_SERVER_AUTH =      (1 << 1), //!< SSL / TLS Web Server Authentication
-        KCM_CSR_EXT_KU_CLIENT_AUTH =      (1 << 2), //!< SSL / TLS Web Client Authentication
-        KCM_CSR_EXT_KU_CODE_SIGNING =     (1 << 3), //!< Code signing
-        KCM_CSR_EXT_KU_EMAIL_PROTECTION = (1 << 4), //!< E - mail Protection(S / MIME)
-        KCM_CSR_EXT_KU_TIME_STAMPING =    (1 << 8), //!< Trusted Time stamping
-        KCM_CSR_EXT_KU_OCSP_SIGNING =     (1 << 9)  //!< OCSP Signing
+        KCM_CSR_EXT_KU_SERVER_AUTH =      (1 << 1), //!< SSL / TLS Web Server Authentication.
+        KCM_CSR_EXT_KU_CLIENT_AUTH =      (1 << 2), //!< SSL / TLS Web Client Authentication.
+        KCM_CSR_EXT_KU_CODE_SIGNING =     (1 << 3), //!< Code signing.
+        KCM_CSR_EXT_KU_EMAIL_PROTECTION = (1 << 4), //!< E - mail Protection(S / MIME).
+        KCM_CSR_EXT_KU_TIME_STAMPING =    (1 << 8), //!< Trusted Time stamping.
+        KCM_CSR_EXT_KU_OCSP_SIGNING =     (1 << 9)  //!< OCSP Signing.
     } kcm_csr_ext_key_usage_e;
 
     /**
@@ -86,14 +87,14 @@ extern "C" {
     }kcm_crypto_key_scheme_e;
 
     /*
-    * Maximal file name length that can be saved in the KCM
+    * Maximal file name that can be saved in the KCM
     */
-#define KCM_MAX_FILENAME_SIZE  1012
+    #define KCM_MAX_FILENAME_SIZE  1012
 
     /*
     * Maximal length of the certificate chain in the device
     */
-#define KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN 5
+    #define KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN 5
 
     /*
     * Certificate chain handle
@@ -104,9 +105,9 @@ extern "C" {
     *
     *      @param subject String that contains the subject (distinguished name) of the certificate in predefined format.
     *                     The format should be as the following example: “C=US,ST=California,L=San Francisco,O=Wikimedia Foundation,Inc.,CN=*.wikipedia.org”.
-    *      @param md_type Message digest selected from `kcm_md_type_e`.
-    *      @param key_usage Key usage extension selected from `kcm_csr_key_usage_e`.
-    *      @param ext_key_usage Extended key usage flags selected from `kcm_csr_ext_key_usage_e`.
+    *      @param md_type Message digest selected from `::kcm_md_type_e`.
+    *      @param key_usage Key usage extension bit-mask selected from `::kcm_csr_key_usage_e`. If the requested CSR does not contain any key usage extension, it needs to be set to `::KCM_CSR_KU_NONE`.
+    *      @param ext_key_usage Extended key usage extensions bit-mask selected from `::kcm_csr_ext_key_usage_e`. If the requested CSR does not contain any extended key usage extension, it needs to be set to `::KCM_CSR_EXT_KU_NONE`.
     */
     typedef struct kcm_csr_params_ {
         char *subject;

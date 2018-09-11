@@ -328,8 +328,13 @@ void M2MResourceBase::report()
              (observation_level != M2MBase::None)) {
             M2MReportHandler *report_handler = M2MBase::report_handler();
             if (report_handler && is_observable()) {
-                const float float_value = get_value_float();
-                report_handler->set_value(float_value);
+                if (resource_instance_type() == M2MResourceBase::FLOAT) {
+                    const float float_value = get_value_float();
+                    report_handler->set_value_float(float_value);
+                } else {
+                    const int64_t int_value = get_value_int();
+                    report_handler->set_value_int(int_value);
+                }
             }
         }
         else {
@@ -608,6 +613,7 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                                     tr_info("M2MResourceBase::handle_get_request - put resource under observation");
                                     set_under_observation(true,observation_handler);
                                     send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
+                                    send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_SUBSCRIBED, M2MBase::NOTIFICATION);
                                     M2MBase::add_observation_level(M2MBase::R_Attribute);
                                     if (coap_response->options_list_ptr) {
                                         coap_response->options_list_ptr->observe = observation_number();
@@ -624,6 +630,7 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                                 set_under_observation(false,NULL);
                                 M2MBase::remove_observation_level(M2MBase::R_Attribute);
                                 send_notification_delivery_status(*this, NOTIFICATION_STATUS_UNSUBSCRIBED);
+                                send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
                             }
                         } else {
                             msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;

@@ -35,8 +35,7 @@ typedef void (*ARM_UC_PAAL_UPDATE_SignalEvent_t)(uint32_t event);
 /**
  * @brief Asynchronous events.
  */
-enum
-{
+enum {
     ARM_UC_PAAL_EVENT_INITIALIZE_DONE,
     ARM_UC_PAAL_EVENT_PREPARE_DONE,
     ARM_UC_PAAL_EVENT_WRITE_DONE,
@@ -99,7 +98,7 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      *
      * @return Capability bitmap.
      */
-    ARM_UC_PAAL_UPDATE_CAPABILITIES (*GetCapabilities)(void);
+    ARM_UC_PAAL_UPDATE_CAPABILITIES(*GetCapabilities)(void);
 
     /**
      * @brief Get maximum number of supported storage locations.
@@ -121,8 +120,8 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
      */
     arm_uc_error_t (*Prepare)(uint32_t location,
-                              const arm_uc_firmware_details_t* details,
-                              arm_uc_buffer_t* buffer);
+                              const arm_uc_firmware_details_t *details,
+                              arm_uc_buffer_t *buffer);
 
     /**
      * @brief Write a fragment to the indicated storage location.
@@ -139,7 +138,7 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      */
     arm_uc_error_t (*Write)(uint32_t location,
                             uint32_t offset,
-                            const arm_uc_buffer_t* buffer);
+                            const arm_uc_buffer_t *buffer);
 
     /**
      * @brief Close storage location for writing and flush pending data.
@@ -168,7 +167,7 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      */
     arm_uc_error_t (*Read)(uint32_t location,
                            uint32_t offset,
-                           arm_uc_buffer_t* buffer);
+                           arm_uc_buffer_t *buffer);
 
     /**
      * @brief Set the firmware image in the slot to be the new active image.
@@ -200,7 +199,7 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      *         either DONE or ERROR when complete.
      *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
      */
-    arm_uc_error_t (*GetActiveFirmwareDetails)(arm_uc_firmware_details_t* details);
+    arm_uc_error_t (*GetActiveFirmwareDetails)(arm_uc_firmware_details_t *details);
 
     /**
      * @brief Get firmware details for the firmware image in the slot passed.
@@ -215,7 +214,7 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
      */
     arm_uc_error_t (*GetFirmwareDetails)(uint32_t location,
-                                         arm_uc_firmware_details_t* details);
+                                         arm_uc_firmware_details_t *details);
 
     /**
      * @brief Get details for the component responsible for installation.
@@ -231,7 +230,7 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      *         either DONE or ERROR when complete.
      *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
      */
-    arm_uc_error_t (*GetInstallerDetails)(arm_uc_installer_details_t* details);
+    arm_uc_error_t (*GetInstallerDetails)(arm_uc_installer_details_t *details);
 
 } ARM_UC_PAAL_UPDATE;
 

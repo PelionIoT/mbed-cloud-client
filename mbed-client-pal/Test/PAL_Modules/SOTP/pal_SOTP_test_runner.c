@@ -18,6 +18,8 @@
 #include "unity_fixture.h"
 #include "test_runners.h"
 
+#define TRACE_GROUP "PAL"
+
 extern palTestsStatusData_t palTestStatus;
 
 TEST_GROUP_RUNNER(pal_SOTP)

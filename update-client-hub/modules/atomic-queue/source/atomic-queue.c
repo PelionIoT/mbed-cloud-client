@@ -26,7 +26,7 @@
 #define CORE_UTIL_ASSERT_MSG(test, msg)
 
 
-int aq_element_take(struct atomic_queue_element * e)
+int aq_element_take(struct atomic_queue_element *e)
 {
     if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
     // Duplicate element check using lock
@@ -41,14 +41,14 @@ int aq_element_take(struct atomic_queue_element * e)
     return ATOMIC_QUEUE_SUCCESS;
 }
 
-int aq_element_release(struct atomic_queue_element * e)
+int aq_element_release(struct atomic_queue_element *e)
 {
     if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
     e->lock = 0;
     return ATOMIC_QUEUE_SUCCESS;
 }
 
-int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e)
+int aq_push_tail(struct atomic_queue *q, struct atomic_queue_element *e)
 {
     CORE_UTIL_ASSERT_MSG(q != NULL, "null queue used");
     if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
@@ -63,27 +63,27 @@ int aq_push_tail(struct atomic_queue * q, struct atomic_queue_element * e)
     return ATOMIC_QUEUE_SUCCESS;
 }
 
-struct atomic_queue_element * aq_pop_head(struct atomic_queue * q)
+struct atomic_queue_element *aq_pop_head(struct atomic_queue *q)
 {
     CORE_UTIL_ASSERT_MSG(q != NULL, "null queue used");
     if (q == NULL) {
         return NULL;
     }
-    struct atomic_queue_element * current;
+    struct atomic_queue_element *current;
     int fail = AQ_ATOMIC_CAS_DEREF_VALUE;
     while (fail != AQ_ATOMIC_CAS_DEREF_SUCCESS) {
         // Set the element reference pointer to the tail pointer
-        struct atomic_queue_element * volatile * px = &q->tail;
+        struct atomic_queue_element *volatile *px = &q->tail;
         if (*px == NULL) {
             return NULL;
         }
         fail = AQ_ATOMIC_CAS_DEREF_VALUE;
         while (fail == AQ_ATOMIC_CAS_DEREF_VALUE) {
-            fail = aq_atomic_cas_deref_uintptr((uintptr_t * volatile *)px,
-                            (uintptr_t **)&current,
-                            (uintptr_t) NULL,
-                            NULL,
-                            offsetof(struct atomic_queue_element, next));
+            fail = aq_atomic_cas_deref_uintptr((uintptr_t *volatile *)px,
+                                               (uintptr_t **)&current,
+                                               (uintptr_t) NULL,
+                                               NULL,
+                                               offsetof(struct atomic_queue_element, next));
             if (fail == AQ_ATOMIC_CAS_DEREF_VALUE) {
                 // Detect a loop to the tail of the queue
                 if (current->next == q->tail) {
@@ -98,7 +98,7 @@ struct atomic_queue_element * aq_pop_head(struct atomic_queue * q)
 }
 
 
-int aq_empty(struct atomic_queue * q)
+int aq_empty(struct atomic_queue *q)
 {
     return q->tail == NULL;
 }
@@ -106,20 +106,20 @@ int aq_empty(struct atomic_queue * q)
 unsigned aq_count(struct atomic_queue *q)
 {
     unsigned x;
-    struct atomic_queue_element * volatile e;
+    struct atomic_queue_element *volatile e;
     if (aq_empty(q)) {
         return 0;
     }
     e = q->tail;
     for (x = 1; e->next != NULL; x++, e = e->next) {
-        if (e->next == q->tail){
-            return (unsigned)-1;
+        if (e->next == q->tail) {
+            return (unsigned) - 1;
         }
     }
     return x;
 }
 
-void aq_initialize_element(struct atomic_queue_element* e)
+void aq_initialize_element(struct atomic_queue_element *e)
 {
     if (!e) { return;}
     e->lock = 0;

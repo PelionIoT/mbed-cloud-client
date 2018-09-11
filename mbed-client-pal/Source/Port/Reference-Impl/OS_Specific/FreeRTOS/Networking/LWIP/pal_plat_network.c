@@ -23,6 +23,7 @@
 #include "ip.h"
 #include "tcp.h"
 
+#define TRACE_GROUP "PAL"
 
 /* Static arena of sockets */
 //TODO: do we need to protect this agains multitheaded aceess? 
@@ -202,6 +203,7 @@ PAL_PRIVATE palStatus_t translateErrnoToPALError(int errnoValue)
         break;
 
     default:
+        PAL_LOG_ERR("translateErrorToPALError() cannot translate %d", errnoValue);
         status = PAL_ERR_SOCKET_GENERIC;
         break;
     }
@@ -559,7 +561,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
     
     if (NULL == *socket) // socket already closed - return success.
     {
-        PAL_LOG(DBG, "socket close called on socket which was already closed");
+        PAL_LOG_DBG("socket close called on socket which was already closed");
         return PAL_SUCCESS;
     }
     socketInfo = (palLwipNetConnInfo_t*)*socket;

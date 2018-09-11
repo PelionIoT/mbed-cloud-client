@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2018 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 #include "pal.h"
 #include "pal_plat_rtos.h"
 #include "sotp.h"
+
+#define TRACE_GROUP "PAL"
 
 //! Store the last saved time in SOTP (ram) for quick access
 PAL_PRIVATE uint64_t g_lastSavedTimeInSec = 0;
@@ -119,7 +121,7 @@ palStatus_t pal_RTOSInitialize(void* opaqueContext)
     }
     else
     {
-        PAL_LOG(ERR, "pal_RTOSInitialize: pal_plat_RTOSInitialize failed, status=%" PRIx32 "\n", status);
+        PAL_LOG_ERR("pal_RTOSInitialize: pal_plat_RTOSInitialize failed, status=%" PRIx32 "\n", status);
     }
     return status;
 }
@@ -137,7 +139,7 @@ palStatus_t pal_RTOSDestroy(void)
     {
         if (PAL_SUCCESS != pal_osThreadTerminate(&g_trngThreadID))
         {
-            PAL_LOG(ERR, "pal_RTOSDestroy: failed to terminate trng noise thread\n");
+            PAL_LOG_ERR("pal_RTOSDestroy: failed to terminate trng noise thread\n");
         }
     }
 #endif
@@ -147,14 +149,14 @@ palStatus_t pal_RTOSDestroy(void)
         status = pal_CtrDRBGFree(&s_ctrDRBGCtx);
         if (PAL_SUCCESS != status)
         {
-            PAL_LOG(ERR, "pal_RTOSDestroy: pal_CtrDRBGFree failed, status=%" PRIx32 "\n", status);
+            PAL_LOG_ERR("pal_RTOSDestroy: pal_CtrDRBGFree failed, status=%" PRIx32 "\n", status);
         }
     }
 
     status = pal_plat_RTOSDestroy();
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG(ERR, "pal_RTOSDestroy: pal_plat_RTOSDestroy failed, status=%" PRIx32 "\n", status);
+        PAL_LOG_ERR("pal_RTOSDestroy: pal_plat_RTOSDestroy failed, status=%" PRIx32 "\n", status);
     }
     palRTOSInitialized = false;
     return status;
@@ -162,7 +164,7 @@ palStatus_t pal_RTOSDestroy(void)
 
 void pal_osReboot(void)
 {
-    PAL_LOG(INFO, "pal_osReboot\r\n");
+    PAL_LOG_INFO( "pal_osReboot\r\n");
 #if (PAL_USE_APPLICATION_REBOOT)
     pal_plat_osApplicationReboot();
 #else
@@ -172,14 +174,14 @@ void pal_osReboot(void)
         char *const envp[] = { 0 };
         argv[0] = program_invocation_name;
 
-        PAL_LOG(INFO, "pal_osReboot -> simulated reboot with execve(%s).\r\n", argv[0]);
+        PAL_LOG_INFO( "pal_osReboot -> simulated reboot with execve(%s).\r\n", argv[0]);
   
         if (-1 == execve(argv[0], (char **)argv , envp))
         {
-            PAL_LOG(ERR,"child process execve failed [%s]",argv[0]);
+            PAL_LOG_ERR("child process execve failed [%s]",argv[0]);
         }
     #else
-        PAL_LOG(INFO, "Rebooting the system\r\n");
+        PAL_LOG_INFO( "Rebooting the system\r\n");
         pal_plat_osReboot();
     #endif
 #endif
@@ -233,7 +235,7 @@ palStatus_t pal_osThreadCreateWithAlloc(palThreadFuncPtr function, void* funcArg
     PAL_VALIDATE_ARGUMENTS((NULL == function) || (PAL_osPrioritylast < priority) || (PAL_osPriorityError == priority) || (0 == stackSize) || (NULL == threadID));
     if (store)
     {
-        PAL_LOG(ERR, "thread storage in not supported\n");
+        PAL_LOG_ERR("thread storage in not supported\n");
         return PAL_ERR_NOT_SUPPORTED;
     }
     palStatus_t status = pal_plat_osThreadCreate(function, funcArgument, priority, stackSize, threadID);
@@ -392,7 +394,7 @@ uint64_t pal_osGetTime(void)
             status = sotp_set(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t *)&curSysTimeInSec);
             if (SOTP_SUCCESS != status)
             {
-                PAL_LOG(ERR,"SOTP set time failed \n");  
+                PAL_LOG_ERR("SOTP set time failed \n");
             }
             else
             {
@@ -440,7 +442,10 @@ PAL_PRIVATE void pal_trngNoiseThreadFunc(void const* arg)
         if ((0 < trngBytesRead) && ((PAL_SUCCESS == status) || (PAL_ERR_RTOS_TRNG_PARTIAL_DATA == status)))
         {
             noiseBitsWritten = 0;
-            status = pal_noiseWriteBuffer((int32_t*)buf, (trngBytesRead * CHAR_BIT), &noiseBitsWritten);            
+            status = pal_noiseWriteBuffer((int32_t*)buf, (trngBytesRead * CHAR_BIT), &noiseBitsWritten);
+            if (status != PAL_SUCCESS) {
+                PAL_LOG_ERR("Write TRNG to noise buffer, status=%" PRIx32 ", bits writtern=%" PRIu16 "\n", status, noiseBitsWritten);
+            }
         }
         pal_osDelay(PAL_NOISE_TRNG_THREAD_DELAY_MILLI_SEC);
     }
@@ -491,13 +496,13 @@ palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes)
                 if ((PAL_INITIAL_RANDOM_SIZE != sotpBytesRead) && (sotpLenBytes != sotpBytesRead))
                 {
                     status = PAL_ERR_RTOS_RECEIVED_LENGTH_IS_TOO_SHORT;
-                    PAL_LOG(ERR, "Invalid number of bytes read from sotp, bytes read=%" PRIu16, sotpBytesRead);
+                    PAL_LOG_ERR("Invalid number of bytes read from SOTP, bytes read=%" PRIu16, sotpBytesRead);
                     goto finish;
                 }
                 status = pal_CtrDRBGInit(&longCtrDRBGCtx, ptrSotpRead, PAL_INITIAL_RANDOM_SIZE); // initialize long term drbg with the seed that was read from sotp
                 if (PAL_SUCCESS != status)
                 {
-                    PAL_LOG(ERR, "Failed to initialize long term drbg context, status=%" PRIx32 "\n", status);
+                    PAL_LOG_ERR("Failed to initialize long term DRBG context, status=%" PRIx32 "\n", status);
                     goto finish;
                 }
                 memcpy((void*)&sotpCounter, (void*)ptrSotpCounterRead, sizeof(sotpCounter)); // read the counter from the buffer (sotp data) to local var
@@ -509,19 +514,19 @@ palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes)
                     if (0 < trngBytesRead)
                     {
                         tmpStatus = pal_noiseWriteBuffer((int32_t*)buf, (trngBytesRead * CHAR_BIT), &noiseBitsWrittern); // write whatever was collected from trng to the noise buffer
-                        PAL_LOG(DBG, "Write trng to noise buffer, status=%" PRIx32 ", bits writtern=%" PRIu16 "\n", tmpStatus, noiseBitsWrittern);
+                        PAL_LOG_DBG( "Write TRNG to noise buffer, status=%" PRIx32 ", bits writtern=%" PRIu16 "\n", tmpStatus, noiseBitsWrittern);
                     }
                 }
                 else
                 {
-                    PAL_LOG(ERR, "Read from TRNG failed, status=%" PRIx32 "\n", status);
+                    PAL_LOG_ERR("Read from TRNG failed, status=%" PRIx32 "\n", status);
                 }                
 #endif // PAL_USE_HW_TRNG
                 memset((void*)buf, 0, sizeof(buf));
                 status = pal_generateDrbgWithNoiseAttempt(longCtrDRBGCtx, buf, true, (PAL_INITIAL_RANDOM_SIZE * 2)); // generate 96 bytes, the 1st 48 bytes will be used for short term drbg and the other 48 bytes will be used for long term drbg
                 if (PAL_SUCCESS != status)
                 {
-                    PAL_LOG(ERR, "Failed to gererate drbg long term and short term seeds, status=%" PRIx32 "\n", status);
+                    PAL_LOG_ERR("Failed to gererate DRBG long term and short term seeds, status=%" PRIx32 "\n", status);
                     goto drbg_cleanup;
                 }
                 sotpCounter++; // increment counter before writting it back to sotp
@@ -529,7 +534,7 @@ palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes)
                 sotpResult = sotp_set(SOTP_TYPE_RANDOM_SEED, sotpLenBytes, ptrSotpWrite); // write 48 long term drbg bytes + 4 counter bytes
                 if (SOTP_SUCCESS != sotpResult)
                 {
-                    PAL_LOG(ERR, "Failed to write to sotp, sotp result=%d", sotpResult);
+                    PAL_LOG_ERR("Failed to write to SOTP, sotp result=%d", sotpResult);
                     status = PAL_ERR_GENERIC_FAILURE;
                 }                
 drbg_cleanup:
@@ -537,7 +542,7 @@ drbg_cleanup:
                     tmpStatus = pal_CtrDRBGFree(&longCtrDRBGCtx);
                     if (PAL_SUCCESS != tmpStatus)
                     {
-                        PAL_LOG(ERR, "Failed to free long term drbg context, status=%" PRIx32 "\n", tmpStatus);
+                        PAL_LOG_ERR("Failed to free long term DRBG context, status=%" PRIx32 "\n", tmpStatus);
                     }
                     longCtrDRBGCtx = NULLPTR;                    
                     if (PAL_SUCCESS != status)
@@ -548,7 +553,7 @@ drbg_cleanup:
                     status = pal_osThreadCreateWithAlloc(pal_trngNoiseThreadFunc, NULL, PAL_osPriorityReservedTRNG, PAL_NOISE_TRNG_THREAD_STACK_SIZE, NULL, &g_trngThreadID);
                     if (PAL_SUCCESS != status)
                     {
-                        PAL_LOG(ERR, "Failed to create noise trng thread, status=%" PRIx32 "\n", tmpStatus);
+                        PAL_LOG_ERR("Failed to create noise TRNG thread, status=%" PRIx32 "\n", tmpStatus);
                     }
 #endif // PAL_USE_HW_TRNG
                 }
@@ -578,14 +583,14 @@ drbg_cleanup:
             status = pal_CtrDRBGInit(&s_ctrDRBGCtx, (void*)buf, PAL_INITIAL_RANDOM_SIZE);
             if (PAL_SUCCESS != status)
             {
-                PAL_LOG(ERR, "Failed to initialize short term drbg context, status=%" PRIx32 "\n", status);
+                PAL_LOG_ERR("Failed to initialize short term DRBG context, status=%" PRIx32 "\n", status);
                 goto finish;
             }
         }
         status = pal_generateDrbgWithNoiseAttempt(s_ctrDRBGCtx, randomBuf, false, bufSizeBytes);
         if (PAL_SUCCESS != status)
         {
-            PAL_LOG(ERR, "Failed to gererate random, status=%" PRIx32 "\n", status);
+            PAL_LOG_ERR("Failed to generate random, status=%" PRIx32 "\n", status);
         }
     }
     else
@@ -1093,7 +1098,7 @@ palStatus_t pal_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partial, ui
     *bitsRead = 0;
     if (1 != numReadersLocal) // single reader
     {
-        PAL_LOG(DBG, "noise cannot read by multiple readers\n");
+        PAL_LOG_DBG("noise cannot read by multiple readers\n");
         status = PAL_ERR_RTOS_NOISE_BUFFER_EMPTY;
         goto finish;
     }
@@ -1116,7 +1121,7 @@ palStatus_t pal_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partial, ui
     memset((void*)g_noise.buffer, 0, PAL_NOISE_SIZE_BYTES); // reset the noise buffer
     g_noise.bitCountActual = g_noise.bitCountAllocated = 0; // reset counters
     g_noise.isReading = false; // exit read mode so that writters will be able to continue writting
-    PAL_LOG(DBG, "noise read %" PRIu8 " bits\n", *bitsRead);
+    PAL_LOG_DBG("noise read %" PRIu8 " bits\n", *bitsRead);
 finish:
     pal_osAtomicIncrement((int32_t*)(&numOfNoiseReaders), -1); // decrement number of readers
     return status;

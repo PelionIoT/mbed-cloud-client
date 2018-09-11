@@ -23,6 +23,7 @@
 
 #include "pal.h"
 
+#define TRACE_GROUP "PAL"
 
 extern threadsArgument_t g_threadsArg;
 timerArgument_t timerArgs;

@@ -20,7 +20,7 @@
 #define ARM_UC_HUB_CERTIFICATE_H
 
 #warning This file is deprecated. \
-         Use update-client-control-center/arm_uc_certificate.h instead
+Use update - client - control - center / arm_uc_certificate.h instead
 
 #include "update-client-control-center/arm_uc_certificate.h"
 

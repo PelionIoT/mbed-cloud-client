@@ -141,7 +141,7 @@
     ENUM_AUTO(HUB_ERR_CONNECTION)\
 
 #define ARM_UC_EQ_ERR_LIST\
-    ENUM_FIXED(ARM_UC_EQ_ERR_NONE, EVENT_QUEUE_PREFIX)\
+    ENUM_FIXED(ARM_UC_EQ_ERR_NONE, EVENT_QUEUE_PREFIX << 16)\
     ENUM_AUTO(ARM_UC_EQ_ERR_POOL_EXHAUSTED)\
     ENUM_AUTO(ARM_UC_EQ_ERR_FAILED_TAKE)\
 
@@ -159,11 +159,11 @@
     ARM_UC_EQ_ERR_LIST\
 
 enum arm_uc_error {
-    #define ENUM_AUTO(name) name,
-    #define ENUM_FIXED(name, val) name = val,
+#define ENUM_AUTO(name) name,
+#define ENUM_FIXED(name, val) name = val,
     ARM_UC_ERR_LIST
-    #undef ENUM_AUTO
-    #undef ENUM_FIXED
+#undef ENUM_AUTO
+#undef ENUM_FIXED
 };
 union arm_uc_error_code {
     int32_t code;
@@ -177,7 +177,6 @@ union arm_uc_error_code {
 };
 
 typedef union arm_uc_error_code arm_uc_error_t;
-
 
 #define ARM_UC_ERROR(CODE)              ((arm_uc_error_t){ CODE })
 #define ARM_UC_IS_ERROR(VAR)            ((VAR).error != ERR_NONE)
@@ -200,13 +199,13 @@ typedef union arm_uc_error_code arm_uc_error_t;
 // have a way to set errors without trace for values that are not strictly errors.
 #define ARM_UC_SET_ERROR_NEVER_TRACE(VAR, CODE)     (VAR).code = (CODE)
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-const char* ARM_UC_err2Str(arm_uc_error_t err);
-static inline arm_uc_error_t arm_uc_code_to_error(uint32_t code) {
+const char *ARM_UC_err2Str(arm_uc_error_t err);
+static inline arm_uc_error_t arm_uc_code_to_error(uint32_t code)
+{
     arm_uc_error_t err;
     err.code = code;
     return err;

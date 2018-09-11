@@ -19,12 +19,20 @@
 #include "update-client-source-manager/arm_uc_source_manager.h"
 
 #include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_config.h"
 #include "update-client-source/arm_uc_source.h"
+
+#if defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
+#include "pal.h"
+#endif
 
 #include <stdint.h>
 #include <stdlib.h>
 
-static const ARM_UPDATE_SOURCE* source_registry[MAX_SOURCES];
+// DATA & CONFIG.
+// --------------
+
+static const ARM_UPDATE_SOURCE *source_registry[MAX_SOURCES];
 static ARM_SOURCE_SignalEvent_t event_cb;
 
 // storage set aside for adding event_cb to the event queue
@@ -50,22 +58,21 @@ typedef struct {
 // Hold information about the request in flight, there will always only be one request in flight
 static request_t request_in_flight;
 
-/* ==================================================================== *
- * Private Functions                                                    *
- * ==================================================================== */
+// FORWARD DECLARATIONS.
+// ---------------------
 
 /**
  * @brief Initialise a request_t struct, called when a new request
  *        have been initiated from the hub
  */
-static arm_uc_error_t ARM_UCSM_RequestStructInit(request_t* request);
+static arm_uc_error_t ARM_UCSM_RequestStructInit(request_t *request);
 
 /**
  * @brief The SourceRegistry is an array of ARM_UPDATE_SOURCE
  */
 static arm_uc_error_t ARM_UCSM_SourceRegistryInit(void);
-static arm_uc_error_t ARM_UCSM_SourceRegistryAdd(const ARM_UPDATE_SOURCE* source);
-static arm_uc_error_t ARM_UCSM_SourceRegistryRemove(const ARM_UPDATE_SOURCE* source);
+static arm_uc_error_t ARM_UCSM_SourceRegistryAdd(const ARM_UPDATE_SOURCE *source);
+static arm_uc_error_t ARM_UCSM_SourceRegistryRemove(const ARM_UPDATE_SOURCE *source);
 
 /**
  * @brief return the index of the source with the smallest cost
@@ -76,10 +83,10 @@ static arm_uc_error_t ARM_UCSM_SourceRegistryRemove(const ARM_UPDATE_SOURCE* sou
  *                 exclude source_registry[i]
  * @param index Used to return the index of the source with the smallest cost
  */
-static arm_uc_error_t ARM_UCSM_SourceRegistryGetLowestCost(arm_uc_uri_t* uri,
+static arm_uc_error_t ARM_UCSM_SourceRegistryGetLowestCost(arm_uc_uri_t *uri,
                                                            query_type_t type,
-                                                           uint8_t* excludes,
-                                                           uint32_t* index);
+                                                           uint8_t *excludes,
+                                                           uint32_t *index);
 
 /**
  * @brief Find the source of lowest cost and call the corresponding method
@@ -87,183 +94,371 @@ static arm_uc_error_t ARM_UCSM_SourceRegistryGetLowestCost(arm_uc_uri_t* uri,
  *        smallest cost if previous sources failed until the source registry
  *        is exhausted.
  */
-static arm_uc_error_t ARM_UCSM_Get(request_t* req);
+static arm_uc_error_t ARM_UCSM_Get(request_t *req);
 
 /**
  * @brief Catch callbacks from sources to enable error handling
  */
 static void ARM_UCSM_CallbackWrapper(uint32_t event);
 
+#if defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
+
+static void ARM_UCSM_ScheduleAsyncBusyRetryGet(void);
+
+// BUSY RETRY.
+// -----------
+
+// structs to enable timer callback.
+static palTimerID_t async_retry_timer_id;
+static arm_uc_callback_t async_retry_timer_callback_struct;
+
+// default settings for retries.
+#define BUSY_RETRY_DELAY_MS         500
+#define MAX_BUSY_RETRIES            2
+
+// number of retries that have taken place.
+static uint32_t num_busy_retries = 0;
+
+/**
+ * @brief Retry Get if source was busy at previous attempt.
+ * @details If source is busy ARM_UCSM_AsyncRetryGet is registered with event queue,
+ *        so it is called again to retry same source. RetryGet is delayed a bit
+ *        to allow the link to clear (if possible), and is retried multiple times,
+ *        with a gap between tries.
+ */
+static void ARM_UCSM_DoAsyncBusyRetryGet(uint32_t unused)
+{
+    UC_SRCE_TRACE("+ARM_UCSM_AsyncRetryGet");
+    (void) unused;
+
+    // if already retried as many times as allowed, bail out with error,
+    //  otherwise try the Get, and schedule follow-up if fails.
+    if (++num_busy_retries > MAX_BUSY_RETRIES) {
+        num_busy_retries = 0;
+        ARM_UCSM_RequestStructInit(&request_in_flight);
+        // TODO this potentially aborts the whole download if on an intermediate fragment,
+        //        so figure out if that is the desired behaviour or not.
+        //      the resume engine is *really* only designed to protect a single fragment,
+        //        but this seems way too fragile to have around.
+        ARM_UC_PostCallback(&event_cb_storage, event_cb, ARM_UC_SM_EVENT_ERROR);
+    } else if (ARM_UCSM_Get(&request_in_flight).error != ERR_NONE) {
+        ARM_UCSM_ScheduleAsyncBusyRetryGet();
+    }
+    UC_SRCE_TRACE("-ARM_UCSM_AsyncRetryGet");
+}
+
+/**
+ * @brief post scheduled action to event queue to avoid running in timer context.
+ */
+static void ARM_UCSM_PostAsyncBusyRetryGet(
+    void const *unused)
+{
+    UC_SRCE_TRACE(">> PostCallback AsyncBusyRetryGet");
+    (void)unused;
+
+    pal_osTimerStop(async_retry_timer_id);
+    ARM_UC_PostCallback(&async_retry_timer_callback_struct, ARM_UCSM_DoAsyncBusyRetryGet, 0);
+}
+
+/**
+ * @brief request timer-scheduled invocation, invokes post directly if timer fails.
+ */
+static void ARM_UCSM_ScheduleAsyncBusyRetryGet(void)
+{
+    UC_SRCE_TRACE(">> Schedule PostCallback AsyncBusyRetryGet");
+    palStatus_t pal_status = PAL_SUCCESS;
+    // if delay timer has not already been initialized then do so.
+    if (async_retry_timer_id == 0) {
+        pal_status = pal_osTimerCreate(
+                         ARM_UCSM_PostAsyncBusyRetryGet, NULL, palOsTimerOnce, &async_retry_timer_id);
+    }
+    // if timer has been successfully initialized then install delayed action.
+    if (pal_status == PAL_SUCCESS) {
+        pal_status = pal_osTimerStart(async_retry_timer_id, BUSY_RETRY_DELAY_MS);
+    }
+    // if not successfully installed delayed action then post action directly.
+    if (pal_status != PAL_SUCCESS) {
+        async_retry_timer_id = 0;
+        ARM_UC_PostCallback(&async_retry_timer_callback_struct, ARM_UCSM_DoAsyncBusyRetryGet, 0);
+    }
+}
+
+#else // ARM_UC_PROFILE_MBED_CLOUD_CLIENT
+
 /**
  * @brief Retry get due to source being busy
  */
 static void ARM_UCSM_AsyncRetryGet(uint32_t);
 
+#endif // ARM_UC_PROFILE_MBED_CLOUD_CLIENT
+
+// UTILITY.
+// --------
+
 /**
  * @brief Initialise the `Request` struct
  */
-static arm_uc_error_t ARM_UCSM_RequestStructInit(request_t* request)
+static arm_uc_error_t ARM_UCSM_RequestStructInit(request_t *request)
 {
-    for (uint32_t i=0; i<MAX_SOURCES; i++)
-    {
-        request->excludes[i] = 0;
-    }
-
+    memset(request, 0, sizeof(request_t));
     request->current_source = MAX_SOURCES;
-    request->uri            = NULL;
-    request->offset         = 0;
     request->type           = QUERY_TYPE_UNKNOWN;
-    request->buffer         = NULL;
 
-    return (arm_uc_error_t){ SOMA_ERR_NONE };
+    return (arm_uc_error_t) { SOMA_ERR_NONE };
 }
+
+
+// REGISTRY.
+// ---------
 
 /**
  * @brief Initialise the source_registry array to NULL
  */
 static arm_uc_error_t ARM_UCSM_SourceRegistryInit(void)
 {
-    for(uint32_t i=0; i<MAX_SOURCES; i++)
-    {
-        source_registry[i] = NULL;
-    }
-
-    return (arm_uc_error_t){ SOMA_ERR_NONE };
+    memset(source_registry, 0, sizeof(source_registry));
+    return (arm_uc_error_t) { SOMA_ERR_NONE };
 }
 /**
- * @brief Returns the index of the given source in the source array,
- *        or MAX_SOURCES if the source is not found
+ * @brief Returns the index of the given address (possibly NULL) in the source array,
+ *        or MAX_SOURCES if the address is not found.
  */
-static uint32_t ARM_UCSM_GetIndexOfSource(const ARM_UPDATE_SOURCE* source)
+static uint32_t ARM_UCSM_GetIndexOf(const ARM_UPDATE_SOURCE *source)
 {
     uint32_t index = MAX_SOURCES;
-
-    for(uint32_t i=0; i<MAX_SOURCES; i++)
-    {
-        if(source_registry[i] == source)
-        {
+    for (uint32_t i = 0; i < MAX_SOURCES; i++) {
+        if (source_registry[i] == source) {
             index = i;
             break;
         }
     }
     return index;
 }
+/**
+ * @brief Returns the index of the given source address in the source array,
+ *        or MAX_SOURCES if the source is not found.
+ */
+static uint32_t ARM_UCSM_GetIndexOfSource(const ARM_UPDATE_SOURCE *source)
+{
+    return ARM_UCSM_GetIndexOf(source);
+}
 
 /**
  * @brief Add pointer to source to the source_registry array
  */
-static arm_uc_error_t ARM_UCSM_SourceRegistryAdd(const ARM_UPDATE_SOURCE* source)
+static arm_uc_error_t ARM_UCSM_SourceRegistryAdd(const ARM_UPDATE_SOURCE *source)
 {
-    uint8_t added = 0;
-
-    for(uint32_t i=0; i<MAX_SOURCES; i++)
-    {
-        if(source_registry[i] == NULL)
-        {
-            source_registry[i] = source;
-            added = 1;
-            break;
-        }
+    uint32_t index = ARM_UCSM_GetIndexOf(NULL);
+    if (index == MAX_SOURCES) {
+        return (arm_uc_error_t) { SOMA_ERR_SOURCE_REGISTRY_FULL };
+    } else {
+        source_registry[index] = source;
+        return (arm_uc_error_t) { SOMA_ERR_NONE };
     }
 
-    if (added == 0) // registry full
-    {
-        return (arm_uc_error_t){ SOMA_ERR_SOURCE_REGISTRY_FULL };
-    }
-
-    return (arm_uc_error_t){ SOMA_ERR_NONE };
 }
 
 /**
  * @brief Remove pointer to source from the source_registry array
  */
-static arm_uc_error_t ARM_UCSM_SourceRegistryRemove(const ARM_UPDATE_SOURCE* source)
+static arm_uc_error_t ARM_UCSM_SourceRegistryRemove(const ARM_UPDATE_SOURCE *source)
 {
     uint32_t index = ARM_UCSM_GetIndexOfSource(source);
 
-    if (index == MAX_SOURCES) // source not found
-    {
-        return (arm_uc_error_t){ SOMA_ERR_SOURCE_NOT_FOUND };
+    if (index == MAX_SOURCES) { // source not found
+        return (arm_uc_error_t) { SOMA_ERR_SOURCE_NOT_FOUND };
     }
 
     source_registry[index] = NULL;
-    return (arm_uc_error_t){ SOMA_ERR_NONE };
+    return (arm_uc_error_t) { SOMA_ERR_NONE };
 }
 
+// SOURCE MANAGEMENT.
+// ------------------
+
 /**
- * @brief return the index of the source with the smallest cost
+ * @brief find the index of the source with the smallest cost
  * @param url Struct containing URL. NULL for default Manifest.
  * @param type The type of current request.
  * @param excludes Pointer to an array of size MAX_SOURCES to indicate
  *                 sources we want to exclude in the search. Set excludes[i]=1 to
  *                 exclude source_registry[i]
  * @param index Used to return the index of the source with the smalllest cost
+ * @return error status.
  */
-static arm_uc_error_t ARM_UCSM_SourceRegistryGetLowestCost(arm_uc_uri_t* uri,
+static arm_uc_error_t ARM_UCSM_SourceRegistryGetLowestCost(arm_uc_uri_t *uri,
                                                            query_type_t type,
-                                                           uint8_t* excludes,
-                                                           uint32_t* index)
+                                                           uint8_t *excludes,
+                                                           uint32_t *index)
 {
     uint32_t min_cost = UINT32_MAX;
     uint32_t min_cost_index = 0;
-    arm_uc_error_t retval = (arm_uc_error_t){ SOMA_ERR_NONE };
 
-    UC_SRCE_TRACE("+ARM_UCSM_SourceRegistryGetLowestCost");
+    // start with no route found, could be no sources are registered, skips loop.
+    arm_uc_error_t retval = (arm_uc_error_t) { SOMA_ERR_NO_ROUTE_TO_SOURCE };
+
+    UC_SRCE_TRACE("+ARM_UCSM_SourceRegistryGetLowestCost, type %" PRIu32, (uint32_t)type);
 
     // loop through all sources
-    for (uint32_t i=0; i<MAX_SOURCES; i++)
-    {
+    for (uint32_t i = 0; i < MAX_SOURCES; i++) {
+        // assume no route to begin each loop, need to actually find one to change this.
+        retval = (arm_uc_error_t) { SOMA_ERR_NO_ROUTE_TO_SOURCE };
+
         // if source is NULL or it has been explicitly excluded because of failure before
-        if (source_registry[i] == NULL || (excludes != NULL && excludes[i] == 1))
-        {
+        if (source_registry[i] == NULL) {
             continue;
+        } else if ((excludes != NULL) && (excludes[i] == 1)) {
+            UC_SRCE_TRACE("skipping excluded index %" PRIu32, i);
+            continue;
+        } else {
+            UC_SRCE_TRACE("testing index %" PRIu32, i);
         }
 
         ARM_SOURCE_CAPABILITIES cap  = source_registry[i]->GetCapabilities();
-
         uint32_t cost = UINT32_MAX;
-        if (uri == NULL && type == QUERY_TYPE_MANIFEST_DEFAULT && cap.manifest_default == 1)
-        {
-            retval = source_registry[i]->GetManifestDefaultCost(&cost);
-        }
-        else if (uri != NULL && type == QUERY_TYPE_MANIFEST_URL && cap.manifest_url == 1)
-        {
-            retval = source_registry[i]->GetManifestURLCost(uri, &cost);
-        }
-        else if (uri != NULL && type == QUERY_TYPE_FIRMWARE && cap.firmware == 1)
-        {
-            retval = source_registry[i]->GetFirmwareURLCost(uri, &cost);
-        }
-        else if (uri != NULL && type == QUERY_TYPE_KEYTABLE && cap.keytable == 1)
-        {
-            retval = source_registry[i]->GetKeytableURLCost(uri, &cost);
-        }
 
-        if (retval.code != SRCE_ERR_NONE) // get cost from source i failed
-        {
-            // cost is invalid at this point, hence skip to next iteration
-            UC_SRCE_TRACE("-ARM_UCSM_SourceRegistryGetLowestCost: invalid cost for %" PRIu32, i);
+        switch (type) {
+            case QUERY_TYPE_UNKNOWN:
+                break;
+            case QUERY_TYPE_MANIFEST_DEFAULT:
+                if ((uri == NULL) && (cap.manifest_default == 1)) {
+                    UC_SRCE_TRACE("getting manifest default cost, index %" PRIu32, i);
+                    retval = source_registry[i]->GetManifestDefaultCost(&cost);
+                }
+                break;
+            case QUERY_TYPE_MANIFEST_URL:
+                if ((uri != NULL) && (cap.manifest_url == 1)) {
+                    UC_SRCE_TRACE("getting manifest url cost, index %" PRIu32, i);
+                    retval = source_registry[i]->GetManifestURLCost(uri, &cost);
+                }
+                break;
+            case QUERY_TYPE_FIRMWARE:
+                if ((uri != NULL) && (cap.firmware == 1)) {
+                    UC_SRCE_TRACE("getting firmware url cost, index %" PRIu32, i);
+                    retval = source_registry[i]->GetFirmwareURLCost(uri, &cost);
+                }
+                break;
+            case QUERY_TYPE_KEYTABLE:
+                if ((uri != NULL) && (cap.keytable == 1)) {
+                    UC_SRCE_TRACE("getting keytable url cost, index %" PRIu32, i);
+                    retval = source_registry[i]->GetKeytableURLCost(uri, &cost);
+                }
+                break;
+            default:
+                break;
+        }
+        if (retval.error != ERR_NONE) {
+            // get cost from source i failed, either no match or during assessment.
+            // cost is invalid at this point, so skip to next iteration
+            UC_SRCE_TRACE("invalid cost for index %" PRIu32 " type %" PRIu32, i, (uint32_t)type);
             continue;
         }
-
-        // record the cost and i if cost is lower
-        if (min_cost > cost)
-        {
+        // record the cost and i if cost is lower than stored minimum cost.
+        if (cost < min_cost) {
             min_cost = cost;
             min_cost_index = i;
         }
     }
-
-    if (min_cost == UINT32_MAX)
-    {
+    // if no minimum cost was found, then no route was found.
+    // otherwise return the best route available.
+    if (min_cost == UINT32_MAX) {
         UC_SRCE_TRACE("-ARM_UCSM_SourceRegistryGetLowestCost: Error - No route");
-        return (arm_uc_error_t){ SOMA_ERR_NO_ROUTE_TO_SOURCE };
+        return (arm_uc_error_t) { SOMA_ERR_NO_ROUTE_TO_SOURCE };
+    } else {
+        *index = min_cost_index;
+        UC_SRCE_TRACE("-ARM_UCSM_SourceRegistryGetLowestCost: index = %" PRIu32, min_cost_index);
+        return (arm_uc_error_t) { SOMA_ERR_NONE };
+    }
+}
+
+#if defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
+
+/**
+ * @brief find source of lowest cost and call consecutive sources until retrieved.
+ * @details Find the source of lowest cost and call the corresponding method
+ *        depending on the type of the request. Retry with source of the next
+ *        smallest cost if previous sources failed until the source registry
+ *        is exhausted.
+ * @param pointer to struct containing details of requested info.
+ * @return error status
+ */
+static arm_uc_error_t ARM_UCSM_Get(request_t *req)
+{
+    UC_SRCE_TRACE("+ARM_UCSM_Get");
+    arm_uc_error_t retval = (arm_uc_error_t) { SOMA_ERR_NONE };
+
+    if (req->uri != NULL) {
+        UC_SRCE_TRACE("with %" PRIx32 ", host [%s], path [%s], type %" PRIu32,
+                      (uint32_t)req->uri, req->uri->host, req->uri->path, (uint32_t)req->type);
+    } else {
+        UC_SRCE_TRACE("with NULL, type %" PRIu32, (uint32_t)req->type);
     }
 
-    *index = min_cost_index;
-    UC_SRCE_TRACE("-ARM_UCSM_SourceRegistryGetLowestCost: index = %" PRIu32, min_cost_index);
-    return (arm_uc_error_t){ SOMA_ERR_NONE };
+    uint32_t index = 0;
+    if (retval.error == ERR_NONE) {
+        // get the source of lowest cost, checking that call is valid.
+        retval = ARM_UCSM_SourceRegistryGetLowestCost(
+                     req->uri,
+                     req->type,
+                     req->excludes,
+                     &index);
+    }
+    if (retval.error == ERR_NONE) {
+        // call is known to be valid, no need to check URI again.
+        switch (req->type) {
+            case QUERY_TYPE_MANIFEST_DEFAULT:
+                UC_SRCE_TRACE("calling source %" PRIu32 " GetManifestDefault", index);
+                retval = source_registry[index]->GetManifestDefault(req->buffer, req->offset);
+                break;
+            case QUERY_TYPE_MANIFEST_URL:
+                UC_SRCE_TRACE("calling source %" PRIu32 " GetManifestURL with %" PRIx32, index, (uint32_t)req->uri);
+                retval = source_registry[index]->GetManifestURL(req->uri, req->buffer, req->offset);
+                break;
+            case QUERY_TYPE_FIRMWARE:
+                UC_SRCE_TRACE("calling source %" PRIu32 " GetFirmwareFragment with %" PRIx32, index, (uint32_t)req->uri);
+                retval = source_registry[index]->GetFirmwareFragment(req->uri, req->buffer, req->offset);
+                break;
+            case QUERY_TYPE_KEYTABLE:
+                UC_SRCE_TRACE("calling source %" PRIu32 " GetKeytableURL with %" PRIx32, index, (uint32_t)req->uri);
+                retval = source_registry[index]->GetKeytableURL(req->uri, req->buffer);
+                break;
+            default:
+                if (req->uri == NULL) {
+                    UC_SRCE_TRACE("-ARM_UCSM_Get: Error - Invalid parameter (URI == NULL)");
+                    retval = (arm_uc_error_t) { SOMA_ERR_INVALID_URI };
+                } else {
+                    UC_SRCE_TRACE("-ARM_UCSM_Get: Error - Invalid parameter (unknown request type)");
+                    retval = (arm_uc_error_t) { SOMA_ERR_INVALID_REQUEST };
+                }
+                break;
+        }
+    } else {
+        UC_SRCE_TRACE("-ARM_UCSM_Get: error retval.code %" PRIu32, retval.code);
+    }
+
+    // decide what to do based on the results of preceding efforts.
+    if (retval.code == SRCE_ERR_BUSY) {
+        UC_SRCE_TRACE("-ARM_UCSM_Get: Busy -> ScheduleAsyncBusyRetryGet");
+        ARM_UCSM_ScheduleAsyncBusyRetryGet();
+        return (arm_uc_error_t) { SOMA_ERR_NONE };
+    } else if (retval.code == SOMA_ERR_NO_ROUTE_TO_SOURCE) {
+        UC_SRCE_TRACE("-ARM_UCSM_Get: Error - no route available");
+        return retval;
+    } else if (retval.error != ERR_NONE) {
+        // failure, try source with the next smallest cost.
+        req->excludes[index] = 1;
+        UC_SRCE_TRACE("-ARM_UCSM_Get: Error - failure (try source with the next smallest cost)");
+        return ARM_UCSM_Get(req);
+    } else {
+        // record the index of source handling the get request currently.
+        req->current_source = index;
+        UC_SRCE_TRACE("-ARM_UCSM_Get: Using source %" PRIu32, index);
+
+        return (arm_uc_error_t) { SOMA_ERR_NONE };
+    }
 }
+
+#else // ARM_UC_PROFILE_MBED_CLOUD_CLIENT
 
 /**
  * @brief Find the source of lowest cost and call the corresponding method
@@ -271,18 +466,15 @@ static arm_uc_error_t ARM_UCSM_SourceRegistryGetLowestCost(arm_uc_uri_t* uri,
  *        smallest cost if previous sources failed until the source registry
  *        is exhausted.
  */
-static arm_uc_error_t ARM_UCSM_Get(request_t* req)
+static arm_uc_error_t ARM_UCSM_Get(request_t *req)
 {
     UC_SRCE_TRACE("+ARM_UCSM_Get");
-    if (req->uri != NULL)
-    {
-        UC_SRCE_TRACE("with %" PRIx32 ", host [%s], path [%s], type %" PRIu32,
-                req->uri, req->uri->host,req->uri->path, req->type);
-    }
-    else
-    {
-        UC_SRCE_TRACE("with NULL, type %" PRIu32,
-                req->type);
+    if (req->uri != NULL) {
+        UC_SRCE_TRACE("with %s" PRIx32 ", host [%s], path [%s], type %" PRId16,
+                      req->uri->ptr, req->uri->host, req->uri->path, req->type);
+    } else {
+        UC_SRCE_TRACE("with NULL, type %" PRId16,
+                      req->type);
     }
 
     uint32_t index = 0;
@@ -292,50 +484,37 @@ static arm_uc_error_t ARM_UCSM_Get(request_t* req)
                                                                  req->type,
                                                                  req->excludes,
                                                                  &index);
-    if (retval.code != SOMA_ERR_NONE)
-    {
+    if (retval.code != SOMA_ERR_NONE) {
         UC_SRCE_TRACE("-ARM_UCSM_Get: error retval.code %" PRIu32, retval.code);
         return retval;
     }
 
-    if ((req->uri == NULL) && (req->type == QUERY_TYPE_MANIFEST_DEFAULT))
-    {
+    if ((req->uri == NULL) && (req->type == QUERY_TYPE_MANIFEST_DEFAULT)) {
         UC_SRCE_TRACE("calling source %" PRIu32 " GetManifestDefault", index);
         retval = source_registry[index]->GetManifestDefault(req->buffer, req->offset);
-    }
-    else if ((req->uri != NULL) && (req->type == QUERY_TYPE_MANIFEST_URL))
-    {
-        UC_SRCE_TRACE("calling source %" PRIu32 " GetManifestURL with %" PRIx32, index, req->uri);
+    } else if ((req->uri != NULL) && (req->type == QUERY_TYPE_MANIFEST_URL)) {
+        UC_SRCE_TRACE("calling source %" PRIu32 " GetManifestURL with %s", index, req->uri->ptr);
         retval = source_registry[index]->GetManifestURL(req->uri, req->buffer, req->offset);
-    }
-    else if ((req->uri != NULL) && (req->type == QUERY_TYPE_FIRMWARE))
-    {
-        UC_SRCE_TRACE("calling source %" PRIu32 " GetFirmwareFragment with %" PRIx32, index, req->uri);
+    } else if ((req->uri != NULL) && (req->type == QUERY_TYPE_FIRMWARE)) {
+        UC_SRCE_TRACE("calling source %" PRIu32 " GetFirmwareFragment with %s", index, req->uri->ptr);
         retval = source_registry[index]->GetFirmwareFragment(req->uri, req->buffer, req->offset);
-    }
-    else if ((req->uri != NULL) && (req->type == QUERY_TYPE_KEYTABLE))
-    {
-        UC_SRCE_TRACE("calling source %" PRIu32 " GetKeytableURL with %" PRIx32, index, req->uri);
+    } else if ((req->uri != NULL) && (req->type == QUERY_TYPE_KEYTABLE)) {
+        UC_SRCE_TRACE("calling source %" PRIu32 " GetKeytableURL with %s", index, req->uri->ptr);
         retval = source_registry[index]->GetKeytableURL(req->uri, req->buffer);
-    }
-    else
-    {
-        if (req->uri == NULL ) {
+    } else {
+        if (req->uri == NULL) {
             UC_SRCE_TRACE("-ARM_UCSM_Get: Error - Invalid parameter (URI == NULL)");
         } else {
-        	UC_SRCE_TRACE("-ARM_UCSM_Get: Error - Invalid parameter (unknown request type)");
+            UC_SRCE_TRACE("-ARM_UCSM_Get: Error - Invalid parameter (unknown request type)");
         }
-        return (arm_uc_error_t){ SOMA_ERR_INVALID_PARAMETER };
+        return (arm_uc_error_t) { SOMA_ERR_INVALID_PARAMETER };
     }
 
-    if (retval.code == SRCE_ERR_BUSY)
-    {
+    if (retval.code == SRCE_ERR_BUSY) {
         UC_SRCE_TRACE("-ARM_UCSM_Get: Error - Busy -> PostCallback AsyncRetryGet");
         ARM_UC_PostCallback(&event_cb_storage, ARM_UCSM_AsyncRetryGet, 0);
-        return (arm_uc_error_t){ SOMA_ERR_NONE };
-    }
-    else if (retval.error != ERR_NONE)
-    {
+        return (arm_uc_error_t) { SOMA_ERR_NONE };
+    } else if (retval.error != ERR_NONE) {
         // failure, try source with the next smallest cost
         req->excludes[index] = 1;
         UC_SRCE_TRACE("-ARM_UCSM_Get: Error - failure (try source with the next smallest cost)");
@@ -346,7 +525,7 @@ static arm_uc_error_t ARM_UCSM_Get(request_t* req)
     req->current_source = index;
     UC_SRCE_TRACE("-ARM_UCSM_Get: Using source %" PRIu32, index);
 
-    return (arm_uc_error_t){ SOMA_ERR_NONE };
+    return (arm_uc_error_t) { SOMA_ERR_NONE };
 }
 
 /**
@@ -359,13 +538,14 @@ static void ARM_UCSM_AsyncRetryGet(uint32_t unused)
 
     UC_SRCE_TRACE("+ARM_UCSM_AsyncRetryGet");
     arm_uc_error_t retval = ARM_UCSM_Get(&request_in_flight);
-    if (retval.error != ERR_NONE)
-    {
+    if (retval.error != ERR_NONE) {
         ARM_UCSM_RequestStructInit(&request_in_flight);
         ARM_UC_PostCallback(&event_cb_storage, event_cb, ARM_UC_SM_EVENT_ERROR);
     }
     UC_SRCE_TRACE("-ARM_UCSM_AsyncRetryGet");
 }
+
+#endif // ARM_UC_PROFILE_MBED_CLOUD_CLIENT
 
 /**
  * @brief Translate source event into source manager event
@@ -374,8 +554,7 @@ static ARM_UC_SM_Event_t ARM_UCSM_TranslateEvent(uint32_t source_event)
 {
     ARM_UC_SM_Event_t event = ARM_UC_SM_EVENT_ERROR;
 
-    switch(source_event)
-    {
+    switch (source_event) {
         case EVENT_NOTIFICATION:
             event = ARM_UC_SM_EVENT_NOTIFICATION;
             break;
@@ -390,6 +569,9 @@ static ARM_UC_SM_Event_t ARM_UCSM_TranslateEvent(uint32_t source_event)
             break;
         case EVENT_ERROR:
             event = ARM_UC_SM_EVENT_ERROR;
+            break;
+        case EVENT_ERROR_SOURCE:
+            event = ARM_UC_SM_EVENT_ERROR_SOURCE;
             break;
         case EVENT_ERROR_BUFFER_SIZE:
             event = ARM_UC_SM_EVENT_ERROR_BUFFER_SIZE;
@@ -408,30 +590,25 @@ static void ARM_UCSM_CallbackWrapper(uint32_t source_event)
     UC_SRCE_TRACE("source_event == %" PRIu32, source_event);
     ARM_UC_SM_Event_t event = ARM_UCSM_TranslateEvent(source_event);
 
-    if (event == ARM_UC_SM_EVENT_ERROR && request_in_flight.type != QUERY_TYPE_UNKNOWN)
-    {
-        UC_SRCE_TRACE("ARM_UCSM_TranslateEvent event error == %" PRIu32, event);
+    if ((event == ARM_UC_SM_EVENT_ERROR)
+            && (request_in_flight.type != QUERY_TYPE_UNKNOWN)) {
+        UC_SRCE_TRACE("ARM_UCSM_TranslateEvent event error == %" PRId16, event);
         request_in_flight.excludes[request_in_flight.current_source] = 1;
         arm_uc_error_t retval = ARM_UCSM_Get(&request_in_flight);
-        if (retval.code != SOMA_ERR_NONE)
-        {
+        if (retval.code != SOMA_ERR_NONE) {
             UC_SRCE_TRACE("ARM_UCSM_Get() retval.code == %" PRIu32, retval.code);
             ARM_UCSM_RequestStructInit(&request_in_flight);
             ARM_UC_PostCallback(&event_cb_storage, event_cb, event);
         }
-    }
-    else
-    {
-        UC_SRCE_TRACE("");
+    } else {
         ARM_UCSM_RequestStructInit(&request_in_flight);
         ARM_UC_PostCallback(&event_cb_storage, event_cb, event);
     }
     UC_SRCE_TRACE("-ARM_UCSM_CallbackWrapper");
 }
 
-/* ==================================================================== *
- * Public API                                                           *
- * ==================================================================== */
+// PUBLIC API.
+// -----------
 
 /* further documentation of the API can be found in source_manager.h */
 
@@ -446,120 +623,95 @@ arm_uc_error_t ARM_UCSM_Initialize(ARM_SOURCE_SignalEvent_t callback)
 
 arm_uc_error_t ARM_UCSM_Uninitialize()
 {
-    for (size_t i = 0; i < MAX_SOURCES; i++)
-    {
-        if (source_registry[i] != NULL)
-        {
+    for (size_t i = 0; i < MAX_SOURCES; i++) {
+        if (source_registry[i] != NULL) {
             source_registry[i]->Uninitialize();
             source_registry[i] = NULL;
         }
     }
-    return (arm_uc_error_t){ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 
-arm_uc_error_t ARM_UCSM_AddSource(const ARM_UPDATE_SOURCE* source)
+arm_uc_error_t ARM_UCSM_AddSource(const ARM_UPDATE_SOURCE *source)
 {
-    if (ARM_UCSM_GetIndexOfSource(source) != MAX_SOURCES)
-    {
+    if (ARM_UCSM_GetIndexOfSource(source) != MAX_SOURCES) {
         // Source already added, don't add again
-        // TODO: should this return SOMA_ERR_NONE or a new error
+        // TODO should this return SOMA_ERR_NONE or a new error
         // SOMA_ERR_ALREADY_PRESENT?
-        return (arm_uc_error_t){ SOMA_ERR_NONE };
+        return (arm_uc_error_t) { SOMA_ERR_NONE };
     }
     source->Initialize(ARM_UCSM_CallbackWrapper);
     return ARM_UCSM_SourceRegistryAdd(source);
 }
 
-arm_uc_error_t ARM_UCSM_RemoveSource(const ARM_UPDATE_SOURCE* source)
+arm_uc_error_t ARM_UCSM_RemoveSource(const ARM_UPDATE_SOURCE *source)
 {
     arm_uc_error_t err = ARM_UCSM_SourceRegistryRemove(source);
-    if (err.code == SOMA_ERR_NONE)
-    {
+    if (err.code == SOMA_ERR_NONE) {
         // Call 'uninitialize' only if the source was found (and removed)
         source->Uninitialize();
     }
     return err;
 }
 
-/* All the `Get` APIs map into `ARM_UCSM_Get` */
+/* All the `Get` APIs map into `ARM_UCSM_Get` via ARM_UCSM_GetCommon() */
 
-arm_uc_error_t ARM_UCSM_GetManifest(arm_uc_buffer_t* buffer, uint32_t offset)
+/**
+ * @brief invoke Get after setting up params in in-flight store.
+ */
+arm_uc_error_t ARM_UCSM_GetCommon(
+    arm_uc_uri_t *uri,
+    arm_uc_buffer_t *buffer,
+    uint32_t offset,
+    query_type_t type)
 {
-    UC_SRCE_TRACE("+ARM_UCSM_GetManifest");
     ARM_UCSM_RequestStructInit(&request_in_flight);
+    request_in_flight.uri    = uri;
     request_in_flight.buffer = buffer;
     request_in_flight.offset = offset;
-    request_in_flight.type   = QUERY_TYPE_MANIFEST_DEFAULT;
+    request_in_flight.type   = type;
 
     arm_uc_error_t retval = ARM_UCSM_Get(&request_in_flight);
-    if (retval.code != SOMA_ERR_NONE)
-    {
+    if (retval.code != SOMA_ERR_NONE) {
         ARM_UCSM_RequestStructInit(&request_in_flight);
     }
-
-    UC_SRCE_TRACE("-ARM_UCSM_GetManifest");
     return retval;
 }
 
-arm_uc_error_t ARM_UCSM_GetManifestFrom(arm_uc_uri_t* uri,
-                                        arm_uc_buffer_t* buffer,
+arm_uc_error_t ARM_UCSM_GetManifest(arm_uc_buffer_t *buffer, uint32_t offset)
+{
+    arm_uc_error_t retval = ARM_UCSM_GetCommon(
+                                NULL, buffer, offset, QUERY_TYPE_MANIFEST_DEFAULT);
+    return retval;
+}
+
+arm_uc_error_t ARM_UCSM_GetManifestFrom(arm_uc_uri_t *uri,
+                                        arm_uc_buffer_t *buffer,
                                         uint32_t offset)
 {
-    UC_SRCE_TRACE("+ARM_UCSM_GetManifestFrom");
-    ARM_UCSM_RequestStructInit(&request_in_flight);
-    request_in_flight.uri    = uri;
-    request_in_flight.buffer = buffer;
-    request_in_flight.offset = offset;
-    request_in_flight.type   = QUERY_TYPE_MANIFEST_URL;
-
-    arm_uc_error_t retval = ARM_UCSM_Get(&request_in_flight);
-    if (retval.code != SOMA_ERR_NONE)
-    {
-        ARM_UCSM_RequestStructInit(&request_in_flight);
-    }
-
-    UC_SRCE_TRACE("-ARM_UCSM_GetManifestFrom");
+    arm_uc_error_t retval = ARM_UCSM_GetCommon(
+                                uri, buffer, offset, QUERY_TYPE_MANIFEST_URL);
     return retval;
 }
 
-arm_uc_error_t ARM_UCSM_GetFirmwareFragment(arm_uc_uri_t* uri,
-                                            arm_uc_buffer_t* buffer,
+arm_uc_error_t ARM_UCSM_GetFirmwareFragment(arm_uc_uri_t *uri,
+                                            arm_uc_buffer_t *buffer,
                                             uint32_t offset)
 {
-    UC_SRCE_TRACE("+ARM_UCSM_GetFirmwareFragment");
-    ARM_UCSM_RequestStructInit(&request_in_flight);
-    request_in_flight.uri    = uri;
-    request_in_flight.buffer = buffer;
-    request_in_flight.offset = offset;
-    request_in_flight.type   = QUERY_TYPE_FIRMWARE;
-
-    arm_uc_error_t retval = ARM_UCSM_Get(&request_in_flight);
-    if (retval.code != SOMA_ERR_NONE)
-    {
-        ARM_UCSM_RequestStructInit(&request_in_flight);
-    }
-
-    UC_SRCE_TRACE("-ARM_UCSM_GetFirmwareFragment");
+    arm_uc_error_t retval = ARM_UCSM_GetCommon(
+                                uri, buffer, offset, QUERY_TYPE_FIRMWARE);
     return retval;
 }
 
-arm_uc_error_t ARM_UCSM_GetKeytable(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer)
+arm_uc_error_t ARM_UCSM_GetKeytable(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer)
 {
-    UC_SRCE_TRACE("+ARM_UCSM_GetKeytable");
-    ARM_UCSM_RequestStructInit(&request_in_flight);
-    request_in_flight.uri    = uri;
-    request_in_flight.buffer = buffer;
-    request_in_flight.type   = QUERY_TYPE_KEYTABLE;
-
-    arm_uc_error_t retval = ARM_UCSM_Get(&request_in_flight);
-    if (retval.code != SOMA_ERR_NONE)
-    {
-        ARM_UCSM_RequestStructInit(&request_in_flight);
-    }
-
-    UC_SRCE_TRACE("+ARM_UCSM_GetKeytable");
+    arm_uc_error_t retval = ARM_UCSM_GetCommon(
+                                uri, buffer, 0, QUERY_TYPE_KEYTABLE);
     return retval;
 }
+
+// INTERFACE.
+// ----------
 
 ARM_UC_SOURCE_MANAGER_t ARM_UC_SourceManager = {
     .Initialize          = ARM_UCSM_Initialize,
@@ -571,3 +723,4 @@ ARM_UC_SOURCE_MANAGER_t ARM_UC_SourceManager = {
     .GetFirmwareFragment = ARM_UCSM_GetFirmwareFragment,
     .GetKeytable         = ARM_UCSM_GetKeytable
 };
+

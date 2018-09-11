@@ -35,8 +35,8 @@
  * @param tag_size Length of the tag.
  * @return True if tag was found. False otherwise.
  */
-bool arm_uc_socket_trim_value(arm_uc_buffer_t* buffer,
-                              const char* tag_buffer,
-                              uint32_t tag_size);
+bool arm_uc_http_socket_trim_value(arm_uc_buffer_t *buffer,
+                                   const char *tag_buffer,
+                                   uint32_t tag_size);
 
 #endif // __ARM_UC_SOCKET_HELP_H__

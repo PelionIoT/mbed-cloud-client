@@ -16,6 +16,7 @@
 
 #include <stdbool.h>
 #include "pv_error_handling.h"
+#include "pv_macros.h"
 #include "storage.h"
 #include "esfs.h"
 
@@ -60,7 +61,7 @@ static bool is_file_accessible(const kcm_ctx_s *ctx)
     //              - esfs_read_meta_data
     //              - esfs_get_meta_data_qty
 
-    ctx = ctx;                 // currently unused
+    PV_DEBUG_USE(ctx); // currently unused
 
     return true;
 }

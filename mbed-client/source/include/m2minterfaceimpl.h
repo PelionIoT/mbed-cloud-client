@@ -245,6 +245,7 @@ public:
 
     /**
      * @brief Sends the CoAP GET request to the server.
+     * @type Download type.
      * @uri Uri path to the data.
      * @offset Data offset.
      * @async In async mode application must call this API again with the updated offset.
@@ -252,7 +253,8 @@ public:
      * @get_data_cb Callback which is triggered once there is data available.
      * @get_data_error_cb Callback which is trigged in case of any error.
     */
-    virtual void get_data_request(const char *uri,
+    virtual void get_data_request(DownloadType type,
+                                  const char *uri,
                                   const size_t offset,
                                   const bool async,
                                   get_data_cb data_cb,
@@ -295,7 +297,7 @@ protected: // From M2MNsdlObserver
 
     virtual void registration_updated(const M2MServer &server_object);
 
-    virtual void registration_error(uint8_t error_code, bool retry = false);
+    virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false);
 
     virtual void client_unregistered();
 

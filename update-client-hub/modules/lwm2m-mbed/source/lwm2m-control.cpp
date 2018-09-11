@@ -18,6 +18,7 @@
 
 #include "update-client-lwm2m/lwm2m-control.h"
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
+#include "update-client-common/arm_uc_config.h"
 
 /**
  * @brief Set callback function for externally triggering an update.
@@ -30,12 +31,35 @@ arm_uc_error_t ARM_UC_CONTROL_SetOverrideCallback(void (*callback)(void))
 {
     ARM_UC_INIT_ERROR(retval, ERR_INVALID_PARAMETER);
 
+#if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE == 0)
     int32_t result = FirmwareUpdateResource::addUpdateCallback(callback);
 
-    if (result == 0)
-    {
+    if (result == 0) {
+        retval.code = ERR_NONE;
+    }
+#else
+    retval.code = ERR_NONE;
+#endif
+    return retval;
+}
+
+#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
+/**
+ * @brief Setter for having reference to M2MInterface in Update client.
+ * @details M2MInterface::get_data_request is used in LWM2M source for
+ *          requesting FW data over COAP *
+ * @param interface pointer to the M2MInterface instance.
+ */
+arm_uc_error_t ARM_UC_CONTROL_SetM2MInterface(M2MInterface *interface)
+{
+    arm_uc_error_t retval = { .code = ERR_INVALID_PARAMETER };
+
+    int32_t result = FirmwareUpdateResource::setM2MInterface(interface);
+
+    if (result == 0) {
         retval.code = ERR_NONE;
     }
 
     return retval;
 }
+#endif //ARM_UC_FEATURE_FW_SOURCE_COAP

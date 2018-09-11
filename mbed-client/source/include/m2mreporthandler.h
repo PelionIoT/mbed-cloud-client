@@ -30,6 +30,26 @@ class M2MReportObserver;
 class M2MTimer;
 class M2MResourceInstance;
 
+typedef union current_value_u {
+    float   float_value;
+    int64_t int_value;
+} current_value_t;
+
+typedef union last_value_u {
+    float   float_value;
+    int64_t int_value;
+} last_value_t;
+
+typedef union high_step_u {
+    float   float_value;
+    int64_t int_value;
+} high_step_t;
+
+typedef union low_step_u {
+    float   float_value;
+    int64_t int_value;
+} low_step_t;
+
 /**
  *  @brief M2MReportHandler.
  *  This class is handles all the observation related operations.
@@ -42,7 +62,7 @@ private:
 
 public:
 
-    M2MReportHandler(M2MReportObserver &observer);
+    M2MReportHandler(M2MReportObserver &observer, M2MBase::DataType type);
 
 public:
 
@@ -72,10 +92,16 @@ public:
     void set_under_observation(bool observed);
 
     /**
-     * @brief Sets the value of the given resource.
+     * @brief Sets the float value of the given resource.
      * @param value, Value of the observed resource.
      */
-    void set_value(float value);
+    void set_value_float(float value);
+
+    /**
+     * @brief Sets the integer value of the given resource.
+     * @param value, Value of the observed resource.
+     */
+    void set_value_int(int64_t value);
 
     /**
      * @brief Sets notification trigger.
@@ -255,12 +281,18 @@ private:
     */
     static uint8_t* alloc_string_copy(const uint8_t* source, uint32_t size);
 
+    /**
+     * \brief New value is ready to be sent.
+    */
+    void send_value();
+
 private:
     M2MReportObserver           &_observer;
     bool                        _is_under_observation : 1;
-    M2MBase::Observation        _observation_level : 4;
+    M2MBase::Observation        _observation_level : 3;
     uint8_t                     _attribute_state;
     unsigned                    _token_length : 8;
+    M2MBase::DataType           _resource_type : 3;
     bool                        _notify : 1;
     bool                        _pmin_exceeded : 1;
     bool                        _pmax_exceeded : 1;
@@ -270,13 +302,13 @@ private:
     uint8_t                     *_token;
     int32_t                     _pmax;
     int32_t                     _pmin;
-    float                       _current_value;
+    current_value_t             _current_value;
+    high_step_t                 _high_step;
+    low_step_t                  _low_step;
+    last_value_t                _last_value;
     float                       _gt;
     float                       _lt;
     float                       _st;
-    float                       _high_step;
-    float                       _low_step;
-    float                       _last_value;
     m2m::Vector<uint16_t>       _changed_instance_ids;
     bool                        _notification_send_in_progress : 1;
     bool                        _notification_in_queue : 1;

@@ -20,11 +20,7 @@
 #include "update-client-common/arm_uc_config.h"
 #include <stdint.h>
 
-#ifndef ARM_UC_USE_KCM
-#define ARM_UC_USE_KCM 0
-#endif
-
-#if ARM_UC_USE_KCM
+#if defined(ARM_UC_FEATURE_IDENTITY_KCM) && (ARM_UC_FEATURE_IDENTITY_KCM == 1)
 
 #include "key-config-manager/key_config_manager.h"
 
@@ -41,24 +37,22 @@
 #define KEY_VENDOR_ID                           "mbed.VendorId"
 #define KEY_CLASS_ID                            "mbed.ClassId"
 
-static arm_uc_error_t pal_kcm_internal_set_guid(const arm_uc_guid_t* guid,
-                                                const char* key,
+static arm_uc_error_t pal_kcm_internal_set_guid(const arm_uc_guid_t *guid,
+                                                const char *key,
                                                 size_t key_length)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (guid && key)
-    {
-        kcm_status_e kcm_status = kcm_item_store((const uint8_t*) key,
+    if (guid && key) {
+        kcm_status_e kcm_status = kcm_item_store((const uint8_t *) key,
                                                  key_length,
                                                  KCM_CONFIG_ITEM,
                                                  true,
-                                                 (const uint8_t*) guid,
+                                                 (const uint8_t *) guid,
                                                  SIZE_OF_GUID,
                                                  NULL);
 
-        if (kcm_status == KCM_STATUS_SUCCESS)
-        {
+        if (kcm_status == KCM_STATUS_SUCCESS) {
             result.code = ERR_NONE;
         }
     }
@@ -66,31 +60,28 @@ static arm_uc_error_t pal_kcm_internal_set_guid(const arm_uc_guid_t* guid,
     return result;
 }
 
-static arm_uc_error_t pal_kcm_internal_get_guid(arm_uc_guid_t* guid,
-                                                const char* key,
+static arm_uc_error_t pal_kcm_internal_get_guid(arm_uc_guid_t *guid,
+                                                const char *key,
                                                 size_t key_length)
 {
     arm_uc_error_t result = { .module = TWO_CC('D', 'I'), .error = ERR_INVALID_PARAMETER };
 
-    if (guid && key)
-    {
+    if (guid && key) {
         uint8_t buffer[SIZE_OF_GUID] = { 0 };
         size_t value_length = 0;
         memset(guid, 0, SIZE_OF_GUID);
 
-        kcm_status_e kcm_status = kcm_item_get_data((const uint8_t*) key,
-                                        key_length,
-                                        KCM_CONFIG_ITEM,
-                                        buffer,
-                                        SIZE_OF_GUID,
-                                        &value_length);
-        if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND)
-        {
+        kcm_status_e kcm_status = kcm_item_get_data((const uint8_t *) key,
+                                                    key_length,
+                                                    KCM_CONFIG_ITEM,
+                                                    buffer,
+                                                    SIZE_OF_GUID,
+                                                    &value_length);
+        if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
             result.code = ARM_UC_DI_ERR_NOT_FOUND;
         }
 
-        if (kcm_status == KCM_STATUS_SUCCESS)
-        {
+        if (kcm_status == KCM_STATUS_SUCCESS) {
             result.code = ERR_NONE;
             memcpy(guid, buffer, SIZE_OF_GUID);
         }
@@ -99,20 +90,17 @@ static arm_uc_error_t pal_kcm_internal_get_guid(arm_uc_guid_t* guid,
     return result;
 }
 
-static bool pal_kcm_internal_compare(const arm_uc_guid_t* guid,
-                                     const arm_uc_buffer_t* buffer)
+static bool pal_kcm_internal_compare(const arm_uc_guid_t *guid,
+                                     const arm_uc_buffer_t *buffer)
 {
     // count how many bytes match
     uint8_t index = 0;
 
-    if (guid && buffer)
-    {
-        for ( ; (index < sizeof(arm_uc_guid_t)) && (index < buffer->size); index++)
-        {
+    if (guid && buffer) {
+        for (; (index < sizeof(arm_uc_guid_t)) && (index < buffer->size); index++) {
             // printf("%02X %02X\r\n", ((uint8_t*) guid)[index], buffer->ptr[index]);
 
-            if (((uint8_t*) guid)[index] != buffer->ptr[index])
-            {
+            if (((uint8_t *) guid)[index] != buffer->ptr[index]) {
                 break;
             }
         }
@@ -130,7 +118,7 @@ static bool pal_kcm_internal_compare(const arm_uc_guid_t* guid,
  *             referenced.
  * @return Error code.
  */
-arm_uc_error_t pal_kcm_setVendorGuid(const arm_uc_guid_t* guid)
+arm_uc_error_t pal_kcm_setVendorGuid(const arm_uc_guid_t *guid)
 {
     return pal_kcm_internal_set_guid(guid,
                                      KEY_VENDOR_ID,
@@ -142,16 +130,15 @@ arm_uc_error_t pal_kcm_setVendorGuid(const arm_uc_guid_t* guid)
  * @param guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_kcm_getVendorGuid(arm_uc_guid_t* guid)
+arm_uc_error_t pal_kcm_getVendorGuid(arm_uc_guid_t *guid)
 {
     arm_uc_error_t err = pal_kcm_internal_get_guid(guid,
-                                    KEY_VENDOR_ID,
-                                    sizeof(KEY_VENDOR_ID) - 1);
-    if (err.code == ARM_UC_DI_ERR_NOT_FOUND)
-    {
+                                                   KEY_VENDOR_ID,
+                                                   sizeof(KEY_VENDOR_ID) - 1);
+    if (err.code == ARM_UC_DI_ERR_NOT_FOUND) {
         err = pal_kcm_internal_get_guid(guid,
-                                    KEY_DEVICE_MANUFACTURER_DEPRECATED,
-                                    sizeof(KEY_DEVICE_MANUFACTURER_DEPRECATED) - 1);
+                                        KEY_DEVICE_MANUFACTURER_DEPRECATED,
+                                        sizeof(KEY_DEVICE_MANUFACTURER_DEPRECATED) - 1);
     }
     return err;
 }
@@ -164,7 +151,7 @@ arm_uc_error_t pal_kcm_getVendorGuid(arm_uc_guid_t* guid)
  *             referenced.
  * @return Error code.
  */
-arm_uc_error_t pal_kcm_setClassGuid(const arm_uc_guid_t* guid)
+arm_uc_error_t pal_kcm_setClassGuid(const arm_uc_guid_t *guid)
 {
     return pal_kcm_internal_set_guid(guid,
                                      KEY_CLASS_ID,
@@ -176,16 +163,15 @@ arm_uc_error_t pal_kcm_setClassGuid(const arm_uc_guid_t* guid)
  * @param guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_kcm_getClassGuid(arm_uc_guid_t* guid)
+arm_uc_error_t pal_kcm_getClassGuid(arm_uc_guid_t *guid)
 {
     arm_uc_error_t err = pal_kcm_internal_get_guid(guid,
-                                    KEY_CLASS_ID,
-                                    sizeof(KEY_CLASS_ID) - 1);
-    if (err.code == ARM_UC_DI_ERR_NOT_FOUND)
-    {
+                                                   KEY_CLASS_ID,
+                                                   sizeof(KEY_CLASS_ID) - 1);
+    if (err.code == ARM_UC_DI_ERR_NOT_FOUND) {
         err = pal_kcm_internal_get_guid(guid,
-                                    KEY_DEVICE_MODELNUMBER_DEPRECATED,
-                                    sizeof(KEY_DEVICE_MODELNUMBER_DEPRECATED) - 1);
+                                        KEY_DEVICE_MODELNUMBER_DEPRECATED,
+                                        sizeof(KEY_DEVICE_MODELNUMBER_DEPRECATED) - 1);
     }
     return err;
 }
@@ -198,7 +184,7 @@ arm_uc_error_t pal_kcm_getClassGuid(arm_uc_guid_t* guid)
  *             referenced.
  * @return Error code.
  */
-arm_uc_error_t pal_kcm_setDeviceGuid(const arm_uc_guid_t* guid)
+arm_uc_error_t pal_kcm_setDeviceGuid(const arm_uc_guid_t *guid)
 {
     return pal_kcm_internal_set_guid(guid,
                                      KEY_ENDPOINT_NAME,
@@ -210,7 +196,7 @@ arm_uc_error_t pal_kcm_setDeviceGuid(const arm_uc_guid_t* guid)
  * @param guid Pointer to a arm_uc_guid_t pointer.
  * @return Error code.
  */
-arm_uc_error_t pal_kcm_getDeviceGuid(arm_uc_guid_t* guid)
+arm_uc_error_t pal_kcm_getDeviceGuid(arm_uc_guid_t *guid)
 {
     return pal_kcm_internal_get_guid(guid,
                                      KEY_ENDPOINT_NAME,
@@ -227,9 +213,9 @@ arm_uc_error_t pal_kcm_getDeviceGuid(arm_uc_guid_t* guid)
  * @param isValid     Pointer to the boolean return value.
  * @return Error code.
  */
-arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t* vendor_buffer,
-                                           const arm_uc_buffer_t* class_buffer,
-                                           const arm_uc_buffer_t* device_buffer)
+arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t *vendor_buffer,
+                                           const arm_uc_buffer_t *class_buffer,
+                                           const arm_uc_buffer_t *device_buffer)
 {
     arm_uc_error_t result = { .code = MFST_ERR_NULL_PTR };
 
@@ -238,25 +224,20 @@ arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t* vendor_buffer,
 
     /* check device - device is optional */
     if (device_buffer &&
-        device_buffer->ptr &&
-        (device_buffer->size > 0))
-    {
+            device_buffer->ptr &&
+            (device_buffer->size > 0)) {
         parameters_set++;
 
         arm_uc_guid_t guid = { 0 };
 
         arm_uc_error_t retval = pal_kcm_getDeviceGuid(&guid);
 
-        if (retval.code == ERR_NONE)
-        {
+        if (retval.code == ERR_NONE) {
             bool is_same = pal_kcm_internal_compare(&guid, device_buffer);
 
-            if (is_same)
-            {
+            if (is_same) {
                 parameters_ok++;
-            }
-            else
-            {
+            } else {
                 result.code = MFST_ERR_GUID_DEVICE;
             }
         }
@@ -264,25 +245,20 @@ arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t* vendor_buffer,
 
     /* check class - class is optional */
     if (class_buffer &&
-        class_buffer->ptr &&
-        (class_buffer->size > 0))
-    {
+            class_buffer->ptr &&
+            (class_buffer->size > 0)) {
         parameters_set++;
 
         arm_uc_guid_t guid = { 0 };
 
         arm_uc_error_t retval = pal_kcm_getClassGuid(&guid);
 
-        if (retval.code == ERR_NONE)
-        {
+        if (retval.code == ERR_NONE) {
             bool is_same = pal_kcm_internal_compare(&guid, class_buffer);
 
-            if (is_same)
-            {
+            if (is_same) {
                 parameters_ok++;
-            }
-            else
-            {
+            } else {
                 result.code = MFST_ERR_GUID_DEVCLASS;
             }
         }
@@ -290,25 +266,20 @@ arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t* vendor_buffer,
 
     /* check vendor - vendor is mandatory and has mask 0x10. */
     if (vendor_buffer &&
-        vendor_buffer->ptr &&
-        (vendor_buffer->size > 0))
-    {
+            vendor_buffer->ptr &&
+            (vendor_buffer->size > 0)) {
         parameters_set += 0x10;
 
         arm_uc_guid_t guid = { 0 };
 
         arm_uc_error_t retval = pal_kcm_getVendorGuid(&guid);
 
-        if (retval.code == ERR_NONE)
-        {
+        if (retval.code == ERR_NONE) {
             bool is_same = pal_kcm_internal_compare(&guid, vendor_buffer);
 
-            if (is_same)
-            {
+            if (is_same) {
                 parameters_ok += 0x10;
-            }
-            else
-            {
+            } else {
                 result.code = MFST_ERR_GUID_VENDOR;
             }
         }
@@ -320,8 +291,7 @@ arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t* vendor_buffer,
         - vendor and device match and no class is passed
         - vendor and class and device match
     */
-    if ((parameters_set >= 0x10) && (parameters_set == parameters_ok))
-    {
+    if ((parameters_set >= 0x10) && (parameters_set == parameters_ok)) {
         result.code = MFST_ERR_NONE;
     }
 
@@ -338,4 +308,4 @@ const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_kcm = {
     .DeviceIdentityCheck    = pal_kcm_deviceIdentityCheck
 };
 
-#endif // ARM_UC_USE_KCM
+#endif // ARM_UC_FEATURE_IDENTITY_KCM

@@ -51,8 +51,7 @@ extern "C" {
 
 #define ARM_UC_EXTERNAL_HEADER_SIZE_V2 (296)
 
-typedef struct _arm_uc_internal_header_t
-{
+typedef struct _arm_uc_internal_header_t {
     /* Metadata-header specific magic code */
     uint32_t headerMagic;
 
@@ -92,8 +91,7 @@ typedef struct _arm_uc_internal_header_t
     uint8_t firmwareSignature[0];
 } arm_uc_internal_header_t;
 
-typedef struct _arm_uc_external_header_t
-{
+typedef struct _arm_uc_external_header_t {
     /* Metadata-header specific magic code */
     uint32_t headerMagic;
 
@@ -171,17 +169,17 @@ typedef struct _arm_uc_external_header_t
     uint8_t firmwareSignature[0];
 } arm_uc_external_header_t;
 
-arm_uc_error_t arm_uc_parse_internal_header_v2(const uint8_t* input,
-                                               arm_uc_firmware_details_t* output);
+arm_uc_error_t arm_uc_parse_internal_header_v2(const uint8_t *input,
+                                               arm_uc_firmware_details_t *output);
 
-arm_uc_error_t arm_uc_create_internal_header_v2(const arm_uc_firmware_details_t* input,
-                                                arm_uc_buffer_t* output);
+arm_uc_error_t arm_uc_create_internal_header_v2(const arm_uc_firmware_details_t *input,
+                                                arm_uc_buffer_t *output);
 
-arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t* input,
-                                               arm_uc_firmware_details_t* output);
+arm_uc_error_t arm_uc_parse_external_header_v2(const uint8_t *input,
+                                               arm_uc_firmware_details_t *output);
 
-arm_uc_error_t arm_uc_create_external_header_v2(const arm_uc_firmware_details_t* input,
-                                                arm_uc_buffer_t* output);
+arm_uc_error_t arm_uc_create_external_header_v2(const arm_uc_firmware_details_t *input,
+                                                arm_uc_buffer_t *output);
 
 #ifdef __cplusplus
 }

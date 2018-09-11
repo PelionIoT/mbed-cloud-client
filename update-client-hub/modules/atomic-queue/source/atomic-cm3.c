@@ -32,11 +32,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int aq_atomic_cas_deref_uintptr(uintptr_t* volatile * ptrAddr,
-                            uintptr_t** currentPtrValue,
-                            uintptr_t expectedDerefValue,
-                            uintptr_t* newPtrValue,
-                            uintptr_t valueOffset)
+int aq_atomic_cas_deref_uintptr(uintptr_t *volatile *ptrAddr,
+                                uintptr_t **currentPtrValue,
+                                uintptr_t expectedDerefValue,
+                                uintptr_t *newPtrValue,
+                                uintptr_t valueOffset)
 {
     STATIC_ASSERT(sizeof(uintptr_t) == sizeof(uint32_t), Error: Pointer size mismatch)
     uint32_t *current;
@@ -46,9 +46,9 @@ int aq_atomic_cas_deref_uintptr(uintptr_t* volatile * ptrAddr,
     }
     if (current == NULL) {
         return AQ_ATOMIC_CAS_DEREF_NULLPTR;
-    } else if ( *(uint32_t *)((uintptr_t)current + valueOffset) != expectedDerefValue) {
+    } else if (*(uint32_t *)((uintptr_t)current + valueOffset) != expectedDerefValue) {
         return AQ_ATOMIC_CAS_DEREF_VALUE;
-    } else if(__STREXW((uint32_t)newPtrValue, (volatile uint32_t *)ptrAddr)) {
+    } else if (__STREXW((uint32_t)newPtrValue, (volatile uint32_t *)ptrAddr)) {
         return AQ_ATOMIC_CAS_DEREF_INTERUPTED;
     } else {
         return AQ_ATOMIC_CAS_DEREF_SUCCESS;

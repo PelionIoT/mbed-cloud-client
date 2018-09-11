@@ -49,7 +49,6 @@
 
 #include <stdlib.h>
 
-
 /* Defines */
 #define TRACE_GROUP "mClt"
 #define RESOURCE_DIR_LEN                2
@@ -66,6 +65,8 @@
 #define BS_EP_PARAMETER_LEN             3
 #define BS_QUEUE_MODE_PARAMETER_LEN     2
 #define RESOURCE_VALUE_PARAMETER_LEN    2
+#define FIRMWARE_DOWNLOAD_LEN           2
+#define GENERIC_DOWNLOAD_LEN            8
 
 #define SN_NSDL_EP_REGISTER_MESSAGE     1
 #define SN_NSDL_EP_UPDATE_MESSAGE       2
@@ -98,6 +99,9 @@ static uint8_t      resource_value[]            = {'v', '='};           /* Resou
 #ifdef RESOURCE_ATTRIBUTES_LIST
 static uint8_t      name_parameter[]            = {'n', 'a', 'm', 'e', '='};
 #endif
+
+static uint8_t      firmware_download_uri[]   = {'f', 'w'}; /* Path for firmware update. */
+static uint8_t      generic_download_uri[]    = {'d', 'o', 'w', 'n', 'l', 'o', 'a', 'd'}; /* Path for generic download. */
 
 /* * OMA BS parameters * */
 static uint8_t bs_uri[]                         = {'b', 's'};
@@ -273,6 +277,7 @@ uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
             return 0;
         }
     }
+    tr_info("REGISTER MESSAGE %.*s", register_message_ptr->payload_len, register_message_ptr->payload_ptr);
 
     /* Clean (possible) existing and save new endpoint info to handle */
     if (set_endpoint_info(handle, endpoint_info_ptr) == -1) {
@@ -475,6 +480,12 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
             return 0;
         }
     }
+
+    // Remove previous update reg message from the queue if exists
+
+    sn_nsdl_remove_msg_from_retransmission(handle,
+                                           (uint8_t*)&handle->update_register_token,
+                                           sizeof(handle->update_register_token));
 
     sn_nsdl_add_token(handle, &handle->update_register_token, register_message_ptr);
 
@@ -1932,13 +1943,37 @@ extern int8_t sn_nsdl_clear_coap_sent_blockwise_messages(struct nsdl_s *handle)
     return SN_NSDL_SUCCESS;
 }
 
+extern int8_t sn_nsdl_clear_coap_received_blockwise_messages(struct nsdl_s *handle)
+{
+    /* Check parameters */
+    if (handle == NULL) {
+        return SN_NSDL_FAILURE;
+    }
+
+    // Enable function once new CoAP API is released to mbed-os
+    // sn_coap_protocol_clear_received_blockwise_messages(handle->grs->coap);
+
+    /* Loop all stored Blockwise messages in Linked list */
+    ns_list_foreach_safe(coap_blockwise_payload_s, removed_payload_ptr, &handle->grs->coap->linked_list_blockwise_received_payloads) {
+        ns_list_remove(&handle->grs->coap->linked_list_blockwise_received_payloads, removed_payload_ptr);
+        /* Free memory of stored payload */
+        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr->addr_ptr);
+        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr->payload_ptr);
+        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr->token_ptr);
+        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr);
+    }
+
+    return SN_NSDL_SUCCESS;
+}
+
 extern int32_t sn_nsdl_send_request(struct nsdl_s *handle,
                                     const sn_coap_msg_code_e msg_code,
                                     const char *uri_path,
                                     const uint32_t token,
                                     const size_t offset,
                                     const uint16_t payload_len,
-                                    uint8_t* payload_ptr)
+                                    uint8_t* payload_ptr,
+                                    DownloadType type)
 {
     sn_coap_hdr_s  req_message;
     int32_t        message_id;
@@ -1952,8 +1987,21 @@ extern int32_t sn_nsdl_send_request(struct nsdl_s *handle,
     // Fill message fields
     req_message.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
     req_message.msg_code = msg_code;
-    req_message.uri_path_len = (uint16_t)strlen(uri_path);
-    req_message.uri_path_ptr = (uint8_t*)uri_path;
+
+    // In GET we use hardcoded uri path('fw' or 'download') since the actual binary path will be part of
+    // proxy uri option
+    if (req_message.msg_code == COAP_MSG_CODE_REQUEST_GET) {
+        if (type == FIRMWARE_DOWNLOAD) {
+            req_message.uri_path_len = FIRMWARE_DOWNLOAD_LEN;
+            req_message.uri_path_ptr = firmware_download_uri;
+        } else {
+            req_message.uri_path_len = GENERIC_DOWNLOAD_LEN;
+            req_message.uri_path_ptr = generic_download_uri;
+        }
+    } else {
+        req_message.uri_path_len = (uint16_t)strlen(uri_path);
+        req_message.uri_path_ptr = (uint8_t*)uri_path;
+    }
     req_message.token_ptr = (uint8_t*)&token;
     req_message.token_len = sizeof(token);
     if (msg_code == COAP_MSG_CODE_REQUEST_POST || msg_code == COAP_MSG_CODE_REQUEST_PUT) {
@@ -1962,13 +2010,18 @@ extern int32_t sn_nsdl_send_request(struct nsdl_s *handle,
         req_message.payload_len = payload_len;
     }
 
-// Skip block options if feature is not enabled
-#if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
     if (sn_coap_parser_alloc_options(handle->grs->coap, &req_message) == NULL) {
         handle->grs->coap->sn_coap_protocol_free(req_message.options_list_ptr);
         return 0;
     }
 
+    if (msg_code == COAP_MSG_CODE_REQUEST_GET) {
+        req_message.options_list_ptr->proxy_uri_len = (uint16_t)strlen(uri_path);
+        req_message.options_list_ptr->proxy_uri_ptr = (uint8_t*)uri_path;
+    }
+
+// Skip block options if feature is not enabled
+#if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
     // Add block number
     req_message.options_list_ptr->block2 = 0;
     if (offset > 0) {
@@ -2136,6 +2189,40 @@ int8_t sn_nsdl_clear_coap_resending_queue(struct nsdl_s *handle)
     }
     sn_coap_protocol_clear_retransmission_buffer(handle->grs->coap);
     return SN_NSDL_SUCCESS;
+}
+
+int8_t sn_nsdl_remove_msg_from_retransmission(struct nsdl_s *handle, uint8_t *token, uint8_t token_len)
+{
+    if (handle == NULL || handle->grs == NULL || handle->grs->coap == NULL || token == NULL || token_len == 0) {
+        tr_err("sn_nsdl_remove_msg_from_retransmission failed.");
+        return SN_NSDL_FAILURE;
+    }
+
+#if ENABLE_RESENDINGS
+    // Workaround until new "sn_coap_protocol_delete_retransmission_by_token" API is released
+    // return sn_coap_protocol_delete_retransmission_by_token(handle->grs->coap, token, token_len);
+    ns_list_foreach(coap_send_msg_s, stored_msg, &handle->grs->coap->linked_list_resent_msgs) {
+        uint8_t stored_token_len =  (stored_msg->send_msg_ptr->packet_ptr[0] & 0x0F);
+        if (stored_token_len == token_len) {
+            uint8_t stored_token[8];
+            memcpy(stored_token, &stored_msg->send_msg_ptr->packet_ptr[4], stored_token_len);
+            if (memcmp(stored_token, token, stored_token_len) == 0) {
+                uint16_t temp_msg_id = (stored_msg->send_msg_ptr->packet_ptr[2] << 8);
+                temp_msg_id += (uint16_t)stored_msg->send_msg_ptr->packet_ptr[3];
+                tr_debug("sn_nsdl_remove_msg_from_retransmission - removed msg_id: %d", temp_msg_id);
+                ns_list_remove(&handle->grs->coap->linked_list_resent_msgs, stored_msg);
+                --handle->grs->coap->count_resent_msgs;
+
+                handle->grs->coap->sn_coap_protocol_free(stored_msg->send_msg_ptr);
+                handle->grs->coap->sn_coap_protocol_free(stored_msg);
+
+                return 0;
+            }
+        }
+    }
+#endif
+
+    return SN_NSDL_FAILURE;
 }
 
 #ifdef RESOURCE_ATTRIBUTES_LIST

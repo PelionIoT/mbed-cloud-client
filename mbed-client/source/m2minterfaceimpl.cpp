@@ -380,15 +380,19 @@ void M2MInterfaceImpl::registration_updated(const M2MServer &server_object)
     _observer.registration_updated(_register_server,server_object);
 }
 
-void M2MInterfaceImpl::registration_error(uint8_t error_code, bool retry)
+void M2MInterfaceImpl::registration_error(uint8_t error_code, bool retry, bool full_registration)
 {
     tr_error("M2MInterfaceImpl::registration_error code [%d]", error_code);
 
     _nsdl_interface.set_registration_status(false);
+
     // Try to register again
     if (retry) {
         _queue_mode_timer_ongoing = false;
-        if (error_code == M2MInterface::UnregistrationFailed) {
+
+        if (full_registration) {
+            _reconnection_state = M2MInterfaceImpl::None;
+        } else if (error_code == M2MInterface::UnregistrationFailed) {
             _reconnection_state = M2MInterfaceImpl::Unregistration;
         }
 
@@ -600,7 +604,7 @@ void M2MInterfaceImpl::socket_error(uint8_t error_code, bool retry)
         _connection_handler.stop_listening();
         _retry_timer_expired = false;
         _retry_timer.start_timer(_reconnection_time * 1000,
-                                  M2MTimerObserver::RetryTimer);
+                                 M2MTimerObserver::RetryTimer);
         tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
         _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
         if(_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
@@ -623,7 +627,7 @@ void M2MInterfaceImpl::socket_error(uint8_t error_code, bool retry)
         snprintf(_error_description, sizeof(_error_description), ERROR_REASON_10, error_code_des);
 #endif
     }
-    if(M2MInterface::ErrorNone != error) {
+    if (M2MInterface::ErrorNone != error) {
         _observer.error(error);
     }
 }
@@ -712,6 +716,7 @@ void M2MInterfaceImpl::state_idle(EventData* /*data*/)
     tr_debug("M2MInterfaceImpl::state_idle");
     _nsdl_interface.stop_timers();
     _nsdl_interface.clear_sent_blockwise_messages();
+    _nsdl_interface.clear_received_blockwise_messages();
     _queue_sleep_timer.stop_timer();
 }
 
@@ -1312,7 +1317,8 @@ bool M2MInterfaceImpl::queue_mode() const
            _binding_mode == M2MInterface::UDP_SMS_QUEUE);
 }
 
-void M2MInterfaceImpl::get_data_request(const char *uri,
+void M2MInterfaceImpl::get_data_request(DownloadType type,
+                                        const char *uri,
                                         const size_t offset,
                                         const bool async,
                                         get_data_cb data_cb,
@@ -1321,7 +1327,7 @@ void M2MInterfaceImpl::get_data_request(const char *uri,
 {
     get_data_req_error_e error = FAILED_TO_SEND_MSG;
     if (uri) {
-        _nsdl_interface.send_request(uri, COAP_MSG_CODE_REQUEST_GET, offset, async, 0, NULL, data_cb, error_cb, context);
+        _nsdl_interface.send_request(type, uri, COAP_MSG_CODE_REQUEST_GET, offset, async, 0, 0, NULL, data_cb, error_cb, context);
     } else {
         error_cb(error, context);
     }
@@ -1337,7 +1343,7 @@ void M2MInterfaceImpl::post_data_request(const char *uri,
 {
     get_data_req_error_e error = FAILED_TO_SEND_MSG;
     if (uri) {
-        _nsdl_interface.send_request(uri, COAP_MSG_CODE_REQUEST_POST, 0, async, payload_len, payload_ptr, data_cb, error_cb, context);
+        _nsdl_interface.send_request(GENERIC_DOWNLOAD, uri, COAP_MSG_CODE_REQUEST_POST, 0, async, 0, payload_len, payload_ptr, data_cb, error_cb, context);
     } else {
         error_cb(error, context);
     }

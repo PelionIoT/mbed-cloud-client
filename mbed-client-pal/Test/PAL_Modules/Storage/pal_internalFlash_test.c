@@ -18,6 +18,8 @@
 #include "unity.h"
 #include "unity_fixture.h"
 
+#define TRACE_GROUP "PAL"
+
 #if PAL_USE_INTERNAL_FLASH
 
 TEST_GROUP(pal_internalFlash);

@@ -16,6 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
 #if defined(TARGET_IS_PC_LINUX)
 
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation_internal.h"
@@ -40,9 +42,9 @@ extern linux_worker_thread_info_t linux_worker_thread;
 /* worker struct, must be accessible externally */
 arm_ucp_worker_config_t arm_uc_worker_parameters = { 0 };
 
-static FILE* arm_uc_firmware_descriptor = NULL;
+static FILE *arm_uc_firmware_descriptor = NULL;
 
-static arm_uc_error_t spawn_thread(void *(*start_routine) (void *), void *arg)
+static arm_uc_error_t spawn_thread(void *(*start_routine)(void *), void *arg)
 {
     arm_uc_error_t result = {ERR_NONE};
 
@@ -52,28 +54,20 @@ static arm_uc_error_t spawn_thread(void *(*start_routine) (void *), void *arg)
     int status = pthread_mutex_trylock(&linux_worker_thread.mutex);
     if (status == EBUSY) {
         ARM_UC_SET_ERROR(result, ERR_NOT_READY);
-    }
-    else if (status != 0) {
+    } else if (status != 0) {
         uint32_t code = (TWO_CC('P', 'T') << 16) | (status & 0xFFFF);
         ARM_UC_SET_ERROR(result, code);
     }
     /* Create "detached thread" attribute only once */
-    if (result.error == ERR_NONE && linux_worker_thread.attr_initialized == 0)
-    {
-        if ((status = pthread_attr_init(&linux_worker_thread.attr)) != 0)
-        {
+    if (result.error == ERR_NONE && linux_worker_thread.attr_initialized == 0) {
+        if ((status = pthread_attr_init(&linux_worker_thread.attr)) != 0) {
             result.error = ERR_INVALID_PARAMETER;
             pthread_mutex_unlock(&linux_worker_thread.mutex);
-        }
-        else
-        {
-            if ((status = pthread_attr_setdetachstate(&linux_worker_thread.attr, PTHREAD_CREATE_DETACHED)) != 0)
-            {
+        } else {
+            if ((status = pthread_attr_setdetachstate(&linux_worker_thread.attr, PTHREAD_CREATE_DETACHED)) != 0) {
                 result.error = ERR_INVALID_PARAMETER;
                 pthread_mutex_unlock(&linux_worker_thread.mutex);
-            }
-            else
-            {
+            } else {
                 linux_worker_thread.attr_initialized = 1;
             }
         }
@@ -86,8 +80,7 @@ static arm_uc_error_t spawn_thread(void *(*start_routine) (void *), void *arg)
                                     arg);
 
         /* check if thread was created successfully */
-        if (status != 0)
-        {
+        if (status != 0) {
             result.code = ERR_INVALID_PARAMETER;
             pthread_mutex_unlock(&linux_worker_thread.mutex);
         }
@@ -107,43 +100,36 @@ arm_uc_error_t ARM_UC_PAL_Linux_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_t call
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (callback)
-    {
+    if (callback) {
         arm_uc_pal_linux_internal_set_callback(callback);
 
         /* create folder for headers if it does not already exist */
         errno = 0;
         int status = mkdir(ARM_UC_HEADER_FOLDER_PATH, 0700);
 
-        if ((status == 0) || (errno == EEXIST))
-        {
+        if ((status == 0) || (errno == EEXIST)) {
             /* create folder for firmwares if it does not already exist */
             errno = 0;
             status = mkdir(ARM_UC_FIRMWARE_FOLDER_PATH, 0700);
 
-            if ((status == 0) || (errno == EEXIST))
-            {
+            if ((status == 0) || (errno == EEXIST)) {
                 /* set return code on success */
                 result.code = ERR_NONE;
             }
         }
 
         /* signal completion or perform extended preparation */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             /* set explicit ERR_NONE upon success */
             result.code = ERR_NONE;
 
-            if (arm_uc_worker_parameters.initialize)
-            {
+            if (arm_uc_worker_parameters.initialize) {
                 /* use extended prepare, invoke script from worker thread */
 
                 /* create a second thread which executes worker_parameters_prepare */
                 result = spawn_thread(arm_uc_pal_linux_extended_post_worker,
                                       arm_uc_worker_parameters.initialize);
-            }
-            else
-            {
+            } else {
                 /* call event handler */
                 arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_INITIALIZE_DONE, false);
             }
@@ -177,21 +163,19 @@ uint32_t ARM_UC_PAL_Linux_GetMaxID(void)
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
-                                        const arm_uc_firmware_details_t* details,
-                                        arm_uc_buffer_t* buffer)
+                                        const arm_uc_firmware_details_t *details,
+                                        arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details && buffer)
-    {
+    if (details && buffer) {
         UC_PAAL_TRACE("details size: %" PRIu64, details->size);
 
         /* write header */
         result = arm_uc_pal_linux_internal_write_header(&location, details);
 
         /* allocate space for firmware */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
             /* construct header file path */
@@ -203,26 +187,22 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
 
             UC_PAAL_TRACE("file path: %s", file_path);
 
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* open file */
                 errno = 0;
-                FILE* descriptor = fopen(file_path, "wb");
+                FILE *descriptor = fopen(file_path, "wb");
 
-                if (descriptor != NULL)
-                {
+                if (descriptor != NULL) {
                     /* allocate space by writing empty file */
                     memset(buffer->ptr, 0, buffer->size_max);
                     buffer->size = buffer->size_max;
 
                     uint64_t index = 0;
-                    while (index < details->size)
-                    {
+                    while (index < details->size) {
                         /* calculate write size to handle overspill */
                         size_t actual_size = details->size - index;
 
-                        if (actual_size > buffer->size)
-                        {
+                        if (actual_size > buffer->size) {
                             actual_size = buffer->size;
                         }
 
@@ -233,12 +213,9 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
                                                   descriptor);
 
                         /* break out if write failed */
-                        if (xfer_size == actual_size)
-                        {
+                        if (xfer_size == actual_size) {
                             index += actual_size;
-                        }
-                        else
-                        {
+                        } else {
                             result.code = ERR_INVALID_PARAMETER;
                             break;
                         }
@@ -247,35 +224,26 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
                     /* close file after write */
                     int status = fclose(descriptor);
 
-                    if (status == EOF)
-                    {
+                    if (status == EOF) {
                         UC_PAAL_ERR_MSG("failed to allocate space for firmware");
                         result.code = ERR_INVALID_PARAMETER;
                     }
-                }
-                else
-                {
+                } else {
                     UC_PAAL_ERR_MSG("failed to open file: %s", strerror(errno));
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("file name and path too long");
             }
-        }
-        else
-        {
+        } else {
             UC_PAAL_ERR_MSG("could not write header");
         }
 
         /* signal completion or perform extended preparation */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             /* set explicit ERR_NONE upon success */
             result.code = ERR_NONE;
 
-            if (arm_uc_worker_parameters.prepare)
-            {
+            if (arm_uc_worker_parameters.prepare) {
                 /* use extended prepare, invoke script from worker thread */
                 /* export location */
                 arm_uc_pal_linux_internal_set_location(&location);
@@ -283,9 +251,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
                 /* create a second thread which executes worker_parameters_prepare */
                 result = spawn_thread(arm_uc_pal_linux_extended_post_worker,
                                       arm_uc_worker_parameters.prepare);
-            }
-            else
-            {
+            } else {
                 /* call event handler */
                 arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_PREPARE_DONE, false);
             }
@@ -310,18 +276,16 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
  */
 arm_uc_error_t ARM_UC_PAL_Linux_Write(uint32_t location,
                                       uint32_t offset,
-                                      const arm_uc_buffer_t* buffer)
+                                      const arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer)
-    {
+    if (buffer) {
         /* reverse default error code */
         result.code = ERR_NONE;
 
         /* open file if descriptor is not set */
-        if (arm_uc_firmware_descriptor == NULL)
-        {
+        if (arm_uc_firmware_descriptor == NULL) {
             char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
             /* construct firmware file path */
@@ -331,41 +295,33 @@ arm_uc_error_t ARM_UC_PAL_Linux_Write(uint32_t location,
                                                          "firmware",
                                                          &location);
 
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 /* open file */
-                if (arm_uc_worker_parameters.write)
-                {
+                if (arm_uc_worker_parameters.write) {
                     /* in extended write, each fragment is stored in its own file */
                     arm_uc_firmware_descriptor = fopen(file_path, "w+b");
 
                     /* export offset before resetting it */
                     arm_uc_pal_linux_internal_set_offset(offset);
                     offset = 0;
-                }
-                else
-                {
+                } else {
                     /* in normal write, each fragment is added to an existing file */
                     arm_uc_firmware_descriptor = fopen(file_path, "r+b");
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("firmware file name and path too long");
             }
         }
 
         /* continue if file is open */
-        if (arm_uc_firmware_descriptor != NULL)
-        {
+        if (arm_uc_firmware_descriptor != NULL) {
             /* set write position */
             int status = fseek(arm_uc_firmware_descriptor,
                                offset,
                                SEEK_SET);
 
             /* continue if position is set */
-            if (status == 0)
-            {
+            if (status == 0) {
                 /* write buffer */
                 size_t xfer_size = fwrite(buffer->ptr,
                                           sizeof(uint8_t),
@@ -373,41 +329,34 @@ arm_uc_error_t ARM_UC_PAL_Linux_Write(uint32_t location,
                                           arm_uc_firmware_descriptor);
 
                 /* set error code if write failed */
-                if (xfer_size != buffer->size)
-                {
+                if (xfer_size != buffer->size) {
                     UC_PAAL_ERR_MSG("failed to write firmware");
                     result.code = ERR_INVALID_PARAMETER;
                 }
 
                 /* if using extended write */
-                if (arm_uc_worker_parameters.write)
-                {
+                if (arm_uc_worker_parameters.write) {
                     /* close file after write */
                     int status = fclose(arm_uc_firmware_descriptor);
                     arm_uc_firmware_descriptor = NULL;
 
-                    if (status == EOF)
-                    {
+                    if (status == EOF) {
                         UC_PAAL_ERR_MSG("failed to close firmware file");
                         result.code = ERR_INVALID_PARAMETER;
                     }
                 }
-            }
-            else
-            {
+            } else {
                 UC_PAAL_ERR_MSG("failed to seek in firmware");
                 result.code = ERR_INVALID_PARAMETER;
             }
         }
 
         /* signal completion or perform extended write */
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             /* set explicit ERR_NONE */
             result.code = ERR_NONE;
 
-            if (arm_uc_worker_parameters.write)
-            {
+            if (arm_uc_worker_parameters.write) {
                 /* use extended write, invoke script from worker thread */
                 /* export location */
                 arm_uc_pal_linux_internal_set_location(&location);
@@ -415,9 +364,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Write(uint32_t location,
                 /* create a second thread which executes worker_parameters_write */
                 result = spawn_thread(arm_uc_pal_linux_extended_post_worker,
                                       arm_uc_worker_parameters.write);
-            }
-            else
-            {
+            } else {
                 /* call event handler */
                 arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_WRITE_DONE, false);
             }
@@ -440,37 +387,31 @@ arm_uc_error_t ARM_UC_PAL_Linux_Finalize(uint32_t location)
     arm_uc_error_t result = { .code = ERR_NONE };
 
     /* only close firmware file if descriptor is not NULL */
-    if (arm_uc_firmware_descriptor != NULL)
-    {
+    if (arm_uc_firmware_descriptor != NULL) {
         /* close file */
         int status = fclose(arm_uc_firmware_descriptor);
         arm_uc_firmware_descriptor = NULL;
 
-        if (status == EOF)
-        {
+        if (status == EOF) {
             UC_PAAL_ERR_MSG("failed to close firmware file");
             result.code = ERR_INVALID_PARAMETER;
         }
     }
 
     /* signal completion or perform extended finalization */
-    if (result.error == ERR_NONE)
-    {
+    if (result.error == ERR_NONE) {
         /* explicitly set code to ERR_NONE */
         result.code = ERR_NONE;
 
         /* use extended finalize, invoke script from worker thread */
-        if (arm_uc_worker_parameters.finalize)
-        {
+        if (arm_uc_worker_parameters.finalize) {
             /* export location */
             arm_uc_pal_linux_internal_set_location(&location);
 
             /* create a second thread which executes worker_parameters_finalize */
             result = spawn_thread(arm_uc_pal_linux_extended_post_worker,
                                   arm_uc_worker_parameters.finalize);
-        }
-        else
-        {
+        } else {
             /* call event handler */
             arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_FINALIZE_DONE, false);
         }
@@ -496,15 +437,13 @@ arm_uc_error_t ARM_UC_PAL_Linux_Finalize(uint32_t location)
  */
 arm_uc_error_t ARM_UC_PAL_Linux_Read(uint32_t location,
                                      uint32_t offset,
-                                     arm_uc_buffer_t* buffer)
+                                     arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (buffer)
-    {
+    if (buffer) {
         /* use extended finalize, invoke script from worker thread */
-        if (arm_uc_worker_parameters.read)
-        {
+        if (arm_uc_worker_parameters.read) {
             /* export location, offset and buffer */
             arm_uc_pal_linux_internal_set_location(&location);
             arm_uc_pal_linux_internal_set_offset(offset);
@@ -513,9 +452,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Read(uint32_t location,
             /* create a second thread which executes worker_parameters_read */
             result = spawn_thread(arm_uc_pal_linux_extended_pre_worker,
                                   arm_uc_worker_parameters.read);
-        }
-        else
-        {
+        } else {
             /* normal read */
             char file_path[ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH] = { 0 };
 
@@ -527,13 +464,11 @@ arm_uc_error_t ARM_UC_PAL_Linux_Read(uint32_t location,
                                                          &location);
 
             /* file path is valid */
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 result = arm_uc_pal_linux_internal_read(file_path, offset, buffer);
 
                 /* signal completion */
-                if (result.error == ERR_NONE)
-                {
+                if (result.error == ERR_NONE) {
                     /* call event handler */
                     arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_READ_DONE, false);
                 }
@@ -568,31 +503,26 @@ arm_uc_error_t ARM_UC_PAL_Linux_Activate(uint32_t location)
     arm_uc_firmware_details_t details = { 0 };
     result = arm_uc_pal_linux_internal_read_header(&location, &details);
 
-    if (result.error == ERR_NONE)
-    {
+    if (result.error == ERR_NONE) {
         UC_PAAL_TRACE("version: %" PRIu64, details.version);
         UC_PAAL_TRACE("size: %"PRIu64, details.size);
 
         /* write details to active location */
         result = arm_uc_pal_linux_internal_write_header(NULL, &details);
 
-        if (result.error == ERR_NONE)
-        {
+        if (result.error == ERR_NONE) {
             /* explicitly set code to ERR_NONE */
             result.code = ERR_NONE;
 
             /* use extended activate, invoke script from worker thread */
-            if (arm_uc_worker_parameters.activate)
-            {
+            if (arm_uc_worker_parameters.activate) {
                 /* export location */
                 arm_uc_pal_linux_internal_set_location(&location);
 
                 /* create a second thread which executes worker_parameters_read */
                 result = spawn_thread(arm_uc_pal_linux_extended_post_worker,
                                       arm_uc_worker_parameters.activate);
-            }
-            else
-            {
+            } else {
                 arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_ACTIVATE_DONE, false);
             }
         }
@@ -613,15 +543,13 @@ arm_uc_error_t ARM_UC_PAL_Linux_Activate(uint32_t location)
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_PAL_Linux_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details)
+arm_uc_error_t ARM_UC_PAL_Linux_GetActiveFirmwareDetails(arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         /* use extended get firmware details, invoke script from worker thread */
-        if (arm_uc_worker_parameters.active_details)
-        {
+        if (arm_uc_worker_parameters.active_details) {
             /* export details */
             arm_uc_pal_linux_internal_set_details(details);
 
@@ -629,19 +557,15 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetActiveFirmwareDetails(arm_uc_firmware_details
             result = spawn_thread(arm_uc_pal_linux_extended_pre_worker,
                                   arm_uc_worker_parameters.active_details);
 
-        }
-        else
-        {
+        } else {
             /* normal read */
             result = arm_uc_pal_linux_internal_read_header(NULL, details);
 
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 UC_PAAL_TRACE("version: %" PRIu64, details->version);
                 UC_PAAL_TRACE("size: %"PRIu64, details->size);
 
-                if (result.error == ERR_NONE)
-                {
+                if (result.error == ERR_NONE) {
                     arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_ACTIVE_FIRMWARE_DETAILS_DONE, false);
                 }
             }
@@ -664,15 +588,13 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetActiveFirmwareDetails(arm_uc_firmware_details
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_Linux_GetFirmwareDetails(uint32_t location,
-                                                   arm_uc_firmware_details_t* details)
+                                                   arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         /* use extended get firmware details, invoke script from worker thread */
-        if (arm_uc_worker_parameters.details)
-        {
+        if (arm_uc_worker_parameters.details) {
             /* export location and details */
             arm_uc_pal_linux_internal_set_location(&location);
             arm_uc_pal_linux_internal_set_details(details);
@@ -680,14 +602,11 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetFirmwareDetails(uint32_t location,
             /* create a second thread which executes worker_parameters_read */
             result = spawn_thread(arm_uc_pal_linux_extended_pre_worker,
                                   arm_uc_worker_parameters.details);
-        }
-        else
-        {
+        } else {
             /* normal read */
             result = arm_uc_pal_linux_internal_read_header(&location, details);
 
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 UC_PAAL_TRACE("version: %" PRIu64, details->version);
                 UC_PAAL_TRACE("size: %"PRIu64, details->size);
 
@@ -713,29 +632,24 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetFirmwareDetails(uint32_t location,
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UC_PAL_Linux_GetInstallerDetails(arm_uc_installer_details_t* details)
+arm_uc_error_t ARM_UC_PAL_Linux_GetInstallerDetails(arm_uc_installer_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (details)
-    {
+    if (details) {
         /* use extended installer details, invoke script from worker thread */
-        if (arm_uc_worker_parameters.installer)
-        {
+        if (arm_uc_worker_parameters.installer) {
             /* export installer details */
             arm_uc_pal_linux_internal_set_installer(details);
 
             /* create a second thread which executes worker_parameters_read */
             result = spawn_thread(arm_uc_pal_linux_extended_pre_worker,
                                   arm_uc_worker_parameters.installer);
-        }
-        else
-        {
+        } else {
             /* normal read */
             result = arm_uc_pal_linux_internal_read_installer(details);
 
-            if (result.error == ERR_NONE)
-            {
+            if (result.error == ERR_NONE) {
                 arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_GET_INSTALLER_DETAILS_DONE, false);
             }
         }
@@ -744,4 +658,5 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetInstallerDetails(arm_uc_installer_details_t* 
     return result;
 }
 
-#endif
+#endif /* TARGET_IS_PC_LINUX */
+#endif /* ARM_UC_FEATURE_PAL_LINUX */

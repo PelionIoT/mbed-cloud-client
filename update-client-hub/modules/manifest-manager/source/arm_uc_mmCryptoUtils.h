@@ -21,16 +21,25 @@
 
 #include "update-client-manifest-manager/update-client-manifest-manager-context.h"
 #include "update-client-manifest-manager/update-client-manifest-types.h"
+#include "update-client-common/arm_uc_config.h"
 
 
-arm_uc_error_t ARM_UC_mmValidateManifestHash(arm_uc_buffer_t* buffer);
-arm_uc_error_t ARM_UC_mmValidateSignature(arm_uc_mm_validate_signature_context_t* ctx,
+arm_uc_error_t ARM_UC_mmValidateManifestHash(arm_uc_buffer_t *buffer);
+#if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
+arm_uc_error_t ARM_UC_mmValidateSignature(arm_uc_mm_validate_signature_context_t *ctx,
                                           void (*applicationEventHandler)(uint32_t),
-                                          arm_uc_buffer_t* buffer,
-                                          arm_uc_buffer_t* certBuffer,
+                                          arm_uc_buffer_t *buffer,
+                                          arm_uc_buffer_t *certBuffer,
                                           uint32_t sigIndex);
-arm_uc_error_t ARM_UC_mmGetManifestHashFromBin(arm_uc_buffer_t* buffer, arm_uc_buffer_t* hash);
-void ARM_UC_mmGetFirmwareHashFromBin(arm_uc_buffer_t* manifest, arm_uc_buffer_t* hash);
+#endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */
+#if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
+arm_uc_error_t ARM_UC_mmVerifySignaturePSK(arm_uc_mm_validate_signature_context_t *ctx,
+                                           void (*applicationEventHandler)(uint32_t),
+                                           arm_uc_buffer_t *buffer,
+                                           uint32_t sigIndex);
+#endif /* ARM_UC_FEATURE_MANIFEST_PSK */
+arm_uc_error_t ARM_UC_mmGetManifestHashFromBin(arm_uc_buffer_t *buffer, arm_uc_buffer_t *hash);
+void ARM_UC_mmGetFirmwareHashFromBin(arm_uc_buffer_t *manifest, arm_uc_buffer_t *hash);
 
 
 struct cryptsize {
@@ -38,7 +47,7 @@ struct cryptsize {
     uint32_t aeslen;
 };
 
-struct cryptsize getCryptInfo(arm_uc_buffer_t* buffer);
+struct cryptsize getCryptInfo(arm_uc_buffer_t *buffer);
 /**
  * NOTE: This function does no validation. cryptomode must already have been validated by validateCryptoMode
  *

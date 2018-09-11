@@ -32,7 +32,7 @@
  * @param uri URI struct with manifest location.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_SetDefaultManifestURL(arm_uc_uri_t* uri);
+arm_uc_error_t ARM_UCS_Http_SetDefaultManifestURL(arm_uc_uri_t *uri);
 
 /**
  * @brief Set polling interval for notification generation.
@@ -41,7 +41,7 @@ arm_uc_error_t ARM_UCS_SetDefaultManifestURL(arm_uc_uri_t* uri);
  * @param seconds Seconds between each poll.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_SetPollingInterval(uint32_t seconds);
+arm_uc_error_t ARM_UCS_Http_SetPollingInterval(uint32_t seconds);
 
 /**
  * @brief Main function for the Source.
@@ -54,14 +54,13 @@ arm_uc_error_t ARM_UCS_SetPollingInterval(uint32_t seconds);
  * @param buffer arm_uc_buffer_t for storing HTTP header during hash check.
  * @return Seconds until the next polling interval.
  */
-uint32_t ARM_UCS_CallMultipleTimes(arm_uc_buffer_t* buffer);
+uint32_t ARM_UCS_Http_CallMultipleTimes(arm_uc_buffer_t *buffer);
 
 
-typedef struct _ARM_UCS_HTTPLinuxExtra_t
-{
-    arm_uc_error_t (*SetDefaultManifestURL)(arm_uc_uri_t* uri);
+typedef struct _ARM_UCS_HttpLinuxExtra_t {
+    arm_uc_error_t (*SetDefaultManifestURL)(arm_uc_uri_t *uri);
     arm_uc_error_t (*SetPollingInterval)(uint32_t seconds);
-    uint32_t (*CallMultipleTimes)(arm_uc_buffer_t* buffer);
+    uint32_t (*CallMultipleTimes)(arm_uc_buffer_t *buffer);
 } ARM_UCS_HTTPSourceExtra_t;
 
 extern ARM_UCS_HTTPSourceExtra_t ARM_UCS_HTTPSourceExtra;

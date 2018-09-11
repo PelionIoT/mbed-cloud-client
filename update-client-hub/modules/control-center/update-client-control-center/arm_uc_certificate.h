@@ -35,15 +35,15 @@ extern "C" {
  * @param fingerprint_length Fingerprint length.
  * @return Error code.
  */
- arm_uc_error_t ARM_UC_Certificate_Add(const uint8_t* certificate,
-                                       uint16_t certificate_size,
-                                       const uint8_t* fingerprint,
-                                       uint16_t fingerprint_size,
-                                       void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*));
+arm_uc_error_t ARM_UC_Certificate_Add(const uint8_t *certificate,
+                                      uint16_t certificate_size,
+                                      const uint8_t *fingerprint,
+                                      uint16_t fingerprint_size,
+                                      void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *));
 
-typedef arm_uc_error_t (* arm_uc_certificateStorer)(const arm_uc_buffer_t* certificate,
-                                                    const arm_uc_buffer_t* fingerprint,
-                                                    void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*));
+typedef arm_uc_error_t (* arm_uc_certificateStorer)(const arm_uc_buffer_t *certificate,
+                                                    const arm_uc_buffer_t *fingerprint,
+                                                    void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *));
 
 /**
  * @brief Fetch a certificate by fingerprint
@@ -59,10 +59,10 @@ typedef arm_uc_error_t (* arm_uc_certificateStorer)(const arm_uc_buffer_t* certi
  *                               always be the first in the list)
  * @param[in] callback The function to call when the certificate is available
  */
-typedef arm_uc_error_t (*arm_uc_certificateFetcher)(arm_uc_buffer_t* certificate,
-    const arm_uc_buffer_t* fingerprint,
-    const arm_uc_buffer_t* DERCertificateList,
-    void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*, const arm_uc_buffer_t*));
+typedef arm_uc_error_t (*arm_uc_certificateFetcher)(arm_uc_buffer_t *certificate,
+                                                    const arm_uc_buffer_t *fingerprint,
+                                                    const arm_uc_buffer_t *DERCertificateList,
+                                                    void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *, const arm_uc_buffer_t *));
 
 
 struct arm_uc_certificate_api {
@@ -70,10 +70,10 @@ struct arm_uc_certificate_api {
     arm_uc_certificateStorer  store;
 };
 
-arm_uc_error_t ARM_UC_certificateFetch(arm_uc_buffer_t* certificate,
-    const arm_uc_buffer_t* fingerprint,
-    const arm_uc_buffer_t* DERCertificateList,
-    void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*, const arm_uc_buffer_t*));
+arm_uc_error_t ARM_UC_certificateFetch(arm_uc_buffer_t *certificate,
+                                       const arm_uc_buffer_t *fingerprint,
+                                       const arm_uc_buffer_t *DERCertificateList,
+                                       void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *, const arm_uc_buffer_t *));
 
 #ifdef __cplusplus
 };

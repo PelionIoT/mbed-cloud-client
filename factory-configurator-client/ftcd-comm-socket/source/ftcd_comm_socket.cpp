@@ -185,7 +185,7 @@ ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint3
     int result = PAL_SUCCESS;
     ftcd_comm_status_e comm_status = FTCD_COMM_STATUS_SUCCESS;
     palSocketLength_t addrlen = sizeof(palSocketAddress_t);
-    palSocketAddress_t address = { 0 };
+    palSocketAddress_t address = { 0 , { 0 } };
     bool reiterate;
 
     do {
@@ -335,7 +335,7 @@ bool FtcdCommSocket::_listen(void)
 {
     int status;
     palStatus_t result = PAL_SUCCESS;
-    palSocketAddress_t address = { 0 };
+    palSocketAddress_t address = { 0 , { 0 } };
     palIpV4Addr_t ipv4 = { 0 };
     int enable_reuseaddr = 1;
 

@@ -34,7 +34,7 @@ extern "C" {
  * @param implementation Function pointer struct to implementation.
  * @return Returns ERR_NONE on accept and ERR_INVALID_PARAMETER otherwise.
  */
-arm_uc_error_t ARM_UCP_SetPAALUpdate(const ARM_UC_PAAL_UPDATE* implementation);
+arm_uc_error_t ARM_UCP_SetPAALUpdate(const ARM_UC_PAAL_UPDATE *implementation);
 
 /**
  * @brief Initialize the underlying storage and set the callback handler.
@@ -76,8 +76,8 @@ uint32_t ARM_UCP_GetMaxID(void);
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UCP_Prepare(uint32_t location,
-                               const arm_uc_firmware_details_t* details,
-                               arm_uc_buffer_t* buffer);
+                               const arm_uc_firmware_details_t *details,
+                               arm_uc_buffer_t *buffer);
 
 /**
  * @brief Write a fragment to the indicated storage location.
@@ -94,7 +94,7 @@ arm_uc_error_t ARM_UCP_Prepare(uint32_t location,
  */
 arm_uc_error_t ARM_UCP_Write(uint32_t location,
                              uint32_t offset,
-                             const arm_uc_buffer_t* buffer);
+                             const arm_uc_buffer_t *buffer);
 
 /**
  * @brief Close storage location for writing and flush pending data.
@@ -123,7 +123,7 @@ arm_uc_error_t ARM_UCP_Finalize(uint32_t location);
  */
 arm_uc_error_t ARM_UCP_Read(uint32_t location,
                             uint32_t offset,
-                            arm_uc_buffer_t* buffer);
+                            arm_uc_buffer_t *buffer);
 
 /**
  * @brief Set the firmware image in the slot to be the new active image.
@@ -155,7 +155,7 @@ arm_uc_error_t ARM_UCP_Activate(uint32_t location);
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UCP_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details);
+arm_uc_error_t ARM_UCP_GetActiveFirmwareDetails(arm_uc_firmware_details_t *details);
 
 /**
  * @brief Get firmware details for the firmware image in the slot passed.
@@ -170,7 +170,7 @@ arm_uc_error_t ARM_UCP_GetActiveFirmwareDetails(arm_uc_firmware_details_t* detai
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UCP_GetFirmwareDetails(uint32_t location,
-                                          arm_uc_firmware_details_t* details);
+                                          arm_uc_firmware_details_t *details);
 
 /**
  * @brief Get details for the component responsible for installation.
@@ -186,7 +186,7 @@ arm_uc_error_t ARM_UCP_GetFirmwareDetails(uint32_t location,
  *         either DONE or ERROR when complete.
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
-arm_uc_error_t ARM_UCP_GetInstallerDetails(arm_uc_installer_details_t* details);
+arm_uc_error_t ARM_UCP_GetInstallerDetails(arm_uc_installer_details_t *details);
 
 #ifdef __cplusplus
 }

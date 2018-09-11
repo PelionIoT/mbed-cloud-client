@@ -314,13 +314,14 @@ palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSock
 #endif
 
 #if PAL_NET_DNS_SUPPORT
-
+#if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
 /*! This function translates from a URL to `palSocketAddress_t` which can be used with PAL sockets. It supports both IP address as strings and URLs (using DNS lookup).
 * @param[in] url The URL (or IP address string) to be translated to a `palSocketAddress_t`.
 * @param[out] address The address for the output of the translation.
 */
 palStatus_t pal_getAddressInfo(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength);
 
+#if (PAL_DNS_API_VERSION == 1) 
 /*! Prototype of the callback function invoked when querying address info asynchronously (pal_getAddressInfoAsync).
 * @param[in] url The user provided url (or IP address string) that was requested to be translated
 * @param[in] address The address for the output of the translation
@@ -328,7 +329,7 @@ palStatus_t pal_getAddressInfo(const char* url, palSocketAddress_t* address, pal
 * @param[in] status The status of the operation - PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure
 * @param[in] callbackArgument The user callback argument
 */
-#ifndef PAL_DNS_API_V2
+
 typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument);
 
 /*! This function translates from a URL to `palSocketAddress_t` which can be used with PAL sockets. It supports both IP address as strings and URLs (using DNS lookup). \n
@@ -339,8 +340,11 @@ typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddres
 * @param[in] callback The user provided callback to be invoked once the function has completed
 * @param[in] callbackArgument The user provided callback argument which will be passed back to the (user provided) callback function
 */
+
 palStatus_t pal_getAddressInfoAsync(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palGetAddressInfoAsyncCallback_t callback, void* callbackArgument);
-#else
+#endif
+
+#elif (PAL_DNS_API_VERSION == 2)
 typedef int32_t palDNSQuery_t; /*! PAL DNS query handle, may be used to cancel the asynchronous DNS query. */
 
 /*! Prototype of the callback function invoked when querying address info asynchronously (pal_getAddressInfoAsync).
@@ -384,8 +388,9 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
 * @param[in] queryHandle Id of ongoing DNS query.
 */
 palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
-#endif  // #ifndef PAL_DNS_API_V2
-
+#else
+    #error "Please specify the platform PAL_DNS_API_VERSION 0, 1, or 2."
+#endif //  PAL_DNS_API_VERSION
 #endif  // PAL_NET_DNS_SUPPORT
 
 #ifdef __cplusplus

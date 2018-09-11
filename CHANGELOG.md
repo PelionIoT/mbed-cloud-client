@@ -1,6 +1,70 @@
-## Changelog for Mbed Cloud Client
+## Changelog for Pelion Device Management Client
+
+### Release 1.5.0 (11.09.2018)
+
+#### Pelion Device Management Client
+
+* Implement new callback to track notification and delayed post response delivery statuses.
+  * Added API: `M2MBase::set_message_delivery_status_cb(message_delivery_status_cb callback, void *client_args);`
+  * Following API's are mark as deprecated since this new API will replace them. These API's will be removed in subsequential client relases.
+    * `M2MBase::send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status)`
+    * `M2MBase::get_notification_msgid()`
+    * `M2MBase::set_notification_msgid(uint16_t msgid)`
+	* `M2MBase::set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args)`
+	* `M2MBase::get_notification_delivery_status()`
+	* `M2MBase::clear_notification_delivery_status()`
+* Implemented new functionality to get the internal object list of Mbed Cloud Client.
+  * Added API: `MbedCloudClient::get_object_list()`.
+
+#### Platform Adaptation Layer (PAL)
+
+* Fixed Coverity issues in PAL.
+* Improved error handling and logging for network and storage.
+* Introduced `PAL_DNS_API_VERSION` for handling DNS.
+  * 0 = synchronous DNS.
+  * 1 = asynchronous DNS.
+  * 2 = asynchronous DNS v2 (Only with Mbed OS 5.9 or later).
+* Fixed PAL tracing implementation to allow an application to override the tracing level definitions.
+* In `pal_isLeapYear` fixed a bug that made the certificate times off by a day.
+* Enforced usage of MTU limits when using DTLS and `PAL_UDP_MTU_SIZE` is defined.
+* Added configuration for K66F.
+* [LINUX] Improved logging for RNG generation.
+* [LINUX] Removed the glibc-specific function `pthread_sigqueue()` and replaced with `pthead_kill()`.
+* [LINUX] Increased stack-size of `PAL_NOISE_TRNG_THREAD` to 32k. Increased stack-size of `PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE` to 24k.
+* [LINUX] Added socket event filter clearing for `pal_plat_connect()` and `pal_plat_asynchronousSocket()`.
+* [Mbed OS] Define `PAL_USE_INTERNAL_FLASH` and `PAL_INT_FLASH_NUM_SECTIONS = 2` by default for all targets.
+* [Mbed OS] Compatibility changes for Mbed OS 5.10.
+* [Mbed OS] Fixed a compatibility issue with Mbed TLS 2.13.0 for ARMCC compiler.
+
+#### Mbed Cloud Update
+
+* Fixed Device Management Client factory update flow by setting default identity configuration to KCM
+* Added Firmware Update over CoAP into Device Management Client 
+  * The firmware is downloaded using HTTP by default.
+  * To Download using CoAP in MbedOS set the flag into "target_overrides" -section in mbed_app.json followingly:
+    * "mbed-cloud-client.update-download-protocol": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP"
+* [LINUX] Fixed Linux Update e2e failure reverting adding "set -eu" to linux scripts.
+* Fixed RTL8195 Flash R/W Issue by adding FlashIAP Init -call into initialization
+* Fixed long HTTP headers handling logic to support headers to split to multiple fragments
+* Fixed Device Management Update Client versioning to work in factory flow
+* Fixed Device Management Update Client uninitialization logic by adding handling for state ARM_UC_HUB_STATE_UNINITIALIZED in state machine
+* Optimized static RAM usage by reusing the static object "ManifestManagerContext" during init
+* Added support into Device Management Update Client Configuration to map external Download Protocol -definition to internal configurations. This is needed for supporting Download protocol selection in Device Management Client
+* Implemented resume firmware download after connection failure.
+* Added a scheduler trace macro.
+* Merged two branches of Device Management Update client to one and added profile & feature flags to separate between different feature sets. New profile flag `ARM_UC_PROFILE_MBED_CLOUD_CLIENT` is used to enable correct profile for Device Management Client.
+* `MBED_CONF_MBED_CLIENT_DNS_USE_THREAD` removed.
+* Fixed Linux scripts to use -e and -u parameters for "set" to propagate errors
+* Fixed Update state machine failure which was noticed when traces were enabled. Notification state machine was changed to sequentially wait internal asynchronous operations to complete before sending updated resource values to service and waiting for acknowledgment from service.
+* MCCP=3 in Pelion Device Management Client: Support for sending update resource data as part of the Registration Message, thereby reducing traffic to Pelion Device Management.
+* Changed uninitialization for Device Management Update Client to be done for all states past initialization states. Added null-checks for resource value settings.
+
+#### Factory configurator client
+
+* The error `FCC_STATUS_STORE_ERROR` is returned upon an internal storage init failure.
 
 ### Release 1.4.0 (13.07.2018)
+
 * Fixed a timer initialization bug under connection handler.
 * Linux: Updated mbed-coap to 4.5.0.
 * This version of Cloud Client has been tested with Mbed OS 5.9.2.

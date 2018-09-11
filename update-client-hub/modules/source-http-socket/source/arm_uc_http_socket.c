@@ -16,10 +16,15 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_FEATURE_FW_SOURCE_HTTP) && (ARM_UC_FEATURE_FW_SOURCE_HTTP == 1)
+
+#include "arm_uc_http_socket_private.h"
+
 #include "update-client-source-http-socket/arm_uc_http_socket.h"
 #include "update-client-common/arm_uc_common.h"
 
-#include "arm_uc_http_socket_private.h"
 
 /*****************************************************************************/
 /* Public Function                                                           */
@@ -33,10 +38,10 @@
  * @param handler Event handler for signaling when each operation is complete.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_Initialize(arm_uc_http_socket_context_t* context,
+arm_uc_error_t ARM_UCS_HttpSocket_Initialize(arm_uc_http_socket_context_t *context,
                                              ARM_UCS_HttpEvent_t handler)
 {
-    return arm_uc_socket_initialize(context, handler);
+    return arm_uc_http_socket_initialize(context, handler);
 }
 
 /**
@@ -44,9 +49,9 @@ arm_uc_error_t ARM_UCS_HttpSocket_Initialize(arm_uc_http_socket_context_t* conte
  * @details HTTP sockets must be initialized again before use.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_Terminate()
+arm_uc_error_t ARM_UCS_HttpSocket_Terminate(void)
 {
-    return arm_uc_socket_terminate();
+    return arm_uc_http_socket_terminate();
 }
 
 /**
@@ -59,9 +64,10 @@ arm_uc_error_t ARM_UCS_HttpSocket_Terminate()
  * @param buffer Pointer to structure with buffer location, maxSize, and size.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetHash(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer)
+arm_uc_error_t ARM_UCS_HttpSocket_GetHash(arm_uc_uri_t *uri,
+                                          arm_uc_buffer_t *buffer)
 {
-    return arm_uc_socket_get(uri, buffer, UINT32_MAX, RQST_TYPE_HASH_ETAG);
+    return arm_uc_http_socket_get(uri, buffer, UINT32_MAX, RQST_TYPE_HASH_ETAG);
 }
 
 /**
@@ -74,9 +80,10 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetHash(arm_uc_uri_t* uri, arm_uc_buffer_t* bu
  * @param buffer Pointer to structure with buffer location, maxSize, and size.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetDate(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer)
+arm_uc_error_t ARM_UCS_HttpSocket_GetDate(arm_uc_uri_t *uri,
+                                          arm_uc_buffer_t *buffer)
 {
-    return arm_uc_socket_get(uri, buffer, UINT32_MAX, RQST_TYPE_HASH_DATE);
+    return arm_uc_http_socket_get(uri, buffer, UINT32_MAX, RQST_TYPE_HASH_DATE);
 }
 
 /**
@@ -93,9 +100,10 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetDate(arm_uc_uri_t* uri, arm_uc_buffer_t* bu
  * @param buffer Pointer to structure with buffer location, maxSize, and size.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetFile(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer)
+arm_uc_error_t ARM_UCS_HttpSocket_GetFile(arm_uc_uri_t *uri,
+                                          arm_uc_buffer_t *buffer)
 {
-    return arm_uc_socket_get(uri, buffer, UINT32_MAX, RQST_TYPE_GET_FILE);
+    return arm_uc_http_socket_get(uri, buffer, UINT32_MAX, RQST_TYPE_GET_FILE);
 }
 
 /**
@@ -114,9 +122,12 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetFile(arm_uc_uri_t* uri, arm_uc_buffer_t* bu
  * @param offset Offset in resource to begin download from.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetFragment(arm_uc_uri_t* uri,
-                                              arm_uc_buffer_t* buffer,
+arm_uc_error_t ARM_UCS_HttpSocket_GetFragment(arm_uc_uri_t *uri,
+                                              arm_uc_buffer_t *buffer,
                                               uint32_t offset)
 {
-    return arm_uc_socket_get(uri, buffer, offset, RQST_TYPE_GET_FRAG);
+    return arm_uc_http_socket_get(uri, buffer, offset, RQST_TYPE_GET_FRAG);
 }
+
+#endif // ARM_UC_FEATURE_FW_SOURCE_HTTP
+

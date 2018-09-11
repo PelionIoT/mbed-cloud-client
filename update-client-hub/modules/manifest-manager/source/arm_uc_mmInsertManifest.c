@@ -26,13 +26,13 @@
 #include "arm_uc_mmFSMHelper.h"
 #include "arm_uc_mmInsertManifest.h"
 #include "update-client-common/arm_uc_scheduler.h"
+#include "update-client-common/arm_uc_config.h"
 
 #include "update-client-manifest-manager/update-client-manifest-manager-context.h"
 #include "update-client-manifest-manager/update-client-manifest-manager.h"
 #include "update-client-manifest-manager/update-client-manifest-types.h"
 
 #include "pal4life-device-identity/pal_device_identity.h"
-#include "pal.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -109,16 +109,16 @@
  */
 
 #if ARM_UC_MANIFEST_MANAGER_TRACE_ENABLE
-static const char* ARM_UC_mmInsertState2Str(uint32_t state)
+static const char *ARM_UC_mmInsertState2Str(uint32_t state)
 {
     switch (state) {
-        #define ENUM_AUTO(name) case name: return #name;
-        #define ENUM_FIXED(name, val) ENUM_AUTO(name)
-        ARM_UC_MM_INS_STATE_LIST
-        #undef ENUM_AUTO
-        #undef ENUM_FIXED
-    default:
-        return "Unknown State";
+#define ENUM_AUTO(name) case name: return #name;
+#define ENUM_FIXED(name, val) ENUM_AUTO(name)
+            ARM_UC_MM_INS_STATE_LIST
+#undef ENUM_AUTO
+#undef ENUM_FIXED
+        default:
+            return "Unknown State";
     }
 }
 #endif
@@ -127,22 +127,18 @@ static const char* ARM_UC_mmInsertState2Str(uint32_t state)
 
 /** @brief Validate that the resource contained in this signed container is a manifest.
  */
-static arm_uc_error_t validateResourceType(arm_uc_buffer_t* buffer)
+static arm_uc_error_t validateResourceType(arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
     arm_uc_buffer_t type = { 0 };
     // Read the resource type field.
     err = ARM_UC_mmDERSignedResourceGetSingleValue(buffer,
                                                    ARM_UC_MM_DER_RESOURCE_TYPE, &type);
-    if (type.ptr == NULL)
-    {
+    if (type.ptr == NULL) {
         err.code = MFST_ERR_DER_FORMAT;
-    }
-    else if (err.error == ERR_NONE)
-    {
+    } else if (err.error == ERR_NONE) {
         // The resource type must be a manifest.
-        if (ARM_UC_mmDerBuf2Uint(&type) != 0)
-        {
+        if (ARM_UC_mmDerBuf2Uint(&type) != 0) {
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_DER_FORMAT);
         }
     }
@@ -150,13 +146,12 @@ static arm_uc_error_t validateResourceType(arm_uc_buffer_t* buffer)
 }
 /** @brief Validate that this manifest is a supported version
  */
-static arm_uc_error_t validateManifestVersion(arm_uc_buffer_t* buffer)
+static arm_uc_error_t validateManifestVersion(arm_uc_buffer_t *buffer)
 {
     uint32_t val = 0;
     // Read the manifest version
     arm_uc_error_t err = ARM_UC_mmGetVersion(buffer, &val);
-    if (err.code == MFST_ERR_NONE)
-    {
+    if (err.code == MFST_ERR_NONE) {
         // Verify the manifest version
         if (val != MANIFEST_SUPPORTED_VERSION) {
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_VERSION);
@@ -167,20 +162,18 @@ static arm_uc_error_t validateManifestVersion(arm_uc_buffer_t* buffer)
 
 /** @brief Validate the manifest size
  */
-static arm_uc_error_t validateManifestSize(arm_uc_buffer_t* buffer)
+static arm_uc_error_t validateManifestSize(arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
     arm_uc_buffer_t val = {0};
 
     // Get the manifest inner part
     err = ARM_UC_mmDERSignedResourceGetSingleValue(buffer, ARM_UC_MM_DER_MFST, &val);
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         // Make sure that the manifest does not overrun.
         uintptr_t bufend = (uintptr_t)buffer->ptr + buffer->size;
         uintptr_t valend = (uintptr_t)val.ptr + val.size;
-        if (bufend < valend)
-        {
+        if (bufend < valend) {
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_SIZE);
         }
         // TODO: There should be a minimum size for the manifest too.
@@ -195,18 +188,14 @@ static arm_uc_error_t validateManifestSize(arm_uc_buffer_t* buffer)
  *           While the manifest format supports OID cryptographic mode identifiers, these are not currently supported in
  *           the update client.
  */
-static arm_uc_error_t validateCryptoMode(arm_uc_buffer_t* buffer, arm_uc_mm_crypto_flags_t* flags)
+static arm_uc_error_t validateCryptoMode(arm_uc_buffer_t *buffer, arm_uc_mm_crypto_flags_t *flags)
 {
     uint32_t cryptoMode = 1U; // default SHA256 and ECC
     arm_uc_error_t err = ARM_UC_mmGetCryptoMode(buffer, &cryptoMode);
-    if (err.error == ERR_NONE)
-    {
-        if (cryptoMode <= MFST_CRYPT_UNINIT || MFST_CRYPT_MAX <= cryptoMode)
-        {
+    if (err.error == ERR_NONE) {
+        if (cryptoMode <= MFST_CRYPT_UNINIT || MFST_CRYPT_MAX <= cryptoMode) {
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_CRYPTO_MODE);
-        }
-        else
-        {
+        } else {
             *flags = ARM_UC_mmGetCryptoFlags(cryptoMode);
         }
     }
@@ -214,25 +203,28 @@ static arm_uc_error_t validateCryptoMode(arm_uc_buffer_t* buffer, arm_uc_mm_cryp
 }
 
 // Validate that the manifest applies to this device
-static arm_uc_error_t validateFirmwareApplicability(arm_uc_buffer_t* buffer)
+static arm_uc_error_t validateFirmwareApplicability(arm_uc_buffer_t *buffer)
 {
     arm_uc_buffer_t vendor_guid = {0};
     arm_uc_buffer_t class_guid  = {0};
     arm_uc_buffer_t device_guid = {0};
 
     arm_uc_error_t err = {MFST_ERR_NONE};
-    if (err.code == MFST_ERR_NONE)
+    if (err.code == MFST_ERR_NONE) {
         err = ARM_UC_mmGetVendorGuid(buffer, &vendor_guid);
-    if (err.code == MFST_ERR_NONE)
+    }
+    if (err.code == MFST_ERR_NONE) {
         err = ARM_UC_mmGetClassGuid(buffer, &class_guid);
-    if (err.code == MFST_ERR_NONE)
+    }
+    if (err.code == MFST_ERR_NONE) {
         err = ARM_UC_mmGetDeviceGuid(buffer, &device_guid);
+    }
     if (err.code == MFST_ERR_NONE)
         err = pal_deviceIdentityCheck(
-            (vendor_guid.size != 0UL ? &vendor_guid : NULL),
-            (class_guid.size != 0UL ? &class_guid : NULL),
-            (device_guid.size != 0UL ? &device_guid : NULL)
-        );
+                  (vendor_guid.size != 0UL ? &vendor_guid : NULL),
+                  (class_guid.size != 0UL ? &class_guid : NULL),
+                  (device_guid.size != 0UL ? &device_guid : NULL)
+              );
     return err;
 }
 /*
@@ -247,11 +239,10 @@ static arm_uc_error_t validateFirmwareApplicability(arm_uc_buffer_t* buffer)
  * DOT:    Idle
  * DOT:    Idle -> Begin [label="[event == BEGIN]"]
  */
-static arm_uc_error_t state_idle(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_idle(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
-    if (*event == ARM_UC_MM_EVENT_BEGIN)
-    {
+    if (*event == ARM_UC_MM_EVENT_BEGIN) {
         ctx->state = ARM_UC_MM_INS_STATE_BEGIN;
     }
     return err;
@@ -263,7 +254,7 @@ static arm_uc_error_t state_idle(struct arm_uc_mmInsertContext_t* ctx, uint32_t*
  * DOT:    Begin
  * DOT:    Begin -> VerifyBasicParameters
  */
-static arm_uc_error_t state_begin(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_begin(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
     ctx->state = ARM_UC_MM_INS_STATE_VERIFY_BASIC_PARAMS;
@@ -283,33 +274,26 @@ static arm_uc_error_t state_begin(struct arm_uc_mmInsertContext_t* ctx, uint32_t
  * DOT:    VerifyBasicParameters -> VerifyHash
  * DOT:    VerifyBasicParameters -> VerifyFail [label="[Basic Parameters invalid]"]
  */
-static arm_uc_error_t state_verifyBasicParameters(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifyBasicParameters(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
 
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = validateResourceType(&ctx->manifest);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = validateManifestSize(&ctx->manifest);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = validateManifestVersion(&ctx->manifest);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = validateCryptoMode(&ctx->manifest, &ctx->cryptoMode);
     }
     // Set the state based on error condition
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         ctx->state = ARM_UC_MM_INS_STATE_HASH_VERIFY;
-    }
-    else
-    {
+    } else {
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_FAIL;
     }
     return err;
@@ -324,25 +308,19 @@ static arm_uc_error_t state_verifyBasicParameters(struct arm_uc_mmInsertContext_
  * DOT:     VerifyHash -> VerifySignatureLoopStart
  * DOT:     VerifyHash -> VerifyFail [label="[Hash invalid]"]
  */
-static arm_uc_error_t state_verifyHash(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifyHash(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = ARM_UC_mmValidateManifestHash(&ctx->manifest);
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         // If the cryptoMode specifies either ecc or rsa, then we can validate that.
-        if(ctx->cryptoMode.ecc || ctx->cryptoMode.rsa)
-        {
+        if (ctx->cryptoMode.ecc || ctx->cryptoMode.rsa || ctx->cryptoMode.psk) {
             ctx->state = ARM_UC_MM_INS_STATE_VERIFY_SIG_LOOP;
-        }
-        else
-        {
+        } else {
             // Unsigned manifests are not supported at this time, so they count as a failure.
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_INVALID_SIGNATURE);
             ctx->state = ARM_UC_MM_INS_STATE_VERIFY_FAIL;
         }
-    }
-    else
-    {
+    } else {
         ARM_UC_MFST_SET_ERROR(err, MFST_ERR_HASH);
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_FAIL;
     }
@@ -356,7 +334,7 @@ static arm_uc_error_t state_verifyHash(struct arm_uc_mmInsertContext_t* ctx, uin
  * DOT:     VerifySignatureLoopStart
  * DOT:     VerifySignatureLoopStart -> VerifySignatureStart
  */
-static arm_uc_error_t state_verifySignatureLoopStart(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifySignatureLoopStart(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
     // Set the exterior loop counter
@@ -376,31 +354,47 @@ static arm_uc_error_t state_verifySignatureLoopStart(struct arm_uc_mmInsertConte
  * DOT:     VerifySignatureStart -> VerifySignature
  * DOT:     VerifySignatureStart -> VerifyParameters [label="[No More Signatures]"]
  */
-static arm_uc_error_t state_verifySignatureStart(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifySignatureStart(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     // start the signature verification
-    arm_uc_error_t err = ARM_UC_mmValidateSignature(&ctx->signatureContext,
-                                                    ARM_UC_mmCallbackFSMEntry,
-                                                    &ctx->manifest,
-                                                    &ctx->certificateStorage,
-                                                    ctx->loopCounters[0]);
-    if (err.error == ERR_NONE)
-    {
+    arm_uc_error_t err = {MFST_ERR_NONE};
+    uint32_t cryptoMode;
+    err = ARM_UC_mmGetCryptoMode(&ctx->manifest, &cryptoMode);
+    if (err.error == ERR_NONE) {
+        switch (cryptoMode) {
+#if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
+            case MFST_CRYPT_SHA256_ECC_AES128_PSK:
+            case MFST_CRYPT_SHA256_ECC:
+                err = ARM_UC_mmValidateSignature(&ctx->signatureContext,
+                                                 ARM_UC_mmCallbackFSMEntry,
+                                                 &ctx->manifest,
+                                                 &ctx->certificateStorage,
+                                                 ctx->loopCounters[0]);
+                break;
+#endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */
+#if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
+            case MFST_CRYPT_PSK_AES128CCM_SHA256:
+            case MFST_CRYPT_NONE_PSK_AES128CCM_SHA256:
+                err = ARM_UC_mmVerifySignaturePSK(&ctx->signatureContext,
+                                                  ARM_UC_mmCallbackFSMEntry,
+                                                  &ctx->manifest,
+                                                  ctx->loopCounters[0]);
+                break;
+#endif /* ARM_UC_FEATURE_MANIFEST_PSK */
+        }
+    }
+    if (err.error == ERR_NONE) {
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_SIG_WAIT;
         *event = ARM_UC_MM_RC_NONE;
         ARM_UC_MFST_SET_ERROR(err, MFST_ERR_PENDING);
     }
     // If there are no more signatures and at least one signature was validated
-    if (err.code == ARM_UC_DP_ERR_NO_MORE_ELEMENTS)
-    {
-        if (ctx->loopCounters[0] >= 1)
-        {
+    if (err.code == ARM_UC_DP_ERR_NO_MORE_ELEMENTS) {
+        if (ctx->loopCounters[0] >= 1) {
             // Signature validation done. Move on to parameter validation.
             ctx->state = ARM_UC_MM_INS_STATE_VERIFY_PARAMS;
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_NONE);
-        }
-        else
-        {
+        } else {
             // WARNING: If the fingerprint is empty, MFST_ERR_INVALID_SIGNATURE is returned.
             // At least one signature is required.
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_INVALID_SIGNATURE);
@@ -418,24 +412,19 @@ static arm_uc_error_t state_verifySignatureStart(struct arm_uc_mmInsertContext_t
  * DOT:     VerifySignature -> VerifyFail [label="[Signature invalid]"]
  * DOT:     VerifySignature -> VerifySignatureStart
  */
-static arm_uc_error_t state_verifySignature(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifySignature(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
     // Wait for the signature verification to end.
     // If the signature validation ended
-    if (*event == ARM_UC_MM_RC_DONE)
-    {
+    if (*event == ARM_UC_MM_RC_DONE) {
         // Increment the loop counter
         ctx->loopCounters[0] += 1;
         // Return to the beginning of the loop.
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_SIG_START;
-    }
-    else if (*event == ARM_UC_MM_RC_ERROR)
-    {
+    } else if (*event == ARM_UC_MM_RC_ERROR) {
         err = ctx->signatureContext.storedError;
-    }
-    else
-    {
+    } else {
         ARM_UC_MFST_SET_ERROR(err,  MFST_ERR_BAD_EVENT);
     }
     return err;
@@ -459,11 +448,10 @@ static arm_uc_error_t state_verifySignature(struct arm_uc_mmInsertContext_t* ctx
  * DOT:     VerifyParameters -> VerifyApplication
  * DOT:     VerifyParameters -> VerifyFail [label="[Parameters invalid]"]
  */
-static arm_uc_error_t state_verifyParameters(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifyParameters(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = validateFirmwareApplicability(&ctx->manifest);
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_TS_START;
     }
     return err;
@@ -475,12 +463,11 @@ static arm_uc_error_t state_verifyParameters(struct arm_uc_mmInsertContext_t* ct
  * DOT:     VerifyTimestampStart
  * DOT:     VerifyTimestampStart -> VerifyTimestamp
  */
-static arm_uc_error_t state_verifyTimestampStart(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifyTimestampStart(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     // Since this is a root manifest, extract maximum stored timestamp
     arm_uc_error_t err = getLatestManifestTimestamp(&ctx->max_ts, NULL);
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_TS;
         *event = ARM_UC_MM_EVENT_BEGIN;
     }
@@ -494,22 +481,18 @@ static arm_uc_error_t state_verifyTimestampStart(struct arm_uc_mmInsertContext_t
  * DOT:    VerifyTimestamp -> VerifyApplication
  * DOT:    VerifyTimestamp -> VerifyFail [label="[Timestamp too old]"]
  */
-static arm_uc_error_t state_verifyTimestamp(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifyTimestamp(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = getLatestManifestTimestampFSM(*event);
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = ARM_UC_mmGetTimestamp(&ctx->manifest, &ctx->current_ts);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
 #if MANIFEST_ROLLBACK_PROTECTION
         // Validate the timestamp for rollback protection.
-        if (arm_uc_mmContext.max_ts >= arm_uc_mmContext.current_ts)
-        {
+        if (arm_uc_mmContext.max_ts >= arm_uc_mmContext.current_ts) {
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_ROLLBACK);
-        }
-        else
+        } else
 #endif
         {
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_NONE);
@@ -527,11 +510,10 @@ static arm_uc_error_t state_verifyTimestamp(struct arm_uc_mmInsertContext_t* ctx
  * DOT:     VerifyApplication -> VerifyDone
  * DOT:     VerifyApplication -> VerifyFail [label="[App denied]"]
  */
-static arm_uc_error_t state_verifyApplication(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifyApplication(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_DONE;
     }
     return err;
@@ -555,11 +537,10 @@ static arm_uc_error_t state_verifyApplication(struct arm_uc_mmInsertContext_t* c
  * DOT:     VerifyDone
  * DOT:     VerifyDone -> AlertHub
  */
-static arm_uc_error_t state_verifyDone(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_verifyDone(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         ctx->state = ARM_UC_MM_INS_STATE_ALERT;
     }
     return err;
@@ -571,7 +552,7 @@ static arm_uc_error_t state_verifyDone(struct arm_uc_mmInsertContext_t* ctx, uin
  * DOT:     AlertHub
  * DOT:     AlertHub -> Idle
  */
-static arm_uc_error_t state_alertHub(struct arm_uc_mmInsertContext_t* ctx, uint32_t* event)
+static arm_uc_error_t state_alertHub(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
     return err;
@@ -584,10 +565,9 @@ static arm_uc_error_t state_alertHub(struct arm_uc_mmInsertContext_t* ctx, uint3
 arm_uc_error_t ARM_UC_mmInsertFSM(uint32_t event)
 {
     arm_uc_error_t err = {MFST_ERR_NONE};
-    struct arm_uc_mmInsertContext_t* ctx;
-    if (arm_uc_mmPersistentContext.ctx == NULL || *arm_uc_mmPersistentContext.ctx == NULL)
-    {
-        return (arm_uc_error_t){MFST_ERR_NULL_PTR};
+    struct arm_uc_mmInsertContext_t *ctx;
+    if (arm_uc_mmPersistentContext.ctx == NULL || *arm_uc_mmPersistentContext.ctx == NULL) {
+        return (arm_uc_error_t) {MFST_ERR_NULL_PTR};
     }
     ctx = &(*arm_uc_mmPersistentContext.ctx)->insert;
 
@@ -609,9 +589,9 @@ arm_uc_error_t ARM_UC_mmInsertFSM(uint32_t event)
         arm_uc_mmPersistentContext.errorLine = 0;
 
         ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "+ %s state: %s(%u)\n", __PRETTY_FUNCTION__,
-            ARM_UC_mmInsertState2Str(ctx->state), (unsigned)ctx->state);\
-        switch (ctx->state)
-        {
+                            ARM_UC_mmInsertState2Str(ctx->state), (unsigned)ctx->state);
+        \
+        switch (ctx->state) {
             case ARM_UC_MM_INS_STATE_IDLE:
                 err = state_idle(ctx, &event);
                 break;
@@ -653,16 +633,16 @@ arm_uc_error_t ARM_UC_mmInsertFSM(uint32_t event)
                 break;
             case ARM_UC_MM_INS_STATE_INVALID:
             default:
-                err = (arm_uc_error_t){MFST_ERR_INVALID_STATE};
+                err = (arm_uc_error_t) {MFST_ERR_INVALID_STATE};
                 break;
         }
 #if ARM_UC_MM_ENABLE_INSERT_TEST_VECTORS
-        if (arm_uc_mmPersistentContext.testHook)
-        {
+        if (arm_uc_mmPersistentContext.testHook) {
             arm_uc_mmPersistentContext.testHook("insert", *arm_uc_mmPersistentContext.ctx, oldState, oldEvent, err);
         }
 #endif
     } while (err.code == MFST_ERR_NONE && oldState != ctx->state);
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__, err.modulecc[0], err.modulecc[1], err.error, ARM_UC_err2Str(err));
+    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__, err.modulecc[0],
+                        err.modulecc[1], err.error, ARM_UC_err2Str(err));
     return err;
 }

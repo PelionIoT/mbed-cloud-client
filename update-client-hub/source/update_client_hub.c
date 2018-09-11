@@ -40,11 +40,9 @@
         return retval;\
     }
 
-static const ARM_UPDATE_SOURCE** arm_uc_sources = NULL;
+static const ARM_UPDATE_SOURCE **arm_uc_sources = NULL;
 static uint8_t arm_uc_sources_size = 0;
-
-static arm_uc_mmContext_t manifestManagerInitContext = { 0 };
-static arm_uc_mmContext_t* pManifestManagerInitContext = &manifestManagerInitContext;
+extern arm_uc_mmContext_t *pManifestManagerContext;
 
 /**
  * @brief Handle any errors posted by the scheduler.
@@ -78,10 +76,9 @@ arm_uc_error_t ARM_UC_HUB_Initialize(void (*init_cb)(int32_t))
 {
     arm_uc_error_t retval;
 
-    if (ARM_UC_HUB_getState() != ARM_UC_HUB_STATE_UNINITIALIZED)
-    {
+    if (ARM_UC_HUB_getState() != ARM_UC_HUB_STATE_UNINITIALIZED) {
         UC_HUB_ERR_MSG("Already Initialized/Initializing");
-        return (arm_uc_error_t){ ERR_INVALID_STATE };
+        return (arm_uc_error_t) { ERR_INVALID_STATE };
     }
     ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INITIALIZING);
 
@@ -101,15 +98,14 @@ arm_uc_error_t ARM_UC_HUB_Initialize(void (*init_cb)(int32_t))
     retval = ARM_UC_SourceManager.Initialize(ARM_UC_HUB_SourceManagerEventHandler);
     HANDLE_INIT_ERROR(retval, "Source Manager init failed")
 
-    for (uint8_t index = 0; index < arm_uc_sources_size; index++)
-    {
+    for (uint8_t index = 0; index < arm_uc_sources_size; index++) {
         ARM_UC_SourceManager.AddSource(arm_uc_sources[index]);
     }
 
     /* Register event handler and add config store implementation to manifest
        manager.
     */
-    retval = ARM_UC_mmInit(&pManifestManagerInitContext,
+    retval = ARM_UC_mmInit(&pManifestManagerContext,
                            ARM_UC_HUB_ManifestManagerEventHandler,
                            NULL);
     HANDLE_INIT_ERROR(retval, "Manifest manager init failed")
@@ -121,7 +117,7 @@ arm_uc_error_t ARM_UC_HUB_Initialize(void (*init_cb)(int32_t))
     //     HANDLE_INIT_ERROR(retval, "Manifest manager StoreCertificate failed")
     // }
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
@@ -131,7 +127,7 @@ arm_uc_error_t ARM_UC_HUB_ProcessEvents()
 {
     ARM_UC_ProcessQueue();
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
@@ -141,25 +137,25 @@ arm_uc_error_t ARM_UC_HUB_AddNotificationHandler(void (*handler)(void))
 {
     ARM_UC_AddNotificationHandler(handler);
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
  * @brief Add source to the Update Client.
  */
-arm_uc_error_t ARM_UC_HUB_SetSources(const ARM_UPDATE_SOURCE* sources[],
+arm_uc_error_t ARM_UC_HUB_SetSources(const ARM_UPDATE_SOURCE *sources[],
                                      uint8_t size)
 {
     arm_uc_sources = sources;
     arm_uc_sources_size = size;
 
-    return (arm_uc_error_t){ ERR_NONE };
+    return (arm_uc_error_t) { ERR_NONE };
 }
 
 /**
  * Set PAAL Update implementation
  */
-arm_uc_error_t ARM_UC_HUB_SetStorage(const ARM_UC_PAAL_UPDATE* implementation)
+arm_uc_error_t ARM_UC_HUB_SetStorage(const ARM_UC_PAAL_UPDATE *implementation)
 {
     return ARM_UCP_SetPAALUpdate(implementation);
 }
@@ -167,7 +163,7 @@ arm_uc_error_t ARM_UC_HUB_SetStorage(const ARM_UC_PAAL_UPDATE* implementation)
 /**
  * @brief Add monitor to the control center.
  */
-arm_uc_error_t ARM_UC_HUB_AddMonitor(const ARM_UPDATE_MONITOR* monitor)
+arm_uc_error_t ARM_UC_HUB_AddMonitor(const ARM_UPDATE_MONITOR *monitor)
 {
     return ARM_UC_ControlCenter_AddMonitor(monitor);
 }
@@ -227,6 +223,7 @@ void ARM_UC_OverrideAuthorization(void)
     ARM_UC_ControlCenter_OverrideAuthorization();
 }
 
+#if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
 /**
  * @brief Add certificate.
  * @details [long description]
@@ -237,11 +234,11 @@ void ARM_UC_OverrideAuthorization(void)
  * @param fingerprint_length Fingerprint length.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_AddCertificate(const uint8_t* certificate,
+arm_uc_error_t ARM_UC_AddCertificate(const uint8_t *certificate,
                                      uint16_t certificate_length,
-                                     const uint8_t* fingerprint,
+                                     const uint8_t *fingerprint,
                                      uint16_t fingerprint_length,
-                                     void (*callback)(arm_uc_error_t, const arm_uc_buffer_t*))
+                                     void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *))
 {
     return ARM_UC_Certificate_Add(certificate,
                                   certificate_length,
@@ -249,7 +246,9 @@ arm_uc_error_t ARM_UC_AddCertificate(const uint8_t* certificate,
                                   fingerprint_length,
                                   callback);
 }
+#endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */
 
+#if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
 /**
  * @brief Set pointer to pre-shared-key with the given size.
  *
@@ -258,10 +257,11 @@ arm_uc_error_t ARM_UC_AddCertificate(const uint8_t* certificate,
  *
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_AddPreSharedKey(const uint8_t* key, uint16_t bits)
+arm_uc_error_t ARM_UC_AddPreSharedKey(const uint8_t *key, uint16_t bits)
 {
-    return ARM_UC_PreSharedKey_SetKey(key, bits);
+    return ARM_UC_PreSharedKey_SetSecret(key, bits);
 }
+#endif
 
 /**
  * @brief Function for setting the vendor ID.
@@ -271,17 +271,15 @@ arm_uc_error_t ARM_UC_AddPreSharedKey(const uint8_t* key, uint16_t bits)
  * @param length Length of ID.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_SetVendorId(const uint8_t* id, uint8_t length)
+arm_uc_error_t ARM_UC_SetVendorId(const uint8_t *id, uint8_t length)
 {
     arm_uc_guid_t uuid = { 0 };
 
-    if (id)
-    {
+    if (id) {
         for (uint8_t index = 0;
-             (index < sizeof(arm_uc_guid_t) && (index < length));
-             index++)
-        {
-            ((uint8_t*) uuid)[index] = id[index];
+                (index < sizeof(arm_uc_guid_t) && (index < length));
+                index++) {
+            ((uint8_t *) uuid)[index] = id[index];
         }
     }
 
@@ -296,17 +294,15 @@ arm_uc_error_t ARM_UC_SetVendorId(const uint8_t* id, uint8_t length)
  * @param length Length of ID.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_SetClassId(const uint8_t* id, uint8_t length)
+arm_uc_error_t ARM_UC_SetClassId(const uint8_t *id, uint8_t length)
 {
     arm_uc_guid_t uuid = { 0 };
 
-    if (id)
-    {
+    if (id) {
         for (uint8_t index = 0;
-             (index < sizeof(arm_uc_guid_t) && (index < length));
-             index++)
-        {
-            ((uint8_t*) uuid)[index] = id[index];
+                (index < sizeof(arm_uc_guid_t) && (index < length));
+                index++) {
+            ((uint8_t *) uuid)[index] = id[index];
         }
     }
 
@@ -321,17 +317,15 @@ arm_uc_error_t ARM_UC_SetClassId(const uint8_t* id, uint8_t length)
  * @param length Length of ID.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_SetDeviceId(const uint8_t* id, uint8_t length)
+arm_uc_error_t ARM_UC_SetDeviceId(const uint8_t *id, uint8_t length)
 {
     arm_uc_guid_t uuid = { 0 };
 
-    if (id)
-    {
+    if (id) {
         for (uint8_t index = 0;
-             (index < sizeof(arm_uc_guid_t) && (index < length));
-             index++)
-        {
-            ((uint8_t*) uuid)[index] = id[index];
+                (index < sizeof(arm_uc_guid_t) && (index < length));
+                index++) {
+            ((uint8_t *) uuid)[index] = id[index];
         }
     }
 
@@ -347,25 +341,21 @@ arm_uc_error_t ARM_UC_SetDeviceId(const uint8_t* id, uint8_t length)
  *                written into the buffer (always 16).
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_GetVendorId(uint8_t* id,
+arm_uc_error_t ARM_UC_GetVendorId(uint8_t *id,
                                   const size_t id_max,
-                                  size_t* id_size)
+                                  size_t *id_size)
 {
     arm_uc_guid_t guid = {0};
     arm_uc_error_t err = {ERR_NONE};
-    if (id_max < sizeof(arm_uc_guid_t))
-    {
+    if (id_max < sizeof(arm_uc_guid_t)) {
         err.code = ARM_UC_DI_ERR_SIZE;
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = pal_getVendorGuid(&guid);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         memcpy(id, guid, sizeof(arm_uc_guid_t));
-        if (id_size != NULL)
-        {
+        if (id_size != NULL) {
             *id_size = sizeof(arm_uc_guid_t);
         }
     }
@@ -381,25 +371,21 @@ arm_uc_error_t ARM_UC_GetVendorId(uint8_t* id,
  *                written into the buffer (always 16).
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_GetClassId(uint8_t* id,
-                                  const size_t id_max,
-                                  size_t* id_size)
+arm_uc_error_t ARM_UC_GetClassId(uint8_t *id,
+                                 const size_t id_max,
+                                 size_t *id_size)
 {
     arm_uc_guid_t guid = {0};
     arm_uc_error_t err = {ERR_NONE};
-    if (id_max < sizeof(arm_uc_guid_t))
-    {
+    if (id_max < sizeof(arm_uc_guid_t)) {
         err.code = ARM_UC_DI_ERR_SIZE;
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = pal_getClassGuid(&guid);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         memcpy(id, guid, sizeof(arm_uc_guid_t));
-        if (id_size != NULL)
-        {
+        if (id_size != NULL) {
             *id_size = sizeof(arm_uc_guid_t);
         }
     }
@@ -415,25 +401,21 @@ arm_uc_error_t ARM_UC_GetClassId(uint8_t* id,
  *                written into the buffer (always 16).
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_GetDeviceId(uint8_t* id,
+arm_uc_error_t ARM_UC_GetDeviceId(uint8_t *id,
                                   const size_t id_max,
-                                  size_t* id_size)
+                                  size_t *id_size)
 {
     arm_uc_guid_t guid = {0};
     arm_uc_error_t err = {ERR_NONE};
-    if (id_max < sizeof(arm_uc_guid_t))
-    {
+    if (id_max < sizeof(arm_uc_guid_t)) {
         err.code = ARM_UC_DI_ERR_SIZE;
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         err = pal_getDeviceGuid(&guid);
     }
-    if (err.error == ERR_NONE)
-    {
+    if (err.error == ERR_NONE) {
         memcpy(id, guid, sizeof(arm_uc_guid_t));
-        if (id_size != NULL)
-        {
+        if (id_size != NULL) {
             *id_size = sizeof(arm_uc_guid_t);
         }
     }
@@ -442,10 +424,9 @@ arm_uc_error_t ARM_UC_GetDeviceId(uint8_t* id,
 
 arm_uc_error_t ARM_UC_HUB_Uninitialize(void)
 {
-    if (ARM_UC_HUB_getState() != ARM_UC_HUB_STATE_INITIALIZED)
-    {
-       UC_HUB_ERR_MSG("Update Client not initialized");
-       return (arm_uc_error_t){ ERR_INVALID_STATE };
+    if (ARM_UC_HUB_getState() <= ARM_UC_HUB_STATE_INITIALIZED) {
+        UC_HUB_ERR_MSG("Update Client not initialized");
+        return (arm_uc_error_t) { ERR_INVALID_STATE };
     }
 
     arm_uc_error_t err = ARM_UC_SourceManager.Uninitialize();
@@ -460,19 +441,15 @@ arm_uc_error_t ARM_UC_HUB_Uninitialize(void)
  *         are not yet available, ERR_INVALID_PARAMETER if "details" is
  *         NULL or ERR_NONE for success.
  */
-arm_uc_error_t ARM_UC_API_GetActiveFirmwareDetails(arm_uc_firmware_details_t* details)
+arm_uc_error_t ARM_UC_API_GetActiveFirmwareDetails(arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t err = {ARM_UC_HUB_ERR_NOT_AVAILABLE};
 
-    if (details == NULL)
-    {
+    if (details == NULL) {
         err.code = ERR_INVALID_PARAMETER;
-    }
-    else
-    {
+    } else {
         arm_uc_firmware_details_t *hub_details = ARM_UC_HUB_getActiveFirmwareDetails();
-        if (hub_details)
-        {
+        if (hub_details) {
             memcpy(details, hub_details, sizeof(arm_uc_firmware_details_t));
             err.code = ERR_NONE;
         }

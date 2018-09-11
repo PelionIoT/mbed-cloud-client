@@ -20,6 +20,7 @@
 #define MANIFEST_MANAGER_CONFIG_H
 
 #include <limits.h>
+#include "update-client-common/arm_uc_config.h"
 
 #define MAX_HASH_BYTES 32
 #define MAX_SYMM_KEY_BYTES 16

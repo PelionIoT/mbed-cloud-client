@@ -51,8 +51,8 @@ uint32_t ARM_UC_PAL_RTL8195AM_GetMaxID(void);
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
-                                            const arm_uc_firmware_details_t* details,
-                                            arm_uc_buffer_t* buffer);
+                                            const arm_uc_firmware_details_t *details,
+                                            arm_uc_buffer_t *buffer);
 
 /**
  * @brief Write a fragment to the indicated storage location.
@@ -69,7 +69,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_Write(uint32_t location,
                                           uint32_t offset,
-                                          const arm_uc_buffer_t* buffer);
+                                          const arm_uc_buffer_t *buffer);
 
 /**
  * @brief Close storage location for writing and flush pending data.
@@ -98,7 +98,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Finalize(uint32_t location);
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_Read(uint32_t location,
                                          uint32_t offset,
-                                         arm_uc_buffer_t* buffer);
+                                         arm_uc_buffer_t *buffer);
 
 /**
  * @brief Set the firmware image in the slot to be the new active image.
@@ -131,14 +131,14 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Activate(uint32_t location);
  *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
  */
 arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetFirmwareDetails(
-                                        uint32_t location,
-                                        arm_uc_firmware_details_t* details);
+    uint32_t location,
+    arm_uc_firmware_details_t *details);
 
 /*****************************************************************************/
 
-arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetActiveDetails(arm_uc_firmware_details_t* details);
+arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetActiveDetails(arm_uc_firmware_details_t *details);
 
-arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetInstallerDetails(arm_uc_installer_details_t* details);
+arm_uc_error_t ARM_UC_PAL_RTL8195AM_GetInstallerDetails(arm_uc_installer_details_t *details);
 
 #ifdef __cplusplus
 }

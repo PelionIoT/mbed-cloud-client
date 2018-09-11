@@ -29,6 +29,7 @@
 #define ACCEPTABLE_DELAY_IN_SEC (5)
 #define PAL_SOTP_TEST_DELAY_IN_SEC (5 * 1000)
 
+#define TRACE_GROUP "PAL"
 
 extern palTestsStatusData_t palTestStatus;
 
@@ -103,7 +104,7 @@ static palStatus_t writeDataInFS(uint8_t* data, size_t dataSize, char* dataName)
                  status2 = pal_fsFclose(&fd);
                  if (PAL_SUCCESS != status2) 
                  {
-                     PAL_LOG(ERR,"Failed to close data file of sotp pal testing after write");
+                     PAL_LOG_ERR("Failed to close data file of sotp pal testing after write");
                  }
              }
          }
@@ -132,12 +133,12 @@ static palStatus_t readDataFromFS(uint8_t* data, size_t dataSize, char* dataName
              status2 = pal_fsFclose(&fd);
              if (PAL_SUCCESS != status2) 
              {
-                 PAL_LOG(ERR,"Failed to close data file of sotp pal testing after read");
+                 PAL_LOG_ERR("Failed to close data file of sotp pal testing after read");
              }
              status2 = pal_fsUnlink(filePath);
              if (PAL_SUCCESS != status2) 
              {
-                 PAL_LOG(ERR,"Failed to delete data file of sotp pal testing after read");
+                 PAL_LOG_ERR("Failed to delete data file of sotp pal testing after read");
              }
          }
 

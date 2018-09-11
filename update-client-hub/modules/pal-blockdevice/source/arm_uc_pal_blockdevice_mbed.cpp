@@ -12,12 +12,14 @@
 //   from ARM Limited or its affiliates.
 //----------------------------------------------------------------------------
 
-#if defined(TARGET_LIKE_MBED) && defined(ARM_UC_USE_PAL_BLOCKDEVICE)
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) && (ARM_UC_FEATURE_PAL_BLOCKDEVICE == 1)
+#if defined(TARGET_LIKE_MBED)
 
 #include "update-client-pal-blockdevice/arm_uc_pal_blockdevice_platform.h"
 #include "mbed.h"
 
-extern BlockDevice* arm_uc_blockdevice;
+extern BlockDevice *arm_uc_blockdevice;
 
 int32_t arm_uc_blockdevice_init(void)
 {
@@ -39,18 +41,19 @@ int32_t arm_uc_blockdevice_erase(uint64_t address, uint64_t size)
     return arm_uc_blockdevice->erase(address, size);
 }
 
-int32_t arm_uc_blockdevice_program(const uint8_t* buffer,
+int32_t arm_uc_blockdevice_program(const uint8_t *buffer,
                                    uint64_t address,
                                    uint32_t size)
 {
     return arm_uc_blockdevice->program(buffer, address, size);
 }
 
-int32_t arm_uc_blockdevice_read(uint8_t* buffer,
+int32_t arm_uc_blockdevice_read(uint8_t *buffer,
                                 uint64_t address,
                                 uint32_t size)
 {
     return arm_uc_blockdevice->read(buffer, address, size);
 }
 
-#endif // #if defined(TARGET_LIKE_MBED) && defined(ARM_UC_USE_PAL_BLOCKDEVICE)
+#endif /* #if defined(TARGET_LIKE_MBED) */
+#endif /* defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) */

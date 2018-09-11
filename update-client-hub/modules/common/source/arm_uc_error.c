@@ -18,15 +18,15 @@
 
 #include "update-client-common/arm_uc_error.h"
 
-const char* ARM_UC_err2Str(arm_uc_error_t err)
+const char *ARM_UC_err2Str(arm_uc_error_t err)
 {
     switch (err.code) {
-        #define ENUM_AUTO(name) case name: return #name;
-        #define ENUM_FIXED(name, val) ENUM_AUTO(name)
-        ARM_UC_ERR_LIST
-        #undef ENUM_FIXED
-        #undef ENUM_AUTO
-    default:
-        return "Unknown Error Code";
+#define ENUM_AUTO(name) case name: return #name;
+#define ENUM_FIXED(name, val) ENUM_AUTO(name)
+            ARM_UC_ERR_LIST
+#undef ENUM_FIXED
+#undef ENUM_AUTO
+        default:
+            return "Unknown Error Code";
     }
 }

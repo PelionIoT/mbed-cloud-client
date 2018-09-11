@@ -44,65 +44,128 @@ typedef enum {
     RQST_TYPE_HASH_DATE,
     RQST_TYPE_GET_FILE,
     RQST_TYPE_GET_FRAG
-} arm_uc_rqst_t;
+} arm_uc_http_rqst_t;
 
 typedef enum {
     STATE_DISCONNECTED,
+    STATE_CONNECTING,
     STATE_PROCESS_HEADER,
     STATE_PROCESS_BODY,
     STATE_CONNECTED_IDLE
-} arm_uc_socket_state_t;
+} arm_uc_http_socket_state_t;
 
 typedef enum {
-    SOCKET_EVENT_DNS_DONE,
-    SOCKET_EVENT_CONNECT_DONE,
-    SOCKET_EVENT_SEND_DONE,
-    SOCKET_EVENT_RECEIVE_CONTINUE,
     SOCKET_EVENT_UNDEFINED,
-    SOCKET_EVENT_TIMER_FIRED
-} arm_uc_socket_event_t;
+    SOCKET_EVENT_INITIATE,
+    SOCKET_EVENT_LOOKUP_START,
+    SOCKET_EVENT_LOOKUP_BLOCKED,
+    SOCKET_EVENT_LOOKUP_FAILED,
+    SOCKET_EVENT_LOOKUP_DONE,
+    SOCKET_EVENT_CONNECT_START,
+    SOCKET_EVENT_CONNECT_BLOCKED,
+    SOCKET_EVENT_CONNECT_DONE,
+    SOCKET_EVENT_SEND_START,
+    SOCKET_EVENT_SEND_BLOCKED,
+    SOCKET_EVENT_SEND_DONE,
+    SOCKET_EVENT_HEADER_START,
+    SOCKET_EVENT_HEADER_MORE,
+    SOCKET_EVENT_HEADER_BLOCKED,
+    SOCKET_EVENT_HEADER_DONE,
+    SOCKET_EVENT_FRAG_START,
+    SOCKET_EVENT_FRAG_MORE,
+    SOCKET_EVENT_FRAG_BLOCKED,
+    SOCKET_EVENT_FRAG_DONE,
+    SOCKET_EVENT_RECEIVE_DONE,
+    SOCKET_EVENT_RESTART,
+    SOCKET_EVENT_TIMER_FIRED,
+    SOCKET_EVENT_RESUME_WAITING,
+    SOCKET_EVENT_RESUME_IDLE,
+    SOCKET_EVENT_RESUME_INTERVAL,
+    SOCKET_EVENT_RESUME_ATTEMPT,
+    SOCKET_EVENT_RESUME_TERMINATED,
+    SOCKET_EVENT_RESUME_ERROR
+} arm_uc_http_socket_event_t;
 
 /**
  * @brief Prototype for event handler.
  */
 typedef void (*ARM_UCS_HttpEvent_t)(uint32_t event);
 
+
+// Number of fragments in a burst, it is not required to use one of these values.
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__NONE             1
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__LIGHT            4
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__MILD             16
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__MODERATE         64
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__HEAVY            256
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__EXTREME          1024
+
+#if defined(TARGET_IS_PC_LINUX)
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST           ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__EXTREME
+#else
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST           ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__MODERATE
+#endif
+
+// Developer-facing #defines allow easier testing of parameterised resume.
+// If not available, it becomes extremely difficult to detect exactly when the resume
+//   functionality is taking place, or to set values outside of the assumed 'reasonable'
+//   range (which can't predict all use cases), which hampers assessment of the settings.
+
+// Print very high priority messages about resume activity for debugging.
+// Also, disable checks on resume initialization values.
+// Normally compiler errors out if checks enabled and out of permissible range.
+#define ARM_UC_HTTP_RESUME_DEFAULT_ATTEMPT_TEST_MESSAGES_ENABLE 0
+
+// !do not modify or delete these definitions!
+// default configuration values for HTTP resume functionality.
+// to modify from default values, declare as below but without _DEFAULT
+//   eg. ARM_UC_HTTP_RESUME_EXPONENTIATION_FACTOR   3
+
+#define ARM_UC_HTTP_RESUME_DEFAULT_EXPONENTIATION_FACTOR        2
+#define ARM_UC_HTTP_RESUME_DEFAULT_INITIAL_DELAY_SECS           5
+#define ARM_UC_HTTP_RESUME_DEFAULT_MAXIMUM_DELAY_SECS           (60*60)
+#define ARM_UC_HTTP_RESUME_DEFAULT_MAXIMUM_DOWNLOAD_TIME_SECS   (7*24*60*60)
+
 typedef struct {
     /* external callback handler */
     ARM_UCS_HttpEvent_t callback_handler;
 
     /* location */
-    arm_uc_uri_t* request_uri;
+    arm_uc_uri_t *request_uri;
+    arm_uc_uri_t *open_request_uri;
 
     /* buffer to store downloaded data */
-    arm_uc_buffer_t* request_buffer;
+    arm_uc_buffer_t *request_buffer;
 
     /* fragment offset in a multi-fragment download */
     uint32_t request_offset;
+    uint32_t open_request_offset;
 
     /* request type */
-    arm_uc_rqst_t request_type;
+    arm_uc_http_rqst_t request_type;
+    arm_uc_http_rqst_t open_request_type;
 
     /* internal state */
-    arm_uc_socket_state_t socket_state;
-
-    /* expected socket event */
-    arm_uc_socket_event_t expected_event;
 
     /* remaining bytes in request */
-    uint32_t expected_remaining;
+    uint32_t open_burst_requested;
+    uint32_t open_burst_expected;
+    uint32_t open_burst_received;
 
-    /* structs for callback queue */
-    int32_t isr_callback_counter;
-    arm_uc_callback_t isr_callback_struct; // initialized in source-http
-    arm_uc_callback_t event_callback_struct; // initialized in source-http
-    arm_uc_callback_t timer_callback_struct; // initialized in source-http
+    uint32_t header_end_index;
+    uint32_t number_of_pieces;
+
+    /* socket and socket timer management */
+    arm_uc_http_socket_state_t socket_state;
+    palTimerID_t socket_timeout_timer_id;
+    bool socket_timeout_timer_is_running;
+
+    /* socket event future and history */
+    arm_uc_http_socket_event_t resume_socket_phase;
+    arm_uc_http_socket_event_t expected_socket_event;
 
     /* pointer to socket */
     palSocket_t socket;
-
-    /* timer id for the socket timeout timer */
-    palTimerID_t timeout_timer_id;
 
     /* cache for storing DNS lookup */
     palSocketAddress_t cache_address;
@@ -118,7 +181,7 @@ typedef struct {
  * @param handler Event handler for signaling when each operation is complete.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_Initialize(arm_uc_http_socket_context_t* context,
+arm_uc_error_t ARM_UCS_HttpSocket_Initialize(arm_uc_http_socket_context_t *context,
                                              ARM_UCS_HttpEvent_t handler);
 
 /**
@@ -138,7 +201,7 @@ arm_uc_error_t ARM_UCS_HttpSocket_Terminate(void);
  * @param buffer Pointer to structure with buffer location, maxSize, and size.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetHash(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer);
+arm_uc_error_t ARM_UCS_HttpSocket_GetHash(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer);
 
 /**
  * @brief Get date for resource at URI.
@@ -150,7 +213,7 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetHash(arm_uc_uri_t* uri, arm_uc_buffer_t* bu
  * @param buffer Pointer to structure with buffer location, maxSize, and size.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetDate(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer);
+arm_uc_error_t ARM_UCS_HttpSocket_GetDate(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer);
 
 /**
  * @brief Get full resource at URI.
@@ -166,7 +229,7 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetDate(arm_uc_uri_t* uri, arm_uc_buffer_t* bu
  * @param buffer Pointer to structure with buffer location, maxSize, and size.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetFile(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer);
+arm_uc_error_t ARM_UCS_HttpSocket_GetFile(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer);
 
 /**
  * @brief Get partial resource at URI.
@@ -184,6 +247,6 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetFile(arm_uc_uri_t* uri, arm_uc_buffer_t* bu
  * @param offset Offset in resource to begin download from.
  * @return Error code.
  */
-arm_uc_error_t ARM_UCS_HttpSocket_GetFragment(arm_uc_uri_t* uri, arm_uc_buffer_t* buffer, uint32_t offset);
+arm_uc_error_t ARM_UCS_HttpSocket_GetFragment(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
 #endif /* UPDATE_CLIENT_SOURCE_HTTP_SOCKET_H */

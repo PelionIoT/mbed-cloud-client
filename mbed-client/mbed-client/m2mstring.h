@@ -21,6 +21,9 @@
 
 class Test_M2MString;
 
+/*! \namespace m2m
+* \brief Namespace defined as replace for components defined under std namespace.
+   */
 namespace m2m
 {
 

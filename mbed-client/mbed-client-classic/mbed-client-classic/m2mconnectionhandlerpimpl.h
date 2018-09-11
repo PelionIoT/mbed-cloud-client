@@ -295,13 +295,10 @@ private:
     uint16_t                                    _server_port;
     uint16_t                                    _listen_port;
     uint32_t                                    _net_iface;
-#if (PAL_DNS_API_VERSION < 2)
+#if (PAL_DNS_API_VERSION == 0)
     palSocketLength_t                           _socket_address_len;
-#endif
-#if MBED_CONF_MBED_CLIENT_DNS_USE_THREAD
-#if (PAL_DNS_API_VERSION == 2)
+#else
     palDNSQuery_t                                _handler_async_DNS;
-#endif
 #endif
     volatile palSocketAddress_t                 _socket_address;
     static int8_t                               _tasklet_id;

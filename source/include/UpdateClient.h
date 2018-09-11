@@ -63,8 +63,7 @@ namespace UpdateClient
      * \brief Initialization function for the Update Client.
      * \param Callback to error handler.
      */
-    void UpdateClient(FP1<void, int32_t> callback);
-
+    void UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface);
     /**
      * \brief Populate M2MObjectList with Update Client objects.
      * \details The function takes an existing object list and adds LWM2M

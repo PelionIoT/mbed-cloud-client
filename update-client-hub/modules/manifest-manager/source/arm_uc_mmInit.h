@@ -47,11 +47,11 @@
 
 
 enum arm_uc_mm_init_state {
-    #define ENUM_AUTO(name) name,
-    #define ENUM_FIXED(name, val) name = val,
+#define ENUM_AUTO(name) name,
+#define ENUM_FIXED(name, val) name = val,
     ARM_UC_MM_INIT_STATE_LIST
-    #undef ENUM_AUTO
-    #undef ENUM_FIXED
+#undef ENUM_AUTO
+#undef ENUM_FIXED
 };
 
 arm_uc_error_t arm_uc_mmInitFSM(uint32_t event);

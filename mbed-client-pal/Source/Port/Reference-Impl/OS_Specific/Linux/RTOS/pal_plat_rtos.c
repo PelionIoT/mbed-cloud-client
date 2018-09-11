@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#define _GNU_SOURCE // This is for ppoll found in poll.h
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -33,6 +33,8 @@
 #include "pal.h"
 #include "pal_plat_rtos.h"
 
+#define TRACE_GROUP "PAL"
+
  /*
  * The realtime clock is in nano seconds resolution. This is too much for us, so we use "longer" ticks.
  * Below are relevant defines.
@@ -45,9 +47,6 @@
 
 // priorities must be positive, so shift all by this margin. we might want to do smarter convert.
 #define LINUX_THREAD_PRIORITY_BASE 10
-
-//  message Queues names related staff:
-#define MQ_FILENAME_LEN 10
 
 #ifndef CLOCK_MONOTONIC_RAW //a workaround for the operWRT port that missing this include
 #define CLOCK_MONOTONIC_RAW 4 //http://elixir.free-electrons.com/linux/latest/source/include/uapi/linux/time.h
@@ -73,10 +72,6 @@ struct palTimerInfo
     palTimerType_t timerType;
 };
 
-
-PAL_PRIVATE char g_mqName[MQ_FILENAME_LEN];
-PAL_PRIVATE int g_mqNextNameNum = 0;
-
 // Mutex to prevent simultaneus modification of the linked list of the timers in g_timerList.
 PAL_PRIVATE palMutexID_t g_timerListMutex = 0;
 
@@ -92,17 +87,6 @@ extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t buf
 PAL_PRIVATE palStatus_t startTimerThread();
 PAL_PRIVATE palStatus_t stopTimerThread();
 PAL_PRIVATE void palTimerThread(void const *args);
-
-inline PAL_PRIVATE void nextMessageQName()
-{
-    g_mqNextNameNum++;
-    for (int j = 4, divider = 10000; j < 9; j++, divider /= 10)
-    {
-        g_mqName[j] = '0' + (g_mqNextNameNum / divider) %10 ; //just to make sure we don't write more then 1 digit.
-    }
-    g_mqName[9] = '\0';
-}
-
 
 /*! Initiate a system reboot.
  */
@@ -123,8 +107,6 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 {
     palStatus_t status = PAL_SUCCESS;
     (void)opaqueContext;
-    strncpy(g_mqName, "/pal00001", MQ_FILENAME_LEN);
-    g_mqNextNameNum = 1;   // used for the next name
 #if (PAL_USE_HW_RTC)
     status = pal_plat_rtcInit();
 #endif
@@ -311,7 +293,7 @@ finish:
         err = pthread_attr_destroy(ptrAttr);
         if (0 != err)
         {
-            PAL_LOG(ERR, "pal_plat_osThreadCreate failed to destroy pthread_attr_t\n");
+            PAL_LOG_ERR("pal_plat_osThreadCreate failed to destroy pthread_attr_t\n");
         }
     }
     return status;
@@ -420,7 +402,7 @@ PAL_PRIVATE void palTimerThread(void const *args)
         // not using the timeout, but have them logged just in case.
         if (err <= 0) {
             if (errno != EINTR) {
-                PAL_LOG(ERR, "palTimerThread: sigwaitinfo failed with %d\n", errno);
+                PAL_LOG_ERR("palTimerThread: sigwaitinfo failed with %d\n", errno);
             }
         } else {
 
@@ -464,7 +446,8 @@ PAL_PRIVATE void palTimerThread(void const *args)
 
                 // Release the list mutex before callback to avoid callback deadlocking other threads
                 // if they try to create a timer.
-                pal_osMutexRelease(g_timerListMutex);
+                // Coverity fix - 243862 Unchecked return value
+                (void)pal_osMutexRelease(g_timerListMutex);
 
                 // the function may be NULL here if the timer was already freed
                 if (found_function) {
@@ -476,7 +459,8 @@ PAL_PRIVATE void palTimerThread(void const *args)
     }
 
     // signal the caller that thread is now stopping and it can continue the pal_destroy()
-    pal_osSemaphoreRelease(context->startStopSemaphore);
+    // Coverity fix - 243860 Unchecked return value. There is not much doable if fail.
+    (void)pal_osSemaphoreRelease(context->startStopSemaphore);
 }
 
 PAL_PRIVATE palStatus_t startTimerThread()
@@ -510,9 +494,6 @@ PAL_PRIVATE palStatus_t stopTimerThread()
 {
     palStatus_t status;
 
-    union sigval value;
-    value.sival_ptr = NULL;
-
     status = pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
 
     if (status == PAL_SUCCESS) {
@@ -526,11 +507,17 @@ PAL_PRIVATE palStatus_t stopTimerThread()
 
         do {
 
-            err = pthread_sigqueue(sysThreadID, PAL_TIMER_SIGNAL, value);
+            // Send the signal to wake up helper thread. A cleaner way would
+            // use pthread_sigqueue() as it allows sending the sival, but that
+            // does not really matter as the threadStopRequested flag is
+            // always checked before accessing the sival. pthread_sigqueue() is also
+            // missing from eg. musl library.
+            err = pthread_kill(sysThreadID, PAL_TIMER_SIGNAL);
 
         } while (err == EAGAIN); // retry (spin, yuck!) if the signal queue is full
 
-        pal_osMutexRelease(g_timerListMutex);
+        // Coverity fix - 243859 Unchecked return value. There is not much doable if fail. StopTimerThread is part of shutdown step.
+        (void)pal_osMutexRelease(g_timerListMutex);
 
         // pthread_sigqueue() failed, which is a sign of thread being dead, so a wait
         // on semaphore would cause a deadlock.
@@ -605,7 +592,7 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
                 status = PAL_ERR_NO_MEMORY;
                 goto finish;
             }
-            PAL_LOG(ERR, "Rtos timer create error %d", ret);
+            PAL_LOG_ERR("Rtos timer create error %d", ret);
             status = PAL_ERR_GENERIC_FAILURE;
             goto finish;
         }
@@ -621,7 +608,8 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
 
         g_timerList = timerInfo;
 
-        pal_osMutexRelease(g_timerListMutex);
+        // 243861 Unchecked return value
+        (void)pal_osMutexRelease(g_timerListMutex);
     }
     finish: if (PAL_SUCCESS != status)
     {
@@ -718,16 +706,10 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
 palStatus_t pal_plat_osTimerDelete(palTimerID_t* timerID)
 {
     palStatus_t status = PAL_SUCCESS;
-    if (NULL == timerID)
-    {
+    if ((NULL == timerID) || ((struct palTimerInfo *)*timerID == NULL)) {
         return PAL_ERR_INVALID_ARGUMENT;
     }
     struct palTimerInfo* timerInfo = (struct palTimerInfo *) *timerID;
-
-    if (NULL == timerInfo)
-    {
-        status = PAL_ERR_RTOS_PARAMETER;
-    }
 
     // the list of timers is protected by a mutex to avoid concurrency issues
     pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
@@ -758,12 +740,12 @@ palStatus_t pal_plat_osTimerDelete(palTimerID_t* timerID)
     }
 
     timer_t lt = timerInfo->handle;
-    if (-1 == timer_delete(lt))
-    {
+    if (-1 == timer_delete(lt)) {
         status = PAL_ERR_RTOS_RESOURCE;
     }
 
-    pal_osMutexRelease(g_timerListMutex);
+    // 243863 Unchecked return value
+    (void)pal_osMutexRelease(g_timerListMutex);
 
     free(timerInfo);
     *timerID = (palTimerID_t) NULL;
@@ -808,7 +790,7 @@ palStatus_t pal_plat_osMutexCreate(palMutexID_t* mutexID)
             }
             else
             {
-                PAL_LOG(ERR, "Rtos mutex create status %d", ret);
+                PAL_LOG_ERR("Rtos mutex create status %d", ret);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
             goto finish;
@@ -875,7 +857,7 @@ palStatus_t pal_plat_osMutexWait(palMutexID_t mutexID, uint32_t millisec)
         }
         else
         {
-            PAL_LOG(ERR, "Rtos mutex wait status %d", err);
+            PAL_LOG_ERR("Rtos mutex wait status %d", err);
             status = PAL_ERR_GENERIC_FAILURE;
         }
     }
@@ -904,7 +886,7 @@ palStatus_t pal_plat_osMutexRelease(palMutexID_t mutexID)
     if (0 != result)
     {
         // only reason this might fail - process don't have permission for mutex.
-        PAL_LOG(ERR, "Rtos mutex release failure - %d",result);
+        PAL_LOG_ERR("Rtos mutex release failure - %d",result);
         status = PAL_ERR_GENERIC_FAILURE;
     }
     return status;
@@ -924,28 +906,24 @@ palStatus_t pal_plat_osMutexDelete(palMutexID_t* mutexID)
 {
     palStatus_t status = PAL_SUCCESS;
     uint32_t ret;
-    if (NULL == mutexID)
-    {
+    if (NULL == mutexID) {
         return PAL_ERR_INVALID_ARGUMENT;
     }
     pthread_mutex_t* mutex = (pthread_mutex_t*) *mutexID;
 
-    if (NULL == mutex)
-    {
+    if (NULL == mutex) {
         status = PAL_ERR_RTOS_RESOURCE;
     }
-    ret = pthread_mutex_destroy(mutex);
-    if ((PAL_SUCCESS == status) && (0 != ret))
-    {
-        PAL_LOG(ERR,"pal_plat_osMutexDelete 0x%x",ret);
-        status = PAL_ERR_RTOS_RESOURCE;
-    }
-    if (NULL != mutex)
-    {
+    else {
+        ret = pthread_mutex_destroy(mutex);
+        if ((PAL_SUCCESS == status) && (0 != ret))
+        {
+        PAL_LOG_ERR("pal_plat_osMutexDelete 0x%x",ret);
+            status = PAL_ERR_RTOS_RESOURCE;
+        }
         free(mutex);
+        *mutexID = (palMutexID_t) NULL;
     }
-
-    *mutexID = (palMutexID_t) NULL;
     return status;
 }
 
@@ -986,7 +964,7 @@ palStatus_t pal_plat_osSemaphoreCreate(uint32_t count,
             }
             else
             {
-                PAL_LOG(ERR, "Rtos semaphore init error %d", ret);
+                PAL_LOG_ERR("Rtos semaphore init error %d", ret);
                 status = PAL_ERR_GENERIC_FAILURE;
             }
             goto finish;
@@ -1104,7 +1082,7 @@ palStatus_t pal_plat_osSemaphoreRelease(palSemaphoreID_t semaphoreID)
         }
         else
         { /* max value of semaphore exeeded */
-            PAL_LOG(ERR, "Rtos semaphore release error %d", errno);
+            PAL_LOG_ERR("Rtos semaphore release error %d", errno);
             status = PAL_ERR_GENERIC_FAILURE;
         }
     }

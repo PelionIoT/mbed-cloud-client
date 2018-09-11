@@ -20,6 +20,10 @@
 #define ARM_UC_LWM2M_CONTROL_H
 
 #include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
+#include "mbed-client/m2minterface.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +37,10 @@ extern "C" {
  * @param callback Function pointer.
  */
 arm_uc_error_t ARM_UC_CONTROL_SetOverrideCallback(void (*callback)(void));
+
+#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
+arm_uc_error_t ARM_UC_CONTROL_SetM2MInterface(M2MInterface *interface);
+#endif
 
 #ifdef __cplusplus
 }

@@ -16,12 +16,14 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "arm_uc_config.h"
+#if defined(ARM_UC_FEATURE_PAL_FLASHIAP) && (ARM_UC_FEATURE_PAL_FLASHIAP == 1)
 #if defined(TARGET_LIKE_MBED)
 
 #include "update-client-pal-flashiap/arm_uc_pal_flashiap_platform.h"
 #include "mbed.h"
 
-static FlashIAP flash;
+SingletonPtr<FlashIAP> flash;
 
 int32_t arm_uc_flashiap_init(void)
 {
@@ -29,25 +31,23 @@ int32_t arm_uc_flashiap_init(void)
      * pal_init calls flash.init() before here. Second call to flash.init() will
      * return -1 error state. Hence we ignore the result of flash.init here.
      */
-    flash.init();
+    flash->init();
     return 0;
 }
 
 int32_t arm_uc_flashiap_erase(uint32_t address, uint32_t size)
 {
-    return flash.erase(address, size);
+    return flash->erase(address, size);
 }
 
-int32_t arm_uc_flashiap_program(const uint8_t* buffer, uint32_t address, uint32_t size)
+int32_t arm_uc_flashiap_program(const uint8_t *buffer, uint32_t address, uint32_t size)
 {
-    uint32_t page_size = flash.get_page_size();
+    uint32_t page_size = flash->get_page_size();
     int status = ARM_UC_FLASHIAP_FAIL;
 
-    for (uint32_t i = 0; i < size; i += page_size)
-    {
-        status = flash.program(buffer+i, address+i, page_size);
-        if (status != ARM_UC_FLASHIAP_SUCCESS)
-        {
+    for (uint32_t i = 0; i < size; i += page_size) {
+        status = flash->program(buffer + i, address + i, page_size);
+        if (status != ARM_UC_FLASHIAP_SUCCESS) {
             break;
         }
     }
@@ -55,36 +55,35 @@ int32_t arm_uc_flashiap_program(const uint8_t* buffer, uint32_t address, uint32_
     return status;
 }
 
-int32_t arm_uc_flashiap_read(uint8_t* buffer, uint32_t address, uint32_t size)
+int32_t arm_uc_flashiap_read(uint8_t *buffer, uint32_t address, uint32_t size)
 {
-    return flash.read(buffer, address, size);
+    return flash->read(buffer, address, size);
 }
 
 uint32_t arm_uc_flashiap_get_page_size(void)
 {
-    return flash.get_page_size();
+    return flash->get_page_size();
 }
 
 uint32_t arm_uc_flashiap_get_sector_size(uint32_t address)
 {
-    uint32_t sector_size = flash.get_sector_size(address);
-    if (sector_size == ARM_UC_FLASH_INVALID_SIZE || sector_size == 0)
-    {
+    uint32_t sector_size = flash->get_sector_size(address);
+    if (sector_size == ARM_UC_FLASH_INVALID_SIZE || sector_size == 0) {
         return ARM_UC_FLASH_INVALID_SIZE;
-    }
-    else
-    {
+    } else {
         return sector_size;
     }
 }
 
 uint32_t arm_uc_flashiap_get_flash_size(void)
 {
-    return flash.get_flash_size();
+    return flash->get_flash_size();
 }
 
 uint32_t arm_uc_flashiap_get_flash_start(void)
 {
-    return flash.get_flash_start();
+    return flash->get_flash_start();
 }
-#endif
+
+#endif /* TARGET_LIKE_MBED */
+#endif /* ARM_UC_FEATURE_PAL_FLASHIAP */

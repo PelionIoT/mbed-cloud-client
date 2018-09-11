@@ -76,6 +76,7 @@ kcm_status_e cs_error_handler(palStatus_t pal_status)
         case PAL_ERR_INVALID_X509_ATTR:
             return KCM_CRYPTO_STATUS_INVALID_X509_ATTR;
         case PAL_ERR_PK_SIG_VERIFY_FAILED:
+        case PAL_ERR_FAILED_TO_VERIFY_SIGNATURE:
             return KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED;
         case PAL_ERR_FAILED_TO_COPY_KEYPAIR:
             return KCM_CRYPTO_STATUS_ECP_INVALID_KEY;
@@ -95,6 +96,8 @@ kcm_status_e cs_error_handler(palStatus_t pal_status)
             return KCM_CRYPTO_STATUS_INVALID_OID;
         case PAL_ERR_X509_INVALID_NAME:
             return KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT;
+        case PAL_ERR_SET_EXTENSION_FAILED:
+            return KCM_CRYPTO_STATUS_SET_EXTENSION_FAILED;
         default:
            return  KCM_STATUS_ERROR;
     }

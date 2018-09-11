@@ -60,7 +60,7 @@ const char g_fcc_kcm_file_name_corrupted_str[] = "File name corrupted:";
 const char g_fcc_kcm_not_initialized_str[] = "KCM not initialized:";
 const char g_fcc_kcm_close_incomplete_chain_str[] = "Closing incomplete KCM chain:";
 const char g_fcc_kcm_invalid_chain_str[] = "Corrupted certificate chain file:";
-const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[] = "Maximum chain length supported is " xstr(KCM_MAX_NUMBER_OF_CERTIFICATES_IN_CHAIN) ". Chain length of the item is invalid:";
+const char g_fcc_kcm_invalid_num_of_cert_in_chain_str[] = "Maximum chain length supported is " xstr(KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN) ". Chain length of the item is invalid:";
 const char g_fcc_kcm_file_exist_error_str[] = "Data already exists:";
 const char g_fcc_kcm_key_exist_error_str[] = "Desired generated key name already exists:";
 const char g_fcc_kcm_file_name_too_long_error_str[] = "File name too long:";
@@ -80,6 +80,7 @@ const char g_fcc_crypto_cert_public_key_type_error_str[] = "Certificate public k
 const char g_fcc_crypto_cert_public_key_error_str[] = "Certificate public key error:";
 const char g_fcc_crypto_cert_not_trusted_error_str[] = "Certificate not trusted:";
 const char g_fcc_crypto_invalid_x509_attr_error_str[] = "X509 attribute invalid:";
+const char g_fcc_crypto_invalid_x509_extension_error_str[] = "X509 extension invalid:";
 const char g_fcc_crypto_invalid_pk_key_format_error_str[] = "Public key format invalid:";
 const char g_fcc_crypto_invalid_public_key_error_str[] = "Public key invalid:";
 const char g_fcc_crypto_ecp_invalid_key_error_str[] = "EC key invalid:";
@@ -433,6 +434,9 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
             break;
         case KCM_CRYPTO_STATUS_PK_UNKNOWN_PK_ALG:
             kcm_error_string = (char*)g_fcc_crypto_unknown_pk_algorithm_error_str;
+            break;
+        case KCM_CRYPTO_STATUS_SET_EXTENSION_FAILED:
+            kcm_error_string = (char*)g_fcc_crypto_invalid_x509_attr_error_str;
             break;
         case KCM_STATUS_SUCCESS:
         case KCM_MAX_STATUS:

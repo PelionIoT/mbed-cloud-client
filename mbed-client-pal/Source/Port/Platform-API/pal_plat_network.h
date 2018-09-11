@@ -196,14 +196,14 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 #endif
 
 #if PAL_NET_DNS_SUPPORT
-
+#if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
 /*! This function translates the URL to a `palSocketAddress_t` that can be used with PAL sockets.
 * @param[in] url The URL to be translated to a `palSocketAddress_t`.
 * @param[out] address The address for the output of the translation.
 */
 palStatus_t pal_plat_getAddressInfo(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength);
 
-#ifdef PAL_DNS_API_V2
+#elif (PAL_DNS_API_VERSION == 2)
 /*! This function translates the URL to a `palSocketAddress_t` that can be used with PAL sockets.
 * @param[in] info address of `pal_asyncAddressInfo_t`.
 */
@@ -213,7 +213,9 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo_t* info);
 * @param[in] queryHandle Id of ongoing DNS query.
 */
 palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
-#endif // PAL_DNS_API_V2
+#else
+    #error "Please specify the platform PAL_DNS_API_VERSION 0, 1, or 2."
+#endif //  PAL_DNS_API_VERSION
 
 #endif // PAL_NET_DNS_SUPPORT
 

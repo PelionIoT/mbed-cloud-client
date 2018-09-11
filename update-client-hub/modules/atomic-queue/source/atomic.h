@@ -27,10 +27,10 @@ extern "C" {
 #endif
 
 enum {
-   AQ_ATOMIC_CAS_DEREF_SUCCESS = 0,
-   AQ_ATOMIC_CAS_DEREF_NULLPTR,
-   AQ_ATOMIC_CAS_DEREF_VALUE,
-   AQ_ATOMIC_CAS_DEREF_INTERUPTED,
+    AQ_ATOMIC_CAS_DEREF_SUCCESS = 0,
+    AQ_ATOMIC_CAS_DEREF_NULLPTR,
+    AQ_ATOMIC_CAS_DEREF_VALUE,
+    AQ_ATOMIC_CAS_DEREF_INTERUPTED,
 };
 
 /**
@@ -56,11 +56,11 @@ enum {
  * @retval AQ_ATOMIC_CAS_DEREF_VALUE      The value test failed (*(*ptrAddr + valueOffset) != expectedDerefValue`)
  * @retval AQ_ATOMIC_CAS_DEREF_INTERUPTED Another context modified `*ptrAddr`
  */
-int aq_atomic_cas_deref_uintptr(uintptr_t* volatile * ptrAddr,
-                            uintptr_t** currentPtrValue,
-                            uintptr_t expectedDerefValue,
-                            uintptr_t* newPtrValue,
-                            uintptr_t valueOffset);
+int aq_atomic_cas_deref_uintptr(uintptr_t *volatile *ptrAddr,
+                                uintptr_t **currentPtrValue,
+                                uintptr_t expectedDerefValue,
+                                uintptr_t *newPtrValue,
+                                uintptr_t valueOffset);
 
 #ifdef __cplusplus
 } // extern "C"
