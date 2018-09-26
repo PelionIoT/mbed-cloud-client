@@ -365,14 +365,22 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_header(uint32_t *location,
                            (buffer.size == ARM_UC_EXTERNAL_HEADER_SIZE_V2)) {
                     result = arm_uc_parse_external_header_v2(read_buffer, details);
                 } else {
-                    UC_PAAL_ERR_MSG("invalid header in slot %" PRIu32, *location);
+                    if (location) {
+                        UC_PAAL_ERR_MSG("invalid header in slot %" PRIu32, *location);
+                    } else {
+                        UC_PAAL_ERR_MSG("invalid header location");
+                    }
 
                     /* invalid header format */
                     result.code = ERR_INVALID_PARAMETER;
                 }
             } else {
                 /* unsuccessful read */
-                UC_PAAL_ERR_MSG("unable to read header in slot %" PRIX32, *location);
+                if (location) {
+                    UC_PAAL_ERR_MSG("unable to read header in slot %" PRIX32, *location);
+                } else {
+                    UC_PAAL_ERR_MSG("unable to read from unspecified header location");
+                }
             }
         } else {
             UC_PAAL_ERR_MSG("header file name and path too long");

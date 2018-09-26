@@ -45,7 +45,7 @@ extern "C" {
  *   the beginning of an attempt cycle, typically with exponentially increasing delays.
  *   An attempt cycle is the period from the start of an attempt to its end.
  *   - Interval callbacks are called at the *beginning* of every attempt cycle,
- *   (including the zeroth one, which occurs at the very start of an operation)
+ *   (excluding the zeroth one, which occurs at the very start of an operation)
  *   up to some number of events specified by the client (possibly zero).
  *   An interval cycle is the period from the start of an interval to the next one.
  *   - The terminate callback is called after some specified delay from start,

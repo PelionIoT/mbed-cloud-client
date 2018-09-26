@@ -17,7 +17,11 @@
 #ifndef __CERTIFICATE_ENROLLMENT_COMMON_H__
 #define __CERTIFICATE_ENROLLMENT_COMMON_H__
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wdeprecated-declarations"
 #include "mbed-client/m2mresource.h"
+#pragma GCC diagnostic pop
+
 #include "ce_defs.h"
 #include "CertificateEnrollmentClient.h"
 #include "EstClient.h"

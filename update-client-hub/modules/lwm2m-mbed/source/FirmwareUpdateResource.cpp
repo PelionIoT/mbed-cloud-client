@@ -60,10 +60,17 @@ static void packageCallback(void *_parameters, const M2MExecuteParameter &params
 static void packageURICallback(void *_parameters, const M2MExecuteParameter &params);
 static void updateCallback(void *, const M2MExecuteParameter &params);
 static void notificationCallback(void *client_args, const M2MBase &object, NotificationDeliveryStatus delivery_status);
+/* Default values are non-standard, but the standard has no
+   values for indicating that the device is initializing.
+   To address this, Service ignores -1 and/or 255 values coming through,
+   so for our purposes this is the correct form of initialization.
+*/
+const uint8_t defaultValue = -1;
 #else
 static void packageCallback(void *_parameters);
 static void updateCallback(void *);
 static void notificationCallback(const M2MBase &object, NotificationDeliveryStatus delivery_status, void *client_args);
+uint8_t defaultValue[] = {"-1"};
 #endif
 static void sendDelayedResponseTask(uint32_t parameter);
 
@@ -130,18 +137,9 @@ void FirmwareUpdateResource::Initialize(void)
 
             if (updateInstance) {
 
-#if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE == 0)
+#if defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
                 /* Set observable so the Portal can read it */
                 updateInstance->set_register_uri(false);
-
-                /* Default values are non-standard, but the standard has no
-                   values for indicating that the device is initializing.
-                   To address this, Service ignores -1 and/or 255 values coming through,
-                   so for our purposes this is the correct form of initialization.
-                */
-                uint8_t defaultValue[] = {"-1"};
-#else
-                const uint8_t defaultValue = -1;
 #endif
                 uint8_t defaultVersion[] = {"-1"};
 
@@ -241,6 +239,11 @@ void FirmwareUpdateResource::packageCallback(void *_parameters, const M2MExecute
 {
     UC_SRCE_TRACE("FirmwareUpdateResource::packageCallback");
 
+    // Reset the resource values for every new Campaign
+    // to make sure values of new Campaign get sent to service
+    resourceState->set_value(defaultValue);
+    resourceResult->set_value(defaultValue);
+
     if (externalPackageCallback) {
         /* read payload */
         const uint8_t *buffer = params.get_argument_value();
@@ -258,6 +261,11 @@ void FirmwareUpdateResource::packageCallback(void *_parameters, const M2MExecute
 void FirmwareUpdateResource::packageCallback(void *_parameters)
 {
     UC_SRCE_TRACE("FirmwareUpdateResource::packageCallback");
+
+    // Reset the resource values for every new Campaign
+    // to make sure values of new Campaign get sent to service
+    resourceState->set_value(defaultValue, sizeof(defaultValue) - 1);
+    resourceResult->set_value(defaultValue, sizeof(defaultValue) - 1);
 
     if (_parameters && externalPackageCallback) {
         /* recast parameter */

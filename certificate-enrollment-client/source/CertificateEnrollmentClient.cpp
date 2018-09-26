@@ -16,12 +16,15 @@
 
 
 #include "CertificateEnrollmentClient.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wdeprecated-declarations"
 #include "mbed-client/m2mresource.h"
+#include "mbed-client/m2minterfacefactory.h"
+#include "mbed-client/m2minterface.h"
+#pragma GCC diagnostic pop
 #include "pal.h"
 #include "eventOS_scheduler.h"
 #include "eventOS_event.h"
-#include "mbed-client/m2minterfacefactory.h"
-#include "mbed-client/m2minterface.h"
 #include "ce_defs.h"
 #include "ce_tlv.h"
 #include "certificate_enrollment.h"
@@ -103,7 +106,7 @@ namespace CertificateEnrollmentClient {
     * \param renewal_data A pointer to an object derived from CertificateRenewalDataBase
     * \param event_type An event identifier
     */
-    static ce_status_e schedule_event(CertificateRenewalDataBase *renewal_data, event_type_e event_type);
+    static ce_status_e schedule_event(event_type_e event_type);
 
     /**
     * \brief Callback that will be executed when an EST service response is available
@@ -195,6 +198,9 @@ void CertificateEnrollmentClient::certificate_renewal_post(void *arg)
     const uint8_t *data = args->get_argument_value();
     const uint16_t data_size = args->get_argument_value_length();
 
+    // If CEC module is not initialized - do not even take semaphore - exit with proper response
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((!is_initialized), call_user_cb_send_response(data, data_size, CE_STATUS_NOT_INITIALIZED), "Certificate Renewal module not initialized");
+
     pal_status = pal_osSemaphoreWait(g_renewal_sem, 0, NULL);
 
     if (pal_status == PAL_SUCCESS) {
@@ -211,7 +217,7 @@ void CertificateEnrollmentClient::certificate_renewal_post(void *arg)
         }
 
         // Enqueue the event
-        status = schedule_event(CertificateEnrollmentClient::current_cert, CertificateEnrollmentClient::EVENT_TYPE_RENEWAL_REQUEST);
+        status = schedule_event(CertificateEnrollmentClient::EVENT_TYPE_RENEWAL_REQUEST);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != CE_STATUS_SUCCESS), certificate_renewal_finish(CertificateEnrollmentClient::current_cert, status), "Error scheduling event");
 
     } else {
@@ -247,7 +253,7 @@ ce_status_e CertificateEnrollmentClient::certificate_renew(const char *cert_name
         SA_PV_ERR_RECOVERABLE_GOTO_IF((!CertificateEnrollmentClient::current_cert), status = CE_STATUS_OUT_OF_MEMORY, ReleseSemReturn, "Allocation error");
 
         // Enqueue the event
-        status = schedule_event(CertificateEnrollmentClient::current_cert, CertificateEnrollmentClient::EVENT_TYPE_RENEWAL_REQUEST);
+        status = schedule_event(CertificateEnrollmentClient::EVENT_TYPE_RENEWAL_REQUEST);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((status != CE_STATUS_SUCCESS), status = status, ReleseSemReturn, "Error scheduling event");
 
         // If some error synchronous error has occurred before scheduling the event - release the semaphore we had just taken, 
@@ -357,6 +363,7 @@ ce_status_e CertificateEnrollmentClient::init(M2MBaseList& list, const EstClient
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), CE_STATUS_ERROR, "Error creating semaphore");
 
 #ifdef CERT_ENROLLMENT_EST_MOCK
+        PV_UNUSED_PARAM(est_client);
         g_est_client = new EstClientMock();        
         SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_est_client), CE_STATUS_ERROR, "Error creating mock EST");
 #else 
@@ -440,7 +447,7 @@ void CertificateEnrollmentClient::certificate_renewal_start(CertificateRenewalDa
     // Call the EST client
 
     // If lwm2m device certificate - set cert name to NULL and request EST enrollment
-    if (pv_str_equals(g_lwm2m_name, renewal_data->cert_name, (strlen(g_lwm2m_name) + 1))) {
+    if (pv_str_equals(g_lwm2m_name, renewal_data->cert_name,(uint32_t)(strlen(g_lwm2m_name) + 1))) {
         SA_PV_LOG_INFO("Attempting to renew LwM2M device certificate\n");
         cert_name = NULL;
         cert_name_size = 0;
@@ -459,7 +466,7 @@ void CertificateEnrollmentClient::certificate_renewal_start(CertificateRenewalDa
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 }
 
-ce_status_e CertificateEnrollmentClient::schedule_event(CertificateRenewalDataBase *renewal_data, event_type_e event_type)
+ce_status_e CertificateEnrollmentClient::schedule_event(event_type_e event_type)
 {
     int8_t event_status;
 
@@ -489,6 +496,7 @@ void CertificateEnrollmentClient::est_cb(est_enrollment_result_e result,
     ce_status_e status;
     SA_PV_LOG_INFO_FUNC_ENTER("result = %d", result);
 
+    PV_UNUSED_PARAM(context);	
     if (result != EST_ENROLLMENT_SUCCESS || cert_chain == NULL) {
         return certificate_renewal_finish(current_cert, CE_STATUS_EST_ERROR);
     }
@@ -496,7 +504,7 @@ void CertificateEnrollmentClient::est_cb(est_enrollment_result_e result,
     // Cert chain remains persistent until g_est_client->free_cert_chain_context is called
     current_cert->est_data = cert_chain;
 
-    status = schedule_event(CertificateEnrollmentClient::current_cert, CertificateEnrollmentClient::EVENT_TYPE_EST_RESPONDED);
+    status = schedule_event(CertificateEnrollmentClient::EVENT_TYPE_EST_RESPONDED);
     if (status != CE_STATUS_SUCCESS) { // If event scheduling fails - free the chain context and finish the process
         SA_PV_LOG_INFO("Error scheduling event");
         g_est_client->free_cert_chain_context(current_cert->est_data);

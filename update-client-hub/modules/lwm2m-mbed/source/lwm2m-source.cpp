@@ -46,11 +46,8 @@ static arm_uc_callback_t callbackNodeNotification = { NULL, 0, NULL, 0 };
 static bool arm_uc_get_data_request_transaction_ongoing = false;
 static size_t arm_uc_received_file_size = 0;
 static size_t arm_uc_total_file_size = 0;
-#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
-static void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, void *context);
-#elif defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
-static void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, bool last_block, void *context);
-#endif
+static void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, bool last_block,
+                                         void *context);
 static void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *context);
 
 #define ARM_UCS_DEFAULT_COST (900)
@@ -373,9 +370,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
 
     output_buffer_ptr = buffer;
     free(copy_full_url);
-    copy_full_url = (char *)malloc(uri->size +
-            strlen(uri->path) +
-            sizeof((uri->scheme==URI_SCHEME_COAPS?UC_COAPS_STRING:UC_HTTP_STRING))); // space for scheme string
+    copy_full_url = (char *)malloc(arm_uc_calculate_full_uri_length(uri));
     if (copy_full_url == NULL) {
         //TODO to return SRCE_ERR_OUT_OF_MEMORY
         UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: ERROR OUT OF MEMORY for uri copy!");
@@ -383,9 +378,11 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
     }
     if (uri->scheme == URI_SCHEME_COAPS) {
         strcpy(copy_full_url, UC_COAPS_STRING);
-    }
-    else if (uri->scheme == URI_SCHEME_HTTP) {
+    } else if (uri->scheme == URI_SCHEME_HTTP) {
         strcpy(copy_full_url, UC_HTTP_STRING);
+    } else {
+        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Not Supported SCHEME!");
+        return retval;
     }
     strcat(copy_full_url, (const char *)uri->ptr);
     strcat(copy_full_url, uri->path);
@@ -416,7 +413,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
     } else if (!arm_uc_get_data_request_transaction_ongoing) {
         // We need to get request for next block of data
         UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Issue new get request for uri: %s, offset: %" PRIu32,
-                                                    copy_full_url, (uint32_t)arm_uc_received_file_size);
+                      copy_full_url, (uint32_t)arm_uc_received_file_size);
         if (FirmwareUpdateResource::getM2MInterface()) {
 
             FirmwareUpdateResource::getM2MInterface()->get_data_request(download_type,
@@ -447,14 +444,10 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
 }
 
 #if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
-#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
-void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, void *context)
-{
-#elif defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
-void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, bool last_block, void *context)
-{
+void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, bool last_block,
+                                  void *context) {
     (void)last_block;
-#endif
+
     UC_SRCE_TRACE("get_data_req_callback: %" PRIu32 ", %" PRIu32, (uint32_t)buffer_size, (uint32_t)total_size);
     M2MInterface *interface = (M2MInterface *)context;
 
@@ -548,12 +541,12 @@ void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, siz
         UC_SRCE_TRACE("arm_uc_get_data_req_callback: Issue new get request for uri: %s, offset: %" PRIu32, copy_full_url,
                       (uint32_t)arm_uc_received_file_size);
         interface->get_data_request(download_type,
-                                    copy_full_url,
-                                    arm_uc_received_file_size,
-                                    true,
-                                    arm_uc_get_data_req_callback,
-                                    arm_uc_get_data_req_error_callback,
-                                    interface);
+                                        copy_full_url,
+                                        arm_uc_received_file_size,
+                                        true,
+                                        arm_uc_get_data_req_callback,
+                                        arm_uc_get_data_req_error_callback,
+                                        interface);
         arm_uc_get_data_request_transaction_ongoing = true;
     }
 #ifdef ARM_UC_COAP_DATA_PRINTOUT
@@ -575,8 +568,7 @@ void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, siz
 #endif
 }
 
-void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *context)
-{
+void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *context) {
     UC_SRCE_TRACE("get_data_req_error_callback:  ERROR: %u\n", error_code);
     arm_uc_received_file_size = 0;
     arm_uc_total_file_size = 0;
@@ -607,8 +599,7 @@ void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *c
  * @return Error code.
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURLCost(arm_uc_uri_t *uri,
-                                                       uint32_t *cost)
-{
+                                                       uint32_t *cost) {
     (void) uri;
     (void) cost;
 
@@ -634,8 +625,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURLCost(arm_uc_uri_t *uri,
  * @return Error code.
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost(arm_uc_uri_t *uri,
-                                                       uint32_t *cost)
-{
+                                                       uint32_t *cost) {
     (void) uri;
     (void) cost;
 
@@ -662,8 +652,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost(arm_uc_uri_t *uri,
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURL(arm_uc_uri_t *uri,
                                                    arm_uc_buffer_t *buffer,
-                                                   uint32_t offset)
-{
+                                                   uint32_t offset) {
     (void) uri;
     (void) buffer;
     (void) offset;
@@ -683,8 +672,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURL(arm_uc_uri_t *uri,
  * @return Error code.
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURL(arm_uc_uri_t *uri,
-                                                   arm_uc_buffer_t *buffer)
-{
+                                                   arm_uc_buffer_t *buffer) {
     (void) uri;
     (void) buffer;
 

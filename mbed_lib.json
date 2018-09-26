@@ -5,8 +5,8 @@
             "help": "Set up download protocol for update firmware",
             "required": true,
             "options": ["MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP", "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_HTTP"],
-            "default": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_HTTP",
-            "value": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_HTTP"
+            "default": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP",
+            "value": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP"
         },
         "disable-certificate-enrollment": {
             "help": "Enables or disables certificate enrollment feature",

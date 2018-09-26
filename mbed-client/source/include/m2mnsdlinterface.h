@@ -474,7 +474,7 @@ private:
     bool create_nsdl_resource(M2MBase *base);
 
     static String coap_to_string(const uint8_t *coap_data_ptr,
-                          int coap_data_ptr_length);
+                                 int coap_data_ptr_length);
 
     void execute_nsdl_process_loop();
 
@@ -667,6 +667,8 @@ private:
 
     struct coap_response_s* find_delayed_post_response(const char* uri_path);
 
+    void failed_to_send_request(request_context_s *request, const sn_coap_hdr_s *coap_header);
+
 private:
 
     M2MNsdlObserver                         &_observer;
@@ -697,6 +699,8 @@ private:
     bool                                    _notification_send_ongoing;
     bool                                    _registered;
     bool                                    _bootstrap_finish_ack_received;
+    M2MTimer                                *_download_retry_timer;
+    uint64_t                                _download_retry_time;
 
 friend class Test_M2MNsdlInterface;
 

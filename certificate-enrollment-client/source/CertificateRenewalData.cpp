@@ -69,23 +69,42 @@ namespace CertificateEnrollmentClient {
     // Parse the CertificateRenewalDataFromServer::data as a CBOR and retrieve the cert name and size
     ce_status_e CertificateRenewalDataFromServer::parse()
     {
+        // NOTE: We should treat the TLV's VALUE according to the given type
+        //       since there is only one type at the moment no parsing is needed.
 
+        ce_tlv_status_e status;
         ce_tlv_element_s element;
+        
+        cert_name = NULL;
 
         if (ce_tlv_parser_init(_raw_data, _raw_data_size, &element) != CE_TLV_STATUS_SUCCESS) {
             return CE_STATUS_BAD_INPUT_FROM_SERVER;
         }
 
-        if (ce_tlv_parse_next(&element) != CE_TLV_STATUS_SUCCESS) {
+        while ((status = ce_tlv_parse_next(&element)) != CE_TLV_STATUS_END) {
+            if (status != CE_TLV_STATUS_SUCCESS) {
+                // something got wrong while parsing
+                return CE_STATUS_BAD_INPUT_FROM_SERVER;
+            }
+
+            // element parsed successfully - check if type supported
+
+            if ((element.type != CE_TLV_TYPE_CERT_NAME) && (is_required(&element))) {
+                return CE_STATUS_BAD_INPUT_FROM_SERVER;
+            } else if ((element.type != CE_TLV_TYPE_CERT_NAME) && (!is_required(&element))) {
+                // unsupported type but optional - ignored
+                continue;
+            }
+
+            cert_name = element.val.text;
+            SA_PV_LOG_INFO("\nParsed certificate to be updated is %s\n", (char *)element.val.text);
+        }
+
+        if (cert_name == NULL) {
+            // parsing succeeded however we haven't got a concrete certificate name
             return CE_STATUS_BAD_INPUT_FROM_SERVER;
         }
 
-        if (element.type != CE_TLV_TYPE_CERT_NAME) {
-            return CE_STATUS_BAD_INPUT_FROM_SERVER;
-        }
-
-        cert_name = element.val.text;
-        SA_PV_LOG_INFO("\nParsed certificate to be updated is %s\n", (char *)element.val.text);
         return CE_STATUS_SUCCESS;
     };
 

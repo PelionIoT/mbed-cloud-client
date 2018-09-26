@@ -136,7 +136,7 @@ public:
         MESSAGE_STATUS_RESEND_QUEUE_FULL,  // CoAP resend queue full.
         MESSAGE_STATUS_SENT,               // Message sent to the server but ACK not yet received.
         MESSAGE_STATUS_DELIVERED,          // Received ACK from server.
-        MESSAGE_STATUS_SEND_FAILED,        // Message sending failed (retransmission completed).
+        MESSAGE_STATUS_SEND_FAILED,        // Message sending failed.
         MESSAGE_STATUS_SUBSCRIBED,         // Server has started the observation
         MESSAGE_STATUS_UNSUBSCRIBED,       // Server has stopped the observation (RESET message or GET with observe 1)
         MESSAGE_STATUS_REJECTED            // Server has rejected the response
@@ -158,9 +158,12 @@ public:
         MAX_PATH_SIZE_4 = (MAX_NAME_SIZE + MAX_INSTANCE_SIZE + 1 + 1)
     };
 
+    // The setter for this callback (set_notification_delivery_status_cb()) is in m2m_deprecated
+    // category, but it can not be used here as then the GCC will scream for the declaration of
+    // setter, not just from references of it.
     typedef void(*notification_delivery_status_cb) (const M2MBase& base,
                                                     const NotificationDeliveryStatus status,
-                                                    void *client_args) m2m_deprecated;
+                                                    void *client_args);
 
     typedef void(*message_delivery_status_cb) (const M2MBase& base,
                                                const MessageDeliveryStatus status,
@@ -465,8 +468,11 @@ public:
 
     /**
      * \brief Executes the function that is set in "set_notification_delivery_status_cb".
+     * Note: the setter for this callback is marked as m2m_deprecated, but there is no point
+     * having it here, as then the code will always give warnings. This simply must be there
+     * until the set_notification_delivery_status_cb() is removed.
      */
-    void send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status) m2m_deprecated;
+    void send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status);
 
     /**
      * \brief Executes the function that is set in "set_message_delivery_status_cb".

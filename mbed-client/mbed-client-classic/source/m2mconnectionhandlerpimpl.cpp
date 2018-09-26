@@ -171,7 +171,7 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
  _server_port(0),
  _listen_port(0),
  _net_iface(0),
-#if (PAL_DNS_API_VERSION == 0)
+#if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
  _socket_address_len(0),
 #elif (PAL_DNS_API_VERSION == 2)
   _handler_async_DNS(0),
