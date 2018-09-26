@@ -24,16 +24,16 @@ extern "C" {
 /**
 * @file ce_defs.h
 *  \brief Certificate Enrollment (CE) public defines. 
-* This file along with ce_status.h (included by this file) contains all the defines exposed to the user for the certificate renewal feature. 
-* This file should be included by MbedCloudClient.h. This way the user does not have to include it directly.
+* This file, along with `ce_status.h` (included by this file) contains all the defines exposed for the certificate renewal feature. 
+* It is included by `MbedCloudClient.h` so you don't need to include it directly.
 */
 
 #include "ce_status.h"
 
 /** Enumeration representing the initiator of a certificate renewal operation */
 typedef enum {
-    CE_INITIATOR_DEVICE,                 //!< Operation initiated by the application
-    CE_INITIATOR_SERVER                 //!< Operation initiated by the MDS
+    CE_INITIATOR_DEVICE,                //!< Operation initiated by the application.
+    CE_INITIATOR_SERVER                 //!< Operation initiated by the certificate enrollment service.
 } ce_initiator_e;
 
 //!< User callback for the certificate renewal feature. char* guaranteed to be persistent only in context of the callback!

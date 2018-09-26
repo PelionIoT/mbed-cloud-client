@@ -397,11 +397,11 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
 
     /* Check parameters */
     if (handle == NULL) {
-        return 0;
+        return -1;
     }
 
     if (!sn_nsdl_is_ep_registered(handle)){
-        return 0;
+        return -1;
     }
 
     memset(&temp_parameters, 0, sizeof(sn_nsdl_ep_parameters_s));
@@ -419,7 +419,7 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
     /* Allocate memory for header struct */
     register_message_ptr = sn_coap_parser_alloc_message(handle->grs->coap);
     if (register_message_ptr == NULL) {
-        return 0;
+        return -2;
     }
 
     /* Fill message fields -> confirmable post to specified NSP path */
@@ -432,7 +432,7 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
         register_message_ptr->uri_path_ptr  =   handle->sn_nsdl_alloc(register_message_ptr->uri_path_len);
         if (!register_message_ptr->uri_path_ptr) {
             sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
-            return 0;
+            return -2;
         }
 
         temp_ptr = register_message_ptr->uri_path_ptr;
@@ -445,7 +445,7 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
         register_message_ptr->uri_path_ptr  =   handle->sn_nsdl_alloc(register_message_ptr->uri_path_len);
         if (!register_message_ptr->uri_path_ptr) {
             sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
-            return 0;
+            return -2;
         }
 
         temp_ptr = register_message_ptr->uri_path_ptr;
@@ -467,7 +467,7 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
     /* Allocate memory for the extended options list */
     if (sn_coap_parser_alloc_options(handle->grs->coap, register_message_ptr) == NULL) {
         sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
-        return 0;
+        return -2;
     }
 
     /* Fill Uri-query options */
@@ -477,7 +477,7 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
     if (handle->ep_information_ptr->ds_register_mode == REGISTER_WITH_RESOURCES) {
         if (sn_nsdl_build_registration_body(handle, register_message_ptr, 1) == SN_NSDL_FAILURE) {
             sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
-            return 0;
+            return -2;
         }
     }
 
@@ -498,6 +498,11 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
     handle->sn_nsdl_free(register_message_ptr->payload_ptr);
 
     sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
+
+    if (message_id == 0) {
+        // Failure when sending
+        return -2;
+    }
 
     return message_id;
 }

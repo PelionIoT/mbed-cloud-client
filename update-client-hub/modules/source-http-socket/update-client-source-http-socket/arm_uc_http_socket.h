@@ -58,6 +58,7 @@ typedef enum {
     SOCKET_EVENT_UNDEFINED,
     SOCKET_EVENT_INITIATE,
     SOCKET_EVENT_LOOKUP_START,
+    SOCKET_EVENT_LOOKUP_WAITING,
     SOCKET_EVENT_LOOKUP_BLOCKED,
     SOCKET_EVENT_LOOKUP_FAILED,
     SOCKET_EVENT_LOOKUP_DONE,
@@ -100,10 +101,12 @@ typedef void (*ARM_UCS_HttpEvent_t)(uint32_t event);
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__HEAVY            256
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__EXTREME          1024
 
+#if !defined(ARM_UC_MULTI_FRAGS_PER_HTTP_BURST)
 #if defined(TARGET_IS_PC_LINUX)
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST           ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__EXTREME
 #else
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST           ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__MODERATE
+#endif
 #endif
 
 // Developer-facing #defines allow easier testing of parameterised resume.

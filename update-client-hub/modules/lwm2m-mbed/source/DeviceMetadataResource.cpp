@@ -134,7 +134,7 @@ void DeviceMetadataResource::Initialize(void)
                 if (bootloaderHashResource) {
                     bootloaderHashResource->set_operation(M2MBase::GET_ALLOWED);
                     bootloaderHashResource->publish_value_in_registration_msg(true);
-                    bootloaderHashResource->set_auto_observable(true);                    
+                    bootloaderHashResource->set_auto_observable(true);
                 }
 
                 /* Create Update resource /10255/0/2 */

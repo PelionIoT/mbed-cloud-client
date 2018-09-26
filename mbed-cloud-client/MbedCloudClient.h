@@ -25,8 +25,15 @@
 #include <vector>
 #include "include/ServiceClient.h"
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
+
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
-#include "CertificateEnrollmentClient.h"
+// This overly long path is needed to have build compatibility with previous
+// version. A #include can't just point to a file which is not in application's
+// include path and we should not force application to add every internal directory
+// of MCC to their paths.
+// On next phase, the cmake is used to publish the API paths via
+// target_include_directories(), but that requires a bit more cleanups.
+#include "certificate-enrollment-client/certificate-enrollment-client/ce_defs.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
 using namespace std;
@@ -362,20 +369,14 @@ public:
     * \return CE_STATUS_SUCCESS if the asynchronous operation has started successfully. In this case, user callback will be executed at the end of the operation, indicating completion status.
     *         If any other ce_status_e:: status is returned - operation encountered some error prior to the start of the asynchronous stage and user callback will NOT be executed.
     */
-    ce_status_e certificate_renew(const char *cert_name)
-    {
-        return CertificateEnrollmentClient::certificate_renew(cert_name);
-    }
+    ce_status_e certificate_renew(const char *cert_name);
 
     /**
     * \brief Sets the callback function that is called when the certificate renewal process has completed.
     * Must be called before any certificate renewal operation.
     * \param user_cb A function pointer to the user callback. If `user_cb` is NULL - no callback is called when the process has completed.
     */
-    void on_certificate_renewal(cert_renewal_cb_f user_cb)
-    {
-        CertificateEnrollmentClient::on_certificate_renewal(user_cb);
-    }
+    void on_certificate_renewal(cert_renewal_cb_f user_cb);
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION

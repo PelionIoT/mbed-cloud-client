@@ -20,9 +20,13 @@
 #include <inttypes.h>
 #include "mbed_stats.h"
 #include "mbed_stats_helper.h"
+#include "pal.h"
+#include <string.h>
 #if MBED_CONF_RTOS_PRESENT
 #include "cmsis_os2.h"
 #endif
+
+#define MBED_STATS_FILE_NAME "/mbedos_stats.txt"
 
 /**
     Print mbedos stack and heap usage to stdout and to text file named mbedos_stats.txt.
@@ -30,7 +34,16 @@
 */
 void print_mbed_stats()
 {
-    char file_name[] = MBED_CONF_STORAGE_SELECTOR_MOUNT_POINT "/mbedos_stats.txt";
+    palStatus_t pal_result = PAL_SUCCESS;
+    // Max size of directory acquired by pal_fsGetMountPoint + file name (including '/') + '\0'
+    char file_name[PAL_MAX_FOLDER_DEPTH_CHAR + sizeof(MBED_STATS_FILE_NAME)] = { 0 };
+
+    pal_result = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FOLDER_DEPTH_CHAR + 1, file_name);
+    if (pal_result != PAL_SUCCESS) {
+        return;
+    }
+
+    strcat(file_name, MBED_STATS_FILE_NAME);
     FILE *f = fopen(file_name, "wt");
     if (f) {
         // Heap

@@ -1,5 +1,31 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 2.0.0 (26.09.2018)
+
+#### Pelion Device Management Client
+
+* This version of client has been tested with Mbed OS 5.10.0.
+
+#### Factory configurator client
+
+* Introducing certificate renewal feature for LWM2M as well as custom certificates.
+  * LWM2M as well as custom certificate can be renewed through Certificate renewal service as well as from Client side APIs.
+
+#### Platform Adaptation Layer (PAL)
+
+* [Mbed OS] Fix hardfault under failure case of DNS request.
+
+#### Update Client
+* The firmware is downloaded using CoAP in MbedOS and HTTP in Linux.  
+* Fixed segfault when Linux update scripts are provided but no header exists.
+* Added support in HTTP source to make download fragments per burst user configurable.
+* Fixed resume engine to not block on HTTP header errors.
+* Fixed malloc issue in URI handling.
+* Passed HTTP URI instead of coaps to the generate-manifest script.
+* Fixed incorrect handling of async DNS callback which caused download failure.
+* Fixed campaign not completing when payload hash mismatch introduced during firmware update operation. 
+
+
 ### Release 1.5.0 (11.09.2018)
 
 #### Pelion Device Management Client
@@ -227,3 +253,4 @@ Using PAL for asyncronous handling of DNS enables firmware update with mesh.
 
 ### Release 1.3.0 (27.3.2018)
 * Initial public release.
+

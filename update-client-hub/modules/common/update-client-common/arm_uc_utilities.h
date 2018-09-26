@@ -188,6 +188,17 @@ uint32_t ARM_UC_BinCompareCT(const arm_uc_buffer_t *a, const arm_uc_buffer_t *b)
 uint8_t *ARM_UC_Base64Enc(uint8_t *buf, const uint32_t size, const arm_uc_buffer_t *bin);
 void ARM_UC_Base64Dec(arm_uc_buffer_t *bin, const uint32_t size, const uint8_t *buf);
 
+/**
+ * @brief Calculate what is the length of string needed to contain full HTTP/COAP URI for download
+ * @details Calculation includes uri->size (size of ptr which is server address only in this case), uri->path (filename)
+ *          and length of SCHEME-string (https:// or coaps://)
+
+ *
+ * @param[in] uri The URI -structure which has been already parsed in arm_uc_str2uri
+ * @return  length of char* buffer needed for everything in URI. If scheme is not supported return 0
+ */
+size_t arm_uc_calculate_full_uri_length(const arm_uc_uri_t *uri);
+
 #ifdef __cplusplus
 }
 #endif

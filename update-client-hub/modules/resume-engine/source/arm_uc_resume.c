@@ -235,6 +235,16 @@ static void reset_on_cycle_values(arm_uc_resume_t *a_resume_p)
 {
     if (a_resume_p != NULL) {
         a_resume_p->num_attempts = 0;
+    }
+}
+/**
+ * @brief Reset values per every new resume-start.
+ * @param a_resume_p Pointer to the active resume structure.
+ */
+static void reset_on_start_values(arm_uc_resume_t *a_resume_p)
+{
+    if (a_resume_p != NULL) {
+        a_resume_p->num_attempts = 0;
         a_resume_p->sum_total_period = 0;
     }
 }
@@ -620,6 +630,8 @@ arm_uc_error_t arm_uc_resume_start_monitoring(
     }
     if (ARM_UC_IS_NOT_ERROR(result)) {
         a_resume_p->currently_resuming = true;
+
+        reset_on_start_values(a_resume_p);
         calc_initial_attempt_jittered_delay(a_resume_p);
         calc_next_actual_delay(a_resume_p);
 

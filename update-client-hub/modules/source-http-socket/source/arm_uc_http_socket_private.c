@@ -29,8 +29,7 @@
 
 // If enabled, text messages will be printed to output to give live feedback for QA testing.
 // This is intended for QA testing ***only***, and should not be enabled for any other reason.
-#if defined(MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_ATTEMPT_TEST_MESSAGES_ENABLE)\
-    && (MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_ATTEMPT_TEST_MESSAGES_ENABLE)
+#if defined(ARM_UC_HTTP_RESUME_TEST_MESSAGES_ENABLE) && (ARM_UC_HTTP_RESUME_TEST_MESSAGES_ENABLE == 1)
 #define ARM_UC_QA_TRACE_ENABLE 1
 #endif
 
@@ -57,6 +56,7 @@ static arm_uc_error_t arm_uc_http_install_isr_event(
 static arm_uc_error_t arm_uc_http_install_app_event(
     arm_uc_http_socket_event_t an_event);
 
+
 // DATA & CONFIG.
 // --------------
 
@@ -72,13 +72,10 @@ uint32_t frags_per_burst = ARM_UC_MULTI_FRAGS_PER_HTTP_BURST;
 
 // Exponentiation factor tries to balance speed with power considerations.
 // Resume is very aggressive to start but backs off more quickly too.
-#if defined(MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_EXPONENTIATION_FACTOR)
-#if MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_EXPONENTIATION_FACTOR < 0
+#if !defined(ARM_UC_HTTP_RESUME_EXPONENTIATION_FACTOR)
+#define ARM_UC_HTTP_RESUME_EXPONENTIATION_FACTOR (ARM_UC_HTTP_RESUME_DEFAULT_EXPONENTIATION_FACTOR)
+#elif ARM_UC_HTTP_RESUME_EXPONENTIATION_FACTOR < 0
 #error "HTTP resume attempt delay exponentiation factor must be non-negative."
-#endif
-#define HTTP_RESUME_EXPONENTIATION_FACTOR MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_EXPONENTIATION_FACTOR
-#else
-#define HTTP_RESUME_EXPONENTIATION_FACTOR ARM_UC_HTTP_RESUME_DEFAULT_EXPONENTIATION_FACTOR
 #endif
 
 // Delay parameters have minimum and maximum values.
@@ -100,49 +97,44 @@ uint32_t frags_per_burst = ARM_UC_MULTI_FRAGS_PER_HTTP_BURST;
 // Initial delay between resumption attempts.
 // Default and lower bound is 1 seconds, maximum is 1 hour.
 // Because we now don't have retries at the source level, we cover that fault profile with resume/8.
-#if defined(MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_INITIAL_DELAY_SECS)
-#if MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_INITIAL_DELAY_SECS < 0
+#if !defined(ARM_UC_HTTP_RESUME_INITIAL_DELAY_SECS)
+#define ARM_UC_HTTP_RESUME_INITIAL_DELAY_SECS   (ARM_UC_HTTP_RESUME_DEFAULT_INITIAL_DELAY_SECS)
+#elif ARM_UC_HTTP_RESUME_INITIAL_DELAY_SECS < 0
 #error "HTTP resume initial attempt delay must be non-negative."
 #endif
-#define HTTP_RESUME_INITIAL_DELAY_MSECS     ((MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_INITIAL_DELAY_SECS)*1000UL)
-#else
-#define HTTP_RESUME_INITIAL_DELAY_MSECS     ((ARM_UC_HTTP_RESUME_DEFAULT_INITIAL_DELAY_SECS)*1000UL)
-#endif
+#define ARM_UC_HTTP_RESUME_INITIAL_DELAY_MSECS  ((ARM_UC_HTTP_RESUME_INITIAL_DELAY_SECS)*1000UL)
 
 // Greatest delay between resumption attempts.
 // Default to 1 hour, lower bound is minimum delay, maximum 7 day.
-#if defined(MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_MAXIMUM_DELAY_SECS)
-#if MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_MAXIMUM_DELAY_SECS < 0
+#if !defined(ARM_UC_HTTP_RESUME_MAXIMUM_DELAY_SECS)
+#define ARM_UC_HTTP_RESUME_MAXIMUM_DELAY_SECS   (ARM_UC_HTTP_RESUME_DEFAULT_MAXIMUM_DELAY_SECS)
+#elif ARM_UC_HTTP_RESUME_MAXIMUM_DELAY_SECS < 0
 #error "HTTP resume maximum attempt delay must be non-negative."
 #endif
-#define HTTP_RESUME_MAXIMUM_DELAY_MSECS          ((MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_MAXIMUM_DELAY_SECS)*1000UL)
-#else
-#define HTTP_RESUME_MAXIMUM_DELAY_MSECS          ((ARM_UC_HTTP_RESUME_DEFAULT_MAXIMUM_DELAY_SECS)*1000UL)
-#endif
+#define ARM_UC_HTTP_RESUME_MAXIMUM_DELAY_MSECS         ((ARM_UC_HTTP_RESUME_MAXIMUM_DELAY_SECS)*1000UL)
 
 // Stop resumptions after this period has elapsed.
 // Default to 24 hours, lower bound is maximum delay, maximum is 30 days.
-#if defined(MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS)
-#if MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS < 0
+#if !defined(ARM_UC_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS)
+#define ARM_UC_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS (ARM_UC_HTTP_RESUME_DEFAULT_MAXIMUM_DOWNLOAD_TIME_SECS)
+#elif ARM_UC_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS < 0
 #error "HTTP resume maximum download time must be non-negative"
 #endif
-#define HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_MSECS  ((MBED_CONF_UPDATE_CLIENT_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS)*1000UL)
-#else
-#define HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_MSECS  ((ARM_UC_HTTP_RESUME_DEFAULT_MAXIMUM_DOWNLOAD_TIME_SECS)*1000UL)
-#endif
+#define ARM_UC_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_MSECS ((ARM_UC_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS)*1000UL)
 
 // These values are not user-configurable because they are largely dependent on the resume settings,
 //   inasmuch as the expected behaviour of the link implies the interval behaviour.
 
 // The number of attempts to push the state machine along, assuming events have been dropped,
 //   and the periods of time between the intervals.
-#define HTTP_RESUME_NUM_INTERVALS           2
+#define ARM_UC_HTTP_RESUME_NUM_INTERVALS           2
 
 // This is the period of time before a socket is timed out as being behind,
 //   but not necessarily in error, given that events can go missing over the network.
 //   Instead we use this to optimistically bump the socket along, in the expectation that it will
 //   perhaps have had an event but not reported it, unlike what we would have expected in a perfect world.
-#define HTTP_RESUME_INTERVAL_DELAY_MSECS    (HTTP_RESUME_INITIAL_DELAY_MSECS/(HTTP_RESUME_NUM_INTERVALS+1))
+#define ARM_UC_HTTP_RESUME_INTERVAL_DELAY_MSECS\
+        (ARM_UC_HTTP_RESUME_INITIAL_DELAY_MSECS/(ARM_UC_HTTP_RESUME_NUM_INTERVALS+1))
 
 // Runtime storage of current status of HTTP resumptions.
 arm_uc_resume_t resume_http;
@@ -174,6 +166,8 @@ static void on_http_resume_error(void *a_context_p)
 // -----------------
 
 static uint32_t skip_to_event = 0;
+static bool expecting_dns_callback = false;
+
 /**
  * @brief Avoid cycling through the handler queue for trivially consecutive events.
  * @details Only used for event transitions that are fast and statically predetermined.
@@ -238,24 +232,29 @@ static palStatus_t arm_uc_do_pal_dns_lookup(void)
     UC_SRCE_TRACE(">> %s [asynchronous v2])", __func__);
     // (hack) length is constant.
     context->cache_address_length = PAL_NET_MAX_ADDR_SIZE;
-    return pal_getAddressInfoAsync(
-               context->request_uri->host,
-               &context->cache_address,
-               arm_uc_dns_callback_handler,
-               NULL,
-               &arm_uc_dns_query_handle);
+    palStatus_t result = pal_getAddressInfoAsync(
+                             context->request_uri->host,
+                             &context->cache_address,
+                             arm_uc_dns_callback_handler,
+                             NULL,
+                             &arm_uc_dns_query_handle);
+    UC_SRCE_TRACE(".. %s handle=%" PRIu32 ", result=%" PRIx32,
+                  __func__, arm_uc_dns_query_handle, result);
+    return result;
 }
 #elif (PAL_DNS_API_VERSION == 1)
 // Only used internally from a single location, no check for context == NULL.
 static palStatus_t arm_uc_do_pal_dns_lookup(void)
 {
-    UC_SRCE_TRACE(">> %s [asynchronous])", __func__);
-    return pal_getAddressInfoAsync(
-               context->request_uri->host,
-               &context->cache_address,
-               &context->cache_address_length,
-               arm_uc_dns_callback_handler,
-               NULL);
+    UC_SRCE_TRACE(">> %s [asynchronous v1])", __func__);
+    palStatus_t result = pal_getAddressInfoAsync(
+                             context->request_uri->host,
+                             &context->cache_address,
+                             &context->cache_address_length,
+                             arm_uc_dns_callback_handler,
+                             NULL);
+    UC_SRCE_TRACE(".. %s result=%" PRIx32, __func__, result);
+    return result;
 }
 #elif (PAL_DNS_API_VERSION == 0)
 /* Use synchronous DNS calls */
@@ -266,7 +265,7 @@ static palStatus_t arm_uc_do_pal_dns_lookup(void)
     /* Run the synchronous DNS request and call the callback
      immediately after the request is done */
     UC_SRCE_TRACE(">> %s [synchronous])", __func__);
-    palStatus_t status = pal_getAddressInfo(
+    palStatus_t result = pal_getAddressInfo(
                              context->request_uri->host,
                              &context->cache_address,
                              &context->cache_address_length);
@@ -277,22 +276,35 @@ static palStatus_t arm_uc_do_pal_dns_lookup(void)
         context->request_uri->host,
         &context->cache_address,
         &context->cache_address_length,
-        status,
+        result,
         NULL);
-    return status;
+    UC_SRCE_TRACE(".. %s result=%" PRIx32, __func__, result);
+    return result;
 }
 #endif // PAL_DNS_API_VERSION
 
 static arm_uc_error_t arm_uc_http_get_address_info(void)
 {
+    UC_SRCE_TRACE(">> %s", __func__);
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: context == NULL, &context = %" PRIxPTR, (uintptr_t)context);
         return ARM_UC_ERROR(SRCE_ERR_UNINITIALIZED);
     } else {
+#if ARM_UC_SOURCE_MANAGER_TRACE_ENABLE
+        UC_SRCE_TRACE("DNS lookup with type  %" PRIu16, context->cache_address.addressType);
+        uint64_t data = 0;
+        int index = 0;
+        for (data = 0, index = 0; index < 8; ++index) {
+            data = (data << 8) + context->cache_address.addressData[index];
+        }
+        UC_SRCE_TRACE("           with addr  %" PRIx64, data);
+        UC_SRCE_TRACE("           with space %" PRIu32, context->cache_address_length);
+#endif
+        expecting_dns_callback = true;
         palStatus_t status = arm_uc_do_pal_dns_lookup();
-        UC_SRCE_TRACE(">> %s returned", __func__);
+        UC_SRCE_TRACE("arm_uc_do_pal_dns_lookup() returned");
         if (status != PAL_SUCCESS) {
-            UC_SRCE_TRACE("arm_uc_do_pal_dns_lookup failed %" PRIx32, (uint32_t)status);
+            UC_SRCE_TRACE("  failed with %" PRIx32, (uint32_t)status);
         }
         /* Always return BUSY so that the caller can continue
          execution. The actual check for success/failure happens
@@ -300,6 +312,20 @@ static arm_uc_error_t arm_uc_http_get_address_info(void)
         return ARM_UC_ERROR(SRCE_ERR_BUSY);
     }
 }
+#if (PAL_DNS_API_VERSION >= 2)
+static arm_uc_error_t arm_uc_http_cancel_dns_lookup(void)
+{
+    expecting_dns_callback = false;
+    // Cancel ongoing asynchronous DNS query (only if non-zero handle).
+    if (arm_uc_dns_query_handle != 0) {
+        UC_SRCE_TRACE("cancel address-info-async %" PRIu32, arm_uc_dns_query_handle);
+        pal_cancelAddressInfoAsync(arm_uc_dns_query_handle);
+        arm_uc_dns_query_handle = 0;
+    }
+    return ARM_UC_ERROR(ERR_NONE);
+}
+#endif
+
 
 /**
  * @brief Simple null of some shared HTTP settings for init, close and terminate.
@@ -345,13 +371,13 @@ arm_uc_error_t arm_uc_http_socket_initialize(
     arm_uc_http_socket_context_t *a_context_p,
     void (*a_handler_p)(uint32_t))
 {
-    UC_SRCE_TRACE(">> %s (%" PRIx32 ", %" PRIx32 ") ..", __func__,
-                  (uint32_t)a_context_p, (uint32_t)a_handler_p);
+    UC_SRCE_TRACE(">> %s (%" PRIxPTR ", %" PRIxPTR ") ..", __func__,
+                  (uintptr_t)a_context_p, (uintptr_t)a_handler_p);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
 
     if ((a_context_p == NULL) || (a_handler_p == NULL)) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIx32 ", &handler == %" PRIx32,
-                        (uint32_t)a_context_p, (uint32_t)a_handler_p);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR ", &handler == %" PRIxPTR,
+                        (uintptr_t)a_context_p, (uintptr_t)a_handler_p);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -380,7 +406,7 @@ arm_uc_error_t arm_uc_http_socket_close(void)
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -411,7 +437,7 @@ arm_uc_error_t arm_uc_http_socket_terminate(void)
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -443,7 +469,7 @@ static arm_uc_error_t arm_uc_http_socket_error(
     last_http_error_event = an_error;
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     } else {
         arm_uc_http_clear_dns_cache_fields();
@@ -470,7 +496,7 @@ arm_uc_error_t arm_uc_http_socket_fatal_error(
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     } else {
         arm_uc_http_socket_error(an_error);
@@ -505,8 +531,8 @@ arm_uc_error_t arm_uc_http_socket_get(
     uint32_t offset,
     arm_uc_http_rqst_t type)
 {
-    UC_SRCE_TRACE(">> %s (%" PRIx32 ", %" PRIx32 ", %" PRIx32 ", %" PRIx32 ") ..",
-                  __func__, (uint32_t)uri, (uint32_t)buffer, offset, (uint32_t)type);
+    UC_SRCE_TRACE(">> %s (%" PRIxPTR ", %" PRIxPTR ", %" PRIx32 ", %" PRIx32 ") ..",
+                  __func__, (uintptr_t)uri, (uintptr_t)buffer, offset, (uint32_t)type);
 
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
@@ -518,7 +544,7 @@ arm_uc_error_t arm_uc_http_socket_get(
             || (uri->path == NULL)
             || (buffer == NULL)
             || (buffer->ptr == NULL)) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR " or null URI or buffer args", (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR " or null URI or buffer args", (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -532,22 +558,22 @@ arm_uc_error_t arm_uc_http_socket_get(
     // Tracing for development debugging.
     if (ARM_UC_IS_ERROR(status)) {
         UC_SRCE_TRACE("warning: on socket get = %" PRIx32, (uint32_t)status.code);
-        UC_SRCE_TRACE("    context 0x%" PRIx32, (uint32_t)context);
-        UC_SRCE_TRACE("    uri 0x%" PRIx32, (uint32_t)uri);
+        UC_SRCE_TRACE("    context 0x%" PRIxPTR, (uintptr_t)context);
+        UC_SRCE_TRACE("    uri 0x%" PRIxPTR, (uintptr_t)uri);
         if (uri != NULL) {
             UC_SRCE_TRACE("        scheme %" PRIu32, (uint32_t)uri->scheme);
-            UC_SRCE_TRACE("        host 0x%" PRIx32, (uint32_t)uri->host);
+            UC_SRCE_TRACE("        host 0x%" PRIxPTR, (uintptr_t)uri->host);
             if (uri->host != NULL) {
                 UC_SRCE_TRACE("        host %s", uri->host);
             }
-            UC_SRCE_TRACE("        path %" PRIu32, (uint32_t)uri->path);
+            UC_SRCE_TRACE("        path %" PRIxPTR, (uintptr_t)uri->path);
             if (uri->path != NULL) {
                 UC_SRCE_TRACE("        path %s", uri->path);
             }
         }
         if (buffer != NULL) {
-            UC_SRCE_TRACE("    buffer 0x%" PRIx32, (uint32_t)buffer);
-            UC_SRCE_TRACE("    buffer.ptr 0x%" PRIx32, (uint32_t)buffer->ptr);
+            UC_SRCE_TRACE("    buffer 0x%" PRIxPTR, (uintptr_t)buffer);
+            UC_SRCE_TRACE("    buffer.ptr 0x%" PRIxPTR, (uintptr_t)buffer->ptr);
         }
     }
     return status;
@@ -585,7 +611,7 @@ arm_uc_error_t arm_uc_http_socket_connect_new(void)
     palStatus_t pal_inner = PAL_SUCCESS;
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
     } else if (context->cache_address.addressType == 0) {
         UC_SRCE_TRACE("warning: cache address type is 0");
@@ -688,7 +714,7 @@ arm_uc_error_t arm_uc_http_socket_connect(void)
     if ((context == NULL)
             || (context->request_uri == NULL)) {
         UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR " and URI = %" PRIxPTR,
-                        (unsigned)context, (unsigned)(context->request_uri));
+                        (uintptr_t)context, (uintptr_t)(context->request_uri));
         ARM_UC_SET_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -729,7 +755,7 @@ arm_uc_error_t arm_uc_http_socket_soft_connect(void)
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
     }
     if (ARM_UC_IS_ERROR(status)) {
@@ -767,7 +793,7 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
     }
     /* Get local references */
@@ -970,10 +996,10 @@ arm_uc_error_t arm_uc_http_socket_has_received_header(
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     } else if (a_has_received_p == NULL) {
-        UC_SRCE_ERR_MSG("error: flag * a_has_received_p = %" PRIxPTR, (unsigned)a_has_received_p);
+        UC_SRCE_ERR_MSG("error: flag * a_has_received_p = %" PRIxPTR, (uintptr_t)a_has_received_p);
         ARM_UC_SET_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
     } else {
         context->header_end_index = arm_uc_strnstrn(
@@ -987,6 +1013,10 @@ arm_uc_error_t arm_uc_http_socket_has_received_header(
         if (!*a_has_received_p
                 && (context->request_buffer->size == context->request_buffer->size_max)) {
             UC_SRCE_TRACE("warning: socket receive - not enough space for a header");
+#if ARM_UC_SOURCE_MANAGER_TRACE_ENABLE
+            context->request_buffer->ptr[context->request_buffer->size - 1] = 0;
+            UC_SRCE_TRACE("received\r\n%s", context->request_buffer->ptr);
+#endif
             arm_uc_http_socket_error(UCS_HTTP_EVENT_ERROR_BUFFER_SIZE);
             ARM_UC_SET_ERROR(status, SRCE_ERR_ABORT);
         }
@@ -1016,7 +1046,7 @@ arm_uc_error_t arm_uc_http_socket_process_header_redirect_codes(
     arm_uc_uri_t *request_uri = context->request_uri;
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -1089,7 +1119,7 @@ arm_uc_error_t arm_uc_http_socket_process_header_post_callback(
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -1125,7 +1155,7 @@ arm_uc_error_t arm_uc_http_socket_process_header_return_codes(
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -1249,7 +1279,7 @@ arm_uc_error_t arm_uc_http_socket_process_header(void)
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
     }
 
@@ -1295,14 +1325,14 @@ arm_uc_error_t arm_uc_http_socket_process_header(void)
                 || (http_status_code == 307)) {
             status = arm_uc_http_socket_process_header_redirect_codes(http_status_code);
             if (ARM_UC_IS_ERROR(status)) {
-                UC_SRCE_TRACE("warning: processing HTTP status code %" PRIx32, http_status_code);
+                UC_SRCE_TRACE("warning: processing HTTP status code %" PRIu32, http_status_code);
             }
         }
         /* All codes between 200 to 226 */
         else if ((http_status_code >= 200) && (http_status_code <= 226)) {
             status = arm_uc_http_socket_process_header_return_codes(http_status_code);
             if (ARM_UC_IS_ERROR(status)) {
-                UC_SRCE_TRACE("warning: processing HTTP status code %" PRIx32, http_status_code);
+                UC_SRCE_TRACE("warning: processing HTTP status code %" PRIu32, http_status_code);
             }
         } else {
             /* All remaining codes outside 200-226, are treated as errors */
@@ -1311,7 +1341,7 @@ arm_uc_error_t arm_uc_http_socket_process_header(void)
         }
     }
     if (ARM_UC_IS_ERROR(status)) {
-        UC_SRCE_TRACE("warning: on socket process header = %" PRIx32, (uint32_t)status.code);
+        UC_SRCE_TRACE("warning: on socket process header = %" PRIu32, (uint32_t)status.code);
         arm_uc_http_socket_error(UCS_HTTP_EVENT_ERROR);
     }
     return status;
@@ -1334,10 +1364,10 @@ arm_uc_error_t arm_uc_http_socket_has_received_frag(
 
     if ((context == NULL) || (context->request_buffer == NULL)) {
         UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR ", context->request_buffer = %" PRIxPTR,
-                        (unsigned)context, (unsigned)(context->request_buffer));
+                        (uintptr_t)context, (uintptr_t)(context->request_buffer));
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     } else if (a_has_received_p == NULL) {
-        UC_SRCE_ERR_MSG("error: flag * a_has_received_p = %" PRIxPTR, (unsigned)a_has_received_p);
+        UC_SRCE_ERR_MSG("error: flag * a_has_received_p = %" PRIxPTR, (uintptr_t)a_has_received_p);
         ARM_UC_SET_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -1371,7 +1401,7 @@ arm_uc_error_t arm_uc_http_socket_process_frag(void)
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -1401,7 +1431,7 @@ bool arm_uc_open_http_socket_matches_request(void)
     bool result = false;
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
     } else if (context->socket_state != STATE_CONNECTED_IDLE) {
         UC_SRCE_TRACE("!matches: context->socket_state %" PRIu32 " != STATE_CONNECTED_IDLE",
                       (uint32_t)context->socket_state);
@@ -1419,8 +1449,8 @@ bool arm_uc_open_http_socket_matches_request(void)
 //   but keeping the host and path the same.
     else if (strcmp((const char *) context->request_uri->host, (const char *) context->open_request_uri->host)
              || strcmp((const char *) context->request_uri->path, (const char *) context->open_request_uri->path)) {
-        UC_SRCE_TRACE("!matches: context->request_uri %" PRIu32 " != %" PRIu32,
-                      (uint32_t)context->request_uri, (uint32_t)context->open_request_uri);
+        UC_SRCE_TRACE("!matches: context->request_uri %" PRIxPTR " != %" PRIxPTR,
+                      (uintptr_t)context->request_uri, (uintptr_t)context->open_request_uri);
     } else {
         result = true;
     }
@@ -1446,7 +1476,7 @@ static bool has_displayed_http_resume_settings = false;
 static void arm_uc_display_http_resume_settings(arm_uc_resume_t *a_resume_p)
 {
     if (a_resume_p == NULL) {
-        UC_SRCE_ERR_MSG("error: a_resume_p = %" PRIxPTR, (unsigned)a_resume_p);
+        UC_SRCE_ERR_MSG("error: a_resume_p = %" PRIxPTR, (uintptr_t)a_resume_p);
     } else if (!has_displayed_http_resume_settings) {
         has_displayed_http_resume_settings = true;
         UC_QA_TRACE("HTTP stream source - download resume settings - actual\r\n");
@@ -1484,7 +1514,7 @@ static bool arm_uc_http_check_http_resume_parameters(arm_uc_resume_t *a_resume_p
 {
     bool result = true;
     if (a_resume_p == NULL) {
-        UC_SRCE_ERR_MSG("error: a_resume_p = %" PRIxPTR, (unsigned)a_resume_p);
+        UC_SRCE_ERR_MSG("error: a_resume_p = %" PRIxPTR, (uintptr_t)a_resume_p);
         return false;
     }
     // low/sensible/high bounds for attempt-initial-delay.
@@ -1550,12 +1580,12 @@ static bool arm_uc_http_check_http_resume_parameters(arm_uc_resume_t *a_resume_p
  */
 static void arm_uc_http_load_http_resume_parameters(void)
 {
-    resume_http.exponentiation_factor = HTTP_RESUME_EXPONENTIATION_FACTOR;
-    resume_http.attempt_initial_delay = HTTP_RESUME_INITIAL_DELAY_MSECS;
-    resume_http.attempt_max_delay = HTTP_RESUME_MAXIMUM_DELAY_MSECS;
-    resume_http.activity_max_time = HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_MSECS;
-    resume_http.interval_delay = HTTP_RESUME_INTERVAL_DELAY_MSECS;
-    resume_http.interval_count = HTTP_RESUME_NUM_INTERVALS;
+    resume_http.exponentiation_factor = ARM_UC_HTTP_RESUME_EXPONENTIATION_FACTOR;
+    resume_http.attempt_initial_delay = ARM_UC_HTTP_RESUME_INITIAL_DELAY_MSECS;
+    resume_http.attempt_max_delay = ARM_UC_HTTP_RESUME_MAXIMUM_DELAY_MSECS;
+    resume_http.activity_max_time = ARM_UC_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_MSECS;
+    resume_http.interval_delay = ARM_UC_HTTP_RESUME_INTERVAL_DELAY_MSECS;
+    resume_http.interval_count = ARM_UC_HTTP_RESUME_NUM_INTERVALS;
 }
 
 /**
@@ -1588,7 +1618,7 @@ void arm_uc_http_socket_callback(
     ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
 
     if (context == NULL) {
-        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (unsigned)context);
+        UC_SRCE_ERR_MSG("error: &context = %" PRIxPTR, (uintptr_t)context);
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
     } else {
         do {
@@ -1638,18 +1668,20 @@ void arm_uc_http_socket_callback(
                         // The DNS lookup must *always* return BUSY, even if failed,
                         //   and then handle the error in the callback handler.
                         // There is no expected-event here, it must pass on its own merits.
-                        status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_RESUME_WAITING);
+                        status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_LOOKUP_WAITING);
                     }
+                    break;
+
+                case SOCKET_EVENT_LOOKUP_WAITING:
+                    UC_SRCE_TRACE_SM("event: begin lookup waiting");
+                    // Just a marker event to make code and trace more readable.
                     break;
 
                 case SOCKET_EVENT_LOOKUP_FAILED:
                     UC_SRCE_TRACE_SM("event: lookup failed");
 #if (PAL_DNS_API_VERSION >= 2)
-                    // Cancel ongoing asynchronous DNS query.
-                    if (arm_uc_dns_query_handle != 0) {
-                        pal_cancelAddressInfoAsync(arm_uc_dns_query_handle);
-                        arm_uc_dns_query_handle = 0;
-                    }
+                    // Cancel ongoing asynchronous DNS query (only if non-zero handle).
+                    arm_uc_http_cancel_dns_lookup();
 #endif
                     arm_uc_http_clear_dns_cache_fields();
                     status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_RESUME_WAITING);
@@ -1683,7 +1715,6 @@ void arm_uc_http_socket_callback(
 
                 case SOCKET_EVENT_CONNECT_DONE:
                     UC_SRCE_TRACE_SM("event: connect done");
-                    arm_uc_resume_resynch_monitoring(&resume_http);
                     context->socket_state = STATE_CONNECTED_IDLE;
                     status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_SEND_START);
                     break;
@@ -1702,7 +1733,6 @@ void arm_uc_http_socket_callback(
 
                 case SOCKET_EVENT_SEND_DONE:
                     /* Request has been sent, receive response */
-                    arm_uc_resume_resynch_monitoring(&resume_http);
                     UC_SRCE_TRACE_SM("event: send done");
                     status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_HEADER_START);
                     break;
@@ -1731,7 +1761,6 @@ void arm_uc_http_socket_callback(
                             }
                             break;
                         case SRCE_ERR_NONE:
-                            arm_uc_resume_resynch_monitoring(&resume_http);
                             empty_receive = 0;
                             received_enough = false;
                             status = arm_uc_http_socket_has_received_header(&received_enough);
@@ -1884,6 +1913,10 @@ void arm_uc_http_socket_callback(
 
                     // Now decide just how aggressive to be about resuming.
                     // Every attempt closes the socket, every second attempt flushes the DNS cache.
+#if (PAL_DNS_API_VERSION >= 2)
+                    // Cancel ongoing asynchronous DNS query (only if non-zero handle).
+                    arm_uc_http_cancel_dns_lookup();
+#endif
                     if (resume_http.num_attempts != 0) {
                         arm_uc_http_socket_close();
                         context->resume_socket_phase = SOCKET_EVENT_CONNECT_START;
@@ -1905,6 +1938,10 @@ void arm_uc_http_socket_callback(
                     //   which will invoke clean-up as appropriate.
                     UC_SRCE_TRACE_SM("event: http-socket resume ended");
 
+#if (PAL_DNS_API_VERSION >= 2)
+                    // Cancel ongoing asynchronous DNS query (only if non-zero handle).
+                    arm_uc_http_cancel_dns_lookup();
+#endif
                     arm_uc_resume_end_monitoring(&resume_http);
 
                     UC_QA_TRACE("\r\nHTTP download-resume terminating now.\r\n");
@@ -1915,12 +1952,20 @@ void arm_uc_http_socket_callback(
 
                 case SOCKET_EVENT_RESUME_ERROR:
                     UC_SRCE_TRACE_SM("event: http-socket resume errored");
+#if (PAL_DNS_API_VERSION >= 2)
+                    // Cancel ongoing asynchronous DNS query (only if non-zero handle).
+                    arm_uc_http_cancel_dns_lookup();
+#endif
                     arm_uc_resume_end_monitoring(&resume_http);
                     arm_uc_http_socket_fatal_error(UCS_HTTP_EVENT_ERROR);
                     break;
 
                 default:
                     UC_SRCE_TRACE_SM("error: unknown event type!");
+#if (PAL_DNS_API_VERSION >= 2)
+                    // Cancel ongoing asynchronous DNS query (only if non-zero handle).
+                    arm_uc_http_cancel_dns_lookup();
+#endif
                     status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_RESUME_WAITING);
                     break;
             }
@@ -1929,7 +1974,7 @@ void arm_uc_http_socket_callback(
             }
             an_event = 0;
             // Check if there is a skip-to-event to handle.
-            skip_text_p = skip_to_event ? "(skip)" : "";
+            skip_text_p = skip_to_event ? "auto" : "";
             if (skip_to_event != 0) {
                 an_event = skip_to_event;
                 skip_to_event = 0;
@@ -2026,21 +2071,26 @@ void arm_uc_dns_callback_handler(
 #if (PAL_DNS_API_VERSION >= 2)
         arm_uc_dns_query_handle = 0;
 #endif
-        if (pal_status == PAL_SUCCESS) {
-            event = ((arm_uc_http_socket_event_t) SOCKET_EVENT_LOOKUP_DONE);
+        /* accept the DNS callback event only if we were expecting it. */
+        if (expecting_dns_callback) {
+            expecting_dns_callback = false;
+            if (pal_status == PAL_SUCCESS) {
+                event = ((arm_uc_http_socket_event_t) SOCKET_EVENT_LOOKUP_DONE);
+            } else {
+                /* Clear the address-related fields to signal an error */
+                event = ((arm_uc_http_socket_event_t) SOCKET_EVENT_LOOKUP_FAILED);
+            }
+            ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
+            status = arm_uc_http_install_isr_event(event);
+            // Only clear the resume expected-event if this has installed correctly.
+            // Otherwise rely on the fake resume-interval-event to take care of things.
+            if (ARM_UC_IS_NOT_ERROR(status)) {
+                context->expected_socket_event = SOCKET_EVENT_UNDEFINED;
+            }
         } else {
-            /* Clear the address-related fields to signal an error */
-            event = ((arm_uc_http_socket_event_t) SOCKET_EVENT_LOOKUP_FAILED);
-        }
-        ARM_UC_INIT_ERROR(status, SRCE_ERR_NONE);
-        status = arm_uc_http_install_isr_event(event);
-        // Only clear the resume expected-event if this has installed correctly.
-        // Otherwise rely on the fake resume-interval-event to take care of things.
-        if (ARM_UC_IS_NOT_ERROR(status)) {
-            context->expected_socket_event = SOCKET_EVENT_UNDEFINED;
+            UC_SRCE_TRACE("unexpected %s" PRIx32, __func__);
         }
     }
 }
 
 #endif // ARM_UC_FEATURE_FW_SOURCE_HTTP
-

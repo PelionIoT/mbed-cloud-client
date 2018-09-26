@@ -41,8 +41,28 @@ namespace CertificateEnrollmentClient {
         virtual ~CertificateRenewalDataBase();
         
         /*
-         * Parse the certificate name and set cert_name to point to it.
-         * The data pointed to by cert_name must be persistent until this object is destroyed.
+         * Gets a TLV (Type-Length-Value) buffer to parse, each element in the TLV buffer is being treated and executed
+         * according to the given ce_tlv_type_e that is defined in ce_tlv.h file.
+         * Each element Type defined as uint16_t primitive and signifies two things:
+         * (1) the type of operation
+         * (2) is element 'required' or 'optional'.
+         *
+         * We distinguish if an element is required or optional by toggling the type's field MSB (Most Significant Bit).
+         * If the type's field MSB is set to '0' - this element marked as 'required'
+         * If the type's field MSB is set to '1' - this element marked as 'optional'
+         * 
+         * The function iterates through the TLV buffer and enforces the following rules for each element:
+         * (1) if element's type is unsupported and the type is marked as 'optional' - element is being skipped
+         * (2) if element's type is unsupported and the type is marked as 'required' - CE_STATUS_BAD_INPUT_FROM_SERVER error will be returned
+         * (3) if element's type is supported and the type is marked as 'optional' / 'required' - element is parsed and executed
+         *
+         * Currently the only supported type is CE_TLV_TYPE_CERT_NAME as presents in ce_tlv.h, it means that the certificate name
+         * will be pointed by 'cert_name' which must be persist until this object is destroyed.
+         *
+         * The TLV buffer MUST be coherent in memory.
+         * The TLV buffer is not forced to be word aligned.
+         * 
+         * @return CE_STATUS_SUCCESS if parsing succeeded or one of the faulty errors in ce_status.h
          */
         virtual ce_status_e parse() = 0;
 

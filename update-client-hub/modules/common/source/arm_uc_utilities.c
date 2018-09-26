@@ -501,3 +501,20 @@ void ARM_UC_Base64Dec(arm_uc_buffer_t *bin, const uint32_t size, const uint8_t *
     }
     bin->size = optr - (uintptr_t)bin->ptr;
 }
+
+size_t arm_uc_calculate_full_uri_length(const arm_uc_uri_t *uri) {
+
+    size_t scheme_length = 0;
+
+    if (uri->scheme == URI_SCHEME_COAPS) {
+        scheme_length = strlen(UC_COAPS_STRING) + 1;
+    } else if (uri->scheme == URI_SCHEME_HTTP) {
+        scheme_length = strlen(UC_HTTP_STRING) + 1;
+    } else {
+        return 0; // Not supported scheme
+    }
+
+    return (uri->size +
+            strlen(uri->path) +
+            scheme_length);
+}

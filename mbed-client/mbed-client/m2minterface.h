@@ -22,7 +22,7 @@
 #include "mbed-client/functionpointer.h"
 
 #include "sn_coap_protocol.h"
-#include "sn_nsdl_lib.h"
+#include "nsdl-c/sn_nsdl_lib.h"
 
 
 //FORWARD DECLARATION

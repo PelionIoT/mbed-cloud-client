@@ -65,6 +65,18 @@ using namespace m2m;
  */
 #undef MBED_CLIENT_EVENT_LOOP_SIZE      /* 1024 */
 
+/**
+ * \def MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS
+ *
+ * \brief CoAP resend queue size.
+ * mbed Client can send four types of confirmable messages at the same time,
+ * notification, file download, register update and delayed post response.
+ * \note Reducing this value can cause some resend queue which may lead to unnecessary full registrations.
+ * By default, the message count is 4.
+ */
+#undef MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS  /* 4 */
+
+
 #ifdef YOTTA_CFG_RECONNECTION_COUNT
 #define MBED_CLIENT_RECONNECTION_COUNT YOTTA_CFG_RECONNECTION_COUNT
 #elif defined MBED_CONF_MBED_CLIENT_RECONNECTION_COUNT
@@ -125,6 +137,10 @@ using namespace m2m;
 
 #ifdef MBED_CONF_MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT
 #define MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT MBED_CONF_MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT
+#endif
+
+#ifdef MBED_CONF_MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS
+#define MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS MBED_CONF_MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS
 #endif
 
 
@@ -189,6 +205,10 @@ typedef struct mbedtls_entropy {
 
 #ifndef MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT
 #define MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT 80000
+#endif
+
+#ifndef MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS
+#define MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS 4
 #endif
 
 #endif // M2MCONFIG_H

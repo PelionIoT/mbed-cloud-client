@@ -72,12 +72,11 @@
 #define MBED_CLIENT_EVENT_LOOP_SIZE 1024
 #endif
 
-
 #define BUFFER_SIZE 21
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=1.5.0";
+const char *MCC_VERSION = "mccv=2.0.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -166,7 +165,9 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _nsdl_execution_timer_running(false),
   _notification_send_ongoing(false),
   _registered(false),
-  _bootstrap_finish_ack_received(false)
+  _bootstrap_finish_ack_received(false),
+  _download_retry_timer(NULL),
+  _download_retry_time(0)
 {
     tr_debug("M2MNsdlInterface::M2MNsdlInterface()");
 
@@ -225,6 +226,7 @@ M2MNsdlInterface::~M2MNsdlInterface()
     free_request_context_list();
     free_response_list();
     memory_free(_custom_uri_query_params);
+    delete _download_retry_timer;
     tr_debug("M2MNsdlInterface::~M2MNsdlInterface() - OUT");
 }
 
@@ -237,6 +239,8 @@ bool M2MNsdlInterface::initialize()
     sn_nsdl_set_retransmission_parameters(_nsdl_handle,
                                           MBED_CLIENT_RECONNECTION_COUNT,
                                           MBED_CLIENT_RECONNECTION_INTERVAL);
+
+    sn_nsdl_set_retransmission_buffer(_nsdl_handle, MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS, 0);
 
     sn_nsdl_handle_block2_response_internally(_nsdl_handle, false);
 
@@ -327,7 +331,7 @@ void M2MNsdlInterface::update_domain(const String &domain)
 
 void M2MNsdlInterface::set_endpoint_lifetime_buffer(int lifetime)
 {
-    tr_debug("M2MNsdlInterface::set_endpoint_lifetime_buffer - %d", lifetime);
+    tr_info("M2MNsdlInterface::set_endpoint_lifetime_buffer - %d", lifetime);
     if (lifetime < 60) {
         return;
     }
@@ -447,7 +451,7 @@ bool M2MNsdlInterface::create_bootstrap_resource(sn_nsdl_addr_s *address)
     }
     return success;
 #else
-    (void)address;    
+    (void)address;
     return false;
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 }
@@ -496,6 +500,11 @@ void M2MNsdlInterface::send_request(DownloadType type,
     while (data) {
         if ((strcmp(uri, data->uri_path) == 0) && (offset == data->received_size)) {
             tr_debug("M2MNsdlInterface::send_request - item already exists");
+            // Remove queued message from the resend queue before resuming file download.
+            // Otherwise there will be duplicate block transfer with a just different message id's.
+            sn_nsdl_remove_msg_from_retransmission(_nsdl_handle,
+                                                   (uint8_t*)&data->msg_token,
+                                                   sizeof(data->msg_token));
             data_request = data;
             break;
         }
@@ -584,7 +593,7 @@ bool M2MNsdlInterface::send_update_registration(const uint32_t lifetime)
     if (lifetime == 0) {
         lifetime_changed = lifetime_value_changed();
         if (lifetime_changed) {
-            set_endpoint_lifetime_buffer(_server->resource_value_int(M2MServer::Lifetime));
+            set_endpoint_lifetime_buffer(_server->resource_value_int(M2MServer::Lifetime));;
         }
     } else {
         set_endpoint_lifetime_buffer(lifetime);
@@ -789,25 +798,6 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                        COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED == coap_header->coap_status) {
 
                 tr_info("M2MNsdlInterface::received_from_server_callback - message sending failed, id %d", coap_header->msg_id);
-
-                // Report message delivery status back to application
-                coap_response_s *resp = find_response(coap_header->msg_id);
-                if (resp) {
-                    M2MBase *base = find_resource(resp->uri_path);
-                    if (base) {
-                        // For old status API
-                        if (resp->type == M2MBase::NOTIFICATION) {
-                            base->send_notification_delivery_status(*base, NOTIFICATION_STATUS_SEND_FAILED);
-                        }
-
-                        base->send_message_delivery_status(*base,
-                                                           M2MBase::MESSAGE_STATUS_SEND_FAILED,
-                                                           resp->type);
-                    }
-
-                    free_response_list(coap_header->msg_id);
-                }
-
                 _observer.registration_error(M2MInterface::NetworkError, true);
 
             // Handle Server-side expections during registration flow
@@ -1080,6 +1070,11 @@ void M2MNsdlInterface::stop_timers()
     _bootstrap_id = 0;
     _nsdl_handle->update_register_token = 0;
     _nsdl_handle->unregister_token = 0;
+    if (_download_retry_timer) {
+        _download_retry_timer->stop_timer();
+        delete _download_retry_timer;
+    }
+    free_request_context_list();
 }
 
 void M2MNsdlInterface::timer_expired(M2MTimerObserver::Type type)
@@ -1092,11 +1087,12 @@ void M2MNsdlInterface::timer_expired(M2MTimerObserver::Type type)
               (is_unregister_ongoing() == false) &&
               (is_update_register_ongoing() == false)) {
         tr_debug("M2MNsdlInterface::timer_expired - Send update registration");
-        if (lifetime_value_changed()) {
-            send_update_registration(_server->resource_value_int(M2MServer::Lifetime));
-        } else {
-            send_update_registration();
+        if (!send_update_registration()) {
+            // Most likely case would be memory allocation failure
+            _observer.registration_error(M2MInterface::MemoryFail, false);
         }
+    } else if (M2MTimerObserver::RetryTimer == type) {
+        send_pending_request();
     }
 }
 
@@ -2495,10 +2491,9 @@ M2MSecurity* M2MNsdlInterface::get_security_object()
 
 void M2MNsdlInterface::update_trigger_callback(void */*argument*/)
 {
-    if (lifetime_value_changed()) {
-        send_update_registration(_server->resource_value_int(M2MServer::Lifetime));
-    } else {
-        send_update_registration();
+    if (!send_update_registration()) {
+        // Most likely case would be memory allocation failure
+        _observer.registration_error(M2MInterface::MemoryFail, false);
     }
 }
 
@@ -2976,7 +2971,8 @@ void M2MNsdlInterface::handle_register_update_response(const sn_coap_hdr_s *coap
     }
 }
 
-void M2MNsdlInterface::handle_request_response(const sn_coap_hdr_s *coap_header, request_context_s *request_context)
+void M2MNsdlInterface::handle_request_response(const sn_coap_hdr_s *coap_header,
+                                               request_context_s *request_context)
 {
     tr_info("M2MNsdlInterface::handle_request_response");
     size_t total_size = 0;
@@ -3046,14 +3042,41 @@ void M2MNsdlInterface::handle_request_response(const sn_coap_hdr_s *coap_header,
         }
 
     } else {
+        // Retransmission completed
         if (coap_header->coap_status == COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED ||
             coap_header->coap_status == COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED) {
             _observer.registration_error(M2MInterface::NetworkError, true);
+
+        // Start retry logic, only for file download operation
+        } else if (coap_header->msg_code == COAP_MSG_CODE_RESPONSE_SERVICE_UNAVAILABLE &&
+                   request_context->msg_code == COAP_MSG_CODE_REQUEST_GET) {
+            bool retry = true;
+
+            if (!_download_retry_timer) {
+                _download_retry_timer = new M2MTimer(*this);
+                // Range is from 1 sec to 10 sec
+                _download_retry_time = randLIB_get_random_in_range(1, 10);
+                set_request_context_to_be_resend();
+            } else {
+                _download_retry_time *= RECONNECT_INCREMENT_FACTOR;
+                if (_download_retry_time > MAX_RECONNECT_TIMEOUT) {
+                    tr_error("M2MNsdlInterface::handle_request_response - file download failed, retry completed");
+                    retry = false;
+                    _download_retry_timer->stop_timer();
+                    delete _download_retry_timer;
+                    _download_retry_timer = NULL;
+                    failed_to_send_request(request_context, coap_header);
+                }
+            }
+
+            if (retry) {
+                tr_info("M2MNsdlInterface::handle_request_response - continue file download after %" PRIu64, _download_retry_time);
+                _download_retry_timer->start_timer(_download_retry_time * 1000, M2MTimerObserver::RetryTimer);
+            }
+
+        // Message sending has failed, inform application
         } else {
-            // TODO! Convert coap error code
-            request_error_e error = FAILED_TO_SEND_MSG;
-            request_context->on_request_error_cb(error, request_context->context);
-            free_request_context_list(coap_header);
+            failed_to_send_request(request_context, coap_header);
         }
     }
 }
@@ -3134,10 +3157,9 @@ bool M2MNsdlInterface::handle_post_response(sn_coap_hdr_s* coap_header,
                                 object->remove_object_instance(instance_id);
                             } else  {
                                 tr_debug("M2MNsdlInterface::handle_post_response - Send Update registration for Create");
-                                if (lifetime_value_changed()) {
-                                    send_update_registration(_server->resource_value_int(M2MServer::Lifetime));
-                                } else {
-                                    send_update_registration();
+                                if (!send_update_registration()) {
+                                    // Most likely case would be memory allocation failure
+                                    _observer.registration_error(M2MInterface::MemoryFail, false);
                                 }
                             }
                         } else {
@@ -3418,4 +3440,13 @@ struct M2MNsdlInterface::coap_response_s* M2MNsdlInterface::find_delayed_post_re
     }
 
     return NULL;
+}
+
+void M2MNsdlInterface::failed_to_send_request(request_context_s *request, const sn_coap_hdr_s *coap_header)
+{
+    sn_nsdl_remove_msg_from_retransmission(_nsdl_handle,
+                                           (uint8_t*)&request->msg_token,
+                                           sizeof(request->msg_token));
+    request->on_request_error_cb(FAILED_TO_SEND_MSG, request->context);
+    free_request_context_list(coap_header);
 }

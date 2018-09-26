@@ -144,4 +144,7 @@ arm_uc_error_t ARM_UCS_Http_GetKeytableURL(arm_uc_uri_t *uri, arm_uc_buffer_t *b
 
 extern ARM_UPDATE_SOURCE ARM_UCS_HTTPSource;
 
+arm_uc_error_t ARM_UCS_Http_GetError(void);
+arm_uc_error_t ARM_UCS_Http_SetError(arm_uc_error_t an_error);
+
 #endif // __UPDATE_CLIENT_SOURCE_HTTP_H__

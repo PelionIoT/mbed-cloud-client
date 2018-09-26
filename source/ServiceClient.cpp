@@ -149,7 +149,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
         // Initialize the certificate enrollment resources and module
         if (CertificateEnrollmentClient::init(*_client_objs, &_connector_client.est_client()) != CE_STATUS_SUCCESS) {
-            // FIXME: Fail the setup
+            _service_callback.error((int)CE_STATUS_INIT_FAILED, "Certificate Enrollment initialization failed");
         }
 #endif  MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 

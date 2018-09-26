@@ -21,6 +21,9 @@
 #include "mbed-cloud-client/SimpleM2MResource.h"
 
 #include "mbed-trace/mbed_trace.h"
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#include "CertificateEnrollmentClient.h"
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
 #include <assert.h>
 
@@ -251,9 +254,22 @@ void MbedCloudClient::send_get_request(DownloadType type,
                                                                 context);
 }
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+ce_status_e MbedCloudClient::certificate_renew(const char *cert_name)
+{
+    return CertificateEnrollmentClient::certificate_renew(cert_name);
+}
+
+void MbedCloudClient::on_certificate_renewal(cert_renewal_cb_f user_cb)
+{
+    CertificateEnrollmentClient::on_certificate_renewal(user_cb);
+}
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
 const M2MBaseList* MbedCloudClient::get_object_list() const
 {
     return &_object_list;
 }
 #endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION
+

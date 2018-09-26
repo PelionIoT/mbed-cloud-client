@@ -1,6 +1,6 @@
 
 # includes
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/secsrv-cbor)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/secsrv-cbor)
 
 FILE(
 	GLOB_RECURSE  
