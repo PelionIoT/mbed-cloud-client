@@ -121,6 +121,11 @@ public:
     void initialize_and_register(M2MBaseList& reg_objs);
 
     /**
+    *  \brief Finished the initialization of MbedCloudClient.
+    */
+    void finish_initialization(void);
+
+    /**
      * \brief Returns the ConnectorClient handler.
      * \return ConnectorClient, handled for ConnectorClient.
     */

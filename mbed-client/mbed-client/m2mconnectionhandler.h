@@ -38,19 +38,18 @@ public:
      * socket read and write operation.
      */
     typedef enum {
-        CONNECTION_ERROR_WANTS_READ = -1000,
-        CONNECTION_ERROR_WANTS_WRITE = -1001,
-        SSL_PEER_CLOSE_NOTIFY = -1002,
         ERROR_NONE = 0,
-        SSL_CONNECTION_ERROR,
-        SOCKET_READ_ERROR,
-        SOCKET_SEND_ERROR,
-        SOCKET_ABORT,
-        DNS_RESOLVING_ERROR,
-        SSL_HANDSHAKE_ERROR,
-        SSL_PEER_CLOSED
-    }ConnectionError;
-
+        CONNECTION_ERROR_WANTS_READ = -1,
+        CONNECTION_ERROR_WANTS_WRITE = -2,
+        SSL_PEER_CLOSE_NOTIFY = -3,
+        MEMORY_ALLOCATION_FAILED = -4,
+        SSL_CONNECTION_ERROR = -5,
+        SOCKET_READ_ERROR = -6,
+        SOCKET_SEND_ERROR = -7,
+        SOCKET_ABORT = -8,
+        DNS_RESOLVING_ERROR = -9,
+        SSL_HANDSHAKE_ERROR = -10
+    } ConnectionError;
 
 public:
 

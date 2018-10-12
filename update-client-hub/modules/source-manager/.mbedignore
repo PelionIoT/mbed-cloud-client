@@ -1,3 +1,6 @@
 TESTS/tests/sanity/*
 test/*
 */test/*
+*/stubs/*
+stubs/*
+

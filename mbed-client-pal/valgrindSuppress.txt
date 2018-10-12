@@ -34,25 +34,6 @@
 
 {
    <insert_a_suppression_name_here>
-   Memcheck:Param
-   write(buf)
-   obj:/lib/x86_64-linux-gnu/libc-2.23.so
-   fun:_IO_file_write@@GLIBC_2.2.5
-   fun:new_do_write
-   fun:_IO_do_write@@GLIBC_2.2.5
-   fun:_IO_file_close_it@@GLIBC_2.2.5
-   fun:fclose@@GLIBC_2.2.5
-   fun:pal_plat_fsFclose
-   fun:pal_fsFclose
-   fun:FilesTests
-   fun:TEST_pal_fileSystem_FilesTests_
-   fun:UnityTestRunner
-   fun:TEST_pal_fileSystem_FilesTests_run
-   fun:TEST_pal_fileSystem_GROUP_RUNNER
-}
-
-{
-   <insert_a_suppression_name_here>
    Memcheck:Leak
    match-leak-kinds: possible
    fun:calloc

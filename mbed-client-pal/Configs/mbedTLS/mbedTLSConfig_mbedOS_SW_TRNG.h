@@ -77,6 +77,13 @@
     #define MBEDTLS_AES_C
 #endif //MBEDTLS_AES_C
 
+/* Disable some of the speed optimizations on AES code to save
+ * ~6200 bytes of ROM. According to comments on the mbedtls PR 394,
+ * the speed on Cortex M4 is not even reduced by this. */
+#ifndef MBEDTLS_AES_FEWER_TABLES
+    #define MBEDTLS_AES_FEWER_TABLES
+#endif // MBEDTLS_AES_FEWER_TABLES
+
 #ifndef MBEDTLS_ASN1_PARSE_C
     #define MBEDTLS_ASN1_PARSE_C
 #endif //MBEDTLS_ASN1_PARSE_C
@@ -132,6 +139,12 @@
 #ifndef MBEDTLS_SHA256_C
     #define MBEDTLS_SHA256_C
 #endif //MBEDTLS_SHA256_C
+
+// Disable the speed optimizations of SHA256, makes binary size smaller
+// on Cortex-M by 1800B with ARMCC5 and 1384B with GCC 6.3.
+#ifndef MBEDTLS_SHA256_SMALLER
+    #define MBEDTLS_SHA256_SMALLER
+#endif // MBEDTLS_SHA256_SMALLER
 
 #ifndef MBEDTLS_SSL_COOKIE_C
     #define MBEDTLS_SSL_COOKIE_C

@@ -327,7 +327,7 @@ void M2MResourceBase::report()
              (resource_instance_type() != M2MResourceBase::OPAQUE)) &&
              (observation_level != M2MBase::None)) {
             M2MReportHandler *report_handler = M2MBase::report_handler();
-            if (report_handler && is_observable()) {
+            if (report_handler && (is_observable() || is_auto_observable())) {
                 if (resource_instance_type() == M2MResourceBase::FLOAT) {
                     const float float_value = get_value_float();
                     report_handler->set_value_float(float_value);
@@ -341,7 +341,7 @@ void M2MResourceBase::report()
             if (base_type() == M2MBase::ResourceInstance) {
                 const M2MResource& parent_resource = get_parent_resource();
                 M2MReportHandler *report_handler = parent_resource.report_handler();
-                if(report_handler && parent_resource.is_observable()) {
+                if(report_handler && (parent_resource.is_observable() || parent_resource.is_auto_observable())) {
                     report_handler->set_notification_trigger(parent_resource.get_parent_object_instance().instance_id());
                 }
             }
@@ -352,7 +352,7 @@ void M2MResourceBase::report()
             obs_handler->value_updated(this);
         }
     } else {
-        if (is_observable()) {
+        if (is_observable() || is_auto_observable()) {
             tr_warn("M2MResourceBase::report() - resource %s is observable but not yet subscribed!", uri_path());
         }
         tr_debug("M2MResourceBase::report() - mode = %d, is_observable = %d", mode(), is_observable());
@@ -596,45 +596,8 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                 }
 
                 if (received_coap_header->options_list_ptr) {
-                    if (received_coap_header->options_list_ptr->observe != -1) {
-                        if (is_observable()) {
-                            uint32_t number = 0;
-                            uint8_t observe_option = 0;
-                            observe_option = received_coap_header->options_list_ptr->observe;
-
-                            if (START_OBSERVATION == observe_option) {
-                                // If the observe length is 0 means register for observation.
-                                if (received_coap_header->options_list_ptr->observe != -1) {
-                                    number = received_coap_header->options_list_ptr->observe;
-                                }
-
-                                // If the observe value is 0 means register for observation.
-                                if (number == 0) {
-                                    tr_info("M2MResourceBase::handle_get_request - put resource under observation");
-                                    set_under_observation(true,observation_handler);
-                                    send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
-                                    send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_SUBSCRIBED, M2MBase::NOTIFICATION);
-                                    M2MBase::add_observation_level(M2MBase::R_Attribute);
-                                    if (coap_response->options_list_ptr) {
-                                        coap_response->options_list_ptr->observe = observation_number();
-                                    }
-                                }
-
-                                if (received_coap_header->token_ptr) {
-                                    set_observation_token(received_coap_header->token_ptr,
-                                                          received_coap_header->token_len);
-                                }
-
-                            } else if (STOP_OBSERVATION == observe_option) {
-                                tr_info("M2MResourceBase::handle_get_request - stops observation");
-                                set_under_observation(false,NULL);
-                                M2MBase::remove_observation_level(M2MBase::R_Attribute);
-                                send_notification_delivery_status(*this, NOTIFICATION_STATUS_UNSUBSCRIBED);
-                                send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
-                            }
-                        } else {
-                            msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
-                        }
+                    if(received_coap_header->options_list_ptr->observe != -1) {
+                        handle_observation(nsdl, *received_coap_header, *coap_response, observation_handler, msg_code);
                     }
                 }
             }

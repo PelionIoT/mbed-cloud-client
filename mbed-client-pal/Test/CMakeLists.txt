@@ -117,6 +117,9 @@ endif()
 ADD_GLOBALDIR(${PAL_TEST_BSP_DIR}/Include/)
 ADD_GLOBALDIR(${PAL_TESTS_SOURCE_DIR}/Includes/)
 
+# XXX: this makes all the separate test executables to build most of the sources into them,
+# which naturally slows down the builds. But splitting these is not that easy, as there
+# are actual cross references.
 set(test_src ${PAL_TEST_BSP_SRCS}; ${PAL_INSECURE_ROT_SRC}; ${PAL_TEST_SOTP_SRCS}; ${PAL_TEST_MAIN_SRCS}; ${PAL_TEST_NETWORK_SRCS}; ${PAL_TEST_TLS_SRCS}; ${PAL_TEST_CRYPTO_SRCS}; ${PAL_TEST_RTOS_SRCS}; ${PAL_TEST_FLASH_SRCS}; ${PAL_TEST_FS_SRCS}; ${PAL_TEST_UPDATE_SRCS}; ${PAL_TEST_SANITY_SRCS}; ${PAL_TEST_UNITY_SRC})
 set (PAL_TEST_FLAGS
 	-DPAL_TEST_RTOS
@@ -127,46 +130,58 @@ set (PAL_TEST_FLAGS
 	-DPAL_TEST_CRYPTO
 	-DPAL_TEST_FLASH
 )
-	
+
+# link each test with the pal library, so it will get built as a dependency.
+
 set(sanity_test_src ${test_src}; ${PAL_TEST_RUNNER_SANITY_SRCS}) 
+CREATE_TEST_LIBRARY(sanityTests "${sanity_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(sanityTests pal)
+target_link_libraries(sanityTests pal)
 
-CREATE_TEST_LIBRARY(sanityTests "${sanity_test_src}" "${PAL_TEST_FLAGS}")	
-	
 set(rtos_test_src ${test_src}; ${PAL_TEST_RUNNER_RTOS_SRCS}) 
-
 CREATE_TEST_LIBRARY(RTOSTests "${rtos_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(RTOSTests pal)
+target_link_libraries(RTOSTests pal)
 
 set(network_test_src ${test_src}; ${PAL_TEST_RUNNER_NETWORK_SRCS}) 
-
 CREATE_TEST_LIBRARY(NetworkTests "${network_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(NetworkTests pal)
+target_link_libraries(NetworkTests pal)
 
 set(fs_test_src ${test_src}; ${PAL_TEST_RUNNER_FS_SRCS}) 
-
 CREATE_TEST_LIBRARY(FileSystemTests "${fs_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(FileSystemTests pal)
+target_link_libraries(FileSystemTests pal)
 
 set(tls_test_src ${test_src}; ${PAL_TEST_RUNNER_TLS_SRCS}) 
-
 CREATE_TEST_LIBRARY(TLSTests "${tls_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(TLSTests pal)
+target_link_libraries(TLSTests pal)
 
 set(crypto_test_src ${test_src}; ${PAL_TEST_RUNNER_CRYPTO_SRCS}) 
-
 CREATE_TEST_LIBRARY(CryptoTests "${crypto_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(CryptoTests pal)
+target_link_libraries(CryptoTests pal)
 
 set(update_test_src ${test_src}; ${PAL_TEST_RUNNER_UPDATE_SRCS}) 
-
 CREATE_TEST_LIBRARY(UpdateTests "${update_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(UpdateTests pal)
+target_link_libraries(UpdateTests pal)
 
 set(flash_test_src ${test_src}; ${PAL_TEST_RUNNER_FLASH_SRCS}) 
-
 CREATE_TEST_LIBRARY(FlashTests "${flash_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(FlashTests pal)
+target_link_libraries(FlashTests pal)
 
 set(sotp_test_src ${test_src}; ${PAL_TEST_RUNNER_SOTP_SRCS}) 
-
 CREATE_TEST_LIBRARY(SotpTests "${sotp_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(SotpTests pal)
+target_link_libraries(SotpTests pal)
 
 set(all_test_src ${test_src}; ${PAL_TEST_RUNNER_FULL_SRCS})
-
 CREATE_TEST_LIBRARY(palTests "${all_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(palTests pal)
+target_link_libraries(palTests pal)
 
 
 CREATE_LIBRARY(palBringup "${PAL_TEST_BSP_SRCS}" "")

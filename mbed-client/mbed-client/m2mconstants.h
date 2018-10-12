@@ -187,6 +187,7 @@ extern const String EMPTY;
 #define ERROR_REASON_25 "Failed to allocate registration message"
 #define ERROR_REASON_26 "BS FIN fails: missing EST iep param"
 #define ERROR_REASON_27 "Call already in progress"
+#define ERROR_REASON_28 "Message sending timed out"
 
 #define COAP_ERROR_REASON_1 "bad-request"
 #define COAP_ERROR_REASON_2 "bad-option"
@@ -211,6 +212,7 @@ extern const String EMPTY;
 #define ERROR_DNS               "DnsResolvingFailed"
 #define ERROR_NETWORK           "NetworkError"
 #define ERROR_NO                "No error"
+#define ERROR_NO_MEMORY         "Memory allocation failed"
 
 #define MAX_RECONNECT_TIMEOUT        604800
 #define RECONNECT_INCREMENT_FACTOR   2

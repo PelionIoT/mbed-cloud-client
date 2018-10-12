@@ -637,7 +637,11 @@ void M2MConnectionHandlerPimpl::send_socket_data()
 
     if (!success) {
         if (bytes_sent == M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY) {
-            _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSED, true);
+            _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY, true);
+        } else if (bytes_sent == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
+            tr_error("M2MConnectionHandlerPimpl::send_socket_data() - memory allocation failed!");
+            _handshake_retry = 0;
+            _observer.socket_error(M2MConnectionHandler::MEMORY_ALLOCATION_FAILED, false);
         } else {
             tr_error("M2MConnectionHandlerPimpl::send_socket_data() - SOCKET_SEND_ERROR");
             _observer.socket_error(M2MConnectionHandler::SOCKET_SEND_ERROR, true);
@@ -693,7 +697,14 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
 
     } else if (return_value == M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY) {
         _handshake_retry = 0;
-        _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSED, true);
+        _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY, true);
+        close_socket();
+
+    } else if (return_value == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
+
+        tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - memory allocation failed");
+        _handshake_retry = 0;
+        _observer.socket_error(M2MConnectionHandler::MEMORY_ALLOCATION_FAILED, false);
         close_socket();
 
     } else if (return_value != M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ) {
@@ -752,8 +763,15 @@ void M2MConnectionHandlerPimpl::receive_handler()
                                          rcv_size, _address);
 
             } else if (M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY == rcv_size) {
-                _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSED, true);
+                _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY, true);
                 return;
+
+            } else if (M2MConnectionHandler::MEMORY_ALLOCATION_FAILED == rcv_size) {
+                tr_error("M2MConnectionHandlerPimpl::receive_handler() - memory allocation failed!");
+                _observer.socket_error(M2MConnectionHandler::MEMORY_ALLOCATION_FAILED, false);
+                close_socket();
+                return;
+
             } else if (M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ != rcv_size && rcv_size < 0) {
                 tr_error("M2MConnectionHandlerPimpl::receive_handler() - secure SOCKET_READ_ERROR");
                 _observer.socket_error(M2MConnectionHandler::SOCKET_READ_ERROR, true);
@@ -819,7 +837,6 @@ void M2MConnectionHandlerPimpl::release_mutex()
 {
     eventOS_scheduler_mutex_release();
 }
-
 
 bool M2MConnectionHandlerPimpl::init_socket()
 {

@@ -1205,11 +1205,9 @@ void pal_plat_getAddressInfoAsync_callback(void *data, nsapi_error_t result, Soc
     pal_asyncAddressInfo_t* info = (pal_asyncAddressInfo_t*)(data);
 
     if (result == NSAPI_ERROR_OK) {
-        PAL_LOG_DBG("pal_plat_getAddressInfoAsync_callback(0x%X,%d, %s)",data, result, address->get_ip_address());
         status = socketAddressToPalSockAddr(*address, info->address);
     }
     else { // error happened
-        PAL_LOG_ERR("pal_plat_getAddressInfoAsync_callback(0x%X,%d, ..) failed !!!",data, result);
         status = translateErrorToPALError(result);
     }
 

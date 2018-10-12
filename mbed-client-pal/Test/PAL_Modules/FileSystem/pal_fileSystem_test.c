@@ -46,15 +46,14 @@
 //out should in length be PAL_MAX_FILE_AND_FOLDER_LENGTH
 static char* addRootToPath(const char* in, char* out,pal_fsStorageID_t id)
 {
-    char root[PAL_MAX_FILE_AND_FOLDER_LENGTH] = { 0 };
+    char root[PAL_MAX_FILE_AND_FOLDER_LENGTH];
     size_t len = 0;
     palStatus_t status;
 
-    memset(out,0,PAL_MAX_FILE_AND_FOLDER_LENGTH);
     status = pal_fsGetMountPoint(id, PAL_MAX_FILE_AND_FOLDER_LENGTH, root);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    strncat(out, root, PAL_MAX_FILE_AND_FOLDER_LENGTH-1); //-1 for null terminator space
+    strncpy(out, root, PAL_MAX_FILE_AND_FOLDER_LENGTH-1); //-1 for null terminator space
     len = strlen(out);
     if (PAL_FS_PARTITION_PRIMARY == id)
     {
@@ -523,17 +522,32 @@ TEST(pal_fileSystem, directoryTests)
 void FilesTests(pal_fsStorageID_t storageId)
 {
     palStatus_t status = PAL_SUCCESS;
-    char rootPathBuffer1[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
-    char rootPathBuffer2[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
-    char buffer1[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
-    char buffer2[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
+    char rootPathBuffer1[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+    char rootPathBuffer2[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+    char *buffer1;
+    char *buffer2;
     int i = 0;
     size_t numOfBytes;
+
 /*#1*/
     //---------------- INIT TESTS----------------------------//
+
+    // code expects to bufferX to have at least PAL_MAX_FILE_AND_FOLDER_LENGTH and TEST_BYTES_TO_WRITE
+    // bytes available, so it needs to be calculated on the fly.
+    const size_t test_buffer_size = (PAL_MAX_FILE_AND_FOLDER_LENGTH > TEST_BYTES_TO_WRITE) ? PAL_MAX_FILE_AND_FOLDER_LENGTH : TEST_BYTES_TO_WRITE;
+
+    buffer1 = malloc(test_buffer_size);
+    TEST_ASSERT_NOT_NULL(buffer1);
+
+    buffer2 = malloc(test_buffer_size);
+    TEST_ASSERT_NOT_NULL(buffer2);
+
     memset(rootPathBuffer1, '1', PAL_MAX_FILE_AND_FOLDER_LENGTH);
-    memset(rootPathBuffer2, '1', PAL_MAX_FILE_AND_FOLDER_LENGTH);
+    memset(rootPathBuffer2, '2', PAL_MAX_FILE_AND_FOLDER_LENGTH);
+    memset(buffer1, '1', test_buffer_size);
+    memset(buffer2, '2', test_buffer_size);
     //----------------END INIT TESTS-------------------------//
+
 
 /*#2*/
     status = pal_fsMkDir(addRootToPath(TEST_DIR,rootPathBuffer1,storageId)); //Create Directory
@@ -552,7 +566,7 @@ void FilesTests(pal_fsStorageID_t storageId)
         TEST_ASSERT_EQUAL(PAL_SUCCESS, status);
 
 /*#6*/
-        status =  pal_fsFwrite(&g_fd1, (void *)rootPathBuffer1, TEST_BYTES_TO_WRITE, &numOfBytes);
+        status =  pal_fsFwrite(&g_fd1, (void *)buffer1, test_buffer_size, &numOfBytes);
         TEST_ASSERT_EQUAL(PAL_SUCCESS, status);
 
 /*#7*/
@@ -624,6 +638,9 @@ void FilesTests(pal_fsStorageID_t storageId)
 
     status = pal_fsCpFolder(addRootToPath("aaaaa", rootPathBuffer1, storageId), addRootToPath("bbbb" ,rootPathBuffer2,storageId)); //copy from not existing dir
     TEST_ASSERT_EQUAL(PAL_ERR_FS_NO_PATH, status);
+
+    free(buffer1);
+    free(buffer2);
 }
 
 TEST(pal_fileSystem, FilesTests)

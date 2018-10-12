@@ -139,15 +139,6 @@ private:
     */
     uint32_t certificate_validfrom_time(const unsigned char *certificate, const uint32_t cert_len);
 
-    /**
-    *  \brief Returns certificate validFrom and validTo times in epoch format.
-    *  \param certificate, The certificate to be extracted.
-    *  \param valid_from ValidFrom time will be written to this parameter on success.
-    *  \param valid_to ValidTo time will be written to this parameter on success.
-    *  \return true on success or false on failure.
-    */
-    bool certificate_parse_valid_time(const char *certificate, uint32_t certificate_len, uint64_t *valid_from, uint64_t *valid_to);
-
 private:
 
     uint8_t                             _init_done;

@@ -93,16 +93,3 @@ uint8_t __nsdl_c_auto_obs_token(struct nsdl_s *nsdl_handle, const char *path, ui
     }
     return 0;
 }
-
-void* __socket_malloc( void * context, size_t size)
-{
-    (void) context;
-    return malloc(size);
-}
-
-void __socket_free(void * context, void * ptr)
-{
-    (void) context;
-    free(ptr);
-}
-

@@ -1311,6 +1311,8 @@ TEST(pal_socket, socketTCPBufferedLarge)
     socketTCPBuffered(PAL_NET_TEST_BUFFERED_TCP_BUF_SIZE_LARGE);
 }
 
+#if (PAL_DNS_API_VERSION == 1)
+
 // flag marking if the pal_getAddressInfoAsync callback has been invoked
 PAL_PRIVATE bool g_getAddressInfoAsyncCallbackInvoked = false;
 
@@ -1367,8 +1369,8 @@ TEST(pal_socket, getAddressInfoAsync)
     TEST_ASSERT_EQUAL_HEX(addrlenSync, addrlenAsync);
     TEST_ASSERT_EQUAL_HEX(addressSync.addressType, addressAsync.addressType);
     TEST_ASSERT_EQUAL_MEMORY(addressSync.addressData, addressAsync.addressData, PAL_NET_MAX_ADDR_SIZE);
-
 }
+#endif // (PAL_DNS_API_VERSION == 1)
 
 /*! \brief Test pal socket APIs input parameter validations
 ** \test
@@ -1440,8 +1442,10 @@ TEST(pal_socket, socketApiInputParamValidation)
 #if PAL_NET_DNS_SUPPORT
     status = pal_getAddressInfo(NULL, NULL, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
+#if (PAL_DNS_API_VERSION == 1)
     status = pal_getAddressInfoAsync(NULL, NULL, NULL, NULL, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
+#endif
 #endif // PAL_NET_DNS_SUPPORT
 #endif //DEBUG
 }

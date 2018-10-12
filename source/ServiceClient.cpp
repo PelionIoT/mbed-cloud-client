@@ -112,7 +112,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
                version is present in the KCM.
             */
             tr_debug("ServiceClient::initialize_and_register: update version defined");
-;
+
             const size_t buffer_size = 16;
             uint8_t buffer[buffer_size];
             size_t size = 0;
@@ -137,41 +137,50 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 
             /* Initialize Update Client */
             FP1<void, int32_t> callback(this, &ServiceClient::update_error_callback);
-            UpdateClient::UpdateClient(callback, _connector_client.m2m_interface());
+            UpdateClient::UpdateClient(callback, _connector_client.m2m_interface(), this);
         }
+        // else branch is required for re-initialization. 
+        else {
+            finish_initialization();
+        }
+#else /* MBED_CLOUD_CLIENT_SUPPORT_UPDATE */
+        finish_initialization();
 #endif /* MBED_CLOUD_CLIENT_SUPPORT_UPDATE */
+    } else if (_current_state == State_Success) {
+        state_success();
+    }
+}
 
-        /* Device Object is mandatory.
-           Get instance and add it to object list
-        */
-        M2MDevice *device_object = device_object_from_storage();
-		
+void ServiceClient::finish_initialization(void)
+{
+    /* Device Object is mandatory.
+       Get instance and add it to object list
+    */
+    M2MDevice *device_object = device_object_from_storage();
+
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
         // Initialize the certificate enrollment resources and module
         if (CertificateEnrollmentClient::init(*_client_objs, &_connector_client.est_client()) != CE_STATUS_SUCCESS) {
             _service_callback.error((int)CE_STATUS_INIT_FAILED, "Certificate Enrollment initialization failed");
         }
-#endif  MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#endif /* !MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT */
 
-        if (device_object) {
-            /* Publish device object resource to mds */
-            M2MResourceList list = device_object->object_instance()->resources();
-            if(!list.empty()) {
-                M2MResourceList::const_iterator it;
-                it = list.begin();
-                for ( ; it != list.end(); it++ ) {
-                    (*it)->set_register_uri(true);
-                }
+    if (device_object) {
+        /* Publish device object resource to mds */
+        M2MResourceList list = device_object->object_instance()->resources();
+        if(!list.empty()) {
+            M2MResourceList::const_iterator it;
+            it = list.begin();
+            for ( ; it != list.end(); it++ ) {
+                (*it)->set_register_uri(true);
             }
-
-            /* Add Device Object to object list. */
-            _client_objs->push_back(device_object);
         }
 
-        internal_event(State_Bootstrap);
-    } else if (_current_state == State_Success) {
-        state_success();
+        /* Add Device Object to object list. */
+        _client_objs->push_back(device_object);
     }
+
+    internal_event(State_Bootstrap);
 }
 
 ConnectorClient &ServiceClient::connector_client()

@@ -29,3 +29,20 @@ if ( NOT (${OS_BRAND} MATCHES "Linux"))
 endif() 
 
 CREATE_LIBRARY(pal "${PAL_SRCS}" "")
+
+# XXX: The mbedtls is configured as mbedTLS in PAL, which is not the correct name of the actual library.
+# So we need to make it lowercase and add dependency using that.
+string(TOLOWER ${TLS_LIBRARY} TLS_LINK_LIBRARY)
+
+# PAL is tightly coupled with SOTP, which is packaged to esfs -library. So add the dependency
+# so it will be build before and linked with PAL into final executable.
+add_dependencies(pal ${TLS_LINK_LIBRARY} esfs mbedTrace)
+target_link_libraries(pal ${TLS_LINK_LIBRARY} esfs mbedTrace)
+
+# XXX: there is a ${PLATFORM_LIBS} in pal-tools, but nobody has set that on Linux
+# and as the PAL really uses pthread in Linux, IMHO the dependency should be stated
+# here too so it gets inherited to the call sites.
+if (${OS_BRAND} MATCHES "Linux")
+    target_link_libraries(pal pthread rt)
+endif()
+

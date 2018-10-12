@@ -43,9 +43,6 @@ extern "C" {
 
 #define NULLPTR 0
 
-#define TRUE	1
-#define FALSE	0
-
 #define PAL_INVALID_THREAD	0xFFFFFFFF
 
 typedef int32_t palStatus_t;

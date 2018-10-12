@@ -207,7 +207,7 @@ palStatus_t pal_fsSetMountPoint(pal_fsStorageID_t dataID, const char *path)
 			{
 				return PAL_ERR_NO_MEMORY;
 			}
-			g_RootFolder[dataID][0] = NULLPTR;
+			g_RootFolder[dataID][0] = 0;
 		}
 		strncat( g_RootFolder[dataID], path, PAL_MAX_FOLDER_DEPTH_CHAR - pal_plat_fsSizeCheck(g_RootFolder[dataID]));// same buffer is used for active backup root dirs using indexing
 		g_RootFolderIsSet[dataID] = true;

@@ -99,6 +99,9 @@ static arm_uc_uri_t uri = {
     .path     = NULL,
 };
 
+// true if the hub initialization callback was called, false otherwise
+static bool init_cb_called = false;
+
 /*****************************************************************************/
 /* Debug                                                                     */
 /*****************************************************************************/
@@ -203,11 +206,6 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_INITIALIZED:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZED");
 
-                /* signal that the Hub is initialized */
-                if (arm_uc_hub_init_cb) {
-                    arm_uc_hub_init_cb(ARM_UC_INIT_DONE);
-                }
-
                 /* report the active firmware hash to the Cloud in parallel
                    with the main user application.
                 */
@@ -310,6 +308,15 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* signal monitor that device has entered IDLE state */
                 ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_IDLE);
+
+                /* signal that the Hub is initialized if needed */
+                if (!init_cb_called) {
+                    if (arm_uc_hub_init_cb) {
+                        arm_uc_hub_init_cb(ARM_UC_INIT_DONE);
+                    }
+                    init_cb_called = true;
+                }
+
                 break;
 
             /*****************************************************************/

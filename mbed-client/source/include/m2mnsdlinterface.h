@@ -416,8 +416,10 @@ public:
 
     /**
      * @brief Mark request to be resend again after network break
+     * @param token, Message token
+     * @param token_len, Message token length
     */
-    void set_request_context_to_be_resend();
+    void set_request_context_to_be_resend(uint8_t *token, uint8_t token_len);
 
 protected: // from M2MTimerObserver
 
@@ -609,7 +611,7 @@ private:
     bool is_response_to_request(const sn_coap_hdr_s *coap_header,
                                 struct request_context_s &get_data);
 
-    void free_request_context_list(const sn_coap_hdr_s *coap_header = NULL);
+    void free_request_context_list(const sn_coap_hdr_s *coap_header, bool call_error_cb, request_error_t error_code = FAILED_TO_SEND_MSG);
 
     void free_response_list(const int32_t msg_id = 0);
 
@@ -699,7 +701,7 @@ private:
     bool                                    _notification_send_ongoing;
     bool                                    _registered;
     bool                                    _bootstrap_finish_ack_received;
-    M2MTimer                                *_download_retry_timer;
+    M2MTimer                                _download_retry_timer;
     uint64_t                                _download_retry_time;
 
 friend class Test_M2MNsdlInterface;

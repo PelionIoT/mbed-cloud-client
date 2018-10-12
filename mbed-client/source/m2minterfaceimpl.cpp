@@ -538,11 +538,11 @@ void M2MInterfaceImpl::data_available(uint8_t* data,
     internal_event(STATE_COAP_DATA_RECEIVED, &event);
 }
 
-void M2MInterfaceImpl::socket_error(uint8_t error_code, bool retry)
+void M2MInterfaceImpl::socket_error(int error_code, bool retry)
 {
     // Bootstrap completed once PEER CLOSE notify received from the server.
     if (_current_state == STATE_BOOTSTRAP_WAIT &&
-        error_code == M2MConnectionHandler::SSL_PEER_CLOSED) {
+        error_code == M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY) {
         _security = NULL;
         bootstrap_done();
         return;
@@ -567,39 +567,43 @@ void M2MInterfaceImpl::socket_error(uint8_t error_code, bool retry)
     const char *error_code_des;
     M2MInterface::Error error = M2MInterface::ErrorNone;
     switch (error_code) {
-    case M2MConnectionHandler::SSL_CONNECTION_ERROR:
-        error = M2MInterface::SecureConnectionFailed;
-        error_code_des = ERROR_SECURE_CONNECTION;
-        break;
-    case M2MConnectionHandler::DNS_RESOLVING_ERROR:
-        error = M2MInterface::DnsResolvingFailed;
-        error_code_des = ERROR_DNS;
-        break;
-    case M2MConnectionHandler::SOCKET_READ_ERROR:
-        error = M2MInterface::NetworkError;
-        error_code_des = ERROR_NETWORK;
-        break;
-    case M2MConnectionHandler::SOCKET_SEND_ERROR:
-        error = M2MInterface::NetworkError;
-        error_code_des = ERROR_NETWORK;
-        break;
-    case M2MConnectionHandler::SSL_HANDSHAKE_ERROR:
-        error = M2MInterface::SecureConnectionFailed;
-        error_code_des = ERROR_SECURE_CONNECTION;
-        break;
-    case M2MConnectionHandler::SOCKET_ABORT:
-        error = M2MInterface::NetworkError;
-        error_code_des = ERROR_NETWORK;
-        break;
-    default:
-        error_code_des = ERROR_NO;
-        break;
+        case M2MConnectionHandler::SSL_CONNECTION_ERROR:
+            error = M2MInterface::SecureConnectionFailed;
+            error_code_des = ERROR_SECURE_CONNECTION;
+            break;
+        case M2MConnectionHandler::DNS_RESOLVING_ERROR:
+            error = M2MInterface::DnsResolvingFailed;
+            error_code_des = ERROR_DNS;
+            break;
+        case M2MConnectionHandler::SOCKET_READ_ERROR:
+            error = M2MInterface::NetworkError;
+            error_code_des = ERROR_NETWORK;
+            break;
+        case M2MConnectionHandler::SOCKET_SEND_ERROR:
+            error = M2MInterface::NetworkError;
+            error_code_des = ERROR_NETWORK;
+            break;
+        case M2MConnectionHandler::SSL_HANDSHAKE_ERROR:
+            error = M2MInterface::SecureConnectionFailed;
+            error_code_des = ERROR_SECURE_CONNECTION;
+            break;
+        case M2MConnectionHandler::SOCKET_ABORT:
+            error = M2MInterface::NetworkError;
+            error_code_des = ERROR_NETWORK;
+            break;
+        case M2MConnectionHandler::MEMORY_ALLOCATION_FAILED:
+            error = M2MInterface::MemoryFail;
+            error_code_des = ERROR_NO_MEMORY;
+            break;
+        default:
+            error_code_des = ERROR_NO;
+            break;
     }
 
     internal_event(STATE_IDLE);
     // Try to do reconnecting
     if (retry) {
-        _nsdl_interface.set_request_context_to_be_resend();
+        _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
         _reconnecting = true;
         _connection_handler.stop_listening();
         _retry_timer_expired = false;
@@ -1277,11 +1281,11 @@ bool M2MInterfaceImpl::remove_object(M2MBase *object)
     return _nsdl_interface.remove_object_from_list(object);
 }
 
-void M2MInterfaceImpl::update_endpoint(String &name) {
+void M2MInterfaceImpl::update_endpoint(const String &name) {
     _nsdl_interface.update_endpoint(name);
 }
 
-void M2MInterfaceImpl::update_domain(String &domain)
+void M2MInterfaceImpl::update_domain(const String &domain)
 {
     _nsdl_interface.update_domain(domain);
 }

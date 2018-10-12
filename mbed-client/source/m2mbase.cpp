@@ -445,11 +445,12 @@ uint16_t M2MBase::coap_content_type() const
 
 bool M2MBase::is_observable() const
 {
-    if (_sn_resource->dynamic_resource_params->auto_observable) {
-        return true;
-    } else {
-        return _sn_resource->dynamic_resource_params->observable;
-    }
+    return _sn_resource->dynamic_resource_params->observable;
+}
+
+bool M2MBase::is_auto_observable() const
+{
+    return _sn_resource->dynamic_resource_params->auto_observable;
 }
 
 M2MBase::Observation M2MBase::observation_level() const
@@ -930,3 +931,111 @@ M2MBase *M2MBase::get_parent() const
     return NULL;
 }
 
+bool M2MBase::is_blockwise_needed(const nsdl_s *nsdl, uint32_t payload_len)
+{
+
+    uint16_t block_size = sn_nsdl_get_block_size(nsdl);
+
+    if (payload_len > block_size && block_size > 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void M2MBase::handle_observation(nsdl_s *nsdl,
+                                 const sn_coap_hdr_s &received_coap_header,
+                                 sn_coap_hdr_s &coap_response,
+                                 M2MObservationHandler *observation_handler,
+                                 sn_coap_msg_code_e &response_code)
+{
+    tr_debug("M2MBase::handle_observation()");
+    assert(nsdl);
+    assert(received_coap_header.options_list_ptr);
+
+    response_code = COAP_MSG_CODE_RESPONSE_CONTENT;
+
+    if (is_auto_observable() || received_coap_header.token_ptr == NULL) {
+        tr_error("M2MBase::handle_observation() - already auto-observable or missing token!");
+        response_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
+        return;
+    }
+
+    if (!is_observable()) {
+        tr_error("M2MBase::handle_observation() - not observable!");
+        response_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
+        return;
+    }
+
+    // Add observe value to response
+    if (coap_response.options_list_ptr) {
+        coap_response.options_list_ptr->observe = observation_number();
+    }
+
+    // In case of blockwise, delivery status callback is handled in m2mnsdlinterface after all the block have been transfered
+    if (M2MBase::is_blockwise_needed(nsdl, coap_response.payload_len)) {
+        tr_debug("M2MBase::handle_observation() - block message");
+        return;
+    }
+
+    uint32_t obs_number = received_coap_header.options_list_ptr->observe;
+
+    // If the observe number is 0 means register for observation.
+    if (START_OBSERVATION == obs_number) {
+        set_under_observation(true, observation_handler);
+
+        switch (base_type()) {
+            case M2MBase::Object:
+                M2MBase::add_observation_level(M2MBase::O_Attribute);
+                break;
+
+            case M2MBase::ObjectInstance:
+                M2MBase::add_observation_level(M2MBase::OI_Attribute);
+                break;
+
+            case M2MBase::Resource:
+            case M2MBase::ResourceInstance:
+                M2MBase::add_observation_level(M2MBase::R_Attribute);
+                break;
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+            case M2MBase::ObjectDirectory:
+                // Observation not supported!
+                break;
+#endif
+        }
+
+        send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
+        send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_SUBSCRIBED, M2MBase::NOTIFICATION);
+
+        set_observation_token(received_coap_header.token_ptr,
+                              received_coap_header.token_len);
+
+
+    } else if (STOP_OBSERVATION == obs_number) {
+        tr_info("M2MBase::handle_observation() - stops observation");
+
+        set_under_observation(false, NULL);
+        send_notification_delivery_status(*this, NOTIFICATION_STATUS_UNSUBSCRIBED);
+        send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, M2MBase::NOTIFICATION);
+
+        switch (base_type()) {
+            case M2MBase::Object:
+                M2MBase::remove_observation_level(M2MBase::O_Attribute);
+                break;
+
+            case M2MBase::ObjectInstance:
+                M2MBase::remove_observation_level(M2MBase::OI_Attribute);
+                break;
+
+            case M2MBase::Resource:
+            case M2MBase::ResourceInstance:
+                M2MBase::remove_observation_level(M2MBase::R_Attribute);
+                break;
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+            case M2MBase::ObjectDirectory:
+                // Observation not supported!
+                break;
+#endif
+        }
+    }
+}

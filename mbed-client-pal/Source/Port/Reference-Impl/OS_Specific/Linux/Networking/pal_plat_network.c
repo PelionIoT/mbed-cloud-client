@@ -144,7 +144,9 @@ static uint64_t s_palUSR1Counter =0;
 static void sigusr2(int signo) {
     (void)signo;
     s_palUSR1Counter++;
-    pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
+    // Coverity fix - Unchecked return value. There is not much doable if semaphore release fail.
+    // Function pal_osSemaphoreRelease already contains error trace. 
+    (void)pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
 }
 
 static uint64_t s_palIOCounter =0;
@@ -153,7 +155,9 @@ static void sig_io_handler(int signo) {
     (void)signo;
 
     s_palIOCounter++;
-    pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
+    // Coverity fix - Unchecked return value. There is not much doable if semaphore release fail.
+    // Function pal_osSemaphoreRelease already contains error trace. 
+    (void)pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
 }
 
 
