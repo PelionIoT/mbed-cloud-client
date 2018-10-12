@@ -64,7 +64,7 @@ public :
     * \param error_code The error code from socket, it cannot be used any further.
     * \param retry Indicates whether to re-establish the connection.
     */
-    virtual void socket_error(uint8_t error_code, bool retry = true) = 0;
+    virtual void socket_error(int error_code, bool retry = true) = 0;
 
     /**
     * \brief Indicates that the server address resolving is ready.

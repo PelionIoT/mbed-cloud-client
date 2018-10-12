@@ -49,6 +49,7 @@
 #include "include/UpdateClient.h"
 #include "include/UpdateClientResources.h"
 #include "include/CloudClientStorage.h"
+#include "include/ServiceClient.h"
 
 #include "pal.h"
 
@@ -92,9 +93,10 @@ namespace UpdateClient
     static void schedule_event(void);
     static void error_handler(int32_t error);
     static M2MInterface *_m2m_interface;
+    static ServiceClient *_service;
 }
 
-void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface)
+void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface, ServiceClient *service)
 {
     tr_info("Update Client External Initialization: %p", (void*)pal_osThreadGetId());
 
@@ -103,6 +105,9 @@ void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mIn
 
     if (m2mInterface) {
         _m2m_interface = m2mInterface;
+    }
+    if (service) {
+        _service = service;
     }
     
     /* create event */
@@ -257,6 +262,9 @@ static void UpdateClient::certificate_done(arm_uc_error_t error,
 static void UpdateClient::initialization_done(int32_t result)
 {
     tr_info("internal initialization done: %" PRIu32 " %p", result, (void*)pal_osThreadGetId());
+    if (_service) {
+        _service->finish_initialization();
+    }
 }
 
 static void UpdateClient::event_handler(arm_event_s* event)

@@ -611,7 +611,7 @@ void M2MReportHandler::set_observation_token(const uint8_t *token, const uint8_t
      _token_length = 0;
 
     if( token != NULL && length > 0 ) {
-        _token = alloc_string_copy((uint8_t *)token, length);
+        _token = alloc_copy((uint8_t *)token, length);
         if(_token) {
             _token_length = length;
         }
@@ -649,14 +649,13 @@ bool M2MReportHandler::is_under_observation() const
     return _is_under_observation;
 }
 
-uint8_t* M2MReportHandler::alloc_string_copy(const uint8_t* source, uint32_t size)
+uint8_t* M2MReportHandler::alloc_copy(const uint8_t* source, uint32_t size)
 {
     assert(source != NULL);
 
-    uint8_t* result = (uint8_t*)malloc(size + 1);
+    uint8_t* result = (uint8_t*)malloc(size);
     if (result) {
         memcpy(result, source, size);
-        result[size] = '\0';
     }
     return result;
 }

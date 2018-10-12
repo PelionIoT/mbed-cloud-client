@@ -33,7 +33,11 @@ TEST_GROUP_RUNNER(pal_socket)
     RUN_TEST_CASE(pal_socket, socketTCPBufferedLarge);
     RUN_TEST_CASE(pal_socket, socketUDPBufferedSmall);
     RUN_TEST_CASE(pal_socket, socketUDPBufferedLarge);
+#if (PAL_DNS_API_VERSION == 1)
     RUN_TEST_CASE(pal_socket, getAddressInfoAsync);
+#else
+#warning "pal_socket: skipping getAddressInfoAsync test as async DNS API is not available on the configured API version"
+#endif
     RUN_TEST_CASE(pal_socket, keepaliveOn);
     RUN_TEST_CASE(pal_socket, keepaliveOff);
 }

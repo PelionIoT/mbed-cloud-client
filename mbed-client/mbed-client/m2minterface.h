@@ -35,10 +35,10 @@ typedef Vector<M2MObject*> M2MObjectList;
 typedef Vector<M2MBase*> M2MBaseList;
 typedef FP callback_handler;
 
-// TODO! Add more errors
 typedef enum request_error_e {
-    FAILED_TO_SEND_MSG = 0,
-    FAILED_TO_ALLOCATE_MEMORY = 1
+    FAILED_TO_SEND_MSG = 0, // Message sending has failed
+    FAILED_TO_ALLOCATE_MEMORY = 1, // Can't allocate memory for the request
+    ERROR_NOT_REGISTERED = 2 // Not registered, request will NOT to be stored for resending purposes
 } request_error_t;
 
 typedef request_error_e get_data_req_error_e;
@@ -282,13 +282,13 @@ public:
      * @brief Updates the endpoint name.
      * @param name New endpoint name
      */
-    virtual void update_endpoint(String &name) = 0;
+    virtual void update_endpoint(const String &name) = 0;
 
     /**
      * @brief Updates the domain name.
      * @param domain New domain name
      */
-    virtual void update_domain(String &domain) = 0;
+    virtual void update_domain(const String &domain) = 0;
 
 
     /**

@@ -274,12 +274,11 @@ private:
     bool check_gt_lt_params() const;
 
     /**
-     * \brief Allocate (size + 1) amount of memory, copy size bytes into
-     * it and add zero termination.
-     * \param source The source string to copy, may not be NULL.
+     * \brief Allocate size amount of memory, copy size bytes into it
+     * \param source The source data to copy, may not be NULL.
      * \param size The size of memory to be reserved.
     */
-    static uint8_t* alloc_string_copy(const uint8_t* source, uint32_t size);
+    static uint8_t* alloc_copy(const uint8_t* source, uint32_t size);
 
     /**
      * \brief New value is ready to be sent.

@@ -1810,6 +1810,7 @@ void arm_uc_http_socket_callback(
                 case SOCKET_EVENT_FRAG_START:
                     UC_SRCE_TRACE_SM("event: frag start");
                     context->resume_socket_phase = SOCKET_EVENT_FRAG_MORE;
+                    context->expected_socket_event = SOCKET_EVENT_FRAG_MORE;
                     status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_FRAG_MORE);
                     break;
 

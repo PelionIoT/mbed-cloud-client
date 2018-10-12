@@ -381,12 +381,11 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
     } else if (uri->scheme == URI_SCHEME_HTTP) {
         strcpy(copy_full_url, UC_HTTP_STRING);
     } else {
-        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Not Supported SCHEME!");
+        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Not Supported SCHEME! length of copy url: %u",sizeof(copy_full_url));
         return retval;
     }
     strcat(copy_full_url, (const char *)uri->ptr);
     strcat(copy_full_url, uri->path);
-
 
     if ((arm_uc_received_file_size == arm_uc_total_file_size &&
             arm_uc_received_file_size != 0)) {

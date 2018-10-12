@@ -137,7 +137,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
         // Open certificate chain, size parameter contains the depth of certificate chain
         size_t cert_chain_size = 0;
         security->resource_value_buffer(M2MSecurity::OpenCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
-        tr_info("M2MConnectionSecurityPimpl::init - cert chain length: %" PRIu32, cert_chain_size);
+        tr_info("M2MConnectionSecurityPimpl::init - cert chain length: %lu", (unsigned long)cert_chain_size);
 
         int index = 0;
         while (index < cert_chain_size) {
@@ -217,9 +217,12 @@ int M2MConnectionSecurityPimpl::start_handshake()
     else if(ret == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
         return M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY;
     }
+    else if(ret == PAL_ERR_NO_MEMORY) {
+        return M2MConnectionHandler::MEMORY_ALLOCATION_FAILED;
+    }
 
     if(ret != PAL_SUCCESS){ //We loose the original error here!
-        tr_debug("M2MConnectionSecurityPimpl::start_handshake pal_handShake() error %" PRIx32, ret);
+        tr_debug("M2MConnectionScurityPimpl::start_handshake pal_handShake() error %" PRIx32, ret);
         return -1;
     }
 
@@ -271,6 +274,9 @@ int M2MConnectionSecurityPimpl::send_message(unsigned char *message, int len)
     else if(return_value == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
         ret = M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY;
     }
+    else if(return_value == PAL_ERR_NO_MEMORY) {
+        ret = M2MConnectionHandler::MEMORY_ALLOCATION_FAILED;
+    }
 
     tr_debug("M2MConnectionSecurityPimpl::send_message - ret: %d", ret);
     return ret; //bytes written
@@ -297,6 +303,10 @@ int M2MConnectionSecurityPimpl::read(unsigned char* buffer, uint16_t len)
 
     else if(return_value == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
         ret = M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY;
+    }
+
+    else if(return_value == PAL_ERR_NO_MEMORY) {
+        ret = M2MConnectionHandler::MEMORY_ALLOCATION_FAILED;
     }
 
     return ret;
@@ -326,38 +336,4 @@ void M2MConnectionSecurityPimpl::set_socket(palSocket_t socket, palSocketAddress
     else{
         _tls_socket.transportationMode = PAL_DTLS_MODE;
     }
-}
-
-bool M2MConnectionSecurityPimpl::certificate_parse_valid_time(const char *certificate, uint32_t certificate_len, uint64_t *valid_from, uint64_t *valid_to)
-{
-    palX509Handle_t cert = 0;
-    size_t len;
-    palStatus_t ret;
-
-    tr_debug("certificate_validfrom_time");
-
-    ret = pal_x509Initiate(&cert);
-    if(PAL_SUCCESS != ret) {
-        tr_error("certificate_validfrom_time - cert init failed: %u", (int)ret);
-        pal_x509Free(&cert);
-        return false;
-    }
-    if(PAL_SUCCESS != (ret = pal_x509CertParse(cert, (const unsigned char*)certificate, certificate_len))) {
-        tr_error("certificate_validfrom_time - cert parse failed: %u", (int)ret);
-        pal_x509Free(&cert);
-        return false;
-    }
-    if(PAL_SUCCESS != (ret = pal_x509CertGetAttribute(cert, PAL_X509_VALID_FROM, valid_from, sizeof(uint64_t), &len))) {
-        tr_error("certificate_validfrom_time - cert attr get failed: %u", (int)ret);
-        pal_x509Free(&cert);
-        return false;
-    }
-    if(PAL_SUCCESS != (ret = pal_x509CertGetAttribute(cert, PAL_X509_VALID_TO, valid_to, sizeof(uint64_t), &len))) {
-        tr_error("certificate_validto_time - cert attr get failed: %u", (int)ret);
-        pal_x509Free(&cert);
-        return false;
-    }
-
-    pal_x509Free(&cert);
-    return true;
 }

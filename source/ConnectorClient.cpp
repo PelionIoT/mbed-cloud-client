@@ -462,6 +462,9 @@ void ConnectorClient::create_register_object()
             tr_info("ConnectorClient::create_register_object - M2MServerUri %.*s", (int)real_size, buffer);
             success = true;
             _security->set_resource_value(M2MSecurity::M2MServerUri, buffer, (uint32_t)real_size, m2m_id);
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+            _endpoint_info.lwm2m_server_uri = _security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id);
+#endif
         }
         else
             tr_error("KEY_CONNECTOR_URL failed.");
@@ -696,9 +699,9 @@ void ConnectorClient::state_est_start()
 
     tr_info("est check - is bs server /0/1: %" PRIu32, is_bs_server);
     tr_info("est check - Security Mode /0/2: %" PRIu32, sec_mode);
-    tr_info("est check - Public key size /0/3: %" PRIu32, public_key_size);
-    tr_info("est check - Server Public key size /0/4: %" PRIu32, server_key_size);
-    tr_info("est check - Secret key size /0/5: %" PRIu32, private_key_size);
+    tr_info("est check - Public key size /0/3: %lu", (unsigned long)public_key_size);
+    tr_info("est check - Server Public key size /0/4: %lu", (unsigned long)server_key_size);
+    tr_info("est check - Secret key size /0/5: %lu", (unsigned long)private_key_size);
 
     // Configure CSR params
     kcm_csr_params_s csr_params;
@@ -1071,6 +1074,9 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
     }
 
     if (status == CCS_STATUS_SUCCESS) {
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+        _endpoint_info.lwm2m_server_uri = security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id);
+#endif
         status = ccs_set_item(g_fcc_lwm2m_server_uri_name,
                               (const uint8_t*)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).c_str(),
                               (size_t)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).size(),

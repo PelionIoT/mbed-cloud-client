@@ -56,6 +56,9 @@ public:
     String                          account_id;
     String                          internal_endpoint_name;
     M2MSecurity::SecurityModeType   mode;
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    String                          lwm2m_server_uri;
+#endif
 };
 
 /**

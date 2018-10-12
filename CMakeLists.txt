@@ -20,6 +20,9 @@ add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_USE_PLATFORM_TICK_TIMER)
 add_definitions(-DARM_UC_PROFILE_MBED_CLOUD_CLIENT=1)
 add_definitions(-DARM_UC_FEATURE_PAL_FILESYSTEM=1)
 
+# enable duplicate detection by default, count is the same as resend queue size
+add_definitions(-DMBED_CONF_MBED_CLIENT_SN_COAP_DUPLICATION_MAX_MSGS_COUNT=4)
+
 project(mbedCloudClient)
 
 # mbed-cloud-client
@@ -90,11 +93,12 @@ SET(FCC_MODULES
     mbed-client-esfs
 )
 
+# XXX: do NOT do this, no need to spam ~5KB of FCC include paths for each CC/CXX invocation. 
 # includes
-FOREACH(module ${FCC_MODULES})
-    ADD_GLOBALDIR(${FACTORY_CLIENT_SOURCE_DIR}/${module}/${module})
-    ADD_GLOBALDIR(${FACTORY_CLIENT_SOURCE_DIR}/${module}/source/include)
-ENDFOREACH()
+#FOREACH(module ${FCC_MODULES})
+#    ADD_GLOBALDIR(${FACTORY_CLIENT_SOURCE_DIR}/${module}/${module})
+#    ADD_GLOBALDIR(${FACTORY_CLIENT_SOURCE_DIR}/${module}/source/include)
+#ENDFOREACH()
 
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/factory-configurator-client/source/include)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/factory-configurator-client/factory-configurator-client)
@@ -130,45 +134,52 @@ include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/include)
 
 SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)
 
+# Add just the base of update-client and the shared part of modules to global include path.
+# This helps a lot in keeping the global include path small as the global includes really
+# are given to every single source module, even though the include files themselves really 
+# are accessed by update-client with very clean and precise manner. 
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR})
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/update-client-hub)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/atomic-queue)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/atomic-queue/atomic-queue)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/common)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/common/update-client-common)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/resume-engine)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/resume-engine/resume-engine)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/control-center)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/control-center/update-client-control-center)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/device-identity)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/device-identity/pal4life-device-identity)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/firmware-manager)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/firmware-manager/update-client-firmware-manager)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed/update-client-lwm2m)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/manifest-manager)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/manifest-manager/update-client-manifest-manager)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/manifest-manager/source)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/monitor)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/monitor/update-client-monitor)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/paal-update-api)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/paal-update-api/paal-update-api)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source/update-client-source)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-http)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-http/update-client-source-http)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-http-socket)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-http-socket/update-client-source-http-socket)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-manager)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-manager/update-client-source-manager)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/paal)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/paal/update-client-paal)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/pal-filesystem)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/pal-filesystem/update-client-pal-filesystem)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/pal-flashiap)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/pal-flashiap/update-client-pal-flashiap)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/pal-linux)
-ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/pal-linux/update-client-pal-linux)
+
+include_directories(${UPDATE_SOURCE_DIR})
+include_directories(${UPDATE_SOURCE_DIR}/update-client-hub)
+include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue)
+include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue/atomic-queue)
+include_directories(${UPDATE_SOURCE_DIR}/modules/common)
+include_directories(${UPDATE_SOURCE_DIR}/modules/common/update-client-common)
+include_directories(${UPDATE_SOURCE_DIR}/modules/resume-engine)
+include_directories(${UPDATE_SOURCE_DIR}/modules/resume-engine/resume-engine)
+include_directories(${UPDATE_SOURCE_DIR}/modules/control-center)
+include_directories(${UPDATE_SOURCE_DIR}/modules/control-center/update-client-control-center)
+include_directories(${UPDATE_SOURCE_DIR}/modules/device-identity)
+include_directories(${UPDATE_SOURCE_DIR}/modules/device-identity/pal4life-device-identity)
+include_directories(${UPDATE_SOURCE_DIR}/modules/firmware-manager)
+include_directories(${UPDATE_SOURCE_DIR}/modules/firmware-manager/update-client-firmware-manager)
+include_directories(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed)
+include_directories(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed/update-client-lwm2m)
+include_directories(${UPDATE_SOURCE_DIR}/modules/manifest-manager)
+include_directories(${UPDATE_SOURCE_DIR}/modules/manifest-manager/update-client-manifest-manager)
+include_directories(${UPDATE_SOURCE_DIR}/modules/manifest-manager/source)
+include_directories(${UPDATE_SOURCE_DIR}/modules/monitor)
+include_directories(${UPDATE_SOURCE_DIR}/modules/monitor/update-client-monitor)
+include_directories(${UPDATE_SOURCE_DIR}/modules/paal-update-api)
+include_directories(${UPDATE_SOURCE_DIR}/modules/paal-update-api/paal-update-api)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source/update-client-source)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-http)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-http/update-client-source-http)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-http-socket)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-http-socket/update-client-source-http-socket)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-manager)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-manager/update-client-source-manager)
+include_directories(${UPDATE_SOURCE_DIR}/modules/paal)
+include_directories(${UPDATE_SOURCE_DIR}/modules/paal/update-client-paal)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-filesystem)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-filesystem/update-client-pal-filesystem)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap/update-client-pal-flashiap)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-linux)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-linux/update-client-pal-linux)
 
 FILE(GLOB MBED_CLOUD_CLIENT_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.c"
@@ -187,11 +198,27 @@ FILE(GLOB MBED_CLOUD_CLIENT_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/sal-stack-nanostack-eventloop/source/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/sal-stack-nanostack-eventloop/source/*.cpp"
 
+    "${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/*.c"
+    "${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/*.cpp"
+)
+
+# This part gets split into separate nanostacklibservice, which is needed
+# as the mbedTrace -library points to ip6tos and there is a dependency chain of
+# pal->mbed-trace->nanostack-libservice. Without this, the PAL should add mbedCloudClient 
+# as dependency and that would also create a circular dependency, which is a nightmare on linking time.
+#
+# Note: the native Makefile of nanostack-libservice will create a library called "libservice", 
+# so just to avoid some collisions, name of the library created by this is different and matches
+# the current name of the repository (nanostack-libservice).
+FILE(GLOB NANOSTACK_LIBSERVICE_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/nanostack-libservice/source/libBits/common_functions.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/nanostack-libservice/source/libList/*.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/nanostack-libservice/source/nsdynmemLIB/*.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/nanostack-libservice/source/libip6string/ip6tos.c"
+)
 
+# these will go to nshalpal library
+FILE(GLOB NS_HAL_PAL_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/ns-hal-pal/ns_event_loop.c"
 if ((${OS_BRAND} MATCHES "FreeRTOS"))
     "${CMAKE_CURRENT_SOURCE_DIR}/ns-hal-pal/arm_hal_random.c"
@@ -199,23 +226,9 @@ endif()
     "${CMAKE_CURRENT_SOURCE_DIR}/ns-hal-pal/ns_hal_init.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/ns-hal-pal/arm_hal_interrupt.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/ns-hal-pal/arm_hal_timer.cpp"
-    "${FACTORY_CLIENT_SOURCE_DIR}/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/storage/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/mbed-client-esfs/source/sotp/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/secure_store/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/key-config-manager/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/utils/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/logger/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/mbed-client-esfs/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/mbed-client-esfs/source-pal/linux/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/mbed-client-esfs/source-pal/linux/*.cpp"
-    "${FACTORY_CLIENT_SOURCE_DIR}/crypto-service/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/fcc-bundle-handler/source/*.c"
-    "${FACTORY_CLIENT_SOURCE_DIR}/fcc-output-info-handler/source/*.c"
-    "${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/*.c"
-    "${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/*.cpp"
-    )
+)
 
+# todo: make library out of the update client too
 if ((${OS_BRAND} MATCHES "Linux"))
     FILE(GLOB UPDATE_SRC
     "${UPDATE_SOURCE_DIR}/source/*.c"
@@ -242,7 +255,28 @@ endif()
 list(APPEND MBED_CLOUD_CLIENT_SRC ${UPDATE_SRC})
 message(status "Mbed Cloud Client sources = \n ${MBED_CLOUD_CLIENT_SRC}")
 
+
+CREATE_LIBRARY(nshalpal "${NS_HAL_PAL_SRC}" "")
+
+# ns-hal-pal uses PAL API's, so create dependency on them
+add_dependencies(nshalpal pal)
+target_link_libraries(nshalpal pal)
+
+# nanostack-libservice is depending only of ns-hal (via platform_critical_*()), which is fulfilled
+# by ns-hal-pal.
+CREATE_LIBRARY(nanostacklibservice "${NANOSTACK_LIBSERVICE_SRC}" "")
+add_dependencies(nanostacklibservice nshalpal)
+
 CREATE_LIBRARY(mbedCloudClient "${MBED_CLOUD_CLIENT_SRC}" "")
-add_dependencies(mbedCloudClient mbedtls)
+
+# Create buld dependencies to ensure all the needed parts get build
+add_dependencies(mbedCloudClient mbedtls mbedcrypto mbedx509 factory-configurator-client esfs pal mbedTrace nanostacklibservice)
+
+# Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
+# just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
+# automatically build all the submodules.
+target_link_libraries(mbedCloudClient pal mbedcrypto mbedx509 mbedtls factory-configurator-client esfs mbedTrace nshalpal nanostacklibservice)
+
 
 ADDSUBDIRS()
+

@@ -223,13 +223,13 @@ public:
      * @brief Updates the endpoint name.
      * @param name New endpoint name
      */
-    virtual void update_endpoint(String &name);
+    virtual void update_endpoint(const String &name);
 
     /**
      * @brief Updates the domain name.
      * @param domain New domain name
      */
-    virtual void update_domain(String &domain);
+    virtual void update_domain(const String &domain);
 
     /**
      * @brief Return internal endpoint name
@@ -321,7 +321,7 @@ protected: // From M2MConnectionObserver
                                 uint16_t data_size,
                                 const M2MConnectionObserver::SocketAddress &address);
 
-    virtual void socket_error(uint8_t error_code, bool retry = true);
+    virtual void socket_error(int error_code, bool retry = true);
 
     virtual void address_ready(const M2MConnectionObserver::SocketAddress &address,
                                M2MConnectionObserver::ServerType server_type,

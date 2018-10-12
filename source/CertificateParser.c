@@ -36,7 +36,7 @@ bool extract_field_from_certificate(const uint8_t* cer, size_t cer_len, const ch
         return false;
     }
 
-    palX509Handle_t cert = NULL;
+    palX509Handle_t cert = 0;
     size_t len = 0;
     palStatus_t ret = pal_x509Initiate(&cert);
     if (ret != PAL_SUCCESS) {

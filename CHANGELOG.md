@@ -1,5 +1,23 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 2.0.1 (12.10.2018)
+
+#### Pelion Device Management Client
+
+* Client now has CoAP duplication detection enabled by default, this improves stability of client on networks like NB-IoT.
+* For resources containing big data (blockwise CoAP), client will start sending notifications only after subscription for that resource has completed its blockwise transfer.
+
+#### Update Client
+
+* Firmware download will now resume after network outage when using CoAP.
+* Added support for slow link networks when a received packet contained only a HTTP header. This was causing the resume download feature to fail.
+
+#### Platform Adaptation Layer (PAL)
+
+* [Mbed OS] Change default mount point from "fs" to "default". Mount point "default" can be used with all diffrent type of storages.
+* [Mbed OS][mbedtls] Tune software AES for smaller size instead of speed. Disable some of the speed optimizations on AES code to save 6 KB of ROM.
+* [Mbed OS][mbedtls] mbedtls-config updates to save 7.5KB of ROM on Mbed OS.
+
 ### Release 2.0.0 (26.09.2018)
 
 #### Pelion Device Management Client
@@ -36,9 +54,9 @@
     * `M2MBase::send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status)`
     * `M2MBase::get_notification_msgid()`
     * `M2MBase::set_notification_msgid(uint16_t msgid)`
-	* `M2MBase::set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args)`
-	* `M2MBase::get_notification_delivery_status()`
-	* `M2MBase::clear_notification_delivery_status()`
+    * `M2MBase::set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args)`
+    * `M2MBase::get_notification_delivery_status()`
+    * `M2MBase::clear_notification_delivery_status()`
 * Implemented new functionality to get the internal object list of Mbed Cloud Client.
   * Added API: `MbedCloudClient::get_object_list()`.
 

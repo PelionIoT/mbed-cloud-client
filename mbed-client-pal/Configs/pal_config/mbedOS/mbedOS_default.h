@@ -51,7 +51,7 @@
 
 #ifndef PAL_FS_MOUNT_POINT_PRIMARY
     #if (MBED_VERSION >= 51000)  // 5.10 or above
-        #define PAL_FS_MOUNT_POINT_PRIMARY    "/fs"           //!< User should change this for the his working folder
+        #define PAL_FS_MOUNT_POINT_PRIMARY    "/default"           //!< User should change this for the his working folder
     #else
         #define PAL_FS_MOUNT_POINT_PRIMARY    "/sd"
     #endif
@@ -60,7 +60,7 @@
 #ifndef PAL_FS_MOUNT_POINT_SECONDARY
     #if (PAL_NUMBER_OF_PARTITIONS == 2)
         #if (MBED_VERSION >= 51000)  // 5.10 or above
-            #define PAL_FS_MOUNT_POINT_SECONDARY    "/fs2"
+            #define PAL_FS_MOUNT_POINT_SECONDARY    "/default2"
         #else
             #define PAL_FS_MOUNT_POINT_SECONDARY    "/sd2"
         #endif

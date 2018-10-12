@@ -144,7 +144,8 @@ public:
 
     typedef enum {
         NOTIFICATION,
-        DELAYED_POST_RESPONSE
+        DELAYED_POST_RESPONSE,
+        BLOCK_SUBSCRIBE
     } MessageType;
 
 
@@ -393,6 +394,12 @@ public:
      * \return True if observable, else false.
      */
     bool is_observable() const;
+
+    /**
+     * \brief Returns the auto observation status of the object.
+     * \return True if observable, else false.
+     */
+    bool is_auto_observable() const;
 
     /**
      * \brief Returns the observation level of the object.
@@ -700,6 +707,28 @@ protected:
      * \brief Returns the owner object. Can return NULL if the object has no parent.
      */
     virtual M2MBase *get_parent() const;
+
+    /**
+     * \brief Checks whether blockwise is needed to send resource value to server.
+     * \param nsdl An NSDL handler for the CoAP library.
+     * \param payload_len Length of the CoAP payload.
+     * \return True if blockwise transfer is needed, else false.
+     */
+    static bool is_blockwise_needed(const nsdl_s *nsdl, uint32_t payload_len);
+
+    /**
+     * \brief Handles subscription request.
+     * \param nsdl An NSDL handler for the CoAP library.
+     * \param received_coap_header The received CoAP message from the server.
+     * \param coap_response CoAP response to be sent to server.
+     * \param observation_handler A handler object for sending
+     * observation callbacks.
+     */
+    void handle_observation(nsdl_s *nsdl,
+                            const sn_coap_hdr_s &received_coap_header,
+                            sn_coap_hdr_s &coap_response,
+                            M2MObservationHandler *observation_handler,
+                            sn_coap_msg_code_e &response_code);
 
   private:
     static bool is_integer(const String &value);

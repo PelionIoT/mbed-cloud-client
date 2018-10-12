@@ -386,7 +386,9 @@ PAL_PRIVATE void palTimerThread(void const *args)
     sigaddset(&signal_set_to_wait, PAL_TIMER_SIGNAL);
 
     // signal the caller that thread has started
-    pal_osSemaphoreRelease(context->startStopSemaphore);
+    if (pal_osSemaphoreRelease(context->startStopSemaphore) != PAL_SUCCESS) {
+        PAL_LOG_ERR("pal_osSemaphoreRelease(context->startStopSemaphore) failed!");
+    }
 
     // loop until signaled with threadStopRequested
     while (1) {
@@ -412,7 +414,8 @@ PAL_PRIVATE void palTimerThread(void const *args)
             if (context->threadStopRequested) {
 
                 // release mutex and bail out
-                pal_osMutexRelease(g_timerListMutex);
+                // Coverity fix - Unchecked return value. Function pal_osMutexRelease already contains error trace.
+                (void)pal_osMutexRelease(g_timerListMutex);
                 break;
 
             } else {

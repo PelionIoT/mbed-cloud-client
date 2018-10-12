@@ -16,12 +16,9 @@
 
 
 #include "CertificateEnrollmentClient.h"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wdeprecated-declarations"
 #include "mbed-client/m2mresource.h"
 #include "mbed-client/m2minterfacefactory.h"
 #include "mbed-client/m2minterface.h"
-#pragma GCC diagnostic pop
 #include "pal.h"
 #include "eventOS_scheduler.h"
 #include "eventOS_event.h"

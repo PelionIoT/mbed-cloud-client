@@ -17,11 +17,7 @@
 #ifndef __CERTIFICATE_ENROLLMENT_CLIENT_H__
 #define __CERTIFICATE_ENROLLMENT_CLIENT_H__
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wdeprecated-declarations"
 #include "mbed-client/m2minterface.h"
-#pragma GCC diagnostic pop
-
 #include "ce_defs.h"
 
 class EstClient;
