@@ -1,5 +1,11 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 2.0.1.1 (16.10.2018)
+
+#### Pelion Device Management Client
+
+* A regression was introduced in the 2.0.1 release, where client did not reconnect after a network outage. It is now fixed in this release. 
+
 ### Release 2.0.1 (12.10.2018)
 
 #### Pelion Device Management Client
