@@ -39,16 +39,16 @@ public:
      */
     typedef enum {
         ERROR_NONE = 0,
-        CONNECTION_ERROR_WANTS_READ = -1,
-        CONNECTION_ERROR_WANTS_WRITE = -2,
-        SSL_PEER_CLOSE_NOTIFY = -3,
-        MEMORY_ALLOCATION_FAILED = -4,
-        SSL_CONNECTION_ERROR = -5,
-        SOCKET_READ_ERROR = -6,
-        SOCKET_SEND_ERROR = -7,
-        SOCKET_ABORT = -8,
-        DNS_RESOLVING_ERROR = -9,
-        SSL_HANDSHAKE_ERROR = -10
+        CONNECTION_ERROR_WANTS_READ = -1000,
+        CONNECTION_ERROR_WANTS_WRITE = -1001,
+        SSL_PEER_CLOSE_NOTIFY = -1002,
+        MEMORY_ALLOCATION_FAILED = -1003,
+        SSL_CONNECTION_ERROR = -1004,
+        SOCKET_READ_ERROR = -1005,
+        SOCKET_SEND_ERROR = -1006,
+        SOCKET_ABORT = -1007,
+        DNS_RESOLVING_ERROR = -1008,
+        SSL_HANDSHAKE_ERROR = -1009
     } ConnectionError;
 
 public:
