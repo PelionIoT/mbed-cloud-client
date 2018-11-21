@@ -36,6 +36,7 @@
 #endif
 
 #ifdef __DOXYGEN__
+// This __DOXYGEN__ block is for documentation purposes only and it does not affect application build.
 
 /**
 * \def MBED_CLOUD_CLIENT_ENDPOINT_TYPE
@@ -78,10 +79,9 @@
 *
 * \brief Enable this MACRO if you want to enable TCP_QUEUE mode for the client.
 */
-
 #define MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP_QUEUE
 
-#endif
+#endif // __DOXYGEN__
 
 /**
 * \def MBED_CLOUD_CLIENT_LISTEN_PORT
