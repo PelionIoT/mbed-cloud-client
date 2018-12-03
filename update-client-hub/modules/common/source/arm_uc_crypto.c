@@ -172,11 +172,13 @@ arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key,
                                        arm_uc_buffer_t *output)
 {
     arm_uc_error_t result = (arm_uc_error_t) { ARM_UC_CU_ERR_INVALID_PARAMETER };
+    size_t output_size = 0;
 
     palStatus_t pal_st = pal_mdHmacSha256(key->ptr, key->size,
                                           input->ptr, input->size,
-                                          output->ptr, &(output->size));
-    if ((pal_st == PAL_SUCCESS) && (output->size == ARM_UC_SHA256_SIZE)) {
+                                          output->ptr, &output_size);
+    if ((pal_st == PAL_SUCCESS) && (output_size == ARM_UC_SHA256_SIZE)) {
+        output->size = (uint32_t) output_size;
         result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
     }
 
