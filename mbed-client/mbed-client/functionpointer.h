@@ -125,7 +125,7 @@ public:
     /** Create a function pointeer, attaching a member function.
      *
      *  \param object The object pointer to invoke the member function on (the "this" pointer).
-     *  \param function The address of the void member function to attach.
+     *  \param member The address of the void member function to attach.
      */
     template<typename T>
     FP1(T *object, R (T::*member)(A1)) {
@@ -144,7 +144,7 @@ public:
     /** Attach a member function.
      *
      *  \param object The object pointer to invoke the member function on (the "this" pointer).
-     *  \param function The address of the void member function to attach.
+     *  \param member The address of the void member function to attach.
      */
     template<typename T>
     void attach(T *object, R (T::*member)(A1)) {
@@ -210,7 +210,7 @@ public:
     /** Create a function pointer, attaching a member function.
      *
      *  \param object The object pointer to invoke the member function on (the "this" pointer).
-     *  \param function The address of the void member function to attach.
+     *  \param member The address of the void member function to attach.
      */
     template<typename T>
     FP2(T *object, R (T::*member)(A1, A2)) {
@@ -229,7 +229,7 @@ public:
     /** Attach a member function
      *
      *  \param object The object pointer to invoke the member function on (the "this" pointer).
-     *  \param function The address of the void member function to attach.
+     *  \param member The address of the void member function to attach.
      */
     template<typename T>
     void attach(T *object, R (T::*member)(A1, A2)) {
@@ -295,7 +295,7 @@ public:
     /** Create a function pointer, attaching a member function.
      *
      *  \param object The object pointer to invoke the member function on (the "this" pointer).
-     *  \param function The address of the void member function to attach.
+     *  \param member The address of the void member function to attach.
      */
     template<typename T>
     FP3(T *object, R (T::*member)(A1, A2, A3)) {
@@ -314,7 +314,7 @@ public:
     /** Attach a member function.
      *
      *  \param object The object pointer to invoke the member function on (the "this" pointer).
-     *  \param function The address of the void member function to attach.
+     *  \param member The address of the void member function to attach.
      */
     template<typename T>
     void attach(T *object, R (T::*member)(A1, A2, A3)) {

@@ -29,8 +29,8 @@
 #define MBED_STATS_FILE_NAME "/mbedos_stats.txt"
 
 /**
-    Print mbedos stack and heap usage to stdout and to text file named mbedos_stats.txt.
-    Note: Make sure MBED_HEAP_STATS_ENABLED or MBED_STACK_STATS_ENABLED flags are set to 1
+    Print mbed-os stack and heap usage to stdout and to text file named mbedos_stats.txt.
+    Note: Make sure MBED_HEAP_STATS_ENABLED or MBED_STACK_STATS_ENABLED flags are defined
 */
 void print_mbed_stats()
 {

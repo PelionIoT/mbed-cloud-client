@@ -26,7 +26,8 @@
 // RESUMPTION MANAGEMENT.
 // ----------------------
 
-// Developer-facing defines allow easier testing of parameterised resume.
+// *DEVELOPER-FACING* defines allowing easier testing of parameterised resume.
+
 // If not available, it becomes extremely difficult to detect exactly when the resume
 //   functionality is taking place, or to set values outside of the assumed 'reasonable'
 //   range (which can't predict all use cases), which hampers assessment of the settings.
@@ -71,6 +72,10 @@
 
 // Stop resume-servicing attempts after this period has elapsed.
 // Max activity time is limited to 30 because of 32-bit limitation of 49 days in msecs.
+// Note that the sub-term 'activity' is used here, since resume is intended to be more widely applicable
+//   than for any one function alone. For example, downloads would rename this configuration to something
+//   like COMM_RESUME_MAXIMUM_DOWNLOAD_TIME_MSECS_LIMIT instead.
+
 #define RESUME_MAXIMUM_ACTIVITY_TIME_MSECS_LIMIT    (30*24*60*60*1000UL)
 
 #if defined(MBED_CONF_UPDATE_CLIENT_RESUME_MAXIMUM_ACTIVITY_TIME_SECS)
@@ -97,6 +102,18 @@ arm_uc_resume_t const resume_default_init = {
     .on_resume_terminate_p = NULL,
     .on_resume_error_p = NULL
 };
+
+// TRACE.
+// ------
+
+// to disable extra trace, uncomment UC_RESUME_TRACE_ENTRY/VERBOSE/EXIT(...)
+// or to enable extra trace, uncomment UC_RESUME_TRACE_ENTRY/VERBOSE/EXIT UC_RESUME_TRACE
+#define UC_RESUME_TRACE_ENTRY(...)
+#define UC_RESUME_TRACE_VERBOSE(...)
+#define UC_RESUME_TRACE_EXIT(...)
+//#define UC_RESUME_TRACE_ENTRY UC_RESUME_TRACE
+//#define UC_RESUME_TRACE_VERBOSE UC_RESUME_TRACE
+//#define UC_RESUME_TRACE_EXIT UC_RESUME_TRACE
 
 // FORWARD DECLARATIONS.
 // ---------------------
@@ -130,17 +147,17 @@ static inline void update_state_resume_timer(arm_uc_resume_t *a_resume_p, bool a
  */
 static palStatus_t create_resume_timer(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     if (a_resume_p == NULL) {
         return PAL_ERR_INVALID_ARGUMENT;
     }
     update_state_resume_timer(a_resume_p, false);
     palStatus_t status = pal_osTimerCreate(check_resume_activity, a_resume_p, palOsTimerOnce, &a_resume_p->timer_id);
     if (status == PAL_SUCCESS) {
-        UC_RESUME_TRACE("success: resume-timer %" PRIx32 " created", (uint32_t)a_resume_p->timer_id);
+        UC_RESUME_TRACE_VERBOSE("success: resume-timer %" PRIx32 " created", (uint32_t)a_resume_p->timer_id);
     } else {
-        UC_RESUME_TRACE("error: resume-timer %" PRIx32 " could not create new timer %" PRIx32,
-                        (uint32_t)a_resume_p->timer_id, (uint32_t)status);
+        UC_RESUME_ERR_MSG("error: resume-timer %" PRIx32 " could not create new timer %" PRIx32,
+                          (uint32_t)a_resume_p->timer_id, (uint32_t)status);
     }
     return status;
 }
@@ -151,20 +168,20 @@ static palStatus_t create_resume_timer(arm_uc_resume_t *a_resume_p)
  */
 static palStatus_t stop_resume_timer(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     if (a_resume_p == NULL) {
         return PAL_ERR_INVALID_ARGUMENT;
     }
     palStatus_t status = PAL_SUCCESS;
     // this should not be called if the timer is already stopped.
     if (!a_resume_p->timer_is_running) {
-        UC_RESUME_TRACE("warning: resume-timer is already stopped.");
+        UC_RESUME_TRACE_VERBOSE("warning: resume-timer is already stopped.");
     } else {
         status = pal_osTimerStop((palTimerID_t)(a_resume_p->timer_id));
         update_state_resume_timer(a_resume_p, false);
         if (status != PAL_SUCCESS) {
-            UC_RESUME_TRACE("error: resume-timer %" PRIx32 " could not stop %" PRIx32,
-                            (uint32_t)a_resume_p->timer_id, (uint32_t)status);
+            UC_RESUME_ERR_MSG("error: resume-timer %" PRIx32 " could not stop %" PRIx32,
+                              (uint32_t)a_resume_p->timer_id, (uint32_t)status);
         }
     }
     return status;
@@ -176,7 +193,7 @@ static palStatus_t stop_resume_timer(arm_uc_resume_t *a_resume_p)
  */
 static palStatus_t start_resume_timer(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     if (a_resume_p == NULL) {
         return PAL_ERR_INVALID_ARGUMENT;
     }
@@ -184,15 +201,15 @@ static palStatus_t start_resume_timer(arm_uc_resume_t *a_resume_p)
     // this should not be called if the timer is already running.
     // but if so, needs to be stopped then restarted with new delay.
     if (a_resume_p->timer_is_running) {
-        UC_RESUME_TRACE("warning: resume-timer is already running.");
+        UC_RESUME_TRACE_VERBOSE("warning: resume-timer is already running.");
         stop_resume_timer(a_resume_p);
     }
     // now start the timer with the new delay value.
     status = pal_osTimerStart((palTimerID_t)(a_resume_p->timer_id), a_resume_p->actual_delay);
     update_state_resume_timer(a_resume_p, status == PAL_SUCCESS);
     if (status != PAL_SUCCESS) {
-        UC_RESUME_TRACE("error: resume-timer %" PRIx32 " could not start %" PRIx32,
-                        (uint32_t)a_resume_p->timer_id, (uint32_t)status);
+        UC_RESUME_ERR_MSG("error: resume-timer %" PRIx32 " could not start %" PRIx32,
+                          (uint32_t)a_resume_p->timer_id, (uint32_t)status);
     }
     return status;
 }
@@ -207,12 +224,12 @@ static palStatus_t start_resume_timer(arm_uc_resume_t *a_resume_p)
 static void invoke_resume_handler(arm_uc_resume_t *a_resume_p, on_resume_cb_t a_handler_p, char *a_text_p)
 {
     if (a_resume_p == NULL) {
-        UC_RESUME_TRACE("error: %s resume-pointer is null!", a_text_p);
+        UC_RESUME_ERR_MSG("error: %s resume-pointer is null!", a_text_p);
     } else if (a_handler_p != NULL) {
-        UC_RESUME_TRACE("calling on-%s handler", a_text_p);
+        UC_RESUME_TRACE_VERBOSE("calling on-%s handler", a_text_p);
         a_handler_p(a_resume_p->context_p);
     } else {
-        UC_RESUME_TRACE("error: %s handler-vector is null!", a_text_p);
+        UC_RESUME_ERR_MSG("error: %s handler-vector is null!", a_text_p);
     }
 }
 /**
@@ -303,9 +320,9 @@ static uint32_t randomised_interval(uint32_t an_interval)
  */
 static void calc_next_attempt_jittered_delay(arm_uc_resume_t *a_resume_p, uint32_t an_expected_delay)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ", %" PRIu32 ")", __func__, (uint32_t)a_resume_p, (uint32_t)an_expected_delay);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ", %" PRIu32 ")", __func__, (uint32_t)a_resume_p, (uint32_t)an_expected_delay);
     if (a_resume_p == NULL) {
-        UC_RESUME_TRACE(".. %s exiting with NULL resume-pointer", __func__);
+        UC_RESUME_ERR_MSG(".. %s exiting with NULL resume-pointer", __func__);
         return;
     }
     // Clear admin values keeping track of progress through this attempt.
@@ -321,7 +338,7 @@ static void calc_next_attempt_jittered_delay(arm_uc_resume_t *a_resume_p, uint32
     set_between(&a_resume_p->jitter_delay, a_resume_p->attempt_initial_delay, a_resume_p->attempt_max_delay);
     a_resume_p->saved_jitter_delay = a_resume_p->jitter_delay;
 
-    UC_RESUME_TRACE(".. %s: jitter delay %" PRIu32 " msecs", __func__, a_resume_p->jitter_delay);
+    UC_RESUME_TRACE_EXIT(".. %s: jitter delay %" PRIu32 " msecs", __func__, a_resume_p->jitter_delay);
 }
 
 /**
@@ -332,7 +349,7 @@ static void calc_next_attempt_jittered_delay(arm_uc_resume_t *a_resume_p, uint32
  */
 static void calc_initial_attempt_jittered_delay(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
 
     reset_on_cycle_values(a_resume_p);
     calc_next_attempt_jittered_delay(a_resume_p, a_resume_p->attempt_initial_delay);
@@ -350,7 +367,7 @@ static void calc_initial_attempt_jittered_delay(arm_uc_resume_t *a_resume_p)
  */
 static void calc_next_actual_delay(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     if (a_resume_p == NULL) {
         return;
     }
@@ -364,7 +381,7 @@ static void calc_next_actual_delay(arm_uc_resume_t *a_resume_p)
     } else {
         a_resume_p->actual_delay = a_resume_p->jitter_delay - a_resume_p->sum_interval_delays;
     }
-    UC_RESUME_TRACE(".. %s: actual delay %" PRIu32 " msecs", __func__, a_resume_p->actual_delay);
+    UC_RESUME_TRACE_EXIT(".. %s: actual delay %" PRIu32 " msecs", __func__, a_resume_p->actual_delay);
 }
 
 // CHECKING OF RESUME EVENTS.
@@ -376,11 +393,9 @@ static void calc_next_actual_delay(arm_uc_resume_t *a_resume_p)
  */
 static void check_resume_activity(void const *a_data_p)
 {
-//    UC_RESUME_TRACE( ">> %s (%" PRIx32 ")", __func__, a_data_p);
-
     arm_uc_resume_t *resume_p = (arm_uc_resume_t *) a_data_p;
     if (resume_p == NULL) {
-        UC_RESUME_TRACE("resume-struct pointer is null in check_resume_activity!");
+        UC_RESUME_ERR_MSG("resume-struct pointer is null in check_resume_activity!");
     } else {
         // Keep the timer and timer-state variable synched - it stops on firing (once-off).
         update_state_resume_timer(resume_p, false);
@@ -388,7 +403,7 @@ static void check_resume_activity(void const *a_data_p)
         if (resume_p->currently_resuming) {
             // If it doesn't install, run an error-specific callback.
             // Can't do something specific-to-resume, because user needs are different.
-            ARM_UC_PostCallback(NULL, do_check_resume_activity, (uint32_t) a_data_p);
+            ARM_UC_PostCallback(NULL, do_check_resume_activity, (uint32_t)((uintptr_t) a_data_p));
         }
     }
 }
@@ -399,11 +414,11 @@ static void check_resume_activity(void const *a_data_p)
  */
 static void do_check_resume_activity(uint32_t a_param)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, a_param);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, a_param);
 
-    arm_uc_resume_t *a_resume_p = (arm_uc_resume_t *) a_param;
+    arm_uc_resume_t *a_resume_p = (arm_uc_resume_t *)((uintptr_t) a_param);
     if (a_resume_p == NULL) {
-        UC_RESUME_TRACE("resume-struct pointer is null in do_check_resume_activity!");
+        UC_RESUME_ERR_MSG("%S resume-struct pointer is null!", __func__);
     } else {
         // Update summed periods, total and per attempt.
         a_resume_p->sum_total_period += a_resume_p->actual_delay;
@@ -430,8 +445,8 @@ static void do_check_resume_activity(uint32_t a_param)
         } else if (a_resume_p->sum_attempt_period >= a_resume_p->jitter_delay) {
             UC_RESUME_TRACE("resume-attempt period reached - %" PRIu32 " secs",
                             a_resume_p->expected_delay / 1000);
-            UC_RESUME_TRACE("resume attempted after total %" PRIu32 " secs",
-                            a_resume_p->sum_total_period / 1000);
+            UC_RESUME_TRACE_VERBOSE("resume attempted after total %" PRIu32 " secs",
+                                    a_resume_p->sum_total_period / 1000);
 
             // Let the source know this will be a resume attempt (there is some setup involved),
             //   put the state machine in a suitable state, and then initiate the process.
@@ -457,8 +472,8 @@ static void do_check_resume_activity(uint32_t a_param)
 #endif
         } else {
             // This must be an interval event.
-            UC_RESUME_TRACE("resume interval period reached - %" PRIu32 " msecs (at %" PRIu32 " of %" PRIu32 ")",
-                            a_resume_p->interval_delay, a_resume_p->sum_attempt_period, a_resume_p->jitter_delay);
+            UC_RESUME_TRACE_VERBOSE("resume interval period reached - %" PRIu32 " msecs (at %" PRIu32 " of %" PRIu32 ")",
+                                    a_resume_p->interval_delay, a_resume_p->sum_attempt_period, a_resume_p->jitter_delay);
             ++a_resume_p->num_intervals;
             calc_next_actual_delay(a_resume_p);
 
@@ -468,7 +483,7 @@ static void do_check_resume_activity(uint32_t a_param)
             start_resume_timer(a_resume_p);
         }
     }
-    UC_RESUME_TRACE(".. %s", __func__);
+    UC_RESUME_TRACE_EXIT(".. %s", __func__);
 }
 
 // INIT, START, RESYNCH, END.
@@ -483,7 +498,7 @@ static bool has_displayed_resume_settings = false;
  */
 arm_uc_error_t arm_uc_resume_check_settings(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     ARM_UC_INIT_ERROR(result, ERR_NONE);
 
     if (a_resume_p == NULL) {
@@ -512,7 +527,7 @@ arm_uc_error_t arm_uc_resume_check_settings(arm_uc_resume_t *a_resume_p)
         }
     }
 #endif
-    UC_RESUME_TRACE(".. %s %" PRIx32, __func__, (uint32_t)result.code);
+    UC_RESUME_TRACE_EXIT(".. %s %" PRIx32, __func__, (uint32_t)result.code);
     return result;
 }
 
@@ -544,7 +559,7 @@ arm_uc_error_t arm_uc_resume_initialize(
     on_resume_cb_t an_on_error_cb,
     void *a_context_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     ARM_UC_INIT_ERROR(result, ERR_NONE);
 
     if (a_resume_p == NULL) {
@@ -584,7 +599,7 @@ arm_uc_error_t arm_uc_resume_initialize(
         has_displayed_resume_settings = true;
     }
 #endif
-    UC_RESUME_TRACE(".. %s %" PRIx32, __func__, (uint32_t)result.code);
+    UC_RESUME_TRACE_EXIT(".. %s %" PRIx32, __func__, (uint32_t)result.code);
     return result;
 }
 
@@ -598,19 +613,19 @@ arm_uc_error_t arm_uc_resume_initialize(
 arm_uc_error_t arm_uc_resume_start_monitoring(
     arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     ARM_UC_INIT_ERROR(result, ERR_NONE);
 
     if (a_resume_p == NULL) {
         ARM_UC_SET_ERROR(result, ERR_NULL_PTR);
-        UC_RESUME_TRACE("%s failed: null for resume-struct", __func__);
+        UC_RESUME_ERR_MSG("%s failed: null for resume-struct", __func__);
     }
     if (ARM_UC_IS_NOT_ERROR(result)) {
         // A new resume must first abort an ongoing resume-nudge attempt.
         if (a_resume_p->currently_resuming) {
             result = arm_uc_resume_end_monitoring(a_resume_p);
             if (ARM_UC_IS_ERROR(result)) {
-                UC_RESUME_TRACE("%s failed: could not end existing resume", __func__);
+                UC_RESUME_ERR_MSG("%s failed: could not end existing resume", __func__);
             }
         }
     }
@@ -639,9 +654,9 @@ arm_uc_error_t arm_uc_resume_start_monitoring(
         palStatus_t pal_status = start_resume_timer(a_resume_p);
         if (pal_status != PAL_SUCCESS) {
             ARM_UC_SET_ERROR(result, ERR_UNSPECIFIED);
-            UC_RESUME_TRACE("%s failed: could not start timer, error %"
-                            PRIx32 " id %" PRIu32 " delay %" PRIu32,
-                            __func__, (uint32_t)pal_status, (uint32_t)a_resume_p->timer_id, a_resume_p->actual_delay);
+            UC_RESUME_ERR_MSG("%s failed: could not start timer, error %"
+                              PRIx32 " id %" PRIu32 " delay %" PRIu32,
+                              __func__, (uint32_t)pal_status, (uint32_t)a_resume_p->timer_id, a_resume_p->actual_delay);
         }
 #if ARM_UC_RESUME_ATTEMPT_TEST_MESSAGES_ENABLE
         UC_QA_TRACE("\nResume starting now, in %" PRIi32 ".%" PRIu32 "(~%" PRIi32 ")\n",
@@ -650,7 +665,7 @@ arm_uc_error_t arm_uc_resume_start_monitoring(
                     a_resume_p->expected_delay / 1000);
 #endif
     }
-    UC_RESUME_TRACE(".. %s %" PRIx32, __func__, (uint32_t)result.code);
+    UC_RESUME_TRACE_EXIT(".. %s %" PRIx32, __func__, (uint32_t)result.code);
     return result;
 }
 
@@ -662,21 +677,20 @@ arm_uc_error_t arm_uc_resume_start_monitoring(
 
 arm_uc_error_t arm_uc_resume_resynch_monitoring(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
-
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     ARM_UC_INIT_ERROR(result, ERR_NONE);
 
     if (a_resume_p == NULL) {
-        UC_RESUME_TRACE("resume-resynch failed: null-pointer");
+        UC_RESUME_ERR_MSG("resume-resynch failed: null-pointer");
         ARM_UC_SET_ERROR(result, ERR_NULL_PTR);
     } else if (a_resume_p->timer_id == 0) {
-        UC_RESUME_TRACE("resume-resynch failed: timer-id == 0");
+        UC_RESUME_ERR_MSG("resume-resynch failed: timer-id == 0");
         ARM_UC_SET_ERROR(result, ERR_INVALID_PARAMETER);
     }
     if (ARM_UC_IS_NOT_ERROR(result)) {
         palStatus_t pal_status = stop_resume_timer(a_resume_p);
         if (pal_status != PAL_SUCCESS) {
-            UC_RESUME_TRACE("resume-resynch failed: could not stop timer, error %" PRIx32, (uint32_t)pal_status);
+            UC_RESUME_ERR_MSG("resume-resynch failed: could not stop timer, error %" PRIx32, (uint32_t)pal_status);
         }
     }
     if (ARM_UC_IS_NOT_ERROR(result)) {
@@ -690,14 +704,14 @@ arm_uc_error_t arm_uc_resume_resynch_monitoring(arm_uc_resume_t *a_resume_p)
         palStatus_t pal_status = start_resume_timer(a_resume_p);
         if (pal_status != PAL_SUCCESS) {
             ARM_UC_SET_ERROR(result, ERR_UNSPECIFIED);
-            UC_RESUME_TRACE("resume-resynch failed: could not start timer, error %"
-                            PRIx32 " id %" PRIx32 " delay %" PRIu32,
-                            (uint32_t)pal_status, (uint32_t)a_resume_p->timer_id, a_resume_p->actual_delay);
+            UC_RESUME_ERR_MSG("resume-resynch failed: could not start timer, error %"
+                              PRIx32 " id %" PRIx32 " delay %" PRIu32,
+                              (uint32_t)pal_status, (uint32_t)a_resume_p->timer_id, a_resume_p->actual_delay);
         }
     }
-    UC_RESUME_TRACE("next check in %" PRIu32 ".%3" PRIu32 " secs",
-                    a_resume_p->actual_delay / 1000, a_resume_p->actual_delay % 1000);
-    UC_RESUME_TRACE(".. %s %" PRIx32, __func__, (uint32_t)result.code);
+    UC_RESUME_TRACE_VERBOSE("next check in %" PRIu32 ".%3" PRIu32 " secs",
+                            a_resume_p->actual_delay / 1000, a_resume_p->actual_delay % 1000);
+    UC_RESUME_TRACE_EXIT(".. %s %" PRIx32, __func__, (uint32_t)result.code);
     return result;
 }
 
@@ -708,8 +722,7 @@ arm_uc_error_t arm_uc_resume_resynch_monitoring(arm_uc_resume_t *a_resume_p)
  */
 arm_uc_error_t arm_uc_resume_end_monitoring(arm_uc_resume_t *a_resume_p)
 {
-    UC_RESUME_TRACE(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
-
+    UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, (uint32_t)a_resume_p);
     ARM_UC_INIT_ERROR(result, ERR_NONE);
 
     if (a_resume_p == NULL) {
@@ -719,11 +732,11 @@ arm_uc_error_t arm_uc_resume_end_monitoring(arm_uc_resume_t *a_resume_p)
         a_resume_p->currently_resuming = false;
         if (a_resume_p->timer_id != 0) {
             if (stop_resume_timer(a_resume_p) != PAL_SUCCESS) {
-                UC_RESUME_TRACE("resume-end failed: could not stop timer");
+                UC_RESUME_ERR_MSG("resume-end failed: could not stop timer");
             }
         }
     }
-    UC_RESUME_TRACE(".. %s %" PRIx32, __func__, (uint32_t)result.code);
+    UC_RESUME_TRACE_EXIT(".. %s %" PRIx32, __func__, (uint32_t)result.code);
     return result;
 }
 

@@ -171,6 +171,11 @@ public:
     */
     void force_close();
 
+    /**
+     * \brief Unregisters the network interface handler that is set in 'set_platform_network_handler'.
+     */
+    void unregister_network_handler();
+
 private:
 
     /**

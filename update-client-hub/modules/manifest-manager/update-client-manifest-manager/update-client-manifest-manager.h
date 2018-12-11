@@ -142,7 +142,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfo(arm_uc_mmContext_t **ctx, struct manif
  * @brief Starts extracting firmware information from a tree of manifests
  * @details `ARM_UC_mmFetchFirmwareInfo()` begins the process of extracting firmware information in the config store
  * This API should only be called once for a root manifest. It always completes asynchronously on success: a return of
- *`MFST_ERR_NONE` will be followed by a callback with `ARM_UC_MM_RC_DONE`. Errors may be returned synchronously or
+ *`ERR_NONE` will be followed by a callback with `ARM_UC_MM_RC_DONE`. Errors may be returned synchronously or
  * asynchronously.
  *
  * The caller should wait for a callback via the function pointer provided in `manifest_manager_init()`. If the event
@@ -152,14 +152,14 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfo(arm_uc_mmContext_t **ctx, struct manif
  *
  * @param[in]  ID a handle for the manifest to search. TODO: The manifest manager currently just selects the latest root
  *                manifest.
- * @return     An error code on failure, MFST_ERR_NONE on success, or MFST_ERR_PENDING if the find has not completed.
+ * @return     An error code on failure, ERR_NONE on success, or MFST_ERR_PENDING if the find has not completed.
  */
 // arm_uc_error_t ARM_UC_mmFetchFirmwareInfo(arm_uc_manifest_handle_t* ID);
 
 /**
  * @brief Continues extracting firmware information from a tree of manifests
  * @details `ARM_UC_mmFetchNextFirmwareInfo()` obtains the next firmware information block in a tree of manifests. It
- * always completes asynchronously on success: a return of `MFST_ERR_NONE` will be followed by a callback with
+ * always completes asynchronously on success: a return of `ERR_NONE` will be followed by a callback with
  * `ARM_UC_MM_RC_DONE`.
  *
  * The caller should wait for a callback via the function pointer provided in `manifest_manager_init()`. If the event
@@ -167,7 +167,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfo(arm_uc_mmContext_t **ctx, struct manif
  * `ARM_UC_mmGetFirmwareInfo()`. If the event is `ARM_UC_MM_RC_DONE` then no more firmware info blocks are provided via
  * this root manifest.
  *
- * @return     An error code on failure, MFST_ERR_NONE on success, or MFST_ERR_PENDING if the find has not completed.
+ * @return     An error code on failure, ERR_NONE on success, or MFST_ERR_PENDING if the find has not completed.
  */
 arm_uc_error_t ARM_UC_mmFetchNextFirmwareInfo(struct manifest_firmware_info_t *info);
 
@@ -189,7 +189,7 @@ arm_uc_error_t ARM_UC_mmGetError(void);
  * extract the manifest URI from the manifest manager using this function.
  *
  * @param[out] uri The buffer where the manifest URI should be stored.
- * @return     An error code on failure or MFST_ERR_NONE on success.
+ * @return     An error code on failure or ERR_NONE on success.
  */
 arm_uc_error_t ARM_UC_mmGetCurrentManifestDependency(arm_uc_buffer_t *uri);
 

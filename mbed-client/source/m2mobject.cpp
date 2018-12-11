@@ -236,7 +236,7 @@ sn_coap_hdr_s* M2MObject::handle_get_request(nsdl_s *nsdl,
     uint32_t data_length = 0;
     if(received_coap_header) {
         // process the GET if we have registered a callback for it
-        if ((operation() & SN_GRS_GET_ALLOWED) != 0) {
+        if ((operation() & M2MBase::GET_ALLOWED) != 0) {
             if(coap_response) {
                 bool content_type_present = false;
                 bool is_content_type_supported = true;
@@ -360,7 +360,7 @@ sn_coap_hdr_s* M2MObject::handle_post_request(nsdl_s *nsdl,
                                       msg_code);
 
     if (received_coap_header) {
-        if ((operation() & SN_GRS_POST_ALLOWED) != 0) {
+        if ((operation() & M2MBase::POST_ALLOWED) != 0) {
             if (received_coap_header->content_format != COAP_CT_NONE) {
                 set_coap_content_type(received_coap_header->content_format);
             }

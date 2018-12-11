@@ -30,9 +30,6 @@ extern "C" {
 *   This file contains the real-time OS APIs that need to be implemented in the platform layer.
 */
 
-#define PAL_SHA256_DEVICE_KEY_SIZE_IN_BYTES 32
-#define PAL_DEVICE_KEY_SIZE_IN_BITS (128)
-#define PAL_DEVICE_KEY_SIZE_IN_BYTES (PAL_DEVICE_KEY_SIZE_IN_BITS / 8)
 
 
 /*! Initiate a system reboot.
@@ -262,17 +259,7 @@ void *pal_plat_malloc(size_t len);
 *
 * \returns `void`
 */
- void pal_plat_free(void * buffer);
-
-/*! Generate a random number into the given buffer with the given size in bytes.
-*
-* @param[out] randomBuf A buffer to hold the generated number.
-* @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
-* @param[out] actualRandomSizeBytes The actual size of the written random data to the output buffer.
-\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
-\note In case the platform was able to provide random data with non-zero size and less than `bufSizeBytes`the function must return `PAL_ERR_RTOS_TRNG_PARTIAL_DATA`
-*/
-palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
+void pal_plat_free(void * buffer);
 
 
 /*! Retrieve platform Root of Trust certificate
@@ -323,4 +310,4 @@ palStatus_t pal_plat_rtcInit(void);
 #ifdef __cplusplus
 }
 #endif
-#endif //_PAL_COMMON_H
+#endif //_PAL_PLAT_RTOS_H

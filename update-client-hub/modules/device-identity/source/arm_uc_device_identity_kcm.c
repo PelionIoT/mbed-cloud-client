@@ -64,8 +64,7 @@ static arm_uc_error_t pal_kcm_internal_get_guid(arm_uc_guid_t *guid,
                                                 const char *key,
                                                 size_t key_length)
 {
-    arm_uc_error_t result = { .module = TWO_CC('D', 'I'), .error = ERR_INVALID_PARAMETER };
-
+    arm_uc_error_t result = (arm_uc_error_t){ARM_UC_DI_ERR_INVALID_PARAMETER};
     if (guid && key) {
         uint8_t buffer[SIZE_OF_GUID] = { 0 };
         size_t value_length = 0;
@@ -292,7 +291,7 @@ arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t *vendor_buffer,
         - vendor and class and device match
     */
     if ((parameters_set >= 0x10) && (parameters_set == parameters_ok)) {
-        result.code = MFST_ERR_NONE;
+        result.code = ERR_NONE;
     }
 
     return result;

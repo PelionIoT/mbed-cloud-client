@@ -118,4 +118,10 @@ arm_uc_error_t arm_uc_http_socket_fatal_error(arm_ucs_http_event_t error);
  */
 void arm_uc_http_socket_callback(uint32_t unused);
 
+/**
+ * @brief Helper function to cancel resume engine externally
+ * @param unused Unused.
+ */
+void arm_uc_http_socket_end_resume(void);
+
 #endif // __ARM_UC_HTTP_SOCKET_PRIVATE_H__

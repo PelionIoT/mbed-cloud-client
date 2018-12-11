@@ -67,6 +67,8 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
                                                         uint32_t offset);
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURL(arm_uc_uri_t *uri,
                                                    arm_uc_buffer_t *buffer);
+arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetError(void);
+arm_uc_error_t ARM_UCS_LWM2M_SOURCE_SetError(arm_uc_error_t an_error);
 
 
 #ifdef __cplusplus

@@ -333,7 +333,7 @@ private:
      * \brief A utility function to create an M2MSecurity object
      * for registration.
      */
-    void create_register_object();
+    bool create_register_object();
 
     /**
      * \brief A utility function to create an M2MSecurity object
@@ -355,12 +355,6 @@ private:
      * \param security, The Bootstrap certificates.
      */
     ccs_status_e set_bootstrap_credentials(M2MSecurity *security);
-
-    /**
-     * \brief A utility function to set the bootstrap address in storage.
-     * \param security, The bootstrap security object containing the address.
-     */
-    ccs_status_e store_bootstrap_address(M2MSecurity *security);
 
     /**
      * \brief A utility function to check whether bootstrap credentials are stored in KCM.

@@ -115,6 +115,10 @@ arm_uc_error_t arm_uc_pal_linux_internal_read_installer(arm_uc_installer_details
 arm_uc_error_t arm_uc_pal_linux_internal_write_header(uint32_t *location,
                                                       const arm_uc_firmware_details_t *details);
 
+/* write manifest */
+arm_uc_error_t arm_uc_pal_linux_internal_write_manifest(uint32_t *location,
+                                                        const arm_uc_buffer_t *manifest);
+
 /* read file */
 arm_uc_error_t arm_uc_pal_linux_internal_read(const char *file_path,
                                               uint32_t offset,

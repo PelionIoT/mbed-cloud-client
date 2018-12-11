@@ -45,6 +45,18 @@
 #include <stdbool.h>
 #include "update-client-source-http/arm_uc_source_http_extra.h"
 
+// TRACE.
+// ------
+
+// to disable extra trace, uncomment UC_SRCE_TRACE_ENTRY/VERBOSE/EXIT(...)
+// or to enable extra trace, uncomment UC_SRCE_TRACE_ENTRY/VERBOSE/EXIT UC_SRCE_TRACE
+#define UC_SRCE_TRACE_ENTRY(...)
+#define UC_SRCE_TRACE_VERBOSE(...)
+#define UC_SRCE_TRACE_EXIT(...)
+//#define UC_SRCE_TRACE_ENTRY UC_SRCE_TRACE
+//#define UC_SRCE_TRACE_VERBOSE UC_SRCE_TRACE
+//#define UC_SRCE_TRACE_EXIT UC_SRCE_TRACE
+
 // DATA & CONFIG.
 // --------------
 
@@ -130,6 +142,11 @@ static inline bool hash_is_zero()
     return result;
 }
 
+static arm_uc_error_t arm_ucs_http_error = {ERR_NONE};
+arm_uc_error_t ARM_UCS_Http_GetError(void) { return arm_ucs_http_error; }
+arm_uc_error_t ARM_UCS_Http_SetError(arm_uc_error_t an_error) { return (arm_ucs_http_error = an_error); }
+
+
 // FORWARD DECLARATIONS.
 // ---------------------
 
@@ -153,15 +170,16 @@ arm_uc_error_t ARM_UCS_Http_Get(arm_uc_uri_t *uri,
  */
 arm_uc_error_t ARM_UCS_Http_SetDefaultManifestURL(arm_uc_uri_t *uri)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
 
     /* check scheme is http */
     if ((uri == NULL) || (uri->scheme != URI_SCHEME_HTTP)) {
+        ARM_UCS_Http_SetError((arm_uc_error_t) {SRCE_ERR_INVALID_PARAMETER});
         return ARM_UC_ERROR(SRCE_ERR_INVALID_PARAMETER);
     } else {
         /* copy pointers to local struct */
         default_config.manifest = *uri;
-        return ARM_UC_ERROR(SRCE_ERR_NONE);
+        return ARM_UC_ERROR(ERR_NONE);
     }
 }
 
@@ -174,11 +192,11 @@ arm_uc_error_t ARM_UCS_Http_SetDefaultManifestURL(arm_uc_uri_t *uri)
  */
 arm_uc_error_t ARM_UCS_Http_SetPollingInterval(uint32_t seconds)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
 
     default_config.interval = seconds;
 
-    return ARM_UC_ERROR(SRCE_ERR_NONE);
+    return ARM_UC_ERROR(ERR_NONE);
 }
 
 /**
@@ -193,6 +211,8 @@ arm_uc_error_t ARM_UCS_Http_SetPollingInterval(uint32_t seconds)
  */
 uint32_t ARM_UCS_Http_CallMultipleTimes(arm_uc_buffer_t *hash_buffer)
 {
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
+
     uint32_t result = default_config.interval;
     time_t unixtime = time(NULL);
     uint32_t elapsed = unixtime - default_config.lastPoll;
@@ -204,7 +224,7 @@ uint32_t ARM_UCS_Http_CallMultipleTimes(arm_uc_buffer_t *hash_buffer)
     }
 
     if (elapsed >= default_config.interval) {
-        UC_SRCE_TRACE("ARM_UCS_Http_CallMultipleTimes");
+        UC_SRCE_TRACE_VERBOSE("%s interval elapsed", __func__);
 
         // poll default URI
         default_config.lastPoll = unixtime;
@@ -241,7 +261,7 @@ ARM_UCS_HTTPSourceExtra_t ARM_UCS_HTTPSourceExtra = {
 
 void ARM_UCS_Http_ProcessHash()
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
 
 #if ARM_UC_SOURCE_MANAGER_TRACE_ENABLE
     printf("hash: ");
@@ -266,6 +286,7 @@ void ARM_UCS_Http_ProcessHash()
 
     /* Request complete, reset state */
     uc_state_reset();
+    arm_uc_http_socket_end_resume();
 
     /* Signal that a new manifest is available if the hash is non-zero
        and different from the last check.
@@ -279,7 +300,7 @@ void ARM_UCS_Http_ProcessHash()
 
 static void ARM_UCS_Http_HTTPEvent(uint32_t event)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
 
     switch (event) {
         /* Hash received, process it */
@@ -356,7 +377,7 @@ static void ARM_UCS_Http_HTTPEvent(uint32_t event)
         break;
 
         default:
-            UC_SRCE_TRACE("Unknown event");
+            UC_SRCE_ERR_MSG("%s Unknown event", __func__);
             break;
     }
 }
@@ -367,7 +388,7 @@ static void ARM_UCS_Http_HTTPEvent(uint32_t event)
  */
 uint32_t ARM_UCS_Http_GetVersion(void)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return DRIVER_VER;
 }
 
@@ -377,7 +398,7 @@ uint32_t ARM_UCS_Http_GetVersion(void)
  */
 ARM_SOURCE_CAPABILITIES ARM_UCS_Http_GetCapabilities(void)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
 
     ARM_SOURCE_CAPABILITIES result = {
         .notify = 0,
@@ -412,7 +433,7 @@ ARM_SOURCE_CAPABILITIES ARM_UCS_Http_GetCapabilities(void)
  */
 arm_uc_error_t ARM_UCS_Http_Initialize(ARM_SOURCE_SignalEvent_t cb_event)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     ARM_UC_INIT_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
 
     if (cb_event != NULL) {
@@ -424,9 +445,12 @@ arm_uc_error_t ARM_UCS_Http_Initialize(ARM_SOURCE_SignalEvent_t cb_event)
             &arm_uc_http_socket_context,
             ARM_UCS_Http_HTTPEvent);
 
-        ARM_UC_SET_ERROR(status, SRCE_ERR_NONE);
+        ARM_UC_SET_ERROR(status, ERR_NONE);
     }
     uc_state_reset();
+    if (ARM_UC_IS_ERROR(status)) {
+        ARM_UCS_Http_SetError(status);
+    }
     return status;
 }
 
@@ -436,7 +460,8 @@ arm_uc_error_t ARM_UCS_Http_Initialize(ARM_SOURCE_SignalEvent_t cb_event)
  */
 arm_uc_error_t ARM_UCS_Http_Uninitialize(void)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
+    ARM_UCS_Http_SetError((arm_uc_error_t) {SRCE_ERR_INVALID_PARAMETER});
     return ARM_UC_ERROR(SRCE_ERR_INVALID_PARAMETER);
 }
 
@@ -455,12 +480,15 @@ arm_uc_error_t ARM_UCS_Http_Uninitialize(void)
 arm_uc_error_t ARM_UCS_Http_GetManifestDefaultCost(
     uint32_t *a_cost_p)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     ARM_UC_INIT_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
 
     if (a_cost_p != 0) {
         *a_cost_p = default_config.currentCost;
-        ARM_UC_SET_ERROR(status, SRCE_ERR_NONE);
+        ARM_UC_SET_ERROR(status, ERR_NONE);
+    }
+    if (ARM_UC_IS_ERROR(status)) {
+        ARM_UCS_Http_SetError(status);
     }
     return status;
 }
@@ -478,17 +506,20 @@ arm_uc_error_t ARM_UCS_Http_GetCost(
     arm_uc_uri_t *a_uri_p,
     uint32_t *a_cost_p)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     ARM_UC_INIT_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
 
     /* return default cost regardless of actual uri location */
     if ((a_uri_p != NULL) && (a_cost_p != NULL)) {
         *a_cost_p = default_config.currentCost;
-        ARM_UC_SET_ERROR(status, SRCE_ERR_NONE);
+        ARM_UC_SET_ERROR(status, ERR_NONE);
     }
     /* return no-path cost if URL is invalid */
     else if (a_cost_p != NULL) {
         *a_cost_p = 0xFFFFFFFF;
+    }
+    if (ARM_UC_IS_ERROR(status)) {
+        ARM_UCS_Http_SetError(status);
     }
     return status;
 }
@@ -504,7 +535,7 @@ arm_uc_error_t ARM_UCS_Http_GetCost(
  */
 arm_uc_error_t ARM_UCS_Http_GetManifestURLCost(arm_uc_uri_t *uri, uint32_t *cost)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return ARM_UCS_Http_GetCost(uri, cost);
 }
 
@@ -520,7 +551,7 @@ arm_uc_error_t ARM_UCS_Http_GetManifestURLCost(arm_uc_uri_t *uri, uint32_t *cost
  */
 arm_uc_error_t ARM_UCS_Http_GetFirmwareURLCost(arm_uc_uri_t *uri, uint32_t *cost)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return ARM_UCS_Http_GetCost(uri, cost);
 }
 
@@ -536,7 +567,7 @@ arm_uc_error_t ARM_UCS_Http_GetFirmwareURLCost(arm_uc_uri_t *uri, uint32_t *cost
  */
 arm_uc_error_t ARM_UCS_Http_GetKeytableURLCost(arm_uc_uri_t *uri, uint32_t *cost)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return ARM_UCS_Http_GetCost(uri, cost);
 }
 
@@ -557,7 +588,7 @@ arm_uc_error_t ARM_UCS_Http_Get(arm_uc_uri_t *uri,
                                 uint32_t offset,
                                 arm_ucs_http_state_t newHttpState)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     ARM_UC_INIT_ERROR(status, SRCE_ERR_INVALID_PARAMETER);
 
     // Call the socket layer to get the requested data
@@ -608,6 +639,9 @@ arm_uc_error_t ARM_UCS_Http_Get(arm_uc_uri_t *uri,
     if (ARM_UC_IS_ERROR(status)) {
         uc_state_reset();
     }
+    if (ARM_UC_IS_ERROR(status)) {
+        ARM_UCS_Http_SetError(status);
+    }
     return status;
 }
 
@@ -621,7 +655,7 @@ arm_uc_error_t ARM_UCS_Http_Get(arm_uc_uri_t *uri,
  */
 arm_uc_error_t ARM_UCS_Http_GetManifestDefault(arm_uc_buffer_t *buffer, uint32_t offset)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return ARM_UCS_Http_Get(&default_config.manifest, buffer, offset, STATE_UCS_HTTP_MANIFEST);
 }
 
@@ -637,7 +671,7 @@ arm_uc_error_t ARM_UCS_Http_GetManifestDefault(arm_uc_buffer_t *buffer, uint32_t
  */
 arm_uc_error_t ARM_UCS_Http_GetManifestURL(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return ARM_UCS_Http_Get(uri, buffer, offset, STATE_UCS_HTTP_MANIFEST);
 }
 
@@ -653,7 +687,7 @@ arm_uc_error_t ARM_UCS_Http_GetManifestURL(arm_uc_uri_t *uri, arm_uc_buffer_t *b
  */
 arm_uc_error_t ARM_UCS_Http_GetFirmwareFragment(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return ARM_UCS_Http_Get(uri, buffer, offset, STATE_UCS_HTTP_FIRMWARE);
 }
 
@@ -668,7 +702,7 @@ arm_uc_error_t ARM_UCS_Http_GetFirmwareFragment(arm_uc_uri_t *uri, arm_uc_buffer
  */
 arm_uc_error_t ARM_UCS_Http_GetKeytableURL(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer)
 {
-    UC_SRCE_TRACE(">> %s", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     return ARM_UCS_Http_Get(uri, buffer, UINT32_MAX, STATE_UCS_HTTP_KEYTABLE);
 }
 

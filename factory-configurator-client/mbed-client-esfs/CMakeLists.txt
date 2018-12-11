@@ -24,8 +24,6 @@ FILE(
 	GLOB_RECURSE  
 	esfs_src
 	"${CMAKE_CURRENT_SOURCE_DIR}/source/*.c"
-	"${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/source/*.h"
 )
 
 message ( "********************************************************************* ")
@@ -33,6 +31,23 @@ message ("esfs_src = [[${esfs_src}]]")
 message ( "********************************************************************* ")
 
 CREATE_LIBRARY(esfs "${esfs_src}" "")
+
+add_dependencies(esfs pal)
+target_link_libraries(esfs pal)
+
+# Create own library for SOTP features
+FILE(
+	GLOB_RECURSE  
+	sotp_src
+	"${CMAKE_CURRENT_SOURCE_DIR}/source/sotp/*.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/source/sotp/*.h"
+)
+
+message ( "********************************************************************* ")
+message ("sotp_src = [[${sotp_src}]]")
+message ( "********************************************************************* ")
+
+CREATE_LIBRARY(sotp "${sotp_src}" "")
 
 
 if(DEFINED ENV{ESFS_TESTS_ENABLED})
@@ -70,6 +85,6 @@ set (ESFS_TEST_FLAGS
 )	
 
 CREATE_TEST_LIBRARY(esfs_tests "${esfs_test_src}" "${ESFS_TEST_FLAGS}")
-ADD_DEPENDENCIES(esfs_tests esfs)
+ADD_DEPENDENCIES(esfs_tests esfs platformCommon)
 
 endif()

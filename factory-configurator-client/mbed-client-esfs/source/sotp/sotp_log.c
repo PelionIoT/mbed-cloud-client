@@ -64,7 +64,7 @@ void sotp_log_init(void)
 // Return   : None.
 void sotp_log_create(char *fmt, ...)
 {
-    int thr = pal_osThreadGetId();
+    int thr = 0;
     sotp_thr_log_t *thr_log = &thr_logs[thr];
     sotp_log_entry_t *entry;
     uint32_t entry_ind;
@@ -96,7 +96,7 @@ void sotp_log_create(char *fmt, ...)
 // Return   : None.
 void sotp_log_append(char *fmt, ...)
 {
-    int thr = pal_osThreadGetId();
+    int thr = 0;
     sotp_thr_log_t *thr_log = &thr_logs[thr];
     sotp_log_entry_t *entry;
     uint32_t entry_ind;
@@ -111,6 +111,7 @@ void sotp_log_append(char *fmt, ...)
     va_start(args, fmt);
     vsnprintf(entry->line + strlen(entry->line), LINE_SIZE-strlen(entry->line), fmt, args);
     va_end(args);
+
 }
 
 // Finalize an SOTP log entry.
@@ -118,7 +119,7 @@ void sotp_log_append(char *fmt, ...)
 // Return   : None.
 void sotp_log_finalize(void)
 {
-    int thr = pal_osThreadGetId();
+    int thr = 0;
     sotp_thr_log_t *thr_log = &thr_logs[thr];
     sotp_log_entry_t *entry;
     uint32_t entry_ind;

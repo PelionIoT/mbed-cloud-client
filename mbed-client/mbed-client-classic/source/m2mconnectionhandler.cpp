@@ -88,3 +88,8 @@ void M2MConnectionHandler::force_close()
 {
     _private_impl->force_close();
 }
+
+void M2MConnectionHandler::unregister_network_handler()
+{
+    _private_impl->unregister_network_handler();
+}

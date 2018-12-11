@@ -23,10 +23,21 @@
   */
 
 
-//!< Number partitions on SD card used by PAL File System;
+//!< Number partitions on SD card used by PAL File System
 #ifndef PAL_NUMBER_OF_PARTITIONS
+
+// if no partition setup given, get the default from system configuration
+#include "ffconf.h"
+
+#if _MULTI_PARTITION
     #define PAL_NUMBER_OF_PARTITIONS 1
+#else
+    #define PAL_NUMBER_OF_PARTITIONS 0
 #endif
+#endif
+
+// On ChaN/FAT the mount point states the physical drive directly if multi-partition is not enabled.
+// 2 equals to SDDISK and RAMDISK to 0.
 
 //!< Mount point for primary file system partition
 #ifndef PAL_FS_MOUNT_POINT_PRIMARY

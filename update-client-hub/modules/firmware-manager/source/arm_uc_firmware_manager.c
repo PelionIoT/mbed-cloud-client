@@ -170,7 +170,7 @@ static void arm_uc_internal_process_hash(void)
             }
         } else {
             /* invert status code so that it has to be set explicitly for success */
-            status.code = ERR_INVALID_PARAMETER;
+            status.code = FIRM_ERR_INVALID_PARAMETER;
 
             /* finalize hash calculation */
             uint8_t hash_output_ptr[2 * UCFM_MAX_BLOCK_SIZE];
@@ -335,7 +335,7 @@ static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t *configuration,
 {
     UC_FIRM_TRACE("ARM_UCFM_Setup");
 
-    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_NONE };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_NONE };
 
     /* sanity checks */
     if (!ucfm_handler) {
@@ -392,7 +392,11 @@ static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t *configuration,
         package_offset = 0;
         ready_to_receive = true;
     } else {
-        arm_uc_signal_ucfm_handler(UCFM_EVENT_PREPARE_ERROR);
+        if (result.code == PAAL_ERR_FIRMWARE_TOO_LARGE) {
+            arm_uc_signal_ucfm_handler(UCFM_EVENT_FIRMWARE_TOO_LARGE_ERROR);
+        } else {
+            arm_uc_signal_ucfm_handler(UCFM_EVENT_PREPARE_ERROR);
+        }
     }
 
     return result;
@@ -402,7 +406,7 @@ static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t *fragment)
 {
     UC_FIRM_TRACE("ARM_UCFM_Write");
 
-    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_NONE };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_NONE };
 
     if (!fragment || fragment->size_max == 0 || fragment->size > fragment->size_max || !fragment->ptr) {
         result = (arm_uc_error_t) { FIRM_ERR_INVALID_PARAMETER };
@@ -467,7 +471,7 @@ static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t *front, arm_uc_buffer_t 
 {
     UC_FIRM_TRACE("ARM_UCFM_Finish");
 
-    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_NONE };
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_NONE };
 
     if (!ready_to_receive) {
         result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
@@ -476,9 +480,12 @@ static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t *front, arm_uc_buffer_t 
                (back != NULL && ((back->size_max % ARM_UC_SHA256_SIZE) != 0))) {
         result = (arm_uc_error_t) { FIRM_ERR_INVALID_PARAMETER };
     } else {
-        /* flush decryption buffer, discard data */
-        ARM_UC_cryptoDecryptFinish(&cipherHandle, front);
-        memset(&cipherHandle, 0, sizeof(arm_uc_cipherHandle_t));
+
+        if (package_configuration->mode != UCFM_MODE_NONE_SHA_256) {
+            /* flush decryption buffer, discard data */
+            ARM_UC_cryptoDecryptFinish(&cipherHandle, front);
+            memset(&cipherHandle, 0, sizeof(arm_uc_cipherHandle_t));
+        }
 
         /* save buffers, checking if the buffers actually exist */
         front_buffer = front;

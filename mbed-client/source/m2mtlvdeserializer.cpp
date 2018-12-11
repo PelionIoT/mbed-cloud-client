@@ -197,7 +197,7 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resources(const uint8_
                         (*it)->clear_value();
                     }
                     break;
-                } else if(0 == ((*it)->operation() & SN_GRS_PUT_ALLOWED)) {
+                } else if(0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
                     tr_debug("M2MTLVDeserializer::deserialize_resources() - NOT_ALLOWED");
                     error = M2MTLVDeserializer::NotAllowed;
                     break;
@@ -275,7 +275,7 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
                         (*it)->clear_value();
                     }
                     break;
-                } else if(0 == ((*it)->operation() & SN_GRS_PUT_ALLOWED)) {
+                } else if(0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
                     error = M2MTLVDeserializer::NotAllowed;
                     break;
                 }
@@ -339,7 +339,7 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
                         (*it)->clear_value();
                     }
                     break;
-                } else if(0 == ((*it)->operation() & SN_GRS_PUT_ALLOWED)) {
+                } else if(0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
                     error = M2MTLVDeserializer::NotAllowed;
                     break;
                 }

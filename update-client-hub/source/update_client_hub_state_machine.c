@@ -32,6 +32,12 @@
 
 #include <inttypes.h>
 
+// Rootless update, stage 1: manifest must be written to a file. Include the
+// header of the WriteManifest API
+#if defined(ARM_UC_FEATURE_ROOTLESS_STAGE_1) && (ARM_UC_FEATURE_ROOTLESS_STAGE_1 == 1)
+#include "update-client-pal-linux/arm_uc_pal_linux_ext.h"
+#endif // ARM_UC_FEATURE_ROOTLESS_STAGE_1
+
 /*****************************************************************************/
 /* Global variables                                                          */
 /*****************************************************************************/
@@ -304,10 +310,10 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             /* Idle                                                          */
             /*****************************************************************/
             case ARM_UC_HUB_STATE_IDLE:
-                UC_HUB_TRACE("ARM_UC_MONITOR_STATE_IDLE");
+                UC_HUB_TRACE("ARM_UC_UPDATE_STATE_IDLE");
 
                 /* signal monitor that device has entered IDLE state */
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_IDLE);
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_IDLE);
 
                 /* signal that the Hub is initialized if needed */
                 if (!init_cb_called) {
@@ -352,7 +358,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_MANIFEST_INSERT_DONE:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_MANIFEST_INSERT_DONE");
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_PROCESSING_MANIFEST);
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_PROCESSING_MANIFEST);
                 new_state = ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE;
                 break;
 
@@ -501,7 +507,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* Signal control center */
                 ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_DOWNLOAD);
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_AWAITING_DOWNLOAD_APPROVAL);
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_AWAITING_DOWNLOAD_APPROVAL);
 
                 /* Set new state */
                 new_state = ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION;
@@ -591,8 +597,8 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_FIRMWARE_SETUP_DONE:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_FIRMWARE_SETUP_DONE");
                 /* set state to Downloading after setup has been done */
-                UC_HUB_TRACE("Setting Monitor State: ARM_UC_MONITOR_STATE_DOWNLOADING");
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_DOWNLOADING);
+                UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_DOWNLOADING_UPDATE");
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADING_UPDATE);
                 new_state = ARM_UC_HUB_STATE_AWAIT_FIRMWARE_MONITOR_REPORT_DONE;
                 break;
 
@@ -609,8 +615,8 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 */
                 if (fwinfo.size == 0) {
                     UC_HUB_TRACE("Firmware empty, skip download phase and finalize");
-                    UC_HUB_TRACE("Setting Monitor State: ARM_UC_MONITOR_STATE_DOWNLOADED");
-                    ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_DOWNLOADED);
+                    UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE");
+                    ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE);
                     new_state = ARM_UC_HUB_STATE_FINALIZE_STORAGE;
                 } else {
                     UC_HUB_TRACE("loading %" PRIu32 " byte first fragment at %" PRIu32,
@@ -676,8 +682,8 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE");
 
                 /* set state to downloaded when the full size of the firmware has been fetched. */
-                UC_HUB_TRACE("Setting Monitor State: ARM_UC_MONITOR_STATE_DOWNLOADED");
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_DOWNLOADED);
+                UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE");
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE);
                 new_state = ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_MONITOR_REPORT_DONE;
                 break;
 
@@ -698,6 +704,22 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_STORAGE_FINALIZED:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_STORAGE_FINALIZED");
 
+#if defined(ARM_UC_FEATURE_ROOTLESS_STAGE_1) && (ARM_UC_FEATURE_ROOTLESS_STAGE_1 == 1)
+                {
+                    /* the manifest must be saved in a file, because it will be used later
+                    by the second stage of the update client */
+                    arm_uc_buffer_t manifest_buffer = {
+                        .size_max = fwinfo.manifestSize,
+                        .size = fwinfo.manifestSize,
+                        .ptr = fwinfo.manifestBuffer
+                    };
+
+                    retval = ARM_UC_PAL_Linux_WriteManifest(arm_uc_hub_firmware_config.package_id,
+                                                            &manifest_buffer);
+                    HANDLE_ERROR(retval, "Uanble to write manifest to file system");
+                }
+#endif
+
                 /* Signal control center */
                 ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_INSTALL);
 
@@ -707,14 +729,14 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION");
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_AWAITING_APP_APPROVAL);
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_AWAITING_INSTALL_APPROVAL);
                 break;
 
             case ARM_UC_HUB_STATE_INSTALL_AUTHORIZED:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_INSTALL_AUTHORIZED");
 
-                UC_HUB_TRACE("Setting Monitor State: ARM_UC_MONITOR_STATE_UPDATING");
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_UPDATING);
+                UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_INSTALLING_UPDATE");
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_INSTALLING_UPDATE);
 
                 /* TODO: set timeout on ReportState before relying on callback to progress state machine */
                 break;
@@ -730,7 +752,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_PREP_REBOOT:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_PREP_REBOOT");
 
-                ARM_UC_ControlCenter_ReportState(ARM_UC_MONITOR_STATE_REBOOTING);
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_REBOOTING);
                 break;
 
             case ARM_UC_HUB_STATE_REBOOT:

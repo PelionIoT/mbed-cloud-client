@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-#ifndef USE_TINY_CBOR
 #include "fcc_bundle_utils.h"
 #include "fcc_bundle_handler.h"
 #include "fcc_malloc.h"
@@ -343,4 +342,3 @@ SetError:
 
     return fcc_status;
 }
-#endif

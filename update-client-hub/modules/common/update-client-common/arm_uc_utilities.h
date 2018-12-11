@@ -156,7 +156,7 @@ static inline void ARM_UC_buffer_shallow_copy(arm_uc_buffer_t *dest, arm_uc_buff
  * @param[in] src Pointer to a buffer that references the data to copy into the destination memory
  * @retval MFST_ERR_SIZE when the source size is larger than the destination's maximum size
  * @retval MFST_ERR_NULL_PTR when any expected pointer is NULL
- * @retval MFST_ERR_NONE on success
+ * @retval ERR_NONE on success
  */
 static inline arm_uc_error_t ARM_UC_buffer_deep_copy(arm_uc_buffer_t *dest, arm_uc_buffer_t *src)
 {

@@ -287,6 +287,25 @@ public:
     */
     virtual bool set_uri_query_parameters(const char *uri_query_params);
 
+    /**
+     * \brief Pauses client's timed functionality and closes network connection
+     * to the Cloud. After successful call the operation is continued
+     * by calling resume().
+     *
+     * \note This operation does not unregister client from the Cloud.
+     * Closes the socket and removes interface from the interface list.
+     */
+    virtual void pause();
+
+    /**
+     * \brief Resumes client's timed functionality and network connection
+     * to the Cloud. Updates registration. Can be only called after
+     * a successful call to pause().
+     *
+     * \param iface A handler to the network interface.
+     */
+    virtual void resume(void *iface, const M2MBaseList &list);
+
 protected: // From M2MNsdlObserver
 
     virtual void coap_message_ready(uint8_t *data_ptr,

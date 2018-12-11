@@ -32,6 +32,81 @@
 #define RANDOM_PORT_MIN 1024
 #define RANDOM_PORT_MAX 65535
 
+#define FTCD_SEM_TIMEOUT ( (_rcv_timeout == INFINITE_SOCKET_TIMEOUT) ? (PAL_RTOS_WAIT_FOREVER) : (_rcv_timeout) )
+
+// Cabllback triggered by socket events
+// Non-blocking async sockets are used with blocking wrappers that wait on _async_sem.
+// This callback signals the waiting semaphore in the blocking wrappers
+
+// We must be sure that we do not have a situations where sem is being waited and then 2 releases prior to the next wait:
+
+
+/* Scenario 1 (All according to plan)
+************************************************************************************************************************************************************************************************************************************************************************************
+Network thread/threads: ----------------------------------------------_socket_event_ready_cb -> take _lock -> signal (release) _aync_sem=1 ----------------------------------------------------------- _socket_event_ready_cb -> take _lock -> signal (release) _aync_sem=1
+
+
+
+application thread:     _wait_for_socket_event (on _async_sem=0) --------------------------------------------------------------------------_aync_sem=0------- release _lock ------------- _wait_for_socket_event --------------------------------------------------------------->>>
+************************************************************************************************************************************************************************************************************************************************************************************
+*/
+
+/* Scenario 2 (Event signals _async_sem before release _lock in _wait_for_socket_event)
+************************************************************************************************************************************************************************************************************************************************************************************
+Network thread/threads: ----------------------------------------------_socket_event_ready_cb -> take _lock -> signal (release) _aync_sem=1 ---- _socket_event_ready_cb -> ----try to take _lock and fail (locked)-------------------------------------------------------------------
+
+
+
+application thread:     _wait_for_socket_event (on _async_sem=0) --------------------------------------------------------------------------_aync_sem=0--------------------------------------------------------- release _lock ------next action attempt and probably fail---- _wait_for_socket_event (block)-->>>
+************************************************************************************************************************************************************************************************************************************************************************************
+*/
+
+/* Scenario 3 (Multiple events are invoked before _wait_for_socket_event() stops blocking)
+************************************************************************************************************************************************************************************************************************************************************************************
+Network thread/threads: ----------------------------------------------_socket_event_ready_cb -> take _lock -> signal (release) _aync_sem=1 ---- _socket_event_ready_cb -> try to take _lock and fail (locked) ------------------------------------
+
+
+
+application thread:     _wait_for_socket_event (on _async_sem=0) ---------------------------------------------------------------------------------------------------------------------------------------_aync_sem=0--release _lock---------next action attempt and probably succeed (2nd event)-->>>
+************************************************************************************************************************************************************************************************************************************************************************************
+*/
+
+
+
+void FtcdCommSocket::_socket_event_ready_cb(void *socket_obj)
+{
+    palStatus_t pal_status;
+    // No need for NULL check, we pass a valid pointer
+    FtcdCommSocket *obj = static_cast<FtcdCommSocket *>(socket_obj);
+    // Do not print log, may be called from ISR
+
+    // First lock - this prevents a scenario where sem count is greater then n (1 in our case) which is undefined behavior
+    pal_status = pal_osSemaphoreWait(obj->_lock, 0, NULL);
+
+    // If lock is taken by another thread - do not signal _async_sem because its count is 1. 
+    // This scenario will happen if _socket_event_ready_cb() is triggered twice, before _lock is released in _wait_for_socket_event()
+    // No need to signal _async_sem because it is already free
+    // Note that our blocking wrappers first try to do the operation, and then block until an event occurs
+    if (pal_status != PAL_SUCCESS) { 
+        return;
+    }
+
+    // After we take the lock, we may signal sem
+    (void)pal_osSemaphoreRelease(obj->_async_sem);
+}
+
+palStatus_t FtcdCommSocket::_wait_for_socket_event()
+{
+    palStatus_t pal_status;
+    // Wait for signal from a new event, signaled by _socket_event_ready_cb()
+    pal_status = pal_osSemaphoreWait(_async_sem, FTCD_SEM_TIMEOUT, NULL);
+
+    // Unlock the lock so that one more signal may be signaled from an event
+    (void)pal_osSemaphoreRelease((palSemaphoreID_t)_lock);
+
+    return pal_status;
+}
+
 FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_e domain, const uint16_t port_num, ftcd_comm_network_endianness_e network_endianness, int32_t timeout)
     : FtcdCommBase(network_endianness, NULL, false)
 {
@@ -45,6 +120,9 @@ FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_
     _server_socket = NULL;
     _client_socket = NULL;
     _connection_state = SOCKET_WAIT_FOR_CONNECTION;
+    (void)pal_osSemaphoreCreate(1, &_async_sem);
+    (void)pal_osSemaphoreCreate(1, &_lock);
+
 }
 
 FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_e domain, const uint16_t port_num, ftcd_comm_network_endianness_e network_endianness, const uint8_t *header_token, bool use_signature, int32_t timeout)
@@ -61,6 +139,8 @@ FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_
     _server_socket = NULL;
     _client_socket = NULL;
     _connection_state = SOCKET_WAIT_FOR_CONNECTION;
+    (void)pal_osSemaphoreCreate(1, &_async_sem);
+    (void)pal_osSemaphoreCreate(1, &_lock);
 }
 
 FtcdCommSocket::~FtcdCommSocket()
@@ -179,6 +259,38 @@ void FtcdCommSocket::finish(void)
     pal_destroy();
 }
 
+
+/* 
+ There are 2 possible scenarios where _accept() is called:
+ 1. Very likely: sem=1 -> _listen(), sem=0 -> create socket -> _accept(), sem=0(block) -> _socket_event_ready_cb(), sem=1 -> accept() resumes, sem=0 -> nonblocking pal_accept()
+ 2. Very unlikely: sem=1 -> _listen(), sem=0 -> create socket -> _socket_event_ready_cb(), sem=1 -> _accept() never blocks, sem=0 -> nonblocking pal_accept()
+*/
+palStatus_t FtcdCommSocket::_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
+{
+    palStatus_t pal_status, result;
+
+    while (true) {
+        pal_status = pal_accept(socket, address, addressLen, acceptedSocket);
+        if (pal_status == PAL_ERR_SOCKET_WOULD_BLOCK) { // Async socket has no connection to accept - wait on semaphore and try again
+            pal_status = _wait_for_socket_event();
+            if (pal_status == PAL_ERR_RTOS_TIMEOUT) { // Semaphore timeout means no event was triggered for _rcv_timeout ms so we return a WOULDBLOCK error according to blocking socket convention
+                result = PAL_ERR_SOCKET_WOULD_BLOCK;
+                break;
+            } else if (pal_status != PAL_SUCCESS){ // Should not happen - some unknown semaphore error
+                result = pal_status;
+                break;
+            }
+            // else: Semaphore signaled by event try accepting again
+
+        } else { // Either success, or error other than PAL_ERR_SOCKET_WOULD_BLOCK, return the status
+            result = pal_status;
+            break;
+        }
+    }
+                    
+    return result;
+}
+
 // no_open_connection, connection_open, connection_open_timeout
 ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint32_t *message_size_out)
 {
@@ -193,7 +305,7 @@ ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint3
 
         if (_connection_state == SOCKET_WAIT_FOR_CONNECTION) {
             // wait to accept connection
-            result = pal_accept(_server_socket, &address, &addrlen, &_client_socket);
+            result = _accept(_server_socket, &address, &addrlen, &_client_socket);
             if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
                 // Timeout
                 return FTCD_COMM_NETWORK_TIMEOUT;
@@ -297,6 +409,25 @@ bool FtcdCommSocket::read_message_signature(uint8_t *sig, size_t sig_size)
     return true;
 }
 
+#define MS_BETWEEN_SOCKET_SEND_RETRIES 500
+palStatus_t FtcdCommSocket::_send(palSocket_t socket, const void* buf, size_t len, size_t* sentDataSize)
+{
+    palStatus_t result = PAL_SUCCESS;
+    
+    // in blocking mode (linux socket) - pal_send will block until the buffer is copied into the kernel's networking stack buffer
+    // In our case, non-blocking (linux socket) - will return a EWOULDBLOCK error if the kernel's buffer, so we will wait and retry (should work on first try)
+
+    while (true) {
+        result = pal_send(socket, buf, len, sentDataSize);
+        if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
+            pal_osDelay(MS_BETWEEN_SOCKET_SEND_RETRIES);
+        } else { // If any other error, or success - return the status
+            break;
+        }
+    }
+
+    return result;
+}
 
 bool FtcdCommSocket::send(const uint8_t *data, uint32_t data_size)
 {
@@ -309,7 +440,7 @@ bool FtcdCommSocket::send(const uint8_t *data, uint32_t data_size)
         if (_connection_state != SOCKET_CONNECTION_ACCEPTED) {
             return FTCD_COMM_NETWORK_CONNECTION_CLOSED;
         }
-        result = pal_send(_client_socket, data, remaind_bytes, &sent_bytes);
+        result = _send(_client_socket, data, remaind_bytes, &sent_bytes);
         if (result != PAL_SUCCESS) {
             // Drop current client for all errors
             _connection_state = SOCKET_WAIT_FOR_CONNECTION;
@@ -350,14 +481,22 @@ bool FtcdCommSocket::_listen(void)
         return false;
     }
 
+    // Decrement sem count to 0 prior to socket creation. This assures that no socket async event may occur while sem=1 (the initial value)
+    // Following call to pal_osSemaphoreWait will block
+    result = pal_osSemaphoreWait(_async_sem, PAL_RTOS_WAIT_FOREVER, NULL);
+    if (PAL_SUCCESS != result) {
+        return false;
+    }
+
     //Open server and client sockets
-    result = pal_socket((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM_SERVER, false, _interface_index, &_server_socket);
+    result = pal_asynchronousSocketWithArgument((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM_SERVER, true, _interface_index, _socket_event_ready_cb, (void*)this, &_server_socket);
     if (result != PAL_SUCCESS) {
         mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
         return false;
     }
 
-    result = pal_socket((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM, false, _interface_index, &_client_socket);
+    result = pal_asynchronousSocketWithArgument((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM, true, _interface_index, _socket_event_ready_cb, (void*)this, &_client_socket);
+
     if (result != PAL_SUCCESS) {
         mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
         return false;
@@ -418,6 +557,32 @@ bool FtcdCommSocket::_listen(void)
     return true;
 }
 
+palStatus_t FtcdCommSocket::_recv(palSocket_t socket, void* buf, size_t len, size_t* recievedDataSize)
+{
+    palStatus_t pal_status, result;
+
+    while (true) {
+        pal_status = pal_recv(socket, buf, len, recievedDataSize);
+        if (pal_status == PAL_ERR_SOCKET_WOULD_BLOCK) { // // The event was not a receive event - wait for next one
+            pal_status = _wait_for_socket_event();
+            if (pal_status == PAL_ERR_RTOS_TIMEOUT) { // Semaphore timeout means no event was triggered for _rcv_timeout ms so we return a WOULDBLOCK error according to blocking socket convention
+                result = PAL_ERR_SOCKET_WOULD_BLOCK;
+                break;
+            } else if (pal_status != PAL_SUCCESS) { // Should not happen - some unknown semaphore error
+                result = pal_status;
+                break;
+            }
+            // else: Semaphore signaled by event try receiving again
+
+        } else { // Either success, or error other than PAL_ERR_SOCKET_WOULD_BLOCK, return the status
+            result = pal_status;
+            break;
+        }
+    }
+
+    return result;
+
+}
 
 ftcd_comm_status_e FtcdCommSocket::_read_from_socket(void * data_out, int data_out_size)
 {
@@ -430,7 +595,7 @@ ftcd_comm_status_e FtcdCommSocket::_read_from_socket(void * data_out, int data_o
             return FTCD_COMM_NETWORK_CONNECTION_CLOSED;
         }
         bytes_received = 0;
-        pal_status = pal_recv(_client_socket, buffer, left_to_read, &bytes_received);
+        pal_status = _recv(_client_socket, buffer, left_to_read, &bytes_received);
         if (pal_status == PAL_ERR_SOCKET_CONNECTION_CLOSED) {
             // Drop current client
             _connection_state = SOCKET_WAIT_FOR_CONNECTION;
@@ -452,5 +617,4 @@ ftcd_comm_status_e FtcdCommSocket::_read_from_socket(void * data_out, int data_o
 
     return FTCD_COMM_STATUS_SUCCESS;
 }
-
 

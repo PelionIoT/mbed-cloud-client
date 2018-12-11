@@ -39,16 +39,18 @@ public:
      */
     typedef enum {
         ERROR_NONE = 0,
-        CONNECTION_ERROR_WANTS_READ = -1000,
-        CONNECTION_ERROR_WANTS_WRITE = -1001,
-        SSL_PEER_CLOSE_NOTIFY = -1002,
-        MEMORY_ALLOCATION_FAILED = -1003,
-        SSL_CONNECTION_ERROR = -1004,
-        SOCKET_READ_ERROR = -1005,
-        SOCKET_SEND_ERROR = -1006,
-        SOCKET_ABORT = -1007,
-        DNS_RESOLVING_ERROR = -1008,
-        SSL_HANDSHAKE_ERROR = -1009
+        ERROR_GENERIC = -1,
+        CONNECTION_ERROR_WANTS_READ = -2,
+        CONNECTION_ERROR_WANTS_WRITE = -3,
+        SSL_PEER_CLOSE_NOTIFY = -4,
+        MEMORY_ALLOCATION_FAILED = -5,
+        SSL_CONNECTION_ERROR = -6,
+        SOCKET_READ_ERROR = -7,
+        SOCKET_SEND_ERROR = -8,
+        SOCKET_ABORT = -9,
+        DNS_RESOLVING_ERROR = -10,
+        SSL_HANDSHAKE_ERROR = -11,
+        FAILED_TO_READ_CREDENTIALS = -12,
     } ConnectionError;
 
 public:
@@ -142,6 +144,11 @@ public:
     * in multithreaded environment.
     */
     void release_mutex();
+
+    /**
+     * \brief Unregisters the network interface handler that is set in 'set_platform_network_handler'.
+     */
+    void unregister_network_handler();
 
 private:
 

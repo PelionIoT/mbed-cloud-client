@@ -317,7 +317,7 @@ sn_coap_hdr_s* M2MResource::handle_get_request(nsdl_s *nsdl,
                                                msg_code);
         if(received_coap_header) {
             // process the GET if we have registered a callback for it
-            if ((operation() & SN_GRS_GET_ALLOWED) != 0) {
+            if ((operation() & M2MBase::GET_ALLOWED) != 0) {
                 if(coap_response) {
                     bool content_type_present = false;
                     bool is_content_type_supported = true;
@@ -423,7 +423,7 @@ sn_coap_hdr_s* M2MResource::handle_put_request(nsdl_s *nsdl,
                     }
                     free(query);
                 }
-            } else if ((operation() & SN_GRS_PUT_ALLOWED) != 0) {
+            } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {
                 if(!content_type_present &&
                    (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
                     M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
@@ -504,7 +504,7 @@ sn_coap_hdr_s* M2MResource::handle_post_request(nsdl_s *nsdl,
 
     // process the POST if we have registered a callback for it
     if(received_coap_header) {
-        if ((operation() & SN_GRS_POST_ALLOWED) != 0) {
+        if ((operation() & M2MBase::POST_ALLOWED) != 0) {
 #ifndef MEMORY_OPTIMIZED_API
             const String &obj_name = object_name();
             const String &res_name = name();

@@ -421,6 +421,11 @@ public:
     */
     void set_request_context_to_be_resend(uint8_t *token, uint8_t token_len);
 
+    /**
+     * @brief Create a new time when to send CoAP ping.
+    */
+    void calculate_new_coap_ping_send_time();
+
 protected: // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type);
@@ -626,8 +631,6 @@ private:
 
     static char* parse_uri_query_parameters(char* uri);
 
-    void calculate_new_coap_ping_send_time();
-
     void send_coap_ping();
 
     void send_empty_ack(const sn_coap_hdr_s *header, sn_nsdl_addr_s *address);
@@ -657,8 +660,6 @@ private:
                               M2MObjectInstance *&obj_instance,
                               bool is_bootstrap_msg);
 
-    bool is_blockwise_needed(uint32_t length) const;
-
     void set_retransmission_parameters();
 
     void send_pending_request();
@@ -670,6 +671,10 @@ private:
     struct coap_response_s* find_delayed_post_response(const char* uri_path);
 
     void failed_to_send_request(request_context_s *request, const sn_coap_hdr_s *coap_header);
+
+    bool coap_ping_in_process() const;
+
+    void remove_ping_from_response_list();
 
 private:
 

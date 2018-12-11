@@ -30,6 +30,11 @@
 #include "update-client-lwm2m/DeviceMetadataResource.h"
 #include "update-client-common/arm_uc_config.h"
 
+/* error management */
+static arm_uc_error_t arm_ucs_lwm2m_error = {ERR_NONE};
+arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetError(void) { return arm_ucs_lwm2m_error; }
+arm_uc_error_t ARM_UCS_LWM2M_SOURCE_SetError(arm_uc_error_t an_error) { return (arm_ucs_lwm2m_error = an_error); }
+
 /* forward declaration */
 static void ARM_UCS_PackageCallback(const uint8_t *buffer, uint16_t length);
 
@@ -147,9 +152,12 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event
 
         DeviceMetadataResource::Initialize();
 
-        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
+        ARM_UC_SET_ERROR(result, ERR_NONE);
     }
 
+    if (ARM_UC_IS_ERROR(result)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(result);
+    }
     return result;
 }
 
@@ -159,7 +167,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Uninitialize(void)
 {
-    ARM_UC_INIT_ERROR(retval, SRCE_ERR_NONE);
+    ARM_UC_INIT_ERROR(retval, ERR_NONE);
     DeviceMetadataResource::Uninitialize();
     FirmwareUpdateResource::Uninitialize();
 
@@ -189,9 +197,12 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefaultCost(uint32_t *cost)
             *cost = 0xFFFFFFFF;
         }
 
-        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
+        ARM_UC_SET_ERROR(result, ERR_NONE);
     }
 
+    if (ARM_UC_IS_ERROR(result)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(result);
+    }
     return result;
 }
 
@@ -235,7 +246,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefault(arm_uc_buffer_t *buffer,
                 arm_ucs_manifest_length = 0;
             }
 
-            ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
+            ARM_UC_SET_ERROR(result, ERR_NONE);
 
             /* signal event handler that manifest has been copied to buffer */
             if (ARM_UCS_EventHandler) {
@@ -246,6 +257,9 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefault(arm_uc_buffer_t *buffer,
         }
     }
 
+    if (ARM_UC_IS_ERROR(result)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(result);
+    }
     return result;
 }
 
@@ -303,16 +317,19 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareURLCost(arm_uc_uri_t *uri,
     if ((uri != 0) && (cost != 0)) {
         UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareURLCost uri and cost");
         *cost = ARM_UCS_DEFAULT_COST;
-        result.code = SRCE_ERR_NONE ;
+        result.code = ERR_NONE ;
     }
 #else
     /* not supported */
     if (cost != 0) {
         UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareURLCost cost 0xFFFFFFFF");
         *cost = 0xFFFFFFFF;
-        result.code = SRCE_ERR_NONE ;
+        result.code = ERR_NONE ;
     }
 #endif
+    if (ARM_UC_IS_ERROR(result)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(result);
+    }
     return result;
 }
 
@@ -381,7 +398,8 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
     } else if (uri->scheme == URI_SCHEME_HTTP) {
         strcpy(copy_full_url, UC_HTTP_STRING);
     } else {
-        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Not Supported SCHEME! length of copy url: %u",sizeof(copy_full_url));
+        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Not Supported SCHEME! length of copy url: %u",
+                      sizeof(copy_full_url));
         return retval;
     }
     strcat(copy_full_url, (const char *)uri->ptr);
@@ -406,7 +424,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
                                 ARM_UCS_EventHandler,
                                 EVENT_FIRMWARE);
         }
-        retval.code = SRCE_ERR_NONE;
+        retval.code = ERR_NONE;
         arm_uc_received_file_size = 0;
         arm_uc_total_file_size = 0;
     } else if (!arm_uc_get_data_request_transaction_ongoing) {
@@ -425,13 +443,16 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
 
             arm_uc_get_data_request_transaction_ongoing = true;
 
-            retval.code = SRCE_ERR_NONE;
+            retval.code = ERR_NONE;
         }
     } else {
         // There is not enough data in Storage buffer yet
         // AND We have Async get_data_request already ongoing
         // -> Do nothing we should not get here?
         UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: ERROR should not get here!");
+    }
+    if (ARM_UC_IS_ERROR(retval)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(retval);
     }
     return retval;
 #else
@@ -444,7 +465,8 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
 
 #if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
 void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, bool last_block,
-                                  void *context) {
+                                  void *context)
+{
     (void)last_block;
 
     UC_SRCE_TRACE("get_data_req_callback: %" PRIu32 ", %" PRIu32, (uint32_t)buffer_size, (uint32_t)total_size);
@@ -567,7 +589,8 @@ void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, siz
 #endif
 }
 
-void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *context) {
+void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *context)
+{
     UC_SRCE_TRACE("get_data_req_error_callback:  ERROR: %u\n", error_code);
     arm_uc_received_file_size = 0;
     arm_uc_total_file_size = 0;
@@ -598,7 +621,8 @@ void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *c
  * @return Error code.
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURLCost(arm_uc_uri_t *uri,
-                                                       uint32_t *cost) {
+                                                       uint32_t *cost)
+{
     (void) uri;
     (void) cost;
 
@@ -607,9 +631,12 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURLCost(arm_uc_uri_t *uri,
     /* not supported - return default cost regardless of actual uri location */
     if (cost) {
         *cost = 0xFFFFFFFF;
-        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
+        ARM_UC_SET_ERROR(result, ERR_NONE);
     }
 
+    if (ARM_UC_IS_ERROR(result)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(result);
+    }
     return result;
 }
 
@@ -624,7 +651,8 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURLCost(arm_uc_uri_t *uri,
  * @return Error code.
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost(arm_uc_uri_t *uri,
-                                                       uint32_t *cost) {
+                                                       uint32_t *cost)
+{
     (void) uri;
     (void) cost;
 
@@ -633,9 +661,12 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost(arm_uc_uri_t *uri,
     /* not supported - return default cost regardless of actual uri location */
     if ((uri != 0) && (cost != 0)) {
         *cost = 0xFFFFFFFF;
-        ARM_UC_SET_ERROR(result, SRCE_ERR_NONE);
+        ARM_UC_SET_ERROR(result, ERR_NONE);
     }
 
+    if (ARM_UC_IS_ERROR(result)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(result);
+    }
     return result;
 }
 
@@ -651,13 +682,17 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost(arm_uc_uri_t *uri,
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURL(arm_uc_uri_t *uri,
                                                    arm_uc_buffer_t *buffer,
-                                                   uint32_t offset) {
+                                                   uint32_t offset)
+{
     (void) uri;
     (void) buffer;
     (void) offset;
 
     ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
+    if (ARM_UC_IS_ERROR(retval)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(retval);
+    }
     return retval;
 }
 
@@ -671,12 +706,16 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURL(arm_uc_uri_t *uri,
  * @return Error code.
  */
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURL(arm_uc_uri_t *uri,
-                                                   arm_uc_buffer_t *buffer) {
+                                                   arm_uc_buffer_t *buffer)
+{
     (void) uri;
     (void) buffer;
 
     ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
+    if (ARM_UC_IS_ERROR(retval)) {
+        ARM_UCS_LWM2M_SOURCE_SetError(retval);
+    }
     return retval;
 }
 

@@ -14,20 +14,12 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "pal_BSP.h"
-#include "stdio.h"
-
-void palSanityTestMain(void* network);
+#include "test_runners.h"
 
 //create a public wapper to this & reduce this to one line 
 int main(int argc, char * argv[])
 {
-    bspStatus_t status = BSP_SUCCESS;
-    void* context = NULL;
-    status = initPlatform(&context);
-    if (BSP_SUCCESS == status) 
-    {
-        palSanityTestMain(context);      
-    }
-    return status;
+    // actually the tests themselves (which are a NOP) do no need any platform,
+    // but the tracing and other do.
+    return palSanityTestMain(PAL_TEST_PLATFORM_INIT_BASE);
 }

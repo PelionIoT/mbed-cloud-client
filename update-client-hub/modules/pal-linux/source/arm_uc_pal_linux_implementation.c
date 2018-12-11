@@ -19,10 +19,12 @@
 #include "arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
 #if defined(TARGET_IS_PC_LINUX)
+#define _FILE_OFFSET_BITS  64
 
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation_internal.h"
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation.h"
 #include "update-client-paal/arm_uc_paal_update_api.h"
+#include "update-client-pal-linux/arm_uc_pal_linux_ext.h"
 
 #include "update-client-common/arm_uc_trace.h"
 #include "update-client-common/arm_uc_utilities.h"
@@ -216,7 +218,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
                         if (xfer_size == actual_size) {
                             index += actual_size;
                         } else {
-                            result.code = ERR_INVALID_PARAMETER;
+                            result.code = PAAL_ERR_FIRMWARE_TOO_LARGE;
                             break;
                         }
                     }
@@ -316,9 +318,9 @@ arm_uc_error_t ARM_UC_PAL_Linux_Write(uint32_t location,
         /* continue if file is open */
         if (arm_uc_firmware_descriptor != NULL) {
             /* set write position */
-            int status = fseek(arm_uc_firmware_descriptor,
-                               offset,
-                               SEEK_SET);
+            int status = fseeko(arm_uc_firmware_descriptor,
+                                offset,
+                                SEEK_SET);
 
             /* continue if position is set */
             if (status == 0) {
@@ -656,6 +658,18 @@ arm_uc_error_t ARM_UC_PAL_Linux_GetInstallerDetails(arm_uc_installer_details_t *
     }
 
     return result;
+}
+
+/**
+ * @brief Write a manifest to a file.
+ * @param location Storage location ID.
+ * @param buffer Buffer that contains the manifest.
+ * @return Returns ERR_NONE if the manifest was written.
+ *         Returns ERR_INVALID_PARAMETER on error.
+ */
+arm_uc_error_t ARM_UC_PAL_Linux_WriteManifest(uint32_t location, const arm_uc_buffer_t *buffer)
+{
+    return arm_uc_pal_linux_internal_write_manifest(&location, buffer);
 }
 
 #endif /* TARGET_IS_PC_LINUX */

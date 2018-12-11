@@ -283,7 +283,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Prepare(uint32_t slot_id,
                          0) - slot_addr;
 
         if ((result.error == ERR_NONE) && (erase_size > slot_size)) {
-            result.code = ERR_INVALID_PARAMETER;
+            result.code = PAAL_ERR_FIRMWARE_TOO_LARGE;
             UC_PAAL_ERR_MSG("Firmware too large! required %" PRIX32 " available: %" PRIX32,
                             erase_size, slot_size);
         }

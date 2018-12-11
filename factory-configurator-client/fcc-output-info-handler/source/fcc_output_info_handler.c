@@ -20,7 +20,6 @@
 #include "fcc_output_info_handler.h"
 #include "fcc_malloc.h"
 #include "kcm_defs.h"
-#include "fcc_bundle_utils.h"
 
 // Macros for stringizing defines
 #define xstr(a) str(a)

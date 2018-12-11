@@ -64,12 +64,12 @@ const char *ARM_UC_mmGetLatestTsState2Str(uint32_t state)
  * @param[out] ts Pointer to a 64-bit unsigned integer. Contains the largest timestamp encountered when
  *                getLatestManifestTimestampFSM completes.
  * @param[out] key Pointer to a buffer; the location to store the key that contained the largest timestamp.
- * @retval MFST_ERR_NONE Always returns success.
+ * @retval ERR_NONE Always returns success.
  */
 arm_uc_error_t getLatestManifestTimestamp(uint64_t *ts, arm_uc_buffer_t *key)
 {
     *ts = 0;
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 
 /**
@@ -77,11 +77,11 @@ arm_uc_error_t getLatestManifestTimestamp(uint64_t *ts, arm_uc_buffer_t *key)
  * @details Processes through the getLatestManifestTimestamp state machine in response to received events
  *
  * @param[in] event The event which has caused this run through the state machine
- * @retval MFST_ERR_NONE    getLatestManifestTimestampFSM has completed
+ * @retval ERR_NONE    getLatestManifestTimestampFSM has completed
  * @retval MFST_ERR_PENDING getLatestManifestTimestampFSM is still on-going and waiting for an event
  * @return any other error code indicates an error has occurred
  */
 arm_uc_error_t getLatestManifestTimestampFSM(uint32_t event)
 {
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }

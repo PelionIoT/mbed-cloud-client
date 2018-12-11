@@ -29,7 +29,7 @@ static arm_uc_error_t kerr2ucerr(int kerr)
     arm_uc_error_t err;
     switch (kerr) {
         case KCM_STATUS_SUCCESS:
-            err.code = ARM_UC_CM_ERR_NONE;
+            err.code = ERR_NONE;
             break;
         case KCM_STATUS_INVALID_PARAMETER:
             err.code = ARM_UC_CM_ERR_INVALID_PARAMETER;
@@ -133,7 +133,7 @@ static arm_uc_error_t arm_uc_kcm_cert_fetcher(arm_uc_buffer_t *certificate,
                 err.code = ARM_UC_CM_ERR_NOT_FOUND;
             } else {
                 UC_CONT_TRACE("Certificate lookup fingerprint matched.");
-                err.code = ARM_UC_CM_ERR_NONE;
+                err.code = ERR_NONE;
             }
 
             if (callback && (err.error == ERR_NONE)) {
@@ -167,7 +167,7 @@ static arm_uc_error_t arm_uc_kcm_cert_storer(
 
     arm_uc_error_t err = kerr2ucerr(kerr);
 
-    if (callback && (err.code == ARM_UC_CM_ERR_NONE)) {
+    if (callback && (err.code == ERR_NONE)) {
         callback(err, fingerprint);
     }
 

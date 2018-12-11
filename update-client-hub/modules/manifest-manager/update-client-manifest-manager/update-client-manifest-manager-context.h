@@ -256,7 +256,7 @@ static inline arm_uc_mmContext_t *arm_uc_mmBuf2Context(arm_uc_buffer_t *b)
 
 static inline arm_uc_error_t arm_uc_mmContextBufSizeCheck(arm_uc_buffer_t *b)
 {
-    arm_uc_error_t err = { .code = MFST_ERR_NONE };
+    arm_uc_error_t err = { .code = ERR_NONE };
     if (b->size_max < sizeof(arm_uc_mmContext_t)) {
         err.code = MFST_ERR_SIZE;
         return err;

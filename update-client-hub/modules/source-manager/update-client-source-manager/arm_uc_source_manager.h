@@ -29,7 +29,7 @@ typedef enum {
     ARM_UC_SM_EVENT_KEYTABLE,
     ARM_UC_SM_EVENT_ERROR,
     ARM_UC_SM_EVENT_ERROR_SOURCE,
-    ARM_UC_SM_EVENT_ERROR_BUFFER_SIZE
+    ARM_UC_SM_EVENT_ERROR_BUFFER_SIZE,
 } ARM_UC_SM_Event_t;
 
 typedef struct _ARM_UC_SOURCE_MANAGER {
@@ -110,6 +110,10 @@ typedef struct _ARM_UC_SOURCE_MANAGER {
 } ARM_UC_SOURCE_MANAGER_t;
 
 extern ARM_UC_SOURCE_MANAGER_t ARM_UC_SourceManager;
+
+extern arm_uc_error_t ARM_UCSM_GetError(void);
+extern arm_uc_error_t ARM_UCSM_SetError(arm_uc_error_t an_error);
+
 
 /**
  * Usage examples

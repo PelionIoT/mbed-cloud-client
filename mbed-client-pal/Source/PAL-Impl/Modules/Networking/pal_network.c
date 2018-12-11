@@ -30,13 +30,13 @@ typedef struct pal_socketAddressInternal {
     short int          pal_sin_family;  // address family
     unsigned short int pal_sin_port;    // port
     pal_in_addr_t     pal_sin_addr;    // ipv4 address
-    unsigned char      pal_sin_zero[8]; // 
+    unsigned char      pal_sin_zero[8]; //
 } pal_socketAddressInternal_t;
 #endif
 
 #if PAL_SUPPORT_IP_V6
 typedef struct pal_socketAddressInternal6{
-    uint16_t       pal_sin6_family;   // address family, 
+    uint16_t       pal_sin6_family;   // address family,
     uint16_t       pal_sin6_port;     // port number, Network Byte Order
     uint32_t       pal_sin6_flowinfo; // IPv6 flow information
     palIpV6Addr_t pal_sin6_addr;     // IPv6 address
@@ -62,9 +62,15 @@ typedef struct pal_asyncAddressInfo
 palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t* interfaceIndex)
 {
     PAL_VALIDATE_ARGUMENTS((networkInterfaceContext == NULL) || (interfaceIndex == NULL));
-    palStatus_t result = pal_plat_registerNetworkInterface(networkInterfaceContext, interfaceIndex);;
+    palStatus_t result = pal_plat_registerNetworkInterface(networkInterfaceContext, interfaceIndex);
 
     return result;
+}
+
+palStatus_t pal_unregisterNetworkInterface(uint32_t interfaceIndex)
+{
+    PAL_VALIDATE_ARGUMENTS(interfaceIndex > PAL_MAX_SUPORTED_NET_INTERFACES - 1);
+    return pal_plat_unregisterNetworkInterface(interfaceIndex);
 }
 
 palStatus_t pal_setSockAddrPort(palSocketAddress_t* address, uint16_t port)
@@ -131,7 +137,7 @@ palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t* address, palIpV4Ad
 
     return result;
 }
-#else 
+#else
 palStatus_t pal_setSockAddrIPV4Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr)
 {
     return PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
@@ -146,12 +152,12 @@ palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t* address, palIpV4Ad
 
 #if PAL_SUPPORT_IP_V6
 palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Addr_t ipV6Addr)
-{ 
+{
     palStatus_t result = PAL_SUCCESS;
     int index = 0;
     PAL_VALIDATE_ARGUMENTS (NULL == address);
     PAL_VALIDATE_CONDITION_WITH_ERROR((address->addressType != PAL_AF_INET6),PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY);
-   
+
     pal_socketAddressInternal6_t * innerAddr = (pal_socketAddressInternal6_t*)address;
     for (index = 0; index < PAL_IPV6_ADDRESS_SIZE; index++) // TODO: use mem copy?
     {
@@ -236,7 +242,7 @@ palStatus_t pal_socket(palSocketDomain_t domain, palSocketType_t type, bool nonB
 
 palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS (NULL == optionValue);
 
     palStatus_t result = PAL_SUCCESS;
@@ -245,7 +251,7 @@ palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void*
 }
 
 palStatus_t pal_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
-{   
+{
     PAL_VALIDATE_ARGUMENTS (NULL == isNonBlocking);
 
     palStatus_t result = pal_plat_isNonBlocking(socket, isNonBlocking);;
@@ -255,7 +261,7 @@ palStatus_t pal_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 
 palStatus_t pal_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocketLength_t addressLength)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS(NULL == myAddress);
 
     palStatus_t result = PAL_SUCCESS;
@@ -266,18 +272,18 @@ palStatus_t pal_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocke
 
 palStatus_t pal_receiveFrom(palSocket_t socket, void* buffer, size_t length, palSocketAddress_t* from, palSocketLength_t* fromLength, size_t* bytesReceived)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS((NULL == buffer) || (NULL == bytesReceived));
 
     palStatus_t result = PAL_SUCCESS;
     result = pal_plat_receiveFrom(socket,  buffer,  length,  from, fromLength, bytesReceived);
-    return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)    
+    return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
 
 
 palStatus_t pal_sendTo(palSocket_t socket, const void* buffer, size_t length, const palSocketAddress_t* to, palSocketLength_t toLength, size_t* bytesSent)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS((NULL == buffer) || (NULL == bytesSent) || (NULL == to));
 
     palStatus_t result = PAL_SUCCESS;
@@ -288,7 +294,7 @@ palStatus_t pal_sendTo(palSocket_t socket, const void* buffer, size_t length, co
 
 palStatus_t pal_close(palSocket_t* socket)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS(NULL == socket);
 
     palStatus_t result = PAL_SUCCESS;
@@ -299,7 +305,7 @@ palStatus_t pal_close(palSocket_t* socket)
 
 palStatus_t pal_getNumberOfNetInterfaces( uint32_t* numInterfaces)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS(NULL == numInterfaces);
 
     palStatus_t result = PAL_SUCCESS;
@@ -329,7 +335,7 @@ palStatus_t pal_listen(palSocket_t socket, int backlog)
 
 palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS ((NULL == acceptedSocket) || (NULL == address)|| (NULL == addressLen));
 
     palStatus_t result = PAL_SUCCESS;
@@ -343,7 +349,7 @@ palStatus_t pal_connect(palSocket_t socket, const palSocketAddress_t* address, p
     PAL_VALIDATE_ARGUMENTS(NULL == address);
 
     palStatus_t result = PAL_SUCCESS;
-    
+
     result = pal_plat_connect( socket, address, addressLen);
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
@@ -361,7 +367,7 @@ palStatus_t pal_recv(palSocket_t socket, void* buf, size_t len, size_t* recieved
 
 palStatus_t pal_send(palSocket_t socket, const void* buf, size_t len, size_t* sentDataSize)
 {
-    
+
     PAL_VALIDATE_ARGUMENTS((NULL == buf) || (NULL == sentDataSize));
 
     palStatus_t result = PAL_SUCCESS;
@@ -376,7 +382,7 @@ palStatus_t pal_send(palSocket_t socket, const void* buf, size_t len, size_t* se
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
 
 palStatus_t pal_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, palSocket_t* socket)
-{    
+{
     PAL_VALIDATE_ARGUMENTS((NULL == socket) || (NULL == callback));
 
     palStatus_t result = PAL_SUCCESS;
@@ -398,7 +404,7 @@ palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSock
 #if PAL_NET_DNS_SUPPORT
 #if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
 palStatus_t pal_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* addressLength)
-{    
+{
     PAL_VALIDATE_ARGUMENTS ((NULL == url) || (NULL == address) || (NULL == addressLength));
 
     palStatus_t result = PAL_SUCCESS;
@@ -454,10 +460,10 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
 #ifndef TARGET_LIKE_MBED
 #error "PAL_DNS_API_VERSION 2 is only supported with mbed-os"
 #endif
-palStatus_t pal_getAddressInfoAsync(const char* url, 
-                                     palSocketAddress_t* address, 
-                                     palGetAddressInfoAsyncCallback_t callback, 
-                                     void* callbackArgument, 
+palStatus_t pal_getAddressInfoAsync(const char* url,
+                                     palSocketAddress_t* address,
+                                     palGetAddressInfoAsyncCallback_t callback,
+                                     void* callbackArgument,
                                      palDNSQuery_t* queryHandle)
 {
     PAL_VALIDATE_ARGUMENTS ((NULL == url) || (NULL == address) || (NULL == callback))
@@ -473,7 +479,7 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
         info->address = address;
         info->callback = callback;
         info->callbackArgument = callbackArgument;
-        info->queryHandle = queryHandle; 
+        info->queryHandle = queryHandle;
         status = pal_plat_getAddressInfoAsync(info);
         if (status != PAL_SUCCESS) {
             free(info);
@@ -481,7 +487,7 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
     }
     return status;
 }
- 
+
 palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
 {
     return pal_plat_cancelAddressInfoAsync(queryHandle);

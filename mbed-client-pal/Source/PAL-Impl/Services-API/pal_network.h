@@ -97,6 +97,12 @@ typedef uint8_t palIpV6Addr_t[PAL_IPV6_ADDRESS_SIZE];
 */
 palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t* interfaceIndex);
 
+/*! Unregister a network interface.
+* @param networkInterfaceContext Index of the network interface to be removed.
+\return PAL_SUCCESS (0) in case of success or a specific negative error code in case of failure.
+*/
+palStatus_t pal_unregisterNetworkInterface(uint32_t interfaceIndex);
+
 /*! Set a port to `palSocketAddress_t`. \n
 * You can set it either directly or via the `palSetSockAddrIPV4Addr` or `palSetSockAddrIPV6Addr` functions.
 * @param[in,out] address The address to set.
@@ -321,7 +327,7 @@ palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSock
 */
 palStatus_t pal_getAddressInfo(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength);
 
-#if (PAL_DNS_API_VERSION == 1) 
+#if (PAL_DNS_API_VERSION == 1)
 /*! Prototype of the callback function invoked when querying address info asynchronously (pal_getAddressInfoAsync).
 * @param[in] url The user provided url (or IP address string) that was requested to be translated
 * @param[in] address The address for the output of the translation
@@ -378,13 +384,13 @@ typedef struct pal_asyncAddressInfo
 * @param[in] callback The user provided callback to be invoked once the function has completed
 * @param[out] queryHandle DNS query handler. Caller must take of care allocation. If not used then use NULL.
 */
-palStatus_t pal_getAddressInfoAsync(const char* url, 
-                                     palSocketAddress_t* address, 
-                                     palGetAddressInfoAsyncCallback_t callback, 
-                                     void* callbackArgument, 
+palStatus_t pal_getAddressInfoAsync(const char* url,
+                                     palSocketAddress_t* address,
+                                     palGetAddressInfoAsyncCallback_t callback,
+                                     void* callbackArgument,
                                      palDNSQuery_t* queryHandle);
 
-/*! This function is cancelation for pal_getAddressInfoAsync. 
+/*! This function is cancelation for pal_getAddressInfoAsync.
 * @param[in] queryHandle Id of ongoing DNS query.
 */
 palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle);

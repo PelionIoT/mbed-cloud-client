@@ -84,15 +84,9 @@ PAL_PRIVATE palStatus_t pal_fsClearAndInitialyze(pal_fsStorageID_t id)
 {
     palStatus_t status = PAL_SUCCESS;
 
-    if (pal_fsIsPrivatePartition(id))
-    {
-        status = pal_fsFormat(id);
-    }
-    else
-    {
-        char buffer[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
-        status = pal_fsRmFiles(addRootToPath("",buffer,id));
-    }
+    char buffer[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
+    status = pal_fsRmFiles(addRootToPath("",buffer,id));
+
     return(status);
 }
 

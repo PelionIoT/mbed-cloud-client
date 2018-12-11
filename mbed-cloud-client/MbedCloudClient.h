@@ -78,21 +78,21 @@ public:
      * that can occur during various client operations.
      */
     typedef enum {
-        ConnectErrorNone                        = 0x0, // Range reserved for Connector Error from 0x30 - 0x3FF
-        ConnectAlreadyExists,
-        ConnectBootstrapFailed,
-        ConnectInvalidParameters,
-        ConnectNotRegistered,
-        ConnectTimeout,
-        ConnectNetworkError,
-        ConnectResponseParseFailed,
-        ConnectUnknownError,
-        ConnectMemoryConnectFail,
-        ConnectNotAllowed,
-        ConnectSecureConnectionFailed,
-        ConnectDnsResolvingFailed,
-        ConnectorFailedToStoreCredentials,
-        ConnectorFailedToReadCredentials,
+        ConnectErrorNone                        = M2MInterface::ErrorNone, // Range reserved for Connector Error from 0x30 - 0x3FF
+        ConnectAlreadyExists                    = M2MInterface::AlreadyExists,
+        ConnectBootstrapFailed                  = M2MInterface::BootstrapFailed,
+        ConnectInvalidParameters                = M2MInterface::InvalidParameters,
+        ConnectNotRegistered                    = M2MInterface::NotRegistered,
+        ConnectTimeout                          = M2MInterface::Timeout,
+        ConnectNetworkError                     = M2MInterface::NetworkError,
+        ConnectResponseParseFailed              = M2MInterface::ResponseParseFailed,
+        ConnectUnknownError                     = M2MInterface::UnknownError,
+        ConnectMemoryConnectFail                = M2MInterface::MemoryFail,
+        ConnectNotAllowed                       = M2MInterface::NotAllowed,
+        ConnectSecureConnectionFailed           = M2MInterface::SecureConnectionFailed,
+        ConnectDnsResolvingFailed               = M2MInterface::DnsResolvingFailed,
+        ConnectorFailedToStoreCredentials       = M2MInterface::FailedToStoreCredentials,
+        ConnectorFailedToReadCredentials        = M2MInterface::FailedToReadCredentials,
         ConnectorInvalidCredentials,
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         UpdateWarningNoActionRequired           = UpdateClient::WarningBase, // Range reserved for Update Error from 0x0400 - 0x04FF
@@ -112,7 +112,7 @@ public:
         UpdateFatalRebootRequired,
 #endif
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
-        // Certificate Enrollment error 0x0500 - 0x05ff. Defined in ce_status.h 
+        // Certificate Enrollment error 0x0500 - 0x05ff. Defined in ce_status.h
         EnrollmentErrorBase = CE_STATUS_RANGE_BASE,
         EnrollmentErrorEnd = CE_STATUS_RANGE_END
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -387,6 +387,25 @@ public:
      */
     const M2MBaseList *get_object_list() const;
 #endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION
+
+    /**
+     * \brief Pauses client's timed functionality and closes network connection
+     * to the Cloud. After successful call the operation is continued
+     * by calling resume().
+     *
+     * \note This operation does not unregister client from the Cloud.
+     * Closes the socket and removes interface from the interface list.
+     */
+    void pause();
+
+    /**
+     * \brief Resumes client's timed functionality and network connection
+     * to the Cloud. Updates registration. Can be only called after
+     * a successful call to pause().
+     *
+     * \param iface A handler to the network interface.
+     */
+    void resume(void *iface);
 
 protected: // from ServiceClientCallback
 

@@ -90,7 +90,7 @@ palStatus_t pal_imagePrepare(palImageId_t imageId, palImageHeaderDeails_t *heade
 {
     //printf("pal_imagePrepare(imageId=%lu, size=%lu)\r\n", imageId, headerDetails->imageSize);
     PAL_MODULE_IS_INIT(palUpdateInitFlag);
-    palStatus_t ret;
+    palStatus_t ret = PAL_ERR_INVALID_ARGUMENT;
     uint8_t *buffer;
 
     // write the image header to file system
@@ -99,12 +99,18 @@ palStatus_t pal_imagePrepare(palImageId_t imageId, palImageHeaderDeails_t *heade
     pal_pi_mbed_firmware_header.magic = FIRMWARE_HEADER_MAGIC;
     pal_pi_mbed_firmware_header.version = FIRMWARE_HEADER_VERSION;
     pal_pi_mbed_firmware_header.firmwareVersion = headerDetails->version;
-    memcpy(pal_pi_mbed_firmware_header.firmwareSHA256,headerDetails->hash.buffer,SIZEOF_SHA256);
 
-    pal_pi_mbed_firmware_header.checksum = internal_crc32((uint8_t *) &pal_pi_mbed_firmware_header,
-                                                          sizeof(pal_pi_mbed_firmware_header));
+    // XXX: as the code expects buffer to have a SHA256, we better at least check for it and
+    // fail operation early if it is not.
+    if (headerDetails->hash.bufferLength == SIZEOF_SHA256)
+    {
+        memcpy(pal_pi_mbed_firmware_header.firmwareSHA256,headerDetails->hash.buffer,SIZEOF_SHA256);
 
-    ret = pal_set_fw_header(imageId, &pal_pi_mbed_firmware_header);
+        pal_pi_mbed_firmware_header.checksum = internal_crc32((uint8_t *) &pal_pi_mbed_firmware_header,
+                                                              sizeof(pal_pi_mbed_firmware_header));
+
+        ret = pal_set_fw_header(imageId, &pal_pi_mbed_firmware_header);
+    }
 
     /*Check that the size of the image is valid and reserve space for it*/
     if (ret == PAL_SUCCESS)

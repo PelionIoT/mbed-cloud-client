@@ -83,7 +83,7 @@ typedef struct arm_uc_cipherHandle_t {
  * @param[in] sig A pointer to a buffer containing a signature by `ca`
  * @retval MFST_ERR_CERT_INVALID when the certificate fails to load
  * @retval MFST_ERR_INVALID_SIGNATURE when signature verification fails
- * @retval MFST_ERR_NONE for a valid signature
+ * @retval ERR_NONE for a valid signature
  */
 arm_uc_error_t ARM_UC_verifyPkSignature(const arm_uc_buffer_t *ca, const arm_uc_buffer_t *hash,
                                         const arm_uc_buffer_t *sig);
@@ -104,7 +104,7 @@ arm_uc_error_t ARM_UC_cryptoDecryptFinish(arm_uc_cipherHandle_t *h, arm_uc_buffe
  * @param output buffer struct to cotain output HMAC, it is safe to use the same buffer
  *               as input to save memory. The size member of the struct will be set on success.
  *
- * @return ARM_UC_CU_ERR_NONE on success, error code on failure.
+ * @return ERR_NONE on success, error code on failure.
  */
 arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key, arm_uc_buffer_t *input, arm_uc_buffer_t *output);
 
@@ -114,7 +114,7 @@ arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key, arm_uc_buffer_t *in
  * @param output buffer struct to cotain output device key.
                  The size member of the struct will be set on success.
  *
- * @return ARM_UC_CU_ERR_NONE on success, error code on failure.
+ * @return ERR_NONE on success, error code on failure.
  */
 arm_uc_error_t ARM_UC_getDeviceKey256Bit(arm_uc_buffer_t *output);
 

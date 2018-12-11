@@ -34,7 +34,7 @@ arm_uc_error_t ARM_UC_mmDERSignedResourceGetSingleValue(arm_uc_buffer_t *buffer,
     if (rc < 0) {
         err = ARM_UC_wrapMbedTLSError(rc);
     } else if (rc == 0) {
-        err.code = ARM_UC_DP_ERR_NONE;
+        err.code = ERR_NONE;
     } else { //if (rc > 0)
         err.code = ARM_UC_DP_ERR_NOT_FOUND;
     }
@@ -52,7 +52,7 @@ arm_uc_error_t ARM_UC_mmDERGetSingleValue(
     if (rc < 0) {
         err = ARM_UC_wrapMbedTLSError(rc);
     } else if (rc == 0) {
-        err.code = ARM_UC_DP_ERR_NONE;
+        err.code = ERR_NONE;
     } else { //if (rc > 0)
         err.code = ARM_UC_DP_ERR_NOT_FOUND;
     }
@@ -72,7 +72,7 @@ arm_uc_error_t ARM_UC_mmGetVersion(arm_uc_buffer_t *buffer, uint32_t *val)
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, &field);
     if (rc || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     *val = ARM_UC_mmDerBuf2Uint(&field);
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetCryptoMode(arm_uc_buffer_t *buffer, uint32_t *val)
 {
@@ -81,7 +81,7 @@ arm_uc_error_t ARM_UC_mmGetCryptoMode(arm_uc_buffer_t *buffer, uint32_t *val)
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, &field);
     if (rc || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     *val = ARM_UC_mmDerBuf2Uint(&field);
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t *buffer, uint64_t *val)
 {
@@ -90,7 +90,7 @@ arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t *buffer, uint64_t *val)
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, &field);
     if (rc || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     *val = ARM_UC_mmDerBuf2Uint64(&field);
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetValidFrom(arm_uc_buffer_t *buffer, uint64_t *val)
 {
@@ -100,7 +100,7 @@ arm_uc_error_t ARM_UC_mmGetValidFrom(arm_uc_buffer_t *buffer, uint64_t *val)
     if (rc < 0 || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     if (rc > 0) return (arm_uc_error_t) {MFST_ERR_EMPTY_FIELD};
     *val = ARM_UC_mmDerBuf2Uint64(&field);
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetValidTo(arm_uc_buffer_t *buffer, uint64_t *val)
 {
@@ -110,28 +110,28 @@ arm_uc_error_t ARM_UC_mmGetValidTo(arm_uc_buffer_t *buffer, uint64_t *val)
     if (rc < 0 || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     if (rc > 0) return (arm_uc_error_t) {MFST_ERR_EMPTY_FIELD};
     *val = ARM_UC_mmDerBuf2Uint64(&field);
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetVendorGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_VENDOR_UUID;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, guid);
     if (rc || guid->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetClassGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_CLASS_UUID;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, guid);
     if (rc || guid->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetDeviceGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_DEVICE_UUID;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, guid);
     if (rc || guid->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 
 arm_uc_error_t ARM_UC_mmGetFwInitVector(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
@@ -139,14 +139,14 @@ arm_uc_error_t ARM_UC_mmGetFwInitVector(arm_uc_buffer_t *buffer, arm_uc_buffer_t
     const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_CRYPT_IV;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetFwUri(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_RSRC_REF_URL;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetFwSize(arm_uc_buffer_t *buffer, uint32_t *val)
 {
@@ -155,14 +155,14 @@ arm_uc_error_t ARM_UC_mmGetFwSize(arm_uc_buffer_t *buffer, uint32_t *val)
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, &field);
     if (rc || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     *val = ARM_UC_mmDerBuf2Uint(&field);
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetFwHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_RSRC_REF_HASH;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetFwSymmKey(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
@@ -173,28 +173,28 @@ arm_uc_error_t ARM_UC_mmGetFwCertId(arm_uc_buffer_t *buffer, arm_uc_buffer_t *va
     const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_CRYPT_ID_LOCAL;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetDescription(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_DESC;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetManifestLinksUri(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_DEP_REF_URL;
     int32_t rc = ARM_UC_mmDERParseTree(arm_uc_mmManifestDependencies, buffer, 1U, &fieldID, val);
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetManifestLinksHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_DEP_REF_HASH;
     int32_t rc = ARM_UC_mmDERParseTree(arm_uc_mmManifestDependencies, buffer, 1U, &fieldID, val);
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetManifestLinksElement(arm_uc_buffer_t *buffer, uint32_t index, arm_uc_buffer_t *element)
 {
@@ -205,7 +205,7 @@ arm_uc_error_t ARM_UC_mmGetManifestLinksElement(arm_uc_buffer_t *buffer, uint32_
     element->ptr = NULL;
     rc = ARM_UC_mmDERGetSequenceElement(&elements, index, element);
     if (rc) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetManifestHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
@@ -222,7 +222,7 @@ arm_uc_error_t ARM_UC_mmGetSignatureBlock(arm_uc_buffer_t *buffer, uint32_t idx,
     if (rc) { return ARM_UC_wrapMbedTLSError(rc); }
     if (block->ptr == NULL) return (arm_uc_error_t) {ARM_UC_DP_ERR_NO_MORE_ELEMENTS};
 
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 arm_uc_error_t ARM_UC_mmGetSignature(arm_uc_buffer_t *buffer, uint32_t idx, arm_uc_buffer_t *val)
 {
@@ -234,7 +234,7 @@ arm_uc_error_t ARM_UC_mmGetSignature(arm_uc_buffer_t *buffer, uint32_t idx, arm_
     err = ARM_UC_mmDERGetSingleValue(arm_uc_mmSignatures, &signatureBlock, ARM_UC_MM_DER_SIG_SIGNATURE, val);
     if (err.error) { return err; }
     if (val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 
 arm_uc_error_t ARM_UC_mmGetCertificateId(arm_uc_buffer_t *buffer, uint32_t sigIdx, arm_uc_buffer_t *val)
@@ -259,5 +259,5 @@ arm_uc_error_t ARM_UC_mmGetCertificateId(arm_uc_buffer_t *buffer, uint32_t sigId
                                      val);
     if (err.error) { return err; }
     if (val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
-    return (arm_uc_error_t) {MFST_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }

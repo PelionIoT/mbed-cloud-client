@@ -69,12 +69,12 @@ using namespace m2m;
  * \def MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS
  *
  * \brief CoAP resend queue size.
- * mbed Client can send four types of confirmable messages at the same time,
- * notification, file download, register update and delayed post response.
+ * mbed Client can send five types of confirmable messages at the same time,
+ * notification, file download, register update, delayed post response and ping.
  * \note Reducing this value can cause some resend queue which may lead to unnecessary full registrations.
- * By default, the message count is 4.
+ * By default, the message count is 5.
  */
-#undef MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS  /* 4 */
+#undef MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS  /* 5 */
 
 
 #ifdef YOTTA_CFG_RECONNECTION_COUNT
@@ -208,7 +208,7 @@ typedef struct mbedtls_entropy {
 #endif
 
 #ifndef MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS
-#define MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS 4
+#define MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS 5
 #endif
 
 #endif // M2MCONFIG_H

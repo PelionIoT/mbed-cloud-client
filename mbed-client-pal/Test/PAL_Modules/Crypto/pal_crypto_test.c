@@ -19,8 +19,9 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal_crypto_test_data.h"
-#include "string.h"
-#include "time.h"
+
+#include <string.h>
+#include <time.h>
 
 
 TEST_GROUP(pal_crypto);

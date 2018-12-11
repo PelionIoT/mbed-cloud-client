@@ -14,14 +14,13 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include <stdio.h>
 #include "pal.h"
 #include "pal_rtos_test_utils.h"
 
-#include "pal_BSP.h"
+#include "test_runners.h"
 #include "unity_fixture.h"
 
-#include "pal.h"
+#include <stdio.h>
 
 #define TRACE_GROUP "PAL"
 

@@ -13,8 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-#ifndef USE_TINY_CBOR
-
 #ifndef __FCC_BUNDLE_UTILS_H__
 #define __FCC_BUNDLE_UTILS_H__
 
@@ -263,4 +261,3 @@ fcc_status_e fcc_bundle_process_csrs(const cn_cbor *csrs_list_cb, cn_cbor *respo
 #endif
 
 #endif //__FCC_BUNDLE_UTILS_H__
-#endif

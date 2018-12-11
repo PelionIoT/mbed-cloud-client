@@ -437,6 +437,7 @@ arm_uc_error_t ARM_UC_PAL_RTL8195AM_Prepare(uint32_t location,
             }
         } else {
             UC_PAAL_ERR_MSG("firmware larger than slot");
+            result.code = PAAL_ERR_FIRMWARE_TOO_LARGE;
         }
     }
 

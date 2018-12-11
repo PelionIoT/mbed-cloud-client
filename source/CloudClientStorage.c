@@ -71,7 +71,7 @@ ccs_status_e ccs_check_item(const char* key, ccs_item_type_e item_type)
     }
 
     size_t real_size = 0;
-    kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key, strlen(key), item_type, &real_size);
+    kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key, strlen(key), (kcm_item_type_e)item_type, &real_size);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return CCS_STATUS_KEY_DOESNT_EXIST;
     }
@@ -98,7 +98,7 @@ ccs_status_e ccs_delete_item(const char* key, ccs_item_type_e item_type)
     tr_debug("CloudClientStorage::ccs_delete_item [%s], type [%d] ", key, item_type);
     kcm_status_e kcm_status = kcm_item_delete((const uint8_t*)key,
                                   strlen(key),
-                                  item_type);
+                                  (kcm_item_type_e)item_type);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
         tr_debug("CloudClientStorage::ccs_delete_item [%s] kcm get error %d", key, kcm_status);
@@ -120,7 +120,7 @@ ccs_status_e ccs_item_size(const char* key, size_t* size_out, ccs_item_type_e it
     // Get kcm item size
     kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key,
                                          strlen(key),
-                                         item_type,
+                                         (kcm_item_type_e)item_type,
                                          size_out);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
@@ -146,7 +146,7 @@ ccs_status_e ccs_get_item(const char* key,
 
     kcm_status_e kcm_status = kcm_item_get_data((const uint8_t*)key,
                                     strlen(key),
-                                    item_type,
+                                    (kcm_item_type_e)item_type,
                                     buffer,
                                     buffer_size,
                                     value_length);
@@ -173,7 +173,7 @@ ccs_status_e ccs_set_item(const char* key,
 
     kcm_status_e kcm_status = kcm_item_store((const uint8_t*)key,
                                  strlen(key),
-                                 item_type,
+                                 (kcm_item_type_e)item_type,
                                  false,
                                  buffer,
                                  buffer_size,

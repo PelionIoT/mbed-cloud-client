@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2018 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,12 @@ extern "C" {
 #include "pal_types.h"
   
 //includes for modules headers.
+#include "pal_drbg.h"
 #include "pal_fileSystem.h"
+#include "pal_rot.h"
 #include "pal_rtos.h"
 #include "pal_network.h"
+#include "pal_time.h"
 #include "pal_TLS.h"
 #include "pal_Crypto.h"
 #include "pal_update.h"

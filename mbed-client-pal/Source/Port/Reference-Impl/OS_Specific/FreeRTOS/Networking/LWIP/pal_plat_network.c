@@ -26,7 +26,7 @@
 #define TRACE_GROUP "PAL"
 
 /* Static arena of sockets */
-//TODO: do we need to protect this agains multitheaded aceess? 
+//TODO: do we need to protect this agains multitheaded aceess?
  typedef struct palLwipSocketNetConnInfo {
     bool inUse;
 
@@ -42,7 +42,7 @@
 
  PAL_PRIVATE palLwipNetConnInfo_t palInternalSocketInfo[MEMP_NUM_NETCONN] = {0};
 
- 
+
 // number taken from LWIP documentaiton reccomendations (http://www.ece.ualberta.ca/~cmpe401/docs/lwip.pdf)
 #define PAL_MAX_SEND_BUFFER_SIZE 1000
 
@@ -50,10 +50,10 @@
 
  PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
 
- 
+
  /*! pal_plat_netconReceive
   * This function is a workaround for LWIP non block receive,
-  * When calling netconn_recv() on a non-blocking connection with receive timeout=0 the netconn_recv function will block indefinately (unless data arrives). this is not correct behavior. 
+  * When calling netconn_recv() on a non-blocking connection with receive timeout=0 the netconn_recv function will block indefinately (unless data arrives). this is not correct behavior.
   * To work around this issue for to a non blocking connections we set the recieve timeout to 1 and set it back to the previous timeout value after the recv call.
   * This is only for NON BLOCKING connections!!! all other sockets are left untouched.
  * @param[in] netconn* conn handler
@@ -62,22 +62,22 @@
  */
 PAL_PRIVATE int pal_plat_netconReceive(struct netconn* conn, struct netbuf **newBuf)
 {
-	int backupTimeout;
-	int result = PAL_SUCCESS;
-	bool isNonBlocking = netconn_is_nonblocking(conn);
-	if(isNonBlocking)
-	{
-		backupTimeout = netconn_get_recvtimeout(conn);
-		netconn_set_recvtimeout(conn, 1);
-		result = netconn_recv(conn, newBuf);
-		netconn_set_recvtimeout(conn, backupTimeout);
-	}
-	else
-	{
-		result = netconn_recv(conn, newBuf);
-	}
+    int backupTimeout;
+    int result = PAL_SUCCESS;
+    bool isNonBlocking = netconn_is_nonblocking(conn);
+    if(isNonBlocking)
+    {
+        backupTimeout = netconn_get_recvtimeout(conn);
+        netconn_set_recvtimeout(conn, 1);
+        result = netconn_recv(conn, newBuf);
+        netconn_set_recvtimeout(conn, backupTimeout);
+    }
+    else
+    {
+        result = netconn_recv(conn, newBuf);
+    }
 
-	return result;
+    return result;
 }
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
@@ -141,6 +141,13 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
     }
 
     return result;
+}
+
+palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
+{
+    s_pal_networkInterfacesSupported[interfaceIndex] = NULL;
+    --s_pal_numberOFInterfaces;
+    return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_socketsTerminate(void* context)
@@ -219,7 +226,7 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
     uint32_t numberOfInterfaces = 0;
     palLwipNetConnInfo_t* socketInfo = NULL;
     uint32_t index = 0;
-    
+
 
 
     result = pal_plat_getNumberOfNetInterfaces(&numberOfInterfaces);
@@ -238,7 +245,7 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
     {
         return PAL_ERR_NOT_IMPLEMENTED;
     }
-   
+
     if ((PAL_SOCK_STREAM == type) || (PAL_SOCK_STREAM_SERVER == type))
     {
         connType = NETCONN_TCP;
@@ -300,7 +307,7 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
         return PAL_ERR_INVALID_ARGUMENT;
     }
     conn = ((palLwipNetConnInfo_t*)socket)->connection;
-    
+
     if (PAL_SO_REUSEADDR == optionName)
     {
         ip_set_option(conn->pcb.ip, SOF_REUSEADDR);
@@ -312,12 +319,12 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
         {
             ip_set_option(conn->pcb.ip, SOF_KEEPALIVE);
         }
-        else 
+        else
         {
             ip_reset_option(conn->pcb.ip, SOF_KEEPALIVE);
         }
     }
-#if LWIP_TCP_KEEPALIVE // follwing options only supported if LWIP_TCP_KEEPALIVE is set to 1. 
+#if LWIP_TCP_KEEPALIVE // follwing options only supported if LWIP_TCP_KEEPALIVE is set to 1.
     else  if ((PAL_SO_KEEPIDLE == optionName) && (NETCONN_TCP == conn->type) && (conn->pcb.tcp != NULL))
     {
         conn->pcb.tcp->keep_idle = (*(int*)optionValue) * 1000;
@@ -333,13 +340,13 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
 #ifdef LWIP_SO_SNDTIMEO
     else if (PAL_SO_SNDTIMEO == optionName)
     {
-		netconn_set_sendtimeout(conn, *((const int *)optionValue));
+        netconn_set_sendtimeout(conn, *((const int *)optionValue));
     }
 #endif
 #ifdef LWIP_SO_RCVTIMEO
     else if (PAL_SO_RCVTIMEO == optionName)
     {
-		netconn_set_recvtimeout(conn, *((const int *)optionValue));
+        netconn_set_recvtimeout(conn, *((const int *)optionValue));
     }
 #endif
     else
@@ -357,7 +364,7 @@ palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
         return PAL_ERR_INVALID_ARGUMENT;
     }
     conn = ((palLwipNetConnInfo_t*)socket)->connection;
-    
+
     if (netconn_is_nonblocking(conn))
     {
         *isNonBlocking = true;
@@ -399,7 +406,7 @@ palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, pal
             }
         }
     }
-    
+
     return result;
 }
 
@@ -428,7 +435,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
     }
     else
     {
-    	result = pal_plat_netconReceive(conn, &newBuf);
+        result = pal_plat_netconReceive(conn, &newBuf);
         if (ERR_OK != result) // Receive data
         {
             result = translateErrnoToPALError(result);
@@ -437,7 +444,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
 
     if ((ERR_OK == result) &&(NULL != newBuf) )
     {
-            
+
         bufferLength = netbuf_len(newBuf);
         if (bufferLength <= length)
         {
@@ -447,7 +454,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
         else // more data recieved than buffer
         {
             netbuf_copy(newBuf, buffer, length);
-            *bytesReceived = length; 
+            *bytesReceived = length;
         }
         if (NULL != from)
         {
@@ -461,7 +468,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
                 {
                     *fromLength = PAL_IPV4_ADDRESS_SIZE;
                 }
-            }   
+            }
         }
     }
     else if(ERR_OK == result)// if we got NULL this means the conneciton was closed
@@ -479,7 +486,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
         socketInfo->offset = 0;
         // deleted below through newBuf
     }
-   
+
     if (NULL !=newBuf )
         netbuf_delete(newBuf);
     return result;
@@ -502,8 +509,8 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
     conn = ((palLwipNetConnInfo_t*)socket)->connection;
 
     // netconn documentaiton (http://www.ece.ualberta.ca/~cmpe401/docs/lwip.pdf) says buffers over the size of the MTU should nto be sent. since this isn not always known 1000bytes is a good heuristic
-    
-    
+
+
     if (length > PAL_MAX_SEND_BUFFER_SIZE)
     {
         result = PAL_ERR_SOCKET_SEND_BUFFER_TOO_BIG;
@@ -558,7 +565,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
     int result = 0;
     palLwipNetConnInfo_t* socketInfo = NULL;
     struct netconn* conn = NULL;
-    
+
     if (NULL == *socket) // socket already closed - return success.
     {
         PAL_LOG_DBG("socket close called on socket which was already closed");
@@ -571,10 +578,10 @@ palStatus_t pal_plat_close(palSocket_t* socket)
         result = netconn_close(conn);
         if (ERR_OK == result)
         {
-           
+
             *socket = NULL;
         }
-        else 
+        else
         {
             result = translateErrnoToPALError(result);
         }
@@ -682,7 +689,7 @@ void palNetConSelectCallback(struct netconn * connection, enum netconn_evt event
 palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 {
     palStatus_t result = PAL_SUCCESS;
-    struct netconn* conn = NULL;    
+    struct netconn* conn = NULL;
     if (NULL == socket) // NULL is not a valid socket.
     {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -807,7 +814,7 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
             }
         }
     }
-else 
+else
 {
     result = PAL_ERR_INVALID_ARGUMENT;
 }
@@ -837,22 +844,22 @@ palStatus_t pal_plat_recv(palSocket_t socket, void *buf, size_t len, size_t* rec
         socketInfo->offset += copied;
         *recievedDataSize = copied;
     }
-    else 
+    else
     {
-    	result = pal_plat_netconReceive(conn, &newBuf);
-        if (ERR_OK != result) 
+        result = pal_plat_netconReceive(conn, &newBuf);
+        if (ERR_OK != result)
         {
               return translateErrnoToPALError(result);
         }
         else
         {
-	        if (NULL != newBuf)
+            if (NULL != newBuf)
             {
-		        socketInfo->buffer = newBuf;
+                socketInfo->buffer = newBuf;
                 bufferSize = netbuf_len(newBuf);
 
                 if (bufferSize <= len)
-                { 
+                {
                       *recievedDataSize = bufferSize;
                       netbuf_copy(newBuf, buf, bufferSize);
                       socketInfo->offset = bufferSize;
@@ -868,7 +875,7 @@ palStatus_t pal_plat_recv(palSocket_t socket, void *buf, size_t len, size_t* rec
          {
              result = PAL_ERR_SOCKET_CONNECTION_CLOSED;
          }
-        
+
         }
     }
     if ((NULL != socketInfo->buffer) && (socketInfo->offset >= netbuf_len( socketInfo->buffer)))
@@ -877,7 +884,7 @@ palStatus_t pal_plat_recv(palSocket_t socket, void *buf, size_t len, size_t* rec
         socketInfo->buffer = NULL;
         socketInfo->offset = 0;
     }
-    
+
     return result;
 }
 
@@ -893,7 +900,7 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
         return PAL_ERR_INVALID_ARGUMENT;
     }
     conn = ((palLwipNetConnInfo_t*)socket)->connection;
-    
+
     if (NULL == actualSent)
     {
     actualSent =  &localSent;
@@ -981,7 +988,7 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
         }
     }
 
-    
+
 
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastrucature is finalized)
 }
@@ -994,7 +1001,7 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 
 palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* length)
 {
-    
+
     palStatus_t result = PAL_SUCCESS;
     ip_addr_t addr = {0};
 
@@ -1005,7 +1012,7 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
     result = netconn_gethostbyname(url, &addr);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV6_ONLY
     #error ipv6 filter not supported for lwip 1.4.1
-#else 
+#else
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
 
@@ -1030,7 +1037,7 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
         }
     }
     return result;
-    
+
 }
 
 #endif

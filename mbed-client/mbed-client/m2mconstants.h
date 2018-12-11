@@ -213,6 +213,7 @@ extern const String EMPTY;
 #define ERROR_NETWORK           "NetworkError"
 #define ERROR_NO                "No error"
 #define ERROR_NO_MEMORY         "Memory allocation failed"
+#define ERROR_FAILED_TO_READ_CREDENTIALS "Failed to read credentials"
 
 #define MAX_RECONNECT_TIMEOUT        604800
 #define RECONNECT_INCREMENT_FACTOR   2

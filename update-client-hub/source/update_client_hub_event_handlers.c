@@ -45,7 +45,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FIRMWARE_SETUP_DONE);
             } else {
                 /* Invalid state, abort and report error. */
-                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
             }
             break;
 
@@ -80,7 +80,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
             } else {
                 /* Invalid state, abort and report error. */
-                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
             }
             break;
 
@@ -93,7 +93,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_STORAGE_FINALIZED);
             } else {
                 /* Invalid state, abort and report error. */
-                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
             }
             break;
 
@@ -106,7 +106,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PREP_REBOOT);
             } else {
                 /* Invalid state, abort and report error. */
-                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
             }
             break;
 
@@ -133,7 +133,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_WRITE, arm_uc_hub_state);
             } else {
                 /* Invalid state, abort and report error. */
-                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+                ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
             }
             break;
 
@@ -142,7 +142,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
             UC_HUB_TRACE("UCFM_EVENT_FINALIZE_ERROR");
 
             /* Invalid state, abort and report error. */
-            ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_WRITE, arm_uc_hub_state);
             break;
 
 
@@ -187,12 +187,18 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
             break;
 
         case UCFM_EVENT_INITIALIZE_ERROR:
+            // TODO find out if ignoring this is sensible.
             UC_HUB_TRACE("UCFM_EVENT_INITIALIZE_ERROR");
             break;
 
         case UCFM_EVENT_PREPARE_ERROR:
             UC_HUB_TRACE("UCFM_EVENT_PREPARE_ERROR");
-            ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_WRITE, arm_uc_hub_state);
+            break;
+
+        case UCFM_EVENT_FIRMWARE_TOO_LARGE_ERROR:
+            UC_HUB_TRACE("UCFM_EVENT_FIRMWARE_TOO_LARGE_ERROR");
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_FIRMWARE_TOO_LARGE, arm_uc_hub_state);
             break;
 
         case UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR:
@@ -323,7 +329,7 @@ void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
             } else {
                 /* Invalid state, abort and report error. */
-                ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_MANIFEST_STATE, arm_uc_hub_state);
+                ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_EVENT, arm_uc_hub_state);
             }
             break;
 
@@ -359,29 +365,21 @@ void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
         /* Downloaded keytable */
         case ARM_UC_SM_EVENT_KEYTABLE:
             UC_HUB_TRACE("ARM_UC_SM_EVENT_KEYTABLE");
-
             /* Invalid state, abort and report error. */
-            ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_PARAMETER, arm_uc_hub_state);
+            ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_REQUEST, arm_uc_hub_state);
             break;
 
         /* Source Manager encountered an error */
         case ARM_UC_SM_EVENT_ERROR:
-            // TODO check the impact of raising this for a busy-get
-            UC_HUB_TRACE("ARM_UC_SM_EVENT_ERROR");
-
-            /* Invalid state, abort and report error. */
-            ARM_UC_HUB_ErrorHandler(SOMA_ERR_UNSPECIFIED, arm_uc_hub_state);
-            break;
         case ARM_UC_SM_EVENT_ERROR_SOURCE:
-            UC_HUB_TRACE("ARM_UC_SM_EVENT_ERROR_SOURCE");
-            ARM_UC_HUB_ErrorHandler(SOMA_ERR_SOURCE_NOT_FOUND, arm_uc_hub_state);
+        case ARM_UC_SM_EVENT_ERROR_BUFFER_SIZE:
+            UC_HUB_TRACE("ARM_UC_SM_EVENT_ERROR/SOURCE/BUFFER_SIZE");
+            ARM_UC_HUB_ErrorHandler(ARM_UCSM_GetError().code, arm_uc_hub_state);
             break;
-
         default:
+            /* Unexpected event. */
             UC_HUB_TRACE("Source Manager: Invalid Event");
-
-            /* Invalid state, abort and report error. */
-            ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_EVENT, arm_uc_hub_state);
+            ARM_UC_HUB_ErrorHandler(ARM_UCSM_GetError().code, arm_uc_hub_state);
             break;
     }
 }
@@ -411,6 +409,7 @@ void ARM_UC_HUB_ControlCenterEventHandler(uint32_t event)
         case ARM_UCCC_EVENT_MONITOR_SEND_DONE:
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK) {
                 /* Switch to 'idle' after receiving report notification */
+                UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK");
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_IDLE);
             }
 

@@ -50,6 +50,7 @@ typedef enum {
     SOTP_OS_ERROR               = 8,
     SOTP_BUFF_NOT_ALIGNED       = 9,
     SOTP_ALREADY_EXISTS         = 10,
+    SOTP_MEM_ALLOC_ERROR        = 11,
     SOTP_ERROR_MAXVAL           = 0xFFFF
 } sotp_result_e;
 

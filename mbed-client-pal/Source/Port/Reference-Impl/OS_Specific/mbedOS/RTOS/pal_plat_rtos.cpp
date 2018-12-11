@@ -648,7 +648,10 @@ palStatus_t pal_plat_osSemaphoreWait(palSemaphoreID_t semaphoreID, uint32_t mill
     semaphore = (palSemaphore_t*)semaphoreID;
     platStatus = osSemaphoreAcquire((osSemaphoreId_t)semaphore->semaphoreID, millisec);
 
-    if (osErrorTimeout == platStatus)
+    // Return a PAL_ERR_RTOS_TIMEOUT for the case where resource was busy during millisec time (osErrorTimeout)
+    // as well as the case where the millisec arg is 0 and resource is busy (osErrorResource)
+    if (osErrorTimeout == platStatus ||
+        osErrorResource == platStatus)
     {
         status = PAL_ERR_RTOS_TIMEOUT;
     }
@@ -731,6 +734,7 @@ int32_t pal_plat_osAtomicIncrement(int32_t* valuePtr, int32_t increment)
 }
 
 #if PAL_USE_HW_TRNG
+extern "C"
 palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes)
 {
     palStatus_t status = PAL_SUCCESS;

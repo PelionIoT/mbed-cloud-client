@@ -451,7 +451,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
 
     if (received_coap_header) {
         // process the GET if we have registered a callback for it
-        if ((operation() & SN_GRS_GET_ALLOWED) != 0) {
+        if ((operation() & M2MBase::GET_ALLOWED) != 0) {
             if (coap_response) {
                 bool content_type_present = false;
                 bool is_content_type_supported = true;
@@ -557,7 +557,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
                 }
                 free(query);
             }
-        } else if ((operation() & SN_GRS_PUT_ALLOWED) != 0) {
+        } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {
             if(!content_type_present &&
                (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
                 M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
@@ -625,7 +625,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
                                                            received_coap_header,
                                                            msg_code);
     if(received_coap_header) {
-        if ((operation() & SN_GRS_POST_ALLOWED) != 0) {
+        if ((operation() & M2MBase::POST_ALLOWED) != 0) {
             uint16_t coap_content_type = 0;
             bool content_type_present = false;
             if(received_coap_header->content_format != COAP_CT_NONE) {

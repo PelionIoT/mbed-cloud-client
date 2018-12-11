@@ -147,6 +147,10 @@ M2MResourceBase::~M2MResourceBase()
 
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceInstanceNotificationStatusCallback2);
 
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueReadCallback);
+
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueWriteCallback);
+
 #ifndef DISABLE_BLOCK_MESSAGE
     delete _block_message_data;
 #endif
@@ -545,7 +549,7 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                                                           msg_code);
     if (received_coap_header) {
         // process the GET if we have registered a callback for it
-        if ((operation() & SN_GRS_GET_ALLOWED) != 0) {
+        if ((operation() & M2MBase::GET_ALLOWED) != 0) {
             if (coap_response) {
                 bool content_type_present = false;
                 if (received_coap_header->options_list_ptr &&
@@ -653,7 +657,7 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                 tr_error("M2MResourceBase::handle_put_request() - Out of memory !!!");
                 msg_code = COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR; // 4.00
             }
-        } else if ((operation() & SN_GRS_PUT_ALLOWED) != 0) {
+        } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {
             tr_debug("M2MResourceBase::handle_put_request() - Request Content-type: %d", coap_content_type);
 
             if(COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||

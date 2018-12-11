@@ -982,34 +982,8 @@ void M2MBase::handle_observation(nsdl_s *nsdl,
 
     // If the observe number is 0 means register for observation.
     if (START_OBSERVATION == obs_number) {
-        set_under_observation(true, observation_handler);
 
-        switch (base_type()) {
-            case M2MBase::Object:
-                M2MBase::add_observation_level(M2MBase::O_Attribute);
-                break;
-
-            case M2MBase::ObjectInstance:
-                M2MBase::add_observation_level(M2MBase::OI_Attribute);
-                break;
-
-            case M2MBase::Resource:
-            case M2MBase::ResourceInstance:
-                M2MBase::add_observation_level(M2MBase::R_Attribute);
-                break;
-#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-            case M2MBase::ObjectDirectory:
-                // Observation not supported!
-                break;
-#endif
-        }
-
-        send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
-        send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_SUBSCRIBED, M2MBase::NOTIFICATION);
-
-        set_observation_token(received_coap_header.token_ptr,
-                              received_coap_header.token_len);
-
+        start_observation(received_coap_header, observation_handler);
 
     } else if (STOP_OBSERVATION == obs_number) {
         tr_info("M2MBase::handle_observation() - stops observation");
@@ -1039,3 +1013,49 @@ void M2MBase::handle_observation(nsdl_s *nsdl,
         }
     }
 }
+
+void M2MBase::start_observation(const sn_coap_hdr_s &received_coap_header, M2MObservationHandler *observation_handler)
+{
+    set_under_observation(true, observation_handler);
+
+    switch (base_type()) {
+        case M2MBase::Object:
+            M2MBase::add_observation_level(M2MBase::O_Attribute);
+            break;
+
+        case M2MBase::ObjectInstance:
+            M2MBase::add_observation_level(M2MBase::OI_Attribute);
+            break;
+
+        case M2MBase::Resource:
+        case M2MBase::ResourceInstance:
+            M2MBase::add_observation_level(M2MBase::R_Attribute);
+            break;
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+        case M2MBase::ObjectDirectory:
+            // Observation not supported!
+            break;
+#endif
+    }
+
+    send_notification_delivery_status(*this, NOTIFICATION_STATUS_SUBSCRIBED);
+    send_message_delivery_status(*this, M2MBase::MESSAGE_STATUS_SUBSCRIBED, M2MBase::NOTIFICATION);
+
+    set_observation_token(received_coap_header.token_ptr,
+                          received_coap_header.token_len);
+
+}
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+
+void M2MBase::set_deleted()
+{
+    // no-op
+}
+
+bool M2MBase::is_deleted()
+{
+    return false;
+}
+
+#endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION

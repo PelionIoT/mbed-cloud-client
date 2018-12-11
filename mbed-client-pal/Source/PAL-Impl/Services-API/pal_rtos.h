@@ -36,7 +36,7 @@ extern "C" {
 *  \brief PAL RTOS.
 *   This file contains the real-time OS APIs and is a part of the PAL service API.
 *   It provides thread, timers, semaphores, mutexes and memory pool management APIs.
-*   Random API and ROT (root of trust) are also provided.  
+*   Random API is also provided.  
 */
 
 
@@ -57,14 +57,6 @@ typedef enum  palTimerType {
 	palOsTimerPeriodic = 1 /*! Periodic (repeating) timer. */
 } palTimerType_t;
 
-
-
-//! Device key types supported in PAL.
-typedef enum  palDeviceKeyType {
-    palOsStorageEncryptionKey128Bit = 0, /*! 128bit storage encryption key derived from RoT. */
-    palOsStorageSignatureKey128Bit = 1, /*! 128bit storage signature key derived from RoT. */
-    palOsStorageHmacSha256 = 2
-} palDevKeyType_t;
 
 //! PAL timer function prototype.
 typedef void(*palTimerFuncPtr)(void const *funcArgument);
@@ -141,70 +133,6 @@ uint64_t pal_osKernelSysMilliSecTick(uint64_t sysTicks);
 */
 uint64_t pal_osKernelSysTickFrequency(void);
 
-
-/*! Get the system time.
-* \return The system 64-bit counter indicating the current system time in seconds on success.
-*         Zero value when the time is not set in the system.
-* \note If the delta between secure time value previously set in the system and current system time is greater than PAL_LAST_SAVED_TIME_LATENCY_SEC
-* then secure time value will be overridden with current system time
-*/
-uint64_t pal_osGetTime(void);
-
-/*! \brief Set the current system time by accepting seconds since January 1st 1970 UTC+0.
-*
-* @param[in] seconds Seconds from January 1st 1970 UTC+0.
-*
-* \return PAL_SUCCESS when the time was set successfully. \n
-*         PAL_ERR_INVALID_TIME when there is a failure setting the system time.
-*/
-palStatus_t pal_osSetTime(uint64_t seconds);
-
-/*! \brief  Initialization the time module
-*   After boot, the time in RAM will be initialized with the max value between RTC and SOTP SAVED_TIME. If no RTC is present, RTC time is zero.
-*   After initialization the time module will start counting ticks.
-*   The answer to get_time should be calculated by the sum of the initial value (RTC or SOTP) + the number of ticks converted into seconds.
-*
-* \return PAL_SUCCESS when initialization succeed. \n
-*
-* \note
-*/
-palStatus_t pal_initTime(void);
-
-/*! \brief save weak time according to design
-*   Time Forward (a)
-*   set the time (in RAM) unconditionally. Save the new time in SOTP if the change (between new time and current time in RAM) is greater than 24 hours.
-*   Set the time to RTC if the change is greater than 100 seconds. This limitation is to avoid multiple writes to the SOTP and RTC and not related to security.
-*   Time Forward (b)
-*   If (a) did not happen, save the time into SOTP if new time is greater from SAVED_TIME by a week (604800 seconds).
-*   Time Backwards
-*   set the device time on the device (RAM) and save the time in SOTP only if the change
-*   (between new time and current time in RAM) is smaller than 3 minutes for each day lapsed from the last change
-*   done via pal_osWeakSetTime. RTC is never set backwards by pal_osWeakSetTime().
-*
-* @param[in] uint64_t setTimeInSeconds  Seconds from January 1st 1970 UTC+0.
-*
-* \return PAL_SUCCESS when set weak  succeed. \n
-*
-* \note To implement this, when the new time is saved in SOTP by the function pal_osWeakSetTime two records with different types must be saved in SOTP:
-* \note 1.- The new time (the same record as in factory setup)
-* \note 2.- The time this action was performed, in order to enforce the 24 hours limitation. Record LAST_TIME_BACK.
-*/
-palStatus_t pal_osSetWeakTime(uint64_t setTimeInSeconds);
-
-/*! \brief save strong time according to design
-*   Set the time (in RAM) unconditionally. Save in SOTP or/and RTC the new time under the following conditions:
-•	Time forward – if time difference between current time in SOTP (not device time) and new time is greater than a day
-•	Time backward – if time difference between current time and new time is greater than one minute.
-*   If the time is saved in SOTP (forward or backwards), the record LAST_TIME_BACK must be saved.
-*
-** @param[in] uint64_t setTimeInSeconds - Seconds from January 1st 1970 UTC+0.
-**
-* \return PAL_SUCCESS when set strong succeed. \n
-*
-* \note   The limitations are aimed to reduce the number of write operations to the SOTP and not related to security.
-*   This function will be called when receiving time from a server that is completely trusted.
-*/
-palStatus_t pal_osSetStrongTime(uint64_t setTimeInSeconds);
 
 /*! \brief Allocates memory for the thread stack, creates and starts the thread function (inside the PAL platform wrapper function).
 *
@@ -379,29 +307,6 @@ palStatus_t pal_osSemaphoreDelete(palSemaphoreID_t* semaphoreID);
 */
 int32_t pal_osAtomicIncrement(int32_t* valuePtr, int32_t increment);
 
-
-/*! Generate random number into given buffer with given size in bytes.
-*
-* @param[out] randomBuf A buffer to hold the generated number.
-* @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
-*
-\note `pal_init()` MUST be called before this function
-\return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
-*/
-palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes);
-
-
-/*! Return a device unique key derived from the root of trust.
-*
-* @param[in] keyType The type of key to derive.
-* @param[in,out] key A 128-bit OR 256-bit buffer to hold the derived key, size is defined according to the `keyType`.
-* @param[in] keyLenBytes The size of buffer to hold the 128-bit OR 256-bit key.
-* \return PAL_SUCCESS in case of success and one of the following error codes in case of failure: \n
-* PAL_ERR_GET_DEV_KEY - an error in key derivation.
-*/
-palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t keyLenBytes);
-
-
 /*! Initialize the RTOS module for PAL.
  * This function can be called only once before running the system.
  * To remove PAL from the system, call `pal_RTOSDestroy`.
@@ -421,14 +326,6 @@ palStatus_t pal_RTOSInitialize(void* opaqueContext);
 */
 palStatus_t pal_RTOSDestroy(void);
 
-/*! Generate a 32-bit random number.
-*
-* @param[out] random A 32-bit buffer to hold the generated number.
-*
-\note `pal_init()` MUST be called before this function.
-\return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
-*/
-palStatus_t pal_osRandom32bit(uint32_t *random);
 
 
 #ifdef __cplusplus

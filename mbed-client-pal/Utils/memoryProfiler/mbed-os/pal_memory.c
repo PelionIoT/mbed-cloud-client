@@ -21,7 +21,6 @@
  */
 #ifdef PAL_MEMORY_STATISTICS
 
-#include "stdio.h"
 #include "mbed-trace/mbed_trace.h"
 #include "mbed_stats.h"
 

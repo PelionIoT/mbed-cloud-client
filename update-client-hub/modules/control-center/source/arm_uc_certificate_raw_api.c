@@ -34,7 +34,7 @@ static arm_uc_error_t arm_uc_raw_cert_fetcher(arm_uc_buffer_t *certificate,
                                               void (*callback)(arm_uc_error_t, const arm_uc_buffer_t *, const arm_uc_buffer_t *))
 {
     UC_CONT_TRACE("Attempting to load certificate");
-    arm_uc_error_t err = {ARM_UC_CM_ERR_NONE};
+    arm_uc_error_t err = {ERR_NONE};
 
     (void)DERCertificateList;
     if (certificate == NULL ||
@@ -53,19 +53,19 @@ static arm_uc_error_t arm_uc_raw_cert_fetcher(arm_uc_buffer_t *certificate,
         .size = arm_uc_raw_fingerprint_size,
         .ptr = (uint8_t *)arm_uc_raw_fingerprint
     };
-    if (err.code == ARM_UC_CM_ERR_NONE) {
+    if (err.code == ERR_NONE) {
         // Compare the buffers
         uint32_t rc = ARM_UC_BinCompareCT(fingerprint, &fingerprintLocalBuffer);
         if (rc) {
             err.code = ARM_UC_CM_ERR_NOT_FOUND;
         } else {
             UC_CONT_TRACE("Certificate lookup fingerprint matched.");
-            err.code = ARM_UC_CM_ERR_NONE;
+            err.code = ERR_NONE;
             certificate->ptr = (uint8_t *)arm_uc_raw_certificate;
             certificate->size = arm_uc_raw_certificate_size;
         }
 
-        if (callback && (err.code == ARM_UC_CM_ERR_NONE)) {
+        if (callback && (err.code == ERR_NONE)) {
             callback(err, certificate, fingerprint);
         }
     }
@@ -77,7 +77,7 @@ static arm_uc_error_t arm_uc_raw_cert_storer(
     const arm_uc_buffer_t *fingerprint,
     void(*callback)(arm_uc_error_t, const arm_uc_buffer_t *))
 {
-    arm_uc_error_t err = {ARM_UC_CM_ERR_NONE};
+    arm_uc_error_t err = {ERR_NONE};
 
     if (cert == NULL ||
             fingerprint == NULL ||
@@ -91,14 +91,14 @@ static arm_uc_error_t arm_uc_raw_cert_storer(
         err.code = ARM_UC_CM_ERR_INVALID_PARAMETER;
     }
 
-    if (err.code == ARM_UC_CM_ERR_NONE) {
+    if (err.code == ERR_NONE) {
         arm_uc_raw_fingerprint = fingerprint->ptr;
         arm_uc_raw_fingerprint_size = fingerprint->size;
         arm_uc_raw_certificate = cert->ptr;
         arm_uc_raw_certificate_size = cert->size;
     }
 
-    if (callback && (err.code == ARM_UC_CM_ERR_NONE)) {
+    if (callback && (err.code == ERR_NONE)) {
         callback(err, fingerprint);
     }
 

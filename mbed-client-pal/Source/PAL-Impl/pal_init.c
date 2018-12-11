@@ -19,6 +19,7 @@
 #include "pal_plat_network.h"
 #include "pal_plat_TLS.h"
 #include "pal_plat_Crypto.h"
+#include "pal_plat_drbg.h"
 #include "pal_macros.h"
 #include "sotp.h"
 
@@ -32,6 +33,7 @@ PAL_PRIVATE void pal_modulesCleanup(void)
 {
     DEBUG_PRINT("Destroying modules\r\n");
     pal_plat_socketsTerminate(NULL);
+    pal_plat_DRBGDestroy();
     sotp_deinit();
     pal_plat_cleanupCrypto();
     pal_cleanupTLS();
@@ -107,6 +109,14 @@ palStatus_t pal_init(void)
                                 if (PAL_SUCCESS != status)
                                 {
                                     DEBUG_PRINT("init of Time module has failed with status %" PRIx32 "\r\n",status);
+                                }
+                                else
+                                {
+                                    status = pal_plat_DRBGInit();
+                                    if (PAL_SUCCESS != status)
+                                    {
+                                        DEBUG_PRINT("init of DRBG module has failed with status %" PRIx32 "\r\n",status);
+                                    }
                                 }
                             }
                         }

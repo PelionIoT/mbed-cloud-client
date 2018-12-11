@@ -21,6 +21,11 @@
 #include <assert.h>
 #include <stddef.h>
 
+/*! \file m2mstringbuffer.h
+ *  \brief StringBuffer.
+ *  This class performs common string concatenation operations on a fixed-sized buffers.
+ */
+
 template <int SIZE>
 class StringBuffer : private StringBufferBase
 {

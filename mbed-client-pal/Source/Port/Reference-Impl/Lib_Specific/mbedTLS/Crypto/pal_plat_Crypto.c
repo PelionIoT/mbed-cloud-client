@@ -13,9 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#include "stdlib.h"
-#include "string.h"
-#include "time.h"
 #include "pal.h"
 #include "pal_plat_Crypto.h"
 #include "pal_plat_rtos.h"
@@ -37,6 +34,10 @@
 #include "mbedtls/ecdh.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/platform_time.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #define TRACE_GROUP "PAL"
 
