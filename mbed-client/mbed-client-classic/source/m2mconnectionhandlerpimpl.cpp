@@ -271,7 +271,7 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     _handler_async_DNS = 0;
     status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
     if (PAL_SUCCESS != status) {
-       tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. 0x%X", status);
+       tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. 0x%X", (unsigned)status);
        _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
     }
     else {
@@ -281,7 +281,7 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:synchronous DNS");
     status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with 0x%X", status);
+        tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with 0x%X", (unsigned)status);
         if (!send_event(ESocketDnsError)) {
             tr_error("M2MConnectionHandlerPimpl::address_resolver, error event alloc fail.");
         }
@@ -470,15 +470,21 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                 if (_secure_connection) {
                     if ( _security_impl != NULL ) {
                         _security_impl->reset();
-
-                        if (_security_impl->init(_security, security_instance_id) == 0) {
+                        int ret_code = _security_impl->init(_security, security_instance_id);
+                        if (ret_code == M2MConnectionHandler::ERROR_NONE) {
                             // Initiate handshake. Perhaps there could be a separate event type for this?
                             _socket_state = ESocketStateHandshaking;
                             send_socket_event(ESocketCallback);
                         } else {
                             tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - init failed");
                             close_socket();
-                            _observer.socket_error(M2MConnectionHandler::SSL_CONNECTION_ERROR, true);
+
+                            if (ret_code == M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS) {
+                                _observer.socket_error(M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS, false);
+                            } else {
+                                _observer.socket_error(M2MConnectionHandler::SSL_CONNECTION_ERROR, true);
+                            }
+
                             return;
                         }
                     } else {
@@ -673,9 +679,11 @@ void M2MConnectionHandlerPimpl::handle_connection_error(int error)
 void M2MConnectionHandlerPimpl::set_platform_network_handler(void *handler)
 {
     tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler");
+
     if (PAL_SUCCESS != pal_registerNetworkInterface(handler, &_net_iface)) {
         tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Interface registration failed.");
     }
+    tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler - index = %d", _net_iface);
 }
 
 void M2MConnectionHandlerPimpl::receive_handshake_handler()
@@ -687,7 +695,7 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
 
     return_value = _security_impl->connect(_base);
 
-    if (!return_value) {
+    if (return_value == M2MConnectionHandler::ERROR_NONE) {
 
         _handshake_retry = 0;
         _socket_state = ESocketStateSecureConnection;
@@ -715,7 +723,7 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
         close_socket();
 
     } else {
-
+        // Comes here only if error is M2MConnectionHandler::ERROR_GENERIC
         if (_handshake_retry++ > MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY) {
 
             tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - Max TLS retry fail");
@@ -763,6 +771,7 @@ void M2MConnectionHandlerPimpl::receive_handler()
                                          rcv_size, _address);
 
             } else if (M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY == rcv_size) {
+                tr_error("M2MConnectionHandlerPimpl::receive_handler() - peer close notify!");
                 _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY, true);
                 return;
 
@@ -772,8 +781,8 @@ void M2MConnectionHandlerPimpl::receive_handler()
                 close_socket();
                 return;
 
-            } else if (M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ != rcv_size && rcv_size < 0) {
-                tr_error("M2MConnectionHandlerPimpl::receive_handler() - secure SOCKET_READ_ERROR");
+            } else if (M2MConnectionHandler::ERROR_GENERIC == rcv_size) {
+                tr_error("M2MConnectionHandlerPimpl::receive_handler() - secure ERROR_GENERIC");
                 _observer.socket_error(M2MConnectionHandler::SOCKET_READ_ERROR, true);
                 close_socket();
                 return;
@@ -957,4 +966,9 @@ void M2MConnectionHandlerPimpl::add_item_to_list(M2MConnectionHandlerPimpl::send
 void M2MConnectionHandlerPimpl::force_close()
 {
     close_socket();
+}
+
+void M2MConnectionHandlerPimpl::unregister_network_handler()
+{
+    pal_unregisterNetworkInterface(_net_iface);
 }

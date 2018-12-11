@@ -55,6 +55,10 @@ STATIC uint32_t free_space_offset __attribute__((aligned(8)));
 STATIC uint32_t offset_by_type[SOTP_MAX_TYPES];
 STATIC sotp_shared_lock_t write_lock;
 
+// Allocated with malloc - this assures that casts to uint32_t pointers are safe
+// This is a page buffer for internal usage - copying header + data when needed
+STATIC uint8_t *page_buf = NULL;
+STATIC uint32_t min_prog_size;
 
 // Currently disable OTP feature
 #if 0
@@ -279,7 +283,7 @@ STATIC sotp_result_e read_record(uint8_t area, uint32_t offset, uint16_t buf_len
         if (data_len > buf_len_bytes) {
             offset += data_len;
             *actual_len_bytes = data_len;
-            *next_offset = pad_addr(offset, FLASH_MINIMAL_PROG_UNIT);
+            *next_offset = pad_addr(offset, min_prog_size);
             return SOTP_BUFF_TOO_SMALL;
         }
         buf_ptr = buf;
@@ -296,14 +300,13 @@ STATIC sotp_result_e read_record(uint8_t area, uint32_t offset, uint16_t buf_len
         data_len -= chunk_len;
         offset += chunk_len;
     }
-
     if (header.mac != crc) {
         *valid = false;
         return SOTP_SUCCESS;
     }
 
     *actual_len_bytes = header.length;
-    *next_offset = pad_addr(offset, FLASH_MINIMAL_PROG_UNIT);
+    *next_offset = pad_addr(offset, min_prog_size);
 
     return SOTP_SUCCESS;
 }
@@ -325,7 +328,7 @@ STATIC sotp_result_e write_record(uint8_t area, uint32_t offset, uint16_t type, 
     record_header_t header;
     uint32_t crc = INITIAL_CRC;
     palStatus_t pal_ret;
-    uint32_t write_len;
+    uint8_t *prog_buf;
     SOTP_LOG_APPEND("write_record area:%d offs:%d len:%d type:%d. ", area, offset, data_len, type);
 
     header.type_and_flags = type | flags;
@@ -336,22 +339,57 @@ STATIC sotp_result_e write_record(uint8_t area, uint32_t offset, uint16_t type, 
         crc = crc32(crc, data_len, (uint8_t *) data_buf);
     header.mac = crc;
 
-    pal_ret = sotp_flash_write_area(area, offset, sizeof(header), (uint32_t *)&header);
+    // In case page size is greater than header size, we can't write header and data
+    // separately. Instead, we need to copy header and start of data to our page buffer
+    // and write them together. Otherwise, simply write header and data separately.
+
+    uint32_t prog_size = sizeof(header);
+    uint32_t copy_size = 0;
+
+    // If min prog size is larger than the header size - allocate new buffer containing the header and the amount of data to fill the page
+    if (min_prog_size > sizeof(header)) {
+        prog_buf = page_buf;
+        memcpy(page_buf, &header, min_prog_size);
+        if (data_len) {
+            // The amount of data to copy is page_size - sizeof(header) (to fill page) but no more than the data length
+            copy_size = PAL_MIN(data_len, min_prog_size - sizeof(header));
+            memcpy(prog_buf + sizeof(header), data_buf, copy_size);
+
+            // Update the number of data bytes to write after the header page
+            data_len -= copy_size; 
+
+            // Update the header page size 
+            prog_size += copy_size;
+        }
+    } else {
+        prog_buf = (uint8_t *)&header;
+        // prog_size remains sizeof(header)
+    }
+
+    // Write the header page
+    // If header is smaller than the min prog size, header page:  [ <header>, <copy_size first bytes of data> ]
+    // else if min prog size is size of header, header page: [ <header> ] 
+    // else if min prog size is smaller than the header: [ <page 1 of header> ] [ <page 2 of header> ], ...
+    pal_ret = sotp_flash_write_area(area, offset, prog_size, (uint32_t *)prog_buf);
     if (pal_ret != PAL_SUCCESS) {
         return SOTP_WRITE_ERROR;
     }
 
+    offset += prog_size;
+
     if (data_len) {
-        offset += sizeof(header);
-        write_len = data_len;
-        pal_ret = sotp_flash_write_area(area, offset, write_len, data_buf);
+        prog_buf = (uint8_t *)data_buf + copy_size;
+        // Write the buffer from the correct offset in the data buffer 
+        // taking into consideration the copy_size data bytes written into the header page.
+        // The cast of prog_bug is safe, because it's either page_buf, or header and they are both 32bits aligned
+        pal_ret = sotp_flash_write_area(area, offset, data_len, (uint32_t *)prog_buf);
         if (pal_ret != PAL_SUCCESS) {
             return SOTP_WRITE_ERROR;
         }
         offset += data_len;
     }
 
-    *next_offset = pad_addr(offset, FLASH_MINIMAL_PROG_UNIT);
+    *next_offset = pad_addr(offset, min_prog_size);
     return SOTP_SUCCESS;
 }
 
@@ -382,60 +420,82 @@ STATIC sotp_result_e write_master_record(uint8_t area, uint16_t version, uint32_
 STATIC sotp_result_e copy_record(uint8_t from_area, uint32_t from_offset, uint32_t to_offset,
                                  uint32_t *next_offset)
 {
-    uint32_t int_buf[32];
-    uint32_t data_len, chunk_len;
+    uint32_t int_buf[32]; // buffer size must be sufficient to read the header into it
+    uint32_t record_size, chunk_size, prog_buf_size;
     palStatus_t pal_ret;
-    record_header_t header;
+    record_header_t *header;
+    uint8_t *read_buf, *prog_buf;
+
     SOTP_LOG_APPEND("copy_record f_area:%d f_offs:%d t_offs:%d ",
                     from_area, from_offset, to_offset);
 
     // This function assumes that the source record is valid, so no need to recalculate CRC.
 
-    pal_ret = sotp_flash_read_area(from_area, from_offset, sizeof(header), (uint32_t *) &header);
+    // If header is smaller than page, beginning of data is attached to the header in the same page of the header
+    // therefore, it should be written together to the new area
+    // if not, we may just write the header, and then write the data
+    if (min_prog_size > sizeof(*header)) {
+        prog_buf = page_buf; // In this case we read to the global page buffer because we concat the header and the beginning of the data into sufficient size buffer
+        prog_buf_size = min_prog_size; 
+    } else {
+        prog_buf = (uint8_t*)int_buf; // In this case we read just the header into the buffer and write the header and data separately
+        prog_buf_size = sizeof(int_buf);
+    }
+    read_buf = prog_buf;
+
+    // The case of read_buf is safe, because it's either page_buf or int_buf and they are both 32bit aligned
+    pal_ret = sotp_flash_read_area(from_area, from_offset, sizeof(*header), (uint32_t*)read_buf);
     if (pal_ret != PAL_SUCCESS) {
         return SOTP_READ_ERROR;
     }
 
-    SOTP_LOG_APPEND("type %d. ", header.type);
+    header = (record_header_t *)read_buf;
+    record_size = sizeof(*header) + header->length;
 
-    data_len = header.length;
+
+    SOTP_LOG_APPEND("type %d. ", header->type_and_flags);
+
 
     // No need to copy records whose flags indicate deletion
-    if (header.type_and_flags & DELETE_ITEM_FLAG) {
-        *next_offset = pad_addr(to_offset, FLASH_MINIMAL_PROG_UNIT);
+    if (header->type_and_flags & DELETE_ITEM_FLAG) {
+        *next_offset = pad_addr(to_offset, min_prog_size);
         return SOTP_SUCCESS;
     }
 
     // no need to align record size here, as it won't change the outcome of this condition
-    if (to_offset + sizeof(header) + data_len >= flash_area_params[1-from_area].size) {
+    if (to_offset + pad_addr(record_size, min_prog_size) >= flash_area_params[1-from_area].size) {
         return SOTP_FLASH_AREA_TOO_SMALL;
     }
 
-    pal_ret = sotp_flash_write_area(1-from_area, to_offset, sizeof(header), (uint32_t *)&header);
-    if (pal_ret != PAL_SUCCESS) {
-        return SOTP_WRITE_ERROR;
-    }
+    uint16_t start_size = sizeof(*header);
+    from_offset += start_size;
+    read_buf += start_size;
+    record_size -= start_size;
 
-    from_offset += sizeof(header);
-    to_offset += sizeof(header);
-
-    while (data_len) {
-        chunk_len = PAL_MIN(data_len, sizeof(int_buf));
-        pal_ret = sotp_flash_read_area(from_area, from_offset, chunk_len, int_buf);
-        if (pal_ret != PAL_SUCCESS) {
-            return SOTP_READ_ERROR;
+    do {
+        chunk_size = PAL_MIN(record_size, (prog_buf_size - start_size));
+        if (chunk_size) {
+            // The cast of read_buf is safe, because it's 32bit aligned buffer (page_buf or int_buf + header size, that is also 32bit aligned)
+            pal_ret = sotp_flash_read_area(from_area, from_offset, chunk_size, (uint32_t*)read_buf);
+            if (pal_ret) {
+                return SOTP_READ_ERROR;
+            }
         }
-        pal_ret = sotp_flash_write_area(1-from_area, to_offset, chunk_len, int_buf);
+        // Cast of prog_buf from uint8_t* to uint32_t is OK because prog_buf points to
+        // either page_buf or int_buf (both 4 byte aligned)
+        pal_ret = sotp_flash_write_area(1 - from_area, to_offset, chunk_size + start_size, (uint32_t *)prog_buf);
         if (pal_ret != PAL_SUCCESS) {
             return SOTP_WRITE_ERROR;
         }
 
-        data_len -= chunk_len;
-        from_offset += chunk_len;
-        to_offset += chunk_len;
-    }
+        read_buf = prog_buf;
+        record_size -= chunk_size;
+        from_offset += chunk_size;
+        to_offset += chunk_size + start_size;
+        start_size = 0;
+    } while (record_size);
 
-    *next_offset = pad_addr(to_offset, FLASH_MINIMAL_PROG_UNIT);
+    *next_offset = pad_addr(to_offset, min_prog_size);
     return SOTP_SUCCESS;
 }
 
@@ -453,8 +513,7 @@ sotp_result_e sotp_garbage_collection(uint16_t type, uint16_t buf_len_bytes, con
 
     SOTP_LOG_CREATE("GC. ");
 
-    new_area_offset = sizeof(record_header_t) + sizeof(master_record_data_t);
-
+    new_area_offset = pad_addr(sizeof(record_header_t) + sizeof(master_record_data_t), min_prog_size);
     // If GC is triggered by a set item request, we need to first write that item in the new location,
     // otherwise we may either write it twice (if already included), or lose it in case we decide
     // to skip it at garbage collection phase (and the system crashes).
@@ -667,8 +726,7 @@ STATIC sotp_result_e sotp_do_set(uint32_t type, uint16_t buf_len_bytes, const ui
     }
 
     save_active_area = active_area;
-    record_size = pad_addr(sizeof(record_header_t) + buf_len_bytes, FLASH_MINIMAL_PROG_UNIT);
-
+    record_size = pad_addr(sizeof(record_header_t) + buf_len_bytes, min_prog_size);
     // Parallel operation of writers is allowed due to this atomic operation. This operation
     // produces an offset on which each writer can work separately, without being interrupted
     // by the other writer. The only mutual resource here is free_space_offset - which
@@ -721,6 +779,8 @@ STATIC sotp_result_e sotp_do_set(uint32_t type, uint16_t buf_len_bytes, const ui
             record_offset = new_free_space - free_space_offset;
         }
     }
+
+    record_offset = pad_addr(record_offset, min_prog_size);
 
     // Now write the record
     ret = write_record(active_area, record_offset, (uint8_t)type, flags, buf_len_bytes, buf, &next_offset);
@@ -797,6 +857,23 @@ sotp_result_e sotp_init(void)
         return SOTP_SUCCESS;
     }
 #endif
+
+    // Set the minimal programming size to be the max of page size, and header size
+    // In the past, SOTP module supported only pages up to 8 bytes, and all records
+    // were aligned to 8 bytes (the header size).
+    // Now SOTP supports larger pages, so in order to not break compatibility, if
+    // the header is larger than the page, records will still be aligned to the header size
+    min_prog_size = (uint32_t)PAL_MAX(pal_internalFlashGetPageSize(), sizeof(record_header_t));
+    if (min_prog_size > sizeof(record_header_t)) {
+        // Since we use malloc, it is guaranteed that we may cast the page_buff pointer to *uint32_t safely
+        // without any alignment issues
+        page_buf = malloc(min_prog_size);
+        if (!page_buf) {
+            PR_ERR("sotp_init: malloc failed\n");
+            ret = SOTP_MEM_ALLOC_ERROR;
+            goto init_end;
+        }
+    }
 
     memset(offset_by_type, 0, sizeof(offset_by_type));
 
@@ -918,6 +995,10 @@ sotp_result_e sotp_init(void)
     }
 
 init_end:
+    if (ret != SOTP_SUCCESS) {
+        free(page_buf);
+        page_buf = NULL;
+    }
     init_done = true;
     return ret;
 }
@@ -926,6 +1007,7 @@ sotp_result_e sotp_deinit(void)
 {
     if (init_done) {
         sotp_sh_lock_destroy(write_lock);
+        free(page_buf);
     }
 
 #ifdef SOTP_THREAD_SAFE

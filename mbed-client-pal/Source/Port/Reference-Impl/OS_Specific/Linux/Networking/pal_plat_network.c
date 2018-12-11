@@ -145,7 +145,7 @@ static void sigusr2(int signo) {
     (void)signo;
     s_palUSR1Counter++;
     // Coverity fix - Unchecked return value. There is not much doable if semaphore release fail.
-    // Function pal_osSemaphoreRelease already contains error trace. 
+    // Function pal_osSemaphoreRelease already contains error trace.
     (void)pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
 }
 
@@ -156,7 +156,7 @@ static void sig_io_handler(int signo) {
 
     s_palIOCounter++;
     // Coverity fix - Unchecked return value. There is not much doable if semaphore release fail.
-    // Function pal_osSemaphoreRelease already contains error trace. 
+    // Function pal_osSemaphoreRelease already contains error trace.
     (void)pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
 }
 
@@ -538,7 +538,7 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
 
     for (index = 0; index < s_palNumOfInterfaces; index++) // if specific context already registered return existing index instead of registering again.
     {
-        if (memcmp(s_palNetworkInterfacesSupported[index].interfaceName, (const char *)context, strlen(s_palNetworkInterfacesSupported[index].interfaceName)) == 0)
+        if (strcmp(s_palNetworkInterfacesSupported[index].interfaceName, (const char *)context) == 0)
         {
             found = true;
             *interfaceIndex = index;
@@ -561,6 +561,13 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
     }
 
     return result;
+}
+
+palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
+{
+    strcpy(s_palNetworkInterfacesSupported[interfaceIndex].interfaceName, "");
+    --s_palNumOfInterfaces;
+    return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_socketsTerminate(void* context)
@@ -590,7 +597,7 @@ palStatus_t pal_plat_socketsTerminate(void* context)
     {
         pthread_kill(s_pollThread, SIGUSR1);
     }
-    
+
     result = pal_osMutexRelease(s_mutexSocketCallbacks);
     if ((PAL_SUCCESS != result) && (PAL_SUCCESS == firstError))
     {

@@ -57,7 +57,7 @@
 #define INTERFACE_ERROR             "Client interface is not created. Restart"
 #define CREDENTIAL_ERROR            "Failed to read credentials from storage"
 #define DEVICE_NOT_PROVISIONED      "Device not provisioned"
-#define ERROR_NO_MEMORY             "Not enough memory to store LWM2M credentials"
+#define CONNECTOR_ERROR_NO_MEMORY   "Not enough memory to store LWM2M credentials"
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #define ERROR_EST_ENROLLMENT_REQUEST_FAILED   "EST enrollment request failed"
@@ -249,6 +249,7 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
                                                       M2MInterface::LwIP_IPv4);             // network stack
 
     initialize_storage();
+
 }
 
 
@@ -293,14 +294,18 @@ void ConnectorClient::start_registration(M2MBaseList* client_objs)
     _client_objs = client_objs;
 
     // XXX: actually this call should be external_event() to match the pattern used in other m2m classes
-    create_register_object();
-    if(_security->get_security_instance_id(M2MSecurity::M2MServer) >= 0) {
-        _interface->update_endpoint(_endpoint_info.endpoint_name);
-        _interface->update_domain(_endpoint_info.account_id);
-        internal_event(State_Registration_Start);
+    if (create_register_object()) {
+        if(_security->get_security_instance_id(M2MSecurity::M2MServer) >= 0) {
+            _interface->update_endpoint(_endpoint_info.endpoint_name);
+            _interface->update_domain(_endpoint_info.account_id);
+            internal_event(State_Registration_Start);
+        } else {
+            tr_error("ConnectorClient::start_registration(): failed to create objs");
+            _callback->connector_error(M2MInterface::InvalidParameters, INTERFACE_ERROR);
+        }
     } else {
-        tr_error("ConnectorClient::start_registration(): failed to create objs");
-        _callback->connector_error(M2MInterface::InvalidParameters, INTERFACE_ERROR);
+        tr_error("ConnectorClient::start_registration - failed to read credentials");
+        _callback->connector_error((M2MInterface::Error)MbedCloudClient::ConnectorFailedToReadCredentials, CREDENTIAL_ERROR);
     }
     state_engine();
 }
@@ -407,7 +412,7 @@ void ConnectorClient::state_function(StartupSubStateRegistration current_state)
 *  Creates register server object with mbed device server address and other parameters
 *  required for client to connect to mbed device server.
 */
-void ConnectorClient::create_register_object()
+bool ConnectorClient::create_register_object()
 {
     tr_debug("ConnectorClient::create_register_object()");
     int32_t m2m_id = _security->get_security_instance_id(M2MSecurity::M2MServer);
@@ -416,10 +421,6 @@ void ConnectorClient::create_register_object()
     }
 
     m2m_id = _security->get_security_instance_id(M2MSecurity::M2MServer);
-    _security->set_resource_value(M2MSecurity::BootstrapServer, M2MSecurity::M2MServer, m2m_id);
-
-    // Add ResourceID's and values to the security ObjectID/ObjectInstance
-    _security->set_resource_value(M2MSecurity::SecurityMode, _endpoint_info.mode, m2m_id);
 
     // Allocate scratch buffer, this will be used to copy parameters from storage to security object
     const int max_size = MAX_CERTIFICATE_SIZE;
@@ -427,11 +428,20 @@ void ConnectorClient::create_register_object()
     size_t real_size = 0;
     bool success = false;
 
-    if (buffer != NULL) {
+    if (_security->set_resource_value(M2MSecurity::BootstrapServer, M2MSecurity::M2MServer, m2m_id)) {
         success = true;
     }
-    else {
-        tr_error("ConnectorClient::create_register_object - Temporary certificate buffer allocation failed!");
+
+    // Add ResourceID's and values to the security ObjectID/ObjectInstance
+    if (success) {
+        success = false;
+        if (_security->set_resource_value(M2MSecurity::SecurityMode, _endpoint_info.mode, m2m_id)) {
+            success = true;
+        }
+    }
+
+    if (success && buffer == NULL) {
+        success = false;
     }
 
     // Endpoint
@@ -444,14 +454,15 @@ void ConnectorClient::create_register_object()
         uint8_t *certificate_ptr = (uint8_t*)&certificate;
 
         // TODO! Update to use chain api
-        _security->resource_value_buffer(M2MSecurity::PublicKey, certificate_ptr, m2m_id, &cert_size);
-        real_size = cert_size;
-        if (extract_field_from_certificate((uint8_t*)certificate, real_size, "CN", device_id)) {
-            tr_info("ConnectorClient::create_register_object - CN - endpoint_name : %s", device_id);
-            _endpoint_info.endpoint_name = String(device_id);
-            success = true;
-        } else {
-            tr_error("KEY_ENDPOINT_NAME failed.");
+        if (_security->resource_value_buffer(M2MSecurity::PublicKey, certificate_ptr, m2m_id, &cert_size) == 0) {
+            real_size = cert_size;
+            if (extract_field_from_certificate((uint8_t*)certificate, real_size, "CN", device_id)) {
+                tr_info("ConnectorClient::create_register_object - CN - endpoint_name : %s", device_id);
+                _endpoint_info.endpoint_name = String(device_id);
+                success = true;
+            } else {
+                tr_error("KEY_ENDPOINT_NAME failed.");
+            }
         }
     }
 
@@ -460,14 +471,16 @@ void ConnectorClient::create_register_object()
         success = false;
         if (ccs_get_item(g_fcc_lwm2m_server_uri_name, buffer, max_size, &real_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
             tr_info("ConnectorClient::create_register_object - M2MServerUri %.*s", (int)real_size, buffer);
-            success = true;
-            _security->set_resource_value(M2MSecurity::M2MServerUri, buffer, (uint32_t)real_size, m2m_id);
+            if (_security->set_resource_value(M2MSecurity::M2MServerUri, buffer, (uint32_t)real_size, m2m_id)) {
+                success = true;
+            }
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
             _endpoint_info.lwm2m_server_uri = _security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id);
 #endif
         }
-        else
+        else {
             tr_error("KEY_CONNECTOR_URL failed.");
+        }
     }
 
     // Try to get internal endpoint name
@@ -481,22 +494,40 @@ void ConnectorClient::create_register_object()
         }
     }
 
-    // Account ID, not mandatory
     if (success) {
+        success = false;
         if (ccs_get_item(KEY_ACCOUNT_ID, buffer, max_size, &real_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
             tr_info("ConnectorClient::create_register_object - AccountId %.*s", (int)real_size, buffer);
             _endpoint_info.account_id = String((const char*)buffer, real_size);
+            success = true;
+        } else {
+            if (ccs_get_item(g_fcc_lwm2m_server_uri_name, buffer, max_size, &real_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
+                String address((const char*)buffer, real_size);
+                if (address.size() > 0) {
+                    const char *aid = NULL;
+                    const int aid_size = parse_query_parameter_value_from_uri((const char*)address.c_str(), QUERY_PARAM_AID, &aid);
+                    if (aid_size > 0) {
+                        _endpoint_info.account_id.clear();
+                        _endpoint_info.account_id.append_raw(aid, aid_size);
+                        ccs_delete_item(KEY_ACCOUNT_ID, CCS_CONFIG_ITEM);
+                        if (ccs_set_item(KEY_ACCOUNT_ID,
+                                (const uint8_t*)_endpoint_info.account_id.c_str(),
+                                (size_t)_endpoint_info.account_id.size(), CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
+                            success = true;
+                            tr_info("ConnectorClient::create_register_object - aid from uri %s", _endpoint_info.account_id.c_str());
+                        } else {
+                            tr_error("ConnectorClient::create_register_object - failed to store aid");
+                        }
+
+                    }
+                }
+            }
         }
-        else
-            tr_debug("KEY_ACCOUNT_ID failed.");
     }
 
     free(buffer);
-    if (!success) {
-        tr_error("ConnectorClient::create_register_object - Failed to read credentials");
-        _callback->connector_error((M2MInterface::Error)MbedCloudClient::ConnectorFailedToReadCredentials,CREDENTIAL_ERROR);
-        // TODO: what to do with the m2mserver security instance
-    }
+
+    return success;
 }
 
 /*
@@ -511,7 +542,9 @@ bool ConnectorClient::create_bootstrap_object()
     // Check if bootstrap credentials are already stored in KCM
     if (bootstrap_credentials_stored_in_kcm() && _security) {
         int32_t bs_id = _security->get_security_instance_id(M2MSecurity::Bootstrap);
-        _security->set_resource_value(M2MSecurity::SecurityMode, M2MSecurity::Certificate, bs_id);
+        if (_security->set_resource_value(M2MSecurity::SecurityMode, M2MSecurity::Certificate, bs_id)) {
+            success = true;
+        }
 
         tr_info("ConnectorClient::create_bootstrap_object - bs_id = %" PRId32, bs_id);
         tr_info("ConnectorClient::create_bootstrap_object - use credentials from storage");
@@ -519,12 +552,13 @@ bool ConnectorClient::create_bootstrap_object()
         // Allocate scratch buffer, this will be used to copy parameters from storage to security object
         size_t real_size = 0;
         const int max_size = MAX_CERTIFICATE_SIZE;
-        uint8_t *buffer = (uint8_t*)malloc(max_size);
-        if (buffer != NULL) {
-            success = true;
-        }
-        else {
-            tr_error("ConnectorClient::create_bootstrap_object - Temporary certificate buffer allocation failed!");
+        uint8_t *buffer = NULL;
+        if (success) {
+            success = false;
+            buffer = (uint8_t*)malloc(max_size);
+            if (buffer != NULL) {
+                success = true;
+            }
         }
 
         // Read internal endpoint name if it exists, we need to append
@@ -544,9 +578,8 @@ bool ConnectorClient::create_bootstrap_object()
         if (success) {
             success = false;
             if (ccs_get_string_item(g_fcc_bootstrap_server_uri_name, buffer, max_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
-                success = true;
-
                 real_size = strlen((const char*)buffer);
+
                 // Append iep if we 1. have it 2. it doesn't already exist in uri 3. it fits
                 if (iep &&
                     strstr((const char*)buffer, (const char*)iep) == NULL &&
@@ -556,7 +589,9 @@ bool ConnectorClient::create_bootstrap_object()
                 }
 
                 tr_info("ConnectorClient::create_bootstrap_object - M2MServerUri %.*s", (int)real_size, buffer);
-                _security->set_resource_value(M2MSecurity::M2MServerUri, buffer, real_size, bs_id);
+                if (_security->set_resource_value(M2MSecurity::M2MServerUri, buffer, real_size, bs_id)) {
+                    success = true;
+                }
             }
         }
 
@@ -771,7 +806,7 @@ void ConnectorClient::state_est_start()
                                                                  this);
 
     if (est_status != EST_STATUS_SUCCESS) {
-        tr_error("ConnectorClient::state_est_start - EST enrollment failed with error %" PRIu32, est_status);
+        tr_error("ConnectorClient::state_est_start - EST enrollment failed with error %d", (int)est_status);
         internal_event(State_EST_Failure);
     }
 
@@ -864,7 +899,7 @@ void ConnectorClient::bootstrap_data_ready(M2MSecurity *security_object)
         status = set_bootstrap_credentials(security_object);
         if (status != CCS_STATUS_SUCCESS) {
             // TODO: what now?
-            tr_error("ConnectorClient::bootstrap_data_ready - couldn't store bootstrap credentials");
+            tr_error("ConnectorClient::bootstrap_data_ready - could not store bootstrap credentials");
         }
 
         // Clear the first to claim flag if it's active
@@ -910,7 +945,7 @@ void ConnectorClient::bootstrap_data_ready(M2MSecurity *security_object)
         if (status != CCS_STATUS_SUCCESS) {
             internal_event(State_Bootstrap_Failure);
             //Failed to store credentials, bootstrap failed
-            _callback->connector_error(M2MInterface::MemoryFail, ERROR_NO_MEMORY); // Translated to error code ConnectMemoryConnectFail
+            _callback->connector_error(M2MInterface::MemoryFail, CONNECTOR_ERROR_NO_MEMORY); // Translated to error code ConnectMemoryConnectFail
             return;
         } else {
             tr_info("ConnectorClient::bootstrap_data_ready - set_credentials status %d", status);
@@ -1118,90 +1153,33 @@ ccs_status_e ConnectorClient::set_bootstrap_credentials(M2MSecurity *security)
     tr_debug("ConnectorClient::set_bootstrap_credentials");
     ccs_status_e status = CCS_STATUS_ERROR;
 
-    size_t buffer_size = MAX_CERTIFICATE_SIZE;
-    uint8_t key[MAX_CERTIFICATE_SIZE];
-    uint8_t *key_ptr = (uint8_t*)&key;
+    size_t uri_size = MAX_CERTIFICATE_SIZE;
+    uint8_t bootstrap_uri[MAX_CERTIFICATE_SIZE];
+    uint8_t *bootstrap_uri_ptr = (uint8_t*)&bootstrap_uri;
 
     int32_t bs_id = security->get_security_instance_id(M2MSecurity::Bootstrap);
     if (bs_id == -1) {
         return status;
     }
 
-    // TODO! Update to use chain api
-    if (security->resource_value_buffer(M2MSecurity::PublicKey, key_ptr, bs_id, &buffer_size) != 0) {
+    String bs_uri = security->resource_value_string(M2MSecurity::M2MServerUri, bs_id);
+    if (bs_uri.size() <= 0) {
         return status;
     }
 
-    if (buffer_size) {
-        ccs_delete_item(g_fcc_bootstrap_device_certificate_name, CCS_CERTIFICATE_ITEM);
-        status = ccs_set_item(g_fcc_bootstrap_device_certificate_name,
-                                            key_ptr,
-                                            buffer_size,
-                                        CCS_CERTIFICATE_ITEM);
-        buffer_size = MAX_CERTIFICATE_SIZE;
-    }
-
-    if (status == CCS_STATUS_SUCCESS) {
-        if (security->resource_value_buffer(M2MSecurity::Secretkey, key_ptr, bs_id, &buffer_size) != 0) {
-            status = CCS_STATUS_ERROR;
-            buffer_size = 0;
+    // Update BS uri only if it has changed.
+    // If uri is missing or some other error while reading the item --> return error.
+    if (ccs_get_string_item(g_fcc_bootstrap_server_uri_name, bootstrap_uri_ptr, uri_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
+        if (strcmp((const char*)bootstrap_uri_ptr, bs_uri.c_str()) != 0) {
+            tr_info("ConnectorClient::set_bootstrap_credentials - update uri from: %s to: %s", (char*)bootstrap_uri_ptr, bs_uri.c_str());
+            ccs_delete_item(g_fcc_bootstrap_server_uri_name, CCS_CONFIG_ITEM);
+            status = ccs_set_item(g_fcc_bootstrap_server_uri_name,
+                              (const uint8_t*)bs_uri.c_str(),
+                              strlen(bs_uri.c_str()),
+                              CCS_CONFIG_ITEM);
+        } else {
+            status = CCS_STATUS_SUCCESS;
         }
-
-        if(buffer_size) {
-            ccs_delete_item(g_fcc_bootstrap_device_private_key_name, CCS_PRIVATE_KEY_ITEM);
-            status = ccs_set_item(g_fcc_bootstrap_device_private_key_name,
-                                            key_ptr,
-                                            buffer_size,
-                                            CCS_PRIVATE_KEY_ITEM);
-            buffer_size = MAX_CERTIFICATE_SIZE;
-        }
-    }
-
-    if (status == CCS_STATUS_SUCCESS) {
-        if (security->resource_value_buffer(M2MSecurity::ServerPublicKey, key_ptr, bs_id, &buffer_size) != 0) {
-            status = CCS_STATUS_ERROR;
-            buffer_size = 0;
-        }
-
-        if (buffer_size) {
-            ccs_delete_item(g_fcc_bootstrap_server_ca_certificate_name, CCS_CERTIFICATE_ITEM);
-            status = ccs_set_item(g_fcc_bootstrap_server_ca_certificate_name,
-                              key_ptr,
-                              buffer_size,
-                              CCS_CERTIFICATE_ITEM);
-        }
-    }
-
-    if(status == CCS_STATUS_SUCCESS) {
-        ccs_delete_item(g_fcc_bootstrap_server_uri_name, CCS_CONFIG_ITEM);
-        status = ccs_set_item(g_fcc_bootstrap_server_uri_name,
-                          (const uint8_t*)security->resource_value_string(M2MSecurity::M2MServerUri, bs_id).c_str(),
-                          (size_t)security->resource_value_string(M2MSecurity::M2MServerUri, bs_id).size(),
-                          CCS_CONFIG_ITEM);
-    }
-
-    return status;
-}
-
-ccs_status_e ConnectorClient::store_bootstrap_address(M2MSecurity *security)
-{
-    tr_debug("ConnectorClient::store_bootstrap_address");
-    ccs_status_e status = CCS_STATUS_ERROR;
-
-    const uint8_t *srv_address = NULL;
-    int32_t bs_id = security->get_security_instance_id(M2MSecurity::Bootstrap);
-    if (bs_id == -1) {
-        return status;
-    }
-
-    uint32_t srv_address_size = security->resource_value_buffer(M2MSecurity::M2MServerUri, srv_address, bs_id);
-
-    if(srv_address) {
-        ccs_delete_item(g_fcc_bootstrap_server_uri_name, CCS_CONFIG_ITEM);
-        status = ccs_set_item(g_fcc_bootstrap_server_uri_name,
-                                      srv_address,
-                                      (size_t)srv_address_size,
-                                      CCS_CONFIG_ITEM);
     }
 
     return status;

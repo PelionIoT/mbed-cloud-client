@@ -232,7 +232,7 @@ arm_uc_error_t pal_raw_deviceIdentityCheck(const arm_uc_buffer_t *vendor_buffer,
         - vendor and class and device match
     */
     if ((parameters_set >= 0x10) && (parameters_set == parameters_ok)) {
-        result.code = MFST_ERR_NONE;
+        result.code = ERR_NONE;
     }
 
     return result;

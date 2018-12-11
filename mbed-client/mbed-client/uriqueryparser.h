@@ -21,9 +21,12 @@ extern "C" {
 #ifndef URIQUERYPARSER_H_
 #define URIQUERYPARSER_H_
 
+/*! \file uriqueryparser.h
+ *  \brief Provides helper functions for parsing uri query parameters.
+ */
 
 /**
- * @brief Parse query parameter from uri and return size of parameter value and pointer to value within
+ * @brief Parse query parameter from URI and return size of parameter value and pointer to value within
  *        uri.
  *
  * Example usage:

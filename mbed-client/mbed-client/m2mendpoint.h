@@ -26,7 +26,7 @@
 //FORWARD DECLARATION
 typedef Vector<M2MObject *> M2MObjectList;
 
-/*! \file M2MEndpoint.h
+/*! \file m2mendpoint.h
  *  \brief M2MEndpoint.
  *  This class can be used to represent an LwM2M Device endpoint, it contains a list of LwM2M objects.
  *  It implements the M2MBase interface so it can be passed to the m2minterface for registering to server.
@@ -195,16 +195,25 @@ public:
      */
     void* get_context() const;
 
-protected :
+    /**
+     * @brief The M2MEndpoint is set deleted and it needs to be updated into Device Management.
+     */
+    virtual void set_deleted();
 
+    /**
+     * @brief The deleted state check function.
+     * @return True if the deleted state is set, else false.
+     */
+    virtual bool is_deleted();
 
-private:
+  private:
 
     M2MObjectList     _object_list; // owned
     M2MObservationHandler    *_observation_handler; // Not owned
     void             *_ctx; // user defined context
     bool             _changed; // True if modifications have been done to this endpoint since last registration update.
                                // False otherwise.
+    bool             _deleted; // True if this M2MEndpoint is deleted, false otherwise.
 
 friend class Test_M2MEndpoint;
 friend class Test_M2MInterfaceImpl;

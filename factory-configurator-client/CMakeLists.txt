@@ -5,16 +5,20 @@ project("fcc")
 SET(MODULES
 	ftcd-comm-base
 	ftcd-comm-socket
-	crypto-service		
+	crypto-service
 	key-config-manager
 	factory-configurator-client
-	fcc-bundle-handler	
 	logger
 	storage
 	utils
 	mbed-trace-helper
 	fcc-output-info-handler
 )
+
+# add fcc-bundle-handler only if secsrv-cbor repo exist
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/secsrv-cbor)
+      list (APPEND MODULES fcc-bundle-handler)    
+endif()
 
 # includes
 FOREACH(module ${MODULES})

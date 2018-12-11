@@ -38,6 +38,7 @@ TEST_GROUP_RUNNER(pal_socket)
 #else
 #warning "pal_socket: skipping getAddressInfoAsync test as async DNS API is not available on the configured API version"
 #endif
+    RUN_TEST_CASE(pal_socket, socketApiInputParamValidation);
     RUN_TEST_CASE(pal_socket, keepaliveOn);
     RUN_TEST_CASE(pal_socket, keepaliveOff);
 }

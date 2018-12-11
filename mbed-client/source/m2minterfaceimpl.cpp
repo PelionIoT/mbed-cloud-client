@@ -595,6 +595,10 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
             error = M2MInterface::MemoryFail;
             error_code_des = ERROR_NO_MEMORY;
             break;
+        case M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS:
+            error = M2MInterface::FailedToReadCredentials;
+            error_code_des = ERROR_FAILED_TO_READ_CREDENTIALS;
+            break;
         default:
             error_code_des = ERROR_NO;
             break;
@@ -659,7 +663,6 @@ void M2MInterfaceImpl::data_sent()
     if(queue_mode()) {
         if(_callback_handler && (_nsdl_interface.is_unregister_ongoing() == false)) {
             _queue_sleep_timer.stop_timer();
-            // Multiply by two to get enough time for coap retransmissions.
             _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count())*1000,
                                             M2MTimerObserver::QueueSleep);
         }
@@ -673,6 +676,8 @@ void M2MInterfaceImpl::data_sent()
         internal_event(STATE_COAP_DATA_SENT);
     }
 
+    // Delay the time when CoAP ping will be send.
+    _nsdl_interface.calculate_new_coap_ping_send_time();
 }
 
 void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
@@ -1356,4 +1361,32 @@ void M2MInterfaceImpl::post_data_request(const char *uri,
 bool M2MInterfaceImpl::set_uri_query_parameters(const char *uri_query_params)
 {
     return _nsdl_interface.set_uri_query_parameters(uri_query_params);
+}
+
+void M2MInterfaceImpl::pause()
+{
+    tr_debug("M2MInterfaceImpl::pause");
+     _connection_handler.claim_mutex();
+    _queue_sleep_timer.stop_timer();
+    if (_registration_flow_timer) {
+        _registration_flow_timer->stop_timer();
+    }
+    _connection_handler.unregister_network_handler();
+    _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
+    _connection_handler.stop_listening();
+    _retry_timer.stop_timer();
+    _reconnecting = false;
+    _reconnection_time = _initial_reconnection_time;
+    _reconnection_state = M2MInterfaceImpl::WithUpdate;
+
+    sn_nsdl_clear_coap_resending_queue(_nsdl_interface.get_nsdl_handle());
+    internal_event(STATE_IDLE);
+     _connection_handler.release_mutex();
+}
+
+void M2MInterfaceImpl::resume(void *iface, const M2MBaseList &list)
+{
+    tr_debug("M2MInterfaceImpl::resume");
+    _connection_handler.set_platform_network_handler(iface);
+    register_object(_security, list);
 }

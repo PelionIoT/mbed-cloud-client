@@ -443,6 +443,7 @@ int ARM_UC_MM_ASN1_get_len(unsigned char **p,
         switch (**p & 0x7F) {
             case 1:
                 if ((end - *p) < 2) {
+                    UC_MMGR_TRACE("error: DER parser out of data");
                     return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
                 }
 
@@ -452,6 +453,7 @@ int ARM_UC_MM_ASN1_get_len(unsigned char **p,
 
             case 2:
                 if ((end - *p) < 3) {
+                    UC_MMGR_TRACE("error: DER parser out of data");
                     return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
                 }
 
@@ -461,6 +463,7 @@ int ARM_UC_MM_ASN1_get_len(unsigned char **p,
 
             case 3:
                 if ((end - *p) < 4) {
+                    UC_MMGR_TRACE("error: DER parser out of data");
                     return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
                 }
 
@@ -471,6 +474,7 @@ int ARM_UC_MM_ASN1_get_len(unsigned char **p,
 
             case 4:
                 if ((end - *p) < 5) {
+                    UC_MMGR_TRACE("error: DER parser out of data");
                     return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
                 }
 
@@ -480,11 +484,13 @@ int ARM_UC_MM_ASN1_get_len(unsigned char **p,
                 break;
 
             default:
+                UC_MMGR_TRACE("error: DER parser invalid length");
                 return (ARM_UC_DP_ERR_ASN1_INVALID_LENGTH);
         }
     }
 
     if (*len > (size_t)(end - *p)) {
+        UC_MMGR_TRACE("error: DER parser out of data");
         return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
     }
 
@@ -496,10 +502,16 @@ int ARM_UC_MM_ASN1_get_tag(unsigned char **p,
                            size_t *len, int tag)
 {
     if ((end - *p) < 1) {
+        UC_MMGR_TRACE("error: DER parser out of data");
         return (ARM_UC_DP_ERR_ASN1_OUT_OF_DATA);
     }
 
     if (**p != tag) {
+        /* DER Unexpected Tag should not be traced, since that return code occurs 
+         * regularly in correct manifests: it is used to detect when optional fields
+         * are absent.
+         * DO NOT TRACE
+         */
         return (ARM_UC_DP_ERR_ASN1_UNEXPECTED_TAG);
     }
 
@@ -543,7 +555,9 @@ uint32_t ARM_UC_mmDerBuf2Uint(arm_uc_buffer_t *buf)
 {
     uint32_t rc = 0;
     unsigned i;
-    for (i = 0; i < buf->size && i < sizeof(uint32_t); i++) {
+    // Handle case for 5 byte long value with signess-byte in beginning
+    unsigned j = ((buf->size > sizeof(uint32_t) && buf->ptr[0] == 0) ? 1 : 0);
+    for (i = j; i < buf->size; i++) {
         rc = (rc << 8) | buf->ptr[i];
     }
     return rc;
@@ -829,7 +843,7 @@ int32_t ARM_UC_mmDERParseTree(const struct arm_uc_mmDerElement *desc, arm_uc_buf
     uint8_t *pos = buffer->ptr;
     uint8_t *end = pos + buffer->size;
     struct ARM_UC_MM_DERParserState state = {
-        nValues, (uint32_t *)valueIDs, buffers
+        nValues, valueIDs, buffers
     };
     arm_uc_mm_derRecurseDepth = 0;
     int32_t rc = ARM_UC_mmDERGetValues(desc, &pos, end, &state);

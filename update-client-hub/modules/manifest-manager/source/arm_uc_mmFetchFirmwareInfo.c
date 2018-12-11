@@ -269,7 +269,7 @@ int ARM_UC_mmGetCertAndKeyTable(manifest_firmware_info_t *info, arm_uc_buffer_t 
 
 arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
 {
-    arm_uc_error_t err = {MFST_ERR_NONE};
+    arm_uc_error_t err = {ERR_NONE};
     if (arm_uc_mmPersistentContext.ctx == NULL || *arm_uc_mmPersistentContext.ctx == NULL) {
         return (arm_uc_error_t) {MFST_ERR_NULL_PTR};
     }
@@ -279,7 +279,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
     }
     ARM_UC_MM_FSM_HELPER_START(*ctx, ARM_UC_mmFwState2Str) {
     case ARM_UC_MM_FW_STATE_IDLE:
-        err = (arm_uc_error_t) {MFST_ERR_NONE};
+        err = (arm_uc_error_t) {ERR_NONE};
         break;
     case ARM_UC_MM_FW_STATE_BEGIN: {
             // If there is no manifest storage, assume it is still present in the input buffer
@@ -324,7 +324,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
                 rc = ARM_UC_mmGetImageRef(ctx->info, &fwBuf);
                 if (rc == 0) {
                     ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
-                    err.code = MFST_ERR_NONE;
+                    err.code = ERR_NONE;
                 } else {
                     err.code = MFST_ERR_DER_FORMAT;
                 }
@@ -335,21 +335,21 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
             rc = ARM_UC_mmGetLocalIDAndKey(ctx->info, &fwBuf);
             if (!rc) {
                 ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
-                err.code = MFST_ERR_NONE;
+                err.code = ERR_NONE;
                 break;
             }
             // Certificate and encrypted key
             rc = ARM_UC_mmGetCertAndKey(ctx->info, &fwBuf);
             if (!rc) {
                 ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
-                err.code = MFST_ERR_NONE;
+                err.code = ERR_NONE;
                 break;
             }
             // Certificate and key table reference
             rc = ARM_UC_mmGetCertAndKeyTable(ctx->info, &fwBuf);
             if (!rc) {
                 ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
-                err.code = MFST_ERR_NONE;
+                err.code = ERR_NONE;
                 break;
             }
 
@@ -366,7 +366,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
 
     case ARM_UC_MM_FW_STATE_ROOT_NOTIFY_WAIT:
         if (event == ARM_UC_MM_EVENT_BEGIN) {
-            err.code = MFST_ERR_NONE;
+            err.code = ERR_NONE;
             ctx->state = ARM_UC_MM_FW_STATE_DONE;
         }
         break;

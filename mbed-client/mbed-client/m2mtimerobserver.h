@@ -24,7 +24,7 @@ class M2MTimerObserver
 {
 public:
     /**
-      * \enum Defines the types of timer
+      * \enum Type The types of timer
       * that can be created for mbed Client.
       */
     typedef enum {

@@ -17,8 +17,9 @@
 #include "pal.h"
 #include "unity.h"
 #include "unity_fixture.h"
-#include "string.h"
 #include "mbed_trace.h"
+
+#include <string.h>
 
 #define TRACE_GROUP "PAL"
 
@@ -67,6 +68,7 @@ PAL_PRIVATE void stateAdvance(palImageEvents_t state)
     case PAL_IMAGE_EVENT_PREPARE:
           rc = pal_imagePrepare(FIRST_IMAGE_INDEX, &g_imageHeader);
           PAL_PRINTF("pal_imagePrepare returned %d \r\n",rc);
+          TEST_ASSERT_EQUAL(0, rc);
           break;
     case PAL_IMAGE_EVENT_WRITE:
           rc = pal_imageWrite(FIRST_IMAGE_INDEX, 0, (palConstBuffer_t*)&g_writeBuffer);
@@ -168,7 +170,13 @@ void pal_update_xK(int sizeInK)
   TEST_ASSERT_TRUE(readData != NULL);
 
   uint64_t version = 11111111;
-  uint32_t hash    = 0x22222222;
+
+  // XXX: the pal_imagePrepare() has hardcoded requirement of hash being SHA256, so it must be given here too
+  uint8_t hash[SIZEOF_SHA256] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                                  0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7,
+                                  0x0c, 0x1c, 0x2c, 0x3c, 0x4c, 0x5c, 0x6c, 0x7c,
+                                  0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7
+                                  };
 
   g_isTestDone = 0;
 
@@ -389,6 +397,7 @@ PAL_PRIVATE void multiWriteMultiRead(palImageEvents_t state)
     case PAL_IMAGE_EVENT_PREPARE:
           rc = pal_imagePrepare(FIRST_IMAGE_INDEX, &g_imageHeader);
           PAL_PRINTF("pal_imagePrepare returned %d \r\n",rc);
+          TEST_ASSERT_EQUAL(0, rc);
           break;
     case PAL_IMAGE_EVENT_WRITE:
           PAL_PRINTF("Write KILOBYTE * %d = %d\r\n",counter,KILOBYTE*(counter));
@@ -457,7 +466,12 @@ TEST(pal_update, pal_update_4k_write_1k_4_times)
   TEST_ASSERT_TRUE(readData != NULL);
 
   uint64_t version = 11111111;
-  uint32_t hash    = 0x22222222;
+  // XXX: the pal_imagePrepare() has hardcoded requirement of hash being SHA256, so it must be given here too
+  uint8_t hash[SIZEOF_SHA256] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                                  0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7,
+                                  0x0c, 0x1c, 0x2c, 0x3c, 0x4c, 0x5c, 0x6c, 0x7c,
+                                  0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7
+                                  };
   g_isTestDone = 0;
 
   g_imageHeader.version = version;
@@ -561,6 +575,7 @@ PAL_PRIVATE void readStateMachine(palImageEvents_t state)
           TEST_ASSERT_TRUE(readData != NULL);
           rc = pal_imagePrepare(FIRST_IMAGE_INDEX,&g_imageHeader);
           PAL_PRINTF("pal_imagePrepare returned %d \r\n",rc);
+          TEST_ASSERT_EQUAL(0, rc);
           break;
     case PAL_IMAGE_EVENT_WRITE:
           rc = pal_imageWrite(FIRST_IMAGE_INDEX,0,(palConstBuffer_t*)&g_writeBuffer);
@@ -630,8 +645,12 @@ TEST(pal_update, pal_update_Read)
       TEST_ASSERT_TRUE(readData != NULL);
 
       uint64_t version = 11111111;
-      uint32_t hash    = 0x22222222;
-
+      // XXX: the pal_imagePrepare() has hardcoded requirement of hash being SHA256, so it must be given here too
+      uint8_t hash[SIZEOF_SHA256] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                                      0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7,
+                                      0x0c, 0x1c, 0x2c, 0x3c, 0x4c, 0x5c, 0x6c, 0x7c,
+                                      0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7
+                                      };
       g_isTestDone = 0;
 
       g_imageHeader.version = version;

@@ -19,9 +19,10 @@
 #include "pal.h"
 #include "pal_tls_utils.h"
 #include "pal_network.h"
-#include "stdlib.h"
 #include "sotp.h"
 #include "test_runners.h"
+
+#include <stdlib.h>
 
 #define TRACE_GROUP "PAL"
 #define PAL_TEST_PSK_IDENTITY "Client_identity"

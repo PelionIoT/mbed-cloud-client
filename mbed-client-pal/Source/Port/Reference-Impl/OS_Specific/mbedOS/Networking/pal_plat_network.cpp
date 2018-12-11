@@ -489,6 +489,13 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
     return result;
 }
 
+palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
+{
+    s_pal_networkInterfacesSupported[interfaceIndex] = NULL;
+    --s_pal_numberOFInterfaces;
+    return PAL_SUCCESS;
+}
+
 palStatus_t pal_plat_socketsTerminate(void* context)
 {
     (void)context; // replace with macro
@@ -1178,16 +1185,19 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
 {
     palStatus_t result = PAL_SUCCESS;
     SocketAddress translatedAddress; // by default use the fist supported net interface - TODO: do we need to select a different interface?
-
+    if (s_pal_networkInterfacesSupported[0]) {
 #if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
-    result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress);
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV4_ONLY
-    result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress, NSAPI_IPv4);
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress, NSAPI_IPv4);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV6_ONLY
-    result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress, NSAPI_IPv6);
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress, NSAPI_IPv6);
 #else
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
+    } else {
+        result = PAL_ERR_INVALID_ARGUMENT;
+    }
 
     if (result == 0) {
         result = socketAddressToPalSockAddr(translatedAddress, address, length);
@@ -1229,14 +1239,19 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo* info)
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
 
-    result = s_pal_networkInterfacesSupported[0]->gethostbyname_async(info->url, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
+    if (s_pal_networkInterfacesSupported[0] == NULL) {
+        result = PAL_ERR_INVALID_ARGUMENT;
+    } else {
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname_async(info->url, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
+    }
+
     PAL_LOG_DBG("pal_plat_getAddressInfoAsync result %d", result);
     if (result < 0) {
         result = translateErrorToPALError(result);
     }
     else {
         /* Skip over setting queryHandle when:
-         * 1. info->queryHandle not allocated  
+         * 1. info->queryHandle not allocated
          * 2. if result is zero then callback pal_plat_getAddressInfoAsync_callback will be called immediately and address info has been deallocated. */
         if ( (info->queryHandle != NULL) && result) {
             *(info->queryHandle) = result;
@@ -1248,7 +1263,11 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo* info)
 
 palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
 {
-    palStatus_t status = s_pal_networkInterfacesSupported[0]->gethostbyname_async_cancel(queryHandle);
+    palStatus_t status = PAL_ERR_INVALID_ARGUMENT;
+    if (s_pal_networkInterfacesSupported[0]) {
+        status = s_pal_networkInterfacesSupported[0]->gethostbyname_async_cancel(queryHandle);
+    }
+
     if (PAL_SUCCESS != status) {
         PAL_LOG_ERR("pal_cancelAddressInfoAsync failed with %ld", status);
     }

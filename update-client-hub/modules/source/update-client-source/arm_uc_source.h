@@ -19,7 +19,8 @@
 #ifndef __ARM_UPDATE_SOURCE_H__
 #define __ARM_UPDATE_SOURCE_H__
 
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_error.h"
+#include "update-client-common/arm_uc_types.h"
 
 #include <stdint.h>
 
@@ -52,7 +53,7 @@ typedef enum _ARM_SOURCE_EVENT {
     EVENT_KEYTABLE,
     EVENT_ERROR,
     EVENT_ERROR_SOURCE,
-    EVENT_ERROR_BUFFER_SIZE
+    EVENT_ERROR_BUFFER_SIZE,
 } ARM_SOURCE_EVENT;
 
 /**

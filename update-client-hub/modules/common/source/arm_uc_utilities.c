@@ -53,6 +53,7 @@ arm_uc_error_t arm_uc_str2uri(const uint8_t *buffer,
         uint8_t *colon = NULL;
         uint8_t *slash = NULL;
         uint32_t len = 0;
+        uint8_t slash_count = 0;
 
         /* find scheme by searching for first colon */
         colon = memchr(str, ':', buffer_size);
@@ -82,70 +83,90 @@ arm_uc_error_t arm_uc_str2uri(const uint8_t *buffer,
             } else if (memcmp(uri->ptr, "coaps:", 6) == 0) {
                 uri->scheme = URI_SCHEME_COAPS;
                 uri->port = 5683;
+            } else if (memcmp(uri->ptr, "file:", 5) == 0) {
+                uri->scheme = URI_SCHEME_FILE;
             } else {
                 uri->scheme = URI_SCHEME_NONE;
             }
 
             /* only continue if scheme is supported */
             if (uri->scheme != URI_SCHEME_NONE) {
-                /* strip any leading '/' */
+                /* strip leading '/', but at most two of them, since 'file://' URIs
+                   might have a third '/' when specifying absolute paths */
                 str = colon + 1;
                 for (str += 1;
-                        (str[0] == '/') && (str < (buffer + buffer_size));
-                        ++str);
+                        (str[0] == '/') && (str < (buffer + buffer_size) && (slash_count < 1));
+                        ++str, ++slash_count);
 
-                /* find separation between host and path */
-                slash = memchr(str, '/', buffer_size - (str - buffer));
+                /* File URIs only have the 'path' component, so they need to
+                   be handled separately */
+                if (uri->scheme == URI_SCHEME_FILE) {
+                    /* host part will be empty */
+                    uri->ptr[0] = '\0';
+                    uri->host = (char *)uri->ptr;
 
-                if (slash != NULL) {
-                    bool parsed = true;
+                    /* path is the whole data after "file://" */
+                    len = buffer_size - (str - buffer);
+                    memcpy(uri->ptr + 1, str, len);
+                    uri->ptr[len + 1] = '\0';
+                    uri->path = (char *)uri->ptr + 1;
+                    uri->size = len + 2;
 
-                    /* find optional port */
-                    colon = memchr(str, ':', buffer_size - (slash - buffer));
+                    result = (arm_uc_error_t) { ERR_NONE };
+                } else {
+                    /* find separation between host and path */
+                    slash = memchr(str, '/', buffer_size - (str - buffer));
 
-                    if (colon != NULL) {
-                        uri->port = arm_uc_str2uint32(colon + 1,
-                                                      buffer_size - (colon - buffer),
-                                                      &parsed);
-                        len = colon - str;
-                    } else {
-                        len = slash - str;
-                    }
+                    if (slash != NULL) {
+                        bool parsed = true;
 
-                    /* check */
-                    if ((parsed == 1) && (len < uri->size_max)) {
-                        /* copy host name to URI buffer */
-                        memcpy(uri->ptr, str, len);
+                        /* find optional port */
+                        colon = memchr(str, ':', buffer_size - (slash - buffer));
 
-                        /* \0 terminate string */
-                        uri->ptr[len] = '\0';
-
-                        /* update length */
-                        uri->size = len + 1;
-
-                        /* set host pointer */
-                        uri->host = (char *) uri->ptr;
-
-                        /* find remaining path length */
-                        str = slash;
-                        len = arm_uc_strnlen(str, buffer_size - (str - buffer));
+                        if (colon != NULL) {
+                            uri->port = arm_uc_str2uint32(colon + 1,
+                                                          buffer_size - (colon - buffer),
+                                                          &parsed);
+                            len = colon - str;
+                        } else {
+                            len = slash - str;
+                        }
 
                         /* check */
-                        if ((len > 0) && (len < (uri->size_max - uri->size))) {
-                            /* copy path to URI buffer */
-                            memcpy(&uri->ptr[uri->size], str, len);
-
-                            /* set path pointer */
-                            uri->path = (char *) &uri->ptr[uri->size];
+                        if ((parsed == 1) && (len < uri->size_max)) {
+                            /* copy host name to URI buffer */
+                            memcpy(uri->ptr, str, len);
 
                             /* \0 terminate string */
-                            uri->ptr[uri->size + len] = '\0';
+                            uri->ptr[len] = '\0';
 
-                            /* update length after path pointer is set */
-                            uri->size += len + 1;
+                            /* update length */
+                            uri->size = len + 1;
 
-                            /* parsing passed all checks */
-                            result = (arm_uc_error_t) { ERR_NONE };
+                            /* set host pointer */
+                            uri->host = (char *) uri->ptr;
+
+                            /* find remaining path length */
+                            str = slash;
+                            len = arm_uc_strnlen(str, buffer_size - (str - buffer));
+
+                            /* check */
+                            if ((len > 0) && (len < (uri->size_max - uri->size))) {
+                                /* copy path to URI buffer */
+                                memcpy(&uri->ptr[uri->size], str, len);
+
+                                /* set path pointer */
+                                uri->path = (char *) &uri->ptr[uri->size];
+
+                                /* \0 terminate string */
+                                uri->ptr[uri->size + len] = '\0';
+
+                                /* update length after path pointer is set */
+                                uri->size += len + 1;
+
+                                /* parsing passed all checks */
+                                result = (arm_uc_error_t) { ERR_NONE };
+                            }
                         }
                     }
                 }
@@ -502,7 +523,8 @@ void ARM_UC_Base64Dec(arm_uc_buffer_t *bin, const uint32_t size, const uint8_t *
     bin->size = optr - (uintptr_t)bin->ptr;
 }
 
-size_t arm_uc_calculate_full_uri_length(const arm_uc_uri_t *uri) {
+size_t arm_uc_calculate_full_uri_length(const arm_uc_uri_t *uri)
+{
 
     size_t scheme_length = 0;
 
@@ -510,6 +532,8 @@ size_t arm_uc_calculate_full_uri_length(const arm_uc_uri_t *uri) {
         scheme_length = strlen(UC_COAPS_STRING) + 1;
     } else if (uri->scheme == URI_SCHEME_HTTP) {
         scheme_length = strlen(UC_HTTP_STRING) + 1;
+    } else if (uri->scheme == URI_SCHEME_FILE) {
+        scheme_length = strlen(UC_FILE_STRING) + 1;
     } else {
         return 0; // Not supported scheme
     }

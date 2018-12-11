@@ -74,7 +74,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
         break;
     case ARM_UC_MM_INIT_LATEST_MFST: {
             err = getLatestManifestTimestampFSM(event);
-            if (err.code != MFST_ERR_NONE) {
+            if (err.code != ERR_NONE) {
                 break;
             }
             if (ctx->timestamp == 0) {
@@ -92,7 +92,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
             ARM_UC_MM_SET_BUFFER(ctx->manifest, ctx->manifestBuffer);
             // Find the manifest
             err = ARM_UC_mmCfStoreFindKey(&ctx->keyPath);
-            if (err.code != MFST_ERR_NONE) {
+            if (err.code != ERR_NONE) {
                 break;
             }
             event = ARM_UC_MM_EVENT_CF_BEGIN;
@@ -106,17 +106,17 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
                 err.code = MFST_ERR_INVALID_STATE;
             } else {
                 // No more deps to find.
-                err.code = MFST_ERR_NONE;
+                err.code = ERR_NONE;
             }
             break;
         }
         err = ARM_UC_mmCfStoreFindKeyFSM(event);
-        if (err.code != MFST_ERR_NONE) {
+        if (err.code != ERR_NONE) {
             break;
         }
         // Read the manifest
         err = ARM_UC_mmCfStoreReadLastKey(&ctx->manifest);
-        if (err.code != MFST_ERR_NONE) {
+        if (err.code != ERR_NONE) {
             break;
         }
         event = ARM_UC_MM_EVENT_CF_BEGIN;
@@ -125,7 +125,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
     case ARM_UC_MM_INIT_READING:
         // Read the manifest into a buffer
         err = ARM_UC_mmCfStoreReadLastKeyFSM(event);
-        if (err.code != MFST_ERR_NONE) {
+        if (err.code != ERR_NONE) {
             break;
         }
         ctx->state = ARM_UC_MM_INIT_STATE_HASH_VERIFY;
@@ -136,10 +136,10 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
     case ARM_UC_MM_INIT_STATE_HASH_VERIFY:
         // Verify the manifest hash
         err = ucmmValidateManifestHash(&ctx->manifest);
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             uint32_t val;
             err = ARM_UC_mmGetCryptoMode(&ctx->manifest, &val);
-            if (err.code != MFST_ERR_NONE) {
+            if (err.code != ERR_NONE) {
                 break;
             }
             ucmm_crypto_flags_t cryptoMode = ARM_UC_mmGetCryptoFlags(val);
@@ -153,13 +153,13 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
     case ARM_UC_MM_INIT_STATE_PK_VERIFY:
         // Verify the manifest signature
         err = ucmmValidateSignature(&ctx->manifest);
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             ctx->state = ARM_UC_MM_INIT_STATE_PK_VERIFYING;
         }
         break;
     case ARM_UC_MM_INIT_STATE_PK_VERIFYING:
         err = ucmmValidateSignatureFSM(event);
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             ctx->state = ARM_UC_MM_INIT_STATE_ROOT_DEPS_VERIFY_BEGIN;
         }
         break;
@@ -180,18 +180,18 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
             // Read the dependency at depidx
             err = ARM_UC_mmGetManifestLinksElement(&ctx->manifest, ctx->depidx, &dependency);
             // If there isn't one
-            if (err.code != MFST_ERR_NONE) {
+            if (err.code != ERR_NONE) {
                 break;
             }
             if (dependency.ptr == NULL) {
                 // Exit Loop: dependency
                 ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_END;
-                err.code = MFST_ERR_NONE;
+                err.code = ERR_NONE;
                 break;
             }
             // Get the dependency hash
             err = ARM_UC_mmGetManifestLinksHash(&dependency, &hash);
-            if (err.code != MFST_ERR_NONE) {
+            if (err.code != ERR_NONE) {
                 break;
             }
             // Store the dependency hash
@@ -212,7 +212,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
 
             // Find the dependency in the config store
             err = ucmmCfstoreFindAndRead((char *)ctx->keyPath.ptr, &ctx->manifest);
-            if (err.code == MFST_ERR_NONE) {
+            if (err.code == ERR_NONE) {
                 event = ARM_UC_MM_EVENT_BEGIN;
                 ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_READING_DEPENDENCY;
             }
@@ -225,12 +225,12 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
             ctx->missingDep = 1;
             ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_URI_CHECK;
             // Continue...
-            err.code = MFST_ERR_NONE;
+            err.code = ERR_NONE;
             break;
         }
         // Find/Read the dependency manifest
         err = ucmmCfstoreFindAndReadFSM(event);
-        if (err.code != MFST_ERR_NONE) {
+        if (err.code != ERR_NONE) {
             break;
         }
         // There is a matching dependency
@@ -286,7 +286,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
         }
     case ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_DELETE:
         err = ARM_UC_mmCfStoreDeleteLastKeyFSM(event);
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             // Make sure a URI exists.
             ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_URI_CHECK;
         }
@@ -299,7 +299,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
             // HACK: No API for find without ovewriting the existing stored key. Use find/read even though we don't need the
             // data.
             err = ucmmCfstoreFindAndRead((char *)ctx->keyPath.ptr, &ctx->manifest);
-            if (err.code != MFST_ERR_NONE) {
+            if (err.code != ERR_NONE) {
                 break;
             }
             ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_URI_CHECKING;
@@ -313,7 +313,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
             break;
         }
         err = ucmmCfstoreFindAndReadFSM(event);
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             // Increment the depidx
             ctx->depidx++;
             // End Loop: dependency
@@ -326,18 +326,18 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
         ARM_UC_mmCfStoreRestoreLastKey();
         // Seek the current key
         err = ARM_UC_mmCfStoreSeekLastKey(0);
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_SEEKING;
         }
         break;
     case ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_SEEKING:
         err = ARM_UC_mmCfStoreSeekLastKeyFSM(event);
-        if (err.code != MFST_ERR_NONE) {
+        if (err.code != ERR_NONE) {
             break;
         }
         // Read the current key
         err = ARM_UC_mmCfStoreReadLastKey(&ctx->manifest);
-        if (err.code != MFST_ERR_NONE) {
+        if (err.code != ERR_NONE) {
             break;
         }
         ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_READING;
@@ -345,7 +345,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
         // no break
     case ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_READING:
         err = ARM_UC_mmCfStoreReadLastKeyFSM(event);
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             ctx->state = ARM_UC_MM_INIT_STATE_DEPS_LOOP_DEPENDENCY_GET_HASH;
             // Preserve the manifest key
             ARM_UC_mmCfStorePreserveLastKey();
@@ -367,7 +367,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
             // Continue the dependency search
             err = ARM_UC_mmCfStoreFindNextKey();
         }
-        if (err.code == MFST_ERR_NONE) {
+        if (err.code == ERR_NONE) {
             event = ARM_UC_MM_EVENT_CF_BEGIN;
             // End Loop: manifest
             ctx->state = ARM_UC_MM_INIT_FINDING;
@@ -378,7 +378,7 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
         break;
     }
     ARM_UC_MM_FSM_HELPER_FINISH(*ctx);
-    if (err.code == MFST_ERR_NONE && ctx->missingDep == 1) {
+    if (err.code == ERR_NONE && ctx->missingDep == 1) {
         // TODO: Configure & trigger insert FSM
     }
     return err;

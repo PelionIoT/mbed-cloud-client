@@ -15,14 +15,13 @@
  *******************************************************************************/
 #include "pal.h"
 #include "pal_plat_internalFlash.h"
-#include "stdio.h"
+#include <stdio.h>
 
 #define TRACE_GROUP "PAL"
 
 #if (PAL_USE_INTERNAL_FLASH)
 
 #define BITS_ALIGNED_TO_32  0x3
-#define PAL_MAX_PAGE_SIZE   16
 
 //////////////////////////GLOBALS SECTION ////////////////////////////
 #if PAL_THREAD_SAFETY
@@ -212,10 +211,7 @@ size_t pal_internalFlashGetPageSize(void)
 #else
     size_t ret = pal_plat_internalFlashGetPageSize();
 #endif  //PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
-    if (ret > PAL_MAX_PAGE_SIZE)
-    {
-        ret = PAL_MAX_PAGE_SIZE;
-    }
+    
     return ret;
 }
 

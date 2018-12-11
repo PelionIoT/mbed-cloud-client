@@ -15,15 +15,18 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "stdio.h"
 
-#include "PlatIncludes.h"
+
 #include "test_runners.h"
-#include "pal_BSP.h"
-#include "pal.h"
+
 #include "mbed_trace.h"
+
+#include "mcc_common_setup.h"
+
 #include "unity.h"
 #include "unity_fixture.h"
+
+#include <stdio.h>
 
 #define TRACE_GROUP "PAL"
 
@@ -34,6 +37,11 @@ extern struct _Unity Unity;
 
 void * g_palTestNetworkInterface = NULL;
 void * g_palTestTLSInterfaceCTX = NULL;
+
+static volatile main_t main_test_function;
+static volatile int main_init_flags;
+
+static int palTestMainRunner(void);
 
 
 pal_args_t g_args; // defiend as global so it could persist 
@@ -170,9 +178,6 @@ palStatus_t palTestReboot(palTestModules_t module ,palTestSOTPTests_t test )
 }
 
 
-
-
-
 void TEST_pal_all_GROUPS_RUNNER(void)
 {
     PRINT_MEMORY_STATS;
@@ -200,15 +205,31 @@ void TEST_pal_all_GROUPS_RUNNER(void)
             #ifndef PAL_SKIP_TEST_MODULE_NETWORK
                 TEST_pal_socket_GROUP_RUNNER();
             #endif
+        case PAL_TEST_MODULE_TIME:
+            PRINT_MEMORY_STATS;
+            #ifndef PAL_SKIP_TEST_MODULE_TIME
+                TEST_pal_time_GROUP_RUNNER();
+            #endif
         case PAL_TEST_MODULE_CRYPTO:
             PRINT_MEMORY_STATS;
             #ifndef PAL_SKIP_TEST_MODULE_CRYPTO
                 TEST_pal_crypto_GROUP_RUNNER();
             #endif
+        case PAL_TEST_MODULE_DRBG:
+            PRINT_MEMORY_STATS;
+            #ifndef PAL_SKIP_TEST_MODULE_DRBG
+                TEST_pal_drbg_GROUP_RUNNER();
+            #endif
         case PAL_TEST_MODULE_FILESYSTEM:
             PRINT_MEMORY_STATS;
             #ifndef PAL_SKIP_TEST_MODULE_FILESYSTEM
                 TEST_pal_fileSystem_GROUP_RUNNER();
+            #endif
+        case PAL_TEST_MODULE_ROT:
+            // if the implementation is using SOTP, it may be better to test storage and SOTP before it
+            PRINT_MEMORY_STATS;
+            #ifndef PAL_SKIP_TEST_MODULE_ROT
+                TEST_pal_rot_GROUP_RUNNER();
             #endif
         case PAL_TEST_MODULE_UPDATE:
             PRINT_MEMORY_STATS;
@@ -232,15 +253,94 @@ void TEST_pal_all_GROUPS_RUNNER(void)
     }
 }
 
-
-
-void palTestMain(palTestModules_t modules,void* network)
+// Wrapper for running the palTestMainRunner in platform specific way.
+int palTestMain(void (*runAllTests)(void), int init_flags)
 {
-	const char * myargv[] = {"app","-v"};
-    g_palTestNetworkInterface = network; 
-    g_palTestTLSInterfaceCTX = network;
-	mbed_trace_init();
-	mbed_trace_config_set(PAL_TESTS_LOG_LEVEL);
+    // As the mcc_platform_run_program() misses a way to pass data, the arguments
+    // for palTestMainRunner() need to be stored into static variables.
+    main_test_function = runAllTests;
+    main_init_flags = init_flags;
+
+    // On FreeRTOS the test needs to be started via the platform API, which will
+    // create a task out of it and run the scheduler. Without this, the many of
+    // the FreeRTOS API's are not usable.
+    return mcc_platform_run_program((main_t)palTestMainRunner);
+}
+
+// XXX: when this is ran by mcc_platform_run_program(), the return value is not
+// actually passed on out of main(). This needs to be fixed in mcc_platform_run_program().
+static int palTestMainRunner(void)
+{
+    const char * myargv[] = {"app","-v"};
+
+    int status = 0;
+
+    // copy back the arguments given to palTestMain.
+    int init_flags = main_init_flags;
+    void (*runAllTests)(void) = main_test_function;
+
+    // this might be even a default as most tests need some kind of platform. But the
+    // platfrom tests themselves might do some special stuff, so let's make mcc_platfrom_init()
+    // call optional too.
+    if (init_flags & PAL_TEST_PLATFORM_INIT_BASE) {
+        status = mcc_platform_init();
+
+        // The TEST_ASSERT can not be used yet, as it will cause a segfault on Unity, as
+        // it has not yet performed its own setup for Unity.AbortFrame.
+        // In any case, we will stop the test run as there is no point to continue tests
+        // with half initialized platform.
+        if (status) {
+            PAL_LOG_ERR("failed to initialize platform: %d", status);
+            return EXIT_FAILURE;
+        }
+    }
+
+    // initialize the tracing as soon as possible so it can be used to debug the
+    // more complex and fragile parts, such as storage and network driver initializations.
+    mbed_trace_init();
+    mbed_trace_config_set(PAL_TESTS_LOG_LEVEL);
+
+    if (init_flags & PAL_TEST_PLATFORM_INIT_CONNECTION) {
+        status = mcc_platform_init_connection();
+
+        if (status) {
+            PAL_LOG_ERR("failed to initialize connection: %d", status);
+            return EXIT_FAILURE;
+        }
+
+        void* network;
+
+#if defined(PAL_LINUX_ETH)
+        // On Linux side there is CMake magic to find out a interface name, which will fill
+        // the PAL_LINUX_ETH macro.
+        network = (char*)PAL_LINUX_ETH;
+#else
+        network = mcc_platform_get_network_interface();
+#endif
+
+        g_palTestNetworkInterface = network;
+        g_palTestTLSInterfaceCTX = network;
+    }
+
+    if (init_flags & PAL_TEST_PLATFORM_INIT_STORAGE) {
+        status = mcc_platform_storage_init();
+
+        if (status) {
+            PAL_LOG_ERR("failed to initialize storage: %d", status);
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (init_flags & PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE) {
+        status = mcc_platform_reformat_storage();
+
+        if (status) {
+            PAL_LOG_ERR("failed to reformat storage: %d", status);
+            return EXIT_FAILURE;
+        }
+    }
+
+    // XXX: this function uses the filesystem and it will typically fail if the storage is not initialized.
     palStatus_t getTestStatusReturnValue = getPalTestStatus();
     if (PAL_SUCCESS != getTestStatusReturnValue) 
     {
@@ -249,131 +349,82 @@ void palTestMain(palTestModules_t modules,void* network)
 
     UnityPrint("*****PAL_TEST_START*****");
     UNITY_PRINT_EOL();
-    switch (modules) 
-    {
-        case PAL_TEST_MODULE_ALL:
-        {
-	        UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_all_GROUPS_RUNNER);
-			break;
-        }
-        case PAL_TEST_MODULE_SOTP:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_SOTP_GROUP_RUNNER);
-            break;
-        }
 
-        case PAL_TEST_MODULE_RTOS:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_rtos_GROUP_RUNNER);
-            break;
-        }
+    UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, runAllTests);
 
-        case PAL_TEST_MODULE_SOCKET:
-        {
-            UnityMain(sizeof(myargv)/ sizeof(myargv[0]), myargv, TEST_pal_socket_GROUP_RUNNER);
-            break;
-        }
-
-        case PAL_TEST_MODULE_CRYPTO:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_crypto_GROUP_RUNNER);
-            break;
-        }
-
-        case PAL_TEST_MODULE_FILESYSTEM:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_fileSystem_GROUP_RUNNER);
-            break;
-        }
-
-        case PAL_TEST_MODULE_UPDATE:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_update_GROUP_RUNNER);
-            break;
-        }
-
-        case PAL_TEST_MODULE_INTERNALFLASH:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_internalFlash_GROUP_RUNNER);
-            break;
-        }
-
-        case PAL_TEST_MODULE_TLS:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_tls_GROUP_RUNNER);
-            break;
-        }
-        
-        case PAL_TEST_MODULE_SANITY:
-        {
-            UnityMain(sizeof(myargv) / sizeof(myargv[0]), myargv, TEST_pal_sanity_GROUP_RUNNER);
-            break;
-        }
-
-        default:
-        {
-            UnityPrint("*****ERROR WRONG TEST SUITE WAS CHOOSEN*****");                
-            break;
-        }
-
-    }
     UnityPrint("*****PAL_TEST_END*****");
     UNITY_PRINT_EOL();
 
     mbed_trace_free();
 
+    // TODO: should this actually return exit_failure if some of the tests failed?!
+    return EXIT_SUCCESS;
 }
 
-void palAllTestMain(void* network)
+int palAllTestMain(int init_flags)
 {
-    palTestMain(PAL_TEST_MODULE_ALL, network);
+    return palTestMain(TEST_pal_all_GROUPS_RUNNER, init_flags);
 }
 
-void palFileSystemTestMain(void* network)
+int palFileSystemTestMain(int init_flags)
 {
-    palTestMain(PAL_TEST_MODULE_FILESYSTEM, network);
+    return palTestMain(TEST_pal_fileSystem_GROUP_RUNNER, init_flags);
 }
 
-void palNetworkTestMain(void* network)
+int palNetworkTestMain(int init_flags)
 {
-   palTestMain(PAL_TEST_MODULE_SOCKET, network); 
+    return palTestMain(TEST_pal_socket_GROUP_RUNNER, init_flags);
 }
 
-void palCryptoTestMain(void* network)
+int palCryptoTestMain(int init_flags)
 {
-   palTestMain(PAL_TEST_MODULE_CRYPTO, network); 
+    return palTestMain(TEST_pal_crypto_GROUP_RUNNER, init_flags);
 }
 
-void palRTOSTestMain(void* network)
+int palDRBGTestMain(int init_flags)
 {
-   palTestMain(PAL_TEST_MODULE_RTOS, network); 
+    return palTestMain(TEST_pal_drbg_GROUP_RUNNER, init_flags);
 }
 
-void palStorageTestMain(void* network)
+int palRTOSTestMain(int init_flags)
 {
-   palTestMain(PAL_TEST_MODULE_INTERNALFLASH, network); 
+    return palTestMain(TEST_pal_rtos_GROUP_RUNNER, init_flags);
 }
 
-void palTLSTestMain(void* network)
+int palROTTestMain(int init_flags)
 {
-   palTestMain(PAL_TEST_MODULE_TLS, network); 
+    return palTestMain(TEST_pal_rot_GROUP_RUNNER, init_flags);
 }
 
-void palUpdateTestMain(void* network)
+int palStorageTestMain(int init_flags)
 {
-   palTestMain(PAL_TEST_MODULE_UPDATE, network); 
+    return palTestMain(TEST_pal_internalFlash_GROUP_RUNNER, init_flags);
 }
 
-void palSOTPTestMain(void* network)
+int palTimeTestMain(int init_flags)
 {
-    palTestMain(PAL_TEST_MODULE_SOTP, network); 
+    return palTestMain(TEST_pal_time_GROUP_RUNNER, init_flags);
 }
 
-void palSanityTestMain(void* network)
+int palTLSTestMain(int init_flags)
 {
-     palTestMain(PAL_TEST_MODULE_SANITY, network); 
+    return palTestMain(TEST_pal_tls_GROUP_RUNNER, init_flags);
 }
 
+int palUpdateTestMain(int init_flags)
+{
+    return palTestMain(TEST_pal_update_GROUP_RUNNER, init_flags);
+}
+
+int palSOTPTestMain(int init_flags)
+{
+    return palTestMain(TEST_pal_SOTP_GROUP_RUNNER, init_flags);
+}
+
+int palSanityTestMain(int init_flags)
+{
+    return palTestMain(TEST_pal_sanity_GROUP_RUNNER, init_flags);
+}
 
 
 

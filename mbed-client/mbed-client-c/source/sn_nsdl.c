@@ -34,6 +34,7 @@
 #endif
 
 #include <string.h>
+#include <assert.h>
 
 #include "ns_types.h"
 #include "sn_nsdl.h"
@@ -234,6 +235,11 @@ uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
     if (endpoint_info_ptr == NULL || handle == NULL) {
         return 0;
     }
+
+    // Clear any leftovers from previous registration or bootstrap
+    sn_nsdl_clear_coap_sent_blockwise_messages(handle);
+    sn_nsdl_clear_coap_received_blockwise_messages(handle);
+    sn_nsdl_clear_coap_resending_queue(handle);
 
     /*** Build endpoint register message ***/
 
@@ -1035,7 +1041,7 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
             if (!resource_temp_ptr->always_publish && updating_registeration && resource_temp_ptr->registered == SN_NDSL_RESOURCE_REGISTERED) {
                 resource_temp_ptr = sn_grs_get_next_resource(handle->grs, resource_temp_ptr);
                 continue;
-            } else {
+            } else if (resource_temp_ptr->registered != SN_NDSL_RESOURCE_DELETE) {
                 resource_temp_ptr->registered = SN_NDSL_RESOURCE_REGISTERED;
             }
 
@@ -1057,6 +1063,10 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
             *temp_ptr++ = '>';
 
             /* Resource attributes */
+            if (resource_temp_ptr->registered == SN_NDSL_RESOURCE_DELETE) {
+                *temp_ptr++ = ';';
+                *temp_ptr++ = 'd';
+            }
 #ifndef RESOURCE_ATTRIBUTES_LIST
 #ifndef DISABLE_RESOURCE_TYPE
             size_t resource_type_len = 0;
@@ -1241,6 +1251,9 @@ static uint16_t sn_nsdl_calculate_registration_body_size(struct nsdl_s *handle, 
             }
 
             /* Count lengths of the attributes */
+            if (resource_temp_ptr->registered == SN_NDSL_RESOURCE_DELETE) {
+                return_value += 2;
+            }
 #ifndef RESOURCE_ATTRIBUTES_LIST
 #ifndef DISABLE_RESOURCE_TYPE
             /* Resource type parameter */
@@ -2409,7 +2422,7 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
 
     if (coap_header_ptr->options_list_ptr) {
         if (coap_header_ptr->options_list_ptr->etag_ptr && coap_header_ptr->options_list_ptr->etag_len > 0) {
-            tr_info("E-tag:\t%.*s", coap_header_ptr->options_list_ptr->etag_len, coap_header_ptr->options_list_ptr->etag_ptr);
+            tr_info("E-tag:\t%s", tr_array(coap_header_ptr->options_list_ptr->etag_ptr, coap_header_ptr->options_list_ptr->etag_len));
         }
         if (coap_header_ptr->options_list_ptr->proxy_uri_ptr && coap_header_ptr->options_list_ptr->proxy_uri_len > 0) {
             tr_info("Proxy uri:\t%.*s", coap_header_ptr->options_list_ptr->proxy_uri_len, coap_header_ptr->options_list_ptr->proxy_uri_ptr);
@@ -2655,4 +2668,40 @@ extern uint8_t sn_nsdl_get_retransmission_count(struct nsdl_s *handle)
     (void) handle;
     return 0;
 #endif
+}
+
+int32_t sn_nsdl_send_coap_ping(struct nsdl_s *handle)
+{
+    assert(handle);
+    assert(handle->grs);
+
+    sn_coap_hdr_s   *coap_ping;
+    int32_t         return_msg_id = 0;
+
+    /* Allocate and initialize memory for header struct */
+    coap_ping = sn_coap_parser_alloc_message(handle->grs->coap);
+    if (coap_ping == NULL) {
+        tr_error("sn_nsdl_send_coap_ping - failed to allocate message!");
+        return 0;
+    }
+
+    if (sn_coap_parser_alloc_options(handle->grs->coap, coap_ping) == NULL) {
+        handle->sn_nsdl_free(coap_ping);
+        tr_error("sn_nsdl_send_coap_ping - failed to allocate options!");
+        return 0;
+    }
+
+    /* Fill header */
+    coap_ping->msg_type = COAP_MSG_TYPE_CONFIRMABLE;
+    coap_ping->msg_code = COAP_MSG_CODE_EMPTY;
+
+    /* Send message */
+    return_msg_id = sn_nsdl_send_coap_message(handle, &handle->server_address, coap_ping);
+    if (return_msg_id >= SN_NSDL_SUCCESS) {
+        return_msg_id = coap_ping->msg_id;
+    }
+
+    sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_ping);
+
+    return return_msg_id;
 }

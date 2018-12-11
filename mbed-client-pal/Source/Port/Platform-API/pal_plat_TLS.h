@@ -20,7 +20,7 @@
 
 /*! \file pal_plat_TLS.h
 *  \brief PAL TLS/DTLS - platform.
-*   This file contains TLS/DTLS APIs that need to be implemented in the platform layer. 
+*   This file contains TLS/DTLS APIs that need to be implemented in the platform layer.
 */
 
 /***************************************************/
@@ -28,25 +28,25 @@
 /***************************************************/
 typedef enum palDTLSSide{
 #ifdef PAL_TLS_SUPPORT_SERVER_MODE
-	PAL_TLS_IS_SERVER,
+    PAL_TLS_IS_SERVER,
 #endif // PAL_TLS_SUPPORT_SERVER_MODE
-	PAL_TLS_IS_CLIENT
+    PAL_TLS_IS_CLIENT
 } palDTLSSide_t;
 
 typedef enum palTLSAuthMode{
-	PAL_TLS_VERIFY_NONE,		//! Server mode: The peer certificate is not verified. For client mode, this is insecure!
-	PAL_TLS_VERIFY_OPTIONAL,	//! The peer certificate verification can be failed and handshake continues.
-	PAL_TLS_VERIFY_REQUIRED		//! The peer certificate verification MUST pass.
+    PAL_TLS_VERIFY_NONE,		//! Server mode: The peer certificate is not verified. For client mode, this is insecure!
+    PAL_TLS_VERIFY_OPTIONAL,	//! The peer certificate verification can be failed and handshake continues.
+    PAL_TLS_VERIFY_REQUIRED		//! The peer certificate verification MUST pass.
 }palTLSAuthMode_t;
 
-//! This is the list of the available cipher suites, this code MUST be 
+//! This is the list of the available cipher suites, this code MUST be
 //! defined in the `pal_plat_TLS.c` with the proper values for the SSL platform:
 typedef enum palTLSSuites{
-	PAL_TLS_PSK_WITH_AES_128_CBC_SHA256,
-	PAL_TLS_PSK_WITH_AES_128_CCM_8,
-	PAL_TLS_PSK_WITH_AES_256_CCM_8,
-	PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
-	PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    PAL_TLS_PSK_WITH_AES_128_CBC_SHA256,
+    PAL_TLS_PSK_WITH_AES_128_CCM_8,
+    PAL_TLS_PSK_WITH_AES_256_CCM_8,
+    PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
+    PAL_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
     PAL_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
     PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256,
     PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256
@@ -60,7 +60,7 @@ typedef void* palTimerCtx_t;
 typedef int (*palBIOSend_f)(palTLSSocketHandle_t socket, const unsigned char *buf, size_t len);
 typedef int (*palBIORecv_f)(palTLSSocketHandle_t socket, unsigned char *buf, size_t len);
 typedef int (*palVerifyCallback_f)(void *, void *, int, uint32_t *);
-typedef void (*palSetTimer_f)( void *data, uint32_t intMs, uint32_t finMs ); 
+typedef void (*palSetTimer_f)( void *data, uint32_t intMs, uint32_t finMs );
 typedef int (*palGetTimer_f)(void* data);
 typedef void (*palLogFunc_f)(void *context, int debugLevel, const char *fileName, int line, const char *message);
 
@@ -137,7 +137,7 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
 /*!	 Return the result of the certificate verification. The handshake API calls this.
 *
 * @param[in] ssl: The TLS context.
-* @param[out] verifyResult: bitmask of errors that cause the failure, this value is 
+* @param[out] verifyResult: bitmask of errors that cause the failure, this value is
 *							relevant ONLY in case that the return value of the function is `PAL_ERR_X509_CERT_VERIFY_FAILED`.
 *
 \note In case platform doesn't support multipule errors for certificate verification, please return `PAL_ERR_X509_CERT_VERIFY_FAILED` and the reason should be specified in the `verifyResult`
@@ -287,7 +287,7 @@ palStatus_t pal_plat_setAuthenticationMode(palTLSConfHandle_t sslConf, palTLSAut
 */
 palStatus_t pal_plat_sslSetDebugging(palTLSConfHandle_t palTLSConf, uint8_t turnOn);
 
-/*! Set the IO callbacks for the TLS context. 
+/*! Set the IO callbacks for the TLS context.
 *
 * @param[in] palTLSConf: The TLS configuration context.
 * @param[in] palIOCtx: The shared context by BIO callbacks.

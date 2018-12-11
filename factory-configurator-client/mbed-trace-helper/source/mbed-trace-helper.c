@@ -28,7 +28,7 @@ palMutexID_t g_pv_logger_mutex = NULLPTR;
 
 void mbed_trace_helper_print(const char* format)
 {
-    fprintf(stdout, "%s\n", format);
+    (void)fprintf(stdout, "%s\n", format);
 }
 
 void mbed_trace_helper_mutex_wait()

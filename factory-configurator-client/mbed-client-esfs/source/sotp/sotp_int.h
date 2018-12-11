@@ -46,15 +46,10 @@ typedef struct {
     uint32_t mac;
 } record_header_t __attribute__((aligned(4)));
 
-#define FLASH_MINIMAL_PROG_UNIT 8
-
 #define DELETE_ITEM_FLAG        0x8000
 #define HEADER_FLAG_MASK        0xF000
 #define SOTP_MASTER_RECORD_TYPE 0x0FFE
 #define SOTP_NO_TYPE            0x0FFF
-
-#define MASTER_RECORD_BLANK_FIELD_SIZE FLASH_MINIMAL_PROG_UNIT
-
 
 typedef struct {
     uint16_t version;

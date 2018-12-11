@@ -29,7 +29,7 @@
         switch ((CONTEXT).state)
 
 #define ARM_UC_MM_FSM_HELPER_FINISH(CONTEXT)\
-    } while (err.code == MFST_ERR_NONE && oldState != (CONTEXT).state);\
+    } while (err.code == ERR_NONE && oldState != (CONTEXT).state);\
     ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__,\
         err.modulecc[0], err.modulecc[1], err.error, ARM_UC_err2Str(err))
 

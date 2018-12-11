@@ -145,7 +145,8 @@ public:
     typedef enum {
         NOTIFICATION,
         DELAYED_POST_RESPONSE,
-        BLOCK_SUBSCRIBE
+        BLOCK_SUBSCRIBE,
+        PING
     } MessageType;
 
 
@@ -587,13 +588,29 @@ public:
     static char* create_path(const M2MResource &parent, const char *name);
     static char* create_path(const M2MObjectInstance &parent, const char *name);
 
-protected : // from M2MReportObserver
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+
+    /**
+     * @brief The data is set deleted and it needs to be updated into Device Management.
+     *        Current implementation maintains the deleted state only in M2MEndpoint.
+     *        The deleted state is `false` for every other M2M class.
+     */
+    virtual void set_deleted();
+
+
+    /**
+     * @brief The deleted state check function.
+     * @return True if the deleted state is set, else false.
+     */
+    virtual bool is_deleted();
+
+#endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION
+
+protected: // from M2MReportObserver
 
     virtual bool observation_to_be_sent(const m2m::Vector<uint16_t> &changed_instance_ids,
                                         uint16_t obs_number,
                                         bool send_object = false);
-
-protected:
 
     /**
      * \brief Sets the base type for an object.
@@ -730,14 +747,21 @@ protected:
                             M2MObservationHandler *observation_handler,
                             sn_coap_msg_code_e &response_code);
 
-  private:
+    /**
+     * \brief Start the observation.
+     * \param nsdl An NSDL handler for the CoAP library.
+     * \param observation_handler A handler object for sending
+     * observation callbacks.
+     */
+    void start_observation(const sn_coap_hdr_s &received_coap_header, M2MObservationHandler *observation_handler);
+
+private:
     static bool is_integer(const String &value);
 
     static bool is_integer(const char *value);
 
     static char* create_path_base(const M2MBase &parent, const char *name);
 
-private:
     lwm2m_parameters_s          *_sn_resource;
     M2MReportHandler            *_report_handler; // TODO: can be broken down to smaller classes with inheritance.
 

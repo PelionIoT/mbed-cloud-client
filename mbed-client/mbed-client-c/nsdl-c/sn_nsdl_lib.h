@@ -788,6 +788,17 @@ extern uint16_t sn_nsdl_get_block_size(const struct nsdl_s *handle);
  */
 extern uint8_t sn_nsdl_get_retransmission_count(struct nsdl_s *handle);
 
+/**
+ * \fn extern int32_t sn_nsdl_send_coap_ping(struct nsdl_s *handle);
+ *
+ * \brief Send confirmable CoAP ping message.
+ *
+ * \param   *handle Pointer to nsdl-library handle
+ *
+ * \return message ID, 0 if failed
+ */
+extern int32_t sn_nsdl_send_coap_ping(struct nsdl_s *handle);
+
 #ifdef __cplusplus
 }
 #endif

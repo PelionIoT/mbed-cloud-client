@@ -22,7 +22,6 @@
 
 #include <string.h>
 
-
 #if defined(ARM_UC_FEATURE_CRYPTO_PAL) && (ARM_UC_FEATURE_CRYPTO_PAL == 1)
 #include "pal.h"
 #include "sotp.h"
@@ -46,7 +45,7 @@ arm_uc_error_t ARM_UC_verifyPkSignature(const arm_uc_buffer_t *ca, const arm_uc_
             // {
             err.code = MFST_ERR_INVALID_SIGNATURE;
             if (PAL_SUCCESS == pal_verifySignature(x509Cert, PAL_SHA256, hash->ptr, hash->size, sig->ptr, sig->size)) {
-                err.code = MFST_ERR_NONE;
+                err.code = ERR_NONE;
             }
             // }
         }
@@ -63,7 +62,7 @@ arm_uc_error_t ARM_UC_cryptoHashSetup(arm_uc_mdHandle_t *hDigest, arm_uc_mdType_
     if (hDigest) {
         palStatus_t rc = pal_mdInit(hDigest, mdType);
         if (rc == PAL_SUCCESS) {
-            result.code = ARM_UC_CU_ERR_NONE;
+            result.code = ERR_NONE;
         }
     }
     return result;
@@ -75,7 +74,7 @@ arm_uc_error_t ARM_UC_cryptoHashUpdate(arm_uc_mdHandle_t *hDigest, arm_uc_buffer
     if (hDigest && input) {
         palStatus_t rc = pal_mdUpdate(*hDigest, input->ptr, input->size);
         if (rc == PAL_SUCCESS) {
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
         }
     }
     return result;
@@ -90,7 +89,7 @@ arm_uc_error_t ARM_UC_cryptoHashFinish(arm_uc_mdHandle_t *hDigest, arm_uc_buffer
         palStatus_t rc = pal_mdFinal(*hDigest, output->ptr);
 
         if (rc == PAL_SUCCESS) {
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
             output->size = 256 / 8; // FIXME:PAL does not provide a method to extract this
         }
     }
@@ -133,7 +132,7 @@ arm_uc_error_t ARM_UC_cryptoDecryptSetup(arm_uc_cipherHandle_t *hCipher, arm_uc_
         }
 
         if (rc == PAL_SUCCESS) {
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
         }
     }
 
@@ -154,7 +153,7 @@ arm_uc_error_t ARM_UC_cryptoDecryptUpdate(arm_uc_cipherHandle_t *hCipher, const 
                          hCipher->aes_iv
                      );
     if (rc == PAL_SUCCESS) {
-        result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+        result = (arm_uc_error_t) { ERR_NONE };
         output->size = data_size;
     }
     return result;
@@ -164,7 +163,7 @@ arm_uc_error_t ARM_UC_cryptoDecryptFinish(arm_uc_cipherHandle_t *hCipher, arm_uc
 {
     pal_freeAes(&hCipher->aes_context);
     (void) output;
-    return (arm_uc_error_t) {ARM_UC_CU_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 
 arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key,
@@ -173,11 +172,19 @@ arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key,
 {
     arm_uc_error_t result = (arm_uc_error_t) { ARM_UC_CU_ERR_INVALID_PARAMETER };
 
+
+    size_t outPutSize = 0;
     palStatus_t pal_st = pal_mdHmacSha256(key->ptr, key->size,
                                           input->ptr, input->size,
-                                          output->ptr, &(output->size));
+                                          output->ptr, &outPutSize);
+
+    output->size = (uint32_t) outPutSize;  // we lose here some bits in 64 bit systems,
+                                           // but as long as we are under u32 MAX size it does not matter
+                                           // and as input size is read from u32 this should be safe
+
+
     if ((pal_st == PAL_SUCCESS) && (output->size == ARM_UC_SHA256_SIZE)) {
-        result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+        result = (arm_uc_error_t) { ERR_NONE };
     }
 
     return result;
@@ -216,7 +223,7 @@ int8_t mbed_cloud_client_get_rot_128bit(uint8_t *key_buf, uint32_t length)
 arm_uc_error_t ARM_UC_verifyPkSignature(const arm_uc_buffer_t *ca, const arm_uc_buffer_t *hash,
                                         const arm_uc_buffer_t *sig)
 {
-    arm_uc_error_t err = {MFST_ERR_NONE};
+    arm_uc_error_t err = {ERR_NONE};
     mbedtls_x509_crt crt;
     mbedtls_x509_crt_init(&crt);
     int rc = mbedtls_x509_crt_parse_der(&crt, ca->ptr, ca->size);
@@ -245,7 +252,7 @@ arm_uc_error_t ARM_UC_cryptoHashSetup(arm_uc_mdHandle_t *hDigest, arm_uc_mdType_
         mbedtls_result |= mbedtls_md_starts(hDigest);
 
         if (mbedtls_result == 0) {
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
         }
     }
 
@@ -260,7 +267,7 @@ arm_uc_error_t ARM_UC_cryptoHashUpdate(arm_uc_mdHandle_t *hDigest, arm_uc_buffer
         int mbedtls_result = mbedtls_md_update(hDigest, input->ptr, input->size);
 
         if (mbedtls_result == 0) {
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
         }
     }
 
@@ -275,7 +282,7 @@ arm_uc_error_t ARM_UC_cryptoHashFinish(arm_uc_mdHandle_t *hDigest, arm_uc_buffer
         int mbedtls_result = mbedtls_md_finish(hDigest, output->ptr);
 
         if (mbedtls_result == 0) {
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
 
             output->size = hDigest->md_info->size;
         }
@@ -316,7 +323,7 @@ arm_uc_error_t ARM_UC_cryptoDecryptSetup(arm_uc_cipherHandle_t *hCipher, arm_uc_
         }
 
         if (mbedtls_result == 0) {
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
         }
     }
 
@@ -340,7 +347,7 @@ arm_uc_error_t ARM_UC_cryptoDecryptUpdate(arm_uc_cipherHandle_t *hCipher, const 
 
                          );
     if (mbedtls_result == 0) {
-        result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+        result = (arm_uc_error_t) { ERR_NONE };
         output->size = data_size;
     }
     return result;
@@ -349,7 +356,7 @@ arm_uc_error_t ARM_UC_cryptoDecryptUpdate(arm_uc_cipherHandle_t *hCipher, const 
 arm_uc_error_t ARM_UC_cryptoDecryptFinish(arm_uc_cipherHandle_t *hCipher, arm_uc_buffer_t *output)
 {
     (void) output;
-    return (arm_uc_error_t) {ARM_UC_CU_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 
 arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key,
@@ -366,7 +373,7 @@ arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key,
                                     output->ptr);
         if (rv == 0) {
             output->size = ARM_UC_SHA256_SIZE;
-            result = (arm_uc_error_t) { ARM_UC_CU_ERR_NONE };
+            result = (arm_uc_error_t) { ERR_NONE };
         }
     }
 
@@ -397,7 +404,7 @@ arm_uc_error_t ARM_UC_getDeviceKey256Bit(arm_uc_buffer_t *output)
         }
     }
 
-    if (result.code != ARM_UC_CU_ERR_NONE) {
+    if (result.code != ERR_NONE) {
         /* clear buffer on failure so we don't leak the rot */
         memset(output->ptr, 0, output->size_max);
     }

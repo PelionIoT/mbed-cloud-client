@@ -18,7 +18,8 @@
 #define _PAL_RTOS_TEST_UTILS_H
 
 #include "pal.h"
-#include "pal_BSP.h"
+
+// XXX: remove this block completely once all the tests pass again
 #if 0    //MUST MOVE TO PLATFORM SPECIFIC HEADER
 #include "fsl_device_registers.h"
 #include "fsl_debug_console.h"
@@ -31,9 +32,6 @@
 #define MUTEX_UNITY_TEST 1
 #define SEMAPHORE_UNITY_TEST 1
 #endif   // MUST MOVE TO PLATFORM SPECIFIC HEADER
-#define PAL_RANDOM_TEST_LOOP 100000
-#define PAL_RANDOM_ARRAY_TEST_SIZE 100
-#define PAL_RANDOM_BUFFER_ARRAY_TEST_SIZE 60
 #define PAL_TIME_TO_WAIT_MS	5000 //in [ms]
 #define PAL_TIME_TO_WAIT_SHORT_MS	300 //in [ms]
 #define PAL_TIMER_TEST_TIME_TO_WAIT_MS_SHORT 40 //in [ms]

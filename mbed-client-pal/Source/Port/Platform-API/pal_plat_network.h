@@ -49,6 +49,12 @@ palStatus_t pal_plat_socketsInit(void* context);
 */
 palStatus_t pal_plat_registerNetworkInterface(void* networkInterfaceContext, uint32_t* interfaceIndex);
 
+/*! Unregister a network interface.
+* @param interfaceIndex Index of the network interface to be removed.
+\return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
+*/
+palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex);
+
 /*! Initialize terminate - can be called when sockets are no longer needed to free socket resources allocated by init.
 * @param[in] context Optional context - if not available use NULL.
 \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
@@ -132,7 +138,7 @@ palStatus_t pal_plat_getNumberOfNetInterfaces(uint32_t* numInterfaces);
 palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t* interfaceInfo);
 
 
-#if PAL_NET_TCP_AND_TLS_SUPPORT // The functionality below is supported only if TCP is supported. 
+#if PAL_NET_TCP_AND_TLS_SUPPORT // The functionality below is supported only if TCP is supported.
 
 
 /*! Use a socket to listen to incoming connections. You may also limit the queue of incoming connections.
@@ -209,7 +215,7 @@ palStatus_t pal_plat_getAddressInfo(const char* url, palSocketAddress_t* address
 */
 palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo_t* info);
 
-/*! This function is cancelation for pal_plat_getAddressInfoAsync. 
+/*! This function is cancelation for pal_plat_getAddressInfoAsync.
 * @param[in] queryHandle Id of ongoing DNS query.
 */
 palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle);

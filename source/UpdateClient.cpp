@@ -230,7 +230,7 @@ static void UpdateClient::initialization(void)
        work if verification certificates are inserted through the Factory
        Client or by other means.
     */
-    if (result.code != ARM_UC_CM_ERR_NONE)
+    if (result.code != ERR_NONE)
     {
         tr_info("ARM_UC_AddCertificate failed");
 
@@ -251,7 +251,7 @@ static void UpdateClient::certificate_done(arm_uc_error_t error,
        it is still possible to perform updates, which is why the
        Update client initializes anyway.
     */
-    if (error.code != ARM_UC_CM_ERR_NONE)
+    if (error.code != ERR_NONE)
     {
         error_callback.call(WarningCertificateInsertion);
     }

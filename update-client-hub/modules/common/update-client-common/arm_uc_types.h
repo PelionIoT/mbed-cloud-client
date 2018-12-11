@@ -31,6 +31,7 @@ typedef enum {
     URI_SCHEME_NONE,
     URI_SCHEME_HTTP,
     URI_SCHEME_COAPS,
+    URI_SCHEME_FILE
 } arm_uc_uri_scheme_t;
 
 typedef struct {
@@ -45,6 +46,7 @@ typedef struct {
 
 #define UC_COAPS_STRING  "coaps://"
 #define UC_HTTP_STRING   "http://"
+#define UC_FILE_STRING   "file://"
 #define ARM_UC_GUID_SIZE       (128/8)
 #define ARM_UC_SHA256_SIZE     (256/8)
 #define ARM_UC_SHA512_SIZE     (512/8)

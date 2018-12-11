@@ -159,7 +159,7 @@ static void _kcm_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_con
     do {
         _kcm_cert_chain_update_name_prefix(chain_context->chain_name, chain_context->current_cert_index, data_source_type);
         //we don't check the result of storage_file_delete, as it is possible that not all certificates were saved to the storage
-        storage_file_delete(&chain_context->current_kcm_ctx, chain_context->chain_name, chain_context->chain_name_len);
+        (void)storage_file_delete(&chain_context->current_kcm_ctx, chain_context->chain_name, chain_context->chain_name_len);
         if (chain_context->current_cert_index == 0) {
             break;
         }
@@ -641,7 +641,7 @@ kcm_status_e _kcm_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm_ch
     }
 
     // close the chain to release the context
-    _kcm_cert_chain_close(kcm_chain_handle, data_source_type);
+    (void)_kcm_cert_chain_close(kcm_chain_handle, data_source_type);
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 Exit:
     SA_PV_ERR_RECOVERABLE_RETURN_IF((first_status_err != KCM_STATUS_SUCCESS), first_status_err, "Delete chain but with errors");

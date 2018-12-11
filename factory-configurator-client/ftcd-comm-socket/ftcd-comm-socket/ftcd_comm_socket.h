@@ -159,6 +159,9 @@ private:
     ftcd_socket_domain_e _required_domain_type;
     uint32_t _interface_index;
     int32_t _rcv_timeout;
+    palSemaphoreID_t _async_sem;
+    palSemaphoreID_t _lock;
+
 
     /** Starts listening for incoming TCP socket connection
     *   A single connection allowed at a time
@@ -178,6 +181,23 @@ private:
     */
     ftcd_comm_status_e _read_from_socket(void *data_out, int data_out_size);
 
+    // The following comment for describes implementation for both _accept and _recv
+    // Achieved by trying to _accept/_recv, and then (if accept would have been blocking) wait in _async_sem until event is triggered - then try again
+    // Important that _accept/_recv first tries and then blocks for the following reasons:
+    // 1. If 2 events trigger the async callback only once (i.e accept and recv) - blocking first would cause the block before recv to block forever
+    // 2. If 2 events trigger the async callback prior to _lock release in _wait_for_socket_event - blocking first would cause the second network action to block forever because _async_sem will only be signaled once
+    // Overall, trying to accept/recv prior to waiting for an event assures us that we go into the waiting stage only when we are certain that an event will be triggered when the desired action may occur 
+
+    // Blocking wrapper to pal_accept() API for non-blocking, async sockets
+    palStatus_t _accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket);
+    // Blocking wrapper to pal_recv() API for non-blocking, async sockets
+    palStatus_t _recv(palSocket_t socket, void* buf, size_t len, size_t* recievedDataSize);
+    // Blocking wrapper to pal_send() API for non-blocking, async sockets
+    palStatus_t _send(palSocket_t socket, const void* buf, size_t len, size_t* sentDataSize);
+    // block until a socket event occurs
+    palStatus_t _wait_for_socket_event();
+    // Callback that is invoked when some network event occurrs socket_obj is a pointer to a valid FtcdCommSocket object
+    static void _socket_event_ready_cb(void *socket_obj);
 };
 
 

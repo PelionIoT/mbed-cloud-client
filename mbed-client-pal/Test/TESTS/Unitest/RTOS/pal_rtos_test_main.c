@@ -14,21 +14,13 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "pal_BSP.h"
-#include "stdio.h"
-
-void palRTOSTestMain(void* network);
+#include "test_runners.h"
 
 //create a public wapper to this & reduce this to one line 
 int main(int argc, char * argv[])
 {
-    bspStatus_t status = BSP_SUCCESS;
-    void* context = NULL;
-    status = initPlatform(&context);
-    if (BSP_SUCCESS == status) 
-    {
-        palRTOSTestMain(context);      
-    }
-    return status;
+    // the tests may actually assert on failure, so they may not return anything useful status
+    // and a nonzero return value is typically a sign of platform intialization failure
+    return palRTOSTestMain(PAL_TEST_PLATFORM_INIT_BASE);
 }
 

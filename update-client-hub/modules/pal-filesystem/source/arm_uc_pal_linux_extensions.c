@@ -36,6 +36,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #ifndef MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS
 #define MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS 0
@@ -97,7 +98,7 @@ arm_uc_error_t pal_ext_installerGetDetails(arm_uc_installer_details_t *details)
     return result;
 }
 
-static void pal_ext_imageActivationWorker(void *location)
+static void pal_ext_imageActivationWorker(const void *location)
 {
     char cmd_buf[sizeof(PAL_UPDATE_ACTIVATE_SCRIPT) + 1 + PAL_MAX_FILE_AND_FOLDER_LENGTH + 1];
     char path_buf[PAL_MAX_FILE_AND_FOLDER_LENGTH];
@@ -153,7 +154,7 @@ arm_uc_error_t pal_ext_imageActivate(uint32_t location)
         tr_err("Thread creation failed with %x", rc);
         err.code = ERR_INVALID_PARAMETER;
     } else {
-        tr_debug("Activation thread created, thread ID: %" PRIu32, thread_id);
+        tr_debug("Activation thread created, thread ID: %" PRIuPTR, thread_id);
         err.code = ERR_NONE;
     }
 

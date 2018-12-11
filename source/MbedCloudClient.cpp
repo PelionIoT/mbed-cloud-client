@@ -273,3 +273,12 @@ const M2MBaseList* MbedCloudClient::get_object_list() const
 }
 #endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION
 
+void MbedCloudClient::pause()
+{
+    _client.connector_client().m2m_interface()->pause();
+}
+
+void MbedCloudClient::resume(void *iface)
+{
+    _client.connector_client().m2m_interface()->resume(iface, _object_list);
+}

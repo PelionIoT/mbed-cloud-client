@@ -24,48 +24,13 @@
 #include "mbed-client/m2mresource.h"
 #include "mbed-client/m2mobject.h"
 #include "update-client-common/arm_uc_config.h"
+#include "update-client-monitor/arm_uc_monitor.h"
 
 namespace FirmwareUpdateResource {
 
 // New enums based on http://www.openmobilealliance.org/tech/profiles/lwm2m/10252.xml
-typedef enum {
-    ARM_UCS_LWM2M_STATE_FIRST                      = 0,
-    ARM_UCS_LWM2M_STATE_UNINITIALISED              = ARM_UCS_LWM2M_STATE_FIRST, //Uninitialised
-    ARM_UCS_LWM2M_STATE_IDLE                       = 1, //Idle
-    ARM_UCS_LWM2M_STATE_PROCESSING_MANIFEST        = 2, //Processing manifest
-    ARM_UCS_LWM2M_STATE_AWAITING_DOWNLOAD_APPROVAL = 3, //Awaiting download approval
-    ARM_UCS_LWM2M_STATE_DOWNLOADING                = 4, //Downloading
-    ARM_UCS_LWM2M_STATE_DOWNLOADED                 = 5, //Downloaded
-    ARM_UCS_LWM2M_STATE_AWAITING_APP_APPROVAL      = 6, //Awaiting application approval
-    ARM_UCS_LWM2M_STATE_UPDATING                   = 7, //Updating
-    ARM_UCS_LWM2M_STATE_REBOOTING                  = 8, //Rebooting
-    ARM_UCS_LWM2M_STATE_LAST                       = ARM_UCS_LWM2M_STATE_REBOOTING
-} arm_ucs_lwm2m_state_t;
-
-typedef enum {
-    ARM_UCS_LWM2M_RESULT_FIRST                        = 0,
-    ARM_UCS_LWM2M_RESULT_INITIAL                      = ARM_UCS_LWM2M_RESULT_FIRST, // Uninitialised
-    ARM_UCS_LWM2M_RESULT_SUCCESS                      = 1,  //Success
-    ARM_UCS_LWM2M_RESULT_MANIFEST_TIMEOUT             = 2,  //Manifest timeout. The Manifest URI has timed-out.
-    ARM_UCS_LWM2M_RESULT_MANIFEST_NOT_FOUND           = 3,  //Manifest not found. The Manifest URI not found.
-    ARM_UCS_LWM2M_RESULT_MANIFEST_FAILED_INTEGRITY    = 4,  //Manifest failed integrity check. The manifest integrity check failed.
-    ARM_UCS_LWM2M_RESULT_MANIFEST_REJECTED            = 5,  //Manifest rejected. The Manifest attributes do not apply to this device.
-    ARM_UCS_LWM2M_RESULT_MANIFEST_CERT_NOT_FOUND      = 6,  //Manifest certificate not found
-    ARM_UCS_LWM2M_RESULT_MANIFEST_SIGNATURE_FAILED    = 7,  //Manifest signature failed. The Manifest signature is not recognised by this device.
-    ARM_UCS_LWM2M_RESULT_DEPENDENT_MANIFEST_NOT_FOUND = 8,  //Dependent manifest not found
-    ARM_UCS_LWM2M_RESULT_ERROR_STORAGE                = 9,  //Not enough storage for the new asset
-    ARM_UCS_LWM2M_RESULT_ERROR_MEMORY                 = 10, //Out of memory during download process
-    ARM_UCS_LWM2M_RESULT_ERROR_CONNECTION             = 11, //Connection lost during download process
-    ARM_UCS_LWM2M_RESULT_ERROR_CRC                    = 12, //Asset failed integrity check
-    ARM_UCS_LWM2M_RESULT_ERROR_TYPE                   = 13, //Unsupported asset type
-    ARM_UCS_LWM2M_RESULT_ERROR_URI                    = 14, //Invalid asset URI
-    ARM_UCS_LWM2M_RESULT_ERROR_UPDATE                 = 15, //Timed out downloading asset
-    ARM_UCS_LWM2M_RESULT_UNSUPPORTED_DELTA_FORMAT     = 16, //Unsupported delta format
-    ARM_UCS_LWM2M_RESULT_ERROR_HASH                   = 17, //Unsupported encryption format
-    ARM_UCS_LWM2M_RESULT_ASSET_UPDATE_COMPLETED       = 18, //Asset update successfully completed
-    ARM_UCS_LWM2M_RESULT_ASSET_UPDATED_AFTER_RECOVERY = 19, //Asset updated successfully after recovery
-    ARM_UCS_LWM2M_RESULT_LAST                         = ARM_UCS_LWM2M_RESULT_ASSET_UPDATED_AFTER_RECOVERY
-} arm_ucs_lwm2m_result_t;
+typedef arm_uc_update_state_t arm_ucs_lwm2m_state_t;
+typedef arm_uc_update_result_t arm_ucs_lwm2m_result_t;
 
 void Initialize(void);
 void Uninitialize(void);

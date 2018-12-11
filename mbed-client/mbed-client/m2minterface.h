@@ -102,7 +102,9 @@ public:
         SecureConnectionFailed,
         DnsResolvingFailed,
         UnregistrationFailed,
-        ESTEnrollmentFailed
+        ESTEnrollmentFailed,
+        FailedToStoreCredentials,
+        FailedToReadCredentials,
     }Error;
 
     /**
@@ -346,6 +348,27 @@ public:
      * @return False if maximum length exceeded otherwise True.
     */
     virtual bool set_uri_query_parameters(const char *uri_query_params) = 0;
+
+    /**
+     * \brief Pauses client's timed functionality and closes network connection
+     * to the Cloud. After successful call the operation is continued
+     * by calling resume().
+     *
+     * \note This operation does not unregister client from the Cloud.
+     * Closes the socket and removes interface from the interface list.
+     */
+    virtual void pause() = 0;
+
+    /**
+     * \brief Resumes client's timed functionality and network connection
+     * to the Cloud. Updates registration. Can be only called after
+     * a successful call to pause().
+     *
+     * \param iface A handler to the network interface.
+     * \param object_list Objects that contain information about the resources to
+     *  register to the LWM2M server.
+     */
+    virtual void resume(void *iface, const M2MBaseList &object_list) = 0;
 };
 
 #endif // M2M_INTERFACE_H

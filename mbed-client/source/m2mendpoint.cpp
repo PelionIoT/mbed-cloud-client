@@ -43,7 +43,8 @@ M2MEndpoint::M2MEndpoint(const String &object_name, char *path)
           false),
     _observation_handler(NULL),
     _ctx(NULL),
-    _changed(true)
+    _changed(true),
+    _deleted(false)
 {
     M2MBase::set_base_type(M2MBase::ObjectDirectory);
     get_nsdl_resource()->always_publish = false;
@@ -221,6 +222,17 @@ void M2MEndpoint::clear_changed()
 bool M2MEndpoint::get_changed() const
 {
     return _changed;
+}
+
+void M2MEndpoint::set_deleted()
+{
+    _deleted = true;
+    set_changed();
+}
+
+bool M2MEndpoint::is_deleted()
+{
+    return _deleted;
 }
 
 #endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION

@@ -80,7 +80,7 @@ arm_uc_error_t ARM_UC_Certificate_Add(const uint8_t *certificate,
         return err;
     }
 
-    return (arm_uc_error_t) {ARM_UC_CM_ERR_NONE};
+    return (arm_uc_error_t) {ERR_NONE};
 }
 
 arm_uc_error_t ARM_UC_certificateFetch(arm_uc_buffer_t *certificate,

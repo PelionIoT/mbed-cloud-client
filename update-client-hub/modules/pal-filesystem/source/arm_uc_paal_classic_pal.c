@@ -183,12 +183,12 @@ arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
             /* format file name and path */
             char file_path[PAL_MAX_FILE_AND_FOLDER_LENGTH] = { 0 };
 
-            result = arm_uc_pal_filesystem_get_path(location,
+            arm_uc_error_t rv = arm_uc_pal_filesystem_get_path(location,
                                                     FIRMWARE_IMAGE_ITEM_HEADER,
                                                     file_path,
                                                     PAL_MAX_FILE_AND_FOLDER_LENGTH);
 
-            if (result.code == ERR_NONE) {
+            if (rv.code == ERR_NONE) {
                 tr_debug("file_path: %s", file_path);
 
                 palFileDescriptor_t file = 0;
@@ -398,99 +398,73 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareDetails(uint32_t location,
     if (details) {
         char file_path[PAL_MAX_FILE_AND_FOLDER_LENGTH + 1] = { 0 };
 
-        palStatus_t status = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY,
-                                                 PAL_MAX_FILE_AND_FOLDER_LENGTH,
-                                                 file_path);
+        arm_uc_error_t rv = arm_uc_pal_filesystem_get_path(location,
+                                                    FIRMWARE_IMAGE_ITEM_HEADER,
+                                                    file_path,
+                                                    PAL_MAX_FILE_AND_FOLDER_LENGTH);
 
-        if (status == PAL_SUCCESS) {
-            /* keep track of file and folder length */
-            /* add mount point name length */
-            int length = arm_uc_strnlen((const uint8_t *)file_path, PAL_MAX_FILE_AND_FOLDER_LENGTH);
+        if (rv.code == ERR_NONE) {
+            palFileDescriptor_t file = 0;
 
-            /* add slash if needed */
-            if ((length == 0) ||
-                    ((length < PAL_MAX_FILE_AND_FOLDER_LENGTH) &&
-                     (file_path[length - 1] != '/'))) {
-                file_path[length] = '/';
-                file_path[++length] = 0;
-            }
+            /* open metadata header file if it exists */
+            palStatus_t pal_rc = pal_fsFopen(file_path,
+                                             PAL_FS_FLAG_READONLY,
+                                             &file);
 
+            if (pal_rc == PAL_SUCCESS) {
+                size_t xfer_size = 0;
 
-            /* check that path didn't overrun */
-            if (length < PAL_MAX_FILE_AND_FOLDER_LENGTH) {
-                /* start snprintf after the mount point name and add length */
-                length += snprintf(&file_path[length],
-                                   PAL_MAX_FILE_AND_FOLDER_LENGTH - length,
-                                   ARM_UC_FIRMWARE_FOLDER_NAME "/header_%" PRIu32 ".bin",
-                                   location);
+                /* read metadata header */
+                uint8_t read_buffer[ARM_UC_EXTERNAL_HEADER_SIZE_V2] = { 0 };
 
-                /* check that file path didn't overrun */
-                if (length < PAL_MAX_FILE_AND_FOLDER_LENGTH) {
-                    tr_debug("file_path: %d %s", length, file_path);
+                pal_rc = pal_fsFread(&file,
+                                     read_buffer,
+                                     ARM_UC_EXTERNAL_HEADER_SIZE_V2,
+                                     &xfer_size);
 
-                    palFileDescriptor_t file = 0;
+                /* check return code */
+                if ((pal_rc == PAL_SUCCESS) &&
+                        (xfer_size == ARM_UC_EXTERNAL_HEADER_SIZE_V2)) {
+                    tr_debug("read bytes: %lu", (unsigned long)xfer_size);
 
-                    /* open metadata header file if it exists */
-                    palStatus_t pal_rc = pal_fsFopen(file_path,
-                                                     PAL_FS_FLAG_READONLY,
-                                                     &file);
+                    /* read out header magic */
+                    uint32_t headerMagic = arm_uc_parse_uint32(&read_buffer[0]);
 
-                    if (pal_rc == PAL_SUCCESS) {
-                        size_t xfer_size = 0;
+                    /* read out header magic */
+                    uint32_t headerVersion = arm_uc_parse_uint32(&read_buffer[4]);
 
-                        /* read metadata header */
-                        uint8_t read_buffer[ARM_UC_EXTERNAL_HEADER_SIZE_V2] = { 0 };
+                    /* choose version to decode */
+                    if ((headerMagic == ARM_UC_EXTERNAL_HEADER_MAGIC_V2) &&
+                            (headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2)) {
+                        result = arm_uc_parse_external_header_v2(read_buffer, details);
 
-                        pal_rc = pal_fsFread(&file,
-                                             read_buffer,
-                                             ARM_UC_EXTERNAL_HEADER_SIZE_V2,
-                                             &xfer_size);
+                        tr_debug("version: %" PRIu64, details->version);
+                        tr_debug("size: %"PRIu64, details->size);
 
-                        /* check return code */
-                        if ((pal_rc == PAL_SUCCESS) &&
-                                (xfer_size == ARM_UC_EXTERNAL_HEADER_SIZE_V2)) {
-                            tr_debug("read bytes: %lu", (unsigned long)xfer_size);
-
-                            /* read out header magic */
-                            uint32_t headerMagic = arm_uc_parse_uint32(&read_buffer[0]);
-
-                            /* read out header magic */
-                            uint32_t headerVersion = arm_uc_parse_uint32(&read_buffer[4]);
-
-                            /* choose version to decode */
-                            if ((headerMagic == ARM_UC_EXTERNAL_HEADER_MAGIC_V2) &&
-                                    (headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2)) {
-                                result = arm_uc_parse_external_header_v2(read_buffer, details);
-
-                                tr_debug("version: %" PRIu64, details->version);
-                                tr_debug("size: %"PRIu64, details->size);
-
-                                if (result.error == ERR_NONE) {
-                                    arm_uc_pal_classic_signal_callback(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE);
-                                }
-                            } else {
-                                /* invalid header format */
-                                tr_error("invalid header in slot %" PRIu32, location);
-                            }
-                        } else if (xfer_size != ARM_UC_EXTERNAL_HEADER_SIZE_V2) {
-                            /* invalid header format */
-                            tr_error("invalid header in slot %" PRIu32, location);
-                        } else {
-                            /* unsuccessful read */
-                            tr_error("pal_fsFread returned 0x%" PRIX32, (uint32_t) pal_rc);
-                        }
-
-                        /* close file after use */
-                        pal_rc = pal_fsFclose(&file);
-
-                        if (pal_rc != PAL_SUCCESS) {
-                            tr_error("pal_fsFclose failed: %" PRId32, pal_rc);
+                        if (result.error == ERR_NONE) {
+                            arm_uc_pal_classic_signal_callback(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE);
                         }
                     } else {
-                        /* header file not present, slot is either invalid or unused. */
-                        result.code = ERR_NOT_READY;
+                        /* invalid header format */
+                        tr_error("invalid header in slot %" PRIu32, location);
                     }
+                } else if (xfer_size != ARM_UC_EXTERNAL_HEADER_SIZE_V2) {
+                    /* invalid header format */
+                    tr_error("invalid header in slot %" PRIu32, location);
+                } else {
+                    /* unsuccessful read */
+                    tr_error("pal_fsFread returned 0x%" PRIX32, (uint32_t) pal_rc);
                 }
+
+                /* close file after use */
+                pal_rc = pal_fsFclose(&file);
+
+                if (pal_rc != PAL_SUCCESS) {
+                    tr_error("pal_fsFclose failed: %" PRId32, pal_rc);
+                }
+            } else {
+                /* header file not present, slot is either invalid or unused. */
+                result.code = ERR_NOT_READY;
             }
         }
     }

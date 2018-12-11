@@ -20,8 +20,8 @@
 #include "mbed-client/functionpointer.h"
 
 
-/*! \file m2mresourceinstance.h
- *  \brief M2MResourceInstance.
+/*! \file m2mresourcebase.h
+ *  \brief M2MResourceBase.
  *  This class is the base class for mbed Client Resources. All defined
  *  LWM2M resource models can be created based on it.
  */

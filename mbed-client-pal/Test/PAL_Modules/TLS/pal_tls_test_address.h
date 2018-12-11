@@ -13,8 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#ifndef __PAL_TLS_TEST_ADDRESS_H__
+#define __PAL_TLS_TEST_ADDRESS_H__
 
-
+// address of the machine running mbedtls' ./programs/ssl/ssl_fork_server and ./programs/ssl/ssl_fork_server_DTLS
 #ifndef PAL_TLS_TEST_SERVER_ADDRESS
-    #define PAL_TLS_TEST_SERVER_ADDRESS "192.168.8.19"
+#define PAL_TLS_TEST_SERVER_ADDRESS "127.0.0.1"
 #endif //PAL_TLS_TEST_SERVER_ADDRESS
+
+#endif // !__PAL_TLS_TEST_ADDRESS_H__

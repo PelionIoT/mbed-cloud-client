@@ -473,17 +473,11 @@ int32_t FirmwareUpdateResource::sendState(arm_ucs_lwm2m_state_t state)
 
     int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
 
-    if (state <= ARM_UCS_LWM2M_STATE_LAST) {
-        /* valid states: 0-8 */
-        uint8_t value;
-        value = (uint8_t)state;
-        if (resourceState) {
-            resourceState->set_value(value);
-        }
-
+    if ((resourceState != NULL)
+            && ARM_UC_IsValidState(state)
+            && resourceState->set_value((int64_t)state)) {
         result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
     }
-
     return result;
 }
 
@@ -494,30 +488,29 @@ int32_t FirmwareUpdateResource::sendUpdateResult(arm_ucs_lwm2m_result_t updateRe
 
     int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
 
-    if (updateResult <= ARM_UCS_LWM2M_RESULT_LAST) {
-        /* valid results: 0-19 */
-        uint8_t value;
-        value = (uint8_t)updateResult;
-        if (resourceResult) {
-            resourceResult->set_value(value);
-        }
-
+    if ((resourceResult != NULL)
+            && ARM_UC_IsValidResult(updateResult)
+            && resourceResult->set_value((int64_t)updateResult)) {
         result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
     }
-
     return result;
 }
 
 /* Send name for resource /10252/0/5 PkgName */
+#define MAX_PACKAGE_NAME_CHARS 32
 int32_t FirmwareUpdateResource::sendPkgName(const uint8_t *name, uint16_t length)
 {
     UC_SRCE_TRACE("FirmwareUpdateResource::sendPkgName");
 
     int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
 
-    /* the maximum length is defined in the OMA LWM2M standard. */
-    if ((name != NULL) && (length <= 255)) {
-        uint8_t value[64] = { 0 };
+    if ((resourceName == NULL)
+            || (name == NULL)
+            || (length > MAX_PACKAGE_NAME_CHARS)) {
+        UC_SRCE_ERR_MSG("bad arguments - resourceName, package name or length.");
+    } else {
+        /* the maximum length is defined in the OMA LWM2M standard. */
+        uint8_t value[MAX_PACKAGE_NAME_CHARS * 2] = { 0 };
         uint8_t index = 0;
 
         /* convert to printable characters using lookup table */
@@ -525,27 +518,28 @@ int32_t FirmwareUpdateResource::sendPkgName(const uint8_t *name, uint16_t length
             value[2 * index    ] = arm_uc_hex_table[name[index] >> 4];
             value[2 * index + 1] = arm_uc_hex_table[name[index] & 0x0F];
         }
-
-        if (resourceName) {
-            resourceName->set_value(value, 2 * index);
+        if (resourceName->set_value(value, 2 * index)) {
+            result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
         }
-        result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
     }
-
     return result;
 }
 
 /* Send version for resource /10252/0/6, PkgVersion */
+#define MAX_PACKAGE_VERSION_CHARS 21
 int32_t FirmwareUpdateResource::sendPkgVersion(uint64_t version)
 {
     UC_SRCE_TRACE("FirmwareUpdateResource::sendPkgVersion");
 
-    uint8_t value[21] = { 0 };
-    uint8_t length = snprintf((char *)value, 21, "%" PRIu64, version);
-    if (resourceVersion) {
-        resourceVersion->set_value(value, length);
+    int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
+    if (resourceVersion != NULL) {
+        uint8_t value[MAX_PACKAGE_VERSION_CHARS + 1] = { 0 };
+        uint8_t length = snprintf((char *)value, MAX_PACKAGE_VERSION_CHARS, "%" PRIu64, version);
+        if (resourceVersion->set_value(value, length)) {
+            result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
+        }
     }
-    return ARM_UCS_LWM2M_INTERNAL_SUCCESS;
+    return result;
 }
 
 #if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
@@ -555,7 +549,7 @@ int32_t FirmwareUpdateResource::setM2MInterface(M2MInterface *interface)
 
     int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
 
-    if (interface) {
+    if (interface != NULL) {
         _m2m_interface = interface;
         result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
     }

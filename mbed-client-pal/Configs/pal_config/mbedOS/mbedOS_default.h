@@ -17,6 +17,7 @@
 #ifndef PAL_MBEDOS_CONFIGURATION_H_
 
 #include "cmsis_os.h"
+#include "mbed_version.h"
 
 #if (defined(MBED_DEBUG) && !defined(DEBUG))
     #define DEBUG
