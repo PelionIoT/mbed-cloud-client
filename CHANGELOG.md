@@ -1,11 +1,17 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 2.1.1 (19.12.2018)
+
+* Full support for asynchronous CoAP REST response with response code and payload for GET, PUT and POST requests. The feature is enabled via `ENABLE_ASYNC_REST_RESPONSE`.
+* Updated Mbed CoAP to 4.7.2.
+
 ### Release 2.1.0 (11.12.2018)
 
 #### Pelion Device Management Client
 
 * Added Edge-specific translated device unregistration parameter `d` to registration message body.
 * Start reconnection if no response received for CoAP ping.
+* Updated Mbed CoAP to 4.7.1.
 
 #### Factory configurator client
 
@@ -54,6 +60,7 @@
 #### Pelion Device Management Client
 
 * This version of client has been tested with Mbed OS 5.10.0.
+* Updated Mbed CoAP to 4.6.3.
 
 #### Factory configurator client
 

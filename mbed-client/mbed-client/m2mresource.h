@@ -19,6 +19,8 @@
 #include "mbed-client/m2mvector.h"
 #include "mbed-client/m2mresourcebase.h"
 #include "mbed-client/m2mresourceinstance.h"
+#include "mbed-client/coap_response.h"
+#include <stdlib.h>
 
 //FORWARD DECLARATION
 class M2MObjectInstance;
@@ -31,7 +33,8 @@ typedef Vector<M2MResourceInstance *> M2MResourceInstanceList;
  *  instances associated with the given object.
  */
 
-class M2MResource : public M2MResourceBase {
+class M2MResource : public M2MResourceBase
+{
 
     friend class M2MObjectInstance;
 
@@ -129,25 +132,40 @@ public:
 #ifndef DISABLE_DELAYED_RESPONSE
     /**
      * \brief Sets whether the resource should send a delayed response for a POST request.
+     * This only works for resources which don't support multiple instances.
+     * Please use M2MBase::set_async_coap_request_cb method, if you are using
+     * ENABLE_ASYNC_REST_RESPONSE flag, because this method will be deprecated.
      * \param delayed_response A boolean value to set the delayed response.
      */
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    void set_delayed_response(bool delayed_response) m2m_deprecated;
+#else
     void set_delayed_response(bool delayed_response);
-
+#endif
     /**
      * \brief A trigger to send the delayed response for the POST request.
      * The delayed_response flag must be set before receiving the POST request
      * and the value of the resource must be updated before calling this function.
+     * This sends the post response with code 'COAP_MSG_CODE_RESPONSE_CHANGED'.
+     * Please use M2MBase::send_async_response_with_code method, if you are using
+     * ENABLE_ASYNC_REST_RESPONSE flag, because this method will be deprecated.
      * \return True if a response is sent, else false.
      */
     bool send_delayed_post_response();
 
     /**
-     * \brief Provides the value of the given token.
+     * \brief Provides the value of the token of the delayed post response.
      * \param value[OUT] A pointer to the token value.
      * \param value_length[OUT] The length of the token pointer.
      */
     void get_delayed_token(uint8_t *&token, uint8_t &token_length);
-#endif
+
+    /**
+     * \brief Returns the value set for delayed response for POST requests.
+     * \return The value for delayed response.
+     */
+    bool delayed_response() const;
+#endif //DISABLE_DELAYED_RESPONSE
 
     /**
      * \brief Removes a resource with a given name.
@@ -175,12 +193,6 @@ public:
      * \return The total number of resources.
      */
     uint16_t resource_instance_count() const;
-
-    /**
-     * \brief Returns the value set for delayed response.
-     * \return The value for delayed response.
-     */
-    bool delayed_response() const;
 
     /**
      * \brief Returns the Observation Handler object.

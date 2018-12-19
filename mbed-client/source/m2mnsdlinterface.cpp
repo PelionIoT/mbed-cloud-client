@@ -75,7 +75,8 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=2.1.0";
+const char *MCC_VERSION = "mccv=2.1.1";
+const int UNDEFINED_MSG_ID = -1;
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -789,7 +790,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                             handle_message_delivered(base, resp->type);
                         }
 
-                        free_response_list(coap_header->msg_id);
+                        remove_item_from_response_list(NULL, coap_header->msg_id);
                     }
                 }
 
@@ -838,55 +839,94 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
     }
     return value;
 }
-
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+M2MBase::Operation M2MNsdlInterface::operation_for_message_code(sn_coap_msg_code_e code)
+{
+    M2MBase::Operation ret_val;
+    switch (code) {
+    case COAP_MSG_CODE_REQUEST_POST: {
+        ret_val = M2MBase::POST_ALLOWED;
+        break;
+    }
+    case COAP_MSG_CODE_REQUEST_GET: {
+        ret_val = M2MBase::GET_ALLOWED;
+        break;
+    }
+    case COAP_MSG_CODE_REQUEST_PUT: {
+        ret_val = M2MBase::PUT_ALLOWED;
+        break;
+    }
+    default:
+        ret_val = M2MBase::NOT_ALLOWED;
+        break;
+    }
+    return ret_val;
+}
+#endif // ENABLE_ASYNC_REST_RESPONSE
 
 uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
                                             sn_coap_hdr_s *received_coap_header,
                                             sn_nsdl_addr_s *address,
                                             sn_nsdl_capab_e /*nsdl_capab*/)
 {
+    bool async_response = false;
     tr_debug("M2MNsdlInterface::resource_callback()");
 
     assert(received_coap_header);
     _observer.coap_data_processed();
 
-    // Use piggypacked response for any other types than POST
-    if (received_coap_header->msg_code != COAP_MSG_CODE_REQUEST_POST) {
-        uint8_t status = resource_callback_handle_event(received_coap_header, address);
-
-        if (received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED) {
-            memory_free(received_coap_header->payload_ptr);
-        }
-
-        sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, received_coap_header);
-        return status;
-    }
-
     String resource_name = coap_to_string(received_coap_header->uri_path_ptr,
                                           received_coap_header->uri_path_len);
 
     M2MBase *base = find_resource(resource_name);
+
+#ifdef ENABLE_ASYNC_REST_RESPONSE
     if (base) {
+        if (base->is_async_coap_request_callback_set()) {
+            async_response = true;
+            if (!handle_delayed_response_store(resource_name.c_str(),
+                                               received_coap_header,
+                                               address,
+                                               M2MBase::DELAYED_RESPONSE)) {
+                return 0;
+            }
+        }
+    }
+#endif // ENABLE_ASYNC_REST_RESPONSE
+
+    // Use piggypacked response for any other types than POST
+    if (received_coap_header->msg_code != COAP_MSG_CODE_REQUEST_POST) {
+        // If there is a async callback set for this resource than skip this and
+        // send empty ACK below, application will be responsible to send final response.
+        if (!async_response) {
+            uint8_t status = resource_callback_handle_event(received_coap_header, address);
+            if (received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED) {
+                memory_free(received_coap_header->payload_ptr);
+            }
+            sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, received_coap_header);
+            return status;
+        }
+    }
+
+    // Only handle this in case of delayed response for POST and not for
+    // implementation behind ENABLE_ASYNC_REST_RESPONSE
+    if (base && !async_response) {
         M2MResource *res = NULL;
         if (M2MBase::Resource == base->base_type()) {
             res = static_cast<M2MResource *> (base);
         }
 
-        // Check that only one delayed response is handled at a time
+#ifndef DISABLE_DELAYED_RESPONSE
         if (res && res->delayed_response()) {
-            coap_response_s *resp = find_delayed_post_response(resource_name.c_str());
-            if (resp) {
-                sn_coap_hdr_s *coap_response = sn_nsdl_build_response(_nsdl_handle,
-                                                       received_coap_header,
-                                                       COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED);
-                sn_nsdl_send_coap_message(_nsdl_handle, address, coap_response);
-                sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, coap_response);
-                sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, received_coap_header);
+            if (!handle_delayed_response_store(resource_name.c_str(),
+                                               received_coap_header,
+                                               address,
+                                               M2MBase::DELAYED_POST_RESPONSE)) {
                 return 0;
-            } else {
-                store_to_response_list(resource_name.c_str(), -1, M2MBase::DELAYED_POST_RESPONSE);
             }
         }
+#endif // DISABLE_DELAYED_RESPONSE
+
     }
 
     send_empty_ack(received_coap_header, address);
@@ -947,6 +987,7 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
                                                           execute_value_updated,
                                                           address);
 
+#ifndef DISABLE_DELAYED_RESPONSE
                 if (base->base_type() == M2MBase::Resource) {
                     M2MResource *res = (M2MResource*) base;
                     if (res->delayed_response()) {
@@ -955,7 +996,7 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
                         return 0;
                     }
                 }
-
+#endif // DISABLE_DELAYED_RESPONSE
                 // Separate response used for POST
                 if (coap_response) {
                     coap_response->msg_type = COAP_MSG_TYPE_CONFIRMABLE;
@@ -990,30 +1031,61 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
     }
 
     if (!coap_response) {
-        coap_response = sn_nsdl_build_response(_nsdl_handle,
-                                               received_coap_header,
-                                               msg_code);
+        coap_response = sn_nsdl_build_response(_nsdl_handle, received_coap_header, msg_code);
     }
 
     // This copy will be passed to resource instance
     if (received_coap_header->payload_len > 0 && received_coap_header->payload_ptr) {
-        payload = (uint8_t*)memory_alloc(received_coap_header->payload_len);
+        payload = (uint8_t *) memory_alloc(received_coap_header->payload_len);
         if (payload) {
             assert(received_coap_header->payload_ptr);
             memcpy(payload, received_coap_header->payload_ptr, received_coap_header->payload_len);
-        }
-        else {
+        } else {
             if (coap_response) {
                 coap_response->msg_code = COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE;
             }
         }
     }
 
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    bool async_request_callback_called = false;
+#endif
+
     if (coap_response &&
         coap_response->coap_status != COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING &&
         coap_response->msg_code != COAP_MSG_CODE_EMPTY) {
+        bool send_response = true;
 
-        (sn_nsdl_send_coap_message(_nsdl_handle, address, coap_response) == 0) ? result = 0 : result = 1;
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+        if (base) {
+            if (base->is_async_coap_request_callback_set()) {
+                // In case of error or callback not found go to default response flow
+                if (coap_response->msg_code < COAP_MSG_CODE_RESPONSE_BAD_REQUEST) {
+                    M2MBase::Operation operation = operation_for_message_code(received_coap_header->msg_code);
+                    tr_debug("M2MNsdlInterface::resource_callback_handle_event - final response sent by application for "
+                             "operation 0x%x", operation);
+                    base->call_async_coap_request_callback(received_coap_header,
+                                                           operation,
+                                                           async_request_callback_called);
+
+                    // Response sent by the application
+                    if (async_request_callback_called) {
+                        send_response = false;
+                        result = 0;
+                    } else {
+                        tr_error("M2MNsdlInterface::resource_callback_handle_event - async callback not called!");
+                    }
+                } else {
+                    remove_item_from_response_list(base->uri_path(), UNDEFINED_MSG_ID);
+                }
+            }
+        }
+#endif //ENABLE_ASYNC_REST_RESPONSE
+
+        // Send CoAP response only for methods which are not handled by application
+        if (send_response) {
+            (sn_nsdl_send_coap_message(_nsdl_handle, address, coap_response) == 0) ? result = 0 : result = 1;
+        }
 
         free(coap_response->payload_ptr);
         coap_response->payload_ptr = NULL;
@@ -1034,19 +1106,23 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
              base->base_type() == M2MBase::ResourceInstance)) {
             M2MResourceBase* res = (M2MResourceBase*)base;
 
-            // Clear the old resource value since the data is now passed to application
-            if (res->block_message() && res->block_message()->is_block_message()) {
-                res->clear_value();
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+            if (!async_request_callback_called) {
+#endif
+                // Clear the old resource value since the data is now passed to application
+                if (res->block_message() && res->block_message()->is_block_message()) {
+                    res->clear_value();
+                } else {
+                    // Ownership of payload moved to resource, skip the freeing.
+                    free_payload = false;
+                    res->set_value_raw(payload, received_coap_header->payload_len);
+                }
+#ifdef ENABLE_ASYNC_REST_RESPONSE
             }
-            else {
-                // Ownership of payload moved to resource, skip the freeing.
-                free_payload = false;
-                res->set_value_raw(payload, received_coap_header->payload_len);
+#endif
+            if (coap_response->msg_code != COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE) {
+                value_updated(base);
             }
-        }
-
-        if (coap_response->msg_code != COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE) {
-            value_updated(base);
         }
     }
 
@@ -1154,7 +1230,7 @@ void M2MNsdlInterface::send_delayed_response(M2MBase *base)
             resource = static_cast<M2MResource *> (base);
         }
         if(resource) {
-            coap_response_s* resp = find_delayed_post_response(resource->uri_path());
+            coap_response_s* resp = find_delayed_response(resource->uri_path(), M2MBase::DELAYED_POST_RESPONSE);
             // If there is no response it means that this API is called
             // before actual POST request has received the device
             if (resp) {
@@ -1178,7 +1254,7 @@ void M2MNsdlInterface::send_delayed_response(M2MBase *base)
                     // Failed to create a message
                     base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, M2MBase::DELAYED_POST_RESPONSE);
                     // Remove stored response from the list
-                    free_response_list(-1);
+                    remove_item_from_response_list(resource->uri_path(), UNDEFINED_MSG_ID);
                 }
 
                 free(coap_response.payload_ptr);
@@ -1190,14 +1266,62 @@ void M2MNsdlInterface::send_delayed_response(M2MBase *base)
     }
     release_mutex();
 }
-#endif
+#endif //DISABLE_DELAYED_RESPONSE
+
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+void M2MNsdlInterface::send_asynchronous_response(M2MBase *base,
+                                                  const uint8_t *payload,
+                                                  size_t payload_len,
+                                                  const uint8_t *token,
+                                                  const uint8_t token_len,
+                                                  coap_response_code_e code)
+{
+    claim_mutex();
+    tr_debug("M2MNsdlInterface::send_asynchronous_response() %s", base->uri_path());
+    if (base) {
+        coap_response_s* resp = find_delayed_response(base->uri_path(), M2MBase::DELAYED_RESPONSE);
+        // If there is no response it means that this API is called
+        // before actual GET/PUT/POST request has been received in the device.
+        if (resp) {
+            sn_coap_hdr_s coap_response;
+
+            memset(&coap_response,0,sizeof(sn_coap_hdr_s));
+
+            coap_response.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
+            coap_response.msg_code = (sn_coap_msg_code_e) code;
+            coap_response.token_ptr = (uint8_t*)token;
+            coap_response.token_len = token_len;
+            coap_response.payload_ptr = (uint8_t*)payload;
+            coap_response.payload_len = payload_len;
+
+            if (sn_nsdl_send_coap_message(_nsdl_handle, &_nsdl_handle->server_address, &coap_response) >= 0) {
+                // Update msgid, this will be used to track server response
+                resp->msg_id = coap_response.msg_id;
+                base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SENT, M2MBase::DELAYED_RESPONSE);
+            } else {
+                // Failed to create a message
+                base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, M2MBase::DELAYED_RESPONSE);
+                // Remove stored response from the list
+                remove_item_from_response_list(base->uri_path(), UNDEFINED_MSG_ID);
+            }
+
+        } else {
+            tr_error("M2MNsdlInterface::send_delayed_response() - request not in list!");
+        }
+
+    }
+    release_mutex();
+}
+#endif //ENABLE_ASYNC_REST_RESPONSE
 
 void M2MNsdlInterface::resource_to_be_deleted(M2MBase *base)
 {
     tr_debug("M2MNsdlInterface::resource_to_be_deleted() %p", base);
     claim_mutex();
     remove_nsdl_resource(base);
-
+#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
+    remove_items_from_response_list_for_uri(base->uri_path());
+#endif
     // Since the M2MObject's are stored in _base_list, they need to be removed from there also.
     if (base && base->base_type() == M2MBase::Object) {
         remove_object(base);
@@ -3208,7 +3332,7 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
         coap_response_s *resp = find_response(coap_header->msg_id);
         if (resp) {
             if (resp->type == M2MBase::PING) {
-                free_response_list(coap_header->msg_id);
+                remove_item_from_response_list(resp->uri_path, coap_header->msg_id);
             } else {
                 M2MBase *base = find_resource(resp->uri_path);
                 if (base) {
@@ -3235,8 +3359,12 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
                     } else if (resp->type == M2MBase::DELAYED_POST_RESPONSE) {
                         base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_REJECTED, M2MBase::DELAYED_POST_RESPONSE);
                     }
-
-                    free_response_list(coap_header->msg_id);
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+                    else if (resp->type == M2MBase::DELAYED_RESPONSE) {
+                        base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_REJECTED, M2MBase::DELAYED_RESPONSE);
+                    }
+#endif // ENABLE_ASYNC_REST_RESPONSE
+                    remove_item_from_response_list(resp->uri_path, coap_header->msg_id);
                 }
             }
         }
@@ -3274,7 +3402,7 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
 
                 if (report) {
                     handle_message_delivered(base, data->type);
-                    free_response_list(coap_header->msg_id);
+                    remove_item_from_response_list(NULL, coap_header->msg_id);
                 }
             }
         }
@@ -3339,8 +3467,9 @@ uint32_t M2MNsdlInterface::total_retransmission_time(int resend_count)
 {
     uint32_t reconnection_total_time = 1;
 
-    for (int i = 0; i <= resend_count; i++)
+    for (uint32_t i = 0; i <= resend_count; i++) {
         reconnection_total_time *= 2;
+    }
 
     reconnection_total_time--;
     reconnection_total_time *= MBED_CLIENT_RECONNECTION_INTERVAL;
@@ -3385,33 +3514,63 @@ void M2MNsdlInterface::send_pending_request()
     }
 }
 
-void M2MNsdlInterface::free_response_list(const int32_t msg_id)
+void M2MNsdlInterface::free_response_list()
 {
-    // Clean up whole list
-    if (msg_id == 0) {
-        // ns_list_foreach() replacement since it does not compile with IAR 7.x versions.
-        while (!ns_list_is_empty(&_response_list)) {
-            coap_response_s* data = (coap_response_s*)ns_list_get_first(&_response_list);
-            ns_list_remove(&_response_list, data);
-            memory_free(data->uri_path);
-            memory_free(data);
-        }
+    // ns_list_foreach() replacement since it does not compile with IAR 7.x versions.
+    while (!ns_list_is_empty(&_response_list)) {
+        coap_response_s* data = (coap_response_s*)ns_list_get_first(&_response_list);
+        ns_list_remove(&_response_list, data);
+        memory_free(data->uri_path);
+        memory_free(data);
+    }
+}
 
-    // Clean just one item from the list
-    } else {
-        // ns_list_foreach() replacement since it does not compile with IAR 7.x versions.
-        coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
-        while (data) {
-            if (data->msg_id == msg_id) {
+void M2MNsdlInterface::remove_item_from_response_list(const char* uri_path, const int32_t msg_id)
+{
+    // ns_list_foreach() replacement since it does not compile with IAR 7.x versions.
+    coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
+    while (data) {
+        if (data->msg_id == msg_id) {
+            bool remove = true;
+            if (uri_path) {
+                remove = false;
+                if ((strcmp(uri_path, data->uri_path) == 0)) {
+                    remove = true;
+                }
+            }
+            if (remove) {
                 ns_list_remove(&_response_list, data);
                 memory_free(data->uri_path);
                 memory_free(data);
                 return;
             }
-            data = (coap_response_s *)ns_list_get_next(&_response_list, data);
         }
+        data = (coap_response_s *)ns_list_get_next(&_response_list, data);
     }
 }
+
+#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
+void M2MNsdlInterface::remove_items_from_response_list_for_uri(const char* uri_path)
+{
+    // ns_list_foreach() replacement since it does not compile with IAR 7.x versions.
+    coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
+    while (data) {
+        bool remove = false;
+        if (uri_path) {
+            if ((strcmp(uri_path, data->uri_path) == 0)) {
+                remove = true;
+            }
+        }
+        coap_response_s *next = (coap_response_s *)ns_list_get_next(&_response_list, data);
+        if (remove) {
+            ns_list_remove(&_response_list, data);
+            memory_free(data->uri_path);
+            memory_free(data);
+        }
+        data = next;
+    }
+}
+#endif
 
 void M2MNsdlInterface::store_to_response_list(const char *uri, int32_t msg_id, M2MBase::MessageType type)
 {
@@ -3448,14 +3607,15 @@ struct M2MNsdlInterface::coap_response_s* M2MNsdlInterface::find_response(int32_
     return NULL;
 }
 
-struct M2MNsdlInterface::coap_response_s* M2MNsdlInterface::find_delayed_post_response(const char* uri_path)
+#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
+struct M2MNsdlInterface::coap_response_s* M2MNsdlInterface::find_delayed_response(const char* uri_path,
+                                                                                  const M2MBase::MessageType type)
 {
     coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
     while (data) {
-        // Uri path is null in case of CoAP ping
         if (data->uri_path &&
             strcmp(data->uri_path, uri_path) == 0 &&
-            data->type == M2MBase::DELAYED_POST_RESPONSE) {
+            data->type == type) {
             return data;
         }
         data = (coap_response_s *)ns_list_get_next(&_response_list, data);
@@ -3463,6 +3623,7 @@ struct M2MNsdlInterface::coap_response_s* M2MNsdlInterface::find_delayed_post_re
 
     return NULL;
 }
+#endif // DISABLE_DELAYED_RESPONSE
 
 void M2MNsdlInterface::failed_to_send_request(request_context_s *request, const sn_coap_hdr_s *coap_header)
 {
@@ -3500,3 +3661,31 @@ void M2MNsdlInterface::remove_ping_from_response_list()
         data = (coap_response_s *)ns_list_get_next(&_response_list, data);
     }
 }
+
+#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
+bool M2MNsdlInterface::handle_delayed_response_store(const char* uri_path,
+                                                     sn_coap_hdr_s* received_coap,
+                                                     sn_nsdl_addr_s *address,
+                                                     const M2MBase::MessageType message_type)
+{
+    coap_response_s *resp = find_delayed_response(uri_path, message_type);
+    bool success = true;
+    // Only one request can be in process at a time
+    if (resp) {
+        sn_coap_hdr_s *coap_response = sn_nsdl_build_response(_nsdl_handle,
+                                                              received_coap,
+                                                              COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED);
+        if (coap_response) {
+            sn_nsdl_send_coap_message(_nsdl_handle, address, coap_response);
+            sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, coap_response);
+        }
+
+        sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, received_coap);
+        success = false;
+    } else {
+        store_to_response_list(uri_path, UNDEFINED_MSG_ID, message_type);
+    }
+
+    return success;
+}
+#endif
