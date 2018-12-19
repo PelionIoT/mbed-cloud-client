@@ -261,12 +261,12 @@ public:
                                sn_nsdl_capab_e nsdl_capab);
 
     /**
-    * @brief Callback from event loop for handling CoAP messages received from server for the resources
-    * that has been converted to coap message.
-    * @param coap_header, Coap message formed from data.
-    * @param address, Server address from where the data is received.
-    * @return 1 if successful else 0.
-    */
+     * @brief Callback from event loop for handling CoAP messages received from server for the resources
+     * that has been converted to coap message.
+     * @param coap_header, Coap message formed from data.
+     * @param address, Server address from where the data is received.
+     * @return 0 if successful else 1.
+     */
     uint8_t resource_callback_handle_event(sn_coap_hdr_s *coap,
                                            sn_nsdl_addr_s *address);
 
@@ -444,7 +444,16 @@ protected: // from M2MObservationHandler
     virtual void remove_object(M2MBase *object);
 #ifndef DISABLE_DELAYED_RESPONSE
     virtual void send_delayed_response(M2MBase *base);
-#endif
+#endif //DISABLE_DELAYED_RESPONSE
+
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    virtual void send_asynchronous_response(M2MBase *base,
+                                            const uint8_t *payload,
+                                            size_t payload_len,
+                                            const uint8_t* token,
+                                            const uint8_t token_len,
+                                            coap_response_code_e code);
+#endif //ENABLE_ASYNC_REST_RESPONSE
 
 private:
 
@@ -618,8 +627,13 @@ private:
 
     void free_request_context_list(const sn_coap_hdr_s *coap_header, bool call_error_cb, request_error_t error_code = FAILED_TO_SEND_MSG);
 
-    void free_response_list(const int32_t msg_id = 0);
+    void free_response_list();
 
+    void remove_item_from_response_list(const char* uri_path, const int32_t msg_id);
+
+#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
+    void remove_items_from_response_list_for_uri(const char* uri_path);
+#endif
     /**
      * @brief Send next notification for object, return true if notification sent, false
      *        if no notification to send or send already in progress.
@@ -668,7 +682,14 @@ private:
 
     struct coap_response_s* find_response(int32_t msg_id);
 
-    struct coap_response_s* find_delayed_post_response(const char* uri_path);
+#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
+    struct coap_response_s* find_delayed_response(const char* uri_path, const M2MBase::MessageType type);
+
+    bool handle_delayed_response_store(const char* uri_path,
+                                       sn_coap_hdr_s* received_coap,
+                                       sn_nsdl_addr_s *address,
+                                       const M2MBase::MessageType message_type);
+#endif
 
     void failed_to_send_request(request_context_s *request, const sn_coap_hdr_s *coap_header);
 
@@ -676,8 +697,11 @@ private:
 
     void remove_ping_from_response_list();
 
-private:
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    static M2MBase::Operation operation_for_message_code(sn_coap_msg_code_e code);
+#endif // ENABLE_ASYNC_REST_RESPONSE
 
+private:
     M2MNsdlObserver                         &_observer;
     M2MBaseList                             _base_list;
     sn_nsdl_ep_parameters_s                 *_endpoint;

@@ -132,6 +132,9 @@ M2MBase::~M2MBase()
 
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MBaseValueUpdatedCallback2);
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MBaseNotificationDeliveryStatusCallback);
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    M2MCallbackStorage::remove_callback(*this,M2MCallbackAssociation::M2MBaseAsyncCoapRequestCallback);
+#endif
 }
 
 char* M2MBase::create_path_base(const M2MBase &parent, const char *name)
@@ -860,6 +863,66 @@ M2MBase::lwm2m_parameters_s* M2MBase::get_lwm2m_parameters() const
 {
     return _sn_resource;
 }
+
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+bool M2MBase::send_async_response_with_code(const uint8_t *payload,
+                                            size_t payload_len,
+                                            const uint8_t* token,
+                                            const uint8_t token_len,
+                                            coap_response_code_e code)
+{
+    bool success = false;
+    if(is_async_coap_request_callback_set()) {
+        success = true;
+        // At least on some unit tests the resource object is not fully constructed, which would
+        // cause issues if the observation_handler is NULL. So do the check before dereferencing pointer.
+        M2MObservationHandler* obs = observation_handler();
+        if (obs) {
+            obs->send_asynchronous_response(this, payload, payload_len, token, token_len, code);
+        }
+    }
+    return success;
+}
+
+bool M2MBase::set_async_coap_request_cb(handle_async_coap_request_cb callback, void *client_args)
+{
+    M2MCallbackStorage::remove_callback(*this,
+                                        M2MCallbackAssociation::M2MBaseAsyncCoapRequestCallback);
+
+    return M2MCallbackStorage::add_callback(*this,
+                                            (void*)callback,
+                                            M2MCallbackAssociation::M2MBaseAsyncCoapRequestCallback,
+                                            client_args);
+}
+
+void M2MBase::call_async_coap_request_callback(sn_coap_hdr_s *coap_request,
+                                               M2MBase::Operation operation,
+                                               bool &handled)
+{
+    M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(*this,
+                                                                            M2MCallbackAssociation::M2MBaseAsyncCoapRequestCallback);
+    if (item) {
+        handle_async_coap_request_cb callback = (handle_async_coap_request_cb)item->_callback;
+        assert(callback);
+        assert(coap_request);
+        handled = true;
+        (*callback)(*this,
+                    operation,
+                    coap_request->token_ptr,
+                    coap_request->token_len,
+                    coap_request->payload_ptr,
+                    coap_request->payload_len,
+                    item->_client_args);
+    }
+}
+
+bool M2MBase::is_async_coap_request_callback_set()
+{
+    M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(*this, M2MCallbackAssociation::M2MBaseAsyncCoapRequestCallback);
+    return (item) ? true : false;
+
+}
+#endif // ENABLE_ASYNC_REST_RESPONSE
 
 uint16_t M2MBase::get_notification_msgid() const
 {

@@ -16,8 +16,10 @@
 #ifndef M2M_OBSERVATION_HANDLER_H
 #define M2M_OBSERVATION_HANDLER_H
 
+// Needed for M2MBase::Operation
+#include "m2mbase.h"
+#include "mbed-client/coap_response.h"
 //FORWARD DECLARATION
-class M2MBase;
 class M2MResourceInstance;
 
 /*! \file m2mobservationhandler.h
@@ -67,11 +69,28 @@ class M2MObservationHandler
 
 #ifndef DISABLE_DELAYED_RESPONSE
     /**
-     * \brief A delayed response callback to be sent to the
-     * server due to a changed response.
+     * \brief Sends a delayed post response to the server with 'COAP_MSG_CODE_RESPONSE_CHANGED' response code.
      * \param base The resource sending the response.
      */
     virtual void send_delayed_response(M2MBase *base) = 0;
+#endif
+
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    /**
+     * \brief Sends async response to the server for the given operation with the given response code.
+     * \param base The resource sending the response.
+     * \param payload Payload for the resource.
+     * \param payload_len Length of the payload.
+     * \param token Token for the incoming CoAP request.
+     * \param token_len Token length for the incoming CoAP request.
+     * \param code The response code for the operation, for example: COAP_MSG_CODE_RESPONSE_CHANGED.
+     */
+    virtual void send_asynchronous_response(M2MBase *base,
+                                            const uint8_t *payload,
+                                            size_t payload_len,
+                                            const uint8_t* token,
+                                            const uint8_t token_len,
+                                            coap_response_code_e code) = 0;
 #endif
 };
 

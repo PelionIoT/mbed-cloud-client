@@ -22,6 +22,9 @@
 #include "mbed-client/m2mreportobserver.h"
 #include "mbed-client/functionpointer.h"
 #include "mbed-client/m2mstringbuffer.h"
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+#include "mbed-client/coap_response.h"
+#endif
 #include "nsdl-c/sn_nsdl.h"
 #include "sn_coap_header.h"
 #include "nsdl-c/sn_nsdl_lib.h"
@@ -143,12 +146,14 @@ public:
     } MessageDeliveryStatus;
 
     typedef enum {
-        NOTIFICATION,
+        NOTIFICATION = 0,
         DELAYED_POST_RESPONSE,
         BLOCK_SUBSCRIBE,
-        PING
+        PING,
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+        DELAYED_RESPONSE,
+#endif // ENABLE_ASYNC_REST_RESPONSE
     } MessageType;
-
 
     enum MaxPathSize {
         MAX_NAME_SIZE = 64,
@@ -171,6 +176,26 @@ public:
                                                const MessageDeliveryStatus status,
                                                const MessageType type,
                                                void *client_args);
+
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    /**
+     * \brief Type definition for an asynchronous CoAP request callback function.
+     * \param operation The operation, for example M2MBase::PUT_ALLOWED.
+     * \param token The token. Client needs to copy this if it cannot respond immediately.
+     * \param token_len The length of the token.
+     * \param buffer The payload of the request. Client needs to copy this if it cannot respond immediately.
+     * \param buffer_size The size of the payload.
+     * \param client_args Some pointer given by client when requesting asynchronus request callback using
+     *        set_async_coap_request_cb.
+     */
+    typedef void (*handle_async_coap_request_cb)(const M2MBase &base,
+                                                 M2MBase::Operation operation,
+                                                 const uint8_t *token,
+                                                 const uint8_t token_len,
+                                                 const uint8_t *buffer,
+                                                 size_t buffer_size,
+                                                 void *client_args);
+#endif // ENABLE_ASYNC_REST_RESPONSE
 
 
     typedef struct lwm2m_parameters {
@@ -551,6 +576,33 @@ public:
      */
     M2MBase::lwm2m_parameters_s* get_lwm2m_parameters() const;
 
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+    /**
+     * \brief A trigger to send the async response for the CoAP request.
+     * \param code The code for the response, for example: 'COAP_RESPONSE_CHANGED'.
+     * \param payload Payload for the resource.
+     * \param payload_len Length of the payload.
+     * \param token Token for the incoming CoAP request.
+     * \param token_len Token length for the incoming CoAP request.
+     * \return True if a response is sent, else False.
+     */
+    bool send_async_response_with_code(const uint8_t *payload,
+                                       size_t payload_len,
+                                       const uint8_t* token,
+                                       const uint8_t token_len,
+                                       coap_response_code_e code = COAP_RESPONSE_CHANGED);
+
+    /**
+     * @brief Sets the function that is executed when CoAP request arrives.
+     * Callback is not called if the request are invalid, for example content-type is not matching.
+     * In that case the error response is sent by the client itself.
+     * @param callback The function pointer that is called.
+     * @param client_args The argument which is passed to the callback function.
+     */
+    bool set_async_coap_request_cb(handle_async_coap_request_cb callback, void *client_args);
+
+#endif //ENABLE_ASYNC_REST_RESPONSE
+
     /**
      * @brief Returns the notification message id.
      * @return Message id.
@@ -754,6 +806,26 @@ protected: // from M2MReportObserver
      * observation callbacks.
      */
     void start_observation(const sn_coap_hdr_s &received_coap_header, M2MObservationHandler *observation_handler);
+
+#ifdef ENABLE_ASYNC_REST_RESPONSE
+
+    /**
+     * @brief Executes the callback set in 'set_async_coap_request_cb'.
+     * @param coap_request CoAP request containing the requesting payload and payload size.
+     * @param operation Operation mode to be passed to the application.
+     * @param handled Caller to know whether callback is processed or not.
+     */
+    void call_async_coap_request_callback(sn_coap_hdr_s *coap_request,
+                                          M2MBase::Operation operation,
+                                          bool &handled);
+
+    /**
+     * @brief Returns whether asynchronous callback is set or not.
+     * @return True if set otherwise False.
+     */
+    bool is_async_coap_request_callback_set();
+
+#endif //ENABLE_ASYNC_REST_RESPONSE
 
 private:
     static bool is_integer(const String &value);
