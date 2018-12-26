@@ -49,6 +49,8 @@ class MbedCloudClientCallback {
 
 public:
 
+    virtual ~MbedCloudClientCallback();
+    
     /**
     * \brief A callback indicating that the value of the resource object is updated
     *  by the LWM2M Cloud server.
