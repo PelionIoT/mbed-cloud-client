@@ -28,7 +28,7 @@ set(PAL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/PAL-Impl/pal_init.c 
 )
 
-if ( NOT (${OS_BRAND} MATCHES "Linux"))        
+if ( NOT (${OS_BRAND} MATCHES "Linux") AND NOT (${OS_BRAND} MATCHES "AmigaOS"))        
        set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_SOURCE_DIR}/Storage/Flash/pal_plat_internalFlash.c)
 endif() 
 
