@@ -47,6 +47,8 @@
     #include "FreeRTOS_default.h"
 #elif defined(__MBED__)
     #include "mbedOS_default.h"
+#elif defined(__AMIGAOS__)
+    #include "AmigaOS_default.h"
 #else
     #error "Please specify the platform PAL_PLATFORM_DEFINED_CONFIGURATION"
 #endif

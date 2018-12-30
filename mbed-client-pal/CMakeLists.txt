@@ -38,6 +38,10 @@ if(NOT YOTTA_TARGET)
         add_definitions(-DPAL_LINUX)
     endif() 
 
+    if ((${OS_BRAND} MATCHES "AmigaOS"))
+        add_definitions(-DPAL_AMIGAOS)
+    endif() 
+
     MACRO(HEADER_DIRECTORIES return_list)
       FILE(GLOB_RECURSE new_list ${CMAKE_CURRENT_SOURCE_DIR}/Configs/pal_config/${OS_BRAND}/*.h)
       SET(dir_list "")
