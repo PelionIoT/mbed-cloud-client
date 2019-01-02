@@ -467,15 +467,15 @@ ce_status_e CertificateEnrollmentClient::schedule_event(event_type_e event_type)
 {
     int8_t event_status;
 
-    arm_event_s event = {
-        .receiver = handler_id, // ID we got when creating our handler
-        .sender = 0, // Which tasklet sent us the event is irrelevant to us 
-        .event_type = event_type, // Indicate event type 
-        .event_id = 0, // We currently do not need an ID for a specific event - event type is enough
-        .data_ptr = 0, // Not needed, data handled in internal structure
-        .priority = ARM_LIB_LOW_PRIORITY_EVENT, // Application level priority
-        .event_data = 0, // With one certificate this is irrelevant. If allow multiple certificates, This will be a certificate descriptor (index in a CertificateRenewalDataBase list)
-    };
+    arm_event_s event;
+    
+    event.receiver = handler_id; // ID we got when creating our handler
+    event.sender = 0; // Which tasklet sent us the event is irrelevant to us 
+    event.event_type = event_type; // Indicate event type 
+    event.event_id = 0; // We currently do not need an ID for a specific event - event type is enough
+    event.data_ptr = 0; // Not needed, data handled in internal structure
+    event.priority = ARM_LIB_LOW_PRIORITY_EVENT; // Application level priority
+    event.event_data = 0; // With one certificate this is irrelevant. If allow multiple certificates, This will be a certificate descriptor (index in a CertificateRenewalDataBase list)    
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 

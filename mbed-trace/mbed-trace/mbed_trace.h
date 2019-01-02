@@ -124,37 +124,37 @@ extern "C" {
 
 //usage macros:
 #if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_DEBUG
-#define tr_debug(...)           mbed_tracef(TRACE_LEVEL_DEBUG,   TRACE_GROUP, __VA_ARGS__)   //!< Print debug message
+#define tr_debug(args...)           mbed_tracef(TRACE_LEVEL_DEBUG,   TRACE_GROUP, __VA_ARGS__)   //!< Print debug message
 #else
-#define tr_debug(...)
+#define tr_debug(args...)
 #endif
 
 #if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_INFO
-#define tr_info(...)            mbed_tracef(TRACE_LEVEL_INFO,    TRACE_GROUP, __VA_ARGS__)   //!< Print info message
+#define tr_info(args...)            mbed_tracef(TRACE_LEVEL_INFO,    TRACE_GROUP, __VA_ARGS__)   //!< Print info message
 #else
-#define tr_info(...)
+#define tr_info(args...)
 #endif
 
 #if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_WARN
-#define tr_warning(...)         mbed_tracef(TRACE_LEVEL_WARN,    TRACE_GROUP, __VA_ARGS__)   //!< Print warning message
-#define tr_warn(...)            mbed_tracef(TRACE_LEVEL_WARN,    TRACE_GROUP, __VA_ARGS__)   //!< Alternative warning message
+#define tr_warning(args...)         mbed_tracef(TRACE_LEVEL_WARN,    TRACE_GROUP, __VA_ARGS__)   //!< Print warning message
+#define tr_warn(args...)            mbed_tracef(TRACE_LEVEL_WARN,    TRACE_GROUP, __VA_ARGS__)   //!< Alternative warning message
 #else
-#define tr_warning(...)
-#define tr_warn(...)
+#define tr_warning(args...)
+#define tr_warn(args...)
 #endif
 
 #if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_ERROR
-#define tr_error(...)           mbed_tracef(TRACE_LEVEL_ERROR,   TRACE_GROUP, __VA_ARGS__)   //!< Print Error Message
-#define tr_err(...)             mbed_tracef(TRACE_LEVEL_ERROR,   TRACE_GROUP, __VA_ARGS__)   //!< Alternative error message
+#define tr_error(args...)           mbed_tracef(TRACE_LEVEL_ERROR,   TRACE_GROUP, __VA_ARGS__)   //!< Print Error Message
+#define tr_err(args...)             mbed_tracef(TRACE_LEVEL_ERROR,   TRACE_GROUP, __VA_ARGS__)   //!< Alternative error message
 #else
-#define tr_error(...)
-#define tr_err(...)
+#define tr_error(args...)
+#define tr_err(args...)
 #endif
 
-#define tr_cmdline(...)         mbed_tracef(TRACE_LEVEL_CMD,     TRACE_GROUP, __VA_ARGS__)   //!< Special print for cmdline. See more from TRACE_LEVEL_CMD -level
+#define tr_cmdline(args...)         mbed_tracef(TRACE_LEVEL_CMD,     TRACE_GROUP, __VA_ARGS__)   //!< Special print for cmdline. See more from TRACE_LEVEL_CMD -level
 
 //aliases for the most commonly used functions and the helper functions
-#define tracef(dlevel, grp, ...)                mbed_tracef(dlevel, grp, __VA_ARGS__)       //!< Alias for mbed_tracef()
+#define tracef(dlevel, grp, args...)                mbed_tracef(dlevel, grp, __VA_ARGS__)       //!< Alias for mbed_tracef()
 #define vtracef(dlevel, grp, fmt, ap)           mbed_vtracef(dlevel, grp, fmt, ap)          //!< Alias for mbed_vtracef()
 #define tr_array(buf, len)                      mbed_trace_array(buf, len)                  //!< Alias for mbed_trace_array()
 #define tr_ipv6(addr_ptr)                       mbed_trace_ipv6(addr_ptr)                   //!< Alias for mbed_trace_ipv6()
@@ -408,30 +408,30 @@ char* mbed_trace_array(const uint8_t* buf, uint16_t len);
 #elif !defined(MBED_TRACE_DUMMIES_DEFINED)
 // define dummies, hiding the real functions
 #define MBED_TRACE_DUMMIES_DEFINED
-#define mbed_trace_init(...)                        ((int) 0)
-#define mbed_trace_free(...)                        ((void) 0)
-#define mbed_trace_buffer_sizes(...)                ((void) 0)
-#define mbed_trace_config_set(...)                  ((void) 0)
-#define mbed_trace_config_get(...)                  ((uint8_t) 0)
-#define mbed_trace_prefix_function_set(...)         ((void) 0)
-#define mbed_trace_suffix_function_set(...)         ((void) 0)
-#define mbed_trace_print_function_set(...)          ((void) 0)
-#define mbed_trace_cmdprint_function_set(...)       ((void) 0)
-#define mbed_trace_mutex_wait_function_set(...)     ((void) 0)
-#define mbed_trace_mutex_release_function_set(...)  ((void) 0)
-#define mbed_trace_exclude_filters_set(...)         ((void) 0)
-#define mbed_trace_exclude_filters_get(...)         ((const char *) 0)
-#define mbed_trace_include_filters_set(...)         ((void) 0)
-#define mbed_trace_include_filters_get(...)         ((const char *) 0)
-#define mbed_trace_last(...)                        ((const char *) 0)
-#define mbed_tracef(...)                            ((void) 0)
-#define mbed_vtracef(...)                           ((void) 0)
+#define mbed_trace_init(args...)                        ((int) 0)
+#define mbed_trace_free(args...)                        ((void) 0)
+#define mbed_trace_buffer_sizes(args...)                ((void) 0)
+#define mbed_trace_config_set(args...)                  ((void) 0)
+#define mbed_trace_config_get(args...)                  ((uint8_t) 0)
+#define mbed_trace_prefix_function_set(args...)         ((void) 0)
+#define mbed_trace_suffix_function_set(args...)         ((void) 0)
+#define mbed_trace_print_function_set(args...)          ((void) 0)
+#define mbed_trace_cmdprint_function_set(args...)       ((void) 0)
+#define mbed_trace_mutex_wait_function_set(args...)     ((void) 0)
+#define mbed_trace_mutex_release_function_set(args...)  ((void) 0)
+#define mbed_trace_exclude_filters_set(args...)         ((void) 0)
+#define mbed_trace_exclude_filters_get(args...)         ((const char *) 0)
+#define mbed_trace_include_filters_set(args...)         ((void) 0)
+#define mbed_trace_include_filters_get(args...)         ((const char *) 0)
+#define mbed_trace_last(args...)                        ((const char *) 0)
+#define mbed_tracef(args...)                            ((void) 0)
+#define mbed_vtracef(args...)                           ((void) 0)
 /**
  * These helper functions accumulate strings in a buffer that is only flushed by actual trace calls. Using these
  * functions outside trace calls could cause the buffer to overflow.
  */
-#define mbed_trace_ipv6(...)                dont_use_trace_helpers_outside_trace_calls
-#define mbed_trace_ipv6_prefix(...)         dont_use_trace_helpers_outside_trace_calls
-#define mbed_trace_array(...)               dont_use_trace_helpers_outside_trace_calls
+#define mbed_trace_ipv6(args...)                dont_use_trace_helpers_outside_trace_calls
+#define mbed_trace_ipv6_prefix(args...)         dont_use_trace_helpers_outside_trace_calls
+#define mbed_trace_array(args...)               dont_use_trace_helpers_outside_trace_calls
 
 #endif /* FEA_TRACE_SUPPORT */

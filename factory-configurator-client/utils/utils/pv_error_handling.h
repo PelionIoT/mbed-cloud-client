@@ -74,7 +74,7 @@ bool pv_error_is_error_occured(void);
 
 
 
-#define _SA_PV_ERR_ASSERT_UPON_ERROR(cond, return_code, ...) {\
+#define _SA_PV_ERR_ASSERT_UPON_ERROR(cond, return_code, args...) {\
 	if (cond) { \
 		SA_PV_LOG_ERR_FUNC_EXIT(__VA_ARGS__);\
 		assert(!(cond));\
@@ -83,7 +83,7 @@ bool pv_error_is_error_occured(void);
 	}\
 }
 
-#define _SA_PV_ERR_ASSERT_UPON_ERROR_GOTO(cond, return_code_assignment, goto_label, ...) {\
+#define _SA_PV_ERR_ASSERT_UPON_ERROR_GOTO(cond, return_code_assignment, goto_label, args...) {\
 	if (cond) {\
 		SA_PV_LOG_ERR(__VA_ARGS__);\
 		assert(!(cond));\
@@ -93,7 +93,7 @@ bool pv_error_is_error_occured(void);
 	}\
 }
 
-#define _SA_PV_ERR_OCCURED_AND_RETURN_UPON_ERROR(cond, return_code, ...) {\
+#define _SA_PV_ERR_OCCURED_AND_RETURN_UPON_ERROR(cond, return_code, args...) {\
 	if (cond) {\
 		SA_PV_LOG_ERR_FUNC_EXIT(__VA_ARGS__); \
 		pv_error_occured();\
@@ -101,13 +101,13 @@ bool pv_error_is_error_occured(void);
 	}\
 }
 
-#define _SA_PV_RETURN_UPON_ERROR(level, cond, return_code, ...) {\
+#define _SA_PV_RETURN_UPON_ERROR(level, cond, return_code, args...) {\
 	if (cond) {\
 		SA_PV_LOG_ ## level ## _FUNC_EXIT(__VA_ARGS__);\
 		return return_code;\
 	}\
 }
-#define _SA_PV_ERR_OCCURED_AND_GOTO_UPON_ERROR(cond, return_code_assignment, goto_label, ...) {\
+#define _SA_PV_ERR_OCCURED_AND_GOTO_UPON_ERROR(cond, return_code_assignment, goto_label, args...) {\
 	if (cond) {\
 		SA_PV_LOG_ERR(__VA_ARGS__);\
 		pv_error_occured();\
@@ -116,7 +116,7 @@ bool pv_error_is_error_occured(void);
 	}\
 }
 
-#define _SA_PV_GOTO_UPON_ERROR(level, cond, return_code_assignment, goto_label, ...) {\
+#define _SA_PV_GOTO_UPON_ERROR(level, cond, return_code_assignment, goto_label, args...) {\
 	if (cond) {\
 		SA_PV_LOG_ ## level(__VA_ARGS__); \
 		return_code_assignment;\
@@ -134,27 +134,27 @@ bool pv_error_is_error_occured(void);
 #if HALT_ON_UNRECOVERABLE_ERRORS()
 #if defined(SA_PV_PC_ENV) && ASSERT_IN_PC_ENV()
 #ifndef IGNORE_UNRECOVERABLE_ERRORS
-#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, args...) \
 				_SA_PV_ERR_ASSERT_UPON_ERROR((cond), (return_code), ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, args...) \
 				if (false && (cond)) {}  /* Dummy use of the condition to avoid compiler warnings */
 #endif
 #else
 #ifndef IGNORE_UNRECOVERABLE_ERRORS
-#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, args...) \
 				_SA_PV_ERR_OCCURED_AND_RETURN_UPON_ERROR((cond), (return_code), ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, args...) \
 				if (false && (cond)) {}  /* Dummy use of the condition to avoid compiler warnings */
 #endif
 #endif
 #else   // HALT_ON_UNRECOVERABLE_ERRORS  
 #ifndef IGNORE_UNRECOVERABLE_ERRORS
-#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, args...) \
 			_SA_PV_RETURN_UPON_ERROR(ERR, (cond), (return_code), ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_RETURN_IF(cond, return_code, args...) \
 			if (false && (cond)) {}  /* Dummy use of the condition to avoid compiler warnings */
 #endif
 #endif // HALT_ON_UNRECOVERABLE_ERRORS
@@ -168,10 +168,10 @@ bool pv_error_is_error_occured(void);
 #if HALT_ON_UNRECOVERABLE_ERRORS()
 #if defined(SA_PV_PC_ENV) && ASSERT_IN_PC_ENV()
 #ifndef IGNORE_UNRECOVERABLE_ERRORS
-#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 				_SA_PV_ERR_ASSERT_UPON_ERROR_GOTO((cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 				if (false && (cond)) {  /* Dummy use of the condition to avoid compiler warnings */ \
 					return_code_assignment;  /* Dummy use of the assignment to avoid compiler warnings */ \
 					goto goto_label;  /* Dummy use of the goto label to avoid compiler warnings. */ \
@@ -179,10 +179,10 @@ bool pv_error_is_error_occured(void);
 #endif
 #else
 #ifndef IGNORE_UNRECOVERABLE_ERRORS
-#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 				_SA_PV_ERR_OCCURED_AND_GOTO_UPON_ERROR((cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 				if (false && (cond)) {  /* Dummy use of the condition to avoid compiler warnings */ \
 					return_code_assignment;  /* Dummy use of the assignment to avoid compiler warnings */ \
 					goto goto_label;  /* Dummy use of the goto label to avoid compiler warnings. */ \
@@ -191,10 +191,10 @@ bool pv_error_is_error_occured(void);
 #endif
 #else // HALT_ON_UNRECOVERABLE_ERRORS  
 #ifndef IGNORE_UNRECOVERABLE_ERRORS
-#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 			_SA_PV_GOTO_UPON_ERROR(ERR, (cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_UNRECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 			if (false && (cond)) {  /* Dummy use of the condition to avoid compiler warnings */ \
 				return_code_assignment;  /* Dummy use of the assignment to avoid compiler warnings */ \
 				goto goto_label;  /* Dummy use of the goto label to avoid compiler warnings. */ \
@@ -213,17 +213,17 @@ bool pv_error_is_error_occured(void);
  */
 #if HALT_ON_RECOVERABLE_ERRORS()
 #if defined(SA_PV_PC_ENV) && ASSERT_IN_PC_ENV()
-#define SA_PV_ERR_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 			_SA_PV_ERR_ASSERT_UPON_ERROR((cond), return_code, ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 			_SA_PV_ERR_OCCURED_AND_RETURN_UPON_ERROR((cond), (return_code), ##__VA_ARGS__)
 #endif
 #else // HALT_ON_RECOVERABLE_ERRORS
-#define SA_PV_ERR_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_ERR_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 		_SA_PV_RETURN_UPON_ERROR(ERR, (cond), (return_code), ##__VA_ARGS__)
 
-#define SA_PV_ERR_RECOVERABLE_RETURN(return_code, ...) \
+#define SA_PV_ERR_RECOVERABLE_RETURN(return_code, args...) \
         SA_PV_LOG_ERR_FUNC_EXIT(__VA_ARGS__); \
         return return_code;
 #endif // HALT_ON_RECOVERABLE_ERRORS
@@ -233,18 +233,18 @@ bool pv_error_is_error_occured(void);
 
 // FIXME: This is partial solution, for critical level, also unrecoverable return should be treated and
 // the macros for different  flags should be implemented (HALT_ON_RECOVERABLE_ERRORS etc.)
-#define SA_PV_CRITICAL_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_CRITICAL_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 	_SA_PV_RETURN_UPON_ERROR(CRITICAL, (cond), (return_code), ##__VA_ARGS__)
 //	used in errors that are not critical (such as failure to read data from a socket - a retry is scheduled)
-#define SA_PV_WARN_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_WARN_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 	_SA_PV_RETURN_UPON_ERROR(WARN, (cond), (return_code), ##__VA_ARGS__)
 //	used in external APIs
-#define SA_PV_INFO_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_INFO_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 	_SA_PV_RETURN_UPON_ERROR(INFO, (cond), (return_code), ##__VA_ARGS__)
 //	used in internal APIs
-#define SA_PV_TRACE_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_TRACE_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 	_SA_PV_RETURN_UPON_ERROR(TRACE, (cond), (return_code), ##__VA_ARGS__)
-#define SA_PV_DATA_RECOVERABLE_RETURN_IF(cond, return_code, ...) \
+#define SA_PV_DATA_RECOVERABLE_RETURN_IF(cond, return_code, args...) \
 	_SA_PV_RETURN_UPON_ERROR(DATA, (cond), (return_code), ##__VA_ARGS__)
 
 /** For recoverable errors, if condition fails:
@@ -256,14 +256,14 @@ bool pv_error_is_error_occured(void);
  */
 #if HALT_ON_RECOVERABLE_ERRORS()
 #if defined(SA_PV_PC_ENV) && ASSERT_IN_PC_ENV()
-#define SA_PV_ERR_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 			_SA_PV_ERR_ASSERT_UPON_ERROR_GOTO((cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 #else
-#define SA_PV_ERR_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 			_SA_PV_ERR_OCCURED_AND_GOTO_UPON_ERROR((cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 #endif
 #else // HALT_ON_RECOVERABLE_ERRORS
-#define SA_PV_ERR_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_ERR_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 		_SA_PV_GOTO_UPON_ERROR(ERR, (cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 #endif // HALT_ON_RECOVERABLE_ERRORS
 
@@ -272,19 +272,19 @@ bool pv_error_is_error_occured(void);
 
 // FIXME: This is partial solution, for critical level, also unrecoverable goto should be treated and
 // the macros for differnet  flags should be implemented (HALT_ON_RECOVERABLE_ERRORS etc.)
-#define SA_PV_CRITICAL_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_CRITICAL_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 	_SA_PV_GOTO_UPON_ERROR(CRITICAL, (cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 //	used in errors that are not critical (such as failure to read data from a socket - a retry is scheduled)
-#define SA_PV_WARN_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_WARN_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 	_SA_PV_GOTO_UPON_ERROR(WARN, (cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 //	used in external APIs
-#define SA_PV_INFO_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_INFO_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 	_SA_PV_GOTO_UPON_ERROR(INFO, (cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 //	used in internal APIs
-#define SA_PV_TRACE_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_TRACE_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 	_SA_PV_GOTO_UPON_ERROR(TRACE, (cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 //	used in functions that are called many times and we don't necessary want to see all its logging even in TRACE mode
-#define SA_PV_DATA_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, ...) \
+#define SA_PV_DATA_RECOVERABLE_GOTO_IF(cond, return_code_assignment, goto_label, args...) \
 	_SA_PV_GOTO_UPON_ERROR(DATA, (cond), (return_code_assignment), goto_label, ##__VA_ARGS__)
 
 #ifdef __cplusplus
