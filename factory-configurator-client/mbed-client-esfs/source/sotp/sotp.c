@@ -329,6 +329,8 @@ STATIC sotp_result_e write_record(uint8_t area, uint32_t offset, uint16_t type, 
     uint32_t crc = INITIAL_CRC;
     palStatus_t pal_ret;
     uint8_t *prog_buf;
+    uint32_t prog_size;
+    uint32_t copy_size;
     SOTP_LOG_APPEND("write_record area:%d offs:%d len:%d type:%d. ", area, offset, data_len, type);
 
     header.type_and_flags = type | flags;
@@ -343,8 +345,8 @@ STATIC sotp_result_e write_record(uint8_t area, uint32_t offset, uint16_t type, 
     // separately. Instead, we need to copy header and start of data to our page buffer
     // and write them together. Otherwise, simply write header and data separately.
 
-    uint32_t prog_size = sizeof(header);
-    uint32_t copy_size = 0;
+    prog_size = sizeof(header);
+    copy_size = 0;
 
     // If min prog size is larger than the header size - allocate new buffer containing the header and the amount of data to fill the page
     if (min_prog_size > sizeof(header)) {
@@ -425,6 +427,7 @@ STATIC sotp_result_e copy_record(uint8_t from_area, uint32_t from_offset, uint32
     palStatus_t pal_ret;
     record_header_t *header;
     uint8_t *read_buf, *prog_buf;
+    uint16_t start_size;
 
     SOTP_LOG_APPEND("copy_record f_area:%d f_offs:%d t_offs:%d ",
                     from_area, from_offset, to_offset);
@@ -467,7 +470,7 @@ STATIC sotp_result_e copy_record(uint8_t from_area, uint32_t from_offset, uint32
         return SOTP_FLASH_AREA_TOO_SMALL;
     }
 
-    uint16_t start_size = sizeof(*header);
+    start_size = sizeof(*header);
     from_offset += start_size;
     read_buf += start_size;
     record_size -= start_size;
