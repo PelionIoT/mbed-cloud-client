@@ -238,24 +238,14 @@ palStatus_t pal_plat_fsRmFiles(const char *pathName)
             }
             if (currentEntry)
             {
-                pal_plat_addFileNameToPath(pathName, currentEntry->d_name, buffer, sizeof(buffer));
-                if (currentEntry->d_type == DT_DIR)
+                pal_plat_addFileNameToPath(pathName, currentEntry->d_name, buffer, sizeof(buffer));                
+                
+                if (unlink(buffer))
                 {
-                    pal_fsRmFiles(buffer);
-                    if (rmdir(buffer))
-                    {
-                        ret = pal_plat_errorTranslation(errno);
-                        break;
-                    }
+                    ret = pal_plat_errorTranslation(errno);
+                    break;
                 }
-                else
-                {
-                    if (unlink(buffer))
-                    {
-                        ret = pal_plat_errorTranslation(errno);
-                        break;
-                    }
-                }
+                
             }
             else
             {//End of directory reached  without errors break, close directory and exit
@@ -298,11 +288,7 @@ palStatus_t pal_plat_fsCpFolder(const char *pathNameSrc,  char *pathNameDest)
                 break;
             }
             if (currentEntry)
-            {
-                if (currentEntry->d_type == DT_DIR)
-                {
-                    continue;
-                }
+            {               
                 //copy the file to the destination
                 ret = pal_plat_fsCpFile(pathNameSrc, pathNameDest, currentEntry->d_name);
                 if (ret != PAL_SUCCESS)
