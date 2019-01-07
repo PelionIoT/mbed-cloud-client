@@ -320,6 +320,8 @@ PAL_PRIVATE bool pal_isLeapYear(uint16_t year)
 
 PAL_PRIVATE palStatus_t pal_timegm( struct tm *tm, uint64_t* outTime) 
 {
+    uint16_t y;
+    uint16_t m;
     uint64_t epoc = 0;
     uint8_t palMonthDays[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
@@ -328,7 +330,7 @@ PAL_PRIVATE palStatus_t pal_timegm( struct tm *tm, uint64_t* outTime)
         return PAL_ERR_INVALID_ARGUMENT;
     }
 
-    for (uint16_t y = 1970; y < tm->tm_year; ++y)
+    for (y = 1970; y < tm->tm_year; ++y)
     {
         if (pal_isLeapYear(y))
         {
@@ -340,7 +342,7 @@ PAL_PRIVATE palStatus_t pal_timegm( struct tm *tm, uint64_t* outTime)
         }      
     }
     
-    for (uint8_t m = 1; m < tm->tm_mon; ++m) 
+    for (m = 1; m < tm->tm_mon; ++m) 
     {
         epoc += palMonthDays[m - 1] * PAL_SECONDS_PER_DAY;
         if (m == PAL_FEB_MONTH && pal_isLeapYear(tm->tm_year))
