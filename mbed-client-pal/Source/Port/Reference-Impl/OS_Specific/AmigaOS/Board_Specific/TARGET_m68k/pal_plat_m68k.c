@@ -14,8 +14,6 @@
  * limitations under the License.
  *******************************************************************************/
 #include "pal_plat_rtos.h"
-#include <sys/types.h>
-#include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>

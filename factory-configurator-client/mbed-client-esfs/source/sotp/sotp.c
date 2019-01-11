@@ -51,7 +51,7 @@ STATIC int32_t init_attempts = 0;
 STATIC uint8_t active_area;
 STATIC uint16_t active_area_version;
 // Must be aligned to the size of native integer, otherwise atomic add may not work
-STATIC uint32_t free_space_offset __attribute__((aligned(8)));
+STATIC uint32_t free_space_offset __attribute__((aligned(4)));
 STATIC uint32_t offset_by_type[SOTP_MAX_TYPES];
 STATIC sotp_shared_lock_t write_lock;
 
