@@ -14,12 +14,12 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef PAL_DEFAULT_LINUX_CONFIGURATION_H_
+#ifndef PAL_DEFAULT_AMIGAOS_CONFIGURATION_H_
 
 
 #ifndef PAL_BOARD_SPECIFIC_CONFIG
-    #if defined(TARGET_X86_X64)
-        #include "x86_x64_default.h"
+    #if defined(TARGET_M68K)
+        #include "m68k_default.h"
     #endif
 #endif
 
@@ -125,9 +125,4 @@
     #endif
 #endif
 
-#ifndef PAL_TIMER_SIGNAL
-    // Signal number for timer completition signal, a RT signal is needed to get signal queueing
-    #define PAL_TIMER_SIGNAL (SIGRTMIN+0)
-#endif
-
-#endif /* PAL_DEFAULT_LINUX_CONFIGURATION_H_ */
+#endif /* PAL_DEFAULT_AMIGAOS_CONFIGURATION_H_ */
