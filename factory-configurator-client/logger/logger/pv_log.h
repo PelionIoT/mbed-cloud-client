@@ -47,7 +47,7 @@ void pv_log_trace(int level, const char* filename, int line, const char *func, c
 */
 void pv_log_trace_buffer(int level, const char* filename, int line, const char *func, const char *color, const char *name, const uint8_t *buff, uint32_t buff_size);
 
-#define _SA_PV_LOG_FUNC_ENTER(level, filename, line, func, format, args...) _SA_PV_LOG(level, filename, line, func, "===> " format, ##__VA_ARGS__)
+#define _SA_PV_LOG_FUNC_ENTER(level, filename, line, func, format, ...) _SA_PV_LOG(level, filename, line, func, "===> " format, ##__VA_ARGS__)
 
 /**  Exit function logging
  *
@@ -55,73 +55,73 @@ void pv_log_trace_buffer(int level, const char* filename, int line, const char *
  * - Should display values of output variables (with meaning, no need to print buffers).
  * - Usage example (with INFO level): SA_PV_LOG_INFO_FUNC_EXIT("argPointerToInt = %d, argPointerToUnsigned32 = %" PRIu32 "", *argPointerToInt, (uint32_t)*argPointerToUnsigned32);
  */
-#define _SA_PV_LOG_FUNC_EXIT(level, filename, line, func, format, args...) _SA_PV_LOG(level, filename, line, func, "<=== " format, ##__VA_ARGS__)
+#define _SA_PV_LOG_FUNC_EXIT(level, filename, line, func, format, ...) _SA_PV_LOG(level, filename, line, func, "<=== " format, ##__VA_ARGS__)
 
 // CRITICAL always being output
-#define SA_PV_LOG_CRITICAL(format, args...) \
+#define SA_PV_LOG_CRITICAL(format, ...) \
         _SA_PV_LOG(TRACE_LEVEL_CMD, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_BYTE_BUFF_CRITICAL(name, buff, buff_size) \
         _SA_PV_BYTE_BUFF_LOG(TRACE_LEVEL_CMD, __SA_PV_FILE__, __LINE__, __func__, name, buff, buff_size)
-#define SA_PV_LOG_CRITICAL_FUNC_EXIT(format, args...) \
+#define SA_PV_LOG_CRITICAL_FUNC_EXIT(format, ...) \
         _SA_PV_LOG_FUNC_EXIT(TRACE_LEVEL_CMD, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 
 #if (MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_ERROR)
-#define SA_PV_LOG_ERR(format, args...) \
+#define SA_PV_LOG_ERR(format, ...) \
         _SA_PV_LOG(TRACE_LEVEL_ERROR, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_BYTE_BUFF_ERR(name, buff, buff_size) \
         _SA_PV_BYTE_BUFF_LOG(TRACE_LEVEL_ERROR, __SA_PV_FILE__, __LINE__, __func__, name, buff, buff_size)
-#define SA_PV_LOG_ERR_FUNC_EXIT(format, args...) \
+#define SA_PV_LOG_ERR_FUNC_EXIT(format, ...) \
         _SA_PV_LOG_FUNC_EXIT(TRACE_LEVEL_ERROR, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 
 #else
 #define SA_PV_LOG_ERR(format, argargs...) do {} while (0)
 #define SA_PV_LOG_BYTE_BUFF_ERR(format, argargs...) do {} while (0)
-#define SA_PV_LOG_ERR_FUNC_EXIT(format, args...) do {} while (0)
+#define SA_PV_LOG_ERR_FUNC_EXIT(format, ...) do {} while (0)
 #endif
 
 #if (MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_WARN)
-#define SA_PV_LOG_WARN(format, args...) \
+#define SA_PV_LOG_WARN(format, ...) \
         _SA_PV_LOG(TRACE_LEVEL_WARN, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_BYTE_BUFF_WARN(name, buff, buff_size) \
         _SA_PV_BYTE_BUFF_LOG(TRACE_LEVEL_WARN, __SA_PV_FILE__, __LINE__, __func__, name, buff, buff_size)
-#define SA_PV_LOG_WARN_FUNC_EXIT(format, args...) \
+#define SA_PV_LOG_WARN_FUNC_EXIT(format, ...) \
         _SA_PV_LOG_FUNC_EXIT(TRACE_LEVEL_WARN, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #else
-#define SA_PV_LOG_WARN(format, args...) do {} while (0)
-#define SA_PV_LOG_BYTE_BUFF_WARN(format, args...) do {} while (0)
-#define SA_PV_LOG_WARN_FUNC_EXIT(format, args...) do {} while (0)
+#define SA_PV_LOG_WARN(format, ...) do {} while (0)
+#define SA_PV_LOG_BYTE_BUFF_WARN(format, ...) do {} while (0)
+#define SA_PV_LOG_WARN_FUNC_EXIT(format, ...) do {} while (0)
 #endif
 
 #if (MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_INFO)
-#define SA_PV_LOG_INFO(format, args...) \
+#define SA_PV_LOG_INFO(format, ...) \
         _SA_PV_LOG(TRACE_LEVEL_INFO, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
-#define SA_PV_LOG_INFO_FUNC_ENTER(format, args...) \
+#define SA_PV_LOG_INFO_FUNC_ENTER(format, ...) \
         _SA_PV_LOG_FUNC_ENTER(TRACE_LEVEL_INFO, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS() \
         SA_PV_LOG_INFO_FUNC_ENTER("")
-#define SA_PV_LOG_INFO_FUNC_EXIT(format, args...) \
+#define SA_PV_LOG_INFO_FUNC_EXIT(format, ...) \
         _SA_PV_LOG_FUNC_EXIT(TRACE_LEVEL_INFO, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS() \
         SA_PV_LOG_INFO_FUNC_EXIT("")
 #define SA_PV_LOG_BYTE_BUFF_INFO(name, buff, buff_size) \
         _SA_PV_BYTE_BUFF_LOG(TRACE_LEVEL_INFO, __SA_PV_FILE__, __LINE__, __func__, name, buff, buff_size)
 #else
-#define SA_PV_LOG_INFO(format, args...) do {} while (0)
-#define SA_PV_LOG_INFO_FUNC_ENTER(format, args...) do {} while (0)
+#define SA_PV_LOG_INFO(format, ...) do {} while (0)
+#define SA_PV_LOG_INFO_FUNC_ENTER(format, ...) do {} while (0)
 #define SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS() do {} while (0)
-#define SA_PV_LOG_INFO_FUNC_EXIT(format, args...) do {} while (0)
+#define SA_PV_LOG_INFO_FUNC_EXIT(format, ...) do {} while (0)
 #define SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS() do {} while (0)
-#define SA_PV_LOG_BYTE_BUFF_INFO(format, args...) do {} while (0)
+#define SA_PV_LOG_BYTE_BUFF_INFO(format, ...) do {} while (0)
 #endif
 
 #if (MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_DEBUG)
-#define SA_PV_LOG_TRACE(format, args...) \
+#define SA_PV_LOG_TRACE(format, ...) \
         _SA_PV_LOG(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
-#define SA_PV_LOG_TRACE_FUNC_ENTER(format, args...) \
+#define SA_PV_LOG_TRACE_FUNC_ENTER(format, ...) \
         _SA_PV_LOG_FUNC_ENTER(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS() \
         SA_PV_LOG_TRACE_FUNC_ENTER("")
-#define SA_PV_LOG_TRACE_FUNC_EXIT(format, args...) \
+#define SA_PV_LOG_TRACE_FUNC_EXIT(format, ...) \
         _SA_PV_LOG_FUNC_EXIT(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS() \
         SA_PV_LOG_TRACE_FUNC_EXIT("")
@@ -129,38 +129,38 @@ void pv_log_trace_buffer(int level, const char* filename, int line, const char *
         _SA_PV_BYTE_BUFF_LOG(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, name, buff, buff_size)
 
 #else
-#define SA_PV_LOG_TRACE(format, args...) do {} while (0)
-#define SA_PV_LOG_TRACE_FUNC_ENTER(format, args...) do {} while (0)
+#define SA_PV_LOG_TRACE(format, ...) do {} while (0)
+#define SA_PV_LOG_TRACE_FUNC_ENTER(format, ...) do {} while (0)
 #define SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS() do {} while (0)
-#define SA_PV_LOG_TRACE_FUNC_EXIT(format, args...) do {} while (0)
+#define SA_PV_LOG_TRACE_FUNC_EXIT(format, ...) do {} while (0)
 #define SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS() do {} while (0)
-#define SA_PV_LOG_BYTE_BUFF_TRACE(format, args...) do {} while (0)
+#define SA_PV_LOG_BYTE_BUFF_TRACE(format, ...) do {} while (0)
 #endif
 
 #if (MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_DEBUG)
-#define SA_PV_LOG_DATA(format, args...) \
+#define SA_PV_LOG_DATA(format, ...) \
         _SA_PV_LOG(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
-#define SA_PV_LOG_DATA_FUNC_ENTER(format, args...) \
+#define SA_PV_LOG_DATA_FUNC_ENTER(format, ...) \
   _SA_PV_LOG_FUNC_ENTER(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_DATA_FUNC_ENTER_NO_ARGS() \
         SA_PV_LOG_DATA_FUNC_ENTER("")
-#define SA_PV_LOG_DATA_FUNC_EXIT(format, args...) \
+#define SA_PV_LOG_DATA_FUNC_EXIT(format, ...) \
         _SA_PV_LOG_FUNC_EXIT(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, format, ##__VA_ARGS__)
 #define SA_PV_LOG_DATA_FUNC_EXIT_NO_ARGS() \
         SA_PV_LOG_DATA_FUNC_EXIT("")
 #define SA_PV_LOG_BYTE_BUFF_DATA(name, buff, buff_size) \
         _SA_PV_BYTE_BUFF_LOG(TRACE_LEVEL_DEBUG, __SA_PV_FILE__, __LINE__, __func__, name, buff, buff_size)
 #else
-#define SA_PV_LOG_DATA(format, args...) do {} while (0)
-#define SA_PV_LOG_DATA_FUNC_ENTER(format, args...) do {} while (0)
+#define SA_PV_LOG_DATA(format, ...) do {} while (0)
+#define SA_PV_LOG_DATA_FUNC_ENTER(format, ...) do {} while (0)
 #define SA_PV_LOG_DATA_FUNC_ENTER_NO_ARGS() do {} while (0)
-#define SA_PV_LOG_DATA_FUNC_EXIT(format, args...) do {} while (0)
+#define SA_PV_LOG_DATA_FUNC_EXIT(format, ...) do {} while (0)
 #define SA_PV_LOG_DATA_FUNC_EXIT_NO_ARGS() do {} while (0)
-#define SA_PV_LOG_BYTE_BUFF_DATA(format, args...) do {} while (0)
+#define SA_PV_LOG_BYTE_BUFF_DATA(format, ...) do {} while (0)
 #endif
 
 /* Should only be called once, additional calls do nothing. */
-#define _SA_PV_LOG(level, file, line, func, format, args...) \
+#define _SA_PV_LOG(level, file, line, func, format, ...) \
 do{ \
         mbed_tracef(level, "fcc","%s:%d:%s:" format, file, line, func, ##__VA_ARGS__);\
 } while (0)
