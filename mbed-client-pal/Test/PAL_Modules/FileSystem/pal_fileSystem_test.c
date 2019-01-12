@@ -445,7 +445,7 @@ void directoryTests(pal_fsStorageID_t storageId)
 /*#4*/
     pathToFile = addRootToPath(TEST_DIR_FILE,buffer,storageId);
     status =  pal_fsFopen(pathToFile, PAL_FS_FLAG_READWRITEEXCLUSIVE, &g_fd2); // Failed open Exclusively and file already created
-    TEST_ASSERT_EQUAL_HEX(PAL_ERR_FS_NAME_ALREADY_EXIST, status);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_FS_BUSY, status);
 /*#5*/
     #ifdef DEBUG
         pal_fsFclose(&g_fd2);//Failed fd1 was not a valid File descriptor
