@@ -31,17 +31,17 @@
 
 #ifndef PAL_FS_MOUNT_POINT_PRIMARY
     #if (PAL_NUMBER_OF_PARTITIONS == 2)
-        #define PAL_FS_MOUNT_POINT_PRIMARY    "./pal_pri"                                                       //!< User should change this for the his working folder
+        #define PAL_FS_MOUNT_POINT_PRIMARY    "pal_pri"                                                       //!< User should change this for the his working folder
     #else
-        #define PAL_FS_MOUNT_POINT_PRIMARY    "./pal"
+        #define PAL_FS_MOUNT_POINT_PRIMARY    "pal"
     #endif
 #endif
 
 #ifndef PAL_FS_MOUNT_POINT_SECONDARY
     #if (PAL_NUMBER_OF_PARTITIONS == 2)
-        #define PAL_FS_MOUNT_POINT_SECONDARY    "./pal_sec"
+        #define PAL_FS_MOUNT_POINT_SECONDARY    "pal_sec"
     #else
-        #define PAL_FS_MOUNT_POINT_SECONDARY    "./pal"                                                    //!< User should change this for the his working folder
+        #define PAL_FS_MOUNT_POINT_SECONDARY    "pal"                                                    //!< User should change this for the his working folder
     #endif
 #endif
 
