@@ -16,7 +16,7 @@
 
 
 #ifndef PAL_SIMULATOR_TEST_ENABLE
-    #define PAL_SIMULATOR_TEST_ENABLE 1
+    #define PAL_SIMULATOR_TEST_ENABLE 0
 #endif
 
 #ifndef PAL_USE_HW_ROT

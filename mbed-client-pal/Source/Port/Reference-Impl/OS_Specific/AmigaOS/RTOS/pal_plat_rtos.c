@@ -94,6 +94,18 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
     return status;
 }
 
+palThreadID_t pal_plat_osThreadGetId(void)
+{
+    return 0;
+}
+
+palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
+{
+    palStatus_t status = PAL_SUCCESS;
+    
+    return status;
+}
+
 /*! Wait for a specified period of time in milliseconds.
  *
  * @param[in] milliseconds The number of milliseconds to wait before proceeding.
