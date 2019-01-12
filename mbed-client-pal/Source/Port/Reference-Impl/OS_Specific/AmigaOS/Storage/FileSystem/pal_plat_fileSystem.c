@@ -216,6 +216,12 @@ palStatus_t pal_plat_fsUnlink(const char *pathName)
     return ret;
 }
 
+PAL_PRIVATE int isDirectory(const char *path) {
+   struct stat statbuf;
+   if (stat(path, &statbuf) != 0)
+       return 0;
+   return S_ISDIR(statbuf.st_mode);
+}
 
 palStatus_t pal_plat_fsRmFiles(const char *pathName)
 {
@@ -238,14 +244,24 @@ palStatus_t pal_plat_fsRmFiles(const char *pathName)
             }
             if (currentEntry)
             {
-                pal_plat_addFileNameToPath(pathName, currentEntry->d_name, buffer, sizeof(buffer));                
-                
-                if (unlink(buffer))
+                pal_plat_addFileNameToPath(pathName, currentEntry->d_name, buffer, sizeof(buffer));
+                if (isDirectory(buffer))
                 {
-                    ret = pal_plat_errorTranslation(errno);
-                    break;
+                    pal_fsRmFiles(buffer);
+                    if (rmdir(buffer))
+                    {
+                        ret = pal_plat_errorTranslation(errno);
+                        break;
+                    }
                 }
-                
+                else
+                {
+                    if (unlink(buffer))
+                    {
+                        ret = pal_plat_errorTranslation(errno);
+                        break;
+                    }
+                }
             }
             else
             {//End of directory reached  without errors break, close directory and exit
@@ -271,6 +287,7 @@ palStatus_t pal_plat_fsCpFolder(const char *pathNameSrc,  char *pathNameDest)
     DIR *src_dh = NULL; //Directory for the source Directory handler
     palStatus_t ret = PAL_SUCCESS;
     struct dirent * currentEntry = NULL; //file Entry
+    char buffer[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0}; //Buffer for coping the name and folder
 
 
     src_dh = opendir(pathNameSrc);
@@ -288,7 +305,12 @@ palStatus_t pal_plat_fsCpFolder(const char *pathNameSrc,  char *pathNameDest)
                 break;
             }
             if (currentEntry)
-            {               
+            {
+                pal_plat_addFileNameToPath(pathNameSrc, currentEntry->d_name, buffer, sizeof(buffer));
+                if (isDirectory(buffer))
+                {
+                    continue;
+                }
                 //copy the file to the destination
                 ret = pal_plat_fsCpFile(pathNameSrc, pathNameDest, currentEntry->d_name);
                 if (ret != PAL_SUCCESS)
