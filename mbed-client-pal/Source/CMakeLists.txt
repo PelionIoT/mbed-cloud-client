@@ -84,6 +84,10 @@ if (${OS_BRAND} MATCHES "Linux")
     target_link_libraries(pal pthread rt)
 endif()
 
+if (${OS_BRAND} MATCHES "AmigaOS")
+    target_link_libraries(pal atomic)
+endif()
+
 # On FreeRTOS also the PLATFORM_LIBS does not work properly (perhaps it should be removed/fixed on tools),
 # as the libboard.a is not getting into correct linking order (libpal.a libboard.a) and the functions
 # (eg. FLAHS_init()) from board are not found and linking fails on some executables (it works by luck on

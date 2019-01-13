@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
+#include <stdatomic.h>
 
 #include "pal.h"
 #include "pal_plat_rtos.h"
@@ -315,8 +316,9 @@ palStatus_t pal_plat_osSemaphoreDelete(palSemaphoreID_t* semaphoreID)
  */
 int32_t pal_plat_osAtomicIncrement(int32_t* valuePtr, int32_t increment)
 {
-    int32_t res = *valuePtr + increment;
-    return res;
+    //int32_t res = __sync_add_and_fetch(valuePtr, increment);
+    _Atomic int32_t res = __atomic_add_fetch(valuePtr, increment,__ATOMIC_SEQ_CST);    
+    return res;    
 }
 
 
