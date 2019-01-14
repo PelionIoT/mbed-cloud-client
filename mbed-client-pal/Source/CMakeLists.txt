@@ -85,7 +85,7 @@ if (${OS_BRAND} MATCHES "Linux")
 endif()
 
 if (${OS_BRAND} MATCHES "AmigaOS")
-    target_link_libraries(pal atomic)
+    target_link_libraries(pal atomic sem)
 endif()
 
 # On FreeRTOS also the PLATFORM_LIBS does not work properly (perhaps it should be removed/fixed on tools),

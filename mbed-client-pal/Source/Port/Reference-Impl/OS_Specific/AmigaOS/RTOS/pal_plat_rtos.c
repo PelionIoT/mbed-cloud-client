@@ -26,6 +26,7 @@
 #include <sys/wait.h>
 #include <sys/utsname.h>
 #include <stdatomic.h>
+#include "semaphore.h"
 
 #include "pal.h"
 #include "pal_plat_rtos.h"
@@ -251,7 +252,46 @@ palStatus_t pal_plat_osSemaphoreCreate(uint32_t count,
         palSemaphoreID_t* semaphoreID)
 {
     palStatus_t status = PAL_SUCCESS;
+    sem_t* semaphore = NULL;
 
+    {
+        if (NULL == semaphoreID)
+        {
+            return PAL_ERR_INVALID_ARGUMENT;
+        }
+        semaphore = malloc(sizeof(sem_t));
+        if (NULL == semaphore)
+        {
+            status = PAL_ERR_NO_MEMORY;
+            goto finish;
+        }
+        /* create the semaphore as shared between threads */
+        int ret = sem_init(semaphore, 0, count);
+        if (-1 == ret)
+        {
+            if (EINVAL == errno)
+            {
+                /* count is too big */
+                status = PAL_ERR_INVALID_ARGUMENT;
+            }
+            else
+            {
+                PAL_LOG_ERR("Rtos semaphore init error %d", ret);
+                status = PAL_ERR_GENERIC_FAILURE;
+            }
+            goto finish;
+        }
+
+        *semaphoreID = (palSemaphoreID_t) semaphore;
+    }
+    finish: if (PAL_SUCCESS != status)
+    {
+        if (NULL != semaphore)
+        {
+            free(semaphore);
+        }
+        *semaphoreID = (palSemaphoreID_t) NULL;
+    }
     return status;
 }
 
@@ -274,7 +314,61 @@ palStatus_t pal_plat_osSemaphoreWait(palSemaphoreID_t semaphoreID,
         uint32_t millisec, int32_t* countersAvailable)
 {
     palStatus_t status = PAL_SUCCESS;
+    int tmpCounters = 0;
+    {
+        int err;
+        sem_t* sem = (sem_t*) semaphoreID;
+        if ((NULL == sem))
+        {
+            return PAL_ERR_INVALID_ARGUMENT;
+        }
 
+        if (PAL_RTOS_WAIT_FOREVER != millisec)
+        {
+            /* calculate the wait absolute time */
+            /* accuracy is quite poor this way. However the libsem seems to implement only 1s accuracy. This can be improved upon */
+            struct timespec ts;
+            ts.tv_sec = time(NULL);
+            // clock_gettime(CLOCK_REALTIME, &ts);
+            // ts.tv_sec += millisec / PAL_MILLI_PER_SECOND;
+            // ts.tv_nsec += PAL_MILLI_TO_NANO(millisec);
+            // ts.tv_sec += ts.tv_nsec / PAL_NANO_PER_SECOND; // in case there is overflow in the nanoseconds.
+            // ts.tv_nsec = ts.tv_nsec % PAL_NANO_PER_SECOND;
+
+            while ((err = sem_timedwait(sem, &ts)) == -1 && errno == EINTR)
+                continue; /* Restart if interrupted by handler */
+        }
+        else
+        { // wait for ever
+            do
+            {
+                err = sem_wait(sem);
+
+                /* loop again if the wait was interrupted by a signal */
+            } while ((err == -1) && (errno == EINTR));
+        }
+
+        if (-1 == err)
+        {
+            tmpCounters = 0;
+            if (errno == ETIMEDOUT)
+            {
+                status = PAL_ERR_RTOS_TIMEOUT;
+            }
+            else
+            { /* seems this is not a valid semaphore */
+                status = PAL_ERR_RTOS_PARAMETER;
+            }
+            goto finish;
+        }
+        /* get the counter number, shouldn't fail, as we already know this is valid semaphore */
+        sem_getvalue(sem, &tmpCounters);
+    }
+    finish:
+    if (NULL != countersAvailable)
+    {
+        *countersAvailable = tmpCounters;
+    }
     return status;
 }
 
@@ -286,7 +380,26 @@ palStatus_t pal_plat_osSemaphoreWait(palSemaphoreID_t semaphoreID,
  */
 palStatus_t pal_plat_osSemaphoreRelease(palSemaphoreID_t semaphoreID)
 {
-    palStatus_t status = PAL_SUCCESS; 
+    palStatus_t status = PAL_SUCCESS;
+    sem_t* sem = (sem_t*) semaphoreID;
+
+    if (NULL == sem)
+    {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+
+    if (-1 == sem_post(sem))
+    {
+        if (EINVAL == errno)
+        {
+            status = PAL_ERR_RTOS_PARAMETER;
+        }
+        else
+        { /* max value of semaphore exeeded */
+            PAL_LOG_ERR("Rtos semaphore release error %d", errno);
+            status = PAL_ERR_GENERIC_FAILURE;
+        }
+    }
 
     return status;
 }
@@ -303,8 +416,31 @@ palStatus_t pal_plat_osSemaphoreRelease(palSemaphoreID_t semaphoreID)
 palStatus_t pal_plat_osSemaphoreDelete(palSemaphoreID_t* semaphoreID)
 {
     palStatus_t status = PAL_SUCCESS;
- 
-    return status;
+    {
+        if (NULL == semaphoreID)
+        {
+            return PAL_ERR_INVALID_ARGUMENT;
+        }
+
+        sem_t* sem = (sem_t*) (*semaphoreID);
+        if (NULL == sem)
+        {
+            status = PAL_ERR_RTOS_RESOURCE;
+            goto finish;
+        }
+        if (-1 == sem_destroy(sem))
+        {
+            status = PAL_ERR_RTOS_PARAMETER;
+            goto finish;
+        }
+
+        if (NULL != sem)
+        {
+            free(sem);
+        }
+        *semaphoreID = (palSemaphoreID_t) NULL;
+    }
+    finish: return status;
 }
 
 /*! Perform an atomic increment for a signed32 bit value.
