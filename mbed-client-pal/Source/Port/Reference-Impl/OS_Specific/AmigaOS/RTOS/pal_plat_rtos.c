@@ -28,6 +28,14 @@
 #include <stdatomic.h>
 #include "semaphore.h"
 
+#include <exec/types.h>
+#include <exec/memory.h>
+#include <dos/dosextens.h>
+#include <dos/dostags.h>
+ 
+#include <proto/exec.h>
+#include <proto/dos.h>
+
 #include "pal.h"
 #include "pal_plat_rtos.h"
 
@@ -187,7 +195,50 @@ palStatus_t pal_plat_osTimerDelete(palTimerID_t* timerID)
 palStatus_t pal_plat_osMutexCreate(palMutexID_t* mutexID)
 {
     palStatus_t status = PAL_SUCCESS;
-    
+
+    /* We'll use semaphores for mutexes in here */
+    struct SignalSemaphore *mutex;
+    {
+        //int ret;
+        if (NULL == mutexID)
+        {
+            return PAL_ERR_INVALID_ARGUMENT;
+        }
+
+        mutex = malloc(sizeof(struct SignalSemaphore));
+        if (NULL == mutex)
+        {
+            status = PAL_ERR_NO_MEMORY;
+            goto finish;
+        }
+
+        //pthread_mutexattr_t mutexAttr;
+        //pthread_mutexattr_init(&mutexAttr);
+        //pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
+        //ret = pthread_mutex_init(mutex, &mutexAttr);
+        InitSemaphore(mutex);
+        // if (0 != ret)
+        // {
+        //     if (ENOMEM == ret)
+        //     {
+        //         status = PAL_ERR_NO_MEMORY;
+        //     }
+        //     else
+        //     {
+        //         PAL_LOG_ERR("Rtos mutex create status %d", ret);
+        //         status = PAL_ERR_GENERIC_FAILURE;
+        //     }
+        //     goto finish;
+        // }
+        *mutexID = (palMutexID_t) mutex;
+    }
+    finish: if (PAL_SUCCESS != status)
+    {
+        if (NULL != mutex)
+        {
+            free(mutex);
+        }
+    }
     return status;
 }
 
@@ -235,7 +286,26 @@ palStatus_t pal_plat_osMutexRelease(palMutexID_t mutexID)
 palStatus_t pal_plat_osMutexDelete(palMutexID_t* mutexID)
 {
     palStatus_t status = PAL_SUCCESS;
+    //uint32_t ret;
+    if (NULL == mutexID) {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+    struct SignalSemaphore *mutex = (struct SignalSemaphore *)*mutexID;
+    //pthread_mutex_t* mutex = (pthread_mutex_t*) *mutexID;
 
+    if (NULL == mutex) {
+        status = PAL_ERR_RTOS_RESOURCE;
+    }
+    else {
+        // ret = pthread_mutex_destroy(mutex);
+        // if ((PAL_SUCCESS == status) && (0 != ret))
+        // {
+        // PAL_LOG_ERR("pal_plat_osMutexDelete 0x%x",ret);
+        //     status = PAL_ERR_RTOS_RESOURCE;
+        // }
+        free(mutex);
+        *mutexID = (palMutexID_t) NULL;
+    }
     return status;
 }
 
