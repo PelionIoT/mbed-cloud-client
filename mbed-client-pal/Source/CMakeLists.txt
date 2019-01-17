@@ -32,6 +32,10 @@ if ( NOT (${OS_BRAND} MATCHES "Linux") AND NOT (${OS_BRAND} MATCHES "AmigaOS"))
        set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_SOURCE_DIR}/Storage/Flash/pal_plat_internalFlash.c)
 endif() 
 
+if (${OS_BRAND} MATCHES "AmigaOS")
+    set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_SOURCE_DIR}/RTOS/semaphore.c)
+endif()
+
 # TODO: conditionalize the next two additions with a option, but currently the SOTP is welded in tightly
 
 # Add the time-module, which is generic enough to use on all platforms which just have the
@@ -85,7 +89,7 @@ if (${OS_BRAND} MATCHES "Linux")
 endif()
 
 if (${OS_BRAND} MATCHES "AmigaOS")
-    target_link_libraries(pal atomic sem)
+    target_link_libraries(pal atomic)
 endif()
 
 # On FreeRTOS also the PLATFORM_LIBS does not work properly (perhaps it should be removed/fixed on tools),

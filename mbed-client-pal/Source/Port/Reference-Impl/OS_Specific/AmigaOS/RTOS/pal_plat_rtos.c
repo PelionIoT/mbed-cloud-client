@@ -255,7 +255,48 @@ palStatus_t pal_plat_osMutexCreate(palMutexID_t* mutexID)
  */
 palStatus_t pal_plat_osMutexWait(palMutexID_t mutexID, uint32_t millisec)
 {
-    palStatus_t status = PAL_SUCCESS;    
+    palStatus_t status = PAL_SUCCESS;
+    //int err;
+    if (NULL == ((struct SignalSemaphore*) mutexID))
+    {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+    struct SignalSemaphore* mutex = (struct SignalSemaphore*) mutexID;
+
+    if (PAL_RTOS_WAIT_FOREVER != millisec)
+    {
+        // /* calculate the wait absolute time */
+        // struct timespec ts;
+        // clock_gettime(CLOCK_REALTIME, &ts);
+
+        // ts.tv_sec += (millisec / PAL_MILLI_PER_SECOND);
+        // ts.tv_nsec += PAL_MILLI_TO_NANO(millisec);
+        // ts.tv_sec += ts.tv_nsec / PAL_NANO_PER_SECOND; // if there is some overflow in the addition of nanoseconds.
+        // ts.tv_nsec = ts.tv_nsec % PAL_NANO_PER_SECOND;
+
+        // while ((err = pthread_mutex_timedlock(mutex, &ts)) != 0 && err == EINTR)
+        // {
+        //     continue; /* Restart if interrupted by handler */
+        // }
+    }
+    else
+    { // wait for ever
+        //err = pthread_mutex_lock(mutex);
+        ObtainSemaphore(mutex);
+    }
+
+    // if (0 != err)
+    // {
+    //     if (err == ETIMEDOUT)
+    //     {
+    //         status = PAL_ERR_RTOS_TIMEOUT;
+    //     }
+    //     else
+    //     {
+    //         PAL_LOG_ERR("Rtos mutex wait status %d", err);
+    //         status = PAL_ERR_GENERIC_FAILURE;
+    //     }
+    // }
 
     return status;
 }
@@ -269,7 +310,22 @@ palStatus_t pal_plat_osMutexWait(palMutexID_t mutexID, uint32_t millisec)
 palStatus_t pal_plat_osMutexRelease(palMutexID_t mutexID)
 {
     palStatus_t status = PAL_SUCCESS;
-    
+    //int result = 0;
+
+    struct SignalSemaphore* mutex = (struct SignalSemaphore*) mutexID;
+    if (NULL == mutex)
+    {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+
+    ReleaseSemaphore(mutex);
+    // result = pthread_mutex_unlock(mutex);
+    // if (0 != result)
+    // {
+    //     // only reason this might fail - process don't have permission for mutex.
+    //     PAL_LOG_ERR("Rtos mutex release failure - %d",result);
+    //     status = PAL_ERR_GENERIC_FAILURE;
+    // }
     return status;
 }
 
@@ -396,14 +452,16 @@ palStatus_t pal_plat_osSemaphoreWait(palSemaphoreID_t semaphoreID,
         if (PAL_RTOS_WAIT_FOREVER != millisec)
         {
             /* calculate the wait absolute time */
-            /* accuracy is quite poor this way. However the libsem seems to implement only 1s accuracy. This can be improved upon */
+            /* accuracy is 20ms this way. However the libsem seems to implement only 1s accuracy. This can be improved upon */
             struct timespec ts;
-            ts.tv_sec = time(NULL);
+            clock_t ticks = clock();
+            ts.tv_sec  = (ticks / CLOCKS_PER_SEC) + (millisec / PAL_MILLI_PER_SECOND);
+            ts.tv_nsec = PAL_MILLI_TO_NANO(((((ticks % CLOCKS_PER_SEC) * 1000) / CLOCKS_PER_SEC))  + millisec);
             // clock_gettime(CLOCK_REALTIME, &ts);
             // ts.tv_sec += millisec / PAL_MILLI_PER_SECOND;
             // ts.tv_nsec += PAL_MILLI_TO_NANO(millisec);
-            // ts.tv_sec += ts.tv_nsec / PAL_NANO_PER_SECOND; // in case there is overflow in the nanoseconds.
-            // ts.tv_nsec = ts.tv_nsec % PAL_NANO_PER_SECOND;
+            ts.tv_sec += ts.tv_nsec / PAL_NANO_PER_SECOND; // in case there is overflow in the nanoseconds.
+            ts.tv_nsec = ts.tv_nsec % PAL_NANO_PER_SECOND;
 
             while ((err = sem_timedwait(sem, &ts)) == -1 && errno == EINTR)
                 continue; /* Restart if interrupted by handler */
