@@ -76,7 +76,9 @@ palStatus_t pal_plat_RTOSDestroy(void)
 
 uint64_t pal_plat_osKernelSysTick(void) // optional API - not part of original CMSIS API.
 {    
-    uint64_t ticks; 
+    //50 ticks per second, not too shabby
+    uint64_t ticks = (uint64_t)clock();    
+
     return ticks;
 }
 
@@ -86,7 +88,8 @@ uint64_t pal_plat_osKernelSysTick(void) // optional API - not part of original C
  */
 uint64_t pal_plat_osKernelSysTickMicroSec(uint64_t microseconds)
 {
-    return 1;
+    uint64_t millisecondsInTick = ((1000*1000)/CLOCKS_PER_SEC);
+    return millisecondsInTick;
 }
 
 /*! Get the system tick frequency.
@@ -94,7 +97,8 @@ uint64_t pal_plat_osKernelSysTickMicroSec(uint64_t microseconds)
  */
 inline uint64_t pal_plat_osKernelSysTickFrequency(void)
 {
-    return 1;
+    /* current tick frequency is 50Hz */
+    return 0;
 }
 
 palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID)
@@ -124,9 +128,14 @@ palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
  */
 palStatus_t pal_plat_osDelay(uint32_t milliseconds)
 {
-    palStatus_t status = PAL_SUCCESS;
-
-    return status;
+    uint32_t millisecondsInTick = (1000/CLOCKS_PER_SEC);
+    uint32_t ticks = (milliseconds + (millisecondsInTick / 2)) / millisecondsInTick;
+    if(ticks == 0) {
+        Delay(1);
+    } else {
+        Delay(ticks);
+    }
+    return PAL_SUCCESS;
 }
 
 /*! Create a timer.
