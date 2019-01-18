@@ -26,7 +26,6 @@
 #include <sys/wait.h>
 #include <sys/utsname.h>
 #include <stdatomic.h>
-#include "semaphore.h"
 
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -35,6 +34,10 @@
  
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <proto/battclock.h>
+#include <resources/battclock.h>
+
+#include "semaphore.h"
 
 #include "pal.h"
 #include "pal_plat_rtos.h"
@@ -614,32 +617,30 @@ palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, siz
 }
 
 #if (PAL_USE_HW_RTC)
-palStatus_t pal_plat_osGetRtcTime(uint64_t *rtcGetTime)
+palStatus_t pal_plat_osGetRtcTime(uint64_t *rtcGetTime)	
 {
-	palStatus_t ret = PAL_SUCCESS;
+    struct Library * BattClockBase = OpenResource(BATTCLOCKNAME);
+    *rtcGetTime = (uint64_t)ReadBattClock();
 
-    return ret;
+    return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_osSetRtcTime(uint64_t rtcSetTime)
 {
-    palStatus_t ret = PAL_SUCCESS;
+    struct Library * BattClockBase = OpenResource(BATTCLOCKNAME);
+    WriteBattClock(rtcSetTime);
 
-    return ret;
+    return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_rtcInit(void)
-{
-    palStatus_t ret = PAL_SUCCESS;
-    
-    return ret;
+{       
+    return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_rtcDeInit(void)
-{
-    palStatus_t ret = PAL_SUCCESS;
-   
-    return ret;
+{      
+    return PAL_SUCCESS;
 }
 
 #endif //#if (PAL_USE_HW_RTC)
