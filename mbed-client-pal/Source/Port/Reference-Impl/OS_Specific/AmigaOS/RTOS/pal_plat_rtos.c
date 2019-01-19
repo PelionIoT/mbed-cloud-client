@@ -172,6 +172,7 @@ palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
  */
 palStatus_t pal_plat_osDelay(uint32_t milliseconds)
 {
+    #if 0
     uint32_t millisecondsInTick = (1000/CLOCKS_PER_SEC);
     uint32_t ticks = (milliseconds + (millisecondsInTick / 2)) / millisecondsInTick;
     if(ticks == 0) {
@@ -179,6 +180,12 @@ palStatus_t pal_plat_osDelay(uint32_t milliseconds)
     } else {
         Delay(ticks);
     }
+    #else
+    // usleep is implemented in clib2 and it (most likely) uses UNIT_VBLANK
+    // -> the same accuracy as the previous implementation (50Hz).
+    // probably not too difficult to change to use ECLOCK in CLIB2
+    usleep(1000*milliseconds);
+    #endif
     return PAL_SUCCESS;
 }
 
