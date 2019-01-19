@@ -36,6 +36,7 @@
 #include <proto/dos.h>
 #include <proto/battclock.h>
 #include <resources/battclock.h>
+#include <clib/timer_protos.h>
 
 #include "semaphore.h"
 
@@ -45,6 +46,10 @@
 #define TRACE_GROUP "PAL"
 
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
+
+PAL_PRIVATE struct timerequest *g_TimerIO;
+struct Library *TimerBase;
+PAL_PRIVATE unsigned long g_tickFreq;
 
 /*! Initiate a system reboot.
  */
@@ -59,8 +64,35 @@ void pal_plat_osReboot(void)
 * \return PAL_SUCCESS(0) in case of success, PAL_ERR_CREATION_FAILED in case of failure.
 */
 palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
-{
+{   
     palStatus_t status = PAL_SUCCESS;
+    struct EClockVal tmp; 
+    (void)opaqueContext;    
+
+    #if (PAL_USE_HW_RTC)
+    status = pal_plat_rtcInit();
+    #endif
+
+    if (status == PAL_SUCCESS) {
+        g_TimerIO  = (struct timerequest *)malloc(sizeof(struct timerequest ));
+        if(NULL == g_TimerIO)
+        {
+            return PAL_ERR_NO_MEMORY;
+        }
+
+        if (OpenDevice(TIMERNAME,UNIT_ECLOCK,
+                    (struct IORequest *)g_TimerIO,0L))
+        {
+            free(g_TimerIO);
+            return PAL_ERR_CREATION_FAILED;
+        }
+        
+        TimerBase = (struct Library *)g_TimerIO->tr_node.io_Device;
+
+        unsigned long eClockFreq = ReadEClock(&tmp);
+        // Roundup the frequency to minimize error
+        g_tickFreq = (unsigned long)(((float)eClockFreq / 1000.0)+0.5);
+    }
 
     return status;
 }
@@ -68,8 +100,18 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 /*! De-Initialize thread objects.
  */
 palStatus_t pal_plat_RTOSDestroy(void)
-{
+{    
     palStatus_t ret = PAL_SUCCESS;
+
+    #if PAL_USE_HW_RTC
+    ret = pal_plat_rtcDeInit();
+    #endif
+
+    if(NULL != g_TimerIO)
+    {
+        CloseDevice( (struct IORequest *) g_TimerIO );
+        free(g_TimerIO);
+    }
 
     return ret;
 }
@@ -78,11 +120,11 @@ palStatus_t pal_plat_RTOSDestroy(void)
  */
 
 uint64_t pal_plat_osKernelSysTick(void) // optional API - not part of original CMSIS API.
-{    
-    //50 ticks per second, not too shabby
-    uint64_t ticks = (uint64_t)clock();    
+{   
+    struct EClockVal ticks_now;
+    ReadEClock(&ticks_now);
 
-    return ticks;
+    return ((uint64_t)ticks_now.ev_hi << 32) + ((uint64_t)ticks_now.ev_lo);
 }
 
 /* Convert the value from microseconds to kernel sys ticks.
@@ -90,18 +132,17 @@ uint64_t pal_plat_osKernelSysTick(void) // optional API - not part of original C
  * since we return microsecods as ticks, just return the value
  */
 uint64_t pal_plat_osKernelSysTickMicroSec(uint64_t microseconds)
-{
-    uint64_t millisecondsInTick = ((1000*1000)/CLOCKS_PER_SEC);
-    return millisecondsInTick;
+{    
+    uint64_t ticksIn = (microseconds * g_tickFreq) / 1000;
+    return ticksIn;
 }
 
 /*! Get the system tick frequency.
  * \return The system tick frequency.
  */
 inline uint64_t pal_plat_osKernelSysTickFrequency(void)
-{
-    /* current tick frequency is 50Hz */
-    return 0;
+{    
+    return g_tickFreq * 1000;
 }
 
 palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID)
