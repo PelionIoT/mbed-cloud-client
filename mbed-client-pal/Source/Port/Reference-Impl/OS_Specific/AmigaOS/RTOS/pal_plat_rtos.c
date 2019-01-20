@@ -298,7 +298,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
     palThreadData_t** threadData;
     struct Process * sysThreadID = NULLPTR;    
     char childprocessname[5];
-    BPTR output;
+    BPTR output;    
 
     /* Open the console for the child process. */
     if (output = Open("CONSOLE:", MODE_OLDFILE));
@@ -343,6 +343,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
     if (NULL != sysThreadID)
     { 
         printf("Thread creation great success!\n");
+        
         if ((NULL != *threadData) && (NULL == (*threadData)->thread)) // *threadData maybe null in case the thread has already finished and cleaned up, sysThreadID maybe null if the created thread is lower priority than the creating thread
         {
             (*threadData)->thread = sysThreadID; // set the thread id
@@ -362,7 +363,8 @@ end:
 
 palThreadID_t pal_plat_osThreadGetId(void)
 {
-    return 0;
+    struct Process *thisProcess = (struct Process *)FindTask(NULL);
+    return (palThreadID_t)thisProcess;
 }
 
 palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
