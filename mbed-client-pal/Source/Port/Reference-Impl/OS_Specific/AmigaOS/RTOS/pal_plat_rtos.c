@@ -47,9 +47,40 @@
 
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
 
-PAL_PRIVATE struct timerequest *g_TimerIO;
-struct Library *TimerBase;
-PAL_PRIVATE unsigned long g_tickFreq;
+PAL_PRIVATE struct timerequest *g_TimerIO = NULL;
+struct Library *TimerBase = NULL;
+PAL_PRIVATE unsigned long g_tickFreq = 0;
+
+typedef struct palThreadData
+{
+    palThreadFuncPtr userFunction;
+    void* userFunctionArgument;
+    struct Process *thread;
+    char threadID;
+} palThreadData_t;
+
+#define PAL_MAX_CONCURRENT_THREADS 20
+
+PAL_PRIVATE palMutexID_t g_threadsMutex = NULLPTR;
+PAL_PRIVATE palThreadData_t* g_threadsArray[PAL_MAX_CONCURRENT_THREADS] = { 0 };
+
+#define PAL_THREADS_MUTEX_LOCK(status) \
+    { \
+        status = pal_osMutexWait(g_threadsMutex, PAL_RTOS_WAIT_FOREVER); \
+        if (PAL_SUCCESS != status)\
+        { \
+            PAL_LOG_ERR("%s mutex wait failed\n", __FUNCTION__); \
+        } \
+    }
+
+#define PAL_THREADS_MUTEX_UNLOCK(status) \
+    { \
+        status = pal_osMutexRelease(g_threadsMutex); \
+        if (PAL_SUCCESS != status)\
+        { \
+            PAL_LOG_ERR("%s mutex release failed\n", __FUNCTION__); \
+        } \
+    }
 
 /*! Initiate a system reboot.
  */
@@ -67,24 +98,28 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 {   
     palStatus_t status = PAL_SUCCESS;
     struct EClockVal tmp; 
-    (void)opaqueContext;    
+    (void)opaqueContext;        
 
-    #if (PAL_USE_HW_RTC)
-    status = pal_plat_rtcInit();
-    #endif
-
-    if (status == PAL_SUCCESS) {
+    status = pal_osMutexCreate(&g_threadsMutex);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    
+    {
         g_TimerIO  = (struct timerequest *)malloc(sizeof(struct timerequest ));
         if(NULL == g_TimerIO)
         {
-            return PAL_ERR_NO_MEMORY;
+            status = PAL_ERR_NO_MEMORY;
+            goto end;
         }
 
         if (OpenDevice(TIMERNAME,UNIT_ECLOCK,
                     (struct IORequest *)g_TimerIO,0L))
         {
             free(g_TimerIO);
-            return PAL_ERR_CREATION_FAILED;
+            status = PAL_ERR_CREATION_FAILED;
+            goto end;
         }
         
         TimerBase = (struct Library *)g_TimerIO->tr_node.io_Device;
@@ -93,7 +128,11 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
         // Roundup the frequency to minimize error
         g_tickFreq = (unsigned long)(((float)eClockFreq / 1000.0)+0.5);
     }
-
+    
+    #if (PAL_USE_HW_RTC)
+    status = pal_plat_rtcInit();
+    #endif
+end:
     return status;
 }
 
@@ -101,11 +140,13 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
  */
 palStatus_t pal_plat_RTOSDestroy(void)
 {    
-    palStatus_t ret = PAL_SUCCESS;
+    palStatus_t status = PAL_SUCCESS;
 
-    #if PAL_USE_HW_RTC
-    ret = pal_plat_rtcDeInit();
-    #endif
+    if (NULLPTR != g_threadsMutex)
+    {
+        status = pal_osMutexDelete(&g_threadsMutex);
+        g_threadsMutex = NULLPTR;
+    }    
 
     if(NULL != g_TimerIO)
     {
@@ -113,7 +154,11 @@ palStatus_t pal_plat_RTOSDestroy(void)
         free(g_TimerIO);
     }
 
-    return ret;
+    #if PAL_USE_HW_RTC
+    status = pal_plat_rtcDeInit();
+    #endif
+
+    return status;
 }
 
 /*return The RTOS kernel system timer counter, in microseconds
@@ -145,10 +190,173 @@ inline uint64_t pal_plat_osKernelSysTickFrequency(void)
     return g_tickFreq * 1000;
 }
 
+PAL_PRIVATE PAL_INLINE palThreadData_t** threadAllocate(void)
+{
+    palThreadData_t** threadData = NULL;
+    for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
+    {
+        if (!g_threadsArray[i])
+        {
+            g_threadsArray[i] = (palThreadData_t*)calloc(1, sizeof(palThreadData_t));
+            if (g_threadsArray[i])
+            {
+                threadData = &g_threadsArray[i];
+                (*threadData)->threadID = i;
+            }
+            break;
+        }
+    }
+    return threadData;
+}
+
+PAL_PRIVATE void threadFree(palThreadData_t** threadData)
+{
+    (*threadData)->userFunction = NULL;
+    (*threadData)->userFunctionArgument = NULL;
+    (*threadData)->thread = NULL;
+    (*threadData)->threadID = -5;
+    free(*threadData);
+    *threadData = NULL;
+}
+
+PAL_PRIVATE int32_t threadFunction(void)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palThreadData_t** threadData = NULL;
+    palThreadFuncPtr userFunction;
+    void* userFunctionArgument;
+
+    struct Process *thisProcess = (struct Process *)FindTask(NULL);
+    if(NULL == thisProcess || NULL == thisProcess->pr_Task.tc_Node.ln_Name)
+    {
+        goto end;
+    }
+    
+    char thisThreadID = atoi(thisProcess->pr_Task.tc_Node.ln_Name);
+    printf("Thread id: %d\n", thisThreadID);    
+    if(-1 == thisThreadID )
+    {
+        goto end;
+    }    
+     
+    //This feels a bit stupid, but lets keep it like this until other issues get rooted out
+    for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
+    {                    
+        if (g_threadsArray[i] && g_threadsArray[i]->threadID == thisThreadID)
+        {                     
+            threadData = &g_threadsArray[i];
+            break;            
+        }        
+    }
+
+    if(NULL == threadData)
+    {
+        printf("does not compute\n");
+        goto end;
+    }
+
+    //threadData = (palThreadData_t**)g_threadsArray[(unsigned char)thisThreadID];
+    printf("got id: %d\n", (*threadData)->threadID);
+    userFunction = (*threadData)->userFunction;
+    userFunctionArgument = (*threadData)->userFunctionArgument;
+    if (NULL == (*threadData)->thread) // maybe null if this thread has a higher priority than the thread which created this thread
+    {   
+        PAL_THREADS_MUTEX_LOCK(status);
+        if (PAL_SUCCESS != status)
+        {
+            goto end;
+        }
+        (*threadData)->thread = thisProcess; // set the thread id
+        PAL_THREADS_MUTEX_UNLOCK(status);
+        if (PAL_SUCCESS != status)
+        {
+            goto end;
+        }
+    }        
+    
+    if(NULL != userFunction) {
+        printf("calling userfunction\n");
+        userFunction(userFunctionArgument); // invoke user function with user argument (use local vars) - note we're not under mutex lock anymore
+    }
+
+    
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    printf("free thread\n");
+    threadFree(threadData); // clean up
+    PAL_THREADS_MUTEX_UNLOCK(status)
+end:    
+    return 0;
+}
+
 palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID)
 {
     palStatus_t status = PAL_SUCCESS;
+    palThreadData_t** threadData;
+    struct Process * sysThreadID = NULLPTR;    
+    char childprocessname[5];
+    BPTR output;
 
+    /* Open the console for the child process. */
+    if (output = Open("CONSOLE:", MODE_OLDFILE));
+
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    threadData = threadAllocate(); // allocate thread data from the global array
+    PAL_THREADS_MUTEX_UNLOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+
+    if (NULL == threadData) // allocation failed or all array slots are occupied
+    {
+        status = PAL_ERR_RTOS_RESOURCE;
+        goto end;
+    }
+
+    (*threadData)->userFunction = function; // note that threadData is safe here (eventhough it's not mutex locked), no other thread will attempt to change it until the thread is either finished or terminated
+    (*threadData)->userFunctionArgument = funcArgument;
+    sprintf(childprocessname, "%d", (*threadData)->threadID);
+
+    sysThreadID = CreateNewProcTags(
+                    NP_Entry,       threadFunction,  /* The child process  */
+                    NP_Name,        childprocessname,
+                    NP_Output,      output,
+                    NP_StackSize,   stackSize,
+                    NP_Priority,    priority,
+                    NP_FreeSeglist, FALSE,
+                    NP_CloseOutput, TRUE,                    
+                    TAG_END);  
+
+    PAL_THREADS_MUTEX_LOCK(status);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
+    if (NULL != sysThreadID)
+    { 
+        printf("Thread creation great success!\n");
+        if ((NULL != *threadData) && (NULL == (*threadData)->thread)) // *threadData maybe null in case the thread has already finished and cleaned up, sysThreadID maybe null if the created thread is lower priority than the creating thread
+        {
+            (*threadData)->thread = sysThreadID; // set the thread id
+        }
+        *threadID = (palThreadID_t)sysThreadID;
+    }   
+    else
+    {
+        printf("Thread creation failed!\n");
+        threadFree(threadData); // thread creation failed so clean up dynamic allocations etc.
+        status = PAL_ERR_GENERIC_FAILURE;
+    }
+    PAL_THREADS_MUTEX_UNLOCK(status);
+end:
     return status;
 }
 
