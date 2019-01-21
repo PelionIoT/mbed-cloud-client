@@ -369,7 +369,7 @@ palThreadID_t pal_plat_osThreadGetId(void)
 
 palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
 {
-    palStatus_t status = PAL_SUCCESS;
+    palStatus_t status = PAL_ERR_NOT_SUPPORTED;
     
     return status;
 }
@@ -411,7 +411,7 @@ palStatus_t pal_plat_osDelay(uint32_t milliseconds)
 palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         palTimerType_t timerType, palTimerID_t* timerID)
 {
-    palStatus_t status = PAL_SUCCESS;
+    palStatus_t status = PAL_ERR_NOT_SUPPORTED;
  
     return status;
 }
@@ -425,7 +425,7 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
  */
 palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
 {
-    palStatus_t status = PAL_SUCCESS;    
+    palStatus_t status = PAL_ERR_NOT_SUPPORTED;    
 
     return status;
 }
@@ -438,7 +438,7 @@ palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
  */
 palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
 {
-    palStatus_t status = PAL_SUCCESS;    
+    palStatus_t status = PAL_ERR_NOT_SUPPORTED;    
 
     return status;
 }
@@ -451,7 +451,7 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
  */
 palStatus_t pal_plat_osTimerDelete(palTimerID_t* timerID)
 {
-    palStatus_t status = PAL_SUCCESS;    
+    palStatus_t status = PAL_ERR_NOT_SUPPORTED;    
 
     return status;
 }
