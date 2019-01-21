@@ -4,7 +4,7 @@
 
 int sem_init(sem_t *sem, int pshared, unsigned int value)
 {    
-    if (sem == NULL || value > (unsigned int)SEM_VALUE_MAX || value == 0)
+    if (sem == NULL || value > (unsigned int)SEM_VALUE_MAX)
     {
         errno = EINVAL;
         return -1;
@@ -13,6 +13,11 @@ int sem_init(sem_t *sem, int pshared, unsigned int value)
     sem->value = value;    
     InitSemaphore(&sem->gate);
     InitSemaphore(&sem->mutex);    
+
+    if(sem->value == 0)
+    {
+        ObtainSemaphore(&sem->gate);
+    }
 
     return 0;
 }
@@ -105,7 +110,7 @@ int sem_timedwait(sem_t *sem, const struct timespec *abstime)
 }
 
 int sem_wait(sem_t *sem)
-{    
+{     
     //return sem_timedwait(sem, NULL);
 
     if (sem == NULL)
@@ -113,10 +118,29 @@ int sem_wait(sem_t *sem)
         errno = EINVAL;
         return -1;
     }
-
+obtain:
     ObtainSemaphore(&sem->gate);
-    ObtainSemaphore(&sem->mutex);
-    
+    //check if we started nesting here, and if so, apply some remedy
+    if(sem->gate.ss_NestCount == 2) {        
+        //decrement nesting value, while still holding the gate semaphore
+        ReleaseSemaphore(&sem->gate);
+        //the idea here is to wait until value gets incremented, and only then obtain gate semaphore
+        while(1) {
+            if(AttemptSemaphoreShared(&sem->mutex)) {
+                if(sem->value > 0) {
+                    //Finally release our hold of gate
+                    ReleaseSemaphore(&sem->gate);                    
+                    //Done with this loop, get on with it
+                    ReleaseSemaphore(&sem->mutex);
+                    goto obtain;
+                }
+                ReleaseSemaphore(&sem->mutex);                                     
+            }
+            //delay here until stuff happens
+            Delay(1);
+        }
+    }
+    ObtainSemaphore(&sem->mutex);    
     sem->value--;
 
     if(sem->value > 0) {
