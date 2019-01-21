@@ -233,7 +233,7 @@ PAL_PRIVATE int32_t threadFunction(void)
     }
     
     char thisThreadID = atoi(thisProcess->pr_Task.tc_Node.ln_Name);
-    printf("Thread id: %d\n", thisThreadID);    
+    //printf("Thread id: %d\n", thisThreadID);    
     if(-1 == thisThreadID )
     {
         goto end;
@@ -251,12 +251,12 @@ PAL_PRIVATE int32_t threadFunction(void)
 
     if(NULL == threadData)
     {
-        printf("does not compute\n");
+        //printf("does not compute\n");
         goto end;
     }
 
     //threadData = (palThreadData_t**)g_threadsArray[(unsigned char)thisThreadID];
-    printf("got id: %d\n", (*threadData)->threadID);
+    //printf("got id: %d\n", (*threadData)->threadID);
     userFunction = (*threadData)->userFunction;
     userFunctionArgument = (*threadData)->userFunctionArgument;
     if (NULL == (*threadData)->thread) // maybe null if this thread has a higher priority than the thread which created this thread
@@ -275,7 +275,7 @@ PAL_PRIVATE int32_t threadFunction(void)
     }        
     
     if(NULL != userFunction) {
-        printf("calling userfunction\n");
+        //printf("calling userfunction\n");
         userFunction(userFunctionArgument); // invoke user function with user argument (use local vars) - note we're not under mutex lock anymore
     }
 
@@ -285,7 +285,7 @@ PAL_PRIVATE int32_t threadFunction(void)
     {
         goto end;
     }
-    printf("free thread\n");
+    //printf("free thread\n");
     threadFree(threadData); // clean up
     PAL_THREADS_MUTEX_UNLOCK(status)
 end:    
@@ -342,7 +342,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
     }
     if (NULL != sysThreadID)
     { 
-        printf("Thread creation great success!\n");
+        //printf("Thread creation great success!\n");
         
         if ((NULL != *threadData) && (NULL == (*threadData)->thread)) // *threadData maybe null in case the thread has already finished and cleaned up, sysThreadID maybe null if the created thread is lower priority than the creating thread
         {
@@ -352,7 +352,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
     }   
     else
     {
-        printf("Thread creation failed!\n");
+        //printf("Thread creation failed!\n");
         threadFree(threadData); // thread creation failed so clean up dynamic allocations etc.
         status = PAL_ERR_GENERIC_FAILURE;
     }
@@ -382,7 +382,7 @@ palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
  */
 palStatus_t pal_plat_osDelay(uint32_t milliseconds)
 {
-    #if 0
+    #if 1
     uint32_t millisecondsInTick = (1000/CLOCKS_PER_SEC);
     uint32_t ticks = (milliseconds + (millisecondsInTick / 2)) / millisecondsInTick;
     if(ticks == 0) {
