@@ -211,10 +211,11 @@ PAL_PRIVATE PAL_INLINE palThreadData_t** threadAllocate(void)
 
 PAL_PRIVATE void threadFree(palThreadData_t** threadData)
 {
+    //printf("threadFree\n");
     (*threadData)->userFunction = NULL;
     (*threadData)->userFunctionArgument = NULL;
     (*threadData)->thread = NULL;
-    (*threadData)->threadID = -5;
+    (*threadData)->threadID = -1;
     free(*threadData);
     *threadData = NULL;
 }
@@ -369,8 +370,40 @@ palThreadID_t pal_plat_osThreadGetId(void)
 
 palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
 {
-    palStatus_t status = PAL_ERR_NOT_SUPPORTED;
-    
+    palStatus_t status = PAL_ERR_RTOS_TASK;
+    struct Process *sysThreadID = (struct Process *)*threadID;    
+    palThreadData_t** threadData = NULL;
+
+    char thisThreadID = atoi(sysThreadID->pr_Task.tc_Node.ln_Name);
+    //printf("terminate Thread id: %d\n", thisThreadID);    
+
+    if ((struct Process *)FindTask(NULL) != sysThreadID) // self termination not allowed
+    {
+        PAL_THREADS_MUTEX_LOCK(status);
+        if (PAL_SUCCESS != status)
+        {
+            goto end;
+        }
+        
+        for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
+        {
+            if (g_threadsArray[i] && g_threadsArray[i]->threadID == thisThreadID)
+            {         
+                threadData = &g_threadsArray[i];
+                break;
+            }
+        }
+
+        if (threadData) // thread may have ended or terminated already
+        {         
+            //TODO
+            //there might be a way to stop / terminate process in AmigaOS, need some digging to do
+            //fow now, lets just free this data structure
+            threadFree(threadData);
+        }
+        PAL_THREADS_MUTEX_UNLOCK(status);        
+    }
+end:
     return status;
 }
 
@@ -535,6 +568,8 @@ palStatus_t pal_plat_osMutexWait(palMutexID_t mutexID, uint32_t millisec)
 
     if (PAL_RTOS_WAIT_FOREVER != millisec)
     {
+        //TODO fix this
+
         // /* calculate the wait absolute time */
         // struct timespec ts;
         // clock_gettime(CLOCK_REALTIME, &ts);
