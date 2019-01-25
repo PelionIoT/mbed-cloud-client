@@ -47,6 +47,28 @@
 
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
 
+/*
+ * Internal struct to handle timers.
+ */
+struct palTimerInfo
+{
+    struct palTimerInfo *next;
+    struct timerequest *TimerIO;
+    palTimerFuncPtr function;
+    void *funcArgs;
+    palTimerType_t timerType;
+};
+
+// Mutex to prevent simultaneus modification of the linked list of the timers in g_timerList.
+PAL_PRIVATE palMutexID_t g_timerListMutex = 0;
+
+// A singly linked list of the timers, access may be done only if holding the g_timerListMutex.
+// The list is needed as the timers use async signals and when the signal is finally delivered, the
+// palTimerInfo timer struct may be already deleted. The signals themselves carry pointer to timer,
+// so whenever a signal is received, the thread will look if the palTimerInfo is still on the list,
+// and if it is, uses the struct to find the callback pointer and arguments.
+PAL_PRIVATE volatile struct palTimerInfo *g_timerList = NULL;
+
 PAL_PRIVATE struct timerequest *g_TimerIO = NULL;
 struct Library *TimerBase = NULL;
 PAL_PRIVATE unsigned long g_tickFreq = 0;
@@ -105,6 +127,13 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
     {
         goto end;
     }
+
+    // Setup the signal handler thread which will be shared with all the timers
+    status = pal_osMutexCreate(&g_timerListMutex);
+    if (PAL_SUCCESS != status)
+    {
+        goto end;
+    }
     
     {
         g_TimerIO  = (struct timerequest *)malloc(sizeof(struct timerequest ));
@@ -139,14 +168,16 @@ end:
 /*! De-Initialize thread objects.
  */
 palStatus_t pal_plat_RTOSDestroy(void)
-{    
-    palStatus_t status = PAL_SUCCESS;
-
+{        
     if (NULLPTR != g_threadsMutex)
     {
-        status = pal_osMutexDelete(&g_threadsMutex);
+        pal_osMutexDelete(&g_threadsMutex);
         g_threadsMutex = NULLPTR;
-    }    
+    }
+
+    if (NULLPTR != g_timerListMutex) {
+        pal_osMutexDelete(&g_timerListMutex);
+    }
 
     if(NULL != g_TimerIO)
     {
@@ -155,10 +186,10 @@ palStatus_t pal_plat_RTOSDestroy(void)
     }
 
     #if PAL_USE_HW_RTC
-    status = pal_plat_rtcDeInit();
+    pal_plat_rtcDeInit();
     #endif
 
-    return status;
+    return PAL_SUCCESS;
 }
 
 /*return The RTOS kernel system timer counter, in microseconds
@@ -444,8 +475,106 @@ palStatus_t pal_plat_osDelay(uint32_t milliseconds)
 palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         palTimerType_t timerType, palTimerID_t* timerID)
 {
-    palStatus_t status = PAL_ERR_NOT_SUPPORTED;
- 
+    palStatus_t status = PAL_SUCCESS;
+    struct palTimerInfo* timerInfo = NULL;
+    {
+        //struct sigevent sig;
+        //timer_t localTimer;        
+        struct Message *TimerMSG = NULL;  
+
+        if ((NULL == timerID) || (NULL == (void*) function))
+        {
+            return PAL_ERR_INVALID_ARGUMENT;
+        }
+
+        timerInfo = (struct palTimerInfo*) malloc(sizeof(struct palTimerInfo));
+        if (NULL == timerInfo)
+        {
+            status = PAL_ERR_NO_MEMORY;
+            goto finish;
+        }
+
+        //Allocate timer structure
+        timerInfo->TimerIO = malloc(sizeof(struct timerequest));
+        if (NULL == timerInfo->TimerIO)
+        {
+            status = PAL_ERR_NO_MEMORY;
+        }
+
+        //Create message port for timer
+        (timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort = CreateMsgPort();
+        if (NULL == (timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort)
+        {
+            status = PAL_ERR_NO_MEMORY;
+        }
+
+        timerInfo->function = function;
+        timerInfo->funcArgs = funcArgument;
+        timerInfo->timerType = timerType;        
+
+
+        // memset(&sig, 0, sizeof(sig));
+
+        // sig.sigev_notify = SIGEV_SIGNAL;
+        // sig.sigev_signo = PAL_TIMER_SIGNAL;
+
+        // // the signal handler uses this to find the correct timer context
+        // sig.sigev_value.sival_ptr = timerInfo;
+
+        if (OpenDevice( TIMERNAME, UNIT_VBLANK, (struct IORequest *) timerInfo->TimerIO, 0L))
+		{
+            status = PAL_ERR_NO_MEMORY;            
+            goto finish;
+        }    
+
+        // int ret = timer_create(CLOCK_MONOTONIC, &sig, &localTimer);
+        // if (-1 == ret)
+        // {
+        //     if (EINVAL == errno)
+        //     {
+        //         status = PAL_ERR_INVALID_ARGUMENT;
+        //         goto finish;
+        //     }
+        //     if (ENOMEM == errno)
+        //     {
+        //         status = PAL_ERR_NO_MEMORY;
+        //         goto finish;
+        //     }
+        //     PAL_LOG_ERR("Rtos timer create error %d", ret);
+        //     status = PAL_ERR_GENERIC_FAILURE;
+        //     goto finish;
+        // }
+
+        // managed to create the timer - finish up
+        //timerInfo->handle = localTimer;
+        *timerID = (palTimerID_t) timerInfo;
+
+        pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
+
+        // add the new timer to head of the singly linked list
+        timerInfo->next = (struct palTimerInfo *)g_timerList;
+
+        g_timerList = timerInfo;
+
+        // 243861 Unchecked return value
+        (void)pal_osMutexRelease(g_timerListMutex);
+    }
+    finish: if (PAL_SUCCESS != status)
+    {
+        // a retarded resource release decision tree
+        if (NULL != timerInfo)
+        {
+            if(NULL != timerInfo->TimerIO)
+            {
+                if(NULL !=  (timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort) {
+                    DeleteMsgPort( (timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort);
+                }
+                free(timerInfo->TimerIO);
+            }
+            free(timerInfo);
+            *timerID = (palTimerID_t) NULL;
+        }
+    }
     return status;
 }
 
@@ -484,7 +613,54 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
  */
 palStatus_t pal_plat_osTimerDelete(palTimerID_t* timerID)
 {
-    palStatus_t status = PAL_ERR_NOT_SUPPORTED;    
+    palStatus_t status = PAL_SUCCESS;
+    if ((NULL == timerID) || ((struct palTimerInfo *)*timerID == NULL)) {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+    struct palTimerInfo* timerInfo = (struct palTimerInfo *) *timerID;
+
+    // the list of timers is protected by a mutex to avoid concurrency issues
+    pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
+
+    // remove the timer from the list before freeing it
+    struct palTimerInfo *prev_timer = NULL;
+    struct palTimerInfo *temp_timer = (struct palTimerInfo *)g_timerList;
+
+    while (temp_timer) {
+
+        if (temp_timer == timerInfo) {
+            // found the timer from list, now it needs to be removed from there
+
+            if (prev_timer) {
+                // there was a previous item, so update its next to this objects next
+                prev_timer->next = temp_timer->next;
+            } else {
+                // the item was the first/only one, so update the list head instead
+                g_timerList = temp_timer->next;
+            }
+            // all done now
+            break;
+
+        } else {
+            prev_timer = temp_timer;
+            temp_timer = temp_timer->next;
+        }
+    }
+
+    
+    if(NULL != timerInfo->TimerIO)
+    {
+        if(NULL !=  (timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort) {
+            DeleteMsgPort( (timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort);
+        }
+        free(timerInfo->TimerIO);
+    }    
+
+    // 243863 Unchecked return value
+    (void)pal_osMutexRelease(g_timerListMutex);
+
+    free(timerInfo);
+    *timerID = (palTimerID_t) NULL;
 
     return status;
 }
