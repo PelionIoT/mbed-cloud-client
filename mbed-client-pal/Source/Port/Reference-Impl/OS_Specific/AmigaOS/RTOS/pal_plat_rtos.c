@@ -380,8 +380,8 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
                     NP_Entry,       threadFunction,  /* The child process  */
                     NP_Name,        childprocessname,
                     NP_Output,      output,
-                    //NP_StackSize,   stackSize,
-                    //NP_Priority,    priority,
+                    NP_StackSize,   stackSize,
+                    NP_Priority,    priority,
                     NP_FreeSeglist, FALSE,
                     NP_CloseOutput, TRUE,                    
                     TAG_END);  
@@ -510,7 +510,7 @@ PAL_PRIVATE void palTimerThread(void const *args)
 {
     palTimerThreadContext_t* context = (palTimerThreadContext_t*)args;
 
-    printf("in palTimerThread\n");
+    //printf("in palTimerThread\n");
 
     //Create message port for timers
     g_timerMsgPort = CreateMsgPort();
@@ -539,7 +539,7 @@ PAL_PRIVATE void palTimerThread(void const *args)
             // wait for signal from a timer        
             //err = sigwaitinfo(&signal_set_to_wait, &info);
 
-            printf("waitPort\n");
+            //printf("waitPort\n");
 
             WaitPort(g_timerMsgPort);
             //Wait(SIGBREAKF_CTRL_F);
@@ -550,7 +550,7 @@ PAL_PRIVATE void palTimerThread(void const *args)
             if(NULL != TimerMSG)
             {
 
-                printf("gotMsg\n");
+                //printf("gotMsg\n");
 
             // A positive return value is the signal number, negative value is a sign of some
             // signal handler interrupting the OS call and errno should be then EINTR.
@@ -621,7 +621,7 @@ PAL_PRIVATE void palTimerThread(void const *args)
 PAL_PRIVATE palStatus_t startTimerThread()
 {
     palStatus_t status;
-    printf("startTimerThread\n");
+    //printf("startTimerThread\n");
     status = pal_osSemaphoreCreate(0, &s_palTimerThreadContext.startStopSemaphore);
 
     if (status == PAL_SUCCESS) {
@@ -635,12 +635,12 @@ PAL_PRIVATE palStatus_t startTimerThread()
 
             // the timer thread will signal on semaphore when it has started
             pal_osSemaphoreWait(s_palTimerThreadContext.startStopSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
-            printf("start OK\n");
+            //printf("start OK\n");
 
         } else {
             // cleanup the semaphore
             pal_osSemaphoreDelete(&s_palTimerThreadContext.startStopSemaphore);
-            printf("start fail\n");
+            //printf("start fail\n");
         }
     }
 
@@ -652,9 +652,9 @@ PAL_PRIVATE palStatus_t stopTimerThread()
     palStatus_t status;
     struct Message wakeupMsg;
 
-    printf("stopTimerThread\n");
+    //printf("stopTimerThread\n");
     status = pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
-    printf("got mutex\n");
+    //printf("got mutex\n");
 
     if (status == PAL_SUCCESS) {
 
@@ -685,7 +685,7 @@ PAL_PRIVATE palStatus_t stopTimerThread()
         // Coverity fix - 243859 Unchecked return value. There is not much doable if fail. StopTimerThread is part of shutdown step.
         (void)pal_osMutexRelease(g_timerListMutex);
 
-        printf("yield mutex\n");
+        //printf("yield mutex\n");
 
         // pthread_sigqueue() failed, which is a sign of thread being dead, so a wait
         // on semaphore would cause a deadlock.
@@ -700,7 +700,7 @@ PAL_PRIVATE palStatus_t stopTimerThread()
 
         // and clean up the thread
         status = pal_osThreadTerminate(&s_palHighResTimerThreadID);
-        printf("stop OK\n");        
+        //printf("stop OK\n");        
     }
     return status;
 }
@@ -739,7 +739,7 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         //Allocate timer structure
         //timerInfo->TimerIO = malloc(sizeof(struct timerequest));
         timerInfo->TimerIO = (struct timerequest*)CreateIORequest(g_timerMsgPort, sizeof(struct timerequest));
-        printf("sigbit: %u\n", 1 << g_timerMsgPort->mp_SigBit);
+        //printf("sigbit: %u\n", 1 << g_timerMsgPort->mp_SigBit);
 
         if (NULL == timerInfo->TimerIO)
         {
