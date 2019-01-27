@@ -854,6 +854,7 @@ palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
 
     struct palTimerInfo* timerInfo = (struct palTimerInfo *) timerID;    
 
+    timerInfo->aborted = false;
     timerInfo->TimerIO->tr_node.io_Command = TR_ADDREQUEST;
     convertMilli2Timeval(millisec, &(timerInfo->TimerIO->tr_time));    
 
