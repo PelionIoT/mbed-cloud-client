@@ -57,6 +57,7 @@ struct palTimerInfo
     palTimerFuncPtr function;
     void *funcArgs;
     palTimerType_t timerType;
+    bool aborted;
 };
 
 // Message port via timers signal their completion
@@ -587,9 +588,11 @@ PAL_PRIVATE void palTimerThread(void const *args)
                             // Ok, found the timer from list, backup the parameters as we release
                             // the mutex after this loop, before calling the callback and the
                             // temp_timer may very well get deleted just after the mutex is released.
-
-                            found_function = temp_timer->function;
-                            found_funcArgs = temp_timer->funcArgs;
+                            if(!temp_timer->aborted)
+                            {
+                                found_function = temp_timer->function;
+                                found_funcArgs = temp_timer->funcArgs;
+                            }
 
                             break;
                         } else {
@@ -751,7 +754,8 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
 
         timerInfo->function = function;
         timerInfo->funcArgs = funcArgument;
-        timerInfo->timerType = timerType;        
+        timerInfo->timerType = timerType;
+        timerInfo->aborted = false;    
 
 
         // memset(&sig, 0, sizeof(sig));
@@ -862,7 +866,16 @@ palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
  */
 palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
 {
-    palStatus_t status = PAL_ERR_NOT_SUPPORTED;    
+    palStatus_t status = PAL_SUCCESS;
+    
+    if (NULL == (struct palTimerInfo *) timerID)
+    {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+
+    struct palTimerInfo* timerInfo = (struct palTimerInfo *) timerID;
+    timerInfo->aborted = true;
+    AbortIO((struct IORequest *)timerInfo->TimerIO);    
 
     return status;
 }
