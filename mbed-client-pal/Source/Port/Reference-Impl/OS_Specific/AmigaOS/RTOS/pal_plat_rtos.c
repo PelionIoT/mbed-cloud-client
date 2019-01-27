@@ -609,6 +609,11 @@ PAL_PRIVATE void palTimerThread(void const *args)
                     if (found_function) {
                         // finally call the callback function
                         found_function(found_funcArgs);
+                        // if periodic, re-schedule
+                        if(palOsTimerPeriodic == temp_timer->timerType)
+                        {
+                            SendIO((struct IORequest *)temp_timer->TimerIO);
+                        }
                     }
                 }
             }
