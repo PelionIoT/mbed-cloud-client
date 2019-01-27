@@ -135,14 +135,6 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
         goto end;
     }
 
-    //Create message port for timers
-    g_timerMsgPort = CreateMsgPort();
-    if (NULL == g_timerMsgPort)
-    {
-        status = PAL_ERR_NO_MEMORY;
-        goto end;
-    }
-
     // Setup the signal handler thread which will be shared with all the timers
     status = pal_osMutexCreate(&g_timerListMutex);
     if (PAL_SUCCESS != status)
@@ -200,11 +192,6 @@ palStatus_t pal_plat_RTOSDestroy(void)
     {
         pal_osMutexDelete(&g_threadsMutex);
         g_threadsMutex = NULLPTR;
-    }
-
-    if(NULLPTR != g_timerMsgPort)
-    {
-        DeleteMsgPort(g_timerMsgPort);
     }
 
     if (NULLPTR != g_timerListMutex) {
@@ -523,98 +510,107 @@ PAL_PRIVATE void palTimerThread(void const *args)
 {
     palTimerThreadContext_t* context = (palTimerThreadContext_t*)args;
 
-    //int err = 0;
-
-    //sigset_t signal_set_to_wait;
-
-    //sigemptyset(&signal_set_to_wait);
-    //sigaddset(&signal_set_to_wait, PAL_TIMER_SIGNAL);
-
     printf("in palTimerThread\n");
 
-    // signal the caller that thread has started
-    if (pal_osSemaphoreRelease(context->startStopSemaphore) != PAL_SUCCESS) {
-        PAL_LOG_ERR("pal_osSemaphoreRelease(context->startStopSemaphore) failed!");
-    }
+    //Create message port for timers
+    g_timerMsgPort = CreateMsgPort();
 
-    // loop until signaled with threadStopRequested
-    while (1) {
+    if(NULL != g_timerMsgPort)
+    {
+        
+    
+        //int err = 0;
 
-        //siginfo_t info;
+        //sigset_t signal_set_to_wait;
 
-        // wait for signal from a timer        
-        //err = sigwaitinfo(&signal_set_to_wait, &info);
+        //sigemptyset(&signal_set_to_wait);
+        //sigaddset(&signal_set_to_wait, PAL_TIMER_SIGNAL);    
 
-        printf("waitPort\n");
+        // signal the caller that thread has started
+        if (pal_osSemaphoreRelease(context->startStopSemaphore) != PAL_SUCCESS) {
+            PAL_LOG_ERR("pal_osSemaphoreRelease(context->startStopSemaphore) failed!");
+        }
 
-        WaitPort(g_timerMsgPort);
-        //Wait(SIGBREAKF_CTRL_F);
-        //uint32_t signals = Wait(0xffffffff);
-        //printf("got signals: %u\n", signals);
+        // loop until signaled with threadStopRequested
+        while (1) {
 
-        struct Message *TimerMSG =  (struct Message *)GetMsg(g_timerMsgPort);
-        if(NULL != TimerMSG)
-        {
+            //siginfo_t info;
 
-            printf("gotMsg\n");
+            // wait for signal from a timer        
+            //err = sigwaitinfo(&signal_set_to_wait, &info);
 
-        // A positive return value is the signal number, negative value is a sign of some
-        // signal handler interrupting the OS call and errno should be then EINTR.
-        // The other two documented errors, EAGAIN or EINVAL should not happen as we're
-        // not using the timeout, but have them logged just in case.
-        // if (err <= 0) {
-        //     if (errno != EINTR) {
-        //         PAL_LOG_ERR("palTimerThread: sigwaitinfo failed with %d\n", errno);
-        //     }
-        // } else         
-            // before using the timer list or threadStopRequested flag, we need to claim the mutex
-            pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
+            printf("waitPort\n");
 
-            if (context->threadStopRequested) {
+            WaitPort(g_timerMsgPort);
+            //Wait(SIGBREAKF_CTRL_F);
+            //uint32_t signals = Wait(0xffffffff);
+            //printf("got signals: %u\n", signals);
 
-                // release mutex and bail out
-                // Coverity fix - Unchecked return value. Function pal_osMutexRelease already contains error trace.
-                (void)pal_osMutexRelease(g_timerListMutex);
-                break;
+            struct Message *TimerMSG =  (struct Message *)GetMsg(g_timerMsgPort);
+            if(NULL != TimerMSG)
+            {
 
-            } else {
+                printf("gotMsg\n");
 
-                struct palTimerInfo *temp_timer = (struct palTimerInfo*)g_timerList;
+            // A positive return value is the signal number, negative value is a sign of some
+            // signal handler interrupting the OS call and errno should be then EINTR.
+            // The other two documented errors, EAGAIN or EINVAL should not happen as we're
+            // not using the timeout, but have them logged just in case.
+            // if (err <= 0) {
+            //     if (errno != EINTR) {
+            //         PAL_LOG_ERR("palTimerThread: sigwaitinfo failed with %d\n", errno);
+            //     }
+            // } else         
+                // before using the timer list or threadStopRequested flag, we need to claim the mutex
+                pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
 
-                palTimerFuncPtr found_function = NULL;
-                void *found_funcArgs;
+                if (context->threadStopRequested) {
 
-                // Check, if the timer still is on the list. It may have been deleted, if the
-                // signal delivery / client callback has taken some time.
-                while (temp_timer != NULL) {
+                    // release mutex and bail out
+                    // Coverity fix - Unchecked return value. Function pal_osMutexRelease already contains error trace.
+                    (void)pal_osMutexRelease(g_timerListMutex);
+                    break;
 
-                    if ((struct Message *)temp_timer->TimerIO == TimerMSG) {
+                } else {
 
-                        // Ok, found the timer from list, backup the parameters as we release
-                        // the mutex after this loop, before calling the callback and the
-                        // temp_timer may very well get deleted just after the mutex is released.
+                    struct palTimerInfo *temp_timer = (struct palTimerInfo*)g_timerList;
 
-                        found_function = temp_timer->function;
-                        found_funcArgs = temp_timer->funcArgs;
+                    palTimerFuncPtr found_function = NULL;
+                    void *found_funcArgs;
 
-                        break;
-                    } else {
-                        temp_timer = temp_timer->next;
+                    // Check, if the timer still is on the list. It may have been deleted, if the
+                    // signal delivery / client callback has taken some time.
+                    while (temp_timer != NULL) {
+
+                        if ((struct Message *)temp_timer->TimerIO == TimerMSG) {
+
+                            // Ok, found the timer from list, backup the parameters as we release
+                            // the mutex after this loop, before calling the callback and the
+                            // temp_timer may very well get deleted just after the mutex is released.
+
+                            found_function = temp_timer->function;
+                            found_funcArgs = temp_timer->funcArgs;
+
+                            break;
+                        } else {
+                            temp_timer = temp_timer->next;
+                        }
                     }
-                }
 
-                // Release the list mutex before callback to avoid callback deadlocking other threads
-                // if they try to create a timer.
-                // Coverity fix - 243862 Unchecked return value
-                (void)pal_osMutexRelease(g_timerListMutex);
+                    // Release the list mutex before callback to avoid callback deadlocking other threads
+                    // if they try to create a timer.
+                    // Coverity fix - 243862 Unchecked return value
+                    (void)pal_osMutexRelease(g_timerListMutex);
 
-                // the function may be NULL here if the timer was already freed
-                if (found_function) {
-                    // finally call the callback function
-                    found_function(found_funcArgs);
+                    // the function may be NULL here if the timer was already freed
+                    if (found_function) {
+                        // finally call the callback function
+                        found_function(found_funcArgs);
+                    }
                 }
             }
         }
+        DeleteMsgPort(g_timerMsgPort);
     }
 
     // signal the caller that thread is now stopping and it can continue the pal_destroy()
