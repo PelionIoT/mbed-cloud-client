@@ -54,6 +54,9 @@
 //#include <netinet/tcp.h>
 #endif
 
+PAL_PRIVATE void* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
+PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
+
 PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 {
     palStatus_t status;
@@ -123,16 +126,42 @@ palStatus_t pal_plat_socketsInit(void* context)
 
 palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interfaceIndex)
 {
-    palStatus_t result = PAL_SUCCESS;    
+    palStatus_t result = PAL_SUCCESS;
+    uint32_t index = 0;
+    bool found = false;
+
+    for (index = 0; index < s_pal_numberOFInterfaces; index++) // if specific context already registered return exisitng index instead of registering again.
+    {
+        if (s_pal_networkInterfacesSupported[index] == context)
+        {
+            found = true;
+            *interfaceIndex = index;
+            break;
+        }
+    }
+
+    if (false == found)
+    {
+        if (s_pal_numberOFInterfaces < PAL_MAX_SUPORTED_NET_INTERFACES)
+        {
+            s_pal_networkInterfacesSupported[s_pal_numberOFInterfaces] = context;
+            *interfaceIndex = s_pal_numberOFInterfaces;
+            ++s_pal_numberOFInterfaces;            
+        }
+        else
+        {
+            result = PAL_ERR_SOCKET_MAX_NUMBER_OF_INTERFACES_REACHED;
+        }
+    }
 
     return result;
 }
 
 palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
 {
-    palStatus_t result = PAL_SUCCESS;    
-
-    return result;
+    s_pal_networkInterfacesSupported[interfaceIndex] = NULL;
+    --s_pal_numberOFInterfaces;
+    return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_socketsTerminate(void* context)
@@ -145,7 +174,36 @@ palStatus_t pal_plat_socketsTerminate(void* context)
 palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* sockt)
 {
     int result = PAL_SUCCESS;
+    intptr_t sockfd;    
 
+    PAL_VALIDATE_ARGUMENTS(interfaceNum >= s_pal_numberOFInterfaces && PAL_NET_DEFAULT_INTERFACE != interfaceNum);
+
+    // These are the same in Linux
+    if(type == PAL_SOCK_STREAM_SERVER)
+    {
+        type = PAL_SOCK_STREAM;
+    }
+    
+    PAL_ASSERT_STATIC(AF_INET == PAL_AF_INET);
+    //PAL_ASSERT_STATIC(AF_INET6 == PAL_AF_INET6);
+    PAL_ASSERT_STATIC(AF_UNSPEC == PAL_AF_UNSPEC);
+    PAL_ASSERT_STATIC(SOCK_DGRAM == (unsigned int)PAL_SOCK_DGRAM);
+    PAL_ASSERT_STATIC(SOCK_STREAM == (unsigned int)PAL_SOCK_STREAM);
+    
+    sockfd = socket(domain, type, 0);
+    // Note - though it is not an error, if we get sockfd == 0 then we probably (accidentally closed fd 0 somewhere else)
+    if (sockfd == -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
+    else
+    {
+        if (nonBlockingSocket)
+        {
+            fcntl( sockfd, F_SETFL, fcntl(sockfd, F_GETFL ) | O_NONBLOCK );
+        }
+        *sockt = (palSocket_t)sockfd;
+    }
     return result;
 }
 
@@ -160,9 +218,17 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
 
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
-    palStatus_t result = PAL_SUCCESS;    
+    int flags = fcntl((intptr_t)socket, F_GETFL);
 
-    return result;
+    if (0 != (flags & O_NONBLOCK))
+    {
+        *isNonBlocking = true;
+    }
+    else
+    {
+        *isNonBlocking = false;
+    }
+    return PAL_SUCCESS;
 }
 
 
@@ -196,7 +262,8 @@ palStatus_t pal_plat_close(palSocket_t* socket)
 }
 
 palStatus_t pal_plat_getNumberOfNetInterfaces( uint32_t* numInterfaces)
-{    
+{        
+    *numInterfaces = s_pal_numberOFInterfaces;
     return PAL_SUCCESS;
 }
 
