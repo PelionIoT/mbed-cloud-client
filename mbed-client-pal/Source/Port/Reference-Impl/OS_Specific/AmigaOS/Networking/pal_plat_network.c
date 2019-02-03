@@ -26,6 +26,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
@@ -55,7 +56,7 @@
 #endif
 
 PAL_PRIVATE void* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
-PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
+PAL_PRIVATE uint32_t s_pal_numberOFInterfaces = 0;
 
 PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 {
@@ -116,6 +117,46 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     }
     return status;
 }
+
+#if PAL_NET_ASYNCHRONOUS_SOCKET_API
+struct pollfd {
+    int fd;
+    short events;
+    short revents;
+};
+
+static palMutexID_t s_mutexSocketEventFilter = 0;
+
+// These must be updated only when protected by s_mutexSocketCallbacks
+static struct pollfd s_fds[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {{0,0,0}};
+static uint32_t s_callbackFilter[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
+
+PAL_PRIVATE void clearSocketFilter( int socketFD)
+{
+    palStatus_t result = PAL_SUCCESS;
+    int i = 0;
+    result = pal_osMutexWait(s_mutexSocketEventFilter, PAL_RTOS_WAIT_FOREVER);
+    if (PAL_SUCCESS != result)
+    {
+        PAL_LOG_ERR("error waiting for mutex"); // we want to zero the flag even if this fails beacuse it is better to get an extra event than miss one.
+    }
+    for (i = 0; i < PAL_NET_TEST_MAX_ASYNC_SOCKETS; i++)
+    {
+
+        if (s_fds[i].fd == socketFD)
+        {
+            s_callbackFilter[i] = 0;
+            break;
+        }
+    }
+    result = pal_osMutexRelease(s_mutexSocketEventFilter);
+    if (PAL_SUCCESS != result)
+    {
+        PAL_LOG_ERR("error releasing mutex");
+    }
+}
+
+#endif
 
 palStatus_t pal_plat_socketsInit(void* context)
 {    
@@ -210,10 +251,8 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
 
 // Assume input timeout value is in milliseconds.
 palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
-{
-    int result = PAL_SUCCESS;    
-
-    return result;
+{    
+    return PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
 }
 
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
@@ -231,10 +270,120 @@ palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
     return PAL_SUCCESS;
 }
 
+PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_t* palAddr, struct sockaddr* output)
+{
+    palStatus_t result = PAL_SUCCESS;
+    uint16_t port = 0;
+    bool found = false;
+
+    result = pal_getSockAddrPort(palAddr, &port);
+    if (result != PAL_SUCCESS)
+    {
+        return result;
+    }
+
+#if PAL_SUPPORT_IP_V4
+    if (PAL_AF_INET == palAddr->addressType)
+    {
+        palIpV4Addr_t ipV4Addr = { 0 };
+        struct sockaddr_in* ip4addr = (struct sockaddr_in*)output;
+        ip4addr->sin_family = AF_INET;
+        ip4addr->sin_port = PAL_HTONS(port);
+        result = pal_getSockAddrIPV4Addr(palAddr, ipV4Addr);
+        if (result == PAL_SUCCESS)
+        {
+            memcpy(&ip4addr->sin_addr, ipV4Addr, sizeof(ip4addr->sin_addr));
+        }
+        found = true;
+    }
+
+#endif // PAL_SUPPORT_IP_V4
+#if PAL_SUPPORT_IP_V6
+    if (PAL_AF_INET6 == palAddr->addressType)
+    {
+        palIpV6Addr_t ipV6Addr = {0};
+        struct sockaddr_in6* ip6addr = (struct sockaddr_in6*)output;
+        ip6addr->sin6_family = AF_INET6;
+        ip6addr->sin6_scope_id = 0; // we assume there will not be several interfaces with the same IP.
+        ip6addr->sin6_flowinfo = 0;
+        ip6addr->sin6_port = PAL_HTONS(port);
+        result = pal_getSockAddrIPV6Addr(palAddr, ipV6Addr);
+        if (result == PAL_SUCCESS)
+        {
+            memcpy(&ip6addr->sin6_addr, ipV6Addr, sizeof(ip6addr->sin6_addr));
+        }
+        found = true;
+    }
+#endif
+
+    if (false == found)
+    {
+        return PAL_ERR_SOCKET_INVALID_ADDRESS;
+    }
+
+    return result;
+}
+
+PAL_PRIVATE palStatus_t pal_plat_socketAddressToPalSockAddr(struct sockaddr* input, palSocketAddress_t* out, palSocketLength_t* length)
+{
+    palStatus_t result = PAL_SUCCESS;
+    bool found = false;
+
+#if PAL_SUPPORT_IP_V4
+    if (input->sa_family == AF_INET)
+    {
+        palIpV4Addr_t ipV4Addr;
+        struct sockaddr_in* ip4addr = (struct sockaddr_in*)input;
+
+        memcpy(ipV4Addr, &ip4addr->sin_addr, PAL_IPV4_ADDRESS_SIZE);
+        result = pal_setSockAddrIPV4Addr(out, ipV4Addr);
+        if (result == PAL_SUCCESS)
+        {
+            result = pal_setSockAddrPort(out, PAL_NTOHS(ip4addr->sin_port));
+        }
+        *length = sizeof(struct sockaddr_in);
+        found = true;
+    }
+#endif //PAL_SUPPORT_IP_V4
+#if PAL_SUPPORT_IP_V6
+    if (input->sa_family == AF_INET6)
+    {
+        palIpV6Addr_t ipV6Addr;
+        struct sockaddr_in6* ip6addr = (struct sockaddr_in6*)input;
+        memcpy(ipV6Addr, &ip6addr->sin6_addr, PAL_IPV6_ADDRESS_SIZE);
+        result = pal_setSockAddrIPV6Addr(out, ipV6Addr);
+        if (result == PAL_SUCCESS)
+        {
+            result = pal_setSockAddrPort(out, PAL_NTOHS(ip6addr->sin6_port));
+        }
+        *length = sizeof(struct sockaddr_in6);
+        found = true;
+    }
+#endif // PAL_SUPPORT_IP_V6
+
+    if (false == found)
+    { // we got unspeicified in one of the tests, so Don't fail , but don't translate address.  // re-chcking
+        result = PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+    }
+
+    return result;
+}
 
 palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocketLength_t addressLength)
 {
     int result = PAL_SUCCESS;
+    int res = 0;
+    struct sockaddr_in internalAddr = {0} ;
+    
+    result = pal_plat_SockAddrToSocketAddress(myAddress, (struct sockaddr *)&internalAddr);
+    if (result == PAL_SUCCESS)
+    {
+        res = bind((intptr_t)socket, (struct sockaddr *)&internalAddr, addressLength);
+        if (res == -1)
+        {
+            result = translateErrorToPALError(errno);
+        }
+    }
 
     return result;
 }
@@ -242,14 +391,45 @@ palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, pal
 
 palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length, palSocketAddress_t* from, palSocketLength_t* fromLength, size_t* bytesReceived)
 {
-    palStatus_t result = PAL_SUCCESS;    
+    palStatus_t result = PAL_SUCCESS;
+    ssize_t res;
+    struct sockaddr_in internalAddr;
+    socklen_t addrlen;
+
+    clearSocketFilter((intptr_t)socket);
+    addrlen = sizeof(struct sockaddr_in);
+    res = recvfrom((intptr_t)socket, buffer, length, 0 ,(struct sockaddr *)&internalAddr, &addrlen);
+    if(res == -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
+    else // only return address / bytesReceived in case of success
+    {
+        if ((NULL != from) && (NULL != fromLength))
+        {
+            result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&internalAddr, from, fromLength);
+        }
+        *bytesReceived = res;
+    }
 
     return result;
 }
 
 palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t length, const palSocketAddress_t* to, palSocketLength_t toLength, size_t* bytesSent)
 {
-    palStatus_t result = PAL_SUCCESS;    
+    palStatus_t result = PAL_SUCCESS;
+    ssize_t res;
+
+    clearSocketFilter((intptr_t)socket);
+    res = sendto((intptr_t)socket, buffer, length, 0, (struct sockaddr *)to, toLength);
+    if(res == -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
+    else
+    {
+        *bytesSent = res;
+    }
 
     return result;
 }

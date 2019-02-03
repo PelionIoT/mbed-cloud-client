@@ -114,6 +114,10 @@
     #define PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE (1024 * 32)
 #endif
 
+#ifndef PAL_SUPPORT_IP_V6
+    #define PAL_SUPPORT_IP_V6 0
+#endif
+
 #ifndef PAL_USE_HW_TRNG
     #define PAL_USE_HW_TRNG    1
 #endif // PAL_USE_HW_TRNG
