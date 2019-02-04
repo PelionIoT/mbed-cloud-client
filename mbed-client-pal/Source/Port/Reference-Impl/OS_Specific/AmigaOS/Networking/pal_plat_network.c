@@ -459,14 +459,41 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
 palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 {
     palStatus_t result = PAL_SUCCESS;
+    int res;
 
+    res = listen((intptr_t)socket,backlog);
+    if(res == -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
     return result;
 }
 
 
 palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
 {    
+    intptr_t res = 0;
     palStatus_t result = PAL_SUCCESS;
+    struct sockaddr_in internalAddr = {0} ;
+    socklen_t internalAddrLen = sizeof(internalAddr);
+
+    // XXX: the whole addressLen -concept is broken as the address is fixed size anyway.
+    if (*addressLen < sizeof(palSocketAddress_t))
+    {
+        return PAL_ERR_SOCKET_INVALID_ADDRESS;
+    }
+
+    res = accept((intptr_t)socket,(struct sockaddr *)&internalAddr, &internalAddrLen);
+    if(res == -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
+    else
+    {
+        *acceptedSocket = (palSocket_t*)res;
+        *addressLen = sizeof(palSocketAddress_t);
+        result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&internalAddr, address, &internalAddrLen);
+    }
 
     return result;
 }
@@ -475,6 +502,21 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
 palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
 {
     int result = PAL_SUCCESS;
+    int res;
+    struct sockaddr_in internalAddr = {0} ;
+
+    result = pal_plat_SockAddrToSocketAddress(address, (struct sockaddr *)&internalAddr);
+    if (result == PAL_SUCCESS)
+    {
+        // clean filter to get the callback on first attempt
+        clearSocketFilter((intptr_t)socket);
+
+        res = connect((intptr_t)socket,(struct sockaddr *)&internalAddr, addressLen);
+        if(res == -1)
+        {
+            result = translateErrorToPALError(errno);
+        }
+    }
 
     return result;
 }
@@ -482,13 +524,41 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
 palStatus_t pal_plat_recv(palSocket_t socket, void *buffer, size_t len, size_t* recievedDataSize)
 {
     palStatus_t result = PAL_SUCCESS;
-    
+    ssize_t res;
+
+    clearSocketFilter((intptr_t)socket);
+    res = recv((intptr_t)socket, buffer, len, 0);
+    if(res ==  -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
+    else
+    {
+        if (0 == res)
+        {
+            result = PAL_ERR_SOCKET_CONNECTION_CLOSED;
+        }
+        *recievedDataSize = res;
+    }
     return result;
 }
 
 palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_t *sentDataSize)
 {
     palStatus_t result = PAL_SUCCESS;
+    ssize_t res;
+
+    clearSocketFilter((intptr_t)socket);
+
+    res = send((intptr_t)socket, buf, len, 0);
+    if(res == -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
+    else
+    {
+        *sentDataSize = res;
+    }
 
     return result;
 }
@@ -511,6 +581,39 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* length)
 {
     palStatus_t result = PAL_SUCCESS;
+    palSocketAddress_t localAddress = {0};
+    palSocketAddress_t zeroAddress = {0};
+    struct hostent * hn = NULL;
+    struct sockaddr_in remotehost;
+    unsigned int i = 0;    
+
+    hn = gethostbyname(url);
+    if(NULL == hn)
+    {
+        result = translateErrorToPALError(errno);
+    }
+    else
+    {
+        while( hn->h_addr_list[i] != NULL ) {            
+
+            memcpy(&remotehost.sin_addr, hn->h_addr_list[i], hn->h_length);
+            remotehost.sin_family = AF_INET;                    
+        
+            result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&remotehost, &localAddress, length);
+
+            if (0 == memcmp(localAddress.addressData, zeroAddress.addressData, PAL_NET_MAX_ADDR_SIZE) ) // invalid 0 address
+            {
+                result = PAL_ERR_SOCKET_DNS_ERROR;
+            }
+            else
+            {
+                *address = localAddress;
+                result = PAL_SUCCESS;
+                break;
+            }
+            i++;
+        }
+    }
 
     return result;
 }
