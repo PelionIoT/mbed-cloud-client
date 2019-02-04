@@ -39,7 +39,7 @@
 #include <exec/memory.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
- 
+
 #include <proto/exec.h>
 #include <proto/dos.h>
 
@@ -53,20 +53,21 @@
 
 #ifdef PAL_NET_TCP_AND_TLS_SUPPORT
 //#include <netinet/tcp.h>
+#define SOL_TCP 6
 #endif
 
 PAL_PRIVATE void* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
 PAL_PRIVATE uint32_t s_pal_numberOFInterfaces = 0;
+PAL_PRIVATE  uint32_t s_pal_network_initialized = 0;
 
 PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 {
     palStatus_t status;
     switch (errnoValue)
     {
-    #if 0
-    case EAI_MEMORY:
-        status = PAL_ERR_NO_MEMORY;
-        break;
+    // case EAI_MEMORY:
+    //     status = PAL_ERR_NO_MEMORY;
+    //     break;
     case EWOULDBLOCK:
         status = PAL_ERR_SOCKET_WOULD_BLOCK;
         break;
@@ -109,7 +110,6 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     case EINTR:
         status = PAL_ERR_SOCKET_INTERRUPTED;
         break;
-    #endif
     default:
         PAL_LOG_ERR("translateErrorToPALError() cannot translate %d", errnoValue);
         status = PAL_ERR_SOCKET_GENERIC;
@@ -159,8 +159,85 @@ PAL_PRIVATE void clearSocketFilter( int socketFD)
 #endif
 
 palStatus_t pal_plat_socketsInit(void* context)
-{    
+{
+    PAL_UNUSED_ARG(context);
     palStatus_t result = PAL_SUCCESS;
+
+    if (s_pal_network_initialized == 1)
+    {
+        return PAL_SUCCESS; // already initialized.
+    }
+
+
+#if PAL_NET_ASYNCHRONOUS_SOCKET_API
+
+    // result = pal_osMutexCreate(&s_mutexSocketCallbacks);
+    // if (result != PAL_SUCCESS)
+    // {
+    //     return result;
+    // }
+
+    result = pal_osMutexCreate(&s_mutexSocketEventFilter);
+    if (PAL_SUCCESS != result)
+    {
+        return result;
+    }
+
+
+    // result = pal_osSemaphoreCreate(0, &s_socketCallbackSignalSemaphore);
+    // if (result != PAL_SUCCESS)
+    // {
+    //     // todo: clean up the mess created so far
+    //     return result;
+    // }
+
+    // // Sleep at first wait
+    // result = pal_osSemaphoreCreate(0, &s_socketCallbackSemaphore);
+    // if (result != PAL_SUCCESS)
+    // {
+    //     if (pal_osMutexDelete(&s_mutexSocketCallbacks) != PAL_SUCCESS) //cleanup allocated resources
+    //     {
+    //         // TODO print error using logging mechanism when available.
+    //     }
+    //     return result;
+    // }
+
+    //s_socketThreadTerminateSignaled = false;
+    // palThreadID_t threadID = NULLPTR;
+    // result = pal_osThreadCreateWithAlloc(asyncSocketManager, NULL, PAL_osPriorityReservedSockets, PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE, NULL, &threadID);
+    // if (PAL_SUCCESS != result)
+    // {
+    //     if (PAL_ERR_RTOS_PRIORITY == result)
+    //     {
+    //         result = PAL_ERR_SOCKET_OPERATION_NOT_PERMITTED;
+    //     }
+    //     else
+    //     {
+    //         result = PAL_ERR_SOCKET_GENERIC;
+    //     }
+    // }
+    // else
+    // {
+    //     // Wait here for the thread to be initialized.
+    //     result = pal_osSemaphoreWait(s_socketCallbackSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+    //     if (PAL_SUCCESS != result)
+    //     {
+    //         goto end;
+    //     }
+    //     result = pal_osSemaphoreDelete(&s_socketCallbackSemaphore);
+    //     if (PAL_SUCCESS != result)
+    //     {
+    //         goto end;
+    //     }
+    // }
+#endif
+
+end:
+    if (PAL_SUCCESS == result)
+    {
+        s_pal_network_initialized = 1;
+    }
+
 
     return result;
 }
@@ -187,7 +264,7 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
         {
             s_pal_networkInterfacesSupported[s_pal_numberOFInterfaces] = context;
             *interfaceIndex = s_pal_numberOFInterfaces;
-            ++s_pal_numberOFInterfaces;            
+            ++s_pal_numberOFInterfaces;
         }
         else
         {
@@ -206,16 +283,76 @@ palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
 }
 
 palStatus_t pal_plat_socketsTerminate(void* context)
-{    
-    palStatus_t result = PAL_SUCCESS;    
+{
+    PAL_UNUSED_ARG(context);
+    palStatus_t result = PAL_SUCCESS;
+    palStatus_t firstError = PAL_SUCCESS;
 
-    return result;
+#if PAL_NET_ASYNCHRONOUS_SOCKET_API
+    // Critical section to update globals
+    // result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
+    // if (result != PAL_SUCCESS)
+    // {
+    //     // TODO print error using logging mechanism when available.
+    //     firstError = result;
+    // }
+
+    // s_nfds = PAL_SOCKETS_TERMINATE;
+    // result = pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
+    // if ((PAL_SUCCESS != result) && (PAL_SUCCESS == firstError))
+    // {
+    //     // TODO print error using logging mechanism when available.
+    //     firstError = result;
+    // }
+    // // Tell the poll thread to interrupt so that it can check for termination.
+    // if(s_pollThread != NULLPTR)
+    // {
+    //     pthread_kill(s_pollThread, SIGUSR1);
+    // }
+
+    // result = pal_osMutexRelease(s_mutexSocketCallbacks);
+    // if ((PAL_SUCCESS != result) && (PAL_SUCCESS == firstError))
+    // {
+    //     // TODO print error using logging mechanism when available.
+    //     firstError = result;
+    // }
+
+    // while (!s_socketThreadTerminateSignaled)
+    // {
+    //     pal_osDelay(10);
+    // }
+
+    // result = pal_osSemaphoreDelete(&s_socketCallbackSignalSemaphore);
+    // if ((PAL_SUCCESS != result) && (PAL_SUCCESS == firstError))
+    // {
+    //     // TODO print error using logging mechanism when available.
+    //     firstError = result;
+    // }
+
+    result = pal_osMutexDelete(&s_mutexSocketEventFilter);
+    if ((PAL_SUCCESS != result) && (PAL_SUCCESS == firstError))
+    {
+        // TODO print error using logging mechanism when available.
+        firstError = result;
+    }
+
+    // result = pal_osMutexDelete(&s_mutexSocketCallbacks);
+    // if ((PAL_SUCCESS != result ) && (PAL_SUCCESS == firstError))
+    // {
+    //     // TODO print error using logging mechanism when available.
+    //     firstError = result;
+    // }
+#endif // PAL_NET_ASYNCHRONOUS_SOCKET_API
+
+    s_pal_network_initialized = 0;
+
+    return firstError;
 }
 
 palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* sockt)
 {
     int result = PAL_SUCCESS;
-    intptr_t sockfd;    
+    intptr_t sockfd;
 
     PAL_VALIDATE_ARGUMENTS(interfaceNum >= s_pal_numberOFInterfaces && PAL_NET_DEFAULT_INTERFACE != interfaceNum);
 
@@ -224,13 +361,13 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
     {
         type = PAL_SOCK_STREAM;
     }
-    
+
     PAL_ASSERT_STATIC(AF_INET == PAL_AF_INET);
     //PAL_ASSERT_STATIC(AF_INET6 == PAL_AF_INET6);
     PAL_ASSERT_STATIC(AF_UNSPEC == PAL_AF_UNSPEC);
     PAL_ASSERT_STATIC(SOCK_DGRAM == (unsigned int)PAL_SOCK_DGRAM);
     PAL_ASSERT_STATIC(SOCK_STREAM == (unsigned int)PAL_SOCK_STREAM);
-    
+
     sockfd = socket(domain, type, 0);
     // Note - though it is not an error, if we get sockfd == 0 then we probably (accidentally closed fd 0 somewhere else)
     if (sockfd == -1)
@@ -251,8 +388,65 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
 
 // Assume input timeout value is in milliseconds.
 palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
-{    
-    return PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
+{
+       int result = PAL_SUCCESS;
+    int linuxName;
+    PAL_UNUSED_ARG(optionLength);
+
+
+    struct timeval timeout;
+    timeout.tv_sec =  0;
+    timeout.tv_usec = 0;
+
+    switch (optionName)
+    {
+    case PAL_SO_SNDTIMEO:
+        linuxName = SO_SNDTIMEO;
+        timeout.tv_sec = (*(int *)optionValue)/1000 ;
+        timeout.tv_usec = ((*(int *)optionValue)%1000)*1000 ;
+        break;
+    case PAL_SO_RCVTIMEO:
+        linuxName = SO_RCVTIMEO;
+        timeout.tv_sec = (*(int *)optionValue)/1000 ;
+        timeout.tv_usec = ((*(int *)optionValue)%1000)*1000 ;
+        break;
+#ifdef PAL_NET_TCP_AND_TLS_SUPPORT
+    case PAL_SO_KEEPALIVE:
+        linuxName = SO_KEEPALIVE;
+        break;
+#endif
+    case PAL_SO_REUSEADDR:
+        linuxName = SO_REUSEADDR;
+        break;
+    default:
+        // Unsupported option
+        result = PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
+    }
+
+    if (PAL_SUCCESS == result)
+    {
+        if (PAL_SO_SNDTIMEO == optionName || PAL_SO_RCVTIMEO == optionName)
+        {
+            result = setsockopt ((intptr_t)socket, SOL_SOCKET, linuxName, &timeout, sizeof(timeout));
+        }
+#ifdef PAL_NET_TCP_AND_TLS_SUPPORT
+        else if (PAL_SO_KEEPIDLE == optionName || PAL_SO_KEEPINTVL == optionName)
+        {
+            result = setsockopt ((intptr_t)socket, SOL_TCP, linuxName, (int *)optionValue, optionLength);
+        }
+#endif
+        else
+        {
+            result = setsockopt ((intptr_t)socket, SOL_SOCKET, linuxName, (int *)optionValue, optionLength);
+        }
+
+        if(-1 == result)
+        {
+            result = translateErrorToPALError(errno);
+        }
+    }
+
+    return result;
 }
 
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
@@ -374,7 +568,7 @@ palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, pal
     int result = PAL_SUCCESS;
     int res = 0;
     struct sockaddr_in internalAddr = {0} ;
-    
+
     result = pal_plat_SockAddrToSocketAddress(myAddress, (struct sockaddr *)&internalAddr);
     if (result == PAL_SUCCESS)
     {
@@ -437,19 +631,19 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
 palStatus_t pal_plat_close(palSocket_t* socket)
 {
     palStatus_t result = PAL_SUCCESS;
-    
+
     return result;
 }
 
 palStatus_t pal_plat_getNumberOfNetInterfaces( uint32_t* numInterfaces)
-{        
+{
     *numInterfaces = s_pal_numberOFInterfaces;
     return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t * interfaceInfo)
 {
-    palStatus_t result = PAL_SUCCESS;    
+    palStatus_t result = PAL_SUCCESS;
 
     return result;
 }
@@ -471,7 +665,7 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 
 
 palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
-{    
+{
     intptr_t res = 0;
     palStatus_t result = PAL_SUCCESS;
     struct sockaddr_in internalAddr = {0} ;
@@ -585,7 +779,7 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
     palSocketAddress_t zeroAddress = {0};
     struct hostent * hn = NULL;
     struct sockaddr_in remotehost;
-    unsigned int i = 0;    
+    unsigned int i = 0;
 
     hn = gethostbyname(url);
     if(NULL == hn)
@@ -594,11 +788,11 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
     }
     else
     {
-        while( hn->h_addr_list[i] != NULL ) {            
+        while( hn->h_addr_list[i] != NULL ) {
 
             memcpy(&remotehost.sin_addr, hn->h_addr_list[i], hn->h_length);
-            remotehost.sin_family = AF_INET;                    
-        
+            remotehost.sin_family = AF_INET;
+
             result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&remotehost, &localAddress, length);
 
             if (0 == memcmp(localAddress.addressData, zeroAddress.addressData, PAL_NET_MAX_ADDR_SIZE) ) // invalid 0 address
