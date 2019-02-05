@@ -40,6 +40,7 @@ if(NOT YOTTA_TARGET)
 
     if ((${OS_BRAND} MATCHES "AmigaOS"))
         add_definitions(-DPAL_AMIGAOS)
+        add_definitions(-D__BYTE_ORDER=__BIG_ENDIAN)
     endif() 
 
     MACRO(HEADER_DIRECTORIES return_list)
