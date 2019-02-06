@@ -174,7 +174,7 @@ PAL_PRIVATE void clearSocketFilter( int socketFD)
 // Thread function.
 PAL_PRIVATE void asyncSocketManager(void const* arg)
 {
-    // PAL_UNUSED_ARG(arg); // unused
+     PAL_UNUSED_ARG(arg); // unused
     // int res;
     // palAsyncSocketCallback_t callbacks[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
     // void* callbackArgs[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
@@ -182,7 +182,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     // nfds_t nfds = 0;
     // struct sigaction s;
     // sigset_t blockedSignals;
-    // palStatus_t result = PAL_SUCCESS;
+    palStatus_t result = PAL_SUCCESS;
     // uint64_t lastIOCounter=0;
     // uint64_t lastUSRCounter=0;
 
@@ -208,11 +208,11 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
     // s_pollThread = pthread_self(); // save the thread id for signal usage
     // // Tell the calling thread that we have finished initialization
-    // result = pal_osSemaphoreRelease(s_socketCallbackSemaphore);
-    // if (result != PAL_SUCCESS)
-    // {
-    //     PAL_LOG_ERR("Error in async socket manager on semaphore release");
-    // }
+    result = pal_osSemaphoreRelease(s_socketCallbackSemaphore);
+    if (result != PAL_SUCCESS)
+    {
+        PAL_LOG_ERR("Error in async socket manager on semaphore release");
+    }
 
 
     // while (result == PAL_SUCCESS) //As long as all goes well loop forever
@@ -325,6 +325,9 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     //         PAL_LOG_ERR("Error in async socket manager");
     //     }
     // }  // while
+
+    // Remove this when implementation is finished
+    s_socketThreadTerminateSignaled = true;
 }
 #endif // PAL_NET_ASYNCHRONOUS_SOCKET_API
 
@@ -932,7 +935,7 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket)
-{    
+{
     int err;
     int flags;
     palStatus_t result = pal_plat_socket(domain,  type,  nonBlockingSocket,  interfaceNum, socket);
