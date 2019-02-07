@@ -133,6 +133,13 @@ static palThreadID_t s_pollThread = NULLPTR;
 static palMutexID_t s_mutexSocketCallbacks = 0;
 static palMutexID_t s_mutexSocketEventFilter = 0;
 static palSemaphoreID_t s_socketCallbackSemaphore = 0;
+// Replace s_socketCallbackSignalSemaphore with message port that waits for (WaitPort) signals from:
+// - sockets directly: s_palIOCounter++; (ditch the variable as well)
+//   * preworkfor this: need to use SocketBaseTags to enable signals from sockets?
+//   * alternatively SetSocketSignals OR try without either and see if there will be any signals
+// - sigusr2 (SIGUSR1: pal_plat_socketsTerminate, pal_plat_close, pal_plat_asynchronousSocket): s_palUSR1Counter++; (ditch this as well)
+// remember to create the message port in the async thread that gets signals from
+// copies of e.g. s_fds because could be modified during ppoll?
 static palSemaphoreID_t s_socketCallbackSignalSemaphore = 0;
 
 // These must be updated only when protected by s_mutexSocketCallbacks
@@ -175,11 +182,11 @@ PAL_PRIVATE void clearSocketFilter( int socketFD)
 PAL_PRIVATE void asyncSocketManager(void const* arg)
 {
      PAL_UNUSED_ARG(arg); // unused
-    // int res;
-    // palAsyncSocketCallback_t callbacks[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
-    // void* callbackArgs[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
-    // struct pollfd fds[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {{0,0,0}};
-    // nfds_t nfds = 0;
+     int res;
+     palAsyncSocketCallback_t callbacks[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
+     void* callbackArgs[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
+     struct pollfd fds[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {{0,0,0}};
+     nfds_t nfds = 0;
     // struct sigaction s;
     // sigset_t blockedSignals;
     palStatus_t result = PAL_SUCCESS;
