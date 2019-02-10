@@ -132,6 +132,7 @@ typedef unsigned long int nfds_t;
 static palThreadID_t s_pollThread = NULLPTR;
 static palMutexID_t s_mutexSocketCallbacks = 0;
 //static palMutexID_t s_mutexSocketEventFilter = 0;
+static palSemaphoreID_t s_socketCreateSemaphore = 0;
 static palSemaphoreID_t s_socketCallbackSemaphore = 0;
 // Replace s_socketCallbackSignalSemaphore with message port that waits for (Wait) signals from:
 // - sockets directly: s_palIOCounter++; (ditch the variable as well)
@@ -202,8 +203,23 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         PAL_LOG_ERR("Error in async socket manager on semaphore release");
     }
 
+    printf("finished initialization\n");
+
     while (result == PAL_SUCCESS) //As long as all goes well loop forever
     {
+        /* wait for sockets to become available */
+        if(s_nfds == 0)
+        {
+            printf("wait for socket\n");
+            result = pal_osSemaphoreWait(s_socketCreateSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+            if (PAL_SUCCESS != result)
+            {
+                break;
+            }
+        }
+
+        printf("wait for mutex\n");
+
         // Critical section to update globals
         result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
         if (PAL_SUCCESS != result)
@@ -215,6 +231,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         // Check for thread termination request
         if(s_nfds == PAL_SOCKETS_TERMINATE)
         {
+            printf("terminate signaled\n");
             result = pal_osMutexRelease(s_mutexSocketCallbacks);
             if (result != PAL_SUCCESS)
             {
@@ -249,23 +266,19 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             break;
         }
 
-        /* now just halt. later we fix this properly */
-        if(nfds == 0)
-        {
-            PAL_LOG_ERR("No asynchronous sockets!");
-            break;
-        }
-
+        printf("wait for socket signals\n");
         // block until a SIGIO signal is received or break signal
         //if (lastUSRCounter == s_palUSR1Counter) // no updates to the sockets that need to be polled (wait for next IO)  - if there were updates skip waiting and proceeed to poll
         res = waitselect(nfds + 1, &fd_read_set, &fd_write_set, &fd_except_set, NULL, &bmask);
 
+        printf("got signals\n");
         // Notes:
         // If a POLLIN event occurred and recv from the socket results in 0 bytes being read, it means that
         // the remote socket was closed. Unless this is dealt with in the callback (for example by closing the
         // socket) the next call to ppoll will also immediately return with the same result.
         if(res >0 || errno == EINTR)
         {
+            printf("in signal handler\n");
             unsigned int i;
             errno = 0;
             // Some event was triggered, so iterate over all watched fds's and call the relevant callbacks.
@@ -273,9 +286,11 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             {
                 if(FD_ISSET(fds[i].fd, &fd_read_set) || FD_ISSET(fds[i].fd, &fd_write_set) || FD_ISSET(fds[i].fd, &fd_except_set))
                 {
+                    printf("found socket %u\n", i);
                     //if ((fds[i].revents != filter) && ((fds[i].revents != POLLOUT) || (fds[i].revents != s_callbackFilter[i])) ) // this is handlign for a special scenario when a specific event which shouldnt happen is sent to all unconnected sockets in Linux triggering an unwanted callback.
                     if (!(FD_ISSET(fds[i].fd, &fd_write_set) && FD_ISSET(fds[i].fd, &fd_except_set)))
                     {
+                        printf("callback triggered\n");
                         callbacks[i](callbackArgs[i]);
                     }
                     // result = pal_osMutexWait(s_mutexSocketEventFilter, PAL_RTOS_WAIT_FOREVER);
@@ -297,6 +312,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         }
         else if (res == 0)
         {
+            printf("waitselect abort by signal\n");
             // Broken out by signal
         }
         else
@@ -339,6 +355,16 @@ palStatus_t pal_plat_socketsInit(void* context)
 
     // Sleep at first wait
     result = pal_osSemaphoreCreate(0, &s_socketCallbackSemaphore);
+    if (result != PAL_SUCCESS)
+    {
+        if (pal_osMutexDelete(&s_mutexSocketCallbacks) != PAL_SUCCESS) //cleanup allocated resources
+        {
+            // TODO print error using logging mechanism when available.
+        }
+        return result;
+    }
+
+    result = pal_osSemaphoreCreate(0, &s_socketCreateSemaphore);
     if (result != PAL_SUCCESS)
     {
         if (pal_osMutexDelete(&s_mutexSocketCallbacks) != PAL_SUCCESS) //cleanup allocated resources
@@ -444,7 +470,7 @@ palStatus_t pal_plat_socketsTerminate(void* context)
     }
 
     s_nfds = PAL_SOCKETS_TERMINATE;
-    //result = pal_osSemaphoreRelease(s_socketCallbackSignalSemaphore);
+    result = pal_osSemaphoreRelease(s_socketCreateSemaphore);
 
     if ((PAL_SUCCESS != result) && (PAL_SUCCESS == firstError))
     {
@@ -453,7 +479,7 @@ palStatus_t pal_plat_socketsTerminate(void* context)
     }
     // Tell the poll thread to interrupt so that it can check for termination.
     if(s_pollThread != NULLPTR)
-    {        
+    {
         Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_F);
     }
 
@@ -482,6 +508,14 @@ palStatus_t pal_plat_socketsTerminate(void* context)
         // TODO print error using logging mechanism when available.
         firstError = result;
     }
+
+    result = pal_osMutexDelete(&s_socketCreateSemaphore);
+    if ((PAL_SUCCESS != result ) && (PAL_SUCCESS == firstError))
+    {
+        // TODO print error using logging mechanism when available.
+        firstError = result;
+    }
+
 #endif // PAL_NET_ASYNCHRONOUS_SOCKET_API
 
     s_pal_network_initialized = 0;
@@ -909,8 +943,8 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 
     // initialize the socket to be ASYNC so we get SIGIO's for it
     // XXX: this needs to be conditionalized as the blocking IO might have some use also.
-    err = fcntl((intptr_t)*socket, F_SETOWN, getpid());
-    assert(err != -1);
+    //err = fcntl((intptr_t)*socket, F_SETOWN, getpid());
+    //assert(err != -1);
 
     flags = fcntl((intptr_t)*socket, F_GETFL, 0);
     assert(flags >= 0);
@@ -936,19 +970,25 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 
         // make sure a recycled socket structure does not contain obsolete event filter
     //     clearSocketFilter((intptr_t)*socket);
-        
-        s_fds[s_nfds].fd = (intptr_t)*socket;        
+
+        s_fds[s_nfds].fd = (intptr_t)*socket;
         FD_SET(s_fds[s_nfds].fd, &s_fdset);
         s_callbacks[s_nfds] = callback;
         s_callbackArgs[s_nfds] = callbackArgument;
         s_nfds++;
         result = pal_osMutexRelease(s_mutexSocketCallbacks);
+        if (PAL_SUCCESS != result)
+        {
+            return result;
+        }
+
+        result = pal_osSemaphoreRelease(s_socketCreateSemaphore);
         if (result != PAL_SUCCESS)
         {
             // TODO print error using logging mechanism when available.
             return result;
         }
-        // Tell the poll thread to add the new socket        
+        // Tell the poll thread to add the new socket
         Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_F);
     }
 
