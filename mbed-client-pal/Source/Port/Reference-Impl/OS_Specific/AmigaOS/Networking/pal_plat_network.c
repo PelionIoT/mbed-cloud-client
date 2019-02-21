@@ -162,6 +162,8 @@ struct create_socket {
     uint32_t interfaceNum;
     palSocket_t* socket;
     palStatus_t result;
+    palAsyncSocketCallback_t callback;
+    void* callbackArgument;
 };
 
 static struct create_socket s_async_socket;
@@ -286,32 +288,57 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         {
             printf("Create socket\n");
             //Async socket needs to be created here for signals to work
-            // s_async_socket.result = pal_plat_socket(s_async_socket.domain,  s_async_socket.type,  s_async_socket.nonBlockingSocket,  s_async_socket.interfaceNum, s_async_socket.socket);
+            s_async_socket.result = pal_plat_socket(s_async_socket.domain,  s_async_socket.type,  s_async_socket.nonBlockingSocket,  s_async_socket.interfaceNum, s_async_socket.socket);
 
-            // int flags = fcntl((intptr_t)*(s_async_socket.socket), F_GETFL, 0);
-            // assert(flags >= 0);
+            int flags = fcntl((intptr_t)*(s_async_socket.socket), F_GETFL, 0);
+            assert(flags >= 0);
 
-            // flags |= O_ASYNC;
+            flags |= O_ASYNC;
 
-            // int err = fcntl((intptr_t)*(s_async_socket.socket), F_SETFL, flags);
+            int err = fcntl((intptr_t)*(s_async_socket.socket), F_SETFL, flags);
 
-            // if (err == -1)
-            // {
-            //     s_async_socket.result = translateErrorToPALError(errno);
-            // }
+            if (err == -1)
+            {
+                s_async_socket.result = translateErrorToPALError(errno);
+            }
+
+            if (s_async_socket.result == PAL_SUCCESS)
+            {
+                // Critical section to update globals
+                result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
+                if (result != PAL_SUCCESS)
+                {
+                    PAL_LOG_ERR("Error in async socket manager on pal_osMutexWait");
+                    break;
+                }
+
+                // make sure a recycled socket structure does not contain obsolete event filter
+                clearSocketFilter((intptr_t)*s_async_socket.socket);
+
+                s_fds[s_nfds].fd = (intptr_t)*(s_async_socket.socket);
+                FD_SET(s_fds[s_nfds].fd, &s_fdset);
+                s_callbacks[s_nfds] = s_async_socket.callback;
+                s_callbackArgs[s_nfds] = s_async_socket.callbackArgument;
+                s_nfds++;
+                result = pal_osMutexRelease(s_mutexSocketCallbacks);
+                if (result != PAL_SUCCESS)
+                {
+                    PAL_LOG_ERR("Error in async socket manager on pal_osMutexRelease");
+                    break;
+                }
+            }
 
             //Signal async create socket that socket has been created
             pal_osSemaphoreRelease(s_socketCreateSemaphore);
-            // Restore signal mask
-            bmask = SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
         }
 
         if(bmask & SIGBREAKF_CTRL_D)
         {
             printf("Close socket\n");
-            // Restore signal mask
-            bmask = SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
         }
+
+        // Restore signal mask
+        bmask = SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
 
         printf("got signals\n");
         // Notes:
@@ -399,20 +426,12 @@ palStatus_t pal_plat_socketsInit(void* context)
     result = pal_osSemaphoreCreate(0, &s_socketCallbackSemaphore);
     if (result != PAL_SUCCESS)
     {
-        if (pal_osMutexDelete(&s_mutexSocketCallbacks) != PAL_SUCCESS) //cleanup allocated resources
-        {
-            // TODO print error using logging mechanism when available.
-        }
         return result;
     }
 
     result = pal_osSemaphoreCreate(0, &s_socketCreateSemaphore);
     if (result != PAL_SUCCESS)
     {
-        if (pal_osMutexDelete(&s_mutexSocketCallbacks) != PAL_SUCCESS) //cleanup allocated resources
-        {
-            // TODO print error using logging mechanism when available.
-        }
         return result;
     }
 
@@ -850,6 +869,8 @@ palStatus_t pal_plat_close(palSocket_t* socket)
     int res;
     unsigned int i,j;
 
+    printf("pal_plat_close\n");
+
     if  (*socket == (void *)PAL_LINUX_INVALID_SOCKET) // socket already closed - return success.
     {
         PAL_LOG_DBG("socket close called on socket which was already closed");
@@ -883,6 +904,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
             s_callbackArgs[j] = 0;
             s_nfds--;
             // Tell the poll thread to remove the socket
+            printf("SIGBREAKF_CTRL_D\n");
             Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
             break;
         }
@@ -1033,7 +1055,7 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket)
 {
     int err;
-    palStatus_t result;    
+    palStatus_t result;
 
     //We pass this data structure to async manager thread which creates socket for us
     s_async_socket.domain = domain;
@@ -1041,8 +1063,10 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
     s_async_socket.nonBlockingSocket = nonBlockingSocket;
     s_async_socket.interfaceNum = interfaceNum;
     s_async_socket.socket = socket;
+    s_async_socket.callback = callback;
+    s_async_socket.callbackArgument = callbackArgument;
 
-    // Tell the poll thread to create the socket    
+    // Tell the poll thread to create the socket
     Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_E);
 
     // Wait for the socket to be created
@@ -1054,34 +1078,7 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
     }
 
     // Pick up the result
-    result = s_async_socket.result;
-
-    // if (result == PAL_SUCCESS)
-    // {
-    //     // Critical section to update globals
-    //     result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
-    //     if (result != PAL_SUCCESS)
-    //     {
-    //         // TODO print error using logging mechanism when available.
-    //         return result;
-    //     }
-
-    //     // make sure a recycled socket structure does not contain obsolete event filter
-    //      clearSocketFilter((intptr_t)*socket);
-
-    //     s_fds[s_nfds].fd = (intptr_t)*(s_async_socket.socket);
-    //     FD_SET(s_fds[s_nfds].fd, &s_fdset);
-    //     s_callbacks[s_nfds] = callback;
-    //     s_callbackArgs[s_nfds] = callbackArgument;
-    //     s_nfds++;
-    //     result = pal_osMutexRelease(s_mutexSocketCallbacks);
-    //     if (PAL_SUCCESS != result)
-    //     {
-    //         return result;
-    //     }
-    // }    
-
-    return result;
+    return s_async_socket.result;
 }
 
 #endif
