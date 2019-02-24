@@ -121,7 +121,183 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     return status;
 }
 
+
+/*fcntl F_GETFL seems to be broken, so we have to dig the information out */
+#define FDF_NON_BLOCKING	(1UL<<4)	/* File was switched into non-blocking */
+#define FDF_ASYNC_IO		(1UL<<10)	/* File was switched into asynchronous I/O */
+
+/* The file action function for unbuffered files. */
+typedef int (*file_action_fd_t)(struct fd * fd,struct file_action_message * fam);
+
+/****************************************************************************/
+
+/* Function to be called before a file descriptor is "closed". */
+typedef void (*fd_cleanup_t)(struct fd * fd);
+
+struct fd
+{
+	int							fd_Version;			/* Version number of this definition
+													   of the 'fd' data structure. */
+	file_action_fd_t			fd_Action;			/* Function to invoke to perform actions */
+	void *						fd_UserData;		/* To be used by custom file action
+													   functions */
+	ULONG						fd_Flags;			/* File properties */
+
+	union
+	{
+		BPTR					fdu_File;			/* A dos.library file handle */
+		LONG					fdu_Socket;			/* A socket identifier */
+	} fdu_Default;
+
+	/************************************************************************/
+	/* Public portion ends here                                             */
+	/************************************************************************/
+
+	struct SignalSemaphore *	fd_Lock;			/* For thread locking */
+	ULONG						fd_Position;		/* Cached file position (seek offset). */
+	fd_cleanup_t				fd_Cleanup;			/* Cleanup function, if any. */
+
+	struct fd *					fd_Original;		/* NULL if this is not a dup()ed file
+													   descriptor; points to original
+													   descriptor if non-NULL */
+	struct fd *					fd_NextAlias;		/* Points to next duplicate of this
+													   file descriptor; NULL for none */
+	void *						fd_Aux;				/* Auxilliary data for "special" files,
+													   e.g. termios support. */
+};
+
+struct fd *
+__get_file_descriptor(int file_descriptor);
+
+BOOL isNonBlockingSocket(int socket)
+{
+    struct fd * fd = __get_file_descriptor(socket);
+
+    if(fd != NULL) {
+        //printf("FD flags: %d\n", fd->fd_Flags);
+        if(fd->fd_Flags & FDF_NON_BLOCKING)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+BOOL isAsyncSocket(int socket)
+{
+    struct fd * fd = __get_file_descriptor(socket);
+
+    if(fd != NULL) {
+        //printf("FD flags: %d\n", fd->fd_Flags);
+        if(fd->fd_Flags & FDF_ASYNC_IO)
+            return TRUE;
+    }
+    return FALSE;
+}
+
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
+
+#include <exec/types.h>
+extern struct Library * __SocketBase;
+
+#include "libraries/bsdsocket.h"
+
+#define SBTC_BREAKMASK					1	/* Interrupt signal mask */
+#define SBTC_LOGTAGPTR					11	/* Under which name log entries are filed */
+#define SBTC_ERRNOLONGPTR				24	/* Pointer to errno, length == sizeof(errno) */
+#define SBTC_HERRNOLONGPTR				25	/* 'h_errno' pointer (with sizeof(h_errno) == sizeof(long)) */
+extern char * __program_name;
+extern int h_errno;
+
+#define __SocketBaseTagList(tags) ({ \
+  struct TagItem * _SocketBaseTagList_tags = (tags); \
+  LONG _SocketBaseTagList__re = \
+  ({ \
+  register struct Library * const __SocketBaseTagList__bn __asm("a6") = (struct Library *) (__SocketBase);\
+  register LONG __SocketBaseTagList__re __asm("d0"); \
+  register struct TagItem * __SocketBaseTagList_tags __asm("a0") = (_SocketBaseTagList_tags); \
+  __asm volatile ("jsr a6@(-294:W)" \
+  : "=r"(__SocketBaseTagList__re) \
+  : "r"(__SocketBaseTagList__bn), "r"(__SocketBaseTagList_tags)  \
+  : "d1", "a0", "a1", "fp0", "fp1", "cc", "memory"); \
+  __SocketBaseTagList__re; \
+  }); \
+  _SocketBaseTagList__re; \
+})
+
+#if 0 //thread safe stuff
+/* Call-back hook for use with SBTC_ERROR_HOOK */
+struct _ErrorHookMsg
+{
+	ULONG	ehm_Size;	/* Size of this data structure; this
+						   must be >= 12 */
+	ULONG	ehm_Action;	/* See below for a list of definitions */
+
+	LONG	ehm_Code;	/* The error code to use */
+};
+
+/* Which action the hook is to perform */
+#define EHMA_Set_errno		1	/* Set the local 'errno' to what is
+								   found in ehm_Code */
+#define EHMA_Set_h_errno	2	/* Set the local 'h_errno' to what is
+								   found in ehm_Code */
+
+BOOL __can_share_socket_library_base;
+BOOL __thread_safe_errno_h_errno;
+
+#ifdef __GNUC__
+
+#ifndef ASM
+#define ASM
+#endif /* ASM */
+
+#ifndef REG
+#define REG(r,p) p __asm(#r)
+#endif /* REG */
+
+#ifndef INTERRUPT
+#define INTERRUPT __attribute__((__interrupt__))
+#endif /* INTERRUPT */
+
+#ifndef INLINE
+#define INLINE __inline__
+#endif /* INLINE */
+
+#endif /* __GNUC__ */
+
+
+/* This hook function is called whenever either the errno or h_errno
+   variable is to be changed by the bsdsocket.library code. It is invoked
+   on the context of the caller, which means that the Process which called
+   the library will also be the one will eventually call the hook function.
+   You can key off this in your own __set_errno() or __set_h_errno()
+   functions, setting a Process-specific set of variables. */
+STATIC LONG ASM
+error_hook_function(
+	REG(a0, struct Hook *			unused_hook),
+	REG(a2, APTR					unused_reserved),
+	REG(a1, struct _ErrorHookMsg *	ehm))
+{
+	if(ehm != NULL && ehm->ehm_Size >= 12)
+	{
+		if (ehm->ehm_Action == EHMA_Set_errno)
+			__set_errno(ehm->ehm_Code);
+		else if (ehm->ehm_Action == EHMA_Set_h_errno)
+			__set_h_errno(ehm->ehm_Code);
+	}
+
+	return(0);
+}
+
+/****************************************************************************/
+
+STATIC struct Hook error_hook =
+{
+	{ NULL, NULL },
+	(HOOKFUNC)error_hook_function,
+	(HOOKFUNC)NULL,
+	NULL
+};
+#endif
+
 /* We don't have poll.h in CLIB2 (or in any other lib for that matter) */
 struct pollfd {
     int fd;
@@ -196,11 +372,103 @@ PAL_PRIVATE void clearSocketFilter( int socketFD)
     }
 }
 
+PAL_PRIVATE palStatus_t openSocketLibrary()
+{
+    struct TagItem tags[5];
+
+    long status;
+
+    if(__SocketBase != NULL) {
+        printf("closing socketbase\n");
+        CloseLibrary(__SocketBase);
+        __SocketBase = NULL;
+    }
+
+    //__SocketBase=OpenLibrary("bsdsocket.library",0);
+    __SocketBase = OpenLibrary("bsdsocket.library",3);
+	if(__SocketBase == NULL)
+    {
+		printf("Failed to open bsdsocket.library\n");
+        return PAL_ERR_GENERIC_FAILURE;
+    }
+
+	printf("Successfully opened bsdsocket.library\n");
+
+    /* Wire the library's errno variable to our local errno. */
+	tags[0].ti_Tag	= SBTM_SETVAL(SBTC_ERRNOLONGPTR);
+	tags[0].ti_Data	= (ULONG)&errno;
+
+	/* Also enable ^C checking if desired. */
+	tags[1].ti_Tag = SBTM_SETVAL(SBTC_BREAKMASK);
+
+	// if(__check_abort_enabled)
+	// 	tags[1].ti_Data	= __break_signal_mask;
+	// else
+	tags[1].ti_Data	= 0;
+
+	tags[2].ti_Tag	= SBTM_SETVAL(SBTC_LOGTAGPTR);
+	tags[2].ti_Data	= (ULONG)__program_name;
+
+	/* Wire the library's h_errno variable to our local h_errno. */
+	tags[3].ti_Tag	= SBTM_SETVAL(SBTC_HERRNOLONGPTR);
+	tags[3].ti_Data	= (ULONG)&h_errno;
+
+	tags[4].ti_Tag = TAG_END;
+
+    status = __SocketBaseTagList(tags);
+
+	if(status != 0)
+	{
+		printf("couldn't initialize the library");
+        return PAL_ERR_GENERIC_FAILURE;
+	}
+
+    #if 0 //thread_safe
+    if(__SocketBase->lib_Version >= 4)
+    {
+        printf("lib_ver >= 4\n");
+        tags[0].ti_Tag	= SBTM_SETVAL(SBTC_CAN_SHARE_LIBRARY_BASES);
+        tags[0].ti_Data	= TRUE;
+
+        tags[1].ti_Tag	= TAG_END;
+
+    //    PROFILE_OFF();
+
+        if(__SocketBaseTagList(tags) == 0) {
+            __can_share_socket_library_base = TRUE;
+            printf("sharing is caring\n");
+        }
+
+      //  PROFILE_ON();
+
+        if(__can_share_socket_library_base)
+        {
+            tags[0].ti_Tag	= SBTM_SETVAL(SBTC_ERROR_HOOK);
+            tags[0].ti_Data	= (ULONG)&error_hook;
+
+            tags[1].ti_Tag	= TAG_END;
+
+        //    PROFILE_OFF();
+
+            if(__SocketBaseTagList(tags) == 0) {
+                __thread_safe_errno_h_errno = TRUE;
+                printf("great success!\n");
+            }
+
+          //  PROFILE_ON();
+        }
+    }
+    #endif
+
+    return PAL_SUCCESS;
+}
+
 // Thread function.
 PAL_PRIVATE void asyncSocketManager(void const* arg)
 {
     PAL_UNUSED_ARG(arg); // unused
     int res;
+    palStatus_t result = PAL_SUCCESS;
     palAsyncSocketCallback_t callbacks[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
     void* callbackArgs[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
     struct pollfd fds[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {{0}};
@@ -217,7 +485,13 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     FD_ZERO(&fd_write_set);
     FD_ZERO(&fd_except_set);
 
-    palStatus_t result = PAL_SUCCESS;
+    // Need to take ownership of bsdsocket.library for the signals to work
+    result = openSocketLibrary();
+
+    if (result != PAL_SUCCESS)
+    {
+        PAL_LOG_ERR("Error in async socket manager on openSocketLibrary");
+    }
 
     // // Tell the calling thread that we have finished initialization
     result = pal_osSemaphoreRelease(s_socketCallbackSemaphore);
@@ -268,13 +542,16 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         // block until a SIGIO signal is received or break signal
         //if (lastUSRCounter == s_palUSR1Counter) // no updates to the sockets that need to be polled (wait for next IO)  - if there were updates skip waiting and proceeed to poll
         res = waitselect(nfds + 1, &fd_read_set, &fd_write_set, &fd_except_set, NULL, &bmask);
+        //res = waitselect(nfds + 1, NULL, &fd_write_set, NULL, NULL, &bmask);
+
+        printf("got signals n: %u bmask: %u\n", res, bmask);
 
         // Check for thread termination request
         if(bmask & SIGBREAKF_CTRL_F)
         {
             if(s_nfds == PAL_SOCKETS_TERMINATE)
             {
-                printf("terminate signaled\n");
+                printf("SIGBREAKF_CTRL_F signaled (terminate)\n");
                 s_nfds = 0; // Reset s_ndfs
                 s_socketThreadTerminateSignaled = true; // mark that the thread has receieved the termination request
                 bmask = SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
@@ -286,14 +563,15 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         /* add socket signaled */
         if(bmask & SIGBREAKF_CTRL_E)
         {
-            printf("Create socket\n");
-            //Async socket needs to be created here for signals to work
+            printf("SIGBREAKF_CTRL_E signaled (Create socket)\n");
+            //Async socket needs to be created here for signals to work (actually maybe not, but not gonna change it anymore)
             s_async_socket.result = pal_plat_socket(s_async_socket.domain,  s_async_socket.type,  s_async_socket.nonBlockingSocket,  s_async_socket.interfaceNum, s_async_socket.socket);
 
-            int flags = fcntl((intptr_t)*(s_async_socket.socket), F_GETFL, 0);
-            assert(flags >= 0);
-
-            flags |= O_ASYNC;
+            int flags = O_ASYNC;
+            if(isNonBlockingSocket((intptr_t)*(s_async_socket.socket)))
+            {
+                flags = flags | O_NONBLOCK;
+            }
 
             int err = fcntl((intptr_t)*(s_async_socket.socket), F_SETFL, flags);
 
@@ -334,13 +612,12 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
         if(bmask & SIGBREAKF_CTRL_D)
         {
-            printf("Close socket\n");
+            printf("SIGBREAKF_CTRL_D signaled (Close socket)\n");
         }
 
         // Restore signal mask
         bmask = SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
 
-        printf("got signals\n");
         // Notes:
         // If a POLLIN event occurred and recv from the socket results in 0 bytes being read, it means that
         // the remote socket was closed. Unless this is dealt with in the callback (for example by closing the
@@ -611,6 +888,7 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
     }
     else
     {
+        printf("create socket\n");
         if (nonBlockingSocket)
         {
             fcntl( sockfd, F_SETFL, fcntl(sockfd, F_GETFL ) | O_NONBLOCK );
@@ -686,9 +964,7 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
 
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
-    int flags = fcntl((intptr_t)socket, F_GETFL);
-
-    if (0 != (flags & O_NONBLOCK))
+    if(isNonBlockingSocket((intptr_t)socket))
     {
         *isNonBlocking = true;
     }
@@ -696,6 +972,7 @@ palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
     {
         *isNonBlocking = false;
     }
+
     return PAL_SUCCESS;
 }
 
@@ -991,13 +1268,17 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
     int res;
     struct sockaddr_in internalAddr = {0} ;
 
+    printf("pal_plat_connect\n");
+
     result = pal_plat_SockAddrToSocketAddress(address, (struct sockaddr *)&internalAddr);
+
     if (result == PAL_SUCCESS)
     {
         // clean filter to get the callback on first attempt
         clearSocketFilter((intptr_t)socket);
 
         res = connect((intptr_t)socket,(struct sockaddr *)&internalAddr, addressLen);
+
         if(res == -1)
         {
             result = translateErrorToPALError(errno);
@@ -1060,7 +1341,9 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
     //We pass this data structure to async manager thread which creates socket for us
     s_async_socket.domain = domain;
     s_async_socket.type = type;
-    s_async_socket.nonBlockingSocket = nonBlockingSocket;
+    //TODO fix blocking connect for asynchronous sockets
+    //s_async_socket.nonBlockingSocket = nonBlockingSocket;
+    s_async_socket.nonBlockingSocket = true;
     s_async_socket.interfaceNum = interfaceNum;
     s_async_socket.socket = socket;
     s_async_socket.callback = callback;
