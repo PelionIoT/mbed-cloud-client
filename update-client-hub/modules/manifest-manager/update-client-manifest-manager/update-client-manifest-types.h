@@ -34,6 +34,8 @@ extern "C" {
 #define RFC_4122_BYTES (128/CHAR_BIT)
 #define RFC_4122_WORDS (RFC_4122_BYTES/sizeof(uint32_t))
 #define ARM_UC_MANIFEST_HANDLE_BUFFER_BYTES (256/CHAR_BIT)
+#define ARM_UC_MM_FORMAT_RAW_BINARY 1
+#define ARM_UC_MM_FORMAT_BSDIFF_STREAM 5
 
 // NOTE: Manifest Handles are not used yet
 typedef uint8_t arm_uc_manifest_handle_t[ARM_UC_MANIFEST_HANDLE_BUFFER_BYTES];

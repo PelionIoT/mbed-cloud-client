@@ -31,7 +31,7 @@
  * @brief event handler registered with the firmware manager
  *        events drive state changes of the state machine
  */
-void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
+void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
@@ -218,7 +218,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event)
  * @brief event handler registered with the manifest manager
  *        events drive state changes of the state machine
  */
-void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event)
+void ARM_UC_HUB_ManifestManagerEventHandler(uintptr_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
@@ -304,7 +304,7 @@ void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event)
  * @brief event handler registered with the source manager
  *        events drive state changes of the state machine
  */
-void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
+void ARM_UC_HUB_SourceManagerEventHandler(uintptr_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 
@@ -384,7 +384,7 @@ void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event)
     }
 }
 
-void ARM_UC_HUB_ControlCenterEventHandler(uint32_t event)
+void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
 {
     arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_getState();
 

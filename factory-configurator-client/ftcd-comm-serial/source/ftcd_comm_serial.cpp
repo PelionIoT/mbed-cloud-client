@@ -21,8 +21,15 @@
 #endif
 
 #include <stdio.h>
-#include "pv_log.h"
+#include "mbed-trace/mbed_trace.h"
 #include "ftcd_comm_serial.h"
+#if defined(__MBED__)
+    #include "mbed.h"
+#elif defined(__SXOS__)
+    extern "C" int sxos_uart_write(const char *data, uint16_t len);
+#else
+    #error OS not supported
+#endif
 
 #define TRACE_GROUP "fcsr"
 
@@ -41,7 +48,12 @@ size_t FtcdCommSerial::_serial_read(char *buffOut, size_t buffSize)
     size_t left_to_read = buffSize;
     char* buffer = buffOut;
     while (left_to_read > 0) {
+#if defined(__MBED__)
         count = read(STDIN_FILENO, buffer, left_to_read);
+#elif defined(__SXOS__)
+        *buffer = (char)getchar();
+        count = 1;
+#endif
         if (count < 0) {
             break;
         }
@@ -58,7 +70,11 @@ size_t FtcdCommSerial::_serial_write(const char *buff, size_t buffSize)
     size_t left_to_write = buffSize;
     char* buffer = (char*)buff;
     while (left_to_write > 0) {
+#if defined(__MBED__)
         count = write(STDOUT_FILENO, buffer, left_to_write);
+#elif defined(__SXOS__)
+        count = sxos_uart_write(buffer, left_to_write);
+#endif
         if (count < 0) {
             break;
         }

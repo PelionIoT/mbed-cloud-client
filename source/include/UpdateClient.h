@@ -22,6 +22,9 @@
 #include "mbed-client/m2minterface.h"
 #include "update-client-hub/update_client_public.h"
 
+#include <stdint.h>
+#include <stddef.h>
+
 class ServiceClient;
 
 namespace UpdateClient
@@ -45,6 +48,7 @@ namespace UpdateClient
         WarningDeviceMismatch           = WarningBase + ARM_UC_WARNING_DEVICE_MISMATCH,
         WarningCertificateInvalid       = WarningBase + ARM_UC_WARNING_CERTIFICATE_INVALID,
         WarningSignatureInvalid         = WarningBase + ARM_UC_WARNING_SIGNATURE_INVALID,
+        WarningBadKeytable              = WarningBase + ARM_UC_WARNING_BAD_KEYTABLE,
         WarningURINotFound              = WarningBase + ARM_UC_WARNING_URI_NOT_FOUND,
         WarningRollbackProtection       = WarningBase + ARM_UC_WARNING_ROLLBACK_PROTECTION,
         WarningUnknown                  = WarningBase + ARM_UC_WARNING_UNKNOWN,
@@ -52,6 +56,7 @@ namespace UpdateClient
         ErrorBase,
         ErrorWriteToStorage             = ErrorBase + ARM_UC_ERROR_WRITE_TO_STORAGE,
         ErrorInvalidHash                = ErrorBase + ARM_UC_ERROR_INVALID_HASH,
+        ErrorConnection                 = ErrorBase + ARM_UC_ERROR_CONNECTION,
         FatalBase
     };
 

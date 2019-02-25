@@ -68,25 +68,6 @@ typedef struct arm_uc_cipherHandle_t {
 
 #endif // ARM_UC_FEATURE_CRYPTO_PAL
 
-/**
- * @brief Verify a public key signature
- * @details This function loads a certificate out of `ca`, and validates `hash` using the certificate and `sig`. If the
- *          certificate used by this function requires a certificate chain validation (i.e. it is not the root of trust,
- *          or it has not been previously validated), certificate chain validation should be done prior to calling this
- *          function.
- *
- * WARNING: this function is to be used only inside a function where its arguments have been error checked.
- * WARNING: This is an internal utility function and is not accessible outside of the manifest manager.
- *
- * @param[in] ca A pointer to a buffer that contains the signing certificate.
- * @param[in] hash A pointer to a buffer containing the hash to verify.
- * @param[in] sig A pointer to a buffer containing a signature by `ca`
- * @retval MFST_ERR_CERT_INVALID when the certificate fails to load
- * @retval MFST_ERR_INVALID_SIGNATURE when signature verification fails
- * @retval ERR_NONE for a valid signature
- */
-arm_uc_error_t ARM_UC_verifyPkSignature(const arm_uc_buffer_t *ca, const arm_uc_buffer_t *hash,
-                                        const arm_uc_buffer_t *sig);
 arm_uc_error_t ARM_UC_cryptoHashSetup(arm_uc_mdHandle_t *h, arm_uc_mdType_t mdType);
 arm_uc_error_t ARM_UC_cryptoHashUpdate(arm_uc_mdHandle_t *h, arm_uc_buffer_t *input);
 arm_uc_error_t ARM_UC_cryptoHashFinish(arm_uc_mdHandle_t *h, arm_uc_buffer_t *output);
@@ -107,30 +88,6 @@ arm_uc_error_t ARM_UC_cryptoDecryptFinish(arm_uc_cipherHandle_t *h, arm_uc_buffe
  * @return ERR_NONE on success, error code on failure.
  */
 arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key, arm_uc_buffer_t *input, arm_uc_buffer_t *output);
-
-/**
- * @brief Get a 256 device key.
- *
- * @param output buffer struct to cotain output device key.
-                 The size member of the struct will be set on success.
- *
- * @return ERR_NONE on success, error code on failure.
- */
-arm_uc_error_t ARM_UC_getDeviceKey256Bit(arm_uc_buffer_t *output);
-
-/**
- * @brief Function to get the device root of trust
- * @details The device root of trust should be a 128 bit value. It should never leave the device.
- *          It should be unique to the device. It should have enough entropy to avoid contentional
- *          entropy attacks. The porter should implement the following device signature to provide
- *          device root of trust on different platforms.
- *
- * @param key_buf buffer to be filled with the device root of trust.
- * @param length  length of the buffer provided to make sure no overflow occurs.
- *
- * @return 0 on success, non-zero on failure.
- */
-int8_t mbed_cloud_client_get_rot_128bit(uint8_t *key_buf, uint32_t length);
 
 #ifdef __cplusplus
 }

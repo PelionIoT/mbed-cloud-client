@@ -19,7 +19,10 @@
 //create a public wapper to this & reduce this to one line 
 int main(int argc, char * argv[])
 {
+    (void)argc;
+    (void)argv;
+
     // actually the tests themselves (which are a NOP) do no need any platform,
     // but the tracing and other do.
-    return palSanityTestMain(PAL_TEST_PLATFORM_INIT_BASE);
+    return palSanityTestMain();
 }

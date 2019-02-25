@@ -7,7 +7,14 @@
         "tcp-keepalive-interval": 90,
         "disable-bootstrap-feature": null,
         "coap-disable-obs-feature":null,
-        "reconnection-loop": 1,
+        "reconnection-loop": {
+                   "help": "Not in used anymore",
+                   "value": 1
+        },
+        "dns-use-thread": {
+                   "help": "Not in used anymore",
+                   "value": null
+        },
         "dtls_peer_max_timeout": null,
         "tls-max-retry": null,
         "sn-coap-max-blockwise-payload-size" : null,
@@ -19,9 +26,7 @@
         "disable-interface-description": null,
         "disable-resource-type": null,
         "disable-delayed-response": null,
-        "disable-block-message": null
-    },
-    "macros" : [
-        "MBED_CLIENT_C_NEW_API"
-    ]
+        "disable-block-message": null,
+        "memory-optimized-api": null
+    }
 }

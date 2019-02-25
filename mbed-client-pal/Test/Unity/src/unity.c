@@ -13,8 +13,8 @@ void UNITY_OUTPUT_CHAR(int);
 #endif
 
 /* Helpful macros for us to use here */
-#define UNITY_FAIL_AND_BAIL   { Unity.CurrentTestFailed  = 1; longjmp(Unity.AbortFrame, 1); }
-#define UNITY_IGNORE_AND_BAIL { Unity.CurrentTestIgnored = 1; longjmp(Unity.AbortFrame, 1); }
+#define UNITY_FAIL_AND_BAIL   { UNITY_PRINT_EOL(); Unity.CurrentTestFailed  = 1; longjmp(Unity.AbortFrame, 1); }
+#define UNITY_IGNORE_AND_BAIL { UNITY_PRINT_EOL(); Unity.CurrentTestIgnored = 1; longjmp(Unity.AbortFrame, 1); }
 
 /* return prematurely if we are already in failure or ignore state */
 #define UNITY_SKIP_EXECUTION  { if ((Unity.CurrentTestFailed != 0) || (Unity.CurrentTestIgnored != 0)) {return;} }
@@ -24,7 +24,7 @@ struct _Unity Unity;
 static const char UnityStrOk[]                     = "OK";
 static const char UnityStrPass[]                   = "PASS";
 static const char UnityStrFail[]                   = "FAIL";
-static const char UnityStrIgnore[]                 = "IGNORE";
+static const char UnityStrIgnore[]                 = "SKIP"; // Switched "IGNORE" to "SKIP" for direct icetea mapping.
 static const char UnityStrNull[]                   = "NULL";
 static const char UnityStrSpacer[]                 = ". ";
 static const char UnityStrExpected[]               = " Expected ";
@@ -306,14 +306,9 @@ static void UnityTestResultsBegin(const char* file, const UNITY_LINE_TYPE line)
 static void UnityPrintVisibleFailure(void);
 static void UnityPrintVisibleFailure(void)
 {
-    UNITY_OUTPUT_CHAR('\n');
-    UnityPrint("===!!!===> ");
-    /* SA_PATCH: Output results using easy to parse tags. */
     UnityPrint(UNITY_RESULTS_TAGS_RESULT_START);
     UnityPrint(UnityStrFail);
-    /* SA_PATCH: Output results using easy to parse tags. */
     UnityPrint(UNITY_RESULTS_TAGS_RESULT_END);
-    UnityPrint(" <===!!!===");
 }
 /*-----------------------------------------------*/
 static void UnityTestResultsFailBegin(const UNITY_LINE_TYPE line);
@@ -1232,7 +1227,10 @@ void UnityIgnore(const char* msg, const UNITY_LINE_TYPE line)
     UNITY_SKIP_EXECUTION;
 
     UnityTestResultsBegin(Unity.TestFile, line);
+    // SA_PATCH
+    UnityPrint(UNITY_RESULTS_TAGS_RESULT_START);
     UnityPrint(UnityStrIgnore);
+    UnityPrint(UNITY_RESULTS_TAGS_RESULT_END);
     if (msg != NULL)
     {
       UNITY_OUTPUT_CHAR(':');

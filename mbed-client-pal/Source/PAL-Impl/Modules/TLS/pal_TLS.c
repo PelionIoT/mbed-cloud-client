@@ -17,7 +17,11 @@
 
 #include "pal.h"
 #include "pal_plat_TLS.h"
-#include "sotp.h"
+
+// do not require storage unless this modules is configured to use it
+#if PAL_USE_SECURE_TIME
+#include "storage.h"
+#endif
 
 #define TRACE_GROUP "PAL"
 
@@ -173,6 +177,7 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
         status = PAL_ERR_NO_MEMORY;
         goto finish;
     }
+
     status = pal_plat_initTLSConf(&palTLSConfCtx->platTlsConfHandle, transportationMode, PAL_TLS_IS_CLIENT);
     if (PAL_SUCCESS != status)
     {
@@ -184,9 +189,7 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
     {
         goto finish;
     }
-#if (PAL_TLS_CIPHER_SUITE & PAL_TLS_PSK_WITH_AES_128_CBC_SHA256_SUITE)
-    status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_PSK_WITH_AES_128_CBC_SHA256);
-#elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_PSK_WITH_AES_128_CCM_8_SUITE)
+#if (PAL_TLS_CIPHER_SUITE & PAL_TLS_PSK_WITH_AES_128_CCM_8_SUITE)
     status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_PSK_WITH_AES_128_CCM_8);
 #elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_PSK_WITH_AES_256_CCM_8_SUITE)
     status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_PSK_WITH_AES_256_CCM_8);
@@ -198,8 +201,6 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
     status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8);
 #elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256_SUITE)
     status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256);
-#elif (PAL_TLS_CIPHER_SUITE & PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256_SUITE)
-    status = pal_plat_setCipherSuites(palTLSConfCtx->platTlsConfHandle, PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256);
 #else
     #error : No CipherSuite was defined!
 #endif
@@ -207,6 +208,7 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
     {
         goto finish;
     }
+
     palTLSConfCtx->trustedTimeServer = false;
     *palTLSConf = (palTLSHandle_t)palTLSConfCtx;
 finish:
@@ -214,6 +216,7 @@ finish:
     {
         free(palTLSConfCtx);
     }
+
     return status;
 }
 
@@ -329,11 +332,11 @@ palStatus_t pal_setCAChain(palTLSConfHandle_t palTLSConf, palX509_t* caChain, pa
 
         if (!g_trustedServerValid)
         {
-            sotp_result_e sotpRes;
-            uint16_t actualLenBytes = 0;
+            size_t actualLenBytes;
+            palStatus_t internal_status;
 
-            sotpRes = sotp_get(SOTP_TYPE_TRUSTED_TIME_SRV_ID, (uint16_t)sizeof(g_storedCertSerial), (uint32_t*)g_storedCertSerial, &actualLenBytes);
-            if (SOTP_SUCCESS == sotpRes)
+            internal_status = storage_rbp_read(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, (uint8_t*)g_storedCertSerial, (uint16_t)sizeof(g_storedCertSerial), &actualLenBytes);
+            if (PAL_SUCCESS == internal_status)
             {
                 g_trustedServerValid = true;
             }

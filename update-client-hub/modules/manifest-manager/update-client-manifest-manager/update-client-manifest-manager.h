@@ -97,7 +97,7 @@ enum arm_uc_mmResultCode {
  * @param  api Pointer to API structure for the key/value storage
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_mmInit(arm_uc_mmContext_t **ctxbuf, void (*event_handler)(uint32_t),
+arm_uc_error_t ARM_UC_mmInit(arm_uc_mmContext_t **ctxbuf, void (*event_handler)(uintptr_t),
                              const arm_pal_key_value_api *api);
 
 /**
@@ -192,6 +192,9 @@ arm_uc_error_t ARM_UC_mmGetError(void);
  * @return     An error code on failure or ERR_NONE on success.
  */
 arm_uc_error_t ARM_UC_mmGetCurrentManifestDependency(arm_uc_buffer_t *uri);
+
+
+int ARM_UC_mmCheckFormatUint32(manifest_guid_t* format, uint32_t expected);
 
 #if ARM_UC_MM_ENABLE_TEST_VECTORS
 arm_uc_error_t ARM_UC_mmRegisterTestHook(ARM_UC_mmTestHook_t hook);

@@ -50,14 +50,22 @@ class M2MEndpoint;
 /*! \file m2mbase.h
  *  \brief M2MBase.
  *  This class is the base class based on which all LWM2M object models
- *  can be created. This serves base class for Object, ObjectInstances and Resources.
+ *  can be created.
+ *
+ *  This serves as a base class for Objects, ObjectInstances and Resources.
+ */
+
+/*! \class M2MBase
+ *  \brief The base class based on which all LwM2M object models can be created.
+ *
+ * It serves as the base class for Objects, ObjectInstances and Resources.
  */
 class M2MBase : public M2MReportObserver {
 
 public:
 
     /**
-      * Enum to define the type of object.
+      * \brief Enum to define the type of object.
       */
     typedef enum {
         Object = 0x0,
@@ -70,7 +78,7 @@ public:
     } BaseType;
 
     /**
-      * Enum to define observation level.
+      * \brief Enum to define observation level.
       */
     typedef enum {
         None                 = 0x0,
@@ -107,7 +115,7 @@ public:
     }DataType;
 
     /**
-     * Enum defining an operation that can be
+     * \brief Enum defining an operation that can be
      * supported by a given resource.
     */
     typedef enum {
@@ -130,7 +138,7 @@ public:
     }Operation;
 
     /**
-     * Enum defining an status codes that can happen when
+     * \brief Enum defining an status codes that can happen when
      * sending confirmable message.
     */
     typedef enum {
@@ -197,10 +205,14 @@ public:
                                                  void *client_args);
 #endif // ENABLE_ASYNC_REST_RESPONSE
 
-
+    /*! \brief LwM2M parameters.
+     */
     typedef struct lwm2m_parameters {
         //add multiple_instances
         uint32_t            max_age; // todo: add flag
+        /*! \union identifier
+         *  \brief Parameter identifier.
+         */
         union {
             char*               name; //for backwards compatibility
             uint16_t            instance_id; // XXX: this is not properly aligned now, need to reorder these after the elimination is done
@@ -209,13 +221,14 @@ public:
         BaseType            base_type : 3;
         M2MBase::DataType   data_type : 3;
         bool                multiple_instance;
-        bool                free_on_delete;   /**< true if struct is dynamically allocated and it
+        bool                free_on_delete;   /**< \brief true if struct is dynamically allocated and it
                                                  and its members (name) are to be freed on destructor.
-                                                 Note: the sn_nsdl_dynamic_resource_parameters_s has
+                                                 \note The `sn_nsdl_dynamic_resource_parameters_s` has
                                                  its own similar, independent flag.
-                                                 Note: this also serves as a read-only flag. */
+
+                                                 \note This also serves as a read-only flag. */
        bool                 identifier_int_type;
-       bool                 read_write_callback_set; /** If set all the read and write operations are handled in callbacks
+       bool                 read_write_callback_set; /**< \brief If set, all the read and write operations are handled in callbacks
                                                          and the resource value is not stored anymore in M2MResourceBase. */
     } lwm2m_parameters_s;
 
@@ -254,7 +267,7 @@ protected:
 public:
 
     /**
-     * Destructor
+     * \brief Destructor
      */
     virtual ~M2MBase();
 
@@ -751,8 +764,8 @@ protected: // from M2MReportObserver
 
     /**
      * \brief Provides the observation token of the object.
-     * \param value[OUT] A pointer to the value of the token.
-     * \param value_length[OUT] The length of the token pointer.
+     * \param[out] token A pointer to the value of the token.
+     * \param[out] token_length The length of the token pointer.
      */
     void get_observation_token(uint8_t *token, uint8_t &token_length) const;
 
@@ -789,7 +802,7 @@ protected: // from M2MReportObserver
      * \brief Handles subscription request.
      * \param nsdl An NSDL handler for the CoAP library.
      * \param received_coap_header The received CoAP message from the server.
-     * \param coap_response CoAP response to be sent to server.
+     * \param coap_response The CoAP response to be sent to server.
      * \param observation_handler A handler object for sending
      * observation callbacks.
      */
@@ -801,7 +814,7 @@ protected: // from M2MReportObserver
 
     /**
      * \brief Start the observation.
-     * \param nsdl An NSDL handler for the CoAP library.
+     * \param received_coap_header An NSDL handler for the CoAP library.
      * \param observation_handler A handler object for sending
      * observation callbacks.
      */
@@ -845,4 +858,3 @@ friend class M2MObject;
 };
 
 #endif // M2M_BASE_H
-

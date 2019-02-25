@@ -30,9 +30,9 @@ palStatus_t pal_initTime(void)
 
 uint64_t pal_osGetTime(void)
 {
-    palStatus_t status;
-    status = pal_plat_osGetTime();
-    return status;
+    uint64_t os_time;
+    os_time = pal_plat_osGetTime();
+    return os_time;
 }
 
 palStatus_t pal_osSetTime(uint64_t seconds)

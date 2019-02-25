@@ -23,36 +23,17 @@
 #include "key_config_manager.h"
 #include "factory_configurator_client.h"
 #include "fcc_defs.h"
-#include "fcc_sotp.h"
+#include "pal_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-extern const char g_sotp_entropy_data_type_name[];
-extern const char g_sotp_rot_data_type_name[];
-extern const char g_sotp_factory_disable_type_name[];
-extern const char g_sotp_ca_server_id_type_name[];
-extern const char g_sotp_time_type_name[];
-
-/** Returns sotp type name and name size
-*
-* @param sotp_type[in]             The sotp type
-* @param sotp_type_name[out]       The pointer to sotp type name
-* @param sotp_type[out]            The size of sotp type name
-*    @returns
-*        fcc_status_e status.
-*/
-fcc_status_e fcc_get_sotp_type_name(sotp_type_e sotp_type, char* *sotp_type_name, size_t *sotp_type_name_size);
-
-/** Converts kcm error status to appropriate fcc error.
-*
-* @param kcm_result[in/out]    The kcm error status
-*    @returns
-*        fcc_status_e status.
-*/
 fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result);
+
+fcc_status_e fcc_convert_pal_to_fcc_status(palStatus_t pal_result);
+
+bool fcc_is_initialized(void);
 
 #ifdef __cplusplus
 }

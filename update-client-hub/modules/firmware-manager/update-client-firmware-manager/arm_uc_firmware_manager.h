@@ -22,7 +22,7 @@
 #include "update-client-paal/arm_uc_paal_update_api.h"
 #include "update-client-common/arm_uc_common.h"
 
-typedef void (*ARM_UCFM_SignalEvent_t)(uint32_t event);
+typedef void (*ARM_UCFM_SignalEvent_t)(uintptr_t event);
 
 #define UCFM_MAX_BLOCK_SIZE 16
 

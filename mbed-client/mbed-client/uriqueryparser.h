@@ -22,40 +22,44 @@ extern "C" {
 #define URIQUERYPARSER_H_
 
 /*! \file uriqueryparser.h
- *  \brief Provides helper functions for parsing uri query parameters.
+ *  \brief Provides helper functions for parsing URI query parameters.
  */
 
 /**
- * @brief Parse query parameter from URI and return size of parameter value and pointer to value within
- *        uri.
+ * @brief Parse a query parameter from URI and return the size of the parameter value and a pointer to the value within
+ *        the URI.
  *
- * Example usage:
+ * **Example usage:**
+ * @code{.cpp}
  * char *value_ptr = NULL;
  * ssize_t value_len = parse_query_parameter_value_from_uri("http://www.myquery.com?someparameter=value", "someparameter", &value_ptr);
+ * @endcode
  * will result in value_len = 5 and value_ptr = "value"
  *
- * @param uri uri to parse.
- * @param parameter_name, parameter name to parse from query.
- * @param parameter_value[OUT], pointer to parameter value, NULL if parameter does not exist.
- * @return size of parameter value, -1 if parameter does not exist in uri
+ * @param uri The URI to parse.
+ * @param parameter_name The parameter name to parse from query.
+ * @param[out] parameter_value A pointer to the parameter value, NULL if parameter does not exist.
+ * @return The size of the parameter value, -1 if parameter does not exist in the URI.
  */
 int parse_query_parameter_value_from_uri(const char *uri, const char *parameter_name, const char **parameter_value);
 
 /**
- * @brief Parse query parameter from query and return size of parameter value and pointer to value within
- *        query.
+ * @brief Parse a query parameter from a query and return the size of the parameter value and a pointer to the value within
+ *        the query.
  *
- * Example usage:
+ * **Example usage:**
+ * @code{.cpp}
  * char *value_ptr = NULL;
  * ssize_t value_len = parse_query_parameter_value("someparameter=value&param2=second", "param2", &value_ptr);
+ * @endcode
  * will result in value_len = 6 and value_ptr = "second"
  *
- * @param query query to parse.
- * @param parameter_name, parameter name to parse from query.
- * @param parameter_value[OUT], pointer to parameter value, NULL if parameter does not exist.
- * @return size of parameter value, -1 if parameter does not exist in query
+ * @param query The query to parse.
+ * @param parameter_name The parameter name to parse from the query.
+ * @param[out] parameter_value A pointer to the parameter value, NULL if parameter does not exist.
+ * @return The size of the parameter value, -1 if parameter does not exist in the query.
  */
-int parse_query_parameter_value_from_query(const char *uri, const char *parameter_name, const char **parameter_value);
+int parse_query_parameter_value_from_query(const char *query, const char *parameter_name, const char **parameter_value);
 
 
 #endif /* URIQUERYPARSER_H_ */

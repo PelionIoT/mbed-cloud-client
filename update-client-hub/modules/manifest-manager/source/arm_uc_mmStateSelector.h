@@ -25,8 +25,8 @@
 #include "update-client-manifest-manager/update-client-manifest-manager-context.h"
 
 arm_uc_error_t ARM_UC_mmSetState(enum arm_uc_mmState_t newState);
-arm_uc_error_t ARM_UC_mmFSM(uint32_t event);
-void ARM_UC_mmCallbackFSMEntry(uint32_t event);
+arm_uc_error_t ARM_UC_mmFSM(uintptr_t event);
+void ARM_UC_mmCallbackFSMEntry(uintptr_t event);
 
 
 

@@ -166,11 +166,14 @@
  */
 #define ATOMIC_QUEUE_CUSTOM_ELEMENT
 
+/* A queue element can store two different callback types: with and without context */
+typedef void (*arm_uc_no_context_callback_t)(uintptr_t);
+typedef void (*arm_uc_context_callback_t)(void *, uintptr_t);
 struct lockfree_queue_element {
     struct lockfree_queue_element *volatile next;
     uintptr_t lock;
-    void (*callback)(uint32_t);
-    uint32_t parameter;
+    void *callback;
+    uintptr_t parameter;
 };
 
 #include "atomic-queue/atomic-queue.h"
@@ -189,10 +192,40 @@ typedef struct lockfree_queue_element arm_uc_callback_t;
  *
  * @param storage Pointer to struct lockfree_queue_element.
  * @param callback Function pointer to function being scheduled to run later.
- * @param parameter uint32_t value to be passed as parameter to the callback function.
+ * @param parameter uintptr_t value to be passed as parameter to the callback function.
  * @return True when the callback was successfully scheduled.
  */
-bool ARM_UC_PostCallback(arm_uc_callback_t *storage, void (*callback)(uint32_t), uint32_t parameter);
+bool ARM_UC_PostCallback(arm_uc_callback_t *storage, arm_uc_no_context_callback_t callback, uintptr_t parameter);
+
+/**
+ * @brief Add function to be executed to the queue and associate a context with it.
+ * @details The caller is responsible for managing the memory for each element
+ *          in the queue, i.e., allocating enough struct lockfree_queue_element
+ *          to hold the number of outstanding callbacks in the queue.
+ *
+ * @param storage Pointer to struct lockfree_queue_element.
+ * @param[in] ctx The callback context. If a context is not needed, use ATOMIC_QUEUE_NO_CONTEXT.
+ *                If a context is needed, pass a non-NULL pointer.
+ * @param callback Function pointer to function being scheduled to run later.
+ * @param parameter uintptr_t value to be passed as parameter to the callback function.
+ * @return True when the callback was successfully scheduled.
+ */
+bool ARM_UC_PostCallbackCtx(arm_uc_callback_t *storage, void *ctx, arm_uc_context_callback_t callback, uintptr_t parameter);
+
+/**
+ * @brief Schedule an error callback.
+ * @details The error callback has priority over the other callbacks: as long as
+ *          an error callback was posted using this function, it'll be dispatched before
+ *          all the other callbacks in the queue. The storage for the error callback is
+ *          internal to the scheduler. A single error callback can be scheduled at a time.
+ *
+ * @param[in] ctx The callback context. If a context is not needed, use ATOMIC_QUEUE_NO_CONTEXT.
+ *                If a context is needed, pass a non-NULL pointer.
+ * @param callback Function pointer to the error callback.
+ * @param parameter uintptr_t value to be passed as parameter to the callback function.
+ * @return True when the callback was successfully scheduled.
+ */
+bool ARM_UC_PostErrorCallbackCtx(void *_ctx, arm_uc_context_callback_t _callback, uintptr_t _parameter);
 
 /**
  * @brief Calling this function processes all callbacks in the queue.

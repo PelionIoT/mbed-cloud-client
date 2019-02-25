@@ -1,21 +1,20 @@
-
-/*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *******************************************************************************/
-
-
+// ----------------------------------------------------------------------------
+// Copyright 2016-2019 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ----------------------------------------------------------------------------
 
 #include "test_runners.h"
 
@@ -122,6 +121,8 @@ void updatePalTestStatusAfterReboot(void)
 		Unity.CurrentTestIgnored =palTestStatus.numberOfIgnoredTests;
         PAL_LOG_DBG("Unity number of tests was updated\r\n");
 	}
+
+	palTestStatus.inner = -1;
 }
 
 
@@ -224,6 +225,11 @@ void TEST_pal_all_GROUPS_RUNNER(void)
             PRINT_MEMORY_STATS;
             #ifndef PAL_SKIP_TEST_MODULE_FILESYSTEM
                 TEST_pal_fileSystem_GROUP_RUNNER();
+            #endif
+        case PAL_TEST_MODULE_SST:
+            PRINT_MEMORY_STATS;
+            #ifndef PAL_SKIP_TEST_MODULE_SST
+                TEST_pal_sst_GROUP_RUNNER();
             #endif
         case PAL_TEST_MODULE_ROT:
             // if the implementation is using SOTP, it may be better to test storage and SOTP before it
@@ -331,6 +337,8 @@ static int palTestMainRunner(void)
         }
     }
 
+// Format call is not needed with SST implementation
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     if (init_flags & PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE) {
         status = mcc_platform_reformat_storage();
 
@@ -339,12 +347,13 @@ static int palTestMainRunner(void)
             return EXIT_FAILURE;
         }
     }
+#endif
 
     // XXX: this function uses the filesystem and it will typically fail if the storage is not initialized.
     palStatus_t getTestStatusReturnValue = getPalTestStatus();
     if (PAL_SUCCESS != getTestStatusReturnValue) 
     {
-        PAL_LOG_ERR("%s: Failed to get current status of tests 0x%" PRIu32 "\r\n",__FUNCTION__,getTestStatusReturnValue);
+        PAL_LOG_ERR("%s: Failed to get current status of tests 0x%" PRIX32 "\r\n",__FUNCTION__,getTestStatusReturnValue);
     }
 
     UnityPrint("*****PAL_TEST_START*****");
@@ -361,70 +370,94 @@ static int palTestMainRunner(void)
     return EXIT_SUCCESS;
 }
 
-int palAllTestMain(int init_flags)
+int palAllTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_CONNECTION|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
     return palTestMain(TEST_pal_all_GROUPS_RUNNER, init_flags);
 }
 
-int palFileSystemTestMain(int init_flags)
+int palFileSystemTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
     return palTestMain(TEST_pal_fileSystem_GROUP_RUNNER, init_flags);
 }
 
-int palNetworkTestMain(int init_flags)
+int palNetworkTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_CONNECTION;
     return palTestMain(TEST_pal_socket_GROUP_RUNNER, init_flags);
 }
 
-int palCryptoTestMain(int init_flags)
+int palCryptoTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
     return palTestMain(TEST_pal_crypto_GROUP_RUNNER, init_flags);
 }
 
-int palDRBGTestMain(int init_flags)
+int palDRBGTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE;
     return palTestMain(TEST_pal_drbg_GROUP_RUNNER, init_flags);
 }
 
-int palRTOSTestMain(int init_flags)
+int palRTOSTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE;
     return palTestMain(TEST_pal_rtos_GROUP_RUNNER, init_flags);
 }
 
-int palROTTestMain(int init_flags)
+int palROTTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE;
     return palTestMain(TEST_pal_rot_GROUP_RUNNER, init_flags);
 }
 
-int palStorageTestMain(int init_flags)
+int palStorageTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE;
     return palTestMain(TEST_pal_internalFlash_GROUP_RUNNER, init_flags);
 }
 
-int palTimeTestMain(int init_flags)
+int palSSTTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE | PAL_TEST_PLATFORM_INIT_STORAGE;
+    return palTestMain(TEST_pal_sst_GROUP_RUNNER, init_flags);
+}
+
+int palTimeTestMain(void)
+{
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
     return palTestMain(TEST_pal_time_GROUP_RUNNER, init_flags);
 }
 
-int palTLSTestMain(int init_flags)
+int palTLSTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_CONNECTION|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
     return palTestMain(TEST_pal_tls_GROUP_RUNNER, init_flags);
 }
 
-int palUpdateTestMain(int init_flags)
+int palUpdateTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
     return palTestMain(TEST_pal_update_GROUP_RUNNER, init_flags);
 }
 
-int palSOTPTestMain(int init_flags)
+int palSOTPTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
     return palTestMain(TEST_pal_SOTP_GROUP_RUNNER, init_flags);
 }
 
-int palSanityTestMain(int init_flags)
+int palSanityTestMain(void)
 {
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE;
     return palTestMain(TEST_pal_sanity_GROUP_RUNNER, init_flags);
 }
 
+int palReformatTestMain(void)
+{
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
+    return palTestMain(TEST_pal_sanity_GROUP_RUNNER, init_flags);
+}
 
 

@@ -86,6 +86,7 @@ M2MObject* M2MEndpoint::create_object(const String &name)
         char *path = create_path(*this, name.c_str());
         obj = new M2MObject(name, path, false);
         if (obj != NULL) {
+            obj->set_endpoint(this);
             _object_list.push_back(obj);
         }
     }

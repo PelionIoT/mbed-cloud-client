@@ -19,7 +19,6 @@
 
 #include "ftcd_comm_base.h"
 #include <inttypes.h>
-#include "mbed.h"
 
 class FtcdCommSerial : public FtcdCommBase {
 

@@ -19,6 +19,7 @@
 #include "pal.h"
 #include "pal_plat_internalFlash.h"
 
+#if ((!defined(PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM)) || (PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM == 0)) 
 
 ////////////////////////////PRIVATE///////////////////////////////////
 PAL_PRIVATE FlashIAP flash;
@@ -111,3 +112,4 @@ PAL_PRIVATE palStatus_t pal_platFlashErrorTranslation(int32_t status)
 	return PAL_ERR_INTERNAL_FLASH_GENERIC_FAILURE;//ALL mbedOS error are -1
 }
 
+#endif

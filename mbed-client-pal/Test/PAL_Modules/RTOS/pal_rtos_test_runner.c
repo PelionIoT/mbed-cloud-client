@@ -20,21 +20,30 @@
 
 TEST_GROUP_RUNNER(pal_rtos)
 {
-	RUN_TEST_CASE(pal_rtos, SemaphoreWaitForever);
-	RUN_TEST_CASE(pal_rtos, pal_osKernelSysTick_Unity);
-	RUN_TEST_CASE(pal_rtos, pal_osKernelSysTick64_Unity);
-	RUN_TEST_CASE(pal_rtos, pal_osKernelSysTickMicroSec_Unity);
-	RUN_TEST_CASE(pal_rtos, pal_osKernelSysMilliSecTick_Unity);
-	RUN_TEST_CASE(pal_rtos, pal_osKernelSysTickFrequency_Unity);
-	RUN_TEST_CASE(pal_rtos, pal_osDelay_Unity);
-	RUN_TEST_CASE(pal_rtos, BasicTimeScenario);
-	RUN_TEST_CASE(pal_rtos, TimerUnityTest);
-	RUN_TEST_CASE(pal_rtos, AtomicIncrementUnityTest);
-	RUN_TEST_CASE(pal_rtos, PrimitivesUnityTest1);
-	RUN_TEST_CASE(pal_rtos, PrimitivesUnityTest2);
-	RUN_TEST_CASE(pal_rtos, SemaphoreBasicTest);
-	RUN_TEST_CASE(pal_rtos, pal_init_test);
-	RUN_TEST_CASE(pal_rtos, Recursive_Mutex_Test);
-	RUN_TEST_CASE(pal_rtos, pal_rtc);
+    RUN_TEST_CASE(pal_rtos, BasicSnprintfTestInt);
+    RUN_TEST_CASE(pal_rtos, BasicSnprintfTestSize);
+    RUN_TEST_CASE(pal_rtos, SemaphoreWaitForever);
+    RUN_TEST_CASE(pal_rtos, pal_osKernelSysTick_Unity);
+    RUN_TEST_CASE(pal_rtos, pal_osKernelSysTick64_Unity);
+    RUN_TEST_CASE(pal_rtos, pal_osKernelSysTickMicroSec_Unity);
+    RUN_TEST_CASE(pal_rtos, pal_osKernelSysMilliSecTick_Unity);
+    RUN_TEST_CASE(pal_rtos, pal_osKernelSysTickFrequency_Unity);
+    RUN_TEST_CASE(pal_rtos, pal_osDelay_Unity);
+    RUN_TEST_CASE(pal_rtos, BasicTimeScenario);
+    RUN_TEST_CASE(pal_rtos, BasicDelayTime);
+    RUN_TEST_CASE(pal_rtos, OneShotTimerAccuracyUnityTest);
+    RUN_TEST_CASE(pal_rtos, PeriodicTimerAccuracyUnityTest);
+    RUN_TEST_CASE(pal_rtos, OneShotTimerStopUnityTest);
+    RUN_TEST_CASE(pal_rtos, PeriodicTimerStopUnityTest);
+    RUN_TEST_CASE(pal_rtos, TimerStartUnityTest);
+    RUN_TEST_CASE(pal_rtos, HighResTimerUnityTest);
+    RUN_TEST_CASE(pal_rtos, TimerSleepUnityTest);
+    RUN_TEST_CASE(pal_rtos, TimerNegativeUnityTest);
+    RUN_TEST_CASE(pal_rtos, AtomicIncrementUnityTest);
+    RUN_TEST_CASE(pal_rtos, PrimitivesUnityTest1);
+    RUN_TEST_CASE(pal_rtos, PrimitivesUnityTest2);
+    RUN_TEST_CASE(pal_rtos, SemaphoreBasicTest);
+    RUN_TEST_CASE(pal_rtos, pal_init_test);
+    RUN_TEST_CASE(pal_rtos, Recursive_Mutex_Test);
+    RUN_TEST_CASE(pal_rtos, pal_rtc);
 }
-

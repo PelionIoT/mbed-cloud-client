@@ -119,7 +119,7 @@ arm_uc_resume_t const resume_default_init = {
 // ---------------------
 
 static void check_resume_activity(void const *a_data_p);
-static void do_check_resume_activity(uint32_t unused);
+static void do_check_resume_activity(uintptr_t unused);
 arm_uc_error_t arm_uc_resume_end_monitoring(arm_uc_resume_t *a_resume_p);
 
 // TIMER MANAGEMENT.
@@ -403,7 +403,7 @@ static void check_resume_activity(void const *a_data_p)
         if (resume_p->currently_resuming) {
             // If it doesn't install, run an error-specific callback.
             // Can't do something specific-to-resume, because user needs are different.
-            ARM_UC_PostCallback(NULL, do_check_resume_activity, (uint32_t)((uintptr_t) a_data_p));
+            ARM_UC_PostCallback(NULL, do_check_resume_activity, (uintptr_t)resume_p);
         }
     }
 }
@@ -412,13 +412,13 @@ static void check_resume_activity(void const *a_data_p)
  * @brief Evaluate resume probe - kill, install a new idle probe, or initiate a new operation.
  * @param a_param Parameter to be passed to callback, is pointer to resume struct.
  */
-static void do_check_resume_activity(uint32_t a_param)
+static void do_check_resume_activity(uintptr_t a_param)
 {
     UC_RESUME_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, a_param);
 
-    arm_uc_resume_t *a_resume_p = (arm_uc_resume_t *)((uintptr_t) a_param);
+    arm_uc_resume_t *a_resume_p = (arm_uc_resume_t *)a_param;
     if (a_resume_p == NULL) {
-        UC_RESUME_ERR_MSG("%S resume-struct pointer is null!", __func__);
+        UC_RESUME_ERR_MSG("%s resume-struct pointer is null!", __func__);
     } else {
         // Update summed periods, total and per attempt.
         a_resume_p->sum_total_period += a_resume_p->actual_delay;
@@ -708,9 +708,11 @@ arm_uc_error_t arm_uc_resume_resynch_monitoring(arm_uc_resume_t *a_resume_p)
                               PRIx32 " id %" PRIx32 " delay %" PRIu32,
                               (uint32_t)pal_status, (uint32_t)a_resume_p->timer_id, a_resume_p->actual_delay);
         }
+        else {
+            UC_RESUME_TRACE_VERBOSE("resume-resynch successful: Next check in %" PRIu32 ".%3" PRIu32 " secs",
+                                        a_resume_p->actual_delay / 1000, a_resume_p->actual_delay % 1000);
+        }
     }
-    UC_RESUME_TRACE_VERBOSE("next check in %" PRIu32 ".%3" PRIu32 " secs",
-                            a_resume_p->actual_delay / 1000, a_resume_p->actual_delay % 1000);
     UC_RESUME_TRACE_EXIT(".. %s %" PRIx32, __func__, (uint32_t)result.code);
     return result;
 }

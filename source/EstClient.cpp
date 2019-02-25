@@ -18,11 +18,14 @@
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
-#include <stdio.h>
+
 #include "include/ConnectorClient.h"
 #include "include/EstClient.h"
 #include "mbed-trace/mbed_trace.h"
 #include "mbed-client-libservice/common_functions.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 #define TRACE_GROUP "est"
 

@@ -36,7 +36,6 @@
 #include "update-client-resume-engine/arm_uc_resume.h"
 #include "arm_uc_http_socket_private.h"
 #include <pal.h>
-
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -58,6 +57,8 @@
 // ---------------------
 
 #define ISR_EVENT_MASK (0x80)
+
+
 
 static void arm_uc_http_socket_isr(
     void *an_event_origin);
@@ -247,7 +248,7 @@ palDNSQuery_t arm_uc_dns_query_handle = 0;
 
 static palStatus_t arm_uc_do_pal_dns_lookup(void)
 {
-    UC_SRCE_TRACE_ENTRY(">> %s [asynchronous v2])", __func__);
+    UC_SRCE_TRACE(">> %s [asynchronous v2])", __func__);
     // (hack) length is constant.
     context->cache_address_length = PAL_NET_MAX_ADDR_SIZE;
     palStatus_t result = pal_getAddressInfoAsync(
@@ -256,7 +257,7 @@ static palStatus_t arm_uc_do_pal_dns_lookup(void)
                              arm_uc_dns_callback_handler,
                              NULL,
                              &arm_uc_dns_query_handle);
-    UC_SRCE_TRACE_EXIT(".. %s handle=%" PRIu32 ", result=%" PRIx32,
+    UC_SRCE_TRACE(".. %s handle=%" PRIu32 ", result=%" PRIx32,
                        __func__, arm_uc_dns_query_handle, result);
     return result;
 }
@@ -282,7 +283,7 @@ static palStatus_t arm_uc_do_pal_dns_lookup(void)
 {
     /* Run the synchronous DNS request and call the callback
      immediately after the request is done */
-    UC_SRCE_TRACE_ENTRY(">> %s [synchronous])", __func__);
+    UC_SRCE_TRACE(">> %s [synchronous])", __func__);
     palStatus_t status = pal_getAddressInfo(
                              context->request_uri->host,
                              &context->cache_address,
@@ -296,7 +297,7 @@ static palStatus_t arm_uc_do_pal_dns_lookup(void)
         &context->cache_address_length,
         status,
         NULL);
-    UC_SRCE_TRACE_EXIT(".. %s result=%" PRIx32, __func__, status);
+    UC_SRCE_TRACE(".. %s result=%" PRIx32, __func__, status);
     return status;
 }
 #endif // PAL_DNS_API_VERSION
@@ -309,19 +310,20 @@ static arm_uc_error_t arm_uc_http_get_address_info(void)
         ARM_UCS_Http_SetError(SRCE_ERR_UNINITIALIZED);
         return ARM_UC_ERROR(SRCE_ERR_UNINITIALIZED);
     } else {
-#if ARM_UC_SOURCE_MANAGER_TRACE_ENABLE
-        UC_SRCE_TRACE("DNS lookup with type  %" PRIu16, context->cache_address.addressType);
+        UC_SRCE_TRACE("Starting PAL DNS lookup");
+        expecting_dns_callback = true;
+        palStatus_t status = arm_uc_do_pal_dns_lookup();
+#if (PAL_DNS_API_VERSION == 0)
+        UC_SRCE_TRACE(">> %s, PAL DNS lookup returned", __func__);
         uint64_t data = 0;
         int index = 0;
         for (data = 0, index = 0; index < 8; ++index) {
             data = (data << 8) + context->cache_address.addressData[index];
         }
+        UC_SRCE_TRACE("           with type  %" PRIu16, context->cache_address.addressType);
         UC_SRCE_TRACE("           with addr  %" PRIx64, data);
         UC_SRCE_TRACE("           with space %" PRIu32, context->cache_address_length);
 #endif
-        expecting_dns_callback = true;
-        palStatus_t status = arm_uc_do_pal_dns_lookup();
-        UC_SRCE_TRACE(">> %s, PAL DNS lookup returned", __func__);
         if (status != PAL_SUCCESS) {
             UC_SRCE_ERR_MSG("arm_uc_do_pal_dns_lookup failed %" PRIx32, (uint32_t)status);
         }
@@ -388,7 +390,7 @@ static void arm_uc_http_clear_dns_cache_fields(void)
  */
 arm_uc_error_t arm_uc_http_socket_initialize(
     arm_uc_http_socket_context_t *a_context_p,
-    void (*a_handler_p)(uint32_t))
+    void (*a_handler_p)(uintptr_t))
 {
     UC_SRCE_TRACE_ENTRY(">> %s (%" PRIx32 ", %" PRIx32 ") ..", __func__,
                         (uint32_t)a_context_p, (uint32_t)a_handler_p);
@@ -486,7 +488,7 @@ static arm_ucs_http_event_t last_http_error_event = ERR_NONE;
 static arm_uc_error_t arm_uc_http_socket_error(
     arm_ucs_http_event_t an_error)
 {
-    UC_SRCE_TRACE_ENTRY(">> %s (%" PRIx32 ") ..", __func__, (uint32_t)an_error);
+    UC_SRCE_TRACE(">> %s (%" PRIx32 ") ..", __func__, (uint32_t)an_error);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
     last_http_error_event = an_error;
 
@@ -515,7 +517,7 @@ static arm_uc_error_t arm_uc_http_socket_error(
 arm_uc_error_t arm_uc_http_socket_fatal_error(
     arm_ucs_http_event_t an_error)
 {
-    UC_SRCE_TRACE_ENTRY(">> %s (%" PRIx32 ") ..", __func__, (uint32_t)an_error);
+    UC_SRCE_ERR_MSG(">> %s (%" PRIx32 ") ..", __func__, (uint32_t)an_error);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
 
     if (context == NULL) {
@@ -525,7 +527,6 @@ arm_uc_error_t arm_uc_http_socket_fatal_error(
         arm_uc_http_socket_error(an_error);
         /* If callback handler is set, generate error event */
         if (context->callback_handler != NULL) {
-            UC_SRCE_TRACE_VERBOSE("posting to callback with event %d", an_error);
             ARM_UC_PostCallback(NULL, context->callback_handler, an_error);
         }
     }
@@ -555,7 +556,7 @@ arm_uc_error_t arm_uc_http_socket_get(
     uint32_t offset,
     arm_uc_http_rqst_t type)
 {
-    UC_SRCE_TRACE_ENTRY(">> %s (%" PRIx32 ", %" PRIx32 ", %" PRIx32 ", %" PRIx32 ") ..",
+    UC_SRCE_TRACE(">> %s (%" PRIx32 ", %" PRIx32 ", %" PRIx32 ", %" PRIx32 ") ..",
                         __func__, (uint32_t)uri, (uint32_t)buffer, offset, (uint32_t)type);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
 
@@ -581,22 +582,19 @@ arm_uc_error_t arm_uc_http_socket_get(
     // Tracing for development debugging.
     if (ARM_UC_IS_ERROR(status)) {
         UC_SRCE_TRACE("warning: on socket get = %" PRIx32, (uint32_t)status.code);
-        UC_SRCE_TRACE_VERBOSE("    context 0x%" PRIx32, (uint32_t)context);
-        UC_SRCE_TRACE_VERBOSE("    uri 0x%" PRIx32, (uint32_t)uri);
+        UC_SRCE_TRACE_VERBOSE("context 0x%" PRIx32" uri 0x%" PRIx32, (uint32_t)context, (uint32_t)uri);
         if (uri != NULL) {
-            UC_SRCE_TRACE_VERBOSE("        scheme %" PRIu32, (uint32_t)uri->scheme);
-            UC_SRCE_TRACE_VERBOSE("        host 0x%" PRIx32, (uint32_t)uri->host);
+            UC_SRCE_TRACE_VERBOSE("scheme %" PRIu32" host 0x%" PRIx32, (uint32_t)uri->scheme, (uint32_t)uri->host);
             if (uri->host != NULL) {
-                UC_SRCE_TRACE_VERBOSE("        host %s", uri->host);
+                UC_SRCE_TRACE_VERBOSE("host %s",uri->host);
             }
-            UC_SRCE_TRACE_VERBOSE("        path %" PRIu32, (uint32_t)uri->path);
+            UC_SRCE_TRACE_VERBOSE("path 0x%" PRIu32, (uint32_t)uri->path);
             if (uri->path != NULL) {
-                UC_SRCE_TRACE_VERBOSE("        path %s", uri->path);
+                UC_SRCE_TRACE_VERBOSE("path %s", uri->path);
             }
         }
         if (buffer != NULL) {
-            UC_SRCE_TRACE_VERBOSE("    buffer 0x%" PRIx32, (uint32_t)buffer);
-            UC_SRCE_TRACE_VERBOSE("    buffer.ptr 0x%" PRIx32, (uint32_t)buffer->ptr);
+            UC_SRCE_TRACE_VERBOSE("buffer 0x%" PRIx32" buffer.ptr 0x%" PRIx32, (uint32_t)buffer, (uint32_t)buffer->ptr);
         }
     }
     if (ARM_UC_IS_ERROR(status)) {
@@ -683,7 +681,7 @@ arm_uc_error_t arm_uc_http_socket_connect_new(void)
         pal_inner = pal_connect(context->socket,
                                 &context->cache_address,
                                 context->cache_address_length);
-        UC_SRCE_TRACE_VERBOSE("pal_connect returned: 0x%" PRIX32, (uint32_t)pal_inner);
+        UC_SRCE_TRACE("pal_connect returned: 0x%" PRIX32, (uint32_t)pal_inner);
         switch (pal_inner) {
             case PAL_SUCCESS: /* Synchronous finish */
                 /* Move forward to idle state, and fake a connect-done event */
@@ -705,19 +703,20 @@ arm_uc_error_t arm_uc_http_socket_connect_new(void)
                     memcpy(&address, &context->cache_address.addressData[0], 4);
                     UC_SRCE_TRACE_VERBOSE("IPv4 (cal %" PRIu32 ") ca %" PRIx32,
                                           context->cache_address_length, address);
+
                 } else if (context->cache_address.addressType == PAL_AF_INET6) {
                     uint64_t part0, part1;
                     memcpy(&part0, &context->cache_address.addressData[0], 8);
                     memcpy(&part1, &context->cache_address.addressData[8], 8);
                     UC_SRCE_TRACE_VERBOSE("IPv6 (cal %" PRIu32 ") ca %" PRIx64 ":%" PRIx64,
                                           context->cache_address_length, part0, part1);
+
                 }
 #endif
                 ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
                 break;
         }
     }
-
     UC_SRCE_TRACE_VERBOSE("%s = %s", __func__, ARM_UC_err2Str(status));
     if (ARM_UC_IS_ERROR(status)) {
         UC_SRCE_TRACE("warning: on socket connect new = %" PRIx32, (uint32_t)status.code);
@@ -749,7 +748,7 @@ arm_uc_error_t arm_uc_http_socket_connect(void)
         context->open_request_uri = context->request_uri;
         context->open_request_type = context->request_type;
         context->open_request_offset = context->request_offset;
-
+        UC_SRCE_TRACE("%s context->socket_state = %" PRIx16, __func__, (uint16_t)context->socket_state);
         switch (context->socket_state) {
             case STATE_DISCONNECTED:
                 // Make a new socket connection.
@@ -821,7 +820,6 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
 {
     UC_SRCE_TRACE_ENTRY(">> %s ..", __func__);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
-
     if (context == NULL) {
         UC_SRCE_ERR_MSG("error: &context = NULL");
         ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
@@ -829,6 +827,7 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
         UC_SRCE_ERR_MSG("error: context->request_buffer = NULL");
         ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
     }
+
     /* Get local references */
     arm_uc_buffer_t *request_buffer = NULL;
     arm_uc_uri_t *request_uri = NULL;
@@ -876,11 +875,29 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
         /* If fragment then construct the Range field that makes this a partial content request */
         if (request_type == RQST_TYPE_GET_FRAG) {
             context->open_burst_requested = request_buffer->size_max * frags_per_burst;
-            request_buffer->size += snprintf((char *) request_buffer->ptr + request_buffer->size,
-                                             request_buffer->size_max - request_buffer->size,
-                                             "Range: bytes=%" PRIu32 "-%" PRIu32 "\r\n",
-                                             context->request_offset,
-                                             context->request_offset + context->open_burst_requested - 1);
+            if(context->open_burst_requested) {
+                uint32_t http_segment_end = 0;
+                uint32_t burst_default = (context->open_burst_requested - 1);
+                if ((context->request_offset > UINT32_MAX - burst_default)) {
+                    /* preventing overflow */;
+                    http_segment_end = UINT32_MAX;
+                } else {
+                    http_segment_end=context->request_offset + burst_default;
+                }
+
+                request_buffer->size += snprintf((char *) request_buffer->ptr + request_buffer->size,
+                                                 request_buffer->size_max - request_buffer->size,
+                                                 "Range: bytes=%" PRIu32 "-%" PRIu32 "\r\n",
+                                                 context->request_offset,
+                                                 http_segment_end);
+            } else {
+                // just request remaining file from start offset
+                request_buffer->size += snprintf((char *) request_buffer->ptr + request_buffer->size,
+                                     request_buffer->size_max - request_buffer->size,
+                                     "Range: bytes=%" PRIu32 "-\r\n",
+                                     context->request_offset
+                                     );
+            }
         }
         /* Terminate request with a carriage return and newline */
         request_buffer->size += snprintf((char *) request_buffer->ptr + request_buffer->size,
@@ -889,7 +906,9 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
 
         /* Terminate string */
         request_buffer->ptr[request_buffer->size] = '\0';
-        UC_SRCE_TRACE_VERBOSE("\r\n%s", request_buffer->ptr);
+        UC_SRCE_TRACE("%s \r\n %s  \r\n  request_buffer->size %"PRIx32"\r\n request_buffer->size_max %"PRIx32,
+                      __func__, request_buffer->ptr, request_buffer->size,request_buffer->size_max);
+
     }
 
     if (ARM_UC_IS_NOT_ERROR(status)) {
@@ -902,14 +921,14 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
                                           &bytes_sent);
         switch (pal_result) {
             case PAL_SUCCESS: /* Synchronous finish */
-                UC_SRCE_TRACE_VERBOSE("send success");
+                UC_SRCE_TRACE("%s send success", __func__);
                 /* Reset buffer and prepare to receive header */
                 request_buffer->size = 0;
                 context->socket_state = STATE_PROCESS_HEADER;
                 context->expected_socket_event = SOCKET_EVENT_SEND_DONE;
                 break;
             case PAL_ERR_SOCKET_WOULD_BLOCK: /* Asynchronous finish */
-                UC_SRCE_TRACE_VERBOSE("send would block, will retry");
+                UC_SRCE_TRACE("%s send would block, will retry",__func__);
                 /* Keep current state and force callback to retry sending */
                 // Note that it is set here, not in the event handler, else it risks being lost.
                 arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_SEND_BLOCKED);
@@ -920,6 +939,7 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
                 break;
         }
     }
+
     if (ARM_UC_IS_ERROR(status)) {
         UC_SRCE_TRACE("warning: on socket send request = %" PRIx32, (uint32_t)status.code);
         ARM_UCS_Http_SetError(status);
@@ -942,7 +962,6 @@ arm_uc_error_t arm_uc_http_socket_receive(void)
     UC_SRCE_TRACE_ENTRY(">> %s [expected-event %" PRIu32 "] ..", __func__, (uint32_t)context->expected_socket_event);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
     palStatus_t pal_result = PAL_SUCCESS;
-
     if (context == NULL) {
         UC_SRCE_ERR_MSG("error: &context = NULL");
         ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
@@ -976,6 +995,8 @@ arm_uc_error_t arm_uc_http_socket_receive(void)
                               &(request_buffer->ptr[request_buffer->size]),
                               available_space,
                               &received_bytes);
+        UC_SRCE_TRACE("%s  \r\n request_buffer->size %"PRIx32"\r\n request_buffer->size_max %"PRIx32,
+                      __func__, request_buffer->size,request_buffer->size_max);
         switch (pal_result) {
             case PAL_SUCCESS:
                 if (received_bytes <= 0) {
@@ -986,7 +1007,7 @@ arm_uc_error_t arm_uc_http_socket_receive(void)
                     /* Note: the proper formatter %zu is not supported on mbed's libc,
                      * hence the casts to difference type.
                      */
-                    UC_SRCE_TRACE_VERBOSE("recv success: %lu bytes received", (unsigned long)received_bytes);
+                    UC_SRCE_TRACE("recv success: %lu bytes received", (unsigned long)received_bytes);
 
                     if (received_bytes > available_space) {
                         ARM_UC_SET_ERROR(status, SRCE_ERR_ABORT);
@@ -1003,11 +1024,11 @@ arm_uc_error_t arm_uc_http_socket_receive(void)
                     context->open_request_offset += received_bytes;
                     context->open_burst_received += received_bytes;
 
-                    UC_SRCE_TRACE_VERBOSE("open_request_offset %" PRIu32, context->open_request_offset);
+                    UC_SRCE_TRACE("open_request_offset %" PRIu32, context->open_request_offset);
                 }
                 break;
             case PAL_ERR_SOCKET_WOULD_BLOCK:
-                UC_SRCE_TRACE_VERBOSE("recv: pending: %" PRIu32, (request_buffer->size_max - request_buffer->size));
+                UC_SRCE_TRACE("recv: pending: %" PRIu32, (request_buffer->size_max - request_buffer->size));
                 // This error code is not actually an error, so don't report it if error-tracing is enabled.
                 ARM_UC_SET_ERROR_NEVER_TRACE(status, SRCE_ERR_BUSY);
                 break;
@@ -1018,6 +1039,7 @@ arm_uc_error_t arm_uc_http_socket_receive(void)
                 break;
         }
     }
+
     /* There's an error, but it isn't just that we are going asynch */
     if (ARM_UC_IS_ERROR(status)
             && (ARM_UC_GET_ERROR(status) != SRCE_ERR_BUSY)) {
@@ -1040,7 +1062,6 @@ arm_uc_error_t arm_uc_http_socket_has_received_header(
 {
     UC_SRCE_TRACE_ENTRY(">> %s ..", __func__);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
-
     if (context == NULL) {
         UC_SRCE_ERR_MSG("error: &context = NULL");
         ARM_UC_SET_ERROR(status, SRCE_ERR_UNINITIALIZED);
@@ -1067,6 +1088,7 @@ arm_uc_error_t arm_uc_http_socket_has_received_header(
             ARM_UC_SET_ERROR(status, SRCE_ERR_ABORT);
         }
     }
+
     if (ARM_UC_IS_ERROR(status)) {
         UC_SRCE_TRACE("warning: on socket received header = %" PRIx32, (uint32_t)status.code);
         ARM_UCS_Http_SetError(status);
@@ -1114,6 +1136,7 @@ arm_uc_error_t arm_uc_http_socket_process_header_redirect_codes(
         }
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
+
         /* NULL terminate string */
         request_buffer->ptr[request_buffer->size] = '\0';
 
@@ -1208,7 +1231,7 @@ arm_uc_error_t arm_uc_http_socket_process_header_return_codes(
      where the retry-mechanism will reestablish firmware download if
      the server closed the connection.
      */
-    UC_SRCE_TRACE_ENTRY(">> %s ..", __func__);
+    UC_SRCE_TRACE_ENTRY(">> %s .. status: %u", __func__, an_http_status_code);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
 
     if (context == NULL) {
@@ -1220,7 +1243,8 @@ arm_uc_error_t arm_uc_http_socket_process_header_return_codes(
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
         arm_uc_buffer_t *request_buffer = context->request_buffer;
-
+        UC_SRCE_TRACE("%s an_http_status_code %" PRIx32" context->request_type %" PRIx32,
+                      __func__,an_http_status_code,(uint32_t)context->request_type);
         switch (context->request_type) {
             case RQST_TYPE_HASH_ETAG: {
                 /* Look for ETag and move to front of buffer */
@@ -1320,6 +1344,7 @@ arm_uc_error_t arm_uc_http_socket_process_header_return_codes(
                 break;
         }
     }
+
     if (ARM_UC_IS_ERROR(status)) {
         UC_SRCE_TRACE("warning: on socket process header return codes = %" PRIx32, (uint32_t)status.code);
         ARM_UCS_Http_SetError(status);
@@ -1381,6 +1406,7 @@ arm_uc_error_t arm_uc_http_socket_process_header(void)
                                &(request_buffer->ptr[header_start]),
                                request_buffer->size - header_start,
                                &header_parsed);
+        UC_SRCE_TRACE("%s http_status_code %"PRIx32, __func__, (uint32_t)http_status_code);
         if (!header_parsed) {
             UC_SRCE_ERR_MSG("warning: unable to read status code");
             ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
@@ -1681,7 +1707,7 @@ static uint32_t empty_receive = 0;
 static bool received_enough = false;
 
 static char *skip_text_p = "";
-#define UC_SRCE_TRACE_SM(s) UC_SRCE_TRACE_VERBOSE(s " %s", skip_text_p)
+#define UC_SRCE_TRACE_SM(s) UC_SRCE_TRACE(s " %s", skip_text_p)
 
 /**
  * @brief PAL socket event handler.
@@ -1691,7 +1717,7 @@ static char *skip_text_p = "";
 // NOTE all external flow of control now takes place in the handler, not scattered around.
 // Status codes are updated with each attempted operation, assume good to start.
 void arm_uc_http_socket_callback(
-    uint32_t an_event)
+    uintptr_t an_event)
 {
     UC_SRCE_TRACE_ENTRY(">> %s (%" PRIx32 ")", __func__, an_event);
     ARM_UC_INIT_ERROR(status, ERR_NONE);
@@ -1705,7 +1731,7 @@ void arm_uc_http_socket_callback(
             switch (an_event) {
                 // An event of an undefined type, this is a non-signalling error.
                 case SOCKET_EVENT_UNDEFINED:
-                    UC_SRCE_TRACE_SM("event: undefined, not expected");
+                UC_SRCE_TRACE_SM("event: undefined, not expected");
                     break;
 
                 // Everything is assumed to have been reset prior to reaching here.
@@ -1753,7 +1779,6 @@ void arm_uc_http_socket_callback(
 
                 case SOCKET_EVENT_LOOKUP_WAITING:
                     UC_SRCE_TRACE_SM("event: begin lookup waiting");
-                    // Just a marker event to make code and trace more readable.
                     break;
 
                 case SOCKET_EVENT_LOOKUP_FAILED:
@@ -1888,7 +1913,7 @@ void arm_uc_http_socket_callback(
                     break;
 
                 case SOCKET_EVENT_HEADER_DONE:
-                    UC_SRCE_TRACE_SM("event: header done");
+                    UC_SRCE_TRACE_SM("event: header done. Reset resume engine");
                     arm_uc_resume_resynch_monitoring(&resume_http);
                     empty_receive = 0;
                     status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_FRAG_START);
@@ -1919,13 +1944,14 @@ void arm_uc_http_socket_callback(
                             if (++empty_receive < MAX_EMPTY_RECEIVES) {
                                 status = arm_uc_http_install_app_event(SOCKET_EVENT_FRAG_MORE);
                             } else {
-                                UC_SRCE_TRACE_SM("event: max empty fragment receives");
+                                UC_SRCE_TRACE_VERBOSE("event: max empty fragment receives");
                                 // just wait for notification, the rest hasn't arrived yet.
                                 context->expected_socket_event = SOCKET_EVENT_FRAG_MORE;
                                 ARM_UC_SET_ERROR(status, ERR_NONE);
                             }
                             break;
                         case ERR_NONE:
+                            UC_SRCE_TRACE_VERBOSE("http socket receive event: no error. Reset resume engine");
                             arm_uc_resume_resynch_monitoring(&resume_http);
                             ++context->number_of_pieces;
                             empty_receive = 0;
@@ -1964,7 +1990,8 @@ void arm_uc_http_socket_callback(
                     ARM_UC_PostCallback(NULL, context->callback_handler, UCS_HTTP_EVENT_DOWNLOAD);
 
                     // Socket has been mangled by bad link, give it a chance to clear itself up.
-                    if (context->number_of_pieces >= frags_per_burst) {
+                    if (frags_per_burst && context->number_of_pieces >= frags_per_burst) {
+
                         arm_uc_http_socket_close();
                     }
                     break;
@@ -2036,7 +2063,6 @@ void arm_uc_http_socket_callback(
                 case SOCKET_EVENT_RESUME_TERMINATED:
                     // Note that this case will leave the switch with an error,
                     //   which will invoke clean-up as appropriate.
-                    UC_SRCE_TRACE_SM("event: http-socket resume ended");
 
 #if (PAL_DNS_API_VERSION >= 2)
                     // Cancel ongoing asynchronous DNS query (only if non-zero handle).
@@ -2176,10 +2202,22 @@ void arm_uc_dns_callback_handler(
         /* accept the DNS callback event only if we were expecting it. */
         if (expecting_dns_callback) {
             expecting_dns_callback = false;
+            UC_SRCE_TRACE(">> %s, PAL DNS lookup returned", __func__);
             if (pal_status == PAL_SUCCESS) {
+                uint64_t data = 0;
+                int index = 0;
+                for (data = 0, index = 0; index < 8; ++index) {
+                    data = (data << 8) + address->addressData[index];
+                }
+                UC_SRCE_TRACE("           with type  %" PRIu16, address->addressType);
+                UC_SRCE_TRACE("           with addr  %" PRIx64, data);
+#if (PAL_DNS_API_VERSION < 2)
+                UC_SRCE_TRACE("           with space %" PRIu32, *address_length);
+#endif
                 event = ((arm_uc_http_socket_event_t) SOCKET_EVENT_LOOKUP_DONE);
             } else {
                 /* Clear the address-related fields to signal an error */
+                UC_SRCE_ERR_MSG("PAL DNS lookup failed %" PRIx32, (uint32_t)pal_status);
                 event = ((arm_uc_http_socket_event_t) SOCKET_EVENT_LOOKUP_FAILED);
             }
             ARM_UC_INIT_ERROR(status, ERR_NONE);

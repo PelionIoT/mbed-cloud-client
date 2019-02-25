@@ -76,6 +76,14 @@ using namespace m2m;
  */
 #undef MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS  /* 5 */
 
+/**
+ * \def MBED_CLIENT_MEMORY_OPTIMIZED_API
+ *
+ * \brief If enabled, this will reduce RAM and ROM consumption.
+ * NOTE! This will disable usage of some API's and also change some API signatures.
+ * By default this is disabled.
+ */
+#undef MBED_CLIENT_MEMORY_OPTIMIZED_API
 
 #ifdef YOTTA_CFG_RECONNECTION_COUNT
 #define MBED_CLIENT_RECONNECTION_COUNT YOTTA_CFG_RECONNECTION_COUNT
@@ -143,6 +151,11 @@ using namespace m2m;
 #define MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS MBED_CONF_MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS
 #endif
 
+#ifdef MBED_CLIENT_MEMORY_OPTIMIZED_API
+#define MEMORY_OPTIMIZED_API MBED_CLIENT_MEMORY_OPTIMIZED_API
+#elif defined MBED_CONF_MBED_CLIENT_MEMORY_OPTIMIZED_API
+#define MEMORY_OPTIMIZED_API MBED_CONF_MBED_CLIENT_MEMORY_OPTIMIZED_API
+#endif
 
 #if defined (__ICCARM__)
 #define m2m_deprecated

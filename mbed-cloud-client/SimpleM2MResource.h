@@ -19,8 +19,14 @@
 #ifndef SIMPLE_M2M_RESOURCE_H
 #define SIMPLE_M2M_RESOURCE_H
 
-
 #include "mbed-cloud-client/MbedCloudClient.h"
+
+// As this whole class is build by using C++'s standard template library (STL),
+// we have it behind a flag. The cost of STL is 15KB of flash, depending on compiler,
+// so on resource constrained devices it is essential to be able to remove any reference to it.
+#if MBED_CLOUD_CLIENT_STL_API
+
+#include <string>
 
 /*! \file SimpleM2MResource.h
  *  \brief SimpleM2MResourceBase.
@@ -144,6 +150,7 @@ public:
 
     /**
      *  \brief Constructor.
+     *  \note This class is deprecated and may be removed in future releases.
      *  \param client A handler for MbedCloudClient.
      *  \param route The route for the resource such as "Test/0/res".
      *  \param v The value of the resource.
@@ -158,10 +165,11 @@ public:
                    string v,
                    M2MBase::Operation opr = M2MBase::GET_PUT_ALLOWED,
                    bool observable = true,
-                   FP1<void, string> on_update = NULL);
+                   FP1<void, string> on_update = NULL) m2m_deprecated;
 
     /**
      *  \brief Constructor. This is overloaded function.
+     *  \note This class is deprecated and may be removed in future releases.
      *  \param client A handler for MbedCloudClient.
      *  \param route The route for the resource such as "Test/0/res".
      *  \param v The value of the resource.
@@ -176,7 +184,7 @@ public:
                    string v,
                    M2MBase::Operation opr,
                    bool observable,
-                   void(*on_update)(string));
+                   void(*on_update)(string)) m2m_deprecated;
 
 
     /**
@@ -217,6 +225,7 @@ public:
 
     /**
      *  \brief Constructor.
+     *  \note This class is deprecated and may be removed in future releases.
      *  \param client A handler for MbedCloudClient.
      *  \param route The route for the resource such as "Test/0/res".
      *  \param v The value of the resource.
@@ -231,10 +240,11 @@ public:
                 int v,
                 M2MBase::Operation opr = M2MBase::GET_PUT_ALLOWED,
                 bool observable = true,
-                FP1<void, int> on_update = NULL);
+                FP1<void, int> on_update = NULL) m2m_deprecated;
 
     /**
      *  \brief Constructor. This is an overloaded function
+     *  \note This class is deprecated and may be removed in future releases.
      *  \param client A handler for MbedCloudClient.
      *  \param route The route for the resource such as "Test/0/res"
      *  \param v The value of the resource.
@@ -249,7 +259,7 @@ public:
                 int v,
                 M2MBase::Operation opr,
                 bool observable,
-                void(*on_update)(int));
+                void(*on_update)(int)) m2m_deprecated;
 
     /**
      * \brief Destructor
@@ -275,5 +285,7 @@ public:
 private:
     FP1<void, int>                  _on_update;
 };
+
+#endif
 
 #endif // SIMPLE_M2M_RESOURCE_H

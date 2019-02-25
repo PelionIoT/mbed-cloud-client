@@ -23,7 +23,6 @@
 #include "update-client-paal/arm_uc_paal_update_api.h"
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation.h"
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation_internal.h"
-#include "update-client-common/arm_uc_common.h"
 #include <unistd.h>
 
 /**

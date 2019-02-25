@@ -27,28 +27,48 @@ typedef struct palTLSSocketTest{
     palTLSTransportMode_t transportationMode;
 }palTLSSocketTest_t;
 
-#define PAL_TLS_MESSAGE_SIZE 256
-#define TLS_GET_REQUEST "GET / HTTP/1.0\r\n\r\n"
-#ifndef PAL_TLS_TEST_SERVER_ADDRESS
-    #include "pal_tls_test_address.h"
-#endif
-#define TLS_SERVER_PORT 5544
-#define TLS_SERVER_PORT_NB 5544
-#define TLS_RENEGOTIATE_SERVER_PORT TLS_SERVER_PORT
-#define DTLS_SERVER_PORT 4422
+#define PAL_TLS_RESPONSE_WAIT_MS 5000
 #define DTLS_SERVER_PORT_TIMEOUT 9 //Discard protocol
-#define DTLS_TIMEOUT_TEST_SERVER_ADDRESS "8.8.8.8"
 
+// This is a workaround for Linux PAL test compilation as credentials
+// from mbed_cloud_dev_credentials.c are not included in the build.
+#define PAL_TLS_TEST_SERVER_ADDRESS "127.0.0.1"
+#ifndef PAL_TLS_TEST_SERVER_ADDRESS
+// Use bootstrap server as test server by default
+// Expect mbed_cloud_dev_credentials.c to be compiled
+extern const char MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI[];
+extern const uint8_t MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY[];
+extern const uint8_t MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE[];
+extern const uint8_t MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE[];
 
+#define PAL_TLS_TEST_SERVER_ADDRESS_UDP MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI
+#define PAL_TLS_TEST_SERVER_ADDRESS_TCP MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI
+#define PAL_TLS_TEST_DEVICE_PRIVATE_KEY MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY
+#define PAL_TLS_TEST_SERVER_CA MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE
+#define PAL_TLS_TEST_DEVICE_CERTIFICATE MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE
 
-const unsigned char g_psk[] = {
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+// Bootstrap server responds to 'coap ping'
+
+// confirmable empty message with id 0
+const unsigned char coap_ping_message[] = {
+    0x40, 0x00, 0x00, 0x00
 };
-const unsigned char g_psk_id[] = "Client_identity";
 
+// reset empty with message id 0
+const unsigned char coap_ping_response[] = {
+    0x70, 0x00, 0x00, 0x00
+};
+
+#define PAL_TLS_REQUEST_MESSAGE coap_ping_message
+#define PAL_TLS_UDP_REQUEST_MESSAGE coap_ping_message
+#define PAL_TLS_RESPONSE_MESSAGE coap_ping_response
+#define PAL_TLS_RESPONSE_SIZE sizeof(coap_ping_response)
+
+#else // #ifndef PAL_TLS_TEST_SERVER_ADDRESS
+
+// Expect that pal test servers are in use
 //ECC Key
-const unsigned char g_pubKey[] = 
+const unsigned char g_pubKey[] =
 {
   0x30, 0x82, 0x01, 0x99, 0x30, 0x82, 0x01, 0x3d, 0xa0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x01, 0x01,
   0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02, 0x05, 0x00, 0x30, 0x29,
@@ -78,7 +98,7 @@ const unsigned char g_pubKey[] =
   0x9c, 0xd9, 0x19, 0x06, 0xd3, 0xee, 0x41, 0x2b, 0x49, 0x76, 0x27, 0xfe, 0x4e
 };
 
-const uint8_t g_prvKey[] = 
+const uint8_t g_prvKey[] =
 {
   0x30, 0x78, 0x02, 0x01, 0x01, 0x04, 0x21, 0x00, 0xac, 0xfb, 0x43, 0x6f, 0xa1, 0x3c, 0x2d, 0x1a,
   0x91, 0xd7, 0x58, 0xf8, 0x1f, 0x0f, 0xc5, 0x00, 0x11, 0xe1, 0x56, 0xe6, 0xed, 0x89, 0x96, 0x8b,
@@ -91,7 +111,7 @@ const uint8_t g_prvKey[] =
 };
 
 
-const char pal_test_cas[] = 
+const char pal_test_cas[] =
 {
   0x30, 0x82, 0x01, 0x98, 0x30, 0x82, 0x01, 0x3c, 0xa0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x01, 0x01,
   0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02, 0x05, 0x00, 0x30, 0x29,
@@ -120,5 +140,35 @@ const char pal_test_cas[] =
   0x83, 0x87, 0xfe, 0x62, 0xa2, 0x67, 0x7c, 0xa8, 0x8e, 0xd5, 0xf3, 0xdc, 0x62, 0xf9, 0x35, 0x91,
   0x0b, 0x43, 0x80, 0xc9, 0x12, 0x30, 0x2e, 0x66, 0x64, 0xbf, 0xf2, 0xcb
 };
+
+#define PAL_TLS_TEST_DEVICE_PRIVATE_KEY g_prvKey
+#define PAL_TLS_TEST_SERVER_CA pal_test_cas
+#define PAL_TLS_TEST_DEVICE_CERTIFICATE g_pubKey
+
+// Local test server is http server in tcp cases
+const unsigned char http_get_message[] = "GET / HTTP/1.0\r\n\r\n";
+
+// Non-confirmable GET with payload '/helloWorld', used in udp cases
+const unsigned char coap_helloworld_request[] = {
+    0x50, 0x01, 0x57, 0x3e, 0xff, 0x2f, 0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x57, 0x6f, 0x72, 0x6c, 0x64
+};
+
+#define PAL_TLS_REQUEST_MESSAGE http_get_message
+#define PAL_TLS_UDP_REQUEST_MESSAGE coap_helloworld_request
+#undef PAL_TLS_RESPONSE_MESSAGE
+#define PAL_TLS_RESPONSE_SIZE 256
+
+#define PAL_TLS_TEST_SERVER_ADDRESS_UDP PAL_TLS_TEST_SERVER_ADDRESS":4422"
+#define PAL_TLS_TEST_SERVER_ADDRESS_TCP PAL_TLS_TEST_SERVER_ADDRESS":5544"
+
+#endif // #ifndef PAL_TLS_TEST_SERVER_ADDRESS
+
+const uint16_t MAX_CERTIFICATE_SIZE = 1024;
+
+const unsigned char g_psk[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+};
+const unsigned char g_psk_id[] = "Client_identity";
 
 #endif /* TEST_TLS_PAL_TEST_UTILS_H_ */

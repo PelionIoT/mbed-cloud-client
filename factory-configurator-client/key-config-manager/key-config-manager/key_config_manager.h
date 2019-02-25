@@ -55,9 +55,13 @@ extern "C" {
     /* === Keys, Certificates and Configuration data storage === */
 
     /** Store the KCM item into a secure storage.
+    * Item name restrictions (the kcm_item_name argument):
+    * If you are using Mbed OS 5.11 or higher with the built-in secure storage (KVStore), or your own secure storage (ported to the Pelion client), kcm_item_name must only include the following characters: 'a'-'z', 'A'-'Z', '0'-'9', '_', '-', '.'.
+    * If you are using the Pelion client secure storage (SOTP and ESFS), KCM file names have no character restrictions. Note that this feature will be deprecated in the future and the same character restriction will apply ('a'-'z', 'A'-'Z', '0'-'9', '_', '-', '.').
+    * 
     *
-    *    @param[in] kcm_item_name KCM item name.
-    *    @param[in] kcm_item_name_len KCM item name length.
+    *    @param[in] kcm_item_name KCM item name. See comment above.
+    *    @param[in] kcm_item_name_len KCM item name length. kcm_item_name_len must be at most ::KCM_MAX_FILENAME_SIZE bytes.
     *    @param[in] kcm_item_type KCM item type as defined in `::kcm_item_type_e`
     *    @param[in] kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
     *    @param[in] kcm_item_data KCM item data buffer. Can be NULL if `kcm_item_data_size` is 0.
@@ -67,7 +71,8 @@ extern "C" {
     *    @returns
     *        KCM_STATUS_SUCCESS in success.
     *        KCM_STATUS_FILE_EXIST if trying to store an item that already exists.
-    
+    *        KCM_STATUS_FILE_NAME_TOO_LONG if kcm_item_name_len is too long.
+    *        KCM_STATUS_FILE_NAME_INVALID if kcm_item_name contains illegal characters.
     *        One of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_item_store(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, bool kcm_item_is_factory, const uint8_t *kcm_item_data, size_t kcm_item_data_size, const kcm_security_desc_s security_desc);
@@ -169,6 +174,7 @@ extern "C" {
                                          size_t kcm_cert_data_size);
 
     /** The API deletes all certificates of the chain from the storage.
+    *  In case of invalid chain the API deletes all reachable certificates and return relevant error for indication.
     *
     *    @param[in] kcm_chain_name                A pointer to certificate chain name.
     *    @param[in] kcm_chain_name_len            The length of certificate chain name.

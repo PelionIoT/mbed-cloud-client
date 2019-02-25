@@ -25,11 +25,11 @@
 
 static struct atomic_queue arm_uc_queue = { 0 };
 static void (*arm_uc_notificationHandler)(void) = NULL;
-static volatile int32_t arm_uc_queue_counter = 0;
+static volatile uintptr_t callbacks_pending = 0;
 
 int32_t ARM_UC_SchedulerGetQueuedCount(void)
 {
-    return arm_uc_queue_counter;
+    return aq_count(&arm_uc_queue);
 }
 
 #if ARM_UC_SCHEDULER_STORAGE_POOL_SIZE
@@ -44,6 +44,10 @@ static arm_uc_callback_t *callback_pool_root;
 static void (*scheduler_error_cb)(uint32_t parameter);
 static arm_uc_callback_t callback_pool_exhausted_error_callback = {0};
 static arm_uc_callback_t callback_failed_take_error_callback = {0};
+
+/* Single element used for queuing errors */
+static arm_uc_callback_t plugin_error_callback = {0};
+static volatile uintptr_t plugin_error_pending = 0;
 
 #define POOL_WATERMARK 0xABABABAB
 
@@ -64,6 +68,9 @@ void ARM_UC_SchedulerInit(void)
 #endif
     memset(&callback_pool_exhausted_error_callback, 0, sizeof(arm_uc_callback_t));
     memset(&callback_failed_take_error_callback, 0, sizeof(arm_uc_callback_t));
+    memset(&plugin_error_callback, 0, sizeof(arm_uc_callback_t));
+    callbacks_pending = 0;
+    plugin_error_pending = 0;
 }
 
 /**
@@ -163,19 +170,20 @@ void ARM_UC_SetSchedulerErrorHandler(void(*handler)(uint32_t))
     scheduler_error_cb = handler;
 }
 
-bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
-                         void (*_callback)(uint32_t),
-                         uint32_t _parameter)
+bool ARM_UC_PostCallbackCtx(arm_uc_callback_t *_storage,
+                            void *_ctx,
+                            arm_uc_context_callback_t _callback,
+                            uintptr_t _parameter)
 {
     bool success = true;
-    UC_SDLR_TRACE("%s Scheduling %p(%lu) with %p", __PRETTY_FUNCTION__, _callback, _parameter, _storage);
+    UC_SDLR_TRACE("%s Scheduling %p(%lu) with %p (context %p)", __PRETTY_FUNCTION__, _callback, _parameter, _storage, _ctx);
 
-    if (_callback == NULL) {
+    if (_callback == NULL || _ctx == NULL) {
         return false;
     }
 
     if (_storage) {
-        int result = aq_element_take((void *) _storage);
+        int result = aq_element_take((void *) _storage, _ctx);
         if (result != ATOMIC_QUEUE_SUCCESS) {
 
 // NOTE: This may be useful for detecting double-allocation of callbacks on mbed-os too
@@ -205,10 +213,10 @@ bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
 #endif
             if (scheduler_error_cb) {
                 _storage = &callback_pool_exhausted_error_callback;
-                int result = aq_element_take((void *) _storage);
+                int result = aq_element_take((void *) _storage, ATOMIC_QUEUE_NO_CONTEXT);
                 if (result == ATOMIC_QUEUE_SUCCESS) {
                     _parameter = ARM_UC_EQ_ERR_POOL_EXHAUSTED;
-                    _callback = scheduler_error_cb;
+                    _callback = (arm_uc_context_callback_t)scheduler_error_cb;
                 } else {
                     _storage = NULL;
                 }
@@ -216,17 +224,17 @@ bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
         } else {
             /* This thread is guaranteed to exclusively own _storage here */
             aq_initialize_element((void *) _storage);
-            int result = aq_element_take((void *) _storage);
+            int result = aq_element_take((void *) _storage, _ctx);
             if (result != ATOMIC_QUEUE_SUCCESS) {
                 success = false;
                 /* This should be impossible */
                 UC_SDLR_ERR_MSG("Failed to take an allocated a callback block... this should be impossible...");
                 if (scheduler_error_cb) {
                     _storage = &callback_failed_take_error_callback;
-                    int result = aq_element_take((void *) _storage);
+                    int result = aq_element_take((void *) _storage, ATOMIC_QUEUE_NO_CONTEXT);
                     if (result == ATOMIC_QUEUE_SUCCESS) {
                         _parameter = ARM_UC_EQ_ERR_FAILED_TAKE;
-                        _callback = scheduler_error_cb;
+                        _callback = (arm_uc_context_callback_t)scheduler_error_cb;
                     } else {
                         _storage = NULL;
                     }
@@ -236,7 +244,7 @@ bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
     }
     if (_storage) {
         /* populate callback struct */
-        _storage->callback = _callback;
+        _storage->callback = (void*)_callback;
         _storage->parameter = _parameter;
 
         UC_SDLR_TRACE("%s Queueing %p(%lu) in %p", __PRETTY_FUNCTION__, _callback, _parameter, _storage);
@@ -247,38 +255,23 @@ bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
         if (result == ATOMIC_QUEUE_SUCCESS) {
             UC_SDLR_TRACE("%s Scheduling success!", __PRETTY_FUNCTION__);
 
-            /*  The queue is processed by removing an element first and then
-                decrementing the queue counter. This continues until the counter
-                reaches 0 (process single callback) or the queue is empty
-                (process queue).
-
-                If the counter is greater than zero at this point, there should
-                already be a notification in progress, so no new notification
-                is required.
-
-                If the counter is zero at this point, there is one element in
-                the queue, and incrementing the counter will return 1 and which
-                triggers a notification.
-
-                Because the scheduler could run at any time and consume queue
-                elements, it's possible for the scheduler to remove the queue
-                element before the counter is incremented.
-
-                Therefore, If the queue is empty at this point, the counter is
-                -1 and incrementing the counter will return 0. This does not
-                trigger a notification, which is correct since the queue is
-                empty.
-            */
-            int32_t count = aq_atomic_inc_int32((int32_t *) &arm_uc_queue_counter, 1);
-
             /* if notification handler is set, check if this is the first
-            insertion
-            */
-            if ((arm_uc_notificationHandler) && (count == 1)) {
-                UC_SDLR_TRACE("%s Invoking notify!", __PRETTY_FUNCTION__);
+             * insertion.
+             * Try to set callbacks_pending to 1.
+             * Fail if already 1 (there are other callbacks pending)
+             * If successful, notify.
+             */
+            if (arm_uc_notificationHandler) {
+                while (callbacks_pending == 0 && arm_uc_queue.tail != NULL) {
+                    // Remove volatile qualifier from callbacks_pending
+                    int cas_result = aq_atomic_cas_uintptr((uintptr_t *)&callbacks_pending, 0, 1);
+                    if (cas_result) {
+                        UC_SDLR_TRACE("%s Invoking notify!", __PRETTY_FUNCTION__);
 
-                /* disable: UC_SDLR_TRACE("notify nanostack scheduler"); */
-                arm_uc_notificationHandler();
+                        /* disable: UC_SDLR_TRACE("notify nanostack scheduler"); */
+                        arm_uc_notificationHandler();
+                    }
+                }
             }
         } else {
             success = false;
@@ -288,78 +281,221 @@ bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
     return success;
 }
 
+bool ARM_UC_PostCallback(arm_uc_callback_t *_storage,
+                         arm_uc_no_context_callback_t _callback,
+                         uintptr_t _parameter)
+{
+    return ARM_UC_PostCallbackCtx(_storage, ATOMIC_QUEUE_NO_CONTEXT, (arm_uc_context_callback_t)_callback, _parameter);
+}
+
+bool ARM_UC_PostErrorCallbackCtx(void *_ctx, arm_uc_context_callback_t _callback, uintptr_t _parameter)
+{
+    UC_SDLR_TRACE("%s Scheduling error callback %p with parameter %lu and context %p", __PRETTY_FUNCTION__, _callback, _parameter, _ctx);
+
+    if (_callback == NULL || _ctx == NULL) {
+        return false;
+    }
+
+    /* Take ownership of error callback */
+    int result = aq_element_take((void *)&plugin_error_callback, _ctx);
+    if (result != ATOMIC_QUEUE_SUCCESS) {
+        UC_SDLR_ERR_MSG("ARM_UC_PostErrorCallback failed to acquire lock on error callback");
+        return false;
+    }
+
+    /* populate callback struct */
+    plugin_error_callback.callback = (void*)_callback;
+    plugin_error_callback.parameter = _parameter;
+
+    plugin_error_pending = 1;
+    return true;
+}
+
+/**
+ * @brief Clear the callbacks_pending flag.
+ * @details This function attempts to clear the callbacks_pending flag. This
+ * operation can fail if:
+ * * the flag has already been cleared
+ * * the operation is interrupted
+ * * the queue is not empty
+ *
+ * The return from this function indicates whether or not the scheduler should
+ * continue processing callbacks. This is used to prevent duplicate
+ * notifications. This could be a simple flag, but that would introduce several
+ * race conditions. By using atomic Compare And Swap, we are able to detect and
+ * correct those race conditions.
+ *
+ * Operation:
+ * Case 1
+ * If the callbacks_pending flag is clear AND the queue is empty, there is
+ * nothing to do and the scheduler should stop processing callbacks.
+ *
+ * Case 2
+ * If the callbacks_pending flag is set AND the queue is not empty, there is
+ * nothing to do and the scheduler should continue processing callbacks.
+ *
+ * Case 3
+ * If the callbacks_pending flag is clear AND the queue is not empty, then the
+ * callbacks pending flag must be set to 1. If this operation is successful,
+ * then the scheduler should continue processing callbacks. If the CAS fails,
+ * then the scheduler must perform all checks and try again.
+ *
+ * Case 4
+ * If the callbacks_pending flag is set AND the queue is empty, then the
+ * callbacks_pending flag must be cleared. Atomic CAS opens an atomic context,
+ * checks that the callbacks_pending flag is still set, then sets it to 0.
+ * Atomic CAS will fail if either callbacks_pending is 0 OR if the CAS is
+ * interrupted by another atomic operation. If the CAS succeeds and flag is
+ * cleared then the scheduler must check if the queue is empty, since a new post
+ * could have happened after callbacks_pending was stored to cbp_local. If the
+ * CAS fails, then the scheduler must perform all checks and try again.
+ *
+ * @return false if the scheduler should stop processing callbacks or true if
+ *         the scheduler should continue processing callbacks.
+ */
+static bool try_clear_callbacks_pending() {
+    bool run_again = true;
+    bool cleared_flag = false;
+    while (true) {
+        /* Preserve local copies of callbacks_pending and queue_empty */
+        uintptr_t cbp_local = callbacks_pending;
+        bool queue_empty = arm_uc_queue.tail == NULL;
+        /* Case 1 */
+        /* Flag clear, no elements queued. Nothing to do */
+        if (!cbp_local && queue_empty) {
+            run_again = false;
+            break;
+        }
+        /* Case 2 */
+        /* Flag is set and elements are queued. Nothing to do */
+        if (cbp_local && !queue_empty) {
+            /* Do not indicate a "run again" condition if the flag was
+             * previously cleared
+             */
+            run_again = !cleared_flag;
+            break;
+        }
+        /* Case 3 */
+        /* Flag not set, elements queued. Set flag. */
+        if (!cbp_local && !queue_empty) {
+            int cas_result = aq_atomic_cas_uintptr((uintptr_t*)&callbacks_pending, cbp_local, 1);
+            /* on success, exit and continue scheduling */
+            if (cas_result) {
+                run_again = true;
+                break;
+            }
+        }
+        /* Case 4 */
+        /* Flag set, no elements queued. Clear flag */
+        if (cbp_local && queue_empty) {
+            int cas_result = aq_atomic_cas_uintptr((uintptr_t*)&callbacks_pending, cbp_local, 0);
+            if (cas_result) {
+                /* If the flag returns to true, then Case 2 should not set
+                 * run_again, since this would cause a duplicate notification.
+                 */
+                cleared_flag = true;
+            }
+            /* If the result is success, then the scheduler must check for
+             * (!cbp_local && !queue_empty). If the result is failure, then the
+             * scheduler must try again.
+             */
+        }
+    }
+    return run_again;
+}
+
 void ARM_UC_ProcessQueue(void)
 {
-    arm_uc_callback_t *element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
+    arm_uc_callback_t *element = NULL;
 
-    while (element != NULL) {
+    while (true) {
+        element = NULL;
+        /* Always consider the error callback first */
+        if (plugin_error_pending) {
+            /* Clear the read lock */
+            plugin_error_pending = 0;
+            element = &plugin_error_callback;
+        }
+        /* If the error callback isn't taken, get an element from the queue */
+        else if (callbacks_pending){
+            element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
+        }
+        /* If the queue is empty */
+        if (element == NULL) {
+            /* Try to shut down queue processing */
+            if (! try_clear_callbacks_pending()) {
+                break;
+            }
+        }
+
         UC_SDLR_TRACE("%s Invoking %p(%lu)", __PRETTY_FUNCTION__, element->callback, element->parameter);
         /* Store the callback locally */
-        void (*callback)(uint32_t) = element->callback;
+        void *callback = element->callback;
         /* Store the parameter locally */
         uint32_t parameter = element->parameter;
+
         /* Release the lock on the element */
         UC_SDLR_TRACE("%s Releasing %p", __PRETTY_FUNCTION__, element);
-        aq_element_release((void *) element);
+        void *ctx;
+        aq_element_release((void *) element, &ctx);
         /* Free the element if it was pool allocated */
         UC_SDLR_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
         callback_pool_free((void *) element);
 
         /* execute callback */
-        callback(parameter);
-
-        /*  decrement element counter after executing the callback.
-            otherwise further callbacks posted inside this callback could
-            trigger notifications eventhough we are still processing the queue.
-        */
-        int32_t count = aq_atomic_inc_int32((int32_t *) &arm_uc_queue_counter, -1);
-
-        if (count > 0) {
-            /* get next element */
-            element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
+        if (ctx == ATOMIC_QUEUE_NO_CONTEXT) {
+            ((arm_uc_no_context_callback_t)callback)(parameter);
         } else {
-            element = NULL;
+            ((arm_uc_context_callback_t)callback)(ctx, parameter);
         }
     }
 }
 
 bool ARM_UC_ProcessSingleCallback(void)
 {
-    /* elements in queue */
-    int32_t count = 0;
-
-    /* get first element */
-    arm_uc_callback_t *element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
+    bool call_again = true;
+    /* always check the error callback first */
+    arm_uc_callback_t *element = NULL;
+    /* Always consider the error callback first */
+    if (plugin_error_pending) {
+        /* Clear the read lock */
+        plugin_error_pending = 0;
+        element = &plugin_error_callback;
+    }
+    /* If the error callback isn't taken, get an element from the queue */
+    else {
+        element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
+        /* If the queue is empty */
+        if (element == NULL) {
+            /* Try to shut down queue processing */
+            call_again = try_clear_callbacks_pending();
+        }
+    }
 
     if (element != NULL) {
         UC_SDLR_TRACE("%s Invoking %p(%lu)", __PRETTY_FUNCTION__, element->callback, element->parameter);
         /* Store the callback locally */
-        void (*callback)(uint32_t) = element->callback;
+        void *callback =  element->callback;
         /* Store the parameter locally */
-        uint32_t parameter = element->parameter;
+        uintptr_t parameter = element->parameter;
         /* Release the lock on the element */
         UC_SDLR_TRACE("%s Releasing %p", __PRETTY_FUNCTION__, element);
-        aq_element_release((void *) element);
+        void *ctx;
+        aq_element_release((void *) element, &ctx);
         /* Free the element if it was pool allocated */
         UC_SDLR_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
         callback_pool_free((void *) element);
 
         /* execute callback */
-        callback(parameter);
+        if (ctx == ATOMIC_QUEUE_NO_CONTEXT) {
+            ((arm_uc_no_context_callback_t)callback)(parameter);
+        } else {
+            ((arm_uc_context_callback_t)callback)(ctx, parameter);
+        }
 
-        UC_SDLR_TRACE("%s Decrementing callback counter", __PRETTY_FUNCTION__);
-
-        /*  decrement element counter after executing the callback.
-            otherwise further callbacks posted inside this callback could
-            trigger notifications eventhough we are still processing the queue.
-
-            when this function returns false, the counter is 0 and there are
-            either 1 or 0 elements in the queue. if there is 1 element in
-            the queue, it means the counter hasn't been incremented yet, and
-            incrmenting it will return 1, which will trigger a notification.
-        */
-        count = aq_atomic_inc_int32((int32_t *) &arm_uc_queue_counter, -1);
+        /* Try to shut down queue processing */
+        call_again = try_clear_callbacks_pending();
     }
 
-    return (count > 0);
+    return call_again || plugin_error_pending;
 }

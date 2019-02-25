@@ -43,7 +43,7 @@ static uint8_t *arm_ucs_manifest_buffer = NULL;
 static uint16_t arm_ucs_manifest_length = 0;
 
 /* callback function pointer and struct */
-static void (*ARM_UCS_EventHandler)(uint32_t event) = 0;
+static void (*ARM_UCS_EventHandler)(uintptr_t event) = 0;
 static arm_uc_callback_t callbackNodeManifest = { NULL, 0, NULL, 0 };
 static arm_uc_callback_t callbackNodeNotification = { NULL, 0, NULL, 0 };
 
@@ -60,6 +60,10 @@ static void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, 
 
 // The hub uses a double buffer system to speed up firmware download and storage
 #define BUFFER_SIZE_MAX (ARM_UC_BUFFER_SIZE / 2) //  define size of the double buffers
+
+#if BUFFER_SIZE_MAX < SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
+#error MBED_CLOUD_CLIENT_UPDATE_BUFFER must be at least double the size of SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
+#endif
 
 // Set proper Storage buffer size with requirements:
 // 1. Storage buffer size >= Block size (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE)
@@ -449,7 +453,9 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
         // There is not enough data in Storage buffer yet
         // AND We have Async get_data_request already ongoing
         // -> Do nothing we should not get here?
-        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: ERROR should not get here!");
+        // This can happen if GetFirmwareFragment is called again before
+        // the previous get completed with buffer and EVENT_FIRMWARE
+        UC_SRCE_ERR_MSG("Internal error: BLOCK - data request already ongoing");
     }
     if (ARM_UC_IS_ERROR(retval)) {
         ARM_UCS_LWM2M_SOURCE_SetError(retval);
@@ -718,4 +724,3 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURL(arm_uc_uri_t *uri,
     }
     return retval;
 }
-

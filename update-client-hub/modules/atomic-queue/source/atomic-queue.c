@@ -26,9 +26,10 @@
 #define CORE_UTIL_ASSERT_MSG(test, msg)
 
 
-int aq_element_take(struct atomic_queue_element *e)
+int aq_element_take(struct atomic_queue_element *e, void *ctx)
 {
     if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
+    if (!ctx) { return ATOMIC_QUEUE_INVALID_CONTEXT;}
     // Duplicate element check using lock
     uintptr_t lock; // This is initialized in the do/while loop.
     // Check/obtain a lock on the element.
@@ -37,13 +38,15 @@ int aq_element_take(struct atomic_queue_element *e)
         if (lock) {
             return ATOMIC_QUEUE_DUPLICATE_ELEMENT;
         }
-    } while (!aq_atomic_cas_uintptr(&e->lock, lock, 1));
+    } while (!aq_atomic_cas_uintptr(&e->lock, lock, (uintptr_t)ctx));
     return ATOMIC_QUEUE_SUCCESS;
 }
 
-int aq_element_release(struct atomic_queue_element *e)
+int aq_element_release(struct atomic_queue_element *e, void **ctx)
 {
     if (!e) { return ATOMIC_QUEUE_NULL_ELEMENT;}
+    if (!ctx) { return ATOMIC_QUEUE_INVALID_CONTEXT;}
+    *ctx = (void *) e->lock;
     e->lock = 0;
     return ATOMIC_QUEUE_SUCCESS;
 }

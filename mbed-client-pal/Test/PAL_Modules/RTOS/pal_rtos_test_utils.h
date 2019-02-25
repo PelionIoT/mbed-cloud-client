@@ -65,13 +65,15 @@ typedef struct timerArgument{
     uint32_t ticksInFunc2;
 }timerArgument_t;
 
-extern timerArgument_t g_timerArgs;
+extern volatile timerArgument_t g_timerArgs;
 
 void palTimerFunc1(void const *argument);
 void palTimerFunc2(void const *argument);
 void palTimerFunc3(void const *argument);
 void palTimerFunc4(void const *argument);
 void palTimerFunc5(void const *argument);
+void palTimerFunc6(void const *argument);
+void palTimerFunc7(void const *argument);
 
 
 void palThreadFuncWaitForEverTest(void const *argument);

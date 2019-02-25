@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pv_endian.h"
-#include "pv_log.h"
+#include "mbed-trace/mbed_trace.h"
 #include "ftcd_comm_base.h"
 #include "cs_hash.h"
 #include "fcc_malloc.h"

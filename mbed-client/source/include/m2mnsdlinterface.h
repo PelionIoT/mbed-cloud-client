@@ -39,6 +39,8 @@ class M2MServer;
 class M2MConnectionHandler;
 class M2MNotificationHandler;
 
+const int UNDEFINED_MSG_ID = -1;
+
 /**
  * @brief M2MNsdlInterface
  * Class which interacts between mbed Client C++ Library and mbed-client-c library.
@@ -79,6 +81,7 @@ public:
         char                 *uri_path;
         int32_t              msg_id;
         M2MBase::MessageType type;
+        bool                 blockwise_used;
         ns_list_link_t       link;
     };
 
@@ -406,7 +409,7 @@ public:
      * @resend_count Resend count
      * @return Total retransmission time
     */
-    uint32_t total_retransmission_time(int resend_count);
+    uint32_t total_retransmission_time(uint32_t resend_count);
 
     /**
      * @brief Returns CoAP retransmission count
@@ -683,7 +686,9 @@ private:
     struct coap_response_s* find_response(int32_t msg_id);
 
 #if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
-    struct coap_response_s* find_delayed_response(const char* uri_path, const M2MBase::MessageType type);
+    struct coap_response_s* find_delayed_response(const char* uri_path,
+                                                  const M2MBase::MessageType type,
+                                                  int32_t message_id = UNDEFINED_MSG_ID);
 
     bool handle_delayed_response_store(const char* uri_path,
                                        sn_coap_hdr_s* received_coap,

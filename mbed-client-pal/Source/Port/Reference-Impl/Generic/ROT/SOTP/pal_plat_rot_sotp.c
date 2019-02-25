@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "pal.h"
 #include "pal_plat_rot.h"
 
@@ -32,6 +32,9 @@ PAL_PRIVATE palStatus_t pal_osSotpErrorTranslation(sotp_result_e err)
     palStatus_t ret;
     switch(err)
     {
+        case SOTP_SUCCESS:
+            ret = PAL_SUCCESS;
+            break;
         case SOTP_BAD_VALUE:
             ret = PAL_ERR_INVALID_ARGUMENT;
             break;
@@ -42,6 +45,10 @@ PAL_PRIVATE palStatus_t pal_osSotpErrorTranslation(sotp_result_e err)
 
         case SOTP_BUFF_NOT_ALIGNED:
             ret = PAL_ERR_RTOS_BUFFER_NOT_ALIGNED;
+            break;
+
+        case SOTP_NOT_FOUND:
+            ret = PAL_ERR_ITEM_NOT_EXIST;
             break;
 
         case SOTP_READ_ERROR:
@@ -56,24 +63,37 @@ PAL_PRIVATE palStatus_t pal_osSotpErrorTranslation(sotp_result_e err)
 
 palStatus_t pal_plat_osGetRoT(uint8_t * key, size_t keyLenBytes)
 {
-    palStatus_t palStatus = PAL_SUCCESS;
     sotp_result_e sotpStatus;
     uint16_t actual_size;
-    sotpStatus = sotp_get(SOTP_TYPE_ROT, keyLenBytes, (uint32_t *)key, &actual_size);
-    if (SOTP_NOT_FOUND == sotpStatus)
-    {
-        palStatus = pal_osRandomBuffer(key , keyLenBytes);
-        if (PAL_SUCCESS == palStatus)
-        {
-            sotpStatus = sotp_set(SOTP_TYPE_ROT,keyLenBytes, (uint32_t *)key);
-        }
-    }
-    if (SOTP_SUCCESS != sotpStatus)
-    {
-        palStatus = pal_osSotpErrorTranslation(sotpStatus);
-    }
 
-    return palStatus;
+    sotpStatus = sotp_get(SOTP_TYPE_ROT, keyLenBytes, (uint32_t *)key, &actual_size);
+    return pal_osSotpErrorTranslation(sotpStatus);
+
 }
 
+palStatus_t pal_plat_osSetRoT(uint8_t * key, size_t keyLenBytes)
+{
+    sotp_result_e sotpStatus;
+    uint16_t actual_size;
+    uint8_t rotBuffer[PAL_DEVICE_KEY_SIZE_IN_BYTES] __attribute__((aligned(4))) = { 0 };
+
+    if (keyLenBytes != PAL_DEVICE_KEY_SIZE_IN_BYTES || key == NULL) {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+
+    //Check if Rot already exists
+    sotpStatus = sotp_get(SOTP_TYPE_ROT, keyLenBytes, (uint32_t *)rotBuffer, &actual_size);
+    if (sotpStatus == SOTP_SUCCESS) {
+        return PAL_ERR_ITEM_EXIST;
+    }
+
+    //Copy RoT to aligned buffer
+    memcpy(rotBuffer, key, PAL_DEVICE_KEY_SIZE_IN_BYTES);
+
+    //Set RoT
+    sotpStatus = sotp_set(SOTP_TYPE_ROT, PAL_DEVICE_KEY_SIZE_IN_BYTES, (uint32_t *)rotBuffer);
+    return pal_osSotpErrorTranslation(sotpStatus);
+
+}
 #endif // (PAL_USE_HW_ROT == 0)
+#endif //#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

@@ -127,13 +127,19 @@ namespace CertificateEnrollmentClient {
     */
     static void est_response_process(CertificateRenewalDataBase *renewal_data);
 
-    // Create g_cert_enroll_lwm2m_obj, from the object create an object resource, and create the resources
     /**
     * \brief Create g_cert_enroll_lwm2m_obj, from the object create an object resource, and create the resources. Then push the object to the MCC object list
     *
+    * Note that the pointers to the objects created by this function is owned by the CertificateEnrollmentClient Module and must be released in by CertificateEnrollmentClient::finalize()
     * \param list A reference to the MbedCloudClient object list. MbedCloudClient will later set the resource
     */
     static ce_status_e init_objects(M2MBaseList& list);
+
+    /**
+    * \brief Release the objects created by init_objects()
+    *
+    */
+    static void release_objects();
 
     // Callback is called when we get a POST message to g_cert_enroll_lwm2m_resource (runs in high priority context!)
     /**
@@ -289,17 +295,16 @@ void CertificateEnrollmentClient::on_certificate_renewal(cert_renewal_cb_f user_
 ce_status_e CertificateEnrollmentClient::init_objects(M2MBaseList& list)
 {
     M2MObjectInstance *cert_enroll_lwm2m_obj_instance;
-    M2MObject *cert_enroll_lwm2m_obj = NULL;
 
     ce_status_e ce_status = CE_STATUS_SUCCESS;
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
     // Create the certificate enrollment resource
-    cert_enroll_lwm2m_obj = M2MInterfaceFactory::create_object(OBJECT_LWM2M_CERTIFICATE);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((!cert_enroll_lwm2m_obj), CE_STATUS_ERROR, "Error creating LWM2M object");
+    g_cert_enroll_lwm2m_obj = M2MInterfaceFactory::create_object(OBJECT_LWM2M_CERTIFICATE);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_cert_enroll_lwm2m_obj), CE_STATUS_ERROR, "Error creating LWM2M object");
 
     // Create the instance
-    cert_enroll_lwm2m_obj_instance = cert_enroll_lwm2m_obj->create_object_instance();
+    cert_enroll_lwm2m_obj_instance = g_cert_enroll_lwm2m_obj->create_object_instance();
     SA_PV_ERR_RECOVERABLE_GOTO_IF((!cert_enroll_lwm2m_obj_instance), ce_status = CE_STATUS_ERROR, Cleanup, "Error creating LWM2M object instance");
 
     // Create the resource
@@ -317,18 +322,25 @@ ce_status_e CertificateEnrollmentClient::init_objects(M2MBaseList& list)
     g_cert_enroll_lwm2m_resource->set_delayed_response(true);
 
     // Push the object to the list
-    list.push_back(cert_enroll_lwm2m_obj);
+    list.push_back(g_cert_enroll_lwm2m_obj);
 
 Cleanup:
     if (ce_status != CE_STATUS_SUCCESS) {
         // Destroying the object will destroy all instances and resources associated with it
-        delete cert_enroll_lwm2m_obj;
+        delete g_cert_enroll_lwm2m_obj;
         g_cert_enroll_lwm2m_resource = NULL;
     }
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return ce_status;
 }
+
+void CertificateEnrollmentClient::release_objects()
+{
+    delete g_cert_enroll_lwm2m_obj;
+    g_cert_enroll_lwm2m_obj = NULL;
+}
+
 
 ce_status_e CertificateEnrollmentClient::init(M2MBaseList& list, const EstClient *est_client)
 {
@@ -391,6 +403,9 @@ void CertificateEnrollmentClient::finalize()
 
         // LWM2M objects, instances, and resources are deleted when MbedCloudClient is unregistered and ServiceClient::state_unregister() is called
         // Currently nothing to finalize for CE core module except for KCM. However we do not wish to finalize it it may be used by other resources
+        
+        // Release our resources
+        release_objects();
     }
 }
 

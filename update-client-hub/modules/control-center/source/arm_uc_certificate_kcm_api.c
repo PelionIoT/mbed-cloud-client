@@ -21,7 +21,7 @@
 
 #include "update-client-control-center/arm_uc_certificate.h"
 #include "update-client-common/arm_uc_config.h"
-
+#include "update-client-metadata-header/arm_uc_buffer_utilities.h"
 #include "key-config-manager/key_config_manager.h"
 
 static arm_uc_error_t kerr2ucerr(int kerr)

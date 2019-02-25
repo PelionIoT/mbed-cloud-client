@@ -18,6 +18,9 @@
 
 int main(int argc, char * argv[])
 {
-    return palDRBGTestMain(PAL_TEST_PLATFORM_INIT_BASE);
+    (void)argc;
+    (void)argv;
+
+    return palDRBGTestMain();
 }
 

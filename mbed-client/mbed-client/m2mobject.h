@@ -27,11 +27,15 @@ class M2MEndpoint;
 
 /*! \file m2mobject.h
  *  \brief M2MObject.
- *  This class is the base class for the mbed Client Objects. All defined
- *  LWM2M object models can be created based on it. This class also holds all object
- *  instances associated with the given object.
+ *  This class is the base class for the mbed Client Objects.
+ *
+ *  All defined LwM2M object models can be created based on it.
+ *  This class also holds all object instances associated with the given object.
  */
 
+/*! \class M2MObject
+ *  \brief The base class for Client Objects.
+ */
 class M2MObject : public M2MBase
 {
 
@@ -43,9 +47,9 @@ protected :
 
     /**
      * \brief Constructor
-     * \param name The name of the object.
-     * \param path Path of the object like 3/0/1
-     * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
+     * \param object_name The name of the object.
+     * \param path Path of the object, such as 3/0/1
+     * \param external_blockwise_store If true, CoAP blocks are passed to application through callbacks,
      *        otherwise handled in mbed-client-c.
      */
     M2MObject(const String &object_name,
@@ -82,7 +86,9 @@ public:
     M2MObjectInstance* create_object_instance(uint16_t instance_id = 0);
 
     /**
-     * TODO!!
+     * \brief Creates a new object instance for a given mbed Client Interface object. With this,
+     * the client can respond to server's GET methods with the provided value.
+     * \return M2MObjectInstance. An object instance for managing other client operations.
      */
     M2MObjectInstance* create_object_instance(const lwm2m_parameters_s* s);
 

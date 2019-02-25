@@ -19,62 +19,18 @@
 #include "fcc_utils.h"
 #include "key_config_manager.h"
 #include "pv_error_handling.h"
-#include "fcc_sotp.h"
-
-
-const char g_sotp_entropy_data_type_name[] = "EntropyData";
-const char g_sotp_rot_data_type_name[] = "ROTData";
-const char g_sotp_factory_disable_type_name[] = "FactoryDisableFlag";
-const char g_sotp_ca_server_id_type_name[] = "CAServerId";
-const char g_sotp_time_type_name[] = "Time";
-const char g_sotp_wrong_type_name[] = "Wrong_sotp_type";
-
-
-fcc_status_e fcc_get_sotp_type_name(sotp_type_e sotp_type,char **sotp_type_name, size_t *sotp_type_name_size)
-{
-
-    fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_type_name_size == NULL), fcc_status, "Wrong sotp_type_name_size pointer");
-
-    switch (sotp_type) {
-    case SOTP_TYPE_ROT:
-        *sotp_type_name = (char*)g_sotp_rot_data_type_name;
-        *sotp_type_name_size = (size_t)strlen(g_sotp_rot_data_type_name);
-        break;
-    case SOTP_TYPE_FACTORY_DONE:
-        *sotp_type_name = (char*)g_sotp_factory_disable_type_name;
-        *sotp_type_name_size = (size_t)strlen(g_sotp_factory_disable_type_name);
-        break;
-    case SOTP_TYPE_RANDOM_SEED:
-        *sotp_type_name = (char*)g_sotp_entropy_data_type_name;
-        *sotp_type_name_size = (size_t)strlen(g_sotp_entropy_data_type_name);
-        break;
-    case SOTP_TYPE_SAVED_TIME:
-        *sotp_type_name = (char*)g_sotp_time_type_name;
-        *sotp_type_name_size = (size_t)strlen(g_sotp_time_type_name);
-        break;
-    case SOTP_TYPE_TRUSTED_TIME_SRV_ID:
-        *sotp_type_name = (char*)g_sotp_ca_server_id_type_name;
-        *sotp_type_name_size = (size_t)strlen(g_sotp_ca_server_id_type_name);
-        break;
-    default:
-        SA_PV_LOG_ERR("Non existent sotp_type provided");
-        *sotp_type_name = (char*)g_sotp_wrong_type_name;
-        *sotp_type_name_size = (size_t)strlen(g_sotp_wrong_type_name);
-        return FCC_STATUS_INVALID_PARAMETER;
-    }
-
-    return fcc_status;
-}
+#include "pal_errors.h"
 
 fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
 {
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
 
     switch (kcm_result) {
-        case KCM_STATUS_SUCCESS:
+        case KCM_STATUS_SUCCESS: 
             fcc_status = FCC_STATUS_SUCCESS;
+            break;
+        case KCM_STATUS_RBP_ERROR:
+            fcc_status = FCC_STATUS_STORE_ERROR;
             break;
         case KCM_STATUS_ERROR:
         case KCM_STATUS_INVALID_PARAMETER:
@@ -99,6 +55,7 @@ fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
         case KCM_STATUS_FILE_NAME_CORRUPTED:
         case KCM_STATUS_INVALID_FILE_ACCESS_MODE:
         case KCM_STATUS_CORRUPTED_CHAIN_FILE:
+        case KCM_STATUS_FILE_NAME_INVALID:
         case KCM_STATUS_FILE_NAME_TOO_LONG:
             fcc_status = FCC_STATUS_KCM_STORAGE_ERROR;
             break;
@@ -146,3 +103,28 @@ fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
     }
     return fcc_status;
 }
+
+
+fcc_status_e fcc_convert_pal_to_fcc_status(palStatus_t pal_result)
+{
+    fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
+
+    switch (pal_result) {
+
+        case PAL_ERR_INVALID_ARGUMENT:
+            fcc_status = FCC_STATUS_KCM_ERROR;
+            break;   
+        case PAL_ERR_ITEM_EXIST:
+            fcc_status = FCC_STATUS_KCM_FILE_EXIST_ERROR;
+            break;
+        case PAL_ERR_ITEM_NOT_EXIST:
+            fcc_status = FCC_STATUS_ITEM_NOT_EXIST;
+            break;
+        case PAL_ERR_GENERIC_FAILURE:
+            fcc_status = FCC_STATUS_KCM_ERROR;
+    }
+   
+    return fcc_status;
+}
+
+

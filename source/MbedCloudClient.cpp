@@ -68,6 +68,9 @@ void MbedCloudClient::add_objects(const M2MBaseList& base_list)
 
 void MbedCloudClient::remove_object(M2MBase *object)
 {
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
     M2MBaseList::const_iterator it;
     int found_index = -1;
     int index;
@@ -78,10 +81,12 @@ void MbedCloudClient::remove_object(M2MBase *object)
             break;
         }
     }
-    if(found_index != -1) {
+    if (found_index != -1) {
         tr_debug("  object found at index %d", found_index);
         _object_list.erase(found_index);
-        _client.connector_client().m2m_interface()->remove_object(object);
+        if (success) {
+            _client.connector_client().m2m_interface()->remove_object(object);
+        }
     }
 }
 
@@ -93,16 +98,25 @@ void MbedCloudClient::set_update_callback(MbedCloudClientCallback *callback)
 bool MbedCloudClient::setup(void* iface)
 {
     tr_debug("MbedCloudClient setup()");
+
     // Add objects to list
+#if MBED_CLOUD_CLIENT_STL_API
     map<string, M2MObject*>::iterator it;
     for (it = _objects.begin(); it != _objects.end(); it++)
     {
         _object_list.push_back((M2MBase*)it->second);
     }
-    _client.connector_client().m2m_interface()->set_platform_network_handler(iface);
+#endif
 
-    _client.initialize_and_register(_object_list);
-    return true;
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        // set the network interface to M2MInterface
+        _client.connector_client().m2m_interface()->set_platform_network_handler(iface);
+        _client.initialize_and_register(_object_list);
+    }
+    return success;
 }
 
 void MbedCloudClient::on_registered(void(*fn)(void))
@@ -142,7 +156,12 @@ void MbedCloudClient::register_update()
 
 void MbedCloudClient::close()
 {
-    _client.connector_client().m2m_interface()->unregister_object(NULL);
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->unregister_object(NULL);
+    }
 }
 
 const ConnectorClientEndpointInfo *MbedCloudClient::endpoint_info() const
@@ -152,24 +171,47 @@ const ConnectorClientEndpointInfo *MbedCloudClient::endpoint_info() const
 
 void MbedCloudClient::set_queue_sleep_handler(callback_handler handler)
 {
-    _client.connector_client().m2m_interface()->set_queue_sleep_handler(handler);
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->set_queue_sleep_handler(handler);
+    }
 }
 
 void MbedCloudClient::set_random_number_callback(random_number_cb callback)
 {
-    _client.connector_client().m2m_interface()->set_random_number_callback(callback);
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->set_random_number_callback(callback);
+    }
 }
 
 void MbedCloudClient::set_entropy_callback(entropy_cb callback)
 {
-    _client.connector_client().m2m_interface()->set_entropy_callback(callback);
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->set_entropy_callback(callback);
+    }
 }
 
+#if MBED_CLOUD_CLIENT_STL_API
 bool MbedCloudClient::set_device_resource_value(M2MDevice::DeviceResource resource,
                                                 const std::string &value)
 {
     return _client.set_device_resource_value(resource, value);
 }
+
+void MbedCloudClient::register_update_callback(string route,
+                                               SimpleM2MResourceBase* resource)
+{
+    _update_values[route] = resource;
+}
+#endif // MBED_CLOUD_CLIENT_STL_API
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
 void MbedCloudClient::set_update_authorize_handler(void (*handler)(int32_t request))
@@ -193,12 +235,6 @@ const char *MbedCloudClient::error_description() const
     return _error_description;
 }
 
-
-void MbedCloudClient::register_update_callback(string route,
-                                               SimpleM2MResourceBase* resource)
-{
-    _update_values[route] = resource;
-}
 
 void MbedCloudClient::complete(ServiceClientCallbackStatus status)
 {
@@ -225,10 +261,13 @@ void MbedCloudClient::value_updated(M2MBase *base, M2MBase::BaseType type)
     if (base) {
         tr_info("MbedCloudClient::value_updated path %s", base->uri_path());
         if (base->uri_path()) {
+#if MBED_CLOUD_CLIENT_STL_API
             if (_update_values.count(base->uri_path()) != 0) {
                 tr_debug("MbedCloudClient::value_updated calling update() for %s", base->uri_path());
                 _update_values[base->uri_path()]->update();
-            } else {
+            } else
+#endif
+            {
                 // way to tell application that there is a value update
                 if (_value_callback) {
                     _value_callback->value_updated(base, type);
@@ -245,13 +284,18 @@ void MbedCloudClient::send_get_request(DownloadType type,
                                        get_data_error_cb error_cb,
                                        void *context)
 {
-    _client.connector_client().m2m_interface()->get_data_request(type,
-                                                                uri,
-                                                                offset,
-                                                                true,
-                                                                data_cb,
-                                                                error_cb,
-                                                                context);
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->get_data_request(type,
+                                                                    uri,
+                                                                    offset,
+                                                                    true,
+                                                                    data_cb,
+                                                                    error_cb,
+                                                                    context);
+    }
 }
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -275,10 +319,20 @@ const M2MBaseList* MbedCloudClient::get_object_list() const
 
 void MbedCloudClient::pause()
 {
-    _client.connector_client().m2m_interface()->pause();
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->pause();
+    }
 }
 
 void MbedCloudClient::resume(void *iface)
 {
-    _client.connector_client().m2m_interface()->resume(iface, _object_list);
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->resume(iface, _object_list);
+    }
 }

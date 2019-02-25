@@ -17,11 +17,12 @@
 // ----------------------------------------------------------------------------
 
 #include "update-client-control-center/arm_uc_control_center.h"
+#include "update-client-common/arm_uc_trace.h"
 
 #include <stdbool.h>
 
 /* event handler */
-static void (*arm_uccc_event_handler)(uint32_t) = NULL;
+static void (*arm_uccc_event_handler)(uintptr_t) = NULL;
 static arm_uc_callback_t arm_uccc_authorize_callback = { 0 };
 static arm_uc_callback_t arm_uccc_monitor_callback = { 0 };
 
@@ -33,7 +34,7 @@ static bool arm_uc_install_token_armed = false;
 /* force authorization */
 static arm_uc_callback_t arm_uccc_override_callback = { 0 };
 
-static void arm_uccc_override_task(uint32_t unused);
+static void arm_uccc_override_task(uintptr_t unused);
 
 /* progress callback */
 static void (*arm_uc_progress_callback)(uint32_t, uint32_t) = NULL;
@@ -56,7 +57,7 @@ static void ARM_UC_ControlCenter_Notification_Handler(void)
  * @param callback Event handler to signal authorizations.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_Initialize(void (*callback)(uint32_t))
+arm_uc_error_t ARM_UC_ControlCenter_Initialize(void (*callback)(uintptr_t))
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_Initialize: %p", callback);
 
@@ -220,7 +221,7 @@ void ARM_UC_ControlCenter_OverrideAuthorization(void)
                         0);
 }
 
-static void arm_uccc_override_task(uint32_t unused)
+static void arm_uccc_override_task(uintptr_t unused)
 {
     (void) unused;
 

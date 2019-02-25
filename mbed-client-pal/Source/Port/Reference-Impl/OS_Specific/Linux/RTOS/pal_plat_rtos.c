@@ -75,6 +75,11 @@ struct palTimerInfo
 // Mutex to prevent simultaneus modification of the linked list of the timers in g_timerList.
 PAL_PRIVATE palMutexID_t g_timerListMutex = 0;
 
+#if (PAL_SIMULATE_RTOS_REBOOT == 1)
+    extern char *program_invocation_name;
+#endif
+
+
 // A singly linked list of the timers, access may be done only if holding the g_timerListMutex.
 // The list is needed as the timers use async signals and when the signal is finally delivered, the
 // palTimerInfo timer struct may be already deleted. The signals themselves carry pointer to timer,
@@ -92,10 +97,26 @@ PAL_PRIVATE void palTimerThread(void const *args);
  */
 void pal_plat_osReboot(void)
 {
+//Simulator is currently for Linux only
+#if (PAL_SIMULATE_RTOS_REBOOT == 1)
+    const char *argv[] = {"0" , 0};
+    char *const envp[] = { 0 };
+    argv[0] = program_invocation_name;
+
+    PAL_LOG_INFO("pal_plat_osReboot -> simulated reboot with execve(%s).\r\n", argv[0]);
+
+    if (-1 == execve(argv[0], (char **)argv , envp))
+    {
+        PAL_LOG_ERR("child process execve failed [%s]\r\n", argv[0]);
+    }
+#else
+    PAL_LOG_INFO("Rebooting the system\r\n");
+
     // Syncronize cached files to persistant storage.
     sync();
     // Reboot the device
     reboot(RB_AUTOBOOT);
+#endif
 }
 
 /*! Initialize all data structures (semaphores, mutexs, memory pools, message queues) at system initialization.

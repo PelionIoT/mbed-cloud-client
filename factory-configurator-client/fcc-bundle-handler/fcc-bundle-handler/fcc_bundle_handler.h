@@ -25,6 +25,12 @@
 extern "C" {
 #endif
 
+/**
+* @file fcc_bundle_handler.h
+*  \brief factory configurator client bundle handler APIs.
+*/
+
+
 /** Decodes and processes an inbound device configuration bundle created by FCU.
 * Also creates an outbound bundle that should be sent to FCU.
 * The function assumes that the bundle includes four groups represented as cbor maps.

@@ -38,7 +38,7 @@ extern uint64_t fcc_config_param_timer;
 extern uint64_t fcc_certificate_chain_timer;
 extern uint64_t fcc_generate_csr_timer;
 
-void calculate_time(const char *label, int size, uint64_t ticks);
+void calculate_time(const char *label, size_t size, uint64_t ticks);
 
 
 #define TRACE_GROUP     "fcc"

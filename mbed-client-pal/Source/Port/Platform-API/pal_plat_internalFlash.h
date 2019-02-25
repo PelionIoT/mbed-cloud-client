@@ -23,25 +23,25 @@ extern "C" {
 #endif
 
 /*! \brief This function initialized the flash API module,
- * 			And should be called prior flash APIs calls
+ * 			And should be called prior to flash API calls.
  *
- * \return   PAL_SUCCESS upon successful operation. \n
- *           PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
+ * \return   PAL_SUCCESS upon successful operation.
+ * \return   PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
  *
- * \note should be called only once unless \c pal_InternalFlashDeinit function is called
+ * \note Should be called only once unless \c pal_InternalFlashDeInit function is called.
  * \note This function is Blocking till completion!!
  *
  */
 palStatus_t pal_plat_internalFlashInit(void);
 
-/*! \brief This function destroy the flash module
+/*! \brief This function deinitializes the flash module.
  *
- * \return PAL_SUCCESS upon successful operation. \n
- *         PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
+ * \return PAL_SUCCESS upon successful operation.
+ * \return PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
  *
  * \note Should be called only after \c pal_InternalFlashinit() is called.
- * \note Flash APIs will not work after calling this function
- * \note This function is Blocking till completion!!
+ * \note Flash APIs will not work after calling this function.
+ * \note This function is \b Blocking till completion.
  *
  */
 palStatus_t pal_plat_internalFlashDeInit(void);
@@ -52,11 +52,11 @@ palStatus_t pal_plat_internalFlashDeInit(void);
 * @param[in]	size - the size of the buffer in bytes, must be aligned to minimum writing unit (page size).
 * @param[in]	address - the address of the internal flash.
 *
-* \return PAL_SUCCESS upon successful operation. \n
-*         PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
+* \return PAL_SUCCESS upon successful operation.
+* \return PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
 *
-* \note This function is Blocking till completion!!
-* \note This function is Thread Safe!!
+* \note This function is \b Blocking till completion.
+* \note This function is Thread Safe.
 */
 palStatus_t pal_plat_internalFlashWrite(const size_t size, const uint32_t address, const uint32_t * buffer);
 
@@ -66,41 +66,41 @@ palStatus_t pal_plat_internalFlashWrite(const size_t size, const uint32_t addres
 * @param[in]	address - the address of the internal flash.
 * @param[out]	buffer - pointer to the buffer to write to
 *
-* \return PAL_SUCCESS upon successful operation. \n
-*         PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
-* \note This function is Blocking till completion!!
-* \note This function is Thread Safe!!
+* \return PAL_SUCCESS upon successful operation.
+* \return PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
+* \note This function is \b Blocking till completion.
+* \note This function is Thread Safe.
 *
 */
 palStatus_t pal_plat_internalFlashRead(const size_t size, const uint32_t address, uint32_t * buffer);
 
-/*! \brief This function Erase the sector
+/*! \brief This function erases a sector
 *
-* @param[in]	size - the size to be erased, must be align to sector.
-* @param[in]	address - sector start address to be erased, must be align to sector.
+* @param[in]	size - the size to be erased, must match sector size.
+* @param[in]	address - start address for the sector to be erased.
 *
-* \return PAL_SUCCESS upon successful operation. \n
-*         PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
+* \return PAL_SUCCESS upon successful operation.
+* \return PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
 *
-* \note ALL sectors can be erased!! No protection to bootloader, program or other...
-* \note This function is Blocking till completion!!
-* \note Only one sector can be erased in each function call
-* \note This function is Thread Safe!!
+* \note \e ALL sectors can be erased. There is no protection for bootloader, program or other sectors.
+* \note This function is \b Blocking till completion.
+* \note Only one sector can be erased with each function call.
+* \note This function is Thread Safe.
 */
 palStatus_t pal_plat_internalFlashErase(uint32_t address, size_t size);
 
-/*! \brief This function returns the minimum writing unit to the flash
+/*! \brief This function returns the minimum size of the writing unit when writing to the flash
 *
-* \return size_t the 2, 4, 8....
+* \return the minimum size of the writing unit.
 */
 size_t pal_plat_internalFlashGetPageSize(void);
 
 
 /*! \brief This function returns the sector size
  *
-* @param[in]	address - the starting address of the sector is question
+* @param[in]	address - the starting address of the sector in question
 *
-* \return size of sector, 0 if error
+* \return size of sector, `0` in case of error
 */
 size_t pal_plat_internalFlashGetSectorSize(uint32_t address);
 
@@ -114,8 +114,8 @@ size_t pal_plat_internalFlashGetSectorSize(uint32_t address);
 * @param[in]	section - the section number (0 or 1)
 * @param[out]	data - the information about the section
 *
-* \return PAL_SUCCESS upon successful operation. \n
-*         PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
+* \return PAL_SUCCESS upon successful operation.
+* \return PAL_ERR_INTERNAL_FLASH_ERROR - see error code \c palError_t.
 *
 */
 palStatus_t pal_plat_internalFlashGetAreaInfo(uint8_t section, palSotpAreaData_t *data);

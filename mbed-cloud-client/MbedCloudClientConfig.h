@@ -36,6 +36,7 @@
 #endif
 
 #ifdef __DOXYGEN__
+// This __DOXYGEN__ block is for documentation purposes only and it does not affect application build.
 
 /**
 * \def MBED_CLOUD_CLIENT_ENDPOINT_TYPE
@@ -73,14 +74,31 @@
 */
 #define MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE
 
+#endif // __DOXYGEN__
+
 /**
-* \def MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP_QUEUE
-*
-* \brief Enable this MACRO if you want to enable TCP_QUEUE mode for the client.
-*/
+ * \def MBED_CLOUD_CLIENT_STL_API this flag controls the API's which use C++'s
+ * Standard Template Library (STL). The cost of STL is ~15KB of flash, depending on compiler,
+ * so on resource constrained devices it is essential to be able to remove any reference to it.
+ * In practice the SimpleM2MResourceString and SimpleM2MResourceInt classes are build with STL,
+ * so if one is not using them and wants to save RAM and ROM, setting this define to zero
+ * may help quite a lot. The SimpleM2MResource* classes and related API's are marked as deprecated,
+ * so they may be removed in the future releases.
+ */
+#ifndef MBED_CLOUD_CLIENT_STL_API
+#define MBED_CLOUD_CLIENT_STL_API 1
+#endif
 
-#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP_QUEUE
-
+/**
+ * \def MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION this causes a inclusion of "MbedCloudCLient.h
+ * to "pollute" the namespace with "using namespace std;". This has been always the case, but
+ * any library should not pollute application's namespace with std by having the "using std"
+ * in a a public header file.
+ * But as as removal of it from our headers may break existing applications, which build due to this
+ * leakage, we need to maintain the old behavior for a while and just allow one to remove it.
+ */
+#ifndef MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION
+#define MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION 1
 #endif
 
 /**

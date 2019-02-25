@@ -812,7 +812,7 @@ sotp_result_e sotp_set(uint32_t type, uint16_t buf_len_bytes, const uint32_t *bu
     return sotp_do_set(type, buf_len_bytes, buf, false, 0);
 }
 
-#ifdef SOTP_TESTING
+#ifdef RBP_TESTING
 
 sotp_result_e sotp_set_for_testing(uint32_t type, uint16_t buf_len_bytes, const uint32_t *buf)
 {
@@ -1041,7 +1041,7 @@ sotp_result_e sotp_reset(void)
     return sotp_init();
 }
 
-#ifdef SOTP_TESTING
+#ifdef RBP_TESTING
 
 sotp_result_e sotp_force_garbage_collection(void)
 {
@@ -1065,7 +1065,7 @@ sotp_result_e sotp_force_garbage_collection(void)
 
 #endif // SOTP_PROBE_ONLY
 
-#if defined(SOTP_PROBE_ONLY) || defined(SOTP_TESTING)
+#if defined(SOTP_PROBE_ONLY) || defined(RBP_TESTING)
 sotp_result_e sotp_probe(uint32_t type, uint16_t buf_len_bytes, uint32_t *buf, uint16_t *actual_len_bytes)
 {
 

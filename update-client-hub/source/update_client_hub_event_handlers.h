@@ -26,27 +26,27 @@
  *
  * @param event Event ID.
  */
-void ARM_UC_HUB_FirmwareManagerEventHandler(uint32_t event);
+void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event);
 
 /**
  * @brief Event handler for the Manifest Manager.
  *
  * @param event Event ID.
  */
-void ARM_UC_HUB_ManifestManagerEventHandler(uint32_t event);
+void ARM_UC_HUB_ManifestManagerEventHandler(uintptr_t event);
 
 /**
  * @brief Event handler for the Source Manager.
  *
  * @param event Event ID.
  */
-void ARM_UC_HUB_SourceManagerEventHandler(uint32_t event);
+void ARM_UC_HUB_SourceManagerEventHandler(uintptr_t event);
 
 /**
  * @brief Event handler for the Control Center.
  *
  * @param event Event ID.
  */
-void ARM_UC_HUB_ControlCenterEventHandler(uint32_t event);
+void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event);
 
 #endif // ARM_UC_HUB_EVENT_HANDLERS_H

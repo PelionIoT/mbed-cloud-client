@@ -20,7 +20,7 @@
 #if defined(ARM_UC_FEATURE_PAL_FILESYSTEM) && (ARM_UC_FEATURE_PAL_FILESYSTEM == 1)
 
 #include "arm_uc_pal_filesystem_utils.h"
-#include "update-client-common/arm_uc_utilities.h"
+#include "update-client-metadata-header/arm_uc_buffer_utilities.h"
 
 #include "pal.h"
 

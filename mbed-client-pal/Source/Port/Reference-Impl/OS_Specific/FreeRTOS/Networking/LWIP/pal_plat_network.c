@@ -51,14 +51,14 @@
  PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
 
 
- /*! pal_plat_netconReceive
-  * This function is a workaround for LWIP non block receive,
-  * When calling netconn_recv() on a non-blocking connection with receive timeout=0 the netconn_recv function will block indefinately (unless data arrives). this is not correct behavior.
-  * To work around this issue for to a non blocking connections we set the recieve timeout to 1 and set it back to the previous timeout value after the recv call.
-  * This is only for NON BLOCKING connections!!! all other sockets are left untouched.
- * @param[in] netconn* conn handler
- * @param[out] *netbuf - output buffer
- \return The status form the netconn_recv call.
+ /*! \brief This function is a workaround for LWIP non-blocking receive.
+  *
+  * When calling `netconn_recv() on a non-blocking connection with a receive timeout of `0`, the `netconn_recv` function will block indefinitely (unless data arrives). this is not correct behavior.
+  * To work around this issue for a non-blocking connection, we set the recieve timeout to 1 and set it back to the previous timeout value after the call.
+  * \note This is only for **non-blocking** connections. All other sockets are left untouched.
+ * @param[in] conn The handler.
+ * @param[out] newbuf The output buffer.
+ \return The status form the `netconn_recv` call.
  */
 PAL_PRIVATE int pal_plat_netconReceive(struct netconn* conn, struct netbuf **newBuf)
 {
@@ -1041,8 +1041,3 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
 }
 
 #endif
-
-
-
-
-

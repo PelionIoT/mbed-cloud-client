@@ -80,17 +80,17 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     }
 
     if (_entropy.entropy_source_ptr) {
-        if(PAL_SUCCESS != pal_addEntropySource(_entropy.entropy_source_ptr)){
+        if (PAL_SUCCESS != pal_addEntropySource(_entropy.entropy_source_ptr)) {
             return M2MConnectionHandler::ERROR_GENERIC;
         }
     }
 
     palTLSTransportMode_t mode = PAL_DTLS_MODE;
-    if (_sec_mode == M2MConnectionSecurity::TLS){
+    if (_sec_mode == M2MConnectionSecurity::TLS) {
         mode = PAL_TLS_MODE;
     }
 
-    if (PAL_SUCCESS != pal_initTLSConfiguration(&_conf, mode)){
+    if (PAL_SUCCESS != pal_initTLSConfiguration(&_conf, mode)) {
         tr_error("M2MConnectionSecurityPimpl::init - pal_initTLSConfiguration failed");
         return M2MConnectionHandler::ERROR_GENERIC;
     }
@@ -98,7 +98,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     _init_done = M2MConnectionSecurityPimpl::INIT_CONFIGURING;
 
 
-    if (_sec_mode == M2MConnectionSecurity::DTLS){
+    if (_sec_mode == M2MConnectionSecurity::DTLS) {
         // PAL divides the defined MAX_TIMEOUT by 2
         pal_setHandShakeTimeOut(_conf, MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT*2);
     }
@@ -106,7 +106,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     M2MSecurity::SecurityModeType cert_mode =
         (M2MSecurity::SecurityModeType)security->resource_value_int(M2MSecurity::SecurityMode, security_instance_id);
 
-    if (cert_mode == M2MSecurity::Certificate || cert_mode == M2MSecurity::EST ){
+    if (cert_mode == M2MSecurity::Certificate || cert_mode == M2MSecurity::EST ) {
 
         palX509_t owncert;
         palPrivateKey_t privateKey;
@@ -124,7 +124,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
             return M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS;
         }
 
-        if (PAL_SUCCESS != pal_setCAChain(_conf, &caChain, NULL)){
+        if (PAL_SUCCESS != pal_setCAChain(_conf, &caChain, NULL)) {
             tr_error("M2MConnectionSecurityPimpl::init - pal_setCAChain failed");
             return M2MConnectionHandler::ERROR_GENERIC;
         }
@@ -168,7 +168,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
                     return M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS;
                 }
 
-                if (PAL_SUCCESS != pal_setOwnCertChain(_conf, &owncert)){
+                if (PAL_SUCCESS != pal_setOwnCertChain(_conf, &owncert)) {
                     tr_error("M2MConnectionSecurityPimpl::init - pal_setOwnCertChain failed");
                     security->resource_value_buffer(M2MSecurity::CloseCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
                     return M2MConnectionHandler::ERROR_GENERIC;
@@ -179,37 +179,45 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
             security->resource_value_buffer(M2MSecurity::CloseCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
         }
 
-    } else if (cert_mode == M2MSecurity::Psk){
+    } else if (cert_mode == M2MSecurity::Psk) {
 
         uint8_t identity[MAX_CERTIFICATE_SIZE];
         uint8_t *identity_ptr = (uint8_t *)&identity;
-        uint32_t identity_len;
+        uint32_t identity_len = 0;
         uint8_t psk[MAX_CERTIFICATE_SIZE];
         uint8_t *psk_ptr = (uint8_t *)&psk;
-        uint32_t psk_len;
+        uint32_t psk_len = 0;
 
-        security->resource_value_buffer(M2MSecurity::PublicKey, identity_ptr, security_instance_id, (size_t*)&identity_len);
-        security->resource_value_buffer(M2MSecurity::Secretkey, psk_ptr, security_instance_id, (size_t*)&psk_len);
+        int ret_code = security->resource_value_buffer(M2MSecurity::PublicKey, identity_ptr, security_instance_id, (size_t*)&identity_len);
+        if (ret_code < 0) {
+            tr_error("M2MConnectionSecurityPimpl::init -  failed to read PSK identity");
+            return M2MConnectionHandler::ERROR_GENERIC;
+        }
+
+        ret_code = security->resource_value_buffer(M2MSecurity::Secretkey, psk_ptr, security_instance_id, (size_t*)&psk_len);
+        if (ret_code < 0) {
+            tr_error("M2MConnectionSecurityPimpl::init -  failed to read PSK key");
+            return M2MConnectionHandler::ERROR_GENERIC;;
+        }
+
         palStatus_t ret = pal_setPSK(_conf, identity_ptr, identity_len, psk_ptr, psk_len);
 
-
-        if (PAL_SUCCESS != ret){
-            tr_error("M2MConnectionSecurityPimpl::init - pal_setPSK failed");
-            return M2MConnectionHandler::ERROR_GENERIC;
+        if (PAL_SUCCESS != ret) {
+           tr_error("M2MConnectionSecurityPimpl::init  - pal_setPSK failed");
+           return M2MConnectionHandler::ERROR_GENERIC;;
         }
 
     } else {
         tr_error("M2MConnectionSecurityPimpl::init - security mode not set");
         return M2MConnectionHandler::ERROR_GENERIC;
-
     }
 
-    if (PAL_SUCCESS != pal_initTLS(_conf, &_ssl)){
+    if (PAL_SUCCESS != pal_initTLS(_conf, &_ssl)) {
         tr_error("M2MConnectionSecurityPimpl::init - pal_initTLS failed");
         return M2MConnectionHandler::ERROR_GENERIC;
     }
 
-    if (PAL_SUCCESS != pal_tlsSetSocket(_conf, &_tls_socket)){
+    if (PAL_SUCCESS != pal_tlsSetSocket(_conf, &_tls_socket)) {
         tr_error("M2MConnectionSecurityPimpl::init - pal_tlsSetSocket failed");
         return M2MConnectionHandler::ERROR_GENERIC;
     }

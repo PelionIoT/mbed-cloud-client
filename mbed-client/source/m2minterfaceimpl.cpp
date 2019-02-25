@@ -553,7 +553,7 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
 
     // Ignore errors while client is sleeping
     if (queue_mode()) {
-        if(_callback_handler && _queue_mode_timer_ongoing) {
+        if (_callback_handler && _queue_mode_timer_ongoing) {
             tr_info("M2MInterfaceImpl::socket_error - Queue Mode - don't try to reconnect while in QueueMode");
             return;
         }
@@ -605,17 +605,28 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
     }
 
     internal_event(STATE_IDLE);
-    // Try to do reconnecting
+
+    // Do a reconnect
     if (retry) {
+        if ((error == M2MInterface::SecureConnectionFailed || error == M2MInterface::InvalidParameters) &&
+             _bootstrapped) {
+            // Connector client will start the bootstrap flow again
+            tr_info("M2MInterfaceImpl::socket_error - goes to re-bootstrap");
+            _observer.error(M2MInterface::SecureConnectionFailed);
+            return;
+        }
+
         _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
         _reconnecting = true;
         _connection_handler.stop_listening();
         _retry_timer_expired = false;
         _retry_timer.start_timer(_reconnection_time * 1000,
                                  M2MTimerObserver::RetryTimer);
+
         tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
+
         _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
-        if(_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
+        if (_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
             _reconnection_time = MAX_RECONNECT_TIMEOUT;
         }
 #ifndef DISABLE_ERROR_DESCRIPTION
@@ -663,7 +674,7 @@ void M2MInterfaceImpl::data_sent()
     if(queue_mode()) {
         if(_callback_handler && (_nsdl_interface.is_unregister_ongoing() == false)) {
             _queue_sleep_timer.stop_timer();
-            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count())*1000,
+            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
                                             M2MTimerObserver::QueueSleep);
         }
     }
@@ -685,7 +696,7 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
     if (M2MTimerObserver::QueueSleep == type) {
         if (_reconnecting) {
             tr_debug("M2MInterfaceImpl::timer_expired() - reconnection ongoing, continue sleep timer");
-            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count())*1000,
+            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
                                             M2MTimerObserver::QueueSleep);
         } else {
             tr_debug("M2MInterfaceImpl::timer_expired() - sleep");

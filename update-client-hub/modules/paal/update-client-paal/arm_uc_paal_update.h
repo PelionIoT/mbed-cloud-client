@@ -18,10 +18,6 @@
 
 #include "update-client-paal/arm_uc_paal_update_api.h"
 
-/* Not including arm_uc_common.h to avoid the scheduler from being
-   included in the mbed-bootloader.
-*/
-#include "update-client-common/arm_uc_error.h"
 #include <stddef.h>
 
 #ifdef __cplusplus

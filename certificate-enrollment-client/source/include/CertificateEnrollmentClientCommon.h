@@ -56,7 +56,8 @@ namespace CertificateEnrollmentClient {
 
     // The certificate renewal LwM2M resource. the pointer to this object is needed in order to set the resource value and set delayed responses.
     extern M2MResource* g_cert_enroll_lwm2m_resource;
-    
+    extern M2MObject *g_cert_enroll_lwm2m_obj;
+
 }
 
 #endif // __CERTIFICATE_ENROLLMENT_COMMON_H__

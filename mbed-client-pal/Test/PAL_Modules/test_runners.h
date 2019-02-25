@@ -109,6 +109,8 @@ void TEST_pal_update_GROUP_RUNNER(void);
 
 void TEST_pal_internalFlash_GROUP_RUNNER(void);
 
+void TEST_pal_sst_GROUP_RUNNER(void);
+
 void TEST_pal_SOTP_GROUP_RUNNER(void);
 
 void TEST_pal_sanity_GROUP_RUNNER(void);
@@ -138,6 +140,7 @@ typedef enum _palTestModules_t
     PAL_TEST_MODULE_FILESYSTEM,
     PAL_TEST_MODULE_UPDATE,
     PAL_TEST_MODULE_INTERNALFLASH,
+    PAL_TEST_MODULE_SST,
     PAL_TEST_MODULE_SOTP,
     PAL_TEST_MODULE_SANITY,
     PAL_TEST_MODULE_ALL,
@@ -161,23 +164,28 @@ typedef enum _palTestPlatformInit_t
 } palTestPlatformInit_t;
 
 
-// Each of these take a combination of palTestPlatformInit_t flags, which directs
-// the platform component initialization. All the tests should init only parts it
-// really uses as it is possible to have a platform which does not eg. have
-// a storage at all.
-
-int palAllTestMain(int init_flags);
-int palFileSystemTestMain(int init_flags);
-int palNetworkTestMain(int init_flags);
-int palCryptoTestMain(int init_flags);
-int palROTTestMain(int init_flags);
-int palRTOSTestMain(int init_flags);
-int palStorageTestMain(int init_flags);
-int palTimeTestMain(int init_flags);
-int palTLSTestMain(int init_flags);
-int palUpdateTestMain(int init_flags);
-int palSOTPTestMain(int init_flags);
-int palSanityTestMain(int init_flags);
+// Entry points for the module specific test suites. This code is executed either from
+// module-specific runner executables (eg. Test/TESTS/Unitest/RTOS/pal_rtos_test_main.c), which
+// contain the main() function or directly from some other executable.
+// Not all OS's even support main(), or it may already be in use by OS itself,
+// so a platform specific runner may be needed for each test.
+// Especially during the porting phase, it may be also convenient to call these from
+// the test application itself so only the currently ported component is tested.
+int palAllTestMain(void); // this will execute tests for all the other modules below
+int palFileSystemTestMain(void);
+int palNetworkTestMain(void);
+int palCryptoTestMain(void);
+int palDRBGTestMain(void);
+int palROTTestMain(void);
+int palRTOSTestMain(void);
+int palStorageTestMain(void);
+int palTimeTestMain(void);
+int palSSTTestMain(void);
+int palTLSTestMain(void);
+int palUpdateTestMain(void);
+int palSOTPTestMain(void);
+int palSanityTestMain(void);
+int palReformatTestMain(void);
 
 typedef enum _palTestSOTPTests_t
 {

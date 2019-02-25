@@ -22,8 +22,7 @@
 #include "update-client-paal/arm_uc_paal_update_api.h"
 
 #include "update-client-pal-filesystem/arm_uc_pal_extensions.h"
-#include "update-client-common/arm_uc_utilities.h"
-#include "update-client-common/arm_uc_metadata_header_v2.h"
+#include "update-client-metadata-header/arm_uc_metadata_header_v2.h"
 #include "arm_uc_pal_filesystem_utils.h"
 
 #include "pal.h"
@@ -38,7 +37,7 @@
 /* pointer to external callback handler */
 static ARM_UC_PAAL_UPDATE_SignalEvent_t arm_uc_pal_external_callback = NULL;
 
-static void arm_uc_pal_classic_signal_callback(uint32_t event)
+static void arm_uc_pal_classic_signal_callback(uintptr_t event)
 {
     if (arm_uc_pal_external_callback) {
         arm_uc_pal_external_callback(event);

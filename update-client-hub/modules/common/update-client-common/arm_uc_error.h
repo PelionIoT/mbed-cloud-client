@@ -23,6 +23,7 @@
 
 // Use two characters to form the 16bit module code
 #define TWO_CC(A,B) (((A) & 0xFF) | (((B) & 0xFF) << 8))
+#define CC_ASCII(X) ((((X) < ' ') || ((X) > '~' )) ? '.' : (X))
 
 #define MANIFEST_MANAGER_PREFIX    TWO_CC('M','M')
 #define CERTIFICATE_MANAGER_PREFIX TWO_CC('C','M')
@@ -44,6 +45,7 @@
     ENUM_AUTO(ERR_NULL_PTR)\
     ENUM_AUTO(ERR_NOT_READY)\
     ENUM_AUTO(ERR_INVALID_STATE)\
+    ENUM_AUTO(ERR_OUT_OF_MEMORY)\
 
 // Manifest manager
 #define ARM_UC_MM_ERR_LIST\
@@ -86,9 +88,6 @@
     ENUM_AUTO(ARM_UC_CM_ERR_INVALID_CERT)\
     ENUM_AUTO(ARM_UC_CM_ERR_BLACKLISTED)\
     ENUM_AUTO(ARM_UC_CM_ERR_LAST)\
-
-// temporary declaration to avoid CI issues.
-#define ARM_UC_CM_ERR_NONE ERR_NONE
 
 // DER Parser
 #define ARM_UC_DP_ERR_LIST\
@@ -226,14 +225,6 @@ typedef union arm_uc_error_code arm_uc_error_t;
 #endif
 // have a way to set errors without trace for values that are not strictly errors.
 #define ARM_UC_SET_ERROR_NEVER_TRACE(VAR, CODE)     (VAR).code = (CODE)
-
-/* Fail instantly and permanently with error message if assertion fails. */
-#undef ARM_UC__DBG_ASSERT
-#define ARM_UC__DBG_ASSERT(x, msg)\
-    do { \
-        if((x) == 0) \
-        printf("\n\r%s, assertion(" #x ") failed in file %s:%d ", msg, __FILE__, __LINE__); \
-    } while(0)
 
 #ifdef __cplusplus
 extern "C" {

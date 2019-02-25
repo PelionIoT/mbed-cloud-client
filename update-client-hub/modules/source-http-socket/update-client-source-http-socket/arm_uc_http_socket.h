@@ -90,11 +90,12 @@ typedef enum {
 /**
  * @brief Prototype for event handler.
  */
-typedef void (*ARM_UCS_HttpEvent_t)(uint32_t event);
+typedef void (*ARM_UCS_HttpEvent_t)(uintptr_t event);
 
 
 // Number of fragments in a burst, it is not required to use one of these values.
-#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__NONE             1
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__DISABLED         0   // do not use http fragments. Do only single request
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__ONE              1
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__LIGHT            4
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__MILD             16
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__MODERATE         64
@@ -103,7 +104,7 @@ typedef void (*ARM_UCS_HttpEvent_t)(uint32_t event);
 
 #if !defined(ARM_UC_MULTI_FRAGS_PER_HTTP_BURST)
 #if defined(TARGET_IS_PC_LINUX)
-#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST           ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__EXTREME
+#define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST           ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__DISABLED
 #else
 #define ARM_UC_MULTI_FRAGS_PER_HTTP_BURST           ARM_UC_MULTI_FRAGS_PER_HTTP_BURST__MODERATE
 #endif

@@ -23,7 +23,7 @@
 
 #include "update-client-lwm2m/DeviceMetadataResource.h"
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_types.h"
 #include "pal4life-device-identity/pal_device_identity.h"
 #include <inttypes.h>
 
@@ -177,9 +177,9 @@ void DeviceMetadataResource::Initialize(void)
 
                 if (vendorIdResource) {
                     vendorIdResource->set_operation(M2MBase::GET_ALLOWED);
+                    vendorIdResource->set_value(value, value_length);
                     vendorIdResource->publish_value_in_registration_msg(true);
                     vendorIdResource->set_auto_observable(true);
-                    vendorIdResource->set_value(value, value_length);
                 }
 
                 /* get class ID */
@@ -201,9 +201,9 @@ void DeviceMetadataResource::Initialize(void)
 
                 if (classIdResource) {
                     classIdResource->set_operation(M2MBase::GET_ALLOWED);
+                    classIdResource->set_value(value, value_length);
                     classIdResource->publish_value_in_registration_msg(true);
                     classIdResource->set_auto_observable(true);
-                    classIdResource->set_value(value, value_length);
                 }
 
                 /* get device ID */

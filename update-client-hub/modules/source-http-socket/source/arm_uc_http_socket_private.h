@@ -116,7 +116,7 @@ arm_uc_error_t arm_uc_http_socket_fatal_error(arm_ucs_http_event_t error);
  * @brief Callback function for handling events in application context.
  * @param unused Unused.
  */
-void arm_uc_http_socket_callback(uint32_t unused);
+void arm_uc_http_socket_callback(uintptr_t unused);
 
 /**
  * @brief Helper function to cancel resume engine externally

@@ -28,6 +28,7 @@
 #include "update-client-common/arm_uc_types.h"
 #include "update-client-common/arm_uc_common.h"
 #include "update-client-common/arm_uc_error.h"
+#include "update-client-metadata-header/arm_uc_buffer_utilities.h"
 #include "mbedtls/sha256.h"
 
 #include "arm_uc_mmFSMHelper.h"

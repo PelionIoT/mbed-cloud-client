@@ -73,7 +73,7 @@ typedef struct _ARM_UCS_Http_Configuration {
     uint32_t currentCost;
     time_t lastPoll;
     int8_t hash[ARM_UCS_HTTP_HASH_LENGTH];
-    void (*eventHandler)(uint32_t event);
+    void (*eventHandler)(uintptr_t event);
 } ARM_UCS_Http_Configuration_t;
 
 static ARM_UCS_Http_Configuration_t default_config = {
@@ -298,7 +298,7 @@ void ARM_UCS_Http_ProcessHash()
     }
 }
 
-static void ARM_UCS_Http_HTTPEvent(uint32_t event)
+static void ARM_UCS_Http_HTTPEvent(uintptr_t event)
 {
     UC_SRCE_TRACE_ENTRY(">> %s", __func__);
 

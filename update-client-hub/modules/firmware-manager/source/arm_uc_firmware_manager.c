@@ -40,7 +40,7 @@ static arm_uc_buffer_t *back_buffer = NULL;
 #define UCFM_DEBUG_OUTPUT 0
 
 
-static void arm_uc_signal_ucfm_handler(uint32_t event);
+static void arm_uc_signal_ucfm_handler(uintptr_t event);
 
 /******************************************************************************/
 /* Debug output functions for writing formatted output                        */
@@ -281,14 +281,14 @@ static void event_handler_read(void)
     }
 }
 
-static void arm_uc_signal_ucfm_handler(uint32_t event)
+static void arm_uc_signal_ucfm_handler(uintptr_t event)
 {
     if (ucfm_handler) {
         ucfm_handler(event);
     }
 }
 
-static void arm_uc_internal_event_handler(uint32_t event)
+static void arm_uc_internal_event_handler(uintptr_t event)
 {
     switch (event) {
         case ARM_UC_PAAL_EVENT_FINALIZE_DONE:
@@ -304,7 +304,7 @@ static void arm_uc_internal_event_handler(uint32_t event)
     }
 }
 
-static void ARM_UCFM_PALEventHandler(uint32_t event)
+static void ARM_UCFM_PALEventHandler(uintptr_t event)
 {
     /* decouple event handler from callback */
     ARM_UC_PostCallback(&arm_uc_event_handler_callback,

@@ -22,7 +22,6 @@
 #include "fcc_malloc.h"
 #include "pal.h"
 #include "cs_utils.h"
-#include "kcm_internal.h"
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 #include "certificate_enrollment.h"
 #endif  // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -42,6 +41,13 @@ kcm_status_e kcm_init(void)
         //Initialize PAL
         pal_status = pal_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed initializing PAL (%" PRIu32 ")", pal_status);
+
+        /*
+         * Do not initialize the time module inside pal_init since pal_initTime() uses storage functions.
+         * At KCM init it is guaranteed that any entropy and RoT that should be injected - is already injected.
+         */
+        pal_status = pal_initTime();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed PAL time module (%" PRIu32 ")", pal_status);
 
         //Initialize back-end storage
         status = storage_init();
@@ -126,8 +132,8 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name, size_t kcm_item_name_
             SA_PV_ERR_RECOVERABLE_RETURN_IF((true), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     }
 
-    kcm_status =  _kcm_item_store(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, kcm_item_data, kcm_item_data_size, KCM_ORIGINAL_ITEM);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_item_store");
+    kcm_status = storage_data_write(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, KCM_ORIGINAL_ITEM, kcm_item_data, kcm_item_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_write");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
@@ -137,12 +143,11 @@ kcm_status_e kcm_item_get_data_size(const uint8_t *kcm_item_name, size_t kcm_ite
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_item_get_data_size
-    kcm_status = _kcm_item_get_data_size(kcm_item_name, kcm_item_name_len, kcm_item_type, KCM_ORIGINAL_ITEM, kcm_item_data_size_out);
+    kcm_status = storage_data_size_read(kcm_item_name, kcm_item_name_len, kcm_item_type, KCM_ORIGINAL_ITEM, kcm_item_data_size_out);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_item_get_data_size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_size_read");
 
     return kcm_status;
 }
@@ -151,12 +156,11 @@ kcm_status_e kcm_item_get_data(const uint8_t * kcm_item_name, size_t kcm_item_na
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_item_get_data
-    kcm_status = _kcm_item_get_data(kcm_item_name, kcm_item_name_len, kcm_item_type, KCM_ORIGINAL_ITEM, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
+    kcm_status =  storage_data_read(kcm_item_name, kcm_item_name_len, kcm_item_type, KCM_ORIGINAL_ITEM, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_item_get_data");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_read");
 
     return kcm_status;
 }
@@ -165,9 +169,8 @@ kcm_status_e kcm_item_delete(const uint8_t * kcm_item_name, size_t kcm_item_name
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_item_delete
-    kcm_status = _kcm_item_delete(kcm_item_name, kcm_item_name_len, kcm_item_type, KCM_ORIGINAL_ITEM);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_item_delete");
+    kcm_status = storage_data_delete(kcm_item_name, kcm_item_name_len, kcm_item_type, KCM_ORIGINAL_ITEM);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_delete");
 
     return kcm_status;
 }
@@ -196,9 +199,9 @@ kcm_status_e kcm_cert_chain_create(kcm_cert_chain_handle *kcm_chain_handle, cons
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_cert_chain_create
-    kcm_status = _kcm_cert_chain_create(kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, kcm_chain_len, kcm_chain_is_factory, KCM_ORIGINAL_ITEM);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during kcm_cert_chain_create");
+    //Call internal storage_cert_chain_create
+    kcm_status = storage_cert_chain_create(kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, kcm_chain_len, kcm_chain_is_factory, KCM_ORIGINAL_ITEM);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_cert_chain_create");
 
     return kcm_status;
 }
@@ -207,12 +210,12 @@ kcm_status_e kcm_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, const 
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_cert_chain_open
-    kcm_status = _kcm_cert_chain_open(kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, KCM_ORIGINAL_ITEM, kcm_chain_len_out);
+    //Call internal storage_cert_chain_open
+    kcm_status = storage_cert_chain_open(kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, KCM_ORIGINAL_ITEM, kcm_chain_len_out);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during kcm_cert_chain_open");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_cert_chain_open");
 
     return kcm_status;
 }
@@ -267,9 +270,9 @@ kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, con
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed to retrieve child cert params");
     }
 
-    //Call internal _kcm_cert_chain_add_next
-    kcm_status = _kcm_cert_chain_add_next(kcm_chain_handle, kcm_cert_data, kcm_cert_data_size, KCM_ORIGINAL_ITEM);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed in _kcm_cert_chain_add_next");
+    //Call internal storage_chain_add_next
+    kcm_status = storage_chain_add_next(kcm_chain_handle, kcm_cert_data, kcm_cert_data_size, KCM_ORIGINAL_ITEM);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed in storage_chain_add_next");
 
 Clean_X509:
     cs_close_handle_x509_cert(&cert);
@@ -282,9 +285,9 @@ kcm_status_e kcm_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm_cha
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_cert_chain_delete
-    kcm_status = _kcm_cert_chain_delete(kcm_chain_name, kcm_chain_name_len, KCM_ORIGINAL_ITEM);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_cert_chain_delete");
+    //Call internal storage_cert_chain_delete
+    kcm_status = storage_cert_chain_delete(kcm_chain_name, kcm_chain_name_len, KCM_ORIGINAL_ITEM);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_cert_chain_delete");
 
     return kcm_status;
 }
@@ -294,9 +297,9 @@ kcm_status_e kcm_cert_chain_get_next_size(kcm_cert_chain_handle kcm_chain_handle
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_cert_chain_delete
-    kcm_status = _kcm_cert_chain_get_next_size(kcm_chain_handle, KCM_ORIGINAL_ITEM, kcm_cert_data_size );
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_cert_chain_get_next_size");
+    //Call internal storage_cert_chain_get_next_size
+    kcm_status = storage_cert_chain_get_next_size(kcm_chain_handle, KCM_ORIGINAL_ITEM, kcm_cert_data_size );
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_cert_chain_get_next_size");
 
     return kcm_status;
 }
@@ -305,9 +308,9 @@ kcm_status_e kcm_cert_chain_get_next_data(kcm_cert_chain_handle kcm_chain_handle
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_cert_chain_get_next_data
-    kcm_status = _kcm_cert_chain_get_next_data(kcm_chain_handle, kcm_cert_data, kcm_max_cert_data_size, KCM_ORIGINAL_ITEM, kcm_actual_cert_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_cert_chain_get_next_data");
+    //Call internal storage_cert_chain_get_next_data
+    kcm_status = storage_cert_chain_get_next_data(kcm_chain_handle, kcm_cert_data, kcm_max_cert_data_size, KCM_ORIGINAL_ITEM, kcm_actual_cert_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_cert_chain_get_next_data");
 
     return kcm_status;
 }
@@ -318,9 +321,9 @@ kcm_status_e kcm_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle)
 
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    //Call internal _kcm_cert_chain_get_next_data
-    kcm_status = _kcm_cert_chain_close(kcm_chain_handle, KCM_ORIGINAL_ITEM);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_cert_chain_close")
+    //Call internal storage_cert_chain_close
+    kcm_status = storage_cert_chain_close(kcm_chain_handle, KCM_ORIGINAL_ITEM);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_cert_chain_close")
 
     return kcm_status;
 }

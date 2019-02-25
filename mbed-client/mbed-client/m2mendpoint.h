@@ -21,16 +21,18 @@
 #include "mbed-client/m2mobject.h"
 #include "mbed-client/m2mstring.h"
 
+/*! \file m2mendpoint.h
+ *  \brief M2MEndpoint.
+ *  This class can be used to represent an LwM2M Device endpoint and it contains a list of LwM2M objects.
+ *
+ *  It implements the M2MBase interface so it can be passed to the m2minterface for registering to server.
+ */
+
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
 
 //FORWARD DECLARATION
 typedef Vector<M2MObject *> M2MObjectList;
 
-/*! \file m2mendpoint.h
- *  \brief M2MEndpoint.
- *  This class can be used to represent an LwM2M Device endpoint, it contains a list of LwM2M objects.
- *  It implements the M2MBase interface so it can be passed to the m2minterface for registering to server.
- */
 
 class M2MEndpoint : public M2MBase
 {

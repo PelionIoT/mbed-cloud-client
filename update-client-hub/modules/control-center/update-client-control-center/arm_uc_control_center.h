@@ -20,7 +20,10 @@
 #define ARM_UPDATE_CONTROL_CENTER_H
 
 #include "update-client-monitor/arm_uc_monitor.h"
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_types.h"
+#include "update-client-common/arm_uc_error.h"
+#include "update-client-common/arm_uc_public.h"
+#include "update-client-common/arm_uc_scheduler.h"
 
 #include <stdint.h>
 
@@ -36,7 +39,7 @@ typedef enum {
  * @param callback Event handler to signal authorizations.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_Initialize(void (*callback)(uint32_t));
+arm_uc_error_t ARM_UC_ControlCenter_Initialize(void (*callback)(uintptr_t));
 
 /**
  * @brief Add monitor struct for sending status and results remotely.
@@ -170,5 +173,3 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t *hash);
 arm_uc_error_t ARM_UC_ControlCenter_ReportOEMBootloaderHash(arm_uc_buffer_t *hash);
 
 #endif // __ARM_UPDATE_CONTROL_CENTER_H__
-
-

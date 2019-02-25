@@ -27,11 +27,16 @@ extern "C" {
 
 #include "kcm_status.h"
 #include "kcm_defs.h"
-#include "kcm_internal.h"
 
 
 /* CS key object handle */
 typedef uintptr_t cs_key_handle_t;
+
+/* === EC max sizes === */
+#define KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE           150
+#define KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE            65
+#define KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE            91
+#define KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES  (256/8)*2 + 10 //74 bytes
 
 /** EC key context
 * Contains the private and public keys buffers

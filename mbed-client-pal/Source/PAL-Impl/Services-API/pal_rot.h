@@ -1,19 +1,20 @@
-/*******************************************************************************
- * Copyright 2016-2018 ARM Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *******************************************************************************/
-
+// ----------------------------------------------------------------------------
+// Copyright 2016-2019 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ----------------------------------------------------------------------------
 
 #ifndef _PAL_ROT_H
 #define _PAL_ROT_H
@@ -56,6 +57,18 @@ typedef enum  palDeviceKeyType {
 palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t keyLenBytes);
 
 
+/*! Sets a root of trust key. The size of the key must be 16 bytes.
+* This function is not implemented for HW RoT configuration.
+*
+* @param[in] key A 16 bytes buffer with a root of trust key to set.
+* @param[in] keyLenBytes The size of the buffer must be 16 bytes.
+* \return PAL_SUCCESS in case of success and one of the following error codes in case of failure: \n
+* PAL_ERR_ITEM_EXIST - RoT key already exists.\n
+* PAL_ERR_INVALID_ARGUMENT - invalid parameter.\n
+* PAL_ERR_GENERIC_FAILURE - set operation failed.\n
+* PAL_ERR_NOT_IMPLEMENTED - the function is not implemented for current configuration.\n
+*/
+palStatus_t pal_osSetRoT(uint8_t *key, size_t keyLenBytes);
 #ifdef __cplusplus
 }
 #endif

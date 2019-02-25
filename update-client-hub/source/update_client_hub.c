@@ -72,7 +72,7 @@ void UC_HUB_scheduler_error_handler(uint32_t an_event)
  *        finish asynchronously, will invoke callback when initialization is done.
  * @param init_cb the callback to be invoked at the end of initialization.
  */
-arm_uc_error_t ARM_UC_HUB_Initialize(void (*init_cb)(int32_t))
+arm_uc_error_t ARM_UC_HUB_Initialize(void (*init_cb)(uintptr_t))
 {
     arm_uc_error_t retval;
 
@@ -465,7 +465,7 @@ bool ARM_UC_IsValidState(arm_uc_update_state_t an_update_state)
     int val = (int)an_update_state;
     bool is_valid = ((val >= (int)ARM_UC_UPDATE_STATE_FIRST)
                      && (val <= (int)ARM_UC_UPDATE_STATE_LAST));
-    ARM_UC__DBG_ASSERT(is_valid != 0, "Valid UC HUB reported state");
+    if (!is_valid) UC_ERROR_ERR_MSG("Invalid UC HUB reported state");
     return is_valid;
 }
 
@@ -484,8 +484,6 @@ bool ARM_UC_IsValidResult(arm_uc_update_result_t an_update_result)
                         && (an_update_result <= ARM_UC_UPDATE_RESULT_PROCESSOR_LAST))
                     || ((an_update_result >= ARM_UC_UPDATE_RESULT_MANIFEST_FIRST)
                         && (an_update_result <= ARM_UC_UPDATE_RESULT_MANIFEST_LAST));
-    ARM_UC__DBG_ASSERT(is_valid != 0, "Valid UC HUB reported result");
+    if (!is_valid) UC_ERROR_ERR_MSG("Invalid UC HUB reported state");
     return is_valid;
 }
-
-

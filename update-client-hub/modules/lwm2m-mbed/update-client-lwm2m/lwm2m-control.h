@@ -19,7 +19,8 @@
 #ifndef ARM_UC_LWM2M_CONTROL_H
 #define ARM_UC_LWM2M_CONTROL_H
 
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_types.h"
+#include "update-client-common/arm_uc_error.h"
 #include "update-client-common/arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
 #include "mbed-client/m2minterface.h"

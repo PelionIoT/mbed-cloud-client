@@ -249,7 +249,7 @@ extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address
     M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)callbackArgument;
 
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::address_resolver callback failed with 0x%X", status);
+        tr_error("M2MConnectionHandlerPimpl::address_resolver callback failed with %" PRIx32, status);
         if (!(instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsError))) {
             tr_error("M2MConnectionHandlerPimpl::address_resolver callback, error event alloc fail.");
         }
@@ -271,7 +271,7 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     _handler_async_DNS = 0;
     status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
     if (PAL_SUCCESS != status) {
-       tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. 0x%X", (unsigned)status);
+       tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. %" PRIx32, status);
        _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
     }
     else {
@@ -281,7 +281,7 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:synchronous DNS");
     status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with 0x%X", (unsigned)status);
+        tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with %" PRIx32, status);
         if (!send_event(ESocketDnsError)) {
             tr_error("M2MConnectionHandlerPimpl::address_resolver, error event alloc fail.");
         }
@@ -379,7 +379,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             status = pal_setSockAddrPort((palSocketAddress_t*)&_socket_address, _server_port);
 
             if (PAL_SUCCESS != status) {
-                tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - setSockAddrPort err: %d", (int)status);
+                tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - setSockAddrPort err: %" PRIx32, status);
             } else {
                 tr_debug("address family: %d", (int)_socket_address.addressType);
             }
@@ -387,7 +387,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             if (_socket_address.addressType == PAL_AF_INET) {
                 status = pal_getSockAddrIPV4Addr((palSocketAddress_t*)&_socket_address,_ipV4Addr);
                 if (PAL_SUCCESS != status) {
-                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - sockAddr4, err: %d", (int)status);
+                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - sockAddr4, err: %" PRIx32, status);
                     _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
                     return;
                 }
@@ -401,7 +401,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             } else if (_socket_address.addressType == PAL_AF_INET6) {
                 status = pal_getSockAddrIPV6Addr((palSocketAddress_t*)&_socket_address,_ipV6Addr);
                 if (PAL_SUCCESS != status) {
-                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - sockAddr6, err: %d", (int)status);
+                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - sockAddr6, err: %" PRIx32, status);
                     _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
                     return;
                 }
@@ -440,7 +440,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                 if ((status == PAL_ERR_SOCKET_IN_PROGRES) || (status == PAL_ERR_SOCKET_WOULD_BLOCK)) {
                     // In this case the connect is done asynchronously, and the pal_socketMiniSelect()
                     // will be used to detect the end of connect.
-                    tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - pal_connect(): %d, async connect started", (int)status);
+                    tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - pal_connect(): %" PRIx32 ", async connect started", status);
                     // we need to wait for the event
                     _socket_state = ESocketStateConnecting;
                     break;
@@ -451,7 +451,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                     _socket_state = ESocketStateConnected;
 
                 } else {
-                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - pal_connect(): failed: %d", (int)status);
+                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - pal_connect(): failed: %" PRIx32, status);
                     close_socket();
                     _observer.socket_error(M2MConnectionHandler::SOCKET_ABORT);
                     return;
@@ -631,7 +631,7 @@ void M2MConnectionHandlerPimpl::send_socket_data()
                 return;
             }
             if (ret < 0) {
-                tr_error("M2MConnectionHandlerPimpl::send_socket_data() - unsecure failed %d", (int)ret);
+                tr_error("M2MConnectionHandlerPimpl::send_socket_data() - unsecure failed %" PRIx32, ret);
                 success = false;
                 break;
             }
@@ -805,7 +805,7 @@ void M2MConnectionHandlerPimpl::receive_handler()
             if (status == PAL_ERR_SOCKET_WOULD_BLOCK) {
                 return;
             } else if (status != PAL_SUCCESS) {
-                tr_error("M2MConnectionHandlerPimpl::receive_handler() - SOCKET_READ_ERROR (%d)", (int)status);
+                tr_error("M2MConnectionHandlerPimpl::receive_handler() - SOCKET_READ_ERROR %" PRIx32, status);
                 _observer.socket_error(M2MConnectionHandler::SOCKET_READ_ERROR, true);
                 close_socket();
                 return;
@@ -875,7 +875,7 @@ bool M2MConnectionHandlerPimpl::init_socket()
                                                 this, &_socket);
 
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::init_socket() - socket create error : %d", (int)status);
+        tr_error("M2MConnectionHandlerPimpl::init_socket() - socket create error : %" PRIx32, status);
         _observer.socket_error(M2MConnectionHandler::SOCKET_ABORT);
         return false;
     }
@@ -888,12 +888,12 @@ bool M2MConnectionHandlerPimpl::init_socket()
         tr_warn("M2MConnectionHandlerPimpl::init_socket() - stack type: %d", (int)_socket_address.addressType);
     }
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::init_socket - setSockAddrIPV err: %d", (int)status);
+        tr_error("M2MConnectionHandlerPimpl::init_socket - setSockAddrIPV err: %" PRIx32, status);
         return false;
     }
     status = pal_setSockAddrPort(&bind_address, _listen_port);
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::init_socket - setSockAddrPort err: %d", (int)status);
+        tr_error("M2MConnectionHandlerPimpl::init_socket - setSockAddrPort err: %" PRIx32, status);
         return false;
     }
     pal_bind(_socket, &bind_address, sizeof(bind_address));

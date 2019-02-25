@@ -55,9 +55,9 @@ static void printCryptoFlags(ucmm_crypto_flags_t *flags)
 }
 #endif
 
-arm_uc_error_t ARM_UC_mmFSM(uint32_t event)
+arm_uc_error_t ARM_UC_mmFSM(uintptr_t event)
 {
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);
+    UC_MMGR_TRACE("> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);
 
     arm_uc_error_t err = {ERR_NONE};
     enum arm_uc_mmState_t oldState;
@@ -111,19 +111,19 @@ arm_uc_error_t ARM_UC_mmFSM(uint32_t event)
                 break;
         }
     } while (err.code == ERR_NONE && oldState != arm_uc_mmPersistentContext.state);
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__, err.modulecc[0],
-                        err.modulecc[1], err.error, ARM_UC_err2Str(err));
+    UC_MMGR_TRACE("< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__, err.modulecc[0],
+                        CC_ASCII(err.modulecc[0]), CC_ASCII(err.modulecc[1]), ARM_UC_err2Str(err));
     return err;
 }
 
-void ARM_UC_mmCallbackFSMEntry(uint32_t event)
+void ARM_UC_mmCallbackFSMEntry(uintptr_t event)
 {
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);
+    UC_MMGR_TRACE("> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);
     arm_uc_error_t err = ARM_UC_mmFSM(event);
     if (err.code != ERR_NONE && err.code != MFST_ERR_PENDING) {
         arm_uc_mmPersistentContext.reportedError = err;
         arm_uc_mmPersistentContext.applicationEventHandler((uint32_t)ARM_UC_MM_RC_ERROR);
     }
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__, err.modulecc[0],
-                        err.modulecc[1], err.error, ARM_UC_err2Str(err));
+    UC_MMGR_TRACE("< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__,
+                        CC_ASCII(err.modulecc[0]), CC_ASCII(err.modulecc[1]), err.error, ARM_UC_err2Str(err));
 }

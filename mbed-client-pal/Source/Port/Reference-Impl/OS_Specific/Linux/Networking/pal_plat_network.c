@@ -952,7 +952,8 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
     //interface not found error
     if (found != 1 && result == PAL_SUCCESS)
     {
-        PAL_LOG_ERR("Network failed reading interface info");
+        PAL_LOG_ERR("Cannot find network interface \"%s\"",
+            s_palNetworkInterfacesSupported[interfaceNum].interfaceName);
         result = PAL_ERR_GENERIC_FAILURE;
     }
 
@@ -1166,7 +1167,19 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
     res = getaddrinfo(url, NULL, &hints, &pAddrInf);
     if(res < 0)
     {
-        result = translateErrorToPALError(errno);
+        // getaddrinfo returns EAI-error. In case of EAI_SYSTEM, the error
+        // is 'Other system error, check errno for details'
+        // (http://man7.org/linux/man-pages/man3/getaddrinfo.3.html#RETURN_VALUE)
+        if (res == EAI_SYSTEM)
+        {
+            result = translateErrorToPALError(errno);
+        }
+        else
+        {
+            // errno values are positive, getaddrinfo errors are negative so they can be mapped
+            // in the same place.
+            result = translateErrorToPALError(res);
+        }
     }
     else
     {
