@@ -219,7 +219,7 @@ sotp_result_e sotp_set(uint32_t type, uint16_t buf_len_bytes, const uint32_t *bu
     return SOTP_SUCCESS;
 }
 
-#ifdef SOTP_TESTING
+#ifdef RBP_TESTING
 
 sotp_result_e sotp_set_for_testing(uint32_t type, uint16_t buf_len_bytes, const uint32_t *buf)
 {
@@ -311,7 +311,7 @@ sotp_result_e sotp_reset(void)
     return SOTP_SUCCESS;
 }
 
-#ifdef SOTP_TESTING
+#ifdef RBP_TESTING
 
 sotp_result_e sotp_force_garbage_collection(void)
 {

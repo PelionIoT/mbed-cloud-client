@@ -787,8 +787,5 @@ extern const char UnityStrErr64[];
 #define UNITY_RESULTS_TAGS_RESULT_START "<***UnityResult***>"
 #define UNITY_RESULTS_TAGS_RESULT_END   "</***UnityResult***>"
 
-#define UNITY_RESULTS_TAGS_IGNORE_START "<***UnityIgnoredTest***>"
-#define UNITY_RESULTS_TAGS_IGNORE_END   "</***UnityIgnoredTest***>"
-
 /* End of UNITY_INTERNALS_H */
 #endif

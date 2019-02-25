@@ -16,7 +16,7 @@
 
 #include "include/m2mcallbackstorage.h"
 
-#include <cstddef>
+#include <stddef.h>
 
 // Dummy constructor, which does not init any value to something meaningful but needed for array construction.
 // It is better to leave values unintialized, so the Valgrind will point out if the Vector is used without

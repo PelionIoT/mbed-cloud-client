@@ -41,7 +41,7 @@
  * @details This file specifies the API used to interact with the manifest manager
  */
 
-arm_uc_error_t ARM_UC_mmInit(arm_uc_mmContext_t **mmCtx, void (*event_handler)(uint32_t),
+arm_uc_error_t ARM_UC_mmInit(arm_uc_mmContext_t **mmCtx, void (*event_handler)(uintptr_t),
                              const arm_pal_key_value_api *api)
 {
     arm_uc_error_t err = {ERR_NONE};
@@ -142,6 +142,20 @@ arm_uc_error_t ARM_UC_mmFetchNextFirmwareInfo(struct manifest_firmware_info_t *i
 arm_uc_error_t ARM_UC_mmGetError()
 {
     return arm_uc_mmPersistentContext.reportedError;
+}
+
+int ARM_UC_mmCheckFormatUint32(manifest_guid_t* format, uint32_t expected)
+{
+    manifest_guid_t local;
+    // Fix alignment problems
+    memcpy(&local, format, sizeof(local));
+
+    int fail = 0;
+    fail = fail || local.words[0] != 0;
+    fail = fail || local.words[1] != 0;
+    fail = fail || local.words[2] != 0;
+    fail = fail || local.words[3] != htobe(expected);
+    return !fail;
 }
 
 #if ARM_UC_MM_ENABLE_TEST_VECTORS

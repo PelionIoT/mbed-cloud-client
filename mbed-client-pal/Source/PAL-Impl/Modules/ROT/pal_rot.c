@@ -17,7 +17,7 @@
 
 #include "pal.h"
 #include "pal_plat_rot.h"
-
+#include "sotp.h"
 #define TRACE_GROUP "PAL"
 
 /*
@@ -32,13 +32,28 @@
 palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t keyLenBytes)
 {
     palStatus_t status = PAL_SUCCESS;
+    sotp_result_e sotpStatus;
     uint8_t rotBuffer[PAL_DEVICE_KEY_SIZE_IN_BYTES] __attribute__ ((aligned(4))) = {0};
 
-    PAL_VALIDATE_CONDITION_WITH_ERROR(((keyLenBytes < PAL_DEVICE_KEY_SIZE_IN_BYTES) || ((palOsStorageHmacSha256 == keyType) && (keyLenBytes < PAL_SHA256_DEVICE_KEY_SIZE_IN_BYTES))),PAL_ERR_BUFFER_TOO_SMALL)
-
-    PAL_VALIDATE_CONDITION_WITH_ERROR ((NULL == key),PAL_ERR_NULL_POINTER)
+    PAL_VALIDATE_CONDITION_WITH_ERROR(((keyLenBytes < PAL_DEVICE_KEY_SIZE_IN_BYTES) || ((palOsStorageHmacSha256 == keyType) && (keyLenBytes < PAL_SHA256_DEVICE_KEY_SIZE_IN_BYTES))), PAL_ERR_BUFFER_TOO_SMALL)
+    PAL_VALIDATE_CONDITION_WITH_ERROR((NULL == key), PAL_ERR_NULL_POINTER)
 
     status = pal_plat_osGetRoT(rotBuffer, keyLenBytes);
+
+#if (PAL_USE_HW_ROT == 0)
+
+    //If Rot not exists,try to generate random buffer and set as RoT
+    if (status == PAL_ERR_ITEM_NOT_EXIST) {
+        status = pal_osRandomBuffer(rotBuffer, PAL_DEVICE_KEY_SIZE_IN_BYTES);
+        if (PAL_SUCCESS == status)
+        {
+            sotpStatus = sotp_set(SOTP_TYPE_ROT, PAL_DEVICE_KEY_SIZE_IN_BYTES, (uint32_t *)rotBuffer);
+            if (SOTP_SUCCESS != sotpStatus) {
+                status = PAL_ERR_GENERIC_FAILURE;
+            }
+        }
+    }
+#endif
 
     if (PAL_SUCCESS == status)
     {   // Logic of RoT according to key type using 128 bit strong Key Derivation Algorithm
@@ -101,4 +116,20 @@ palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t key
 
     return status;
 
+}
+
+
+palStatus_t pal_osSetRoT(uint8_t *key, size_t keyLenBytes) {
+
+    palStatus_t status = PAL_SUCCESS;
+
+    PAL_VALIDATE_CONDITION_WITH_ERROR(((keyLenBytes != PAL_DEVICE_KEY_SIZE_IN_BYTES)), PAL_ERR_INVALID_ARGUMENT)
+    PAL_VALIDATE_CONDITION_WITH_ERROR((NULL == key), PAL_ERR_NULL_POINTER)
+
+#if (PAL_USE_HW_ROT == 0)
+        status = pal_plat_osSetRoT(key, keyLenBytes);
+#else
+        return PAL_ERR_NOT_IMPLEMENTED;
+#endif
+    return status;
 }

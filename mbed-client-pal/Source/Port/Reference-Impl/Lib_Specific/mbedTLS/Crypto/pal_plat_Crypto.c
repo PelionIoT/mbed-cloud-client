@@ -746,8 +746,16 @@ palStatus_t pal_plat_verifySignature(palX509Handle_t x509, palMDType_t mdType, c
     }
 
     platStatus = mbedtls_pk_verify(&localCtx->crt.pk, mdAlg, hash, hashLen, sig, sigLen);
-    if (platStatus < CRYPTO_PLAT_SUCCESS)
-    {
+    if (platStatus == CRYPTO_PLAT_SUCCESS) {
+        status = PAL_SUCCESS;
+    }
+    // handling for allocation failed. Listed all mbedtls alloc errors
+    else if (platStatus == MBEDTLS_ERR_X509_ALLOC_FAILED ||
+             platStatus == MBEDTLS_ERR_ASN1_ALLOC_FAILED ||
+             platStatus == MBEDTLS_ERR_MPI_ALLOC_FAILED ||
+             platStatus == MBEDTLS_ERR_ECP_ALLOC_FAILED) {
+        status = PAL_ERR_CRYPTO_ALLOC_FAILED;
+    } else {
         status = PAL_ERR_PK_SIG_VERIFY_FAILED;
     }
 finish:

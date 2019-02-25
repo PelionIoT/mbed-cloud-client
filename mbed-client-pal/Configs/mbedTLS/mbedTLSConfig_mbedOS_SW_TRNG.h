@@ -1,16 +1,20 @@
-//----------------------------------------------------------------------------
-// The confidential and proprietary information contained in this file may
-// only be used by a person authorised under and to the extent permitted
-// by a subsisting licensing agreement from ARM Limited or its affiliates.
+// ----------------------------------------------------------------------------
+// Copyright 2018-2019 ARM Ltd.
 //
-// (C) COPYRIGHT 2018 ARM Limited or its affiliates.
-// ALL RIGHTS RESERVED
+// SPDX-License-Identifier: Apache-2.0
 //
-// This entire notice must be reproduced on all copies of this file
-// and copies of this file may only be made by a person if such person is
-// permitted to do so under the terms of a subsisting license agreement
-// from ARM Limited or its affiliates.
-//----------------------------------------------------------------------------
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ----------------------------------------------------------------------------
 
 #ifndef PAL_MBEDTLS_USER_CONFIG_H
 #define PAL_MBEDTLS_USER_CONFIG_H
@@ -213,8 +217,7 @@
                                      MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, \
                                      MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, \
                                      MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8, \
-                                     MBEDTLS_TLS_PSK_WITH_AES_256_CCM_8, \
-                                     MBEDTLS_TLS_PSK_WITH_AES_128_CBC_SHA256
+                                     MBEDTLS_TLS_PSK_WITH_AES_256_CCM_8
 #endif //MBEDTLS_SSL_CIPHERSUITES
 
 /*! All of the following definitions are optimizations (reduce mbedTLS memory usage and size),
@@ -231,6 +234,12 @@
 #ifndef MBEDTLS_SSL_MAX_CONTENT_LEN
     #define MBEDTLS_SSL_MAX_CONTENT_LEN 4096
 #endif //MBEDTLS_SSL_MAX_CONTENT_LEN
+
+// needed for Base64 encoding Opaque data for
+// registration payload, adds 500 bytes to flash.
+#ifndef MBEDTLS_BASE64_C
+    #define MBEDTLS_BASE64_C
+#endif // MBEDTLS_BASE64_C
 
 // Needed by provisioning
 #undef MBEDTLS_PEM_WRITE_C
@@ -266,10 +275,6 @@
 // needed for parsing the certificates
 #undef MBEDTLS_PEM_PARSE_C
 
-
-// dep of the previous
-#undef MBEDTLS_BASE64_C
-
 #undef MBEDTLS_SHA512_C
 
 #undef MBEDTLS_SSL_SRV_C
@@ -287,10 +292,39 @@
 #undef MBEDTLS_ECP_DP_CURVE25519_ENABLED
 
 #define MBEDTLS_PLATFORM_TIME_ALT
-#define MBEDTLS_BASE64_C
+
+/**
+ * \def MBEDTLS_SSL_RENEGOTIATION
+ *
+ * Enable support for TLS renegotiation.
+ *
+ * The two main uses of renegotiation are (1) refresh keys on long-lived
+ * connections and (2) client authentication after the initial handshake.
+ * If you don't need renegotiation, it's probably better to disable it, since
+ * it has been associated with security issues in the past and is easy to
+ * misuse/misunderstand.
+ *
+ * Comment this to disable support for renegotiation.
+ *
+ * \note   Even if this option is disabled, both client and server are aware
+ *         of the Renegotiation Indication Extension (RFC 5746) used to
+ *         prevent the SSL renegotiation attack (see RFC 5746 Sect. 1).
+ *         (See \c mbedtls_ssl_conf_legacy_renegotiation for the
+ *          configuration of this extension).
+ *
+ * \note   This feature is required by Device Management Client for Client-side
+ *         certificate expiration verification. Disabling it will also require
+ *         setting PAL_USE_SECURE_TIME to 0.
+ *
+ */
 #define MBEDTLS_SSL_RENEGOTIATION
 
 #define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
+
+// Reduces size particularly in case PSA crypto is used
+#undef MBEDTLS_CHACHA20_C
+#undef MBEDTLS_CHACHAPOLY_C
+#undef MBEDTLS_POLY1305_C
 
 #include "mbedtls/check_config.h"
 

@@ -18,7 +18,7 @@ if (${OS_BRAND} MATCHES FreeRTOS)
     # add_definitions(-DUNITY_OUTPUT_CHAR=unity_output_char)
 endif()
 
-add_definitions(-DSOTP_TESTING)
+add_definitions(-DRBP_TESTING)
 
 #on Linux, we might find different names for the network interface
 #so we have to find it, and pass to the code.
@@ -69,6 +69,8 @@ file(GLOB PAL_TEST_NETWORK_SRCS "${PAL_TESTS_SOURCE_DIR}/Networking/*.c")
 
 file(GLOB PAL_TEST_FS_SRCS "${PAL_TESTS_SOURCE_DIR}/FileSystem/*.c")
 
+file(GLOB PAL_TEST_SST_SRCS "${PAL_TESTS_SOURCE_DIR}/SST/*.c")
+
 file(GLOB PAL_TEST_TIME_SRCS "${PAL_TESTS_SOURCE_DIR}/Time/*.c")
 
 file(GLOB PAL_TEST_TLS_SRCS "${PAL_TESTS_SOURCE_DIR}/TLS/*.c")
@@ -95,6 +97,8 @@ file(GLOB PAL_TEST_RUNNER_ROT_SRCS "${PAL_TESTS_RUNNER_DIR}/ROT/*.c")
 file(GLOB PAL_TEST_RUNNER_NETWORK_SRCS "${PAL_TESTS_RUNNER_DIR}/Networking/*.c")
 
 file(GLOB PAL_TEST_RUNNER_FS_SRCS "${PAL_TESTS_RUNNER_DIR}/FileSystem/*.c")
+
+file(GLOB PAL_TEST_RUNNER_SST_SRCS "${PAL_TESTS_RUNNER_DIR}/SST/*.c")
 
 file(GLOB PAL_TEST_RUNNER_TIME_SRCS "${PAL_TESTS_RUNNER_DIR}/Time/*.c")
 
@@ -178,8 +182,8 @@ target_link_libraries(RTOSTests pal palunity platformCommon)
 
 set(rot_test_src ${test_src}; ${PAL_TEST_RUNNER_ROT_SRCS}; ${PAL_TEST_ROT_SRCS}) 
 CREATE_TEST_LIBRARY(ROTTests "${rot_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(ROTTests pal palunity platformCommon)
-target_link_libraries(ROTTests pal palunity platformCommon)
+add_dependencies(ROTTests pal palROT palunity platformCommon)
+target_link_libraries(ROTTests pal palROT palunity platformCommon)
 
 set(network_test_src ${test_src}; ${PAL_TEST_RUNNER_NETWORK_SRCS}; ${PAL_TEST_NETWORK_SRCS}) 
 CREATE_TEST_LIBRARY(NetworkTests "${network_test_src}" "${PAL_TEST_FLAGS}")
@@ -195,6 +199,11 @@ set(fs_test_src ${test_src}; ${PAL_TEST_RUNNER_FS_SRCS}; ${PAL_TEST_FS_SRCS})
 CREATE_TEST_LIBRARY(FileSystemTests "${fs_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(FileSystemTests pal palunity platformCommon)
 target_link_libraries(FileSystemTests pal palunity platformCommon)
+
+set(sst_test_src ${test_src}; ${PAL_TEST_RUNNER_SST_SRCS}; ${PAL_TEST_SST_SRCS}) 
+CREATE_TEST_LIBRARY(SSTTests "${sst_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(SSTTests pal palunity platformCommon)
+target_link_libraries(SSTTests pal palunity platformCommon)
 
 set(time_test_src ${test_src}; ${PAL_TEST_RUNNER_TIME_SRCS}; ${PAL_TEST_TIME_SRCS}) 
 CREATE_TEST_LIBRARY(TimeTests "${time_test_src}" "${PAL_TEST_FLAGS}")
@@ -230,6 +239,6 @@ target_link_libraries(SotpTests pal palunity platformCommon)
 set(all_test_src ${test_src}; ${PAL_TEST_RUNNER_FULL_SRCS})
 CREATE_TEST_LIBRARY(palTests "${all_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(palTests pal palunity sanityTests platformCommon)
-target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests NetworkTests DRBGTests FileSystemTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
+target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests NetworkTests DRBGTests FileSystemTests SSTTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
 
 

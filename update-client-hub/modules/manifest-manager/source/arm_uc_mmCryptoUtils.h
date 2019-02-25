@@ -27,14 +27,14 @@
 arm_uc_error_t ARM_UC_mmValidateManifestHash(arm_uc_buffer_t *buffer);
 #if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
 arm_uc_error_t ARM_UC_mmValidateSignature(arm_uc_mm_validate_signature_context_t *ctx,
-                                          void (*applicationEventHandler)(uint32_t),
+                                          void (*applicationEventHandler)(uintptr_t),
                                           arm_uc_buffer_t *buffer,
                                           arm_uc_buffer_t *certBuffer,
                                           uint32_t sigIndex);
 #endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */
 #if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
 arm_uc_error_t ARM_UC_mmVerifySignaturePSK(arm_uc_mm_validate_signature_context_t *ctx,
-                                           void (*applicationEventHandler)(uint32_t),
+                                           void (*applicationEventHandler)(uintptr_t),
                                            arm_uc_buffer_t *buffer,
                                            uint32_t sigIndex);
 #endif /* ARM_UC_FEATURE_MANIFEST_PSK */

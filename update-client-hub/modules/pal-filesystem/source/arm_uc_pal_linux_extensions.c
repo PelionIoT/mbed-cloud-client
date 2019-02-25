@@ -22,9 +22,7 @@
 
 #include "update-client-pal-filesystem/arm_uc_pal_extensions.h"
 
-#include "update-client-common/arm_uc_metadata_header_v2.h"
-#include "update-client-common/arm_uc_types.h"
-#include "update-client-common/arm_uc_utilities.h"
+#include "update-client-metadata-header/arm_uc_metadata_header_v2.h"
 #include "arm_uc_pal_filesystem_utils.h"
 
 #include "pal.h"
@@ -46,14 +44,14 @@
 #define MBED_CONF_UPDATE_CLIENT_BOOTLOADER_DETAILS 0
 #endif
 
-static void (*arm_ucex_linux_callback)(uint32_t) = NULL;
+static void (*arm_ucex_linux_callback)(uintptr_t) = NULL;
 static palImageId_t arm_ucex_activate_image_id;
 
 #ifndef PAL_UPDATE_ACTIVATE_SCRIPT
 #define PAL_UPDATE_ACTIVATE_SCRIPT "./activate_script"
 #endif
 
-arm_uc_error_t pal_ext_imageInitAPI(void (*callback)(uint32_t))
+arm_uc_error_t pal_ext_imageInitAPI(void (*callback)(uintptr_t))
 {
     arm_uc_error_t result = { .code = ERR_NONE };
 

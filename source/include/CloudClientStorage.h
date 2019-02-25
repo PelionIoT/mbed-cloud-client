@@ -19,6 +19,9 @@
 #ifndef CLOUD_CLIENT_STORAGE_H
 #define CLOUD_CLIENT_STORAGE_H
 
+#include <stddef.h>
+#include <stdint.h>
+
 #define KEY_ACCOUNT_ID                          "mbed.AccountID"
 #define KEY_INTERNAL_ENDPOINT                   "mbed.InternalEndpoint"
 #define KEY_DEVICE_SOFTWAREVERSION              "mbed.SoftwareVersion"

@@ -113,7 +113,7 @@ static arm_uc_error_t ARM_UCSM_Get(request_t *req);
 /**
  * @brief Catch callbacks from sources to enable error handling
  */
-static void ARM_UCSM_CallbackWrapper(uint32_t event);
+static void ARM_UCSM_CallbackWrapper(uintptr_t event);
 
 #if defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
 
@@ -140,7 +140,7 @@ static uint32_t num_busy_retries = 0;
  *        to allow the link to clear (if possible), and is retried multiple times,
  *        with a gap between tries.
  */
-static void ARM_UCSM_DoAsyncBusyRetryGet(uint32_t unused)
+static void ARM_UCSM_DoAsyncBusyRetryGet(uintptr_t unused)
 {
     UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     (void) unused;
@@ -203,7 +203,7 @@ static void ARM_UCSM_ScheduleAsyncBusyRetryGet(void)
 /**
  * @brief Retry get due to source being busy
  */
-static void ARM_UCSM_AsyncRetryGet(uint32_t);
+static void ARM_UCSM_AsyncRetryGet(uintptr_t);
 
 #endif // ARM_UC_PROFILE_MBED_CLOUD_CLIENT
 
@@ -549,7 +549,7 @@ static arm_uc_error_t ARM_UCSM_Get(request_t *req)
  * @brief If source is busy ARM_UCSM_AsyncRetryGet is registered with
           the event queue so it is called again to retry the same source
  */
-static void ARM_UCSM_AsyncRetryGet(uint32_t unused)
+static void ARM_UCSM_AsyncRetryGet(uintptr_t unused)
 {
     (void) unused;
 
@@ -568,7 +568,7 @@ static void ARM_UCSM_AsyncRetryGet(uint32_t unused)
 /**
  * @brief Translate source event into source manager event
  */
-static ARM_UC_SM_Event_t ARM_UCSM_TranslateEvent(uint32_t source_event)
+static ARM_UC_SM_Event_t ARM_UCSM_TranslateEvent(uintptr_t source_event)
 {
     ARM_UC_SM_Event_t event = ARM_UC_SM_EVENT_ERROR;
 
@@ -602,7 +602,7 @@ static ARM_UC_SM_Event_t ARM_UCSM_TranslateEvent(uint32_t source_event)
 /**
  * @brief Catch callbacks from sources to enable error handling
  */
-static void ARM_UCSM_CallbackWrapper(uint32_t source_event)
+static void ARM_UCSM_CallbackWrapper(uintptr_t source_event)
 {
     UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     UC_SRCE_TRACE_VERBOSE("source_event == %" PRIu32, source_event);
@@ -755,4 +755,3 @@ ARM_UC_SOURCE_MANAGER_t ARM_UC_SourceManager = {
     .GetFirmwareFragment = ARM_UCSM_GetFirmwareFragment,
     .GetKeytable         = ARM_UCSM_GetKeytable
 };
-

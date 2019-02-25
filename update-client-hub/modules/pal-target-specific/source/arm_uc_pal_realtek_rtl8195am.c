@@ -23,8 +23,8 @@
 #include "update-client-paal/arm_uc_paal_update_api.h"
 #include "update-client-pal-flashiap/arm_uc_pal_flashiap_platform.h"
 
-#include "update-client-common/arm_uc_metadata_header_v2.h"
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-metadata-header/arm_uc_metadata_header_v2.h"
+
 
 #include "ota_api.h"
 #include "flash_ext.h"

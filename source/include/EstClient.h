@@ -22,6 +22,9 @@
 #include "mbed-client/m2minterface.h"
 #include "est_defs.h"
 
+#include <stdint.h>
+#include <stddef.h>
+
 class ConnectorClient;
 
 /**

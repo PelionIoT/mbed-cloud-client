@@ -37,9 +37,10 @@
 #include "factory_configurator_client.h"
 #include "key_config_manager.h"
 #include "mbed-client/uriqueryparser.h"
+#include "randLIB.h"
 
 #include <assert.h>
-#include <string>
+#include <string.h>
 #include <stdio.h>
 
 #include "ns_hal_init.h"
@@ -58,11 +59,14 @@
 #define CREDENTIAL_ERROR            "Failed to read credentials from storage"
 #define DEVICE_NOT_PROVISIONED      "Device not provisioned"
 #define CONNECTOR_ERROR_NO_MEMORY   "Not enough memory to store LWM2M credentials"
+#define CONNECTOR_BOOTSTRAP_AGAIN   "Re-bootstrapping"
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #define ERROR_EST_ENROLLMENT_REQUEST_FAILED   "EST enrollment request failed"
 #define LWM2M_CSR_SUBJECT_FORMAT              "L=%s,OU=%s,CN=%s"
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
+
+#define MAX_REBOOTSTRAP_TIMEOUT 21600 // 6 hours
 
 // XXX: nothing here yet
 class EventData {
@@ -219,6 +223,7 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
 : _callback(callback),
   _current_state(State_Bootstrap_Start),
   _event_generated(false), _state_engine_running(false),
+  _setup_complete(false),
   _interface(NULL), _security(NULL),
   _endpoint_info(M2MSecurity::Certificate), _client_objs(NULL),
   _rebootstrap_timer(*this), _bootstrap_security_instance(1),
@@ -226,30 +231,11 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
   ,_est_client(*this)
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
+
 {
     assert(_callback != NULL);
 
-    // XXX: this initialization sequence needs more work, as doing the allocations
-    // and static initializations from constructor is really troublesome.
-    // All this needs to be moved to the separate setup() call.
-
-    // The ns_hal_init() needs to be called by someone before create_interface(),
-    // as it will also initialize the tasklet.
-    ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
-
-    // Create the lwm2m server security object we need always
-    _security = M2MInterfaceFactory::create_security(M2MSecurity::M2MServer);
-    _interface = M2MInterfaceFactory::create_interface(*this,
-                                                      DEFAULT_ENDPOINT,                     // endpoint name string
-                                                      MBED_CLOUD_CLIENT_ENDPOINT_TYPE,      // endpoint type string
-                                                      MBED_CLOUD_CLIENT_LIFETIME,           // lifetime
-                                                      MBED_CLOUD_CLIENT_LISTEN_PORT,        // listen port
-                                                      _endpoint_info.account_id,            // domain string
-                                                      transport_mode(),                     // binding mode
-                                                      M2MInterface::LwIP_IPv4);             // network stack
-
-    initialize_storage();
-
+    _rebootstrap_time = randLIB_get_random_in_range(1, 10);
 }
 
 
@@ -259,6 +245,41 @@ ConnectorClient::~ConnectorClient()
     M2MDevice::delete_instance();
     M2MSecurity::delete_instance();
     delete _interface;
+}
+
+bool ConnectorClient::setup()
+{
+    // the setup() may be called again after connection has been closed so let's avoid leaks
+    if (_setup_complete == false) {
+
+        // The ns_hal_init() needs to be called by someone before create_interface(),
+        // as it will also initialize the tasklet.
+        ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
+
+        // Create the lwm2m server security object we need always
+        M2MSecurity *security = M2MInterfaceFactory::create_security(M2MSecurity::M2MServer);
+        M2MInterface *interface = M2MInterfaceFactory::create_interface(*this,
+                                                          DEFAULT_ENDPOINT,                     // endpoint name string
+                                                          MBED_CLOUD_CLIENT_ENDPOINT_TYPE,      // endpoint type string
+                                                          MBED_CLOUD_CLIENT_LIFETIME,           // lifetime
+                                                          MBED_CLOUD_CLIENT_LISTEN_PORT,        // listen port
+                                                          _endpoint_info.account_id,            // domain string
+                                                          transport_mode(),                     // binding mode
+                                                          M2MInterface::LwIP_IPv4);             // network stack
+
+        if ((security == NULL) || (interface == NULL)) {
+            M2MSecurity::delete_instance();
+            delete interface;
+        } else {
+            if (initialize_storage() == CCS_STATUS_SUCCESS) {
+                _security = security;
+                _interface = interface;
+                _setup_complete = true;
+            }
+        }
+    }
+
+    return _setup_complete;
 }
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
@@ -271,7 +292,10 @@ const EstClient &ConnectorClient::est_client()
 void ConnectorClient::start_bootstrap()
 {
     tr_debug("ConnectorClient::start_bootstrap()");
+
     assert(_callback != NULL);
+    assert(_setup_complete);
+
     init_security_object();
     // Stop rebootstrap timer if it was running
     _rebootstrap_timer.stop_timer();
@@ -289,7 +313,10 @@ void ConnectorClient::start_bootstrap()
 void ConnectorClient::start_registration(M2MBaseList* client_objs)
 {
     tr_debug("ConnectorClient::start_registration()");
+
     assert(_callback != NULL);
+    assert(_setup_complete);
+
     init_security_object();
     _client_objs = client_objs;
 
@@ -421,6 +448,10 @@ bool ConnectorClient::create_register_object()
     }
 
     m2m_id = _security->get_security_instance_id(M2MSecurity::M2MServer);
+    if (m2m_id == -1) {
+        tr_error("ConnectorClient::create_register_object() - failed to read security object!");
+        return false;
+    }
 
     // Allocate scratch buffer, this will be used to copy parameters from storage to security object
     const int max_size = MAX_CERTIFICATE_SIZE;
@@ -509,7 +540,6 @@ bool ConnectorClient::create_register_object()
                     if (aid_size > 0) {
                         _endpoint_info.account_id.clear();
                         _endpoint_info.account_id.append_raw(aid, aid_size);
-                        ccs_delete_item(KEY_ACCOUNT_ID, CCS_CONFIG_ITEM);
                         if (ccs_set_item(KEY_ACCOUNT_ID,
                                 (const uint8_t*)_endpoint_info.account_id.c_str(),
                                 (size_t)_endpoint_info.account_id.size(), CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
@@ -672,7 +702,7 @@ void ConnectorClient::state_est_start()
     _endpoint_info.internal_endpoint_name = _interface->internal_endpoint_name();
 
     int32_t m2m_id = _security->get_security_instance_id(M2MSecurity::M2MServer);
-    uint32_t sec_mode = M2MSecurity::SecurityNotSet;
+    int32_t sec_mode = M2MSecurity::SecurityNotSet;
     if (m2m_id >= 0) {
         sec_mode = _security->resource_value_int(M2MSecurity::SecurityMode, m2m_id);
 
@@ -853,8 +883,13 @@ void ConnectorClient::state_registration_success()
 
     //The endpoint is maximum 32 character long, we put bigger buffer for future extensions
     const int max_size = 64;
-    uint8_t buffer[max_size];
+    uint8_t *buffer = NULL;
+    buffer = (uint8_t*)malloc(max_size);
 
+    if(!buffer) {
+         _callback->registration_process_result(State_Registration_Failure);
+         return;
+    }
     bool no_param_update = true;
 
     if(ccs_get_string_item(KEY_INTERNAL_ENDPOINT, buffer, max_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
@@ -863,6 +898,7 @@ void ConnectorClient::state_registration_success()
             no_param_update = false;
         }
     }
+    free(buffer);
 
     // Update INTERNAL_ENDPOINT setting only if there is no such entry or the value is not matching the
     // _endpoint_info.internal_endpoint_name.
@@ -873,6 +909,7 @@ void ConnectorClient::state_registration_success()
                              CCS_CONFIG_ITEM);
     }
 
+    _rebootstrap_time = randLIB_get_random_in_range(1, 10);
     _callback->registration_process_result(State_Registration_Success);
 }
 
@@ -892,11 +929,10 @@ void ConnectorClient::state_unregistered()
 void ConnectorClient::bootstrap_data_ready(M2MSecurity *security_object)
 {
     tr_info("ConnectorClient::bootstrap_data_ready");
-    ccs_status_e status = CCS_STATUS_ERROR;
     if(security_object) {
         // Update bootstrap credentials (we could skip this if we knew whether they were updated)
         // This will also update the address in case of first to claim
-        status = set_bootstrap_credentials(security_object);
+        ccs_status_e status = set_bootstrap_credentials(security_object);
         if (status != CCS_STATUS_SUCCESS) {
             // TODO: what now?
             tr_error("ConnectorClient::bootstrap_data_ready - could not store bootstrap credentials");
@@ -914,15 +950,7 @@ void ConnectorClient::bootstrap_data_ready(M2MSecurity *security_object)
         // Bootstrap might delete m2mserver security object instance completely to force bootstrap
         // with new credentials, in that case delete the stored lwm2m credentials as well and re-bootstrap
         if (security_object->get_security_instance_id(M2MSecurity::M2MServer) == -1) {
-            tr_info("ConnectorClient::bootstrap_data_ready() - Clearing lwm2m credentials");
-            // delete the old connector credentials when BS sends re-direction.
-            ccs_delete_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM);
-            ccs_delete_item(g_fcc_lwm2m_server_ca_certificate_name, CCS_CERTIFICATE_ITEM);
-            ccs_delete_item(g_fcc_lwm2m_device_certificate_name, CCS_CERTIFICATE_ITEM);
-            ccs_delete_item(g_fcc_lwm2m_device_private_key_name, CCS_PRIVATE_KEY_ITEM);
-            // Start re-bootstrap timer
-            tr_info("ConnectorClient::bootstrap_data_ready() - Re-directing bootstrap in 100 milliseconds");
-            _rebootstrap_timer.start_timer(100, M2MTimerObserver::BootstrapFlowTimer, true);
+            bootstrap_again();
             return;
         }
         // Bootstrap wrote M2MServer credentials, store them and also update first to claim status if it's configured
@@ -978,26 +1006,20 @@ void ConnectorClient::error(M2MInterface::Error error)
 {
     tr_error("ConnectorClient::error() - error: %d", error);
     assert(_callback != NULL);
+
     if (_current_state >= State_Registration_Start &&
         use_bootstrap() &&
         (error == M2MInterface::SecureConnectionFailed ||
          error == M2MInterface::InvalidParameters)) {
         tr_info("ConnectorClient::error() - Error during lwm2m registration");
-        tr_info("ConnectorClient::error() - Clearing lwm2m credentials");
-        // delete the old connector credentials when DTLS handshake fails or
-        // server rejects the registration.
-        ccs_delete_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM);
-        ccs_delete_item(g_fcc_lwm2m_server_ca_certificate_name, CCS_CERTIFICATE_ITEM);
-        ccs_delete_item(g_fcc_lwm2m_device_certificate_name, CCS_CERTIFICATE_ITEM);
-        ccs_delete_item(g_fcc_lwm2m_device_private_key_name, CCS_PRIVATE_KEY_ITEM);
+
         // Delete the lwm2m security instance
         int32_t id = _security->get_security_instance_id(M2MSecurity::M2MServer);
         if (id >= 0) {
             _security->remove_object_instance(id);
         }
-        // Start re-bootstrap timer
-        tr_info("ConnectorClient::error() - Re-bootstrapping in 100 milliseconds");
-        _rebootstrap_timer.start_timer(100, M2MTimerObserver::BootstrapFlowTimer, true);
+
+        bootstrap_again();
     }
     else {
         _callback->connector_error(error, _interface->error_description());
@@ -1013,15 +1035,10 @@ void ConnectorClient::value_updated(M2MBase *base, M2MBase::BaseType type)
 bool ConnectorClient::connector_credentials_available()
 {
     tr_debug("ConnectorClient::connector_credentials_available");
-    // Read 1 byte of lwm2m private key, should return real_size > 0 if it exists
-    const int max_size = 1;
-    uint8_t buffer;
-    size_t real_size = 0;
-    ccs_get_item(g_fcc_lwm2m_device_private_key_name, &buffer, max_size, &real_size, CCS_PRIVATE_KEY_ITEM);
-    if (real_size > 0) {
-        return true;
+    if (ccs_check_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM) != CCS_STATUS_SUCCESS) {
+        return false;
     }
-    return false;
+    return true;
 }
 
 bool ConnectorClient::use_bootstrap()
@@ -1094,24 +1111,19 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
     }
 
     if(status == CCS_STATUS_SUCCESS) {
-        ccs_status_e check_status = ccs_check_item(KEY_ACCOUNT_ID, CCS_CONFIG_ITEM);
-        // Do not call delete if KEY does not exist.
-        if ((check_status == CCS_STATUS_KEY_DOESNT_EXIST) || (check_status == CCS_STATUS_ERROR)) {
-            tr_debug("No KEY_ACCOUNT_ID stored.");
-        } else {
-            ccs_delete_item(KEY_ACCOUNT_ID, CCS_CONFIG_ITEM);
-            // AccountID optional so don't fail if unable to store
-            ccs_set_item(KEY_ACCOUNT_ID,
-                         (const uint8_t*)_endpoint_info.account_id.c_str(),
-                         (size_t)_endpoint_info.account_id.size(),
-                         CCS_CONFIG_ITEM);
-        }
+        ccs_delete_item(KEY_ACCOUNT_ID, CCS_CONFIG_ITEM);
+        // AccountID optional so don't fail if unable to store
+        ccs_set_item(KEY_ACCOUNT_ID,
+                     (const uint8_t*)_endpoint_info.account_id.c_str(),
+                     (size_t)_endpoint_info.account_id.size(),
+                     CCS_CONFIG_ITEM);
     }
 
     if (status == CCS_STATUS_SUCCESS) {
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
         _endpoint_info.lwm2m_server_uri = security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id);
 #endif
+        ccs_delete_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM);
         status = ccs_set_item(g_fcc_lwm2m_server_uri_name,
                               (const uint8_t*)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).c_str(),
                               (size_t)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).size(),
@@ -1256,8 +1268,7 @@ void ConnectorClient::est_enrollment_result(est_enrollment_result_e result,
     {
 
         kcm_cert_chain_handle chain_handle;
-        kcm_status_e status = KCM_STATUS_ERROR;
-        status = kcm_cert_chain_create(&chain_handle,
+        kcm_status_e status = kcm_cert_chain_create(&chain_handle,
                                        (const uint8_t*)g_fcc_lwm2m_device_certificate_name,
                                        strlen(g_fcc_lwm2m_device_certificate_name),
                                        cert_chain->chain_length,
@@ -1364,4 +1375,23 @@ void *ConnectorClient::certificate_chain_handle() const
 void ConnectorClient::set_certificate_chain_handle(void *cert_handle)
 {
     _certificate_chain_handle = cert_handle;
+}
+
+void ConnectorClient::bootstrap_again()
+{
+    // delete the old connector credentials
+    ccs_delete_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM);
+    ccs_delete_item(g_fcc_lwm2m_server_ca_certificate_name, CCS_CERTIFICATE_ITEM);
+    ccs_delete_item(g_fcc_lwm2m_device_certificate_name, CCS_CERTIFICATE_ITEM);
+    ccs_delete_item(g_fcc_lwm2m_device_private_key_name, CCS_PRIVATE_KEY_ITEM);
+
+    tr_error("ConnectorClient::bootstrap_again in %d seconds", _rebootstrap_time);
+
+    _rebootstrap_timer.start_timer(_rebootstrap_time * 1000, M2MTimerObserver::BootstrapFlowTimer, true);
+    _rebootstrap_time *= 2;
+    if (_rebootstrap_time > MAX_REBOOTSTRAP_TIMEOUT) {
+        _rebootstrap_time = MAX_REBOOTSTRAP_TIMEOUT;
+    }
+
+    _callback->connector_error(M2MInterface::SecureConnectionFailed, CONNECTOR_BOOTSTRAP_AGAIN);
 }

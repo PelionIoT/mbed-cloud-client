@@ -72,7 +72,7 @@ static void updateCallback(void *);
 static void notificationCallback(const M2MBase &object, NotificationDeliveryStatus delivery_status, void *client_args);
 uint8_t defaultValue[] = {"-1"};
 #endif
-static void sendDelayedResponseTask(uint32_t parameter);
+static void sendDelayedResponseTask(uintptr_t parameter);
 
 /* LWM2M Firmware Update Object */
 static M2MObject *updateObject;
@@ -391,7 +391,7 @@ void FirmwareUpdateResource::notificationCallback(const M2MBase &base,
     }
 }
 
-void FirmwareUpdateResource::sendDelayedResponseTask(uint32_t parameter)
+void FirmwareUpdateResource::sendDelayedResponseTask(uintptr_t parameter)
 {
     UC_SRCE_TRACE("FirmwareUpdateResource::sendDelayedResponseTask");
 

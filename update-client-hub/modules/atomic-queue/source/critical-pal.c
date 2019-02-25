@@ -20,35 +20,28 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <unistd.h>
 
 #include "pal.h"
 // Module include
 #include "aq_critical.h"
 
 static palMutexID_t mutex = NULLPTR;
-static volatile unsigned irq_nesting_depth = 0;
 
-void aq_critical_section_enter()
+void aq_critical_section_enter(void)
 {
     if (mutex == NULLPTR) {
         palStatus_t rc = pal_osMutexCreate(&mutex);
         assert(rc == PAL_SUCCESS);
     }
-    if (++irq_nesting_depth > 1) {
-        return;
-    }
+
     palStatus_t rc = pal_osMutexWait(mutex, PAL_RTOS_WAIT_FOREVER);
     assert(rc == PAL_SUCCESS);
 }
 
 void aq_critical_section_exit(void)
 {
-    assert(irq_nesting_depth > 0);
-    if (--irq_nesting_depth == 0) {
-        palStatus_t rc = pal_osMutexRelease(mutex);
-        assert(rc == PAL_SUCCESS);
-    }
+    palStatus_t rc = pal_osMutexRelease(mutex);
+    assert(rc == PAL_SUCCESS);
 }
 
 #endif // defined(ATOMIC_QUEUE_USE_PAL)

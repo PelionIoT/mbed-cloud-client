@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-
 #include "pal.h"
 #include "pal_plat_drbg.h"
+#include "pal_plat_entropy.h"
 #include "sotp.h"
 
 #include <stdlib.h>
@@ -56,34 +56,6 @@ palStatus_t pal_plat_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partia
 PAL_PRIVATE palStatus_t pal_plat_generateDrbgWithNoiseAttempt(palCtrDrbgCtxHandle_t drbgContext, uint8_t* outBuffer, bool partial, size_t numBytesToGenerate);
 
 extern palStatus_t pal_plat_CtrDRBGGenerateWithAdditional(palCtrDrbgCtxHandle_t ctx, unsigned char* out, size_t len, unsigned char* additional, size_t additionalLen);
-
-//Error Translation from SOTP module to PAL
-PAL_PRIVATE palStatus_t pal_osSotpErrorTranslation(sotp_result_e err)
-{
-    palStatus_t ret;
-    switch(err)
-    {
-        case SOTP_BAD_VALUE:
-            ret = PAL_ERR_INVALID_ARGUMENT;
-            break;
-
-        case SOTP_BUFF_TOO_SMALL:
-            ret = PAL_ERR_BUFFER_TOO_SMALL;
-            break;
-
-        case SOTP_BUFF_NOT_ALIGNED:
-            ret = PAL_ERR_RTOS_BUFFER_NOT_ALIGNED;
-            break;
-
-        case SOTP_READ_ERROR:
-        case SOTP_DATA_CORRUPT:
-        case SOTP_OS_ERROR:
-        default:
-            ret = PAL_ERR_GENERIC_FAILURE;
-            break;
-    }
-    return ret;
-}
 
 palStatus_t pal_plat_DRBGInit(void)
 {
@@ -200,8 +172,9 @@ palStatus_t pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeB
             size_t trngBytesRead = 0;
             palCtrDrbgCtxHandle_t longCtrDRBGCtx = NULLPTR; // long term drbg context            
             palStatus_t tmpStatus;
-            sotp_result_e sotpResult = sotp_get(SOTP_TYPE_RANDOM_SEED, sotpLenBytes, ptrSotpRead, &sotpBytesRead); // read 48 drbg bytes + 4 counter bytes
-            if (SOTP_SUCCESS == sotpResult)
+
+            palStatus_t entropyResult = pal_plat_get_nv_entropy(ptrSotpRead, sotpLenBytes, &sotpBytesRead); // read 48 drbg bytes + 4 counter bytes
+            if (PAL_SUCCESS == entropyResult)
             {
                 if ((PAL_INITIAL_RANDOM_SIZE != sotpBytesRead) && (sotpLenBytes != sotpBytesRead))
                 {
@@ -241,10 +214,10 @@ palStatus_t pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeB
                 }
                 sotpCounter++; // increment counter before writting it back to sotp
                 memcpy((void*)ptrSotpCounterWrite, (void*)&sotpCounter, sizeof(sotpCounter)); // copy the incremented counter to the last 4 bytes of the buffer
-                sotpResult = sotp_set(SOTP_TYPE_RANDOM_SEED, sotpLenBytes, ptrSotpWrite); // write 48 long term drbg bytes + 4 counter bytes
-                if (SOTP_SUCCESS != sotpResult)
+                entropyResult = pal_plat_set_nv_entropy(ptrSotpWrite, sotpLenBytes); // write 48 long term drbg bytes + 4 counter bytes
+                if (PAL_SUCCESS != entropyResult)
                 {
-                    PAL_LOG_ERR("Failed to write to SOTP, sotp result=%d", sotpResult);
+                    PAL_LOG_ERR("Failed to write to SOTP, sotp result=%" PRIx32, entropyResult);
                     status = PAL_ERR_GENERIC_FAILURE;
                 }                
 drbg_cleanup:
@@ -268,7 +241,7 @@ drbg_cleanup:
 #endif // PAL_USE_HW_TRNG
                 }
             }
-            else if (SOTP_NOT_FOUND == sotpResult)
+            else if (PAL_ERR_ITEM_NOT_EXIST == entropyResult)
             {
 #if PAL_USE_HW_TRNG
                 memset((void*)buf, 0, sizeof(buf));

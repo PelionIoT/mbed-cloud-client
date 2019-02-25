@@ -15,10 +15,14 @@
  *******************************************************************************/
 
 #include "pal.h"
-#include "sotp.h"
+
 #include "unity.h"
 #include "unity_fixture.h"
 #include "test_runners.h"
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
+#include "sotp.h"
 
 
 #define SOTP_DIR "/sotp"
@@ -26,14 +30,20 @@
 
 //add 5 years to minimum time
 #define PAL_TEST_START_TIME (PAL_MIN_SEC_FROM_EPOCH + ((PAL_SECONDS_PER_DAY * PAL_DAYS_IN_A_YEAR) * 5))
-#define ACCEPTABLE_DELAY_IN_SEC (5)
+#define ACCEPTABLE_DELAY_IN_SEC (10)
 #define PAL_SOTP_TEST_DELAY_IN_SEC (5 * 1000)
 
 #define TRACE_GROUP "PAL"
 
 extern palTestsStatusData_t palTestStatus;
 
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
+
 TEST_GROUP(pal_SOTP);
+
+    
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
 #if (PAL_USE_HW_RTC)
     static uint64_t systemRealRTC = 0;
@@ -42,11 +52,20 @@ TEST_GROUP(pal_SOTP);
 
 PAL_PRIVATE palCtrDrbgCtxHandle_t g_drbgCtx = NULLPTR;
 
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
 TEST_SETUP(pal_SOTP)
 {
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
     palStatus_t status = PAL_SUCCESS;
     status = pal_init();
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_initTime();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
 #if (PAL_USE_HW_RTC == 1)
     uint64_t sysTicks = 0;    
     status = pal_plat_osGetRtcTime(&systemRealRTC);
@@ -57,10 +76,18 @@ TEST_SETUP(pal_SOTP)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     systemStartTickCount = pal_osKernelSysTick();
 #endif
+
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
 }
+
+
 
 TEST_TEAR_DOWN(pal_SOTP)
 {
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
     palStatus_t status = PAL_SUCCESS;
 #if (PAL_USE_HW_RTC == 1)
     uint64_t sysTicks = 0;
@@ -70,6 +97,11 @@ TEST_TEAR_DOWN(pal_SOTP)
     endTickCount = pal_osKernelSysTick();
     timeToAddInMiliSec = pal_osKernelSysMilliSecTick(endTickCount - systemStartTickCount); //switch from mili to seconds
     timeToAddInSec = PAL_MILISEC_TO_SEC(timeToAddInMiliSec);
+
+    // XXX: This code expected the pal_init() having been called, even though it is not on all branches!
+    status = pal_plat_rtcInit();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
     status = pal_plat_osSetRtcTime(systemRealRTC + timeToAddInSec);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #endif
@@ -78,8 +110,17 @@ TEST_TEAR_DOWN(pal_SOTP)
         pal_CtrDRBGFree(&g_drbgCtx);
     }
     status = pal_destroy();
+
+#if (PAL_INITIALIZED_BEFORE_TESTS == 0)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#endif
+
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
 }
+
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
 static palStatus_t writeDataInFS(uint8_t* data, size_t dataSize, char* dataName)
 {
@@ -146,8 +187,14 @@ static palStatus_t readDataFromFS(uint8_t* data, size_t dataSize, char* dataName
     return status;
 }
 
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
+
 TEST(pal_SOTP, SW_HW_RoT)
 {
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
         uint32_t rotLength = ROT_KEY_SIZE;
         palDevKeyType_t ketType = palOsStorageEncryptionKey128Bit;
         uint8_t rotA[ROT_KEY_SIZE] = {0};
@@ -199,17 +246,27 @@ TEST(pal_SOTP, SW_HW_RoT)
 
             TEST_ASSERT_TRUE(0 == memcmp(rotA,rotB,rotLength))
         }
+
+#else
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is defined");
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+        
 }
 
 TEST(pal_SOTP, timeInit)
 {
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
     // call pal destroy as this test need to start before pal_init()
-    
     
     palStatus_t status = PAL_SUCCESS;
 
     status = pal_destroy();
+#if (PAL_INITIALIZED_BEFORE_TESTS == 0)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#endif
+
     /** 
      this is is splited to 2 different parts because of the ifdefs
      if the end of this if is inside the #if (PAL_USE_HW_RTC == 1) 
@@ -287,7 +344,12 @@ TEST(pal_SOTP, timeInit)
     {
         uint64_t currentTime = 0;
         if (palTestStatus.inner == -1) 
-         {
+        {
+
+            // XXX: This code expected the pal_init() having been called, even though it is not on all branches!
+            status = pal_plat_rtcInit();
+            TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
             currentTime = PAL_TEST_START_TIME; // remove an year
             status = pal_plat_osSetRtcTime(currentTime);
             TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -305,10 +367,15 @@ TEST(pal_SOTP, timeInit)
          }
     }
     #endif
+
+#else
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is defined");
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
 }
 
 // the following function is not part of PAL's external API hence extern
-extern palStatus_t pal_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partial, uint16_t* bitsRead);
+extern palStatus_t pal_plat_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool partial, uint16_t* bitsRead);
 
 /*! \brief Test random buffer generation with sotp
 *
@@ -322,6 +389,9 @@ extern palStatus_t pal_noiseRead(int32_t buffer[PAL_NOISE_BUFFER_LEN], bool part
 */
 TEST(pal_SOTP, random)
 {
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
     palStatus_t status;
     sotp_result_e res;
     uint16_t bytesRead = 0;
@@ -333,7 +403,7 @@ TEST(pal_SOTP, random)
 #if !PAL_USE_HW_TRNG
     uint16_t bitsRead = 0;
     int32_t noiseBuffer[PAL_NOISE_BUFFER_LEN] = { 0 };
-    pal_noiseRead(noiseBuffer, true, &bitsRead);
+    pal_plat_noiseRead(noiseBuffer, true, &bitsRead);
 #endif // !PAL_USE_HW_TRNG
 
     /*#1*/
@@ -397,4 +467,10 @@ TEST(pal_SOTP, random)
         res = sotp_delete(SOTP_TYPE_RANDOM_SEED);
         TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, res);
     }
+
+#else
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is defined");
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
 }
+

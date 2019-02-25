@@ -28,11 +28,15 @@ typedef Vector<M2MResourceInstance *> M2MResourceInstanceList;
 
 /*! \file m2mresource.h
  *  \brief M2MResource.
- *  This class is the base class for mbed Client Resources. All defined
- *  LWM2M object models can be created using it. This class will also hold all resources
- *  instances associated with the given object.
+ *  This class is the base class for mbed Client Resources.
+ *
+ *  All defined LwM2M object models can be created using it.
+ *  This class will also hold all resources instances associated with the given object.
  */
 
+/*! \class M2MResource
+ *  \brief The base class for Client Resources.
+ */
 class M2MResource : public M2MResourceBase
 {
 
@@ -155,8 +159,8 @@ public:
 
     /**
      * \brief Provides the value of the token of the delayed post response.
-     * \param value[OUT] A pointer to the token value.
-     * \param value_length[OUT] The length of the token pointer.
+     * \param[out] token A pointer to the token value.
+     * \param[out] token_length The length of the token pointer.
      */
     void get_delayed_token(uint8_t *&token, uint8_t &token_length);
 
@@ -169,7 +173,6 @@ public:
 
     /**
      * \brief Removes a resource with a given name.
-     * \param name The name of the resource to be removed.
      * \param instance_id The instance ID of the resource to be removed, default is 0.
      * \return True if removed, else false.
      */

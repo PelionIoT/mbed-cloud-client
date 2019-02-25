@@ -118,6 +118,31 @@ namespace m2m
     static uint8_t* convert_integer_to_array(int64_t value, uint8_t &size, const uint8_t *array = NULL, const uint32_t array_size = 0);
     static int64_t convert_array_to_integer(const uint8_t *value, const uint32_t size);
 
+    /**
+     * Convert ASCII representation of a base 10 number to int64. This is needed
+     * as sscanf("%lld") or atoll() are not universally available.
+     *
+     * @param value optionally zero terminated string containing a zero or one
+     * sign char ('+' or '-') and a number in base 10 chars, ie. "0..9"
+     *
+     * @param length chars to convert, must be more or equal than the chars before zero.
+     * This is useful for extracting values from non-zero terminated strings.
+     * 
+     * @param conversion_result result of conversion
+     *
+     * @return will be set to true if at least one digit is found
+     * and a false is returned if:
+     *  a) no digits found, ie. string is empty
+     *  b) a non-digit or non-'+' or non-'-' char is found. 
+     *  c) more than one +, - chars are found
+     * 
+     * Note: the handling of a number with digits in front and
+     * non-digits at end (eg. "0zero") differs from sscanf(), 
+     * as sscanf will return what it got converted and a success value
+     * even if the string ended with junk.
+     */
+    static bool convert_ascii_to_int(const char *value, size_t length, int64_t &conversion_result);
+
   private:
     // reallocate the internal memory
     void new_realloc( size_type n);

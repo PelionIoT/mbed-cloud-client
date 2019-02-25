@@ -32,7 +32,7 @@ uint64_t fcc_generate_csr_timer = 0;
 *  The function calculates time from started timer, prints the label as string or as buffer with size and the calulated time.
 **/
 
-void calculate_time(const char *label, int size, uint64_t ticks)
+void calculate_time(const char *label, size_t size, uint64_t ticks)
 {
     static double ticks_persecond = 0.0;
     static double ticks_permillisecond = 0.0;

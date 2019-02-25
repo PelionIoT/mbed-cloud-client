@@ -8,8 +8,20 @@
             "default": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP",
             "value": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP"
         },
+        "update-storage": {
+            "help": "Storage option for update image. Common values: ARM_UCP_FLASHIAP and ARM_UCP_FLASHIAP_BLOCKDEVICE.",
+            "macro_name": "MBED_CLOUD_CLIENT_UPDATE_STORAGE",
+            "default": null,
+            "value": null
+        },
         "disable-certificate-enrollment": {
             "help": "Enables or disables certificate enrollment feature",
+            "options": ["null", "1"],
+            "default": null,
+            "value": null
+        },
+        "external-sst-support": {
+            "help": "Enables external secure storage feature (KVstore)",
             "options": ["null", "1"],
             "default": null,
             "value": null

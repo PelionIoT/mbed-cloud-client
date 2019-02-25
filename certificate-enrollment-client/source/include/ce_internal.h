@@ -24,6 +24,7 @@
 #include "kcm_defs.h"
 #include "est_defs.h"
 #include "ce_status.h"
+#include "storage.h"
 
 #ifdef __cplusplus
 extern "C" {

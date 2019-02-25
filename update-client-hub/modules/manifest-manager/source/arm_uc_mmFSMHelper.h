@@ -21,16 +21,16 @@
 
 #define ARM_UC_MM_FSM_HELPER_START(CONTEXT, STATE_STR_FN)\
     uint32_t oldState;\
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);\
+    UC_MMGR_TRACE("> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);\
     do {\
         oldState = (CONTEXT).state;\
-        ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "+ %s state: %s(%u)\n", __PRETTY_FUNCTION__,\
+        UC_MMGR_TRACE("+ %s state: %s(%u)\n", __PRETTY_FUNCTION__,\
             STATE_STR_FN((CONTEXT).state), (unsigned)(CONTEXT).state);\
         switch ((CONTEXT).state)
 
 #define ARM_UC_MM_FSM_HELPER_FINISH(CONTEXT)\
     } while (err.code == ERR_NONE && oldState != (CONTEXT).state);\
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__,\
-        err.modulecc[0], err.modulecc[1], err.error, ARM_UC_err2Str(err))
+    UC_MMGR_TRACE("< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__,\
+        CC_ASCII(err.modulecc[0]), CC_ASCII(err.modulecc[1]), err.error, ARM_UC_err2Str(err))
 
 #endif // ARM_UC_MM_FSM_HELPER_H

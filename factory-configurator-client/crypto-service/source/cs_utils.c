@@ -21,7 +21,6 @@
 #include "pal_Crypto.h"
 #include "pal_errors.h"
 #include "pv_error_handling.h"
-#include "kcm_internal.h"
 
 
 kcm_status_e cs_error_handler(palStatus_t pal_status)

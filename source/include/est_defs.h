@@ -19,6 +19,8 @@
 #ifndef __EST_DEFS_H__
 #define __EST_DEFS_H__
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

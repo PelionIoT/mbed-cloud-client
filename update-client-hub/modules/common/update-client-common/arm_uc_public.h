@@ -42,6 +42,9 @@
 
 /**
  * Public error codes for the Update Client.
+ *
+ * When modifying the error codes, you must also update the respective
+ * codes in MbedCloudClient.h and UpdateClient.h in mbed-cloud-client
  */
 enum {
     ARM_UC_WARNING,

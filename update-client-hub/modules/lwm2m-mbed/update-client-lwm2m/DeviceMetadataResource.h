@@ -19,7 +19,7 @@
 #ifndef __ARM_UCS_DEVICE_METADATA_RESOURCE_H__
 #define __ARM_UCS_DEVICE_METADATA_RESOURCE_H__
 
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_types.h"
 
 #include "mbed-client/m2minterfacefactory.h"
 #include "mbed-client/m2mresource.h"

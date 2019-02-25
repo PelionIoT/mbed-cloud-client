@@ -1,19 +1,20 @@
-/*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *******************************************************************************/
-
+// ----------------------------------------------------------------------------
+// Copyright 2016-2019 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ----------------------------------------------------------------------------
 
 #ifndef _PAL_MACROS_H
 #define _PAL_MACROS_H
@@ -26,7 +27,7 @@ extern "C" {
 #include "pal.h"
 #include "mbed-trace/mbed_trace.h"
 #include "assert.h"
-#include <limits.h>
+#include <limits.h> 
 /*! \file pal_macros.h
 *  \brief PAL macros.
 *   This file contains macros defined by PAL for constant values and network purposes.
@@ -48,7 +49,7 @@ extern "C" {
 #if defined(__arm__) || defined(__IAR_SYSTEMS_ICC__) // Compile with ARMCC, GCC_ARM or IAR compilers.
     #define PAL_TARGET_POINTER_SIZE __sizeof_ptr
     #ifdef __BIG_ENDIAN
-        #define PAL_COMPILATION_ENDIANITY 1 // Define PAL compilation endian (0 is little endian, 1 is big endian).
+        #define PAL_COMPILATION_ENDIANITY 1 //!< Define PAL compilation endian (0 is little endian, 1 is big endian).
     #else
         #define PAL_COMPILATION_ENDIANITY 0 // Define PAL compilation endian (0 is little endian, 1 is big endian).
     #endif
@@ -60,7 +61,7 @@ extern "C" {
         #elif __BYTE_ORDER == __LITTLE_ENDIAN
             #define PAL_COMPILATION_ENDIANITY 0// Define PAL compilation endian (0 is little endian, 1 is big endian).
         #else
-            #error missing endiantiy defintion for GCC
+            #error missing endiantiy definition for GCC
         #endif
     #endif
 #else
@@ -80,7 +81,7 @@ extern "C" {
 #define BIG__ENDIAN 1
 #elif PAL_COMPILATION_ENDIANITY == 0
 #define LITTLE__ENDIAN 1
-#else 
+#else
 #error neither BIG__ENDIAN nor LITTLE__ENDIAN defined, cannot compile
 #endif
 
@@ -117,10 +118,10 @@ extern "C" {
    ( ((val) >> 24) | (((val) & 0x00FF0000) >> 8) | (((val) & 0x0000FF00) << 8) | (((val) & 0x000000FF) << 24) )
 
 #define PAL_INVERSE_UINT64_BYTES( val ) \
-    ((PAL_INVERSE_UINT32_BYTES( ((val >> 16) >> 16)) &0xffffffff)  | ((((uint64_t)PAL_INVERSE_UINT32_BYTES(val & 0xffffffff))<<16)<<16)) 
+    ((PAL_INVERSE_UINT32_BYTES( ((val >> 16) >> 16)) &0xffffffff)  | ((((uint64_t)PAL_INVERSE_UINT32_BYTES(val & 0xffffffff))<<16)<<16))
 
 /* Set of Macros similar to the HTONS/L, NTOHS/L ones but converting to/from little endian instead of big endian. */
-#ifdef LITTLE__ENDIAN 
+#ifdef LITTLE__ENDIAN
 #define PAL_LITTLE_ENDIAN_TO_HOST_16BIT(x) (x)
 #define PAL_LITTLE_ENDIAN_TO_HOST_32BIT(x) (x)
 #define PAL_LITTLE_ENDIAN_TO_HOST_64BIT(x) (x)
@@ -159,19 +160,19 @@ extern "C" {
 #define PAL_RATIO_SECONDS_PER_DAY     480
 #define PAL_MINIMUM_RTC_LATENCY_SEC       100
 #define PAL_MINIMUM_STORAGE_LATENCY_SEC   500000
-#define PAL_MINIMUM_SOTP_FORWARD_LATENCY_SEC      100000
-#define PAL_MINIMUM_SOTP_BACKWARD_LATENCY_SEC      100
+#define PAL_MINIMUM_FORWARD_LATENCY_SEC      100000
+#define PAL_MINIMUM_BACKWARD_LATENCY_SEC      100
 #define PAL_FEB_MONTH 2
 #define PAL_MILLI_PER_SECOND 1000
 #define PAL_NANO_PER_MILLI 1000000L
 #define PAL_NANO_PER_SECOND 1000000000L
 #define PAL_MILLI_TO_NANO(x) (((x) % PAL_MILLI_PER_SECOND) * PAL_NANO_PER_MILLI)
 #define PAL_MILISEC_TO_SEC(milisec) (milisec/1000)
-#define PAL_MIN_SEC_FROM_EPOCH   1487015542 ////at least 47 years passed from 1.1.1970 in seconds
+#define PAL_MIN_SEC_FROM_EPOCH   1483264800 ////at least 47 years passed from 1.1.1970 in seconds (this is also the minimum time for SX OS)
 #define PAL_MIN_RTC_SET_TIME    PAL_MIN_SEC_FROM_EPOCH
 #define PAL_LAST_SAVED_TIME_LATENCY_SEC     2500000
 
-//!< Define static function and inline function.
+//! Define static function and inline function.
 #if defined (__CC_ARM)          /* ARM compiler. */
 	#define PAL_INLINE  __inline
 #elif defined (__GNUC__)        /* GNU compiler. */
@@ -268,8 +269,8 @@ extern "C" {
 #define PAL_VALIDATE_ARGUMENTS(condition) PAL_VALIDATE_CONDITION_WITH_ERROR(condition,PAL_ERR_INVALID_ARGUMENT)
 
 #else
-    #define PAL_VALIDATE_ARGUMENTS(condition) 
-    #define PAL_VALIDATE_CONDITION_WITH_ERROR(condition, error) 
+    #define PAL_VALIDATE_ARGUMENTS(condition)
+    #define PAL_VALIDATE_CONDITION_WITH_ERROR(condition, error)
 #endif
 
 

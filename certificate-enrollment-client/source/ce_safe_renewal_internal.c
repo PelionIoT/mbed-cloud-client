@@ -21,7 +21,7 @@
 #include "pv_macros.h"
 #include "ce_internal.h"
 #include "est_defs.h"
-
+#include "storage.h"
 
 const char g_lwm2m_name[] = "LWM2M";
 const char g_renewal_status_file[] = "renewal_status";
@@ -48,7 +48,7 @@ kcm_status_e ce_get_kcm_data(const uint8_t *parameter_name,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_data_size == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Wrong kcm_data_size pointer.");
 
     //Get size of kcm data
-    kcm_status = _kcm_item_get_data_size(parameter_name,
+    kcm_status = storage_data_size_read(parameter_name,
         size_of_parameter_name,
         kcm_type,
         data_source_type,
@@ -63,7 +63,7 @@ kcm_status_e ce_get_kcm_data(const uint8_t *parameter_name,
     *kcm_data = fcc_malloc(*kcm_data_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((*kcm_data == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, "Failed to allocate buffer for kcm data");
 
-    kcm_status = _kcm_item_get_data(parameter_name, size_of_parameter_name, kcm_type, data_source_type, *kcm_data, *kcm_data_size, kcm_data_size);
+    kcm_status = storage_data_read(parameter_name, size_of_parameter_name, kcm_type, data_source_type, *kcm_data, *kcm_data_size, kcm_data_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to get device certificate data");
 
 exit:
@@ -75,7 +75,7 @@ exit:
     return kcm_status;
 }
 /*The function copies certificate chain or single certificate from source  to destination (inside storage)*/
-static kcm_status_e copy_certifcate_chain(const uint8_t *item_name, size_t item_name_len, kcm_data_source_type_e source_type, kcm_data_source_type_e destination_type)
+static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item_name_len, kcm_data_source_type_e source_type, kcm_data_source_type_e destination_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     uint8_t *item_data = NULL;
@@ -88,7 +88,7 @@ static kcm_status_e copy_certifcate_chain(const uint8_t *item_name, size_t item_
     kcm_cert_chain_context_int_s *chain_context;
 
     //Open chain 
-    kcm_status = _kcm_cert_chain_open(&kcm_source_chain_handle, item_name, item_name_len, source_type, &kcm_chain_len_out);
+    kcm_status = storage_cert_chain_open(&kcm_source_chain_handle, item_name, item_name_len, source_type, &kcm_chain_len_out);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to open chain");
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_chain_len_out == 0), kcm_status = KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, exit, "Invalid kcm_chain_len_out");
 
@@ -101,7 +101,7 @@ static kcm_status_e copy_certifcate_chain(const uint8_t *item_name, size_t item_
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to get item data");
 
         //Save the item as backup item
-        kcm_status = _kcm_item_store(item_name, item_name_len, KCM_CERTIFICATE_ITEM, false, item_data, item_data_len, destination_type);
+        kcm_status = storage_data_write(item_name, item_name_len, KCM_CERTIFICATE_ITEM, false, destination_type, item_data, item_data_len );
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
     }  else {
         //Current item is certificate chian
@@ -110,11 +110,11 @@ static kcm_status_e copy_certifcate_chain(const uint8_t *item_name, size_t item_
 
             //Create destination chain for start
             if (cert_index == 1) {
-                kcm_status = _kcm_cert_chain_create(&kcm_destination_chain_handle, item_name, item_name_len, kcm_chain_len_out, false, destination_type);
+                kcm_status = storage_cert_chain_create(&kcm_destination_chain_handle, item_name, item_name_len, kcm_chain_len_out, false, destination_type);
                 SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to create destination chain");
             }
             //Get next certificate data size from source chain
-            kcm_status = _kcm_cert_chain_get_next_size(kcm_source_chain_handle, source_type, &item_data_len);
+            kcm_status = storage_cert_chain_get_next_size(kcm_source_chain_handle, source_type, &item_data_len);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to _kcm_cert_chain_get_next_sizen");
 
             //Allocate memory and get  certificate data from source chain
@@ -122,12 +122,12 @@ static kcm_status_e copy_certifcate_chain(const uint8_t *item_name, size_t item_
             SA_PV_ERR_RECOVERABLE_GOTO_IF((item_data == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit_and_close, "Failed to allocate buffer for kcm data");
 
             //Get next certificate data
-            kcm_status = _kcm_cert_chain_get_next_data(kcm_source_chain_handle, item_data, item_data_len, source_type, &kcm_actual_cert_data_size);
+            kcm_status = storage_cert_chain_get_next_data(kcm_source_chain_handle, item_data, item_data_len, source_type, &kcm_actual_cert_data_size);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to get certificate kcm data");
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_actual_cert_data_size != item_data_len), kcm_status = kcm_status, exit_and_close, "Wrong certificate data size");
 
             //Add the data to destination chain
-            kcm_status = _kcm_cert_chain_add_next(kcm_destination_chain_handle, item_data, item_data_len, destination_type);
+            kcm_status = storage_chain_add_next(kcm_destination_chain_handle, item_data, item_data_len, destination_type);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to add data to chain");
 
             //free allocated buffer
@@ -136,7 +136,7 @@ static kcm_status_e copy_certifcate_chain(const uint8_t *item_name, size_t item_
         }
         //Close destination chain
 exit_and_close:
-        kcm_status = _kcm_cert_chain_close(kcm_destination_chain_handle, destination_type);
+        kcm_status = storage_cert_chain_close(kcm_destination_chain_handle, destination_type);
          SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit,"Failed to close destination chain");
 
     }
@@ -146,7 +146,7 @@ exit:
             fcc_free(item_data);
         }
         //close source chain
-        kcm_status = _kcm_cert_chain_close(kcm_source_chain_handle, source_type);
+        kcm_status = storage_cert_chain_close(kcm_source_chain_handle, source_type);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to close source chain");
 
         return kcm_status;
@@ -163,7 +163,7 @@ static kcm_status_e copy_kcm_item(const uint8_t *item_name, size_t item_name_len
     if (kcm_type == KCM_CERTIFICATE_ITEM) {
 
         //copy certificate chain 
-        kcm_status = copy_certifcate_chain(item_name, item_name_len, source_type, destination_type);
+        kcm_status = copy_certificate_chain(item_name, item_name_len, source_type, destination_type);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to copy chain");
     }  else { //not certificate
         //Read the item from source 
@@ -171,7 +171,7 @@ static kcm_status_e copy_kcm_item(const uint8_t *item_name, size_t item_name_len
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get item data");
 
         //Save the item as backup item
-        kcm_status = _kcm_item_store(item_name, item_name_len, kcm_type, false, item_data, item_data_len, destination_type);
+        kcm_status = storage_data_write(item_name, item_name_len, kcm_type, false, destination_type,item_data, item_data_len );
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
     }
 
@@ -220,11 +220,11 @@ static kcm_status_e check_items_existence(const char *item_name, kcm_data_source
     SA_PV_ERR_RECOVERABLE_RETURN_IF(!(ce_set_item_names(item_name, (char**)&private_key_name, (char**)&public_key_name, (char**)&certificate_name)), KCM_STATUS_INVALID_PARAMETER, "Failed to set internal names for items");
 
     //Check private key
-    kcm_status = _kcm_item_get_data_size((const uint8_t*)private_key_name,(size_t)strlen((char*)private_key_name), KCM_PRIVATE_KEY_ITEM, source_type, &kcm_data_size);
+    kcm_status = storage_data_size_read((const uint8_t*)private_key_name, (size_t)strlen((char*)private_key_name), KCM_PRIVATE_KEY_ITEM, source_type, &kcm_data_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get private key size");
 
     if (public_key_name != NULL) {
-        kcm_status = _kcm_item_get_data_size((const uint8_t*)public_key_name, (size_t)strlen((char*)public_key_name), KCM_PUBLIC_KEY_ITEM, source_type, &kcm_data_size);
+        kcm_status = storage_data_size_read((const uint8_t*)public_key_name, (size_t)strlen((char*)public_key_name), KCM_PUBLIC_KEY_ITEM, source_type, &kcm_data_size);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "Failed to get public key size");
 
         if (kcm_status == KCM_STATUS_SUCCESS) {
@@ -232,10 +232,10 @@ static kcm_status_e check_items_existence(const char *item_name, kcm_data_source
         }
     } 
 
-    kcm_status = _kcm_cert_chain_open(&kcm_source_chain_handle, (const uint8_t*)certificate_name, strlen((char*)certificate_name), source_type, &kcm_data_size);
+    kcm_status = storage_cert_chain_open(&kcm_source_chain_handle, (const uint8_t*)certificate_name, strlen((char*)certificate_name), source_type, &kcm_data_size);
      SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get certificate size");
 
-    kcm_status = _kcm_cert_chain_close(kcm_source_chain_handle, source_type);
+    kcm_status = storage_cert_chain_close(kcm_source_chain_handle, source_type);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to close source chain");
 
     *is_public_key = local_is_public_key;
@@ -264,7 +264,7 @@ kcm_status_e ce_clean_items(const char *item_name, kcm_data_source_type_e data_s
     SA_PV_ERR_RECOVERABLE_RETURN_IF(!(ce_set_item_names(item_name, (char**)&private_key_name, (char**)&public_key_name, (char**)&certificate_name)), KCM_STATUS_INVALID_PARAMETER, "Failed to set internal names for items");
 
     //Try to delete private key
-    kcm_status = _kcm_item_delete((const uint8_t*)private_key_name, strlen((char*)private_key_name), KCM_PRIVATE_KEY_ITEM, data_source_type);
+    kcm_status = storage_data_delete((const uint8_t*)private_key_name, strlen((char*)private_key_name), KCM_PRIVATE_KEY_ITEM, data_source_type);
     if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
         num_of_failures++;
         SA_PV_LOG_ERR("Failed to delete private key");
@@ -273,7 +273,7 @@ kcm_status_e ce_clean_items(const char *item_name, kcm_data_source_type_e data_s
     if (is_public_key == true && public_key_name != NULL)
     {
         //Try to delete public key
-        kcm_status = _kcm_item_delete((const uint8_t*)public_key_name, strlen((char*)public_key_name), KCM_PUBLIC_KEY_ITEM, data_source_type);
+        kcm_status = storage_data_delete((const uint8_t*)public_key_name, strlen((char*)public_key_name), KCM_PUBLIC_KEY_ITEM, data_source_type);
         if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
             num_of_failures++;
             SA_PV_LOG_ERR("Failed to delete public key");
@@ -281,9 +281,9 @@ kcm_status_e ce_clean_items(const char *item_name, kcm_data_source_type_e data_s
     }
 
     //Try to delete certificate/certificate chain
-    kcm_status = _kcm_item_delete((const uint8_t*)certificate_name, strlen((char*)certificate_name), KCM_CERTIFICATE_ITEM, data_source_type);
+    kcm_status = storage_data_delete((const uint8_t*)certificate_name, strlen((char*)certificate_name), KCM_CERTIFICATE_ITEM, data_source_type);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {//We need to check certificate chain with the same name
-        kcm_status = _kcm_cert_chain_delete((const uint8_t*)certificate_name, strlen((char*)certificate_name), data_source_type);
+        kcm_status = storage_cert_chain_delete((const uint8_t*)certificate_name, strlen((char*)certificate_name), data_source_type);
     }
     if (kcm_status != KCM_STATUS_SUCCESS  && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
         num_of_failures++;
@@ -394,7 +394,6 @@ kcm_status_e ce_restore_backup_items(const char *item_name)
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 
-
     return kcm_status;
 }
 
@@ -405,7 +404,7 @@ kcm_status_e ce_create_renewal_status(const char *item_name)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
     SA_PV_LOG_INFO_FUNC_ENTER("item name =  %s", item_name);
 
-    kcm_status = _kcm_item_store((const uint8_t*)g_renewal_status_file,(size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, false,(const uint8_t*)item_name, (size_t)strlen(item_name),KCM_BACKUP_ITEM);
+    kcm_status = storage_data_write((const uint8_t*)g_renewal_status_file,(size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, false, KCM_BACKUP_ITEM,(const uint8_t*)item_name, (size_t)strlen(item_name));
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to create renewal status");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -419,7 +418,7 @@ kcm_status_e ce_delete_renewal_status(void)
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
-    kcm_status = _kcm_item_delete((const uint8_t*)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM);
+    kcm_status = storage_data_delete((const uint8_t*)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to delete renewal status");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -455,20 +454,20 @@ kcm_status_e ce_store_new_certificate(const char *certificate_name, struct cert_
 
     if (chain_data->chain_length == 1) {
         //Save single certificate
-        kcm_status = _kcm_item_store((const uint8_t*)certificate_name,(size_t)strlen(certificate_name), KCM_CERTIFICATE_ITEM, false, certificate, certificate_size, KCM_ORIGINAL_ITEM);
+        kcm_status = storage_data_write((const uint8_t*)certificate_name,(size_t)strlen(certificate_name), KCM_CERTIFICATE_ITEM, false, KCM_ORIGINAL_ITEM,certificate, certificate_size );
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store new certificate");
 
         return kcm_status;
     } else {
          //Save chain 
-        kcm_status = _kcm_cert_chain_create(&kcm_chain_handle, (const uint8_t*)certificate_name,(size_t) strlen(certificate_name), chain_data->chain_length, false, KCM_ORIGINAL_ITEM);
+        kcm_status = storage_cert_chain_create(&kcm_chain_handle, (const uint8_t*)certificate_name,(size_t) strlen(certificate_name), chain_data->chain_length, false, KCM_ORIGINAL_ITEM);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to create chain");
 
         for (cert_index = 0; cert_index < chain_data->chain_length ; cert_index++)
         {
             SA_PV_ERR_RECOVERABLE_GOTO_IF((certificate_size == 0 || certificate == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, exit, "Invalid certificate data at index %" PRIu32 "", cert_index);
 
-            kcm_status =  _kcm_cert_chain_add_next(kcm_chain_handle, certificate, certificate_size, KCM_ORIGINAL_ITEM);
+            kcm_status = storage_chain_add_next(kcm_chain_handle, certificate, certificate_size, KCM_ORIGINAL_ITEM);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to store certificate at index %" PRIu32 "", cert_index);
 
             //Get next certificate
@@ -482,7 +481,7 @@ kcm_status_e ce_store_new_certificate(const char *certificate_name, struct cert_
     }
 
 exit:
-    kcm_status = _kcm_cert_chain_close(kcm_chain_handle, KCM_ORIGINAL_ITEM);
+    kcm_status = storage_cert_chain_close(kcm_chain_handle, KCM_ORIGINAL_ITEM);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to close chain");
 
     return kcm_status;

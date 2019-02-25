@@ -33,6 +33,7 @@ namespace CertificateEnrollmentClient {
         _raw_data_size = raw_data_size;
         cert_name = NULL;
         csr = NULL;
+        csr_size = 0;
         est_data = NULL;
         key_handle = 0;
         _raw_data = (uint8_t *)malloc(raw_data_size);        
@@ -111,10 +112,13 @@ namespace CertificateEnrollmentClient {
     // call the user callback and send message to the cloud
     void CertificateRenewalDataFromServer::finish(ce_status_e status)
     {
-        call_user_cert_renewal_cb(cert_name, status, CE_INITIATOR_SERVER);
         SA_PV_LOG_INFO("sending delayed response, status: %d\n", (int)status);
         g_cert_enroll_lwm2m_resource->set_value((int64_t)status);
         g_cert_enroll_lwm2m_resource->send_delayed_post_response();
+
+        // Call the user callback after setting the resource so that the user may delete the MCC object from the CB.
+        // If we had called the CB prior to setting the resource value, this would result in writing to unallocated memory.
+        call_user_cert_renewal_cb(cert_name, status, CE_INITIATOR_SERVER);
     };
 
     CertificateRenewalDataFromDevice::CertificateRenewalDataFromDevice(const char *raw_data) :

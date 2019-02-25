@@ -21,13 +21,11 @@
 TEST_GROUP_RUNNER(pal_time)
 {
     RUN_TEST_CASE(pal_time, RealTimeClockTest1);
-
-    // XXX: this is wrong in so many levels!
-#if ((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH)
-	RUN_TEST_CASE(pal_time, OsWeakSetTime_Forword);
-	RUN_TEST_CASE(pal_time, OsWeakSetTime_Backword);
-	RUN_TEST_CASE(pal_time, OsWeakSetTime_minimalStoredLag);
-	RUN_TEST_CASE(pal_time, OsStrongSetTime);
-#endif	
+    RUN_TEST_CASE(pal_time, OsWeakSetTime_Forward);
+    RUN_TEST_CASE(pal_time, OsWeakSetTime_Backward);
+    RUN_TEST_CASE(pal_time, OsWeakSetTime_minimalStoredLag);
+    RUN_TEST_CASE(pal_time, OsStrongSetTime);
 }
+
+
 

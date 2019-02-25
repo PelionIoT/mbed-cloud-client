@@ -19,8 +19,6 @@
 #ifndef ARM_UC_PAL_EXTENSIONS
 #define ARM_UC_PAL_EXTENSIONS
 
-#include "update-client-common/arm_uc_error.h"
-#include "update-client-common/arm_uc_types.h"
 #include "update-client-paal/arm_uc_paal_update_api.h"
 
 #ifdef __cplusplus

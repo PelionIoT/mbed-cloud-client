@@ -27,7 +27,11 @@
 #include "mbed-client/m2mdevice.h"
 #include "ConnectorClient.h"
 
+#include <stdint.h>
+
+#if MBED_CLOUD_CLIENT_STL_API
 #include <string>
+#endif
 
 class M2MSecurity;
 class ConnectorClientCallback;
@@ -137,8 +141,14 @@ public:
     */
     const ConnectorClient &connector_client() const;
 
+#if MBED_CLOUD_CLIENT_STL_API
     /**
      * \brief Set resource value in the Device Object
+     *
+     * \note This is deprecated as the rest of API's using std::string,
+     *  but there is no m2m_deprecated tag as that would cause warning on
+     *  default builds from MbedCloudClient::set_device_resource_value(),
+     *  which is the public API for this as it will be built but not used.
      *
      * \param resource Device enum to have value set.
      * \param value String object.
@@ -146,6 +156,7 @@ public:
      */
     bool set_device_resource_value(M2MDevice::DeviceResource resource,
                                    const std::string& value);
+#endif
 
     /**
      * \brief Set resource value in the Device Object

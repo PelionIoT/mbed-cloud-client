@@ -18,7 +18,7 @@ set (PAL_TESTS_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/../../mbed-client-pal/Tes
 #SET(SOTP_DEBUG_FLAGS "-DESFS_INTERACTIVE_TEST")
 add_definitions(${SOTP_DEBUG_FLAGS})
 
-add_definitions(-DSOTP_TESTING)
+add_definitions(-DRBP_TESTING)
 
 FILE(
 	GLOB_RECURSE  
@@ -32,8 +32,8 @@ message ( "*********************************************************************
 
 CREATE_LIBRARY(esfs "${esfs_src}" "")
 
-add_dependencies(esfs pal)
-target_link_libraries(esfs pal)
+add_dependencies(esfs palFilesystem palDRBG palCrypto)
+target_link_libraries(esfs palFilesystem palDRBG palCrypto)
 
 # Create own library for SOTP features
 FILE(

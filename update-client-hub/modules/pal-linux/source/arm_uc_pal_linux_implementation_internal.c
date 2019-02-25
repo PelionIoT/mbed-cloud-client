@@ -23,9 +23,7 @@
 
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation_internal.h"
 
-#include "update-client-common/arm_uc_trace.h"
-#include "update-client-common/arm_uc_utilities.h"
-#include "update-client-common/arm_uc_metadata_header_v2.h"
+#include "update-client-metadata-header/arm_uc_metadata_header_v2.h"
 #include "update-client-common/arm_uc_scheduler.h"
 
 #define __STDC_FORMAT_MACROS

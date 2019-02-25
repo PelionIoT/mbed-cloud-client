@@ -32,24 +32,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
-#if defined(__ICCARM__)
-#include <intrinsics.h>
-#endif
 
-#ifndef htobe
-static inline uint32_t htobe(uint32_t x)
-{
-#if BYTE_ORDER == LITTLE_ENDIAN
-#if defined(__ICCARM__)
-    return __REV(x);
-#else
-    return __builtin_bswap32(x);
-#endif
-#else
-    return x;
-#endif
-}
-#endif
 
 #undef ARRAY_SIZE
 #define ARRAY_SIZE(ENUM_AUTO)\

@@ -21,6 +21,7 @@
 #include "pal.h"
 #include "pv_error_handling.h"
 #include "mbed-trace/mbed_trace.h"
+
 /**
 * Mutex for printing logs in a thread safe manner.
 */
@@ -28,7 +29,7 @@ palMutexID_t g_pv_logger_mutex = NULLPTR;
 
 void mbed_trace_helper_print(const char* format)
 {
-    (void)fprintf(stdout, "%s\n", format);
+    printf("%s\n", format);
 }
 
 void mbed_trace_helper_mutex_wait()

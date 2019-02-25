@@ -95,7 +95,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t state);
  *
  * @param callback Function pointer.
  */
-void ARM_UC_HUB_setInitializationCallback(void (*callback)(int32_t));
+void ARM_UC_HUB_setInitializationCallback(void (*callback)(uintptr_t));
 
 /**
  * @brief Return the active firmware details or NULL if they're not yet available.

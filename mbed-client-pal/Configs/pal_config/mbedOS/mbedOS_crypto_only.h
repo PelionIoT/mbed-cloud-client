@@ -22,22 +22,6 @@
     #define DEBUG
 #endif
 
-/*!
- * \brief This file is for more specific definitions (per board, if needed).
- *        if this file is defined it will be included from pal_configuration.h
- *        if not, the default file will be included - if needed
- */
-#ifndef PAL_BOARD_SPECIFIC_CONFIG
-    #if defined(TARGET_K64F) || defined(TARGET_K66F)
-        #include "K64F_and_K66F_default.h"
-    #elif defined(TARGET_NUCLEO_F429ZI)
-        #include "NUCLEO_default.h"
-    #elif defined(TARGET_UBLOX_EVK_ODIN_W2)
-        #include "ODIN_default.h"
-    #endif
-#endif
-
-
 #ifndef PAL_RTOS_WAIT_FOREVER
     #define PAL_RTOS_WAIT_FOREVER osWaitForever
 #endif

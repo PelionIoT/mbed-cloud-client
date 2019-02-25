@@ -14,12 +14,15 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <pal.h>
+
+#include "pal.h"
 #include "pal_plat_update.h"
 #include "pal_update.h"
 #include "pal_macros.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 PAL_PRIVATE uint8_t palUpdateInitFlag = 0;
 

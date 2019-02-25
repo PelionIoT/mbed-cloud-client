@@ -25,8 +25,8 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include "kcm_status.h"
-#include "kcm_internal.h"
 #include "cs_hash.h"
+#include "storage.h"
 
 /*
 * Types certificate's attributes

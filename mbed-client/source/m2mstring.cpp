@@ -17,9 +17,14 @@
 #include <string.h> // strlen
 #include <stdlib.h> // malloc, realloc
 #include <assert.h>
-#include <algorithm> // min
 
 namespace m2m {
+
+
+// can't use std::min as it is not universally available
+#ifndef MIN
+#define MIN(A,B) ((A) < (B) ? (A) : (B))
+#endif
 
 const String::size_type String::npos = static_cast<size_t>(-1);
 
@@ -260,7 +265,7 @@ int String::compare( size_type pos, size_type len, const String& str ) const {
             len = size_ - pos; // limit len to available length
 
         const size_type osize = str.size();
-        const size_type len2   = std::min(len, osize);
+        const size_type len2   = MIN(len, osize);
         r = strncmp( p + pos, str.p, len2);
         if (r==0) // equal so far, now compare sizes
             r = len < osize ? -1 : ( len == osize ? 0 : +1 );
@@ -276,7 +281,7 @@ int String::compare( size_type pos, size_type len, const char* str ) const {
             len = size_ - pos; // limit len to available length
 
         const size_type osize = strlen(str);
-        const size_type len2   = std::min(len, osize);
+        const size_type len2   = MIN(len, osize);
         r = strncmp( p + pos, str, len2);
         if (r==0) // equal so far, now compare sizes
             r = len < osize ? -1 : ( len == osize ? 0 : +1 );
@@ -332,10 +337,23 @@ void String::resize( const size_type n, const char c) {
     }
 }
 
-void String::swap( String& s ) {
-    std::swap( allocated_, s.allocated_ );
-    std::swap( size_,      s.size_      );
-    std::swap( p,          s.p          );
+void String::swap(String& s) {
+
+    // do the swap manually, without relience on std::swap() as that is not always available
+    size_t temp;
+    char* tempPtr;
+
+    temp = allocated_;
+    allocated_ = s.allocated_;
+    s.allocated_ = temp;
+
+    temp = size_;
+    size_ = s.size_;
+    s.size_ = temp;
+
+    tempPtr = p;
+    p = s.p;
+    s.p = tempPtr;
 }
 
 
@@ -424,6 +442,82 @@ int64_t String::convert_array_to_integer(const uint8_t *value, const uint32_t si
         temp_64 += (uint64_t)(*value++) << i * 8;
     }
     return temp_64;
+}
+
+bool String::convert_ascii_to_int(const char *value, size_t length, int64_t &conversion_result)
+{
+    unsigned int index = 0;
+
+    int64_t result = 0;
+
+    int sign;
+
+    int digit;
+
+    // return value, will be set to true if at least one digit is found
+    // and a false is returned if
+    // a) no digits found, ie. string is empty
+    // b) a non-digit or non-'+' or non-'-' char is found. 
+    // c) more than one +, - chars are found
+    //
+    bool success = false;
+
+    // have predictable output value even on error
+    conversion_result = 0;
+
+    // the optional sign needs to be the first char
+    if ((length > 0) && (value[index] == '+')) {
+        sign = 1;
+        index++;
+    } else if ((length > 0) && (value[index] == '-')) {
+        sign = -1;
+        index++;
+    } else {
+        sign = 1;
+    }
+
+    while ((index < length) && (value[index] != 0)) {
+
+        const char c = value[index++];
+
+        switch (c) {
+
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                digit = c - '0';
+                result *= 10;
+                result += digit;
+                success = true; // at least one digit was converted successfully
+                break;
+
+            // there can be only one sign char and it must be the first
+            case '+':
+            case '-':
+            default:
+                // Note: the handling of having a number with digits in front and
+                // non-digits at end (eg. "0zero") differs from sscanf() on glibc, 
+                // as sscanf will return what it got converted and a success value
+                // even if the string ended with junk.
+                conversion_result = 0;
+                return false;
+        }
+    }
+
+    // put the sign in place
+    result *= sign;
+
+    // and pass the result to caller
+    conversion_result = result;
+
+    return success;
 }
 
 } // namespace

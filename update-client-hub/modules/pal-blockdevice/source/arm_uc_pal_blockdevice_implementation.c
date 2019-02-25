@@ -22,16 +22,10 @@
 #define __STDC_FORMAT_MACROS
 
 #include "update-client-pal-blockdevice/arm_uc_pal_blockdevice.h"
-
 #include "update-client-pal-blockdevice/arm_uc_pal_blockdevice_platform.h"
 
-#include "update-client-common/arm_uc_config.h"
-#include "update-client-common/arm_uc_error.h"
-#include "update-client-common/arm_uc_types.h"
-#include "update-client-common/arm_uc_metadata_header_v2.h"
+#include "update-client-metadata-header/arm_uc_metadata_header_v2.h"
 
-#define TRACE_GROUP "UCPI"
-#include "update-client-common/arm_uc_trace.h"
 #include <inttypes.h>
 
 #ifndef MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS
@@ -57,6 +51,10 @@
 
 #if (MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS == 0)
 #error Update client storage locations must be at least 1.
+#endif
+
+#if (MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE == 0)
+#error Update client storage size cannot be zero.
 #endif
 
 /* Check that the statically allocated buffers are aligned with the block size */
@@ -88,7 +86,13 @@ static void pal_blockdevice_signal_internal(uint32_t event)
  */
 static uint32_t pal_blockdevice_round_up_to_page(uint32_t size)
 {
-    return ((size - 1) / pal_blockdevice_page_size + 1) * pal_blockdevice_page_size;
+    uint32_t round_up = 0;
+    /* 0 is an aligned address and math operation below would not return 0.
+       It would return pal_blockdevice_page_size*/
+    if (size != 0){
+        round_up = ((size - 1) / pal_blockdevice_page_size + 1) * pal_blockdevice_page_size;
+    }
+    return round_up;
 }
 
 /**
@@ -110,7 +114,13 @@ static uint32_t pal_blockdevice_round_down_to_page(uint32_t size)
  */
 static uint32_t pal_blockdevice_round_up_to_sector(uint32_t size)
 {
-    return ((size - 1) / pal_blockdevice_sector_size + 1) * pal_blockdevice_sector_size;
+    uint32_t round_up = 0;
+    /* 0 is an aligned address and math operation below would not return 0.
+       It would return pal_blockdevice_sector_size*/
+    if (size != 0){
+        round_up = ((size - 1) / pal_blockdevice_sector_size + 1) * pal_blockdevice_sector_size;
+    }
+    return round_up;
 }
 
 /**
@@ -229,7 +239,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
     if (details && buffer && buffer->ptr) {
-        UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Prepare: %" PRIX32 " %" PRIX32,
+        UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Prepare: %" PRIX32 " %" PRIX64,
                       slot_id, details->size);
 
         /* encode firmware details in buffer */

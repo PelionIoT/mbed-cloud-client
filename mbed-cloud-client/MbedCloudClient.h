@@ -20,9 +20,6 @@
 #ifndef __MBED_CLOUD_CLIENT_H__
 #define __MBED_CLOUD_CLIENT_H__
 
-#include <map>
-#include <string>
-#include <vector>
 #include "include/ServiceClient.h"
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 
@@ -36,7 +33,20 @@
 #include "certificate-enrollment-client/certificate-enrollment-client/ce_defs.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
+#if MBED_CLOUD_CLIENT_STL_API
+#include <map>
+#include <string>
+#include <vector>
+#endif
+
+#if MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION
+// We should not really pollute application's namespace with std:: by having this in
+// a public header file.
+// But as as removal of the next line may break existing applications, which build due to this
+// leakage, we need to maintain the old behavior for a while and just allow one to remove it.
 using namespace std;
+#endif
+
 class SimpleM2MResourceBase;
 
 /**
@@ -98,17 +108,20 @@ public:
         UpdateWarningNoActionRequired           = UpdateClient::WarningBase, // Range reserved for Update Error from 0x0400 - 0x04FF
         UpdateWarningCertificateNotFound        = UpdateClient::WarningCertificateNotFound,
         UpdateWarningIdentityNotFound           = UpdateClient::WarningIdentityNotFound,
-        UpdateWarningCertificateInvalid         = UpdateClient::WarningCertificateInvalid,
-        UpdateWarningSignatureInvalid           = UpdateClient::WarningSignatureInvalid,
         UpdateWarningVendorMismatch             = UpdateClient::WarningVendorMismatch,
         UpdateWarningClassMismatch              = UpdateClient::WarningClassMismatch,
         UpdateWarningDeviceMismatch             = UpdateClient::WarningDeviceMismatch,
+        UpdateWarningCertificateInvalid         = UpdateClient::WarningCertificateInvalid,
+        UpdateWarningSignatureInvalid           = UpdateClient::WarningSignatureInvalid,
+        UpdateWarningBadKeytable                = UpdateClient::WarningBadKeytable,
         UpdateWarningURINotFound                = UpdateClient::WarningURINotFound,
         UpdateWarningRollbackProtection         = UpdateClient::WarningRollbackProtection,
         UpdateWarningUnknown                    = UpdateClient::WarningUnknown,
+        UpdateCertificateInsertion              = UpdateClient::WarningCertificateInsertion,
         UpdateErrorUserActionRequired           = UpdateClient::ErrorBase,
         UpdateErrorWriteToStorage               = UpdateClient::ErrorWriteToStorage,
         UpdateErrorInvalidHash                  = UpdateClient::ErrorInvalidHash,
+        UpdateErrorConnection                   = UpdateClient::ErrorConnection,
         UpdateFatalRebootRequired,
 #endif
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -307,15 +320,20 @@ public:
      */
     void set_entropy_callback(entropy_cb callback);
 
+#if MBED_CLOUD_CLIENT_STL_API
     /**
      * \brief Set resource value in the Device Object
+     *
+     * \note This API and functionality using STL is being phased out, as it is wasting resources by
+     * duplicating data and harming portability by requiring a STL implementation to exist.
      *
      * \param resource Device enum to have value set.
      * \param value String object.
      * \return True if successful, false otherwise.
      */
     bool set_device_resource_value(M2MDevice::DeviceResource resource,
-                                   const std::string &value);
+                                   const std::string &value) m2m_deprecated;
+#endif
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     /**
@@ -440,24 +458,31 @@ private:
     * \param route The URI path of the registered resource such as "/Test/0/res/".
     * \param resource Object of the SimpleM2MResourceBase.
     */
-    void register_update_callback(string route, SimpleM2MResourceBase* resource);
+#if MBED_CLOUD_CLIENT_STL_API
+    void register_update_callback(string route, SimpleM2MResourceBase* resource) m2m_deprecated;
+#endif
 
 private:
 
     ServiceClient                                   _client;
     MbedCloudClientCallback                         *_value_callback;
-    map<string, M2MObject*>                         _objects;
-    map<string, M2MResource*>                       _resources;
     M2MBaseList                                     _object_list;
-    map<string, SimpleM2MResourceBase*>             _update_values;
     FP0<void>                                       _on_registered;
     FP0<void>                                       _on_unregistered;
     FP0<void>                                       _on_registration_updated;
     FP1<void,int>                                   _on_error;
     const char                                      *_error_description;
 
+#if MBED_CLOUD_CLIENT_STL_API
+    // This API and functionality is being phased out, as it is wasting resources by
+    // duplicating data and harming portability by requiring a STL implementation to exist.
+    map<string, M2MObject*>                         _objects;
+    map<string, M2MResource*>                       _resources;
+    map<string, SimpleM2MResourceBase*>             _update_values;
 
 friend class SimpleM2MResourceBase;
+
+#endif // MBED_CLOUD_CLIENT_STL_API
 };
 
 template<typename T>

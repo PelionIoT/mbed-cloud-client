@@ -39,7 +39,7 @@
 #error "MBED_CLOUD_CLIENT_LISTEN_PORT must be defined with valid non-zero port number, default is 0"
 #endif
 
-#if !defined (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE) || (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE < 16)
+#if !defined (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE) || (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE < 16) || (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE > 1024)
 #error "SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be defined with one of the values from this - 128, 256, 512 or 1024"
 #endif
 
@@ -70,6 +70,30 @@ defined (MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE) || defined(MBED_CLOUD_CLIEN
 #if !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP) && !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP) \
 && !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE) && !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP_QUEUE)
 #error "One MBED_CLOUD_CLIENT_TRANSPORT_MODE must be defined at a time"
+#endif
+
+#if !defined(MBED_CLOUD_CLIENT_STL_API)
+#error "MBED_CLOUD_CLIENT_STL_API must have a value, nonzero enables API with STL"
+#endif
+
+#if !defined(MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION)
+#error "MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION must have a value, nonzero maintains legacy behavior"
+#endif
+
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE==1)
+#error "Pelion Device Management Client must use ARM_UC_PROFILE_MBED_CLIENT_LITE=0 configuration."
+#endif
+
+#if defined (PAL_MAX_FRAG_LEN) && (PAL_MAX_FRAG_LEN > 4)
+#error "PAL_MAX_FRAG_LEN must be defined with one of the following values 1, 2, 3 or 4"
+#endif
+
+#if defined (PAL_MAX_FRAG_LEN) && (PAL_MAX_FRAG_LEN == 1) && (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE > 256)
+#error "SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be 256 or lower."
+#endif
+
+#if defined (PAL_MAX_FRAG_LEN) && (PAL_MAX_FRAG_LEN == 2) && (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE > 512)
+#error "SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be 512 or lower."
 #endif
 
 #endif // MBED_CLOUD_CONFIG_CHECK_H

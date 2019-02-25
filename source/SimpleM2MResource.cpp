@@ -17,11 +17,13 @@
 // ----------------------------------------------------------------------------
 
 #include "mbed-cloud-client/SimpleM2MResource.h"
+
+#if MBED_CLOUD_CLIENT_STL_API
+
 #include "mbed-trace/mbed_trace.h"
 
 #include <ctype.h>
-
-#include<stdio.h>
+#include <stdio.h>
 
 #define TRACE_GROUP "mClt"
 
@@ -319,3 +321,4 @@ void SimpleM2MResourceInt::update()
         _on_update(atoi((const char*)v.c_str()));
     }
 }
+#endif

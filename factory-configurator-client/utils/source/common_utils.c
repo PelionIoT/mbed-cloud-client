@@ -25,7 +25,6 @@
 #include "fcc_malloc.h"
 #include "time.h"
 #include "cs_utils.h"
-#include "fcc_sotp.h"
 
 
 fcc_status_e fcc_get_kcm_data(const uint8_t *parameter_name, size_t size_of_parameter_name, kcm_item_type_e kcm_type, uint8_t **kcm_data, size_t *kcm_data_size)

@@ -153,7 +153,7 @@ fcc_status_e fcc_entropy_set(const uint8_t *buf, size_t buf_size);
 *   and prior to any other FCC or KCM functions.
 *
 *     @param buf The buffer containing the root of trust.
-*     @param buf_size The size of buf in bytes. Must be exactly FCC_ROT_SIZE.
+*     @param buf_size The size of buf in bytes. Must be the exact size of root of trust key, as defined in device platform layer.
 *
 *     @returns
 *        Operation status.

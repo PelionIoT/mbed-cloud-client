@@ -21,8 +21,6 @@
 
 TEST_GROUP_RUNNER(pal_internalFlash)
 {
-    #if PAL_USE_INTERNAL_FLASH
-    	RUN_TEST_CASE(pal_internalFlash, BasicTest);
-    	RUN_TEST_CASE(pal_internalFlash, NegativeTest);
-    #endif
+   	RUN_TEST_CASE(pal_internalFlash, BasicTest);
+   	RUN_TEST_CASE(pal_internalFlash, NegativeTest);
 }

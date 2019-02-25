@@ -16,11 +16,13 @@
 
 #include "test_runners.h"
 
-//create a public wapper to this & reduce this to one line 
 int main(int argc, char * argv[])
 {
+    (void)argc;
+    (void)argv;
+
     // the tests may actually assert on failure, so they may not return anything useful status
-    // and a nonzero return value is typically a sign of platform intialization failure
-    return palRTOSTestMain(PAL_TEST_PLATFORM_INIT_BASE);
+    // and a nonzero return value is typically a sign of platform initialization failure
+    return palRTOSTestMain();
 }
 

@@ -24,9 +24,9 @@
 
 #include "update-client-pal-flashiap/arm_uc_pal_flashiap_implementation.h"
 
-static void (*arm_ucex_mbed_callback)(uint32_t) = 0;
+static void (*arm_ucex_mbed_callback)(uintptr_t) = 0;
 
-arm_uc_error_t pal_ext_imageInitAPI(void (*callback)(uint32_t))
+arm_uc_error_t pal_ext_imageInitAPI(void (*callback)(uintptr_t))
 {
     arm_ucex_mbed_callback = callback;
 

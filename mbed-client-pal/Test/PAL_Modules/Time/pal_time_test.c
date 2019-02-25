@@ -17,26 +17,54 @@
 #include "pal.h"
 #include "unity.h"
 #include "unity_fixture.h"
-#include "sotp.h"
+#include "storage.h"
 #include "test_runners.h"
-
 #include <string.h>
 #include <stdlib.h>
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#include "pal_sst.h"
+#else
+#include "sotp.h"
+#endif
+
 
 #define TRACE_GROUP "PAL"
+
+#define PAL_RUNNING_TEST_TIME   5  //estimation on length of test in seconds
 
 TEST_GROUP(pal_time);
 
 TEST_SETUP(pal_time)
 {
     palStatus_t status = PAL_SUCCESS;
+
+    //init pal
     status = pal_init();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    // Reset storage before pal_initTime since there might be CMAC lefovers
+    // in internal flash which might fail storage access in pal_initTime
+    pal_SSTReset();
+#else 
+    sotp_reset();
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
+    // Initialize the time module
+    status = pal_initTime();
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 }
 
 TEST_TEAR_DOWN(pal_time)
 {
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    pal_SSTReset();
+#else
+    sotp_reset();
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
     pal_destroy();
 }
 
@@ -46,11 +74,11 @@ TEST_TEAR_DOWN(pal_time)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Start a loop for the following steps.                                                | PAL_SUCCESS |
+* | 1 | Start a loop for the following steps.                                            | PAL_SUCCESS |
 * | 2 | Set time to invalid value using `pal_osSetTime`.                                 | PAL_ERR_INVALID_TIME |
 * | 3 | Get time using `pal_osGetTime`.                                                  | PAL_SUCCESS |
 * | 4 | Set time to valid value using `pal_osSetTime`.                                   | PAL_SUCCESS |
-* | 5 | Sleep.                                                                         | PAL_SUCCESS |
+* | 5 | Sleep.                                                                           | PAL_SUCCESS |
 * | 6 | Get time using `pal_osGetTime` and check that it equals set time + sleep time.   | PAL_SUCCESS |
 */
 TEST(pal_time, RealTimeClockTest1)
@@ -85,23 +113,23 @@ TEST(pal_time, RealTimeClockTest1)
 }
 
 
-/*! \brief Check Weak Set Time - Forword flow.
+/*! \brief Check Weak Set Time - Forward flow.
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | checking RTC and SOTP flow - not set SOTP SAVED TIME  + LAST TIME BACK + RTC to new time          		      | PAL_SUCCESS |
-* | 2 | checking RTC and SOTP flow - not set SOTP SAVED TIME  + LAST TIME BACK to new time but set RTC to new time    | PAL_SUCCESS |
-* | 3 | checking RTC and SOTP flow - set SOTP SAVED TIME  + LAST TIME BACK + RTC to new time          		          | PAL_SUCCESS |
+* | 1 | checking RTC and RBP flow - not set RBP SAVED TIME  + LAST TIME BACK + RTC to new time                        | PAL_SUCCESS |
+* | 2 | checking RTC and RBP flow - not set RBP SAVED TIME  + LAST TIME BACK to new time but set RTC to new time      | PAL_SUCCESS |
+* | 3 | checking RTC and RBP flow - set RBP SAVED TIME  + LAST TIME BACK + RTC to new time                            | PAL_SUCCESS |
 */
-TEST(pal_time, OsWeakSetTime_Forword)
+TEST(pal_time, OsWeakSetTime_Forward)
 {
+#if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
     palStatus_t status;
-    sotp_result_e sotpStatus = SOTP_SUCCESS;
     uint64_t setTimeInSeconds = 0;
     uint64_t curentTimeInSeconds=0;
     uint64_t pal_Time = 0;
-    uint64_t sotpGetTime = 0;
-    uint16_t actualLenBytes = 0;
+    uint64_t getTime = 0;
+    size_t actualLenBytes = 0;
 
 #if (PAL_USE_HW_RTC)
     //This code is to preserve system time
@@ -117,11 +145,11 @@ TEST(pal_time, OsWeakSetTime_Forword)
     pal_osSetTime(PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100);
     curentTimeInSeconds = pal_osGetTime();
 
-    sotpStatus = sotp_set(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t *)&curentTimeInSeconds);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&curentTimeInSeconds, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    sotpStatus = sotp_set(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t *)&curentTimeInSeconds);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    status = storage_rbp_write(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&curentTimeInSeconds, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 #if (PAL_USE_HW_RTC)
     uint64_t rtcTime = 0;
@@ -135,18 +163,16 @@ TEST(pal_time, OsWeakSetTime_Forword)
     pal_Time = pal_osGetTime();
     if (pal_Time - setTimeInSeconds > 5)
     {
-    	status = PAL_ERR_GENERAL_BASE;
+        status = PAL_ERR_GENERAL_BASE;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
-    sotpStatus = sotp_get(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
-#endif 
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
 #if (PAL_USE_HW_RTC)
     status = pal_plat_osGetRtcTime(&rtcTime);
@@ -166,19 +192,17 @@ TEST(pal_time, OsWeakSetTime_Forword)
     pal_Time = pal_osGetTime();
     if (pal_Time - setTimeInSeconds > 5)
     {
-    	status = PAL_ERR_GENERAL_BASE;
+        status = PAL_ERR_GENERAL_BASE;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-	TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-	TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
-    sotpStatus = sotp_get(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-	TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-	TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
-#endif
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
 #if (PAL_USE_HW_RTC)
     status = pal_plat_osGetRtcTime(&rtcTime);
@@ -187,26 +211,24 @@ TEST(pal_time, OsWeakSetTime_Forword)
 
     /*#3*/
     curentTimeInSeconds = pal_osGetTime();
-    sotpStatus = sotp_set(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t *)&curentTimeInSeconds);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&curentTimeInSeconds, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    sotpStatus = sotp_set(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t *)&curentTimeInSeconds);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    status = storage_rbp_write(STORAGE_RBP_LAST_TIME_BACK_NAME,  (uint8_t*)&curentTimeInSeconds, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 #if (PAL_USE_HW_RTC)
     status = pal_plat_osSetRtcTime(curentTimeInSeconds);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #endif//PAL_USE_HW_RTC
 
-    setTimeInSeconds = curentTimeInSeconds + PAL_MINIMUM_SOTP_FORWARD_LATENCY_SEC + (100 * PAL_ONE_SEC);
+    setTimeInSeconds = curentTimeInSeconds + PAL_MINIMUM_FORWARD_LATENCY_SEC + (100 * PAL_ONE_SEC);
     status = pal_osSetWeakTime(setTimeInSeconds);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-	TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-	TEST_ASSERT_EQUAL_UINT64(sotpGetTime, setTimeInSeconds);
-#endif
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_UINT64(getTime, setTimeInSeconds);
 
 #if (PAL_USE_HW_RTC)
     status = pal_plat_osGetRtcTime(&rtcTime);
@@ -217,22 +239,25 @@ TEST(pal_time, OsWeakSetTime_Forword)
     //restore System time
     pal_plat_osSetRtcTime(testStartTime + PAL_RUNNING_TEST_TIME);
 #endif
+#else // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
+    TEST_IGNORE_MESSAGE("Ignored, PAL_INT_FLASH_NUM_SECTIONS not set to 2 or PAL_USE_INTERNAL_FLASH not set or MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is not defined");
+#endif // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
 }
 
-/*! \brief Check Weak Set Time - Backword flow.
+/*! \brief Check Weak Set Time - Backward flow.
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | checking SOTP flow - set SOTP SAVED TIME and LAST TIME BACK to new time	        | PAL_SUCCESS |
-* | 2 | checking SOTP flow - not set SOTP SAVED TIME and LAST TIME BACK to new time	    | PAL_SUCCESS |
+* | 1 | checking RBP flow - set RBP SAVED TIME and LAST TIME BACK to new time           | PAL_SUCCESS |
+* | 2 | checking RBP flow - not set RBP SAVED TIME and LAST TIME BACK to new time       | PAL_SUCCESS |
 */
-TEST(pal_time, OsWeakSetTime_Backword)
+TEST(pal_time, OsWeakSetTime_Backward)
 {
+#if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
     uint64_t setTimeInSeconds = 0;
     uint64_t curentTimeInSeconds = 0;
-    palStatus_t status;
-    sotp_result_e sotpStatus = SOTP_SUCCESS;
-    uint64_t getTimeValueBackword = 0;
+    palStatus_t status = PAL_SUCCESS;
+    uint64_t getTimeValueBackward = 0;
     uint64_t pal_Time = 0;
 #if (PAL_USE_HW_RTC)
     //This code is to preserve system time
@@ -243,13 +268,16 @@ TEST(pal_time, OsWeakSetTime_Backword)
     /*#1*/
 #if (PAL_USE_HW_RTC)
     pal_plat_osSetRtcTime(PAL_MIN_RTC_SET_TIME);
-    pal_osSetTime(PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100);
+
 #endif
+
+    //set time to a valid one
+    pal_osSetTime(PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100);
     curentTimeInSeconds = pal_osGetTime();
 
-    getTimeValueBackword = curentTimeInSeconds - (3 * PAL_MINIMUM_SOTP_FORWARD_LATENCY_SEC);
-    sotpStatus = sotp_set(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t *)&getTimeValueBackword);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    getTimeValueBackward = curentTimeInSeconds - (3 * PAL_MINIMUM_FORWARD_LATENCY_SEC);
+    status = storage_rbp_write(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t *)&getTimeValueBackward, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 
     setTimeInSeconds = curentTimeInSeconds - (6 * PAL_SECONDS_PER_MIN);
@@ -258,69 +286,68 @@ TEST(pal_time, OsWeakSetTime_Backword)
     pal_Time = pal_osGetTime();
     if (pal_Time - setTimeInSeconds > 5)
     {
-    	status = PAL_ERR_GENERAL_BASE;
+        status = PAL_ERR_GENERAL_BASE;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    uint64_t sotpGetTime = 0;
-    uint16_t actualLenBytes = 0;
+    uint64_t getTime = 0;
+    size_t actualLenBytes = 0;
 
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_EQUAL_UINT64(sotpGetTime, setTimeInSeconds);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_UINT64(getTime, setTimeInSeconds);
 
-    sotpStatus = sotp_get(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_EQUAL_UINT64(sotpGetTime, setTimeInSeconds);
-#endif
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_UINT64(getTime, setTimeInSeconds);
 
     /*#2*/
     curentTimeInSeconds = pal_osGetTime();
-    getTimeValueBackword = curentTimeInSeconds - (3 * PAL_MINIMUM_SOTP_FORWARD_LATENCY_SEC);
-    sotpStatus = sotp_set(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t *)&getTimeValueBackword);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    getTimeValueBackward = curentTimeInSeconds - (3 * PAL_MINIMUM_FORWARD_LATENCY_SEC);
+    status = storage_rbp_write(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t *)&getTimeValueBackward, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    sotpStatus = sotp_set(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t *)&getTimeValueBackword);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&getTimeValueBackward, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     setTimeInSeconds = curentTimeInSeconds - (12 * PAL_SECONDS_PER_MIN);
 
     status = pal_osSetWeakTime(setTimeInSeconds);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
-    sotpStatus = sotp_get(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
-#endif
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
 #if (PAL_USE_HW_RTC)
     //restore System time
     pal_plat_osSetRtcTime(testStartTime + PAL_RUNNING_TEST_TIME);
 #endif
+#else // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
+    TEST_IGNORE_MESSAGE("Ignored, PAL_INT_FLASH_NUM_SECTIONS not set to 2 or PAL_USE_INTERNAL_FLASH not set or MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is not defined");
+#endif // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
 }
 
 /*! \brief Weak Strong Set Time- minimalStoredLag flow.
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | checking SOTP flow- set SOTP SAVED TIME to new time	                		| PAL_SUCCESS |
-* | 2 | checking SOTP flow- not set SOTP SAVED TIME	to new time                     | PAL_SUCCESS |
+* | 1 | checking RBP flow- set RBP SAVED TIME to new time                           | PAL_SUCCESS |
+* | 2 | checking RBP flow- not set RBP SAVED TIME   to new time                     | PAL_SUCCESS |
 */
 TEST(pal_time, OsWeakSetTime_minimalStoredLag)
 {
+#if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
     palStatus_t status;
-    sotp_result_e sotpStatus = SOTP_SUCCESS;
     uint64_t setTimeInSeconds = 0;
     uint64_t curentTimeInSeconds = 0;
-    uint64_t sotpGetTime = 0;
-    uint16_t actualLenBytes = 0;
-    uint64_t setSotpTimeValue = 0;
-    
+    uint64_t getTime = 0;
+    size_t actualLenBytes = 0;
+    uint64_t setTimeValue = 0;
+
 #if (PAL_USE_HW_RTC)
     //This code is to preserve system time
     uint64_t testStartTime = 0;
@@ -335,61 +362,61 @@ TEST(pal_time, OsWeakSetTime_minimalStoredLag)
     curentTimeInSeconds = pal_osGetTime();
     setTimeInSeconds = curentTimeInSeconds;
 
-    setSotpTimeValue = curentTimeInSeconds - (PAL_MINIMUM_STORAGE_LATENCY_SEC + 50);
-    sotpStatus = sotp_set(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t *)&setSotpTimeValue);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    setTimeValue = curentTimeInSeconds - (PAL_MINIMUM_STORAGE_LATENCY_SEC + 50);
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&setTimeValue, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_osSetWeakTime(setTimeInSeconds);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_EQUAL_UINT64(sotpGetTime, setTimeInSeconds);
-#endif
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_UINT64(getTime, setTimeInSeconds);
 
     /*#2*/
     curentTimeInSeconds = pal_osGetTime();
     setTimeInSeconds = curentTimeInSeconds - 50;
 
-    setSotpTimeValue = curentTimeInSeconds;
-    sotpStatus = sotp_set(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t *)&setSotpTimeValue);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    setTimeValue = curentTimeInSeconds;
+    status = storage_rbp_write(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t *)&setTimeValue, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_osSetWeakTime(setTimeInSeconds);
- 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-	
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
-#endif
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
 #if (PAL_USE_HW_RTC)
     //restore System time
     pal_plat_osSetRtcTime(testStartTime + PAL_RUNNING_TEST_TIME);
 #endif
+#else // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
+    TEST_IGNORE_MESSAGE("Ignored, PAL_INT_FLASH_NUM_SECTIONS not set to 2 or PAL_USE_INTERNAL_FLASH not set or MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is not defined");
+#endif // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
+
 }
 
 /*! \brief Check Strong Set Time.
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | checking RTC flow - set new RTC time					                		| PAL_SUCCESS |
-* | 2 | checking RTC flow - not set RTC new time				                		| PAL_SUCCESS |
-* | 3 | checking SOTP flow - set SOTP SAVED TIME and LAST TIME BACK to new time	        | PAL_SUCCESS |
-* | 4 | checking SOTP flow - not set SOTP SAVED TIME and LAST TIME BACK to new time       | PAL_SUCCESS |
+* | 1 | checking RTC flow - set new RTC time                                            | PAL_SUCCESS |
+* | 2 | checking RTC flow - not set RTC new time                                        | PAL_SUCCESS |
+* | 3 | checking RBP flow - set RBP SAVED TIME and LAST TIME BACK to new time           | PAL_SUCCESS |
+* | 4 | checking RBP flow - not set RBP SAVED TIME and LAST TIME BACK to new time       | PAL_SUCCESS |
 */
 TEST(pal_time, OsStrongSetTime)
 {
+#if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
     palStatus_t status;
-    sotp_result_e sotpStatus = SOTP_SUCCESS;
     uint64_t setTimeInSeconds = 0;
     uint64_t curentTimeInSeconds = 0;
     uint64_t pal_Time = 0;
-    uint64_t sotpGetTime = 0;
-    uint16_t actualLenBytes = 0;
-    uint64_t setSotpTimeValue = 0;
+    uint64_t getTime = 0;
+    size_t actualLenBytes = 0;
+    uint64_t setTimeValue = 0;
 
 #if (PAL_USE_HW_RTC)
     //This code is to preserve system time
@@ -424,7 +451,7 @@ TEST(pal_time, OsStrongSetTime)
     pal_Time = pal_osGetTime();
     if (pal_Time - setTimeInSeconds > 5)
     {
-    	status = PAL_ERR_GENERAL_BASE;
+        status = PAL_ERR_GENERAL_BASE;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -448,34 +475,32 @@ TEST(pal_time, OsStrongSetTime)
 
     pal_Time = pal_osGetTime();
     if (pal_Time - setTimeInSeconds > 5){
-    	status = PAL_ERR_GENERAL_BASE;
+        status = PAL_ERR_GENERAL_BASE;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#3*/
     curentTimeInSeconds = pal_osGetTime();
     setTimeInSeconds = curentTimeInSeconds;
-    setSotpTimeValue = curentTimeInSeconds - (PAL_MINIMUM_SOTP_FORWARD_LATENCY_SEC + 1*PAL_ONE_SEC);
-    sotpStatus = sotp_set(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t *)&setSotpTimeValue);
-	TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    setTimeValue = curentTimeInSeconds - (PAL_MINIMUM_FORWARD_LATENCY_SEC + 1*PAL_ONE_SEC);
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&setTimeValue, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_osSetStrongTime(setTimeInSeconds);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_EQUAL_UINT64(sotpGetTime, setTimeInSeconds);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_UINT64(getTime, setTimeInSeconds);
 
-    sotpStatus = sotp_get(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_EQUAL_UINT64(sotpGetTime, setTimeInSeconds);
-#endif
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&getTime, sizeof(uint64_t),  &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_UINT64(getTime, setTimeInSeconds);
 
     pal_Time = pal_osGetTime();
     if (pal_Time - setTimeInSeconds > 5)
     {
-    	status = PAL_ERR_GENERAL_BASE;
+        status = PAL_ERR_GENERAL_BASE;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -483,30 +508,28 @@ TEST(pal_time, OsStrongSetTime)
     curentTimeInSeconds = pal_osGetTime();
     setTimeInSeconds = curentTimeInSeconds;
 
-    setSotpTimeValue = curentTimeInSeconds - 5;
-    sotpStatus = sotp_set(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t *)&setSotpTimeValue);
-	TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    setTimeValue = curentTimeInSeconds - 5;
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&setTimeValue, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    sotpStatus = sotp_set(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t *)&setSotpTimeValue);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
+    status = storage_rbp_write(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t *)&setTimeValue, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_osSetStrongTime(setTimeInSeconds);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-#if PAL_USE_INTERNAL_FLASH
-    sotpStatus = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
-    sotpStatus = sotp_get(SOTP_TYPE_LAST_TIME_BACK, sizeof(uint64_t), (uint32_t*)&sotpGetTime, &actualLenBytes);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpStatus);
-    TEST_ASSERT_NOT_EQUAL(sotpGetTime, setTimeInSeconds);
-#endif
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&getTime, sizeof(uint64_t), &actualLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(getTime, setTimeInSeconds);
 
     pal_Time = pal_osGetTime();
     if (pal_Time - setTimeInSeconds > 5)
     {
-    	status = PAL_ERR_GENERAL_BASE;
+        status = PAL_ERR_GENERAL_BASE;
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -514,4 +537,8 @@ TEST(pal_time, OsStrongSetTime)
     //restore System time
     pal_plat_osSetRtcTime(testStartTime + PAL_RUNNING_TEST_TIME);
 #endif
+#else // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
+    TEST_IGNORE_MESSAGE("Ignored, PAL_INT_FLASH_NUM_SECTIONS not set to 2 or PAL_USE_INTERNAL_FLASH not set or MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is not defined");
+#endif // #if (((PAL_INT_FLASH_NUM_SECTIONS == 2) && PAL_USE_INTERNAL_FLASH) || defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT))
+
 }

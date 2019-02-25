@@ -29,10 +29,6 @@ enum arm_uc_mmEvent {
     ARM_UC_MM_EVENT_BEGIN,
 };
 
-#define ARM_UC_MM_DEBUG_LOG_LEVEL_NONE 0
-#define ARM_UC_MM_DEBUG_LOG_LEVEL_VALS 9
-#define ARM_UC_MM_DEBUG_LOG_LEVEL_STATES 10
-
 #define ARRAY_SIZE(X)\
     (sizeof(X)/sizeof((X)[0]))
 
@@ -52,13 +48,24 @@ enum arm_uc_mmEvent {
     }\
     }while (0)
 
+// Define htobe
+#if defined(__ICCARM__)
+#include <intrinsics.h>
+#endif
 
-#if ARM_UC_MANIFEST_MANAGER_TRACE_ENABLE
-extern volatile uint8_t arm_uc_mm_gDebugLevel;
-#define ARM_UC_MM_DEBUG_LOG(LEVEL,...) \
-    if(arm_uc_mm_gDebugLevel >= LEVEL) {printf(__VA_ARGS__);}
+#ifndef htobe
+static inline uint32_t htobe(uint32_t x)
+{
+#if BYTE_ORDER == LITTLE_ENDIAN
+#if defined(__ICCARM__)
+    return __REV(x);
 #else
-#define ARM_UC_MM_DEBUG_LOG(LEVEL,...)
+    return __builtin_bswap32(x);
+#endif
+#else
+    return x;
+#endif
+}
 #endif
 
 #endif //MANIFEST_MANAGER_COMMON_H

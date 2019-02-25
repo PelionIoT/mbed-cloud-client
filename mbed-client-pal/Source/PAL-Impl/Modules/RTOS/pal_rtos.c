@@ -23,12 +23,6 @@
 
 PAL_PRIVATE bool palRTOSInitialized = false;
 
-#if (PAL_SIMULATE_RTOS_REBOOT == 1)
-    #include <unistd.h>
-    extern char *program_invocation_name;
-#endif
-
-
 palStatus_t pal_RTOSInitialize(void* opaqueContext)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -68,26 +62,12 @@ palStatus_t pal_RTOSDestroy(void)
 
 void pal_osReboot(void)
 {
-    PAL_LOG_INFO( "pal_osReboot\r\n");
-#if (PAL_USE_APPLICATION_REBOOT)
+#if defined(PAL_USE_APPLICATION_REBOOT) && (PAL_USE_APPLICATION_REBOOT == 1)
+    PAL_LOG_INFO("pal_osReboot (app)\n");
     pal_plat_osApplicationReboot();
 #else
-    //Simulator is currently for Linux only
-    #if (PAL_SIMULATE_RTOS_REBOOT == 1)
-        const char *argv[] = {"0" , 0};
-        char *const envp[] = { 0 };
-        argv[0] = program_invocation_name;
-
-        PAL_LOG_INFO( "pal_osReboot -> simulated reboot with execve(%s).\r\n", argv[0]);
-  
-        if (-1 == execve(argv[0], (char **)argv , envp))
-        {
-            PAL_LOG_ERR("child process execve failed [%s]",argv[0]);
-        }
-    #else
-        PAL_LOG_INFO( "Rebooting the system\r\n");
-        pal_plat_osReboot();
-    #endif
+    PAL_LOG_INFO("pal_osReboot (os)\n");
+    pal_plat_osReboot();
 #endif
 }
 

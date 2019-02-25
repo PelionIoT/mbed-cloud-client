@@ -22,7 +22,7 @@
 #include <stdint.h>
 
 #include "kcm_status.h"
-#include "pal_Crypto.h"
+#include "pal.h"
 
 #ifdef __cplusplus
 extern "C" {

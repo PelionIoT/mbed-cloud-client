@@ -21,9 +21,7 @@
 #include "cs_utils.h"
 #include "cs_hash.h"
 #include "pk.h"
-#include "kcm_internal.h"
 #include "fcc_malloc.h"
-
 
 
 /*! Frees key handle.

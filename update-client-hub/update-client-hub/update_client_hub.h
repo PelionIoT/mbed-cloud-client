@@ -19,7 +19,7 @@
 #ifndef ARM_UPDATE_CLIENT_HUB_H
 #define ARM_UPDATE_CLIENT_HUB_H
 
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_types.h"
 #include "update-client-source/arm_uc_source.h"
 #include "update-client-monitor/arm_uc_monitor.h"
 #include "update-client-control-center/arm_uc_control_center.h"
@@ -45,7 +45,7 @@ enum {
  * @param  function to be called when initilisation is finished.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_HUB_Initialize(void (*callback)(int32_t));
+arm_uc_error_t ARM_UC_HUB_Initialize(void (*callback)(uintptr_t));
 
 /**
  * @brief Process events in the event queue.

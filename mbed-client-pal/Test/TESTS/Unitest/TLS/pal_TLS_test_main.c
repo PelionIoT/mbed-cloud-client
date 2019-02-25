@@ -16,10 +16,12 @@
  
 #include "test_runners.h"
 
-//create a public wapper to this & reduce this to one line 
 int main(int argc, char * argv[])
 {
-    return palTLSTestMain(PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_CONNECTION);
+    (void)argc;
+    (void)argv;
+
+    return palTLSTestMain();
 }
 
 

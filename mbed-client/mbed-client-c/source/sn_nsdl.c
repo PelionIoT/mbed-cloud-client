@@ -2675,33 +2675,19 @@ int32_t sn_nsdl_send_coap_ping(struct nsdl_s *handle)
     assert(handle);
     assert(handle->grs);
 
-    sn_coap_hdr_s   *coap_ping;
+    sn_coap_hdr_s coap_ping = {0};
     int32_t         return_msg_id = 0;
 
-    /* Allocate and initialize memory for header struct */
-    coap_ping = sn_coap_parser_alloc_message(handle->grs->coap);
-    if (coap_ping == NULL) {
-        tr_error("sn_nsdl_send_coap_ping - failed to allocate message!");
-        return 0;
-    }
-
-    if (sn_coap_parser_alloc_options(handle->grs->coap, coap_ping) == NULL) {
-        handle->sn_nsdl_free(coap_ping);
-        tr_error("sn_nsdl_send_coap_ping - failed to allocate options!");
-        return 0;
-    }
-
     /* Fill header */
-    coap_ping->msg_type = COAP_MSG_TYPE_CONFIRMABLE;
-    coap_ping->msg_code = COAP_MSG_CODE_EMPTY;
+    coap_ping.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
+    coap_ping.msg_code = COAP_MSG_CODE_EMPTY;
+    coap_ping.content_format = COAP_CT_NONE;
 
     /* Send message */
-    return_msg_id = sn_nsdl_send_coap_message(handle, &handle->server_address, coap_ping);
+    return_msg_id = sn_nsdl_send_coap_message(handle, &handle->server_address, &coap_ping);
     if (return_msg_id >= SN_NSDL_SUCCESS) {
-        return_msg_id = coap_ping->msg_id;
+        return_msg_id = coap_ping.msg_id;
     }
-
-    sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_ping);
 
     return return_msg_id;
 }

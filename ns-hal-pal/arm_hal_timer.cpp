@@ -57,6 +57,7 @@ static void tick_timer_create(void)
 }
 
 // Low precision platform tick timer
+extern "C"
 int8_t platform_tick_timer_register(void (*tick_timer_cb_handler)(void))
 {
     if (tick_timer_id == 0) {
@@ -66,6 +67,7 @@ int8_t platform_tick_timer_register(void (*tick_timer_cb_handler)(void))
     return TICK_TIMER_ID;
 }
 
+extern "C"
 int8_t platform_tick_timer_start(uint32_t period_ms)
 {
     int8_t retval = -1;
@@ -75,6 +77,7 @@ int8_t platform_tick_timer_start(uint32_t period_ms)
     return retval;
 }
 
+extern "C"
 int8_t platform_tick_timer_stop(void)
 {
     int8_t retval = -1;

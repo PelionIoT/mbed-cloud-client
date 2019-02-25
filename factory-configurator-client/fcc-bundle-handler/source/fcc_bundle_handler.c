@@ -20,11 +20,11 @@
 #include "fcc_bundle_utils.h"
 #include "fcc_output_info_handler.h"
 #include "fcc_malloc.h"
-#include "fcc_sotp.h"
 #include "general_utils.h"
 #include "fcc_time_profiling.h"
 #include "fcc_utils.h"
 #include "fcc_bundle_fields.h"
+#include "storage.h"
 
 /**
 * Defines for cbor layer
@@ -388,7 +388,7 @@ static bool parse_keep_alive_session_group(cn_cbor *cbor_blob)
 fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob_size, uint8_t **bundle_response_out, size_t *bundle_response_size_out)
 {
     bool status = false;
-    bool is_fcc_factory_disabled;
+    bool is_fcc_factory_disabled = false;
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     cn_cbor *main_list_cb = NULL;
     cn_cbor *group_value_cb = NULL;
@@ -401,7 +401,7 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
     size_t session_id_len = 0;
     bool fcc_verify_status = true; // the default value of verify status is true
     bool fcc_disable_status = false;// the default value of disable status is false
-
+    kcm_status_e kcm_status;
 
     FCC_SET_START_TIMER(fcc_bundle_timer);
 
@@ -413,12 +413,8 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
         *bundle_response_out = NULL;
     }
 
-    // Check if factory flow is disabled, if yes, do not proceed
-    fcc_status = fcc_is_factory_disabled(&is_fcc_factory_disabled);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status, "Failed for fcc_is_factory_disabled");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((is_fcc_factory_disabled), FCC_STATUS_FACTORY_DISABLED_ERROR, "FCC is disabled, service not available");
-
     // Check params
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((!fcc_is_initialized()), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((bundle_response_out == NULL), FCC_STATUS_INVALID_PARAMETER, "Invalid bundle_response_out");
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((bundle_response_size_out == NULL), FCC_STATUS_INVALID_PARAMETER, "Invalid bundle_response_size_out");
@@ -431,7 +427,7 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
 
     // Create the CBOR encoder, an empty map
     response_cbor = cn_cbor_map_create(CBOR_CONTEXT_PARAM_COMMA &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((response_cbor == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, exit, "Failed to instatiate cbor structure");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((response_cbor == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, exit, "Failed to instantiate cbor structure");
 
     /* Decode CBOR message
     Check the size of the CBOR structure */
@@ -448,6 +444,56 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
     status = parse_keep_alive_session_group(main_list_cb);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, free_cbor_list_and_out, "parse_keep_alive_session_group failed");
 
+
+    //Until full implementation of entropy injection we need to set RoT first, otherwise RoT will be created by set entopy.
+    //Fixme : when entropy implemented cwitch order of RoT and entropy injection => first entropy, second RoT
+    /* If RoT injection is expected (to derive storage key) it also must be done prior to storage calls */
+    group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ROT_NAME);
+    if (group_value_cb) {
+        // FIXME: Use fcc_rot_set() instead
+        fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, STORAGE_RBP_ROT_NAME);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for RoT");
+    }
+
+    /*
+     * In order for file functions to work properly, we must first inject the entropy, 
+     * if we have one to inject. If entropy is expected, its existance is required for
+     * every random number generation in the system.
+     * If FCC_ENTROPY_NAME / FCC_ROT_NAME not in bundle (and user did not use the fcc_entropy_set(), or fcc_rot_set()), 
+     * then device must have TRNG or storage functions will fail.
+     */
+    group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ENTROPY_NAME);
+    if (group_value_cb) {
+        // FIXME: Use fcc_entropy_set() instead
+        fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, STORAGE_RBP_RANDOM_SEED_NAME);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for entropy");
+    }
+#if 0
+    /* If RoT injection is expected (to derive storage key) it also must be done prior to storage calls */
+    group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ROT_NAME);
+    if (group_value_cb) {
+        // FIXME: Use fcc_rot_set() instead
+        fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, STORAGE_RBP_ROT_NAME);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for RoT");
+    }
+#endif
+    /*
+     * At this point we assume that if user expects to inject an entropy - it exists
+     * in storage, and if not - device has TRNG and it is safe to call storage functions.
+     * Therefore, we may now call kcm_init() which also initializes the time module (which
+     * uses secure storage).  
+     */
+
+    // Now we may initialize the KCM, including the secure time and the file systen
+    kcm_status = kcm_init();
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), free_cbor_list_and_out, "Failed for kcm_init");
+
+    // Check if factory flow is disabled (if flag in storage), if it is, do not proceed
+    // Turn on is_fcc_factory_disabled even if we get an error, so that we know not tp prepare a response
+    fcc_status = fcc_is_factory_disabled(&is_fcc_factory_disabled);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), is_fcc_factory_disabled = true, free_cbor_list_and_out, "Failed for fcc_is_factory_disabled");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((is_fcc_factory_disabled), fcc_status = FCC_STATUS_FACTORY_DISABLED_ERROR, free_cbor_list_and_out, "FCC is disabled, service not available");
+
     //Go over parameter groups
     for (group_index = 0; group_index < FCC_MAX_CONFIG_PARAM_GROUP_TYPE; group_index++) {
         //Get content of current group (value of map, when key of map is name of group and value is list of params of current group)
@@ -460,16 +506,10 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
             num_of_groups_in_message++;
 
             switch (group_type) {
+                // Scheme version, Entropy, RoT and Keep Alive were handled prior to this switch statement
                 case FCC_SCHEME_VERSION_TYPE:
-                    break;
-                case FCC_ENTROPY_TYPE: // Entropy for random generator
-                    fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, SOTP_TYPE_RANDOM_SEED);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_sotp_buffer failed for entropy");
-                    break;
-                case FCC_ROT_TYPE: // Key for ESFS
-                    fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, SOTP_TYPE_ROT);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_sotp_buffer failed for ROT");
-                    break;
+                case FCC_ENTROPY_TYPE: // Non volatile entropy for random generator
+                case FCC_ROT_TYPE: // Root of trust for deriving secure storage key
                 case FCC_IS_ALIVE_SESSION_GROUP_TYPE:
                     break;
                 case FCC_KEY_GROUP_TYPE:
@@ -558,11 +598,18 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
 free_cbor_list_and_out:
     cn_cbor_free(main_list_cb CBOR_CONTEXT_PARAM);
 exit:
-    //Prepare bundle response message
-    status = prepare_reponse_message(bundle_response_out, bundle_response_size_out, fcc_status, response_cbor, session_id, session_id_len);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != true), FCC_STATUS_BUNDLE_RESPONSE_ERROR, "Failed to prepare out response");
-    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
-    FCC_END_TIMER("Total fcc_bundle_handler device", 0, fcc_bundle_timer);
-    
+    // If we discovered that factory is disabled (or fcc_is_factory_disabled failed) - do not prepare a response
+    if (is_fcc_factory_disabled == false) {
+        //Prepare bundle response message
+        status = prepare_reponse_message(bundle_response_out, bundle_response_size_out, fcc_status, response_cbor, session_id, session_id_len);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((status != true), FCC_STATUS_BUNDLE_RESPONSE_ERROR, "Failed to prepare out response");
+        SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+        FCC_END_TIMER("Total fcc_bundle_handler device", 0, fcc_bundle_timer);
+    } else {
+        // We may have started encoding the response, but gotten an error, if so - free the encoder
+        if (response_cbor) {
+            cn_cbor_free(response_cbor CBOR_CONTEXT_PARAM);
+        }
+    }
     return fcc_status;
 }

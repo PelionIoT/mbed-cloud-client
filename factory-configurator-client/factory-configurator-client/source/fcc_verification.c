@@ -26,11 +26,11 @@
 #include "time.h"
 #include "cs_der_keys_and_csrs.h"
 #include "cs_utils.h"
-#include "fcc_sotp.h"
 #include "common_utils.h"
-#include "kcm_internal.h"
 #include "fcc_utils.h"
 #include "pv_macros.h"
+#include "storage.h"
+
 
 #define FCC_10_YEARS_IN_SECONDS 315360000//10*365*24*60*60
 
@@ -531,9 +531,8 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
                                                            &size_of_attribute_data);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to get ca id attribute");
 
-        fcc_status = fcc_sotp_data_retrieve(data_out, size_of_attribute_data, &data_size_out, SOTP_TYPE_TRUSTED_TIME_SRV_ID);
-
-        if (fcc_status != FCC_STATUS_SUCCESS || data_size_out != size_of_attribute_data) {
+        kcm_status = storage_fcc_rbp_read(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, data_out, size_of_attribute_data, &data_size_out);
+        if (kcm_status != KCM_STATUS_SUCCESS || data_size_out != size_of_attribute_data) {
             output_info_fcc_status = fcc_store_warning_info((const uint8_t*)parameter_name, size_of_parameter_name, g_fcc_ca_identifier_warning_str);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_WARNING_CREATE_ERROR, store_error_and_exit, "Failed to create warning");
         }
@@ -778,7 +777,7 @@ static fcc_status_e verify_firmware_update_certificate(void)
             SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to get device certificate descriptor");
 
             // Only verify the expiration date of the X509, not the signature (was checked before the store)
-            fcc_status = verify_certificate_expiration(x509_cert_handle, KCM_FILE_BASENAME(cert_chain->chain_name, KCM_FILE_PREFIX_CERTIFICATE), KCM_FILE_BASENAME_LEN(cert_chain->chain_name_len, KCM_FILE_PREFIX_CERTIFICATE));
+            fcc_status = verify_certificate_expiration(x509_cert_handle, parameter_name, strlen(g_fcc_update_authentication_certificate_name));
             SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to verify_certificate_validity");
 
             cs_close_handle_x509_cert(&x509_cert_handle);

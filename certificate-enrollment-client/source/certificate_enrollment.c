@@ -22,6 +22,7 @@
 #include "pv_macros.h"
 #include "fcc_defs.h"
 #include "ce_internal.h"
+#include "storage.h"
 
 extern const char g_renewal_status_file[];
 
@@ -234,14 +235,13 @@ exit_and_delete_renewal_data:
 void ce_check_and_restore_backup_status(void)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    kcm_status_e kcm_delete_status = KCM_STATUS_SUCCESS;
     size_t renewal_item_data_len = 0;
     size_t act_renewal_item_data_len = 0;
     uint8_t renewal_item_name[CE_MAX_SIZE_OF_KCM_ITEM_NAME] = { 0 };
 
 
     //Get renewal status file size
-    kcm_status = _kcm_item_get_data_size((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM, &renewal_item_data_len);
+    kcm_status = storage_data_size_read((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM, &renewal_item_data_len);
 
     //If renewal status file is not found or failed to get data size -> exit , no data to restore
     if (kcm_status != KCM_STATUS_SUCCESS) {
@@ -256,7 +256,7 @@ void ce_check_and_restore_backup_status(void)
     }
 
     //Read renewal status data
-    kcm_status = _kcm_item_get_data((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM, renewal_item_name, renewal_item_data_len, &act_renewal_item_data_len);
+    kcm_status = storage_data_read((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM, renewal_item_name, renewal_item_data_len, &act_renewal_item_data_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS || act_renewal_item_data_len != renewal_item_data_len), kcm_status = kcm_status, exit, "Failed to read renewal status data");
 
     //Set null terminator
@@ -270,8 +270,8 @@ void ce_check_and_restore_backup_status(void)
 
 exit:
     //Delete renewal status file
-    _kcm_item_delete((const uint8_t *)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM);
-    if (kcm_delete_status != KCM_STATUS_SUCCESS) {
+    kcm_status = storage_data_delete((const uint8_t *)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, KCM_BACKUP_ITEM);
+    if (kcm_status != KCM_STATUS_SUCCESS) {
         SA_PV_LOG_ERR("Failed to delete renewal status");//Add error print, as this case is exceptional
     }
 

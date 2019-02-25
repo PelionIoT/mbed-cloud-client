@@ -575,7 +575,7 @@ arm_uc_error_t ARM_UC_mmInsertFSM(uint32_t event)
 #if ARM_UC_MM_ENABLE_INSERT_TEST_VECTORS
     uint32_t oldEvent;
 #endif
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);
+    UC_MMGR_TRACE("> %s (%u)\n", __PRETTY_FUNCTION__, (unsigned)event);
     do {
         // Preserve the old state to check for state transitions
         oldState = ctx->state;
@@ -588,7 +588,7 @@ arm_uc_error_t ARM_UC_mmInsertFSM(uint32_t event)
         arm_uc_mmPersistentContext.errorFile = NULL;
         arm_uc_mmPersistentContext.errorLine = 0;
 
-        ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "+ %s state: %s(%u)\n", __PRETTY_FUNCTION__,
+        UC_MMGR_TRACE("+ %s state: %s(%u)\n", __PRETTY_FUNCTION__,
                             ARM_UC_mmInsertState2Str(ctx->state), (unsigned)ctx->state);
         switch (ctx->state) {
             case ARM_UC_MM_INS_STATE_IDLE:
@@ -641,7 +641,8 @@ arm_uc_error_t ARM_UC_mmInsertFSM(uint32_t event)
         }
 #endif
     } while (err.code == ERR_NONE && oldState != ctx->state);
-    ARM_UC_MM_DEBUG_LOG(ARM_UC_MM_DEBUG_LOG_LEVEL_STATES, "< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__, err.modulecc[0],
-                        err.modulecc[1], err.error, ARM_UC_err2Str(err));
+    UC_MMGR_TRACE("< %s %c%c:%hu (%s)\n", __PRETTY_FUNCTION__,
+                        CC_ASCII(err.modulecc[0]), CC_ASCII(err.modulecc[1]),
+                        err.error, ARM_UC_err2Str(err));
     return err;
 }

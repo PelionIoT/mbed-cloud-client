@@ -21,7 +21,6 @@
 #include <inttypes.h>
 #include "fcc_status.h"
 #include "key_config_manager.h"
-#include "fcc_sotp.h"
 #include "cn-cbor.h"
 #include "fcc_bundle_fields.h"
 
@@ -222,7 +221,7 @@ bool fcc_bundle_get_key_type(const cn_cbor *key_type_cb, fcc_bundle_key_type_e *
 *     true for success, false otherwise.
 */
 
-fcc_status_e fcc_bundle_process_sotp_buffer(cn_cbor *cbor_bytes, sotp_type_e sotp_type);
+fcc_status_e fcc_bundle_process_sotp_buffer(cn_cbor *cbor_bytes, const char *rbp_item_name);
 
 /** Gets the status groups value
 *

@@ -22,8 +22,12 @@ namespace CertificateEnrollmentClient {
     // Important: Do not call directly, always call call_user_cert_renewal_cb() instead
     static cert_renewal_cb_f cert_renewal_cb = NULL;
 
-    // Certificate Renewal LWM2M Resource 
+    // Certificate Renewal LWM2M Resource - save the pointer for easy access to the resource
     M2MResource* g_cert_enroll_lwm2m_resource = NULL;
+
+    // Pointer to object containing an instance containing the g_cert_enroll_lwm2m_resource resource.
+    // CertificateEnrollmentClient is owner of the pointer and must release it when module is destroyed
+    M2MObject *g_cert_enroll_lwm2m_obj = NULL;
 
     const CERT_ENROLLMENT_EST_CLIENT *g_est_client;
 

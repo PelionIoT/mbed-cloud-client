@@ -9,15 +9,6 @@
 #include "unity_fixture.h"
 #include "unity_internals.h"
 
-#define UNITY_RESULTS_TAGS_TEST_START   "<***UnityTest***>"
-#define UNITY_RESULTS_TAGS_TEST_END     "</***UnityTest***>"
-
-#define UNITY_RESULTS_TAGS_RESULT_START "<***UnityResult***>"
-#define UNITY_RESULTS_TAGS_RESULT_END   "</***UnityResult***>"
-
-#define UNITY_RESULTS_TAGS_IGNORE_START "<***UnityIgnoredTest***>"
-#define UNITY_RESULTS_TAGS_IGNORE_END   "</***UnityIgnoredTest***>"
-
 struct _UnityFixture UnityFixture;
 
 //If you decide to use the function pointer approach.
@@ -96,6 +87,7 @@ void UnityTestRunner(unityfunction* setup,
             UnityPrint(printableName);
             /* SA_PATCH: Output results using easy to parse tags. */
             UnityPrint(UNITY_RESULTS_TAGS_TEST_END);
+            UNITY_PRINT_EOL();
            //UnityPrint(printableName);
         }
 
@@ -132,13 +124,8 @@ void UnityIgnoreTest(const char* printableName, const char* group, const char* n
             UNITY_OUTPUT_CHAR('!');
         else
         {
-            /* SA_PATCH: Output results using easy to parse tags. */
-            UnityPrint(UNITY_RESULTS_TAGS_IGNORE_START);
             UnityPrint(printableName);
-            /* SA_PATCH: Output results using easy to parse tags. */
-            UnityPrint(UNITY_RESULTS_TAGS_IGNORE_END);
-            //UnityPrint(printableName);
-            //UNITY_PRINT_EOL();
+            UNITY_PRINT_EOL();
         }
     }
 }

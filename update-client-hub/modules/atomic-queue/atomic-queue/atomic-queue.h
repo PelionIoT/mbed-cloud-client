@@ -132,8 +132,11 @@ enum aq_failure_codes {
     ATOMIC_QUEUE_NULL_QUEUE,
     ATOMIC_QUEUE_NULL_ELEMENT,
     ATOMIC_QUEUE_DUPLICATE_ELEMENT,
-
+    ATOMIC_QUEUE_INVALID_CONTEXT
 };
+
+/* Use this value as the argument of aq_element_take when a context isn't needed */
+#define ATOMIC_QUEUE_NO_CONTEXT   ((void*)-1)
 
 /**
  * \brief Add an element to the tail of the queue
@@ -225,15 +228,26 @@ void aq_initialize_element(struct atomic_queue_element *e);
  * Take an element (this acquires the element lock)
  *
  * @param[in] element Element to take
+ * @param[in] ctx The element context. If a context is not needed, use ATOMIC_QUEUE_NO_CONTEXT.
+ *                    If a context is needed, pass a non-NULL pointer.
+ *
+ * @retval ATOMIC_QUEUE_SUCCESS for success
+ * @retval ATOMIC_QUEUE_NULL_ELEMENT if the element is NULL
+ * @retval ATOMIC_QUEUE_INVALID_CONTEXT if the context is NULL
  */
-int aq_element_take(struct atomic_queue_element *e);
+int aq_element_take(struct atomic_queue_element *e, void *ctx);
 
 /**
  * Release an element (this releases the element lock)
  *
  * @param[in] element Element to release
+ * @param[out] ctx The element context will be written to this pointer
+ *
+ * @retval ATOMIC_QUEUE_SUCCESS for success
+ * @retval ATOMIC_QUEUE_NULL_ELEMENT if the element is NULL
+ * @retval ATOMIC_QUEUE_INVALID_CONTEXT if the pointer to the context is NULL
  */
-int aq_element_release(struct atomic_queue_element *e);
+int aq_element_release(struct atomic_queue_element *e, void **ctx);
 
 /**
  * Atomic Compare and Set

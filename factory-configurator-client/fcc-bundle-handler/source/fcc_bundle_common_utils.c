@@ -21,6 +21,7 @@
 #include "general_utils.h"
 #include "fcc_utils.h"
 #include "factory_configurator_client.h"
+#include "storage.h"
 
 #define  FCC_MAX_SIZE_OF_STRING 512
 
@@ -231,31 +232,32 @@ error_exit:
     return false;
 }
 
-fcc_status_e fcc_bundle_process_sotp_buffer(cn_cbor *cbor_bytes, sotp_type_e sotp_type)
+fcc_status_e fcc_bundle_process_sotp_buffer(cn_cbor *cbor_bytes,const char *rbp_item_name)
 {
     uint8_t *buf;
     size_t buf_size;
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     bool status;
-    char *sotp_type_name;
-    size_t sotp_type_name_size = 0;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
-	
-    fcc_status = fcc_get_sotp_type_name(sotp_type, &sotp_type_name, &sotp_type_name_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_PARAMETER,exit, "Failed to get sotp type name");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_bytes->type != CN_CBOR_BYTES), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "cn_cbor object of incorrect type");
 
     status = get_data_buffer_from_cbor(cbor_bytes, &buf, &buf_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((status == false), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Unable to retrieve data from cn_cbor");
+    
+    if ( strcmp(rbp_item_name, STORAGE_RBP_ROT_NAME) == 0) {
+        fcc_status = fcc_rot_set(buf, buf_size);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_STORE_ERROR, exit, "Unable to store rot ");
+    } else {
+        kcm_status = storage_fcc_rbp_write(rbp_item_name, buf, buf_size, true);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_STORE_ERROR, exit, "Unable to store data to sotp");
+    }
 
-    fcc_status = fcc_sotp_data_store(buf, buf_size, sotp_type);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_STORE_ERROR, exit, "Unable to store data to sotp");
 
 exit:
     if (fcc_status != FCC_STATUS_SUCCESS) {
         // In case of fcc_store_error_info failure we would still rather return the previous caught error.
-        (void)fcc_store_error_info((const uint8_t*)sotp_type_name, sotp_type_name_size, fcc_status);
+        (void)fcc_store_error_info((const uint8_t*)rbp_item_name, strlen(rbp_item_name), fcc_status);
     }
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return fcc_status;
@@ -307,7 +309,7 @@ fcc_status_e fcc_bundle_factory_disable( void )
 exit:
     if (fcc_status != FCC_STATUS_SUCCESS) {
         // In case of fcc_store_error_info failure we would still rather return the previous caught error.
-        (void)fcc_store_error_info((const uint8_t*)g_sotp_factory_disable_type_name, strlen(g_sotp_factory_disable_type_name), fcc_status);
+        (void)fcc_store_error_info((const uint8_t*)STORAGE_RBP_FACTORY_DONE_NAME, strlen(STORAGE_RBP_FACTORY_DONE_NAME), fcc_status);
     }
     return fcc_status;
 }

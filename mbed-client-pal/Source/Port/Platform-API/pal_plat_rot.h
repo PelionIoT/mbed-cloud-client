@@ -31,18 +31,48 @@ extern "C" {
 #define PAL_DEVICE_KEY_SIZE_IN_BITS (128)
 #define PAL_DEVICE_KEY_SIZE_IN_BYTES (PAL_DEVICE_KEY_SIZE_IN_BITS / 8)
 
-/*! Retrieve platform Root of Trust certificate
-*
-* @param[in,out] *keyBuf A pointer to the buffer that holds the RoT.
-* @param[in] keyLenBytes The size of the buffer to hold the 128 bit key, must be at least 16 bytes.
-* The buffer needs to be able to hold 16 bytes of data.
-*
-* \return PAL_SUCCESS(0) in case of success. A negative value indicating a specific error code in case of failure.
+/*! \file pal_plat_rot.h
+*  \brief PAL RoT - platform.
+*   This file contains the RoT (Root of Trust) API.
 */
 
+/*! \brief Retrieves a platform Root of Trust certificate.
+ *
+ * @param[in,out] *keyBuf A pointer to the buffer that holds the RoT. The buffer needs to be able to hold 16 bytes of data.
+ * @param[in] keyLenBytes The size of the buffer must be 16 bytes.
+ *
+ * \return PAL_SUCCESS(0) in case of success. A negative value indicating a specific error code in case of failure.
+ */
 palStatus_t pal_plat_osGetRoT(uint8_t *keyBuf, size_t keyLenBytes);
+
 #if PAL_USE_HW_ROT
+/*! \brief Retrieves a hardware platform Root of Trust certificate.
+ *
+ * This function must be implemented for hardware RoT configuration.
+ *
+ * @param[in,out] *keyBuf A pointer to the buffer that holds the RoT. The buffer needs to be able to hold 16 bytes of data.
+ * @param[in] keyLenBytes The size of the buffer must be 16 bytes.
+ *
+ * \return PAL_SUCCESS(0) in case of success. A negative value indicating a specific error code in case of failure.
+ */
 palStatus_t pal_plat_osGetRoTFromHW(uint8_t *keyBuf, size_t keyLenBytes);
+#endif
+
+#if defined (PAL_USE_HW_ROT) && (PAL_USE_HW_ROT==0)
+/*! \brief Sets a Root of Trust certificate.
+ *
+ * The size of the Root of Trust must be 16 bytes.
+ * This function is not implemented for hardware RoT configuration.
+ *
+ * @param[in] keyBuf A 16-byte buffer with a Root of Trust key to set.
+ * @param[in] keyLenBytes The size of the buffer must be 16 bytes.
+ *
+ * \return PAL_SUCCESS in case of success and one of the following error codes in case of failure:
+ * \return PAL_ERR_ITEM_EXIST - RoT key already exists.
+ * \return PAL_ERR_INVALID_ARGUMENT - invalid parameter.
+ * \return PAL_ERR_GENERIC_FAILURE - set operation failed.
+ */
+palStatus_t pal_plat_osSetRoT(uint8_t *keyBuf, size_t keyLenBytes);
 #endif
 
 #ifdef __cplusplus

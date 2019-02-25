@@ -19,7 +19,10 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal_crypto_test_data.h"
-
+#include "ssl.h"
+#if !PAL_USE_HW_TRNG
+#include "pal_plat_entropy.h"
+#endif
 #include <string.h>
 #include <time.h>
 
@@ -31,8 +34,23 @@ TEST_SETUP(pal_crypto)
     pal_init();
     palStatus_t status = PAL_SUCCESS;
     uint64_t currentTime = 1512572014; //GMT: Wed, 06 Dec 2017 14:53:33 GMT
+
+    // Initialize the time module
+    status = pal_initTime();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
     status = pal_osSetTime(currentTime);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#if !PAL_USE_HW_TRNG
+    // Ensure SOTP has a random seed
+    uint32_t sotpCounter = 0;
+    uint8_t buf[(PAL_INITIAL_RANDOM_SIZE + sizeof(sotpCounter))] PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 = { 0 };
+    const uint16_t sotpLenBytes = PAL_INITIAL_RANDOM_SIZE + sizeof(sotpCounter);
+
+    status = pal_plat_set_nv_entropy((uint32_t*)buf, sotpLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#endif
 }
 
 TEST_TEAR_DOWN(pal_crypto)
@@ -639,13 +657,26 @@ TEST(pal_crypto, X509_Parse)
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_CERT_PARSING_FAILED, result);
     /*#4*/
     result = pal_x509CertParse(ctx, (unsigned char*)testdata_x509_Sha512, sizeof(testdata_x509_Sha512));
+    // If SHA512 is supported by the application/platform, we don't want tests (#4 and #5) to fail because of that.
+    // Perhaps the test material should be changed to use less recent/used algorithm to get the PAL_ERR_INVALID_MD_TYPE
+    // path executed.
+#if defined (MBEDTLS_SHA512_C)
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+#else
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_MD_TYPE, result);
+#endif
     /*#5*/
     result = pal_x509CertParse(ctx, (unsigned char*)testdata_x509_Curve512r1, sizeof(testdata_x509_Curve512r1));
+#if defined (MBEDTLS_SHA512_C)
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+#else
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_NOT_SUPPORTED_CURVE, result);
+#endif
     /*#6*/
     result = pal_x509Free(&ctx);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_X509 not set");
 #endif
 }
 
@@ -791,6 +822,8 @@ TEST(pal_crypto, X509_ReadAttributes)
     /*#20*/
     result = pal_x509Free(&ctx);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_X509 not set");
 #endif
 }
     
@@ -860,6 +893,8 @@ TEST(pal_crypto, X509_Verify)
             TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
         }
     }
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_X509 not set");
 #endif
 }
 
@@ -1091,7 +1126,8 @@ TEST(pal_crypto, CSR)
     /*#2*/
     result = pal_ECGroupFree(&grp);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
-
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_X509 not set");
 #endif
 }
 
@@ -1173,7 +1209,8 @@ TEST(pal_crypto, X509_tbs_hash)
 
     status = pal_x509Free(&signer);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_X509 not set");
 #endif
 }
 

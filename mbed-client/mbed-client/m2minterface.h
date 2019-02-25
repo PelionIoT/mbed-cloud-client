@@ -104,7 +104,7 @@ public:
         UnregistrationFailed,
         ESTEnrollmentFailed,
         FailedToStoreCredentials,
-        FailedToReadCredentials,
+        FailedToReadCredentials
     }Error;
 
     /**

@@ -19,18 +19,47 @@
 #ifndef ARM_UC_PAAL_UPDATE_API_H
 #define ARM_UC_PAAL_UPDATE_API_H
 
-/* Not including arm_uc_common.h to avoid the scheduler from being
-   included in the mbed-bootloader.
-*/
 #include "update-client-common/arm_uc_error.h"
 #include "update-client-common/arm_uc_types.h"
 
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
+
+#include <inttypes.h>
+#include <string.h>
 #include <stdint.h>
+
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+#if defined(MBED_CONF_MBED_TRACE_ENABLE) && MBED_CONF_MBED_TRACE_ENABLE == 1
+
+#include "mbed-trace/mbed_trace.h"
+
+#define ARM_UC_TRACE_DEBUG_PRINTF(module, fmt, ...) tr_debug("[%-4s] %s:%d: " fmt, module, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define ARM_UC_TRACE_ERROR_PRINTF(module, fmt, ...) tr_error("[%-4s] %s:%d: " fmt, module, __FILENAME__, __LINE__, ##__VA_ARGS__)
+
+#else // if defined(MBED_CONF_MBED_TRACE_ENABLE) && MBED_CONF_MBED_TRACE_ENABLE == 1
+
+#include <stdio.h>
+
+#define ARM_UC_TRACE_DEBUG_PRINTF(module, fmt, ...) printf("[TRACE][%-4s] %s:%d: " fmt "\r\n", module, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define ARM_UC_TRACE_ERROR_PRINTF(module, fmt, ...) printf("[ERROR][%-4s] %s:%d: " fmt "\r\n", module, __FILENAME__, __LINE__, ##__VA_ARGS__)
+
+#endif // if defined(MBED_CONF_MBED_TRACE_ENABLE) && MBED_CONF_MBED_TRACE_ENABLE == 1
+
+#if ARM_UC_PAAL_TRACE_ENABLE
+#define UC_PAAL_TRACE(fmt, ...)   ARM_UC_TRACE_DEBUG_PRINTF("PAAL", fmt, ##__VA_ARGS__)
+#define UC_PAAL_ERR_MSG(fmt, ...) ARM_UC_TRACE_ERROR_PRINTF("PAAL", fmt, ##__VA_ARGS__)
+#else
+#define UC_PAAL_TRACE(fmt, ...)
+#define UC_PAAL_ERR_MSG(fmt, ...)
+#endif // if ARM_UC_PAAL_TRACE_ENABLE
 
 /**
  * @brief Prototype for event handler.
  */
-typedef void (*ARM_UC_PAAL_UPDATE_SignalEvent_t)(uint32_t event);
+typedef void (*ARM_UC_PAAL_UPDATE_SignalEvent_t)(uintptr_t event);
 
 /**
  * @brief Asynchronous events.

@@ -24,10 +24,16 @@ class M2MResourceInstance;
 
 /*! \file m2mdevice.h
  *  \brief M2MDevice.
- *  This class represents the Device Object model of the LWM2M framework.
+ *  This class represents the Device Object model of the LwM2M framework.
+ *
  *  It provides an interface for handling the device object
  *  and all its corresponding resources. There can be only one instance
  *  of a Device Object.
+ */
+
+/*! \class M2MDevice
+ *  \brief A class representin the Device Object model of the LwM2M framework.
+ *  \note There can be only one instance of a Device Object.
  */
 class  M2MDevice : public M2MObject {
 
@@ -67,7 +73,7 @@ public:
 private:
 
     /**
-     * Constructor
+     * \brief Constructor
      */
     M2MDevice(char *path);
 
@@ -78,7 +84,7 @@ private:
     M2MDevice( const M2MDevice& /*other*/ );
 
     /**
-     * Destructor
+     * \brief Destructor
      */
     virtual ~M2MDevice();
 
@@ -103,7 +109,7 @@ public:
     M2MResource* create_resource(DeviceResource resource, const String &value);
 
     /**
-     * \brief Creates a new resource for given resource enum.
+     * \brief Creates a new resource for the given resource enum.
      * \param resource With this function, the following resources can be created:
      * 'AvailablePowerSources','PowerSourceVoltage','PowerSourceCurrent',
      * 'BatteryLevel', 'BatteryStatus', 'MemoryFree', 'MemoryTotal',
@@ -115,7 +121,7 @@ public:
     M2MResource* create_resource(DeviceResource resource, int64_t value);
 
     /**
-     * \brief Creates a new resource instance for given resource enum.
+     * \brief Creates a new resource instance for the given resource enum.
      * \param resource With this function, the following resources can be created:
      * 'AvailablePowerSources','PowerSourceVoltage','PowerSourceCurrent',
      * 'ErrorCode'.
@@ -126,7 +132,7 @@ public:
                                                   uint16_t instance_id);
 
     /**
-     * \brief Creates a new resource for given resource name.
+     * \brief Creates a new resource for the given resource name.
      * \param resource With this function, the following resources can be created:
      * 'ResetErrorCode','FactoryReset'.
      * \return M2MResource if created successfully, else NULL.
@@ -247,4 +253,3 @@ protected:
 };
 
 #endif // M2M_DEVICE_H
-

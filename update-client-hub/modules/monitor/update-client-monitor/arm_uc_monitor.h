@@ -19,7 +19,9 @@
 #ifndef __ARM_UPDATE_MONITOR_H__
 #define __ARM_UPDATE_MONITOR_H__
 
-#include "update-client-common/arm_uc_common.h"
+#include "update-client-common/arm_uc_types.h"
+#include "update-client-common/arm_uc_public.h"
+#include "update-client-common/arm_uc_error.h"
 
 #include <stdint.h>
 

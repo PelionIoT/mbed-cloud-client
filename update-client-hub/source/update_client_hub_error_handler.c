@@ -16,10 +16,14 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include <stdio.h>
+
 #include "update_client_hub_error_handler.h"
 
 #include "update-client-control-center/arm_uc_control_center.h"
 #include "update-client-common/arm_uc_common.h"
+
+#include <stdio.h> // for snprintf
 
 static void (*arm_uc_error_callback_handler)(int32_t error) = NULL;
 
@@ -73,7 +77,10 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
         case ERR_INVALID_STATE:
             TRACE_ARGS("ERR_INVALID_STATE");
             break;
-
+        case ERR_OUT_OF_MEMORY:
+            TRACE_ARGS("ERR_OUT_OF_MEMORY");
+            error_monitor = ARM_UC_UPDATE_RESULT_WRITER_INSUFFICIENT_MEMORY_SPACE;
+            break;
         /* Certificate Manager */
         case ARM_UC_CM_ERR_NOT_FOUND:
             TRACE_ARGS("ARM_UC_CM_ERR_NOT_FOUND");
@@ -373,4 +380,3 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
         arm_uc_error_callback_handler(error_external);
     }
 }
-

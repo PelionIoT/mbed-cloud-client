@@ -220,6 +220,12 @@ void palTimerFunc5(void const *argument) // function to count calls + wait alter
     static int counter = 0;
     counter++;
     g_timerArgs.ticksInFunc1 = counter;
+
+#ifdef __SXOS__
+    // The sleep API really should not be used from timer interrupt, as it
+    // a) will panic on OS side
+    // b) harm the system as it is documented that callback should not spend more than 10ms in it
+#else
     if (counter % 2 == 0)
     {
         pal_osDelay(PAL_TIMER_TEST_TIME_TO_WAIT_MS_LONG);
@@ -228,8 +234,27 @@ void palTimerFunc5(void const *argument) // function to count calls + wait alter
     {
         pal_osDelay(PAL_TIMER_TEST_TIME_TO_WAIT_MS_SHORT);
     }
+#endif
 }
 
+void palTimerFunc6(void const *argument)
+{
+    palTimerID_t *timerID = (palTimerID_t*)argument;
+
+    pal_osTimerStop(*timerID);
+    g_timerArgs.ticksInFunc1++;
+}
+
+void palTimerFunc7(void const *argument)
+{
+    palTimerID_t *timerID = (palTimerID_t*)argument;
+    g_timerArgs.ticksInFunc1++;
+
+    if (g_timerArgs.ticksInFunc1 >= 10) {
+        pal_osTimerStop(*timerID);
+        g_timerArgs.ticksInFunc2 = pal_osKernelSysTick();
+    }
+}
 
 void palThreadFuncWaitForEverTest(void const *argument)
 {

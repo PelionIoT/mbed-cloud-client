@@ -16,6 +16,10 @@
 #ifndef COAP_RESPONSE_H
 #define COAP_RESPONSE_H
 
+/*! \file coap_response.h
+ *  \brief CoAP response code values. 
+ */
+
 // Note: Don't put any C++ code into this file as this file is included from C sources.
 
 // These values are COAP response codes. See https://tools.ietf.org/html/rfc7252#section-5.9.1
@@ -45,4 +49,3 @@ typedef enum {
     COAP_RESPONSE_PROXYING_NOT_SUPPORTED = 165
 } coap_response_code_e;
 #endif
-

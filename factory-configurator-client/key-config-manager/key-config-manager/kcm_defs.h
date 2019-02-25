@@ -86,12 +86,17 @@ extern "C" {
         KCM_SCHEME_EC_SECP256R1,       //!< KCM ECC cryptographic scheme, 256-bits NIST curve.
     }kcm_crypto_key_scheme_e;
 
-    /*
-    * Maximal file name that can be saved in the KCM
+    /**
+    * Maximum KCM file name length.
+    * If you are using Mbed OS 5.11 or higher with the built-in secure storage (KVStore), or your own secure storage (ported to the Pelion client), the KCM file name must be less than or equal to 100 bytes.
+    * If you are using the Pelion client secure storage (SOTP and ESFS), the KCM file names must be less than or equal to 1012 bytes. Note that this feature will be deprecated in the future and the KCM file name will have to be less than or equal to 100 bytes.
     */
+#ifndef  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     #define KCM_MAX_FILENAME_SIZE  1012
-
-    /*
+#else
+    #define KCM_MAX_FILENAME_SIZE  100
+#endif
+    /**
     * Maximal length of the certificate chain in the device
     */
     #define KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN 5
@@ -104,7 +109,7 @@ extern "C" {
     /** This struct contains CSR parameters for future generated CSR
     *
     *      @param subject String that contains the subject (distinguished name) of the certificate in predefined format.
-    *                     The format should be as the following example: “C=US,ST=California,L=San Francisco,O=Wikimedia Foundation,Inc.,CN=*.wikipedia.org”.
+    *                     The format should be as the following example: "C=US,ST=California,L=San Francisco,O=Wikimedia Foundation,Inc.,CN=*.wikipedia.org".
     *      @param md_type Message digest selected from `::kcm_md_type_e`.
     *      @param key_usage Key usage extension bit-mask selected from `::kcm_csr_key_usage_e`. If the requested CSR does not contain any key usage extension, it needs to be set to `::KCM_CSR_KU_NONE`.
     *      @param ext_key_usage Extended key usage extensions bit-mask selected from `::kcm_csr_ext_key_usage_e`. If the requested CSR does not contain any extended key usage extension, it needs to be set to `::KCM_CSR_EXT_KU_NONE`.

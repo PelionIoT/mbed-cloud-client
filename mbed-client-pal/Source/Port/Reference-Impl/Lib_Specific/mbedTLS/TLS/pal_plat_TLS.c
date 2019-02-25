@@ -19,7 +19,7 @@
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ssl_internal.h"
-#include "sotp.h"
+
 
 #include <stdlib.h>
 #include <string.h>
@@ -104,6 +104,9 @@ PAL_PRIVATE palStatus_t translateTLSErrToPALError(int32_t error)
         case MBEDTLS_ERR_SSL_WANT_WRITE:
             status = PAL_ERR_TLS_WANT_WRITE;
             break;
+        case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:
+            status = PAL_ERR_TLS_HELLO_VERIFY_REQUIRED;
+            break;
         case MBEDTLS_ERR_SSL_TIMEOUT:
             status = PAL_ERR_TIMEOUT_EXPIRED;
             break;
@@ -132,8 +135,9 @@ PAL_PRIVATE palStatus_t translateTLSErrToPALError(int32_t error)
             break;
 
         default:
+            // Caller prints out error
             status = PAL_ERR_GENERIC_FAILURE;
-    };
+    }
     return status;
 
 }
@@ -165,6 +169,9 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
             status = PAL_ERR_TLS_PEER_CLOSE_NOTIFY;
             break;
+        case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
+            status = PAL_ERR_TLS_CLIENT_RECONNECT;
+            break;
 #if (PAL_ENABLE_X509 == 1)
         case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED:
             status = PAL_ERR_X509_CERT_VERIFY_FAILED;
@@ -181,10 +188,10 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
             break;
 
         default:
-            PAL_LOG_ERR("SSL handshake return code 0x%" PRIx32 ".", -error);
+            PAL_LOG_ERR("SSL handshake return code 0x%" PRIx32 ".", error);
             status = PAL_ERR_GENERIC_FAILURE;
 
-    };
+    }
     return status;
 }
 
@@ -513,9 +520,6 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
 
     switch(palSuite)
     {
-        case PAL_TLS_PSK_WITH_AES_128_CBC_SHA256:
-            localConfigCtx->cipherSuites[0] = MBEDTLS_TLS_PSK_WITH_AES_128_CBC_SHA256;
-            break;
         case PAL_TLS_PSK_WITH_AES_128_CCM_8:
             localConfigCtx->cipherSuites[0] = MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8;
             break;
@@ -534,9 +538,6 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
 #ifdef MBEDTLS_ARIA_C
         case PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256:
             localConfigCtx->cipherSuites[0] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256;
-            break;
-        case PAL_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256:
-            localConfigCtx->cipherSuites[0] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_ARIA_128_CBC_SHA256;
             break;
 #endif
         default:
@@ -690,16 +691,29 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
         platStatus = mbedtls_ssl_setup(&localTLSCtx->tlsCtx, localConfigCtx->confCtx);
         if (SSL_LIB_SUCCESS != platStatus)
         {
+            PAL_LOG_ERR("SSL setup return code %" PRId32 ".", platStatus);
             if (MBEDTLS_ERR_SSL_ALLOC_FAILED == platStatus)
             {
                 status = PAL_ERR_NO_MEMORY;
                 goto finish;
             }
-            PAL_LOG_ERR("SSL setup return code %" PRId32 ".", platStatus);
             status = PAL_ERR_GENERIC_FAILURE;
             goto finish;
         }
-
+#if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH) && (PAL_MAX_FRAG_LEN > 0)
+        platStatus = mbedtls_ssl_conf_max_frag_len(localConfigCtx->confCtx, PAL_MAX_FRAG_LEN);
+        if (SSL_LIB_SUCCESS != platStatus)
+        {
+            PAL_LOG_ERR("SSL fragment setup error code %" PRId32 ".", platStatus);
+            if (MBEDTLS_ERR_SSL_BAD_INPUT_DATA == platStatus)
+            {
+                status = PAL_ERR_TLS_BAD_INPUT_DATA;
+                goto finish;
+            }
+            status = PAL_ERR_TLS_INIT;
+            goto finish;
+        }
+#endif // #if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH)
         localConfigCtx->tlsContext = localTLSCtx;
     }
 finish:
@@ -711,6 +725,7 @@ palStatus_t pal_plat_handShake(palTLSHandle_t palTLSHandle, uint64_t* serverTime
     palStatus_t status = PAL_SUCCESS;
     palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
     int32_t platStatus = SSL_LIB_SUCCESS;
+
     while( (MBEDTLS_SSL_HANDSHAKE_OVER != localTLSCtx->tlsCtx.state) && (PAL_SUCCESS == status) )
     {
         platStatus = mbedtls_ssl_handshake_step( &localTLSCtx->tlsCtx );

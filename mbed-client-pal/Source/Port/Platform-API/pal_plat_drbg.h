@@ -23,24 +23,24 @@ extern "C" {
 #endif
 
 #include "pal.h"
-    
-
-/*! \file pal_plat_rtos.h
-*  \brief PAL RTOS - platform.
-*   This file contains the real-time OS APIs that need to be implemented in the platform layer.
-*/
 
 
+/*! \file pal_plat_drbg.h
+ *  \brief PAL DRBG - platform.
+ *   This file contains the real-time OS APIs that need to be implemented in the platform layer.
+ */
 
-/*! Initialize all data structures (semaphores, mutexes, memory pools, message queues) at system initialization.
-*   In case of a failure in any of the initializations, the function returns an error and stops the rest of the initializations.
-* @param[in] opaqueContext The context passed to the initialization (not required for generic CMSIS, pass NULL in this case).
-* \return PAL_SUCCESS(0) in case of success, PAL_ERR_CREATION_FAILED in case of failure.
-*/
-palStatus_t pal_plat_DRBGInit();
 
-/*! De-initialize thread objects.
-*/
+
+/*! \brief Initialize all data structures (semaphores, mutexes, memory pools, message queues) at system initialization.
+ *
+ *   In case of a failure in any of the initializations, the function returns an error and stops the rest of the initializations.
+ * \return PAL_SUCCESS(0) in case of success, PAL_ERR_CREATION_FAILED in case of failure.
+ */
+palStatus_t pal_plat_DRBGInit(void);
+
+/*! \brief De-initialize thread objects.
+ */
 palStatus_t pal_plat_DRBGDestroy(void);
 
 // XXX: following two are really easy to mix up, a better naming needs to be done
@@ -53,24 +53,24 @@ palStatus_t pal_plat_DRBGDestroy(void);
 //                               Perhaps this should be pal_plat_GetosRandomBufferFromHW() to align
 //                               with logic used with similar purpose function as pal_plat_osGetRoTFromHW().
 
-/*! Generate a random number into the given buffer with the given size in bytes.
-*
-* @param[out] randomBuf A buffer to hold the generated number.
-* @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
-* @param[out] actualRandomSizeBytes The actual size of the written random data to the output buffer.
-\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
-\note In case the platform was able to provide random data with non-zero size and less than `bufSizeBytes`the function must return `PAL_ERR_RTOS_TRNG_PARTIAL_DATA`
-*/
+/*! \brief Generate a random number into the given buffer with the given size in bytes.
+ *
+ * @param[out] randomBuf A buffer to hold the generated number.
+ * @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
+ * @param[out] actualRandomSizeBytes The actual size of the written random data to the output buffer.
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ \note In case the platform was able to provide random data with non-zero size and less than `bufSizeBytes`the function must return `PAL_ERR_RTOS_TRNG_PARTIAL_DATA`
+ */
 palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
 
-/*! Generate random number into given buffer with given size in bytes.
-*
-* @param[out] randomBuf A buffer to hold the generated number.
-* @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
-*
-\note `pal_init()` MUST be called before this function
-\return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
-*/
+/*! \brief Generate random number into given buffer with given size in bytes.
+ *
+ * @param[out] randomBuf A buffer to hold the generated number.
+ * @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
+ *
+ \note `pal_init()` MUST be called before this function
+ \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
+ */
 palStatus_t pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeBytes);
 
 #ifdef __cplusplus

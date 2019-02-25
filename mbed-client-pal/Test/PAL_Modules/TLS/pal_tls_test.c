@@ -19,8 +19,13 @@
 #include "pal.h"
 #include "pal_tls_utils.h"
 #include "pal_network.h"
-#include "sotp.h"
+#include "storage.h"
 #include "test_runners.h"
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#include "pal_sst.h"
+#else
+#include "sotp.h"
+#endif
 
 #include <stdlib.h>
 
@@ -29,6 +34,8 @@
 
 #define PAL_TEST_PSK {0x12,0x34,0x45,0x67,0x89,0x10}
 #define PAL_WAIT_TIME	3
+
+#define HOSTNAME_STR_MAX_LEN 256
 
 PAL_PRIVATE palSocket_t g_socket = 0;
 extern void * g_palTestTLSInterfaceCTX; // this is set by the palTestMain funciton
@@ -45,7 +52,6 @@ PAL_PRIVATE palMutexID_t g_mutex1 = NULLPTR;
 #endif
 PAL_PRIVATE palMutexID_t g_mutexHandShake1 = NULLPTR;
 PAL_PRIVATE bool g_retryHandshake = false;
-PAL_PRIVATE const uint8_t g_coapHelloWorldRequest[16] = { 0x50,0x01,0x57,0x3e,0xff,0x2f,0x68,0x65,0x6c,0x6c,0x6f,0x57,0x6f,0x72,0x6c,0x64 };
 
 #define PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(a, b) \
     if (a != b) \
@@ -69,9 +75,34 @@ TEST_GROUP(pal_tls);
 TEST_SETUP(pal_tls)
 {
     palStatus_t status = PAL_SUCCESS;
-    uint64_t currentTime = 1504893346; //GMT: Friday, September 8, 2017 5:55:46 PM
 
-    pal_init();
+    // This time is used as current time during tests. It needs to be a time when the test server certificate is valid.
+    // (by default, connects to bootstrap server)
+    // Running following one-liner in bash should output suitable date, one day before certificate expiration.
+    //
+    // Get cert from remote                                                                     // parse the cert    // extract expiration date           // to timestamp // subtract one day            // echo it, use date to produce the human readable comment
+    // openssl s_client -showcerts -connect bootstrap.us-east-1.mbedcloud.com:5684 2>/dev/null | openssl x509 -text | sed -n "s/Not After : \(.*\)/\1/p" | date -f - +%s | { read num; ((sum=num-86400)); echo "uint64_t currentTime = $sum; // `date -R -u --date=@$sum`"; }
+    uint64_t currentTime = 1546497053; // Thu, 03 Jan 2019 06:30:53 +0000
+
+    //init pal
+    status = pal_init();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    // Reset storage before pal_initTime since there might be CMAC lefovers
+    // in internal flash which might fail storage access in pal_initTime
+    pal_SSTReset();
+#else 
+    sotp_reset();
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
+    // Initialize the time module, as this test uses time functionality
+    status = pal_initTime();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    // Initialize the time module
+    status = pal_initTime();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     if (g_palTestTLSInterfaceCTX == NULL)
     {
@@ -92,16 +123,21 @@ TEST_SETUP(pal_tls)
 
 TEST_TEAR_DOWN(pal_tls)
 {
-    sotp_result_e sotpRes = SOTP_SUCCESS;
+    palStatus_t status = PAL_SUCCESS;
     if (0 != g_socket)
     {
         pal_close(&g_socket);
     }
-
-	sotpRes = sotp_delete(SOTP_TYPE_TRUSTED_TIME_SRV_ID);
-	TEST_ASSERT_TRUE((SOTP_SUCCESS == sotpRes) || (SOTP_NOT_FOUND == sotpRes));
     
-    pal_destroy();
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    // Reset storage before pal_initTime since there might be CMAC lefovers
+    // in internal flash which might fail storage access in pal_initTime
+    pal_SSTReset();
+#else 
+    sotp_reset();
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    
+	pal_destroy();
 }
 
 /**
@@ -145,6 +181,52 @@ int palTestEntropySource(void *data, unsigned char *output, size_t len, size_t *
     return 0;
 }
 
+struct server_address
+{
+    char hostname[HOSTNAME_STR_MAX_LEN];
+    uint16_t port;
+};
+
+static void parseServerAddress(struct server_address *data, const char* const url)
+{
+    const char* start;
+    size_t str_len;
+
+    data->port = 0;
+
+    // Extract hostname from url
+    start = strchr(url, ':');
+    if (start != NULL && *(start+1) == '/')
+    {
+        start = start + 3;
+    }
+    else
+    {
+        start = url;
+    }
+
+    const char* end = strchr(start, ':');
+    if (end == NULL)
+    {
+        end = strchr(start, '/');
+        if (end == NULL)
+        {
+            end = start + strlen(start);
+        }
+    }
+    else
+    {
+        data->port = atoi(end+1);
+    }
+
+    str_len = end-start;
+
+    TEST_ASSERT_TRUE(str_len > 0 && str_len < HOSTNAME_STR_MAX_LEN);
+
+    TEST_ASSERT_EQUAL_PTR(data->hostname, strncpy(data->hostname, start, str_len));
+    data->hostname[str_len] = '\0';
+}
+
 static void handshakeUDP(bool socketNonBlocking)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -153,25 +235,29 @@ static void handshakeUDP(bool socketNonBlocking)
     palTLSTransportMode_t transportationMode =     PAL_DTLS_MODE;
     palSocketAddress_t socketAddr = {0};
     palSocketLength_t addressLength = 0;
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
     uint32_t written = 0;
     #if (PAL_ENABLE_X509 == 1)
-        palX509_t pubKey = {(const void*)g_pubKey,sizeof(g_pubKey)};
-        palPrivateKey_t prvKey = {(const void*)g_prvKey,sizeof(g_prvKey)};
-        palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
+        palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE,MAX_CERTIFICATE_SIZE};
+        palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY,MAX_CERTIFICATE_SIZE};
+        palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA,MAX_CERTIFICATE_SIZE};
     #elif (PAL_ENABLE_PSK == 1)
         const char* identity = PAL_TEST_PSK_IDENTITY;
         const char psk[]= PAL_TEST_PSK;
     #endif
     palTLSSocket_t tlsSocket = {g_socket, &socketAddr, 0, transportationMode};
     int32_t verifyResult = 0;
+    struct server_address server;
 
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_DGRAM, socketNonBlocking, 0, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_UDP);
+
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -184,7 +270,7 @@ static void handshakeUDP(bool socketNonBlocking)
     tlsSocket.addressLength = addressLength;
     tlsSocket.socket = g_socket;
     /*#3*/
-    status = pal_setSockAddrPort(&socketAddr, DTLS_SERVER_PORT);
+    status = pal_setSockAddrPort(&socketAddr, server.port);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
     status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
@@ -228,16 +314,21 @@ static void handshakeUDP(bool socketNonBlocking)
     status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#12*/
-	status = pal_sslWrite(palTLSHandle, g_coapHelloWorldRequest, sizeof(g_coapHelloWorldRequest), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_UDP_REQUEST_MESSAGE, sizeof(PAL_TLS_UDP_REQUEST_MESSAGE), &written);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#13*/
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
     /*#14*/
     do
     {
-        status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+        status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
     }while (PAL_ERR_TLS_WANT_READ == status);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
 
     /*#15*/
     status = pal_freeTLS(&palTLSHandle);
@@ -259,13 +350,13 @@ static void handshakeTCP(bool socketNonBlocking)
     palTLSTransportMode_t transportationMode =     PAL_TLS_MODE;
     palSocketAddress_t socketAddr = {0};
     palSocketLength_t addressLength = 0;
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
     uint32_t written = 0;
     #if (PAL_ENABLE_X509 == 1)
-        palX509_t pubKey = {(const void*)g_pubKey,sizeof(g_pubKey)};
-        palPrivateKey_t prvKey = {(const void*)g_prvKey,sizeof(g_prvKey)};
-        palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
+        palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+        palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+        palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
     #elif (PAL_ENABLE_PSK == 1)
         const char* identity = PAL_TEST_PSK_IDENTITY;
         const char psk[]= PAL_TEST_PSK;
@@ -274,13 +365,16 @@ static void handshakeTCP(bool socketNonBlocking)
     uint64_t curTimeInSec, timePassedInSec;
     const uint64_t minSecSinceEpoch = PAL_MIN_SEC_FROM_EPOCH + 1; //At least 47 years passed from 1.1.1970 in seconds
     int32_t verifyResult = 0;
-    
+    struct server_address server;
 
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, socketNonBlocking, 0, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
+
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -293,16 +387,8 @@ static void handshakeTCP(bool socketNonBlocking)
     tlsSocket.addressLength = addressLength;
     tlsSocket.socket = g_socket;
     /*#3*/
-    if (true == socketNonBlocking)
-    {
-        status = pal_setSockAddrPort(&socketAddr, TLS_SERVER_PORT_NB);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    }
-    else //blocking
-    {
-        status = pal_setSockAddrPort(&socketAddr, TLS_SERVER_PORT);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    }
+    status = pal_setSockAddrPort(&socketAddr, server.port);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#4*/
     status = pal_connect(g_socket, &socketAddr, addressLength);
@@ -365,13 +451,18 @@ static void handshakeTCP(bool socketNonBlocking)
     status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#12*/
-    status = pal_sslWrite(palTLSHandle, TLS_GET_REQUEST, sizeof(TLS_GET_REQUEST), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#13*/
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
     /*#14*/
-    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
 
     /*#15*/
     status = pal_freeTLS(&palTLSHandle);
@@ -446,8 +537,8 @@ TEST(pal_tls, tlsPrivateAndPublicKeys)
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
     palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
-    palX509_t pubKey = { (const void*)g_pubKey,sizeof(g_pubKey) };
-    palPrivateKey_t prvKey = { (const void*)g_prvKey,sizeof(g_prvKey) };
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
 
     /*#1*/
     status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
@@ -465,6 +556,8 @@ TEST(pal_tls, tlsPrivateAndPublicKeys)
     /*#5*/
     status = pal_tlsConfigurationFree(&palTLSConf);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_X509 not set");
 #endif
 }
 
@@ -504,6 +597,8 @@ TEST(pal_tls, tlsCACertandPSK)
     /*#5*/
     status = pal_tlsConfigurationFree(&palTLSConf);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_PSK not set");
 #endif
 }
 
@@ -534,6 +629,7 @@ TEST(pal_tls, tlsCACertandPSK)
 */
 TEST(pal_tls, tlsHandshakeTCP)
 {
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
     handshakeTCP(false);
 }
 
@@ -563,6 +659,7 @@ TEST(pal_tls, tlsHandshakeTCP)
 */
 TEST(pal_tls, tlsHandshakeTCP_nonBlocking)
 {
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
     handshakeTCP(true);
 }
 
@@ -592,6 +689,7 @@ TEST(pal_tls, tlsHandshakeTCP_nonBlocking)
 */
 TEST(pal_tls, tlsHandshakeUDP)
 {
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
     handshakeUDP(false);
 }
 
@@ -621,6 +719,7 @@ TEST(pal_tls, tlsHandshakeUDP)
 */
 TEST(pal_tls, tlsHandshakeUDP_NonBlocking)
 {
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
     handshakeUDP(true);
 }
 
@@ -645,6 +744,7 @@ TEST(pal_tls, tlsHandshakeUDP_NonBlocking)
 */
 TEST(pal_tls, tlsHandshakeUDPTimeOut)
 {
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
@@ -652,14 +752,15 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     palSocketAddress_t socketAddr = { 0 };
     palSocketLength_t addressLength = 0;
     #if (PAL_ENABLE_X509 == 1)
-        palX509_t pubKey = { (const void*)g_pubKey,sizeof(g_pubKey) };
-        palPrivateKey_t prvKey = { (const void*)g_prvKey,sizeof(g_prvKey) };
-        palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
+        palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+        palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+        palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
     #elif (PAL_ENABLE_PSK == 1)
         const char* identity = PAL_TEST_PSK_IDENTITY;
         const char psk[]= PAL_TEST_PSK;
     #endif 
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
+    struct server_address server;
     
     uint64_t curTimeInSec;
     const uint64_t minSecSinceEpoch = PAL_MIN_SEC_FROM_EPOCH + 1; //At least 47 years passed from 1.1.1970 in seconds      
@@ -667,8 +768,10 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_DGRAM, false, 0, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
     /*#2*/
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_UDP);
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -734,7 +837,6 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 }
 
-#if PAL_USE_INTERNAL_FLASH
 /**
 * @brief Test TLS handshake (TCP blocking).
 *
@@ -758,11 +860,12 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
 * | 15 | Uninitialize the TLS configuration using `pal_tlsConfigurationFree`.      | PAL_SUCCESS |
 * | 16 | Close the TCP socket.                                                   | PAL_SUCCESS |
 * | 17 | Check that time is updated.                                               | PAL_SUCCESS |
-* | 18 | Verify that the SOTP time value was updated.                          | PAL_SUCCESS |
+* | 18 | Verify that the storage time value was updated.                          | PAL_SUCCESS |
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 {
-    #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
@@ -770,28 +873,26 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     palSocketAddress_t socketAddr = {0};
     palSocketLength_t addressLength = 0;
     uint32_t written = 0;
-    palX509_t pubKey = {(const void*)g_pubKey,sizeof(g_pubKey)};
-    palPrivateKey_t prvKey = {(const void*)g_prvKey,sizeof(g_prvKey)};
-    palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
     
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
     uint64_t deviceTime = pal_osGetTime(); //get device time to update it in case of failure
 	uint64_t currentTime = 0;
-    uint16_t actualSavedTimeSize = 0;
-    uint64_t initialSOTPTime = 0;
-    sotp_result_e sotpRes = SOTP_SUCCESS;
+    size_t actualSavedTimeSize = 0;
+    uint64_t initialTime = 0;
     int32_t verifyResult = 0;
-
+    struct server_address server;
 
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-
     /*#2*/
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -804,7 +905,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     tlsSocket.addressLength = addressLength;
     tlsSocket.socket = g_socket;
     /*#3*/
-    status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
+    status = pal_setSockAddrPort(&socketAddr, server.port);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
     status = pal_connect(g_socket, &socketAddr, addressLength);
@@ -826,8 +927,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#10*/
 
-    sotpRes = sotp_set(SOTP_TYPE_SAVED_TIME, (uint16_t)sizeof(initialSOTPTime), (uint32_t*)&initialSOTPTime);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&initialTime, (uint16_t)sizeof(initialTime), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     status = pal_osSetTime(0);//back in the past to set time to the future during handhsake
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#11*/
@@ -841,13 +942,19 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#13*/
-    status = pal_sslWrite(palTLSHandle, TLS_GET_REQUEST, sizeof(TLS_GET_REQUEST), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
     /*#14*/
-    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
+
     /*#14*/
     status = pal_freeTLS(&palTLSHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -859,12 +966,14 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#17*/
     deviceTime = pal_osGetTime();
-    TEST_ASSERT_TRUE(0 != deviceTime);
+    TEST_ASSERT_NOT_EQUAL(0, deviceTime);
     /*#18*/
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(currentTime), (uint32_t*)&currentTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_TRUE(0 != currentTime);
-    #endif 
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
+#endif
 }
 
 /**
@@ -873,8 +982,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Get saved time from SOTP, move backward half day and set time to RAM    | PAL_SUCCESS |
-* | 2 | Update `SOTP_TYPE_SAVED_TIME` directly in SOTP to the new time from #1  | PAL_SUCCESS |
+* | 1 | Get saved time from storage, move backward half day and set time to RAM    | PAL_SUCCESS |
+* | 2 | Update `STORAGE_RBP_SAVED_TIME_NAME` directly in storage to the new time from #1  | PAL_SUCCESS |
 * | 3 | Create a TCP (blocking) socket.                                         | PAL_SUCCESS |
 * | 4 | Perform a DNS lookup on the server address.                             | PAL_SUCCESS |
 * | 5 | Set the server port.                                                    | PAL_SUCCESS |
@@ -893,7 +1002,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 {
-    #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
@@ -901,35 +1011,43 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     palSocketAddress_t socketAddr = { 0 };
     palSocketLength_t addressLength = 0;
     uint32_t written = 0;
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
-    palX509_t pubKey = { (const void*)g_pubKey,sizeof(g_pubKey) };
-    palPrivateKey_t prvKey = { (const void*)g_prvKey,sizeof(g_prvKey) };
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
-    palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
-    sotp_result_e sotpRes = SOTP_SUCCESS;
     uint64_t currentTime = 0;
     uint64_t tmpTime = 0;
     uint64_t updatedTime = 0;
-    uint16_t actualSavedTimeSize = 0;
+    size_t actualSavedTimeSize = 0;
     int32_t verifyResult = 0;
+    struct server_address server;
 
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+
+    //save valid time since the storage was cleared during TEST_SETUP
+    uint64_t valid_time = PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100;
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&valid_time, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    
     /*#1*/
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(tmpTime), (uint32_t*)&tmpTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&tmpTime, sizeof(tmpTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     currentTime = tmpTime - (PAL_SECONDS_PER_DAY / 2); //going back half day to simulate future server by half day (in order to prevent time update)
     status = pal_osSetTime(currentTime);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
-    sotpRes = sotp_set(SOTP_TYPE_SAVED_TIME, (uint16_t)sizeof(currentTime), (uint32_t*)&currentTime);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, (uint16_t)sizeof(currentTime), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 	/*#3*/
 	status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_socket);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-	/*#4*/
-	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    /*#4*/
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -939,7 +1057,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     }
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#5*/
-    status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
+    status = pal_setSockAddrPort(&socketAddr, server.port);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 	tlsSocket.addressLength = addressLength;
@@ -1001,7 +1119,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 		TEST_ASSERT_TRUE(PAL_ERR_X509_BADCERT_EXPIRED & verifyResult);
 	}
     /*#14*/
-    status = pal_sslWrite(palTLSHandle, TLS_GET_REQUEST, sizeof(TLS_GET_REQUEST), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
 	if (PAL_SUCCESS != status)
 	{
 		pal_freeTLS(&palTLSHandle);
@@ -1009,15 +1127,20 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
 
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
     /*#14*/
-    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
     if (PAL_SUCCESS != status)
 	{
 		pal_freeTLS(&palTLSHandle);
 		pal_tlsConfigurationFree(&palTLSConf);
 		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
 
 	/*#15*/
 	status = pal_freeTLS(&palTLSHandle);
@@ -1034,10 +1157,12 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 	/*#17*/ 
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(updatedTime), (uint32_t*)&updatedTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&updatedTime, sizeof(updatedTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_EQUAL_HEX(currentTime, updatedTime);
-    #endif
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
+#endif
 }
 
 
@@ -1062,34 +1187,36 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 * | 13 | Set tme back to the original time before the test.                        | PAL_SUCCESS |
 * | 14 | Uninitialize the TLS context using `pal_freeTLS`.                         | PAL_SUCCESS |
 * | 15 | Uninitialize the TLS configuration using `pal_tlsConfigurationFree`.      | PAL_SUCCESS |
-* | 16 | Verify that the SOTP time value was not changed.                          | PAL_SUCCESS |
+* | 16 | Verify that the storage time value was not changed.                          | PAL_SUCCESS |
 */
 TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 {
-    #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
     palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
     palSocketAddress_t socketAddr = {0};
     palSocketLength_t addressLength = 0;
-    palX509_t pubKey = {(const void*)g_pubKey,sizeof(g_pubKey)};
-    palPrivateKey_t prvKey = {(const void*)g_prvKey,sizeof(g_prvKey)};
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
-    palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
     uint64_t futureTime = 2145542642; //Wed, 27 Dec 2037 16:04:02 GMT
     uint64_t currentTime = 0;
-    uint64_t currentSOTPTime = 0;
-    uint16_t actualSavedTimeSize = 0;
-	sotp_result_e sotpRes = SOTP_SUCCESS;
+    size_t actualSavedTimeSize = 0;
     int32_t verifyResult = 0;
-
+    struct server_address server;
 
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
     /*#2*/
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -1102,7 +1229,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     tlsSocket.addressLength = addressLength;
     tlsSocket.socket = g_socket;
     /*#3*/
-    status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
+    status = pal_setSockAddrPort(&socketAddr, server.port);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
     status = pal_connect(g_socket, &socketAddr, addressLength);
@@ -1144,8 +1271,8 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     }
     /*#10*/
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(currentTime), (uint32_t*)&currentTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     status = pal_osSetTime(futureTime);
     if (PAL_SUCCESS != status)
     {
@@ -1189,10 +1316,12 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#16*/
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(currentSOTPTime), (uint32_t*)&currentSOTPTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
-	TEST_ASSERT_TRUE(futureTime <= currentSOTPTime);
-    #endif 
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+	TEST_ASSERT_TRUE(futureTime <= currentTime);
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
+#endif
 }
 
 /**
@@ -1206,7 +1335,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Parse the CA cert.                                                     | PAL_SUCCESS |
 * | 5 | Get the CA cert ID.                                                     | PAL_SUCCESS |
-* | 6 | Set the CA cert ID into the SOTP.                                            | PAL_SUCCESS |
+* | 6 | Set the CA cert ID into the storage.                                            | PAL_SUCCESS |
 * | 7 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 8 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
 * | 9 | Initialize the TLS context using `pal_initTLS`.                            | PAL_SUCCESS |
@@ -1224,32 +1353,34 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 */
 TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 {
-    #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
 	palStatus_t status = PAL_SUCCESS;
 	palTLSConfHandle_t palTLSConf = NULLPTR;
 	palTLSHandle_t palTLSHandle = NULLPTR;
 	palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
 	palSocketAddress_t socketAddr = { 0 };
 	palSocketLength_t addressLength = 0;
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
     uint32_t written = 0;
-	palX509_t pubKey = { (const void*)g_pubKey,sizeof(g_pubKey) };
-	palPrivateKey_t prvKey = { (const void*)g_prvKey,sizeof(g_prvKey) };
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
 	palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
-	palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
 	uint64_t futureTime = 2145542642; //Wed, 27 Dec 2037 16:04:02 GMT
     uint64_t updatedTime = 0;
-    uint16_t actualSavedTimeSize = 0;
+    size_t actualSavedTimeSize = 0;
 	palX509Handle_t trustedServerCA = NULLPTR;
-    sotp_result_e sotpRes = SOTP_SUCCESS;
     int32_t verifyResult = 0;
+    struct server_address server;
 
 	/*#1*/
 	status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_socket);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-	/*#2*/
-	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    /*#2*/
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -1259,7 +1390,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     }
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#3*/
-    status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
+    status = pal_setSockAddrPort(&socketAddr, server.port);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     
 	tlsSocket.addressLength = addressLength;
@@ -1269,7 +1400,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 	TEST_ASSERT_NOT_EQUAL(trustedServerCA, NULLPTR);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_x509CertParse(trustedServerCA, (const unsigned char *)pal_test_cas, sizeof(pal_test_cas));
+    status = pal_x509CertParse(trustedServerCA, (const unsigned char *)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE);
     if (PAL_SUCCESS != status)
 	{
 		pal_x509Free(&trustedServerCA);
@@ -1283,11 +1414,11 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
     /*#6*/
-    sotpRes = sotp_set(SOTP_TYPE_TRUSTED_TIME_SRV_ID, g_actualServerIDSize, (uint32_t*)g_trustedServerID);
-    if (SOTP_SUCCESS != sotpRes)
+    status = storage_rbp_write(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, (uint8_t*)g_trustedServerID, g_actualServerIDSize, false);
+    if (PAL_SUCCESS != status)
 	{
-		pal_x509Free(&trustedServerCA);
-		TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+		status = pal_x509Free(&trustedServerCA);
+		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
 
 	/*#7*/
@@ -1365,7 +1496,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 		TEST_ASSERT_TRUE(PAL_ERR_X509_BADCERT_EXPIRED & verifyResult);
 	}
     /*#16*/
-    status = pal_sslWrite(palTLSHandle, TLS_GET_REQUEST, sizeof(TLS_GET_REQUEST), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
 	if (PAL_SUCCESS != status)
 	{
 		pal_freeTLS(&palTLSHandle);
@@ -1374,9 +1505,9 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 		TEST_ASSERT_EQUAL_HEX(PAL_ERR_X509_BADCERT_EXPIRED, status);
 	}
 
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
     /*#14*/
-    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
 	if (PAL_SUCCESS != status)
 	{
 		pal_freeTLS(&palTLSHandle);
@@ -1384,6 +1515,11 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 		pal_x509Free(&trustedServerCA);
 		TEST_ASSERT_EQUAL_HEX(PAL_ERR_X509_BADCERT_EXPIRED, status);
 	}
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
 
 	/*#17*/
 	status = pal_freeTLS(&palTLSHandle);
@@ -1410,14 +1546,16 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     status = pal_close(&g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(updatedTime), (uint32_t*)&updatedTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&updatedTime, sizeof(updatedTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_TRUE(updatedTime <= futureTime);
 
-    sotpRes = sotp_get(SOTP_TYPE_LAST_TIME_BACK, sizeof(updatedTime), (uint32_t*)&updatedTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&updatedTime, sizeof(updatedTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_TRUE(updatedTime <= futureTime);
-    #endif 
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
+#endif
 }
 
 /**
@@ -1426,13 +1564,13 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Get saved time from SOTP, move backward half day and set time to RAM    | PAL_SUCCESS |
+* | 1 | Get saved time from storage, move backward half day and set time to RAM    | PAL_SUCCESS |
 * | 2 | Create a TCP (blocking) socket.                                        | PAL_SUCCESS |
 * | 3 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
 * | 4 | Set the server port.                                                     | PAL_SUCCESS |
 * | 5 | Parse the CA cert.                                                     | PAL_SUCCESS |
 * | 6 | Get the CA cert ID.                                                     | PAL_SUCCESS |
-* | 7 | Set the CA cert ID into the SOTP.                                            | PAL_SUCCESS |
+* | 7 | Set the CA cert ID into the storage.                                            | PAL_SUCCESS |
 * | 8 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 9 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
 * | 10 | Initialize the TLS context using `pal_initTLS`.                            | PAL_SUCCESS |
@@ -1449,30 +1587,37 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 {
-    #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
 	palStatus_t status = PAL_SUCCESS;
 	palTLSConfHandle_t palTLSConf = NULLPTR;
 	palTLSHandle_t palTLSHandle = NULLPTR;
 	palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
 	palSocketAddress_t socketAddr = { 0 };
 	palSocketLength_t addressLength = 0;
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
     uint32_t written = 0;
-	palX509_t pubKey = { (const void*)g_pubKey,sizeof(g_pubKey) };
-	palPrivateKey_t prvKey = { (const void*)g_prvKey,sizeof(g_prvKey) };
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
 	palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
-	palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
-    sotp_result_e sotpRes = SOTP_SUCCESS;
 	uint64_t currentTime = 0;
     uint64_t updatedTime = 0;
-    uint16_t actualSavedTimeSize = 0;
+    size_t actualSavedTimeSize = 0;
     palX509Handle_t trustedServerCA = NULLPTR;
     int32_t verifyResult = 0;
+    struct server_address server;
+
+    //save valid time since the storage was cleared during TEST_SETUP
+    uint64_t valid_time = PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100;
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&valid_time, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
 
     /*#1*/
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(currentTime), (uint32_t*)&currentTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_TRUE(0 != currentTime);
 
     status = pal_osSetTime(currentTime - (PAL_SECONDS_PER_DAY / 2));//going back half day to simulate future server by half day (in order to prevent time update)
@@ -1480,8 +1625,9 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 	/*#2*/
 	status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_socket);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-	/*#3*/
-	status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    /*#3*/
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -1491,7 +1637,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     }
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
-    status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
+    status = pal_setSockAddrPort(&socketAddr, server.port);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 	tlsSocket.addressLength = addressLength;
@@ -1502,7 +1648,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 	TEST_ASSERT_NOT_EQUAL(trustedServerCA, NULLPTR);
 	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_x509CertParse(trustedServerCA, (const unsigned char *)pal_test_cas, sizeof(pal_test_cas));
+    status = pal_x509CertParse(trustedServerCA, (const unsigned char *)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE);
     if (PAL_SUCCESS != status)
 	{
 		pal_x509Free(&trustedServerCA);
@@ -1516,11 +1662,11 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
     /*#7*/
-    sotpRes = sotp_set(SOTP_TYPE_TRUSTED_TIME_SRV_ID, g_actualServerIDSize, (uint32_t*)g_trustedServerID);
-    if (SOTP_SUCCESS != sotpRes)
+    status = storage_rbp_write(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, (uint8_t*)g_trustedServerID, g_actualServerIDSize, false);
+    if (PAL_SUCCESS != status)
 	{
-		pal_x509Free(&trustedServerCA);
-		TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+		status = pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
 
 	/*#8*/
@@ -1593,7 +1739,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 		TEST_ASSERT_TRUE(PAL_ERR_X509_BADCERT_EXPIRED & verifyResult);
 	}
     /*#16*/
-    status = pal_sslWrite(palTLSHandle, TLS_GET_REQUEST, sizeof(TLS_GET_REQUEST), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
 	if (PAL_SUCCESS != status)
 	{
 		pal_freeTLS(&palTLSHandle);
@@ -1602,9 +1748,9 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
 
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
     /*#14*/
-    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
 	if (PAL_SUCCESS != status)
 	{
 		pal_freeTLS(&palTLSHandle);
@@ -1612,6 +1758,11 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 		pal_x509Free(&trustedServerCA);
 		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	}
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
 
 	/*#17*/
 	status = pal_freeTLS(&palTLSHandle);
@@ -1636,11 +1787,12 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 	/*#20*/ 
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(updatedTime), (uint32_t*)&updatedTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&updatedTime, sizeof(updatedTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_EQUAL_HEX(currentTime, updatedTime);
-    #endif 
-
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
+#endif
 }
 
 /**
@@ -1649,13 +1801,13 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Get saved time from SOTP, move forward half day and set time to RAM    | PAL_SUCCESS |
+* | 1 | Get saved time from storage, move forward half day and set time to RAM    | PAL_SUCCESS |
 * | 2 | Create a TCP (blocking) socket.                                        | PAL_SUCCESS |
 * | 3 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
 * | 4 | Set the server port.                                                     | PAL_SUCCESS |
 * | 5 | Parse the CA cert.                                                     | PAL_SUCCESS |
 * | 6 | Get the CA cert ID.                                                     | PAL_SUCCESS |
-* | 7 | Set the CA cert ID into the SOTP.                                            | PAL_SUCCESS |
+* | 7 | Set the CA cert ID into the storage.                                            | PAL_SUCCESS |
 * | 8 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 9 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
 * | 10 | Initialize the TLS context using `pal_initTLS`.                            | PAL_SUCCESS |
@@ -1672,39 +1824,47 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 */
 TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 {
-    #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
     palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
     palSocketAddress_t socketAddr = { 0 };
     palSocketLength_t addressLength = 0;
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
     uint32_t written = 0;
-    palX509_t pubKey = { (const void*)g_pubKey,sizeof(g_pubKey) };
-    palPrivateKey_t prvKey = { (const void*)g_prvKey,sizeof(g_prvKey) };
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
-    palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
-    sotp_result_e sotpRes = SOTP_SUCCESS;
     uint64_t currentTime = 0;
     uint64_t updatedTime = 0;
-    uint16_t actualSavedTimeSize = 0;
+    size_t actualSavedTimeSize = 0;
     palX509Handle_t trustedServerCA = NULLPTR;
     int32_t verifyResult = 0;
+    struct server_address server;
+
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+
+    //save valid time since the storage was cleared during TEST_SETUP
+    uint64_t valid_time = PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100;
+    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&valid_time, sizeof(uint64_t), false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#1*/
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(currentTime), (uint32_t*)&currentTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_TRUE(0 != currentTime);
 
-    status = pal_osSetTime(currentTime + (PAL_SECONDS_PER_DAY / 2));//going back half day to simulate future server by half day (in order to prevent time update)
+    status = pal_osSetTime(currentTime + (PAL_SECONDS_PER_DAY / 2));
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, false, 0, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#3*/
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -1714,7 +1874,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
-    status = pal_setSockAddrPort(&socketAddr, TLS_RENEGOTIATE_SERVER_PORT);
+    status = pal_setSockAddrPort(&socketAddr, server.port);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -1725,7 +1885,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     TEST_ASSERT_NOT_EQUAL(trustedServerCA, NULLPTR);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    status = pal_x509CertParse(trustedServerCA, (const unsigned char *)pal_test_cas, sizeof(pal_test_cas));
+    status = pal_x509CertParse(trustedServerCA, (const unsigned char *)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE);
     if (PAL_SUCCESS != status)
     {
         pal_x509Free(&trustedServerCA);
@@ -1739,11 +1899,11 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     }
     /*#7*/
-    sotpRes = sotp_set(SOTP_TYPE_TRUSTED_TIME_SRV_ID, g_actualServerIDSize, (uint32_t*)g_trustedServerID);
-    if (SOTP_SUCCESS != sotpRes)
+    status = storage_rbp_write(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, (uint8_t*)g_trustedServerID, g_actualServerIDSize, false);
+    if (PAL_SUCCESS != status)
     {
-        pal_x509Free(&trustedServerCA);
-        TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+        status = pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     }
 
     /*#8*/
@@ -1816,7 +1976,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 		TEST_ASSERT_TRUE(PAL_ERR_X509_BADCERT_EXPIRED & verifyResult);
 	}
     /*#16*/
-    status = pal_sslWrite(palTLSHandle, TLS_GET_REQUEST, sizeof(TLS_GET_REQUEST), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
     if (PAL_SUCCESS != status)
     {
         pal_freeTLS(&palTLSHandle);
@@ -1825,9 +1985,9 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     }
 
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
     /*#14*/
-    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
     if (PAL_SUCCESS != status)
     {
         pal_freeTLS(&palTLSHandle);
@@ -1835,6 +1995,11 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
         pal_x509Free(&trustedServerCA);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     }
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
 
     /*#17*/
     status = pal_freeTLS(&palTLSHandle);
@@ -1858,14 +2023,18 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     status = pal_close(&g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 	/*#20*/ 
-    sotpRes = sotp_get(SOTP_TYPE_SAVED_TIME, sizeof(updatedTime), (uint32_t*)&updatedTime, &actualSavedTimeSize);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpRes);
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&updatedTime, sizeof(updatedTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_EQUAL_HEX(currentTime, updatedTime);
-    #endif
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
+#endif
 }
 
-#endif //PAL_USE_INTERNAL_FLASH
-
+// Introduce helper functions to be used in TCPHandshakeWhileCertVerify_threads test.
+// The test is only ran if PAL_USE_SECURE_TIME and PAL_ENABLE_X509 are set so helper
+// functions can also be under those checks
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
 static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -1875,40 +2044,34 @@ static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
     palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
     palSocketAddress_t socketAddr = {0};
     palSocketLength_t addressLength = 0;
-    char serverResponse[PAL_TLS_MESSAGE_SIZE] = {0};
+    char serverResponse[PAL_TLS_RESPONSE_SIZE] = {0};
     uint32_t actualLen = 0;
     uint32_t written = 0;
     palSocket_t socketTCP = 0;
-    palX509_t pubKey = {(const void*)g_pubKey,sizeof(g_pubKey)};
-    palPrivateKey_t prvKey = {(const void*)g_prvKey,sizeof(g_prvKey)};
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
     palTLSSocket_t tlsSocket = { socketTCP, &socketAddr, 0, transportationMode };
-    palX509_t caCert = { (const void*)pal_test_cas,sizeof(pal_test_cas) };
     palTLSTest_t *testTLSCtx = NULL;
     palStatus_t mutexStatus = PAL_SUCCESS;
     bool mutexWait = false;
     int32_t verifyResult = 0;
+    struct server_address server;
 
 	mutexWait = true;
     /*#1*/
     status = pal_socket(PAL_AF_INET, PAL_SOCK_STREAM, socketNonBlocking, 0, &socketTCP);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
     /*#2*/
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
     tlsSocket.socket = socketTCP;
     /*#3*/
-    if (true == socketNonBlocking)
-    {
-        status = pal_setSockAddrPort(&socketAddr, TLS_SERVER_PORT_NB);
-        PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
-    }
-    else //blocking
-    {
-        status = pal_setSockAddrPort(&socketAddr, TLS_SERVER_PORT);
-        PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
-    }
+    status = pal_setSockAddrPort(&socketAddr, server.port);
+    PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
     /*#4*/
     status = pal_connect(socketTCP, &socketAddr, addressLength);
@@ -1972,14 +2135,19 @@ static palStatus_t ThreadHandshakeTCP(bool socketNonBlocking)
     status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
     /*#12*/
-    status = pal_sslWrite(palTLSHandle, TLS_GET_REQUEST, sizeof(TLS_GET_REQUEST), &written);
+    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
     /*#13*/
-    pal_osDelay(5000);
+    pal_osDelay(PAL_TLS_RESPONSE_WAIT_MS);
 
     /*#14*/
-    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_MESSAGE_SIZE, &actualLen);
+    status = pal_sslRead(palTLSHandle, serverResponse, PAL_TLS_RESPONSE_SIZE, &actualLen);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
+
+#ifdef PAL_TLS_RESPONSE_MESSAGE
+    TEST_ASSERT_EQUAL(PAL_TLS_RESPONSE_SIZE, actualLen);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(PAL_TLS_RESPONSE_MESSAGE, serverResponse, PAL_TLS_RESPONSE_SIZE);
+#endif
 
 finish:
 	if (mutexWait)
@@ -2032,7 +2200,6 @@ void pal_TCPHandshakeFunc3(void const *argument)
 
 void pal_CertVerify(void const *argument)
 {
-#if (PAL_ENABLE_X509 == 1)
     palStatus_t status = PAL_SUCCESS;
     palStatus_t mutexStatus = PAL_SUCCESS;
     palStatus_t* arg = (palStatus_t*)argument;
@@ -2048,7 +2215,7 @@ void pal_CertVerify(void const *argument)
     status = pal_x509Initiate(&certHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    status = pal_x509CertParse(certHandle, (const void*)pal_test_cas, sizeof(pal_test_cas));
+    status = pal_x509CertParse(certHandle, (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     PAL_LOG_INFO("Calling Cert Verify..");
@@ -2062,10 +2229,8 @@ void pal_CertVerify(void const *argument)
 
     mutexStatus = pal_osMutexRelease(g_mutex2);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, mutexStatus);
-#endif
 }
 
-#if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
 static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, palStatus_t test1Result, palStatus_t test2Result)
 {
 	palStatus_t status = PAL_SUCCESS;
@@ -2130,7 +2295,6 @@ static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, pal
 #endif
 
 
-
 /**
 * @brief Test try to process certificate verification with future certificate validation time while processing handshake
 *        in another thread to update the device time, we need to check that certificate verification is done against the 
@@ -2145,14 +2309,18 @@ static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, pal
 */
 TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
 {
+    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
     palStatus_t status = PAL_SUCCESS;
     palX509Handle_t certHandle = NULLPTR;
     uint64_t systemTime = 0;
     palSocketAddress_t socketAddr = { 0 };
     palSocketLength_t addressLength = 0;
+    struct server_address server;
 
-    status = pal_getAddressInfo(PAL_TLS_TEST_SERVER_ADDRESS, &socketAddr, &addressLength);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+
+    status = pal_getAddressInfo(server.hostname, &socketAddr, &addressLength);
     if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
     {
         PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
@@ -2170,7 +2338,7 @@ TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
     status = pal_x509Initiate(&certHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    status = pal_x509CertParse(certHandle, (const void*)pal_test_cas, sizeof(pal_test_cas));
+    status = pal_x509CertParse(certHandle, (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_x509CertVerify(certHandle, certHandle);
@@ -2178,6 +2346,8 @@ TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
 
     status = pal_x509Free(&certHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_ENABLE_X509 not set");
 #endif
 }
 

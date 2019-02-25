@@ -34,7 +34,7 @@
     #endif
 #endif
 
-#ifdef SOTP_TESTING
+#ifdef RBP_TESTING
 #undef SOTP_PROBE_ONLY
 #endif
 
@@ -157,7 +157,7 @@ sotp_result_e sotp_get_item_size(uint32_t type, uint16_t *actual_len_bytes);
  */
 sotp_result_e sotp_set(uint32_t type, uint16_t buf_len_bytes, const uint32_t *buf);
 
-#ifdef SOTP_TESTING
+#ifdef RBP_TESTING
 /**
  * @brief Delete an item from flash.
  *
@@ -234,7 +234,7 @@ sotp_result_e sotp_deinit(void);
  */
 sotp_result_e sotp_reset(void);
 
-#ifdef SOTP_TESTING
+#ifdef RBP_TESTING
 
 /**
  * @brief Initiate a forced garbage collection.

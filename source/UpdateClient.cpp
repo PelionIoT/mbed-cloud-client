@@ -87,7 +87,7 @@ namespace UpdateClient
     static void certificate_done(arm_uc_error_t error,
                                  const arm_uc_buffer_t* fingerprint);
     static void initialization(void);
-    static void initialization_done(int32_t);
+    static void initialization_done(uintptr_t);
     static void event_handler(arm_event_s* event);
     static void queue_handler(void);
     static void schedule_event(void);
@@ -259,7 +259,7 @@ static void UpdateClient::certificate_done(arm_uc_error_t error,
     ARM_UC_HUB_Initialize(UpdateClient::initialization_done);
 }
 
-static void UpdateClient::initialization_done(int32_t result)
+static void UpdateClient::initialization_done(uintptr_t result)
 {
     tr_info("internal initialization done: %" PRIu32 " %p", result, (void*)pal_osThreadGetId());
     if (_service) {

@@ -16,6 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+// This is needed for PRIu64 on FreeRTOS. Note: the relative location is
+// important, do not move this to "correct" location, ie. after local includes.
+#include <stdio.h>
+
 #include "update_client_hub_state_machine.h"
 #include "update_client_hub_error_handler.h"
 #include "update-client-hub/update_client_hub.h"
@@ -46,7 +50,7 @@
 static arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_STATE_UNINITIALIZED;
 
 // the call back function registered by the user to signal end of initialisation
-static void (*arm_uc_hub_init_cb)(int32_t) = NULL;
+static void (*arm_uc_hub_init_cb)(uintptr_t) = NULL;
 
 // The hub uses a double buffer system to speed up firmware download and storage
 #define BUFFER_SIZE_MAX (ARM_UC_BUFFER_SIZE / 2) //  define size of the double buffers
@@ -181,7 +185,7 @@ arm_uc_hub_state_t ARM_UC_HUB_getState()
     return arm_uc_hub_state;
 }
 
-void ARM_UC_HUB_setInitializationCallback(void (*callback)(int32_t))
+void ARM_UC_HUB_setInitializationCallback(void (*callback)(uintptr_t))
 {
     arm_uc_hub_init_cb = callback;
 }
@@ -384,8 +388,13 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_CHECK_VERSION:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_CHECK_VERSION");
 
+                /* give up if the format is unsupported */
+                if (!ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_RAW_BINARY)) {
+                    ARM_UC_SET_ERROR(retval, MFST_ERR_FORMAT);
+                    HANDLE_ERROR(retval, "Firmware Format unsupported");
+                }
                 /* only continue if timestamp is newer than active version */
-                if (fwinfo.timestamp > arm_uc_active_details.version) {
+                else if (fwinfo.timestamp > arm_uc_active_details.version) {
                     /* set new state */
                     new_state = ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP;
                 } else {
@@ -766,9 +775,9 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 #endif
 
                 /* Reboot not implemented on this platform.
-                   Report new firmware hash and continue operation.
+                   Go to idle state.
                 */
-                new_state = ARM_UC_HUB_STATE_GET_ACTIVE_FIRMWARE_DETAILS;
+                new_state = ARM_UC_HUB_STATE_IDLE;
                 break;
 
             /*****************************************************************/
@@ -814,4 +823,3 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
         }
     } while (arm_uc_hub_state != new_state);
 }
-
