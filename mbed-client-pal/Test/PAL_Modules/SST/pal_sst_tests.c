@@ -85,9 +85,20 @@ TEST_SETUP(pal_sst)
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     palStatus_t pal_status;
 
+    pal_status = pal_init();
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, pal_status);
+
     //reset SST
     pal_status = pal_SSTReset();
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, pal_status);
+
+#if !PAL_USE_HW_TRNG
+    // If no hardware trng - entropy must be injected for random to work
+    uint8_t entropy_buf[48] = { 0 };
+    pal_status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
+    TEST_ASSERT(pal_status == PAL_SUCCESS || pal_status == PAL_ERR_ENTROPY_EXISTS);
+#endif
+
 #endif
 
 }

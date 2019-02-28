@@ -75,7 +75,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=2.2.0";
+const char *MCC_VERSION = "mccv=2.2.1";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -492,6 +492,7 @@ void M2MNsdlInterface::send_request(DownloadType type,
                                     request_error_cb error_cb,
                                     void *context)
 {
+    assert(uri != NULL);
     int32_t message_id = 0;
     request_context_s *data_request = NULL;
 
@@ -1195,8 +1196,6 @@ bool M2MNsdlInterface::observation_to_be_sent(M2MBase *object,
             _notification_send_ongoing = true;
             object->report_handler()->set_notification_in_queue(false);
             M2MBase::BaseType type = object->base_type();
-
-            clear_sent_blockwise_messages();
 
             if (type == M2MBase::Object) {
                 send_object_observation(static_cast<M2MObject*> (object),
@@ -3251,7 +3250,7 @@ void M2MNsdlInterface::handle_bootstrap_response(const sn_coap_hdr_s *coap_heade
 #else
         char buffer[MAX_ALLOWED_ERROR_STRING_LENGTH];
         const char* error = coap_error(*coap_header);
-        snprintf(buffer, sizeof(buffer), "%s:%*.s", error, coap_header->payload_len, coap_header->payload_ptr);
+        snprintf(buffer, sizeof(buffer), "%s:%.*s", error, coap_header->payload_len, coap_header->payload_ptr);
 #endif
         handle_bootstrap_error(buffer, false);
     } else {

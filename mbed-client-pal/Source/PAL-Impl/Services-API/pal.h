@@ -37,6 +37,7 @@ extern "C" {
 #include "pal_time.h"
 #include "pal_TLS.h"
 #include "pal_Crypto.h"
+#include "pal_entropy.h"
 #include "pal_update.h"
 #include "pal_internalFlash.h"
 #include "pal_sst.h"

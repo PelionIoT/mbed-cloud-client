@@ -200,7 +200,7 @@ FILE(GLOB MBED_COAP_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/mbed-coap/source/*.c"
 )
 
-message("Mbed Cloud Client sources = \n ${MBED_CLOUD_CLIENT_SRC}")
+message("MbedCloudClient sources = \n ${MBED_CLOUD_CLIENT_SRC}")
 
 # Note: this is not using the CREATE_LIBRARY() on purpose, as it would pollute all the
 # executables with the library. 

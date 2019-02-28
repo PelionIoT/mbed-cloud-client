@@ -131,6 +131,10 @@ typedef struct fcc_bundle_data_param_ {
     size_t                           private_key_name_len;
 } fcc_bundle_data_param_s;
 
+typedef enum {
+    FCC_BUNDLE_BUFFER_TYPE_ENTROPY,
+    FCC_BUNDLE_BUFFER_TYPE_ROT
+} fcc_bundle_data_buffer_type_e;
 
 /** Frees all allocated memory of data parameter struct and sets initial values.
 *
@@ -215,13 +219,14 @@ bool fcc_bundle_get_key_type(const cn_cbor *key_type_cb, fcc_bundle_key_type_e *
 
 /** Writes buffer to SOTP
 *
-* @param cbor_bytes[in]   The pointer to a cn_cbor object of type CN_CBOR_BYTES.
-* @param sotp_type[in]    enum representing the type of the item to be stored in SOTP.
+* @param cbor_bytes[in]     The pointer to a cn_cbor object of type CN_CBOR_BYTES.
+* @param rbp_item_name[in]  Item name to be stored.
+* @param buffer_type        Buffer type. different types are stored in a different way.
 * @return
 *     true for success, false otherwise.
 */
 
-fcc_status_e fcc_bundle_process_sotp_buffer(cn_cbor *cbor_bytes, const char *rbp_item_name);
+fcc_status_e fcc_bundle_process_buffer(cn_cbor *cbor_bytes, const char *rbp_item_name, fcc_bundle_data_buffer_type_e buffer_type);
 
 /** Gets the status groups value
 *

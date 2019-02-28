@@ -412,6 +412,12 @@ int palROTTestMain(void)
     return palTestMain(TEST_pal_rot_GROUP_RUNNER, init_flags);
 }
 
+int palEntropyTestMain(void)
+{
+    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE;
+    return palTestMain(TEST_pal_entropy_GROUP_RUNNER, init_flags);
+}
+
 int palStorageTestMain(void)
 {
     int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE;

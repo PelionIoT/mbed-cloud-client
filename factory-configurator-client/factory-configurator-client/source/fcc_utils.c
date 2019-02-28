@@ -120,8 +120,16 @@ fcc_status_e fcc_convert_pal_to_fcc_status(palStatus_t pal_result)
         case PAL_ERR_ITEM_NOT_EXIST:
             fcc_status = FCC_STATUS_ITEM_NOT_EXIST;
             break;
-        case PAL_ERR_GENERIC_FAILURE:
-            fcc_status = FCC_STATUS_KCM_ERROR;
+        case PAL_ERR_ENTROPY_EXISTS:
+            fcc_status = FCC_STATUS_ENTROPY_ERROR;
+            break;
+        case PAL_ERR_NOT_SUPPORTED:
+            fcc_status = FCC_STATUS_NOT_SUPPORTED;
+            break;
+        default:
+            fcc_status = FCC_STATUS_ERROR;
+            break;
+        
     }
    
     return fcc_status;

@@ -50,7 +50,6 @@ const char g_fcc_invalid_cn_certificate_error_str[] = "Certificate CN attribute 
 const char g_fcc_crypto_public_key_correlation_error_str[] = "Certificate public key validation failed:";
 const char g_fcc_internal_storage_error_str[] = "Internal storage error:";
 const char g_fcc_csr_requests_too_many[] = "Too many CSR requests. Maximum CSR requests supported is " xstr(CSR_MAX_NUMBER_OF_CSRS);
-
 //kcm crypto error strings
 const char g_fcc_kcm_file_error_str[] = "File operation general error:";
 const char g_fcc_kcm_invalid_file_version_str[] = "File version invalid:";
@@ -223,6 +222,7 @@ char* fcc_get_fcc_error_string(fcc_status_e fcc_status)
         case FCC_STATUS_WARNING_CREATE_ERROR:
         case FCC_STATUS_INVALID_CERT_ATTRIBUTE:
         case FCC_STATUS_INTERNAL_ITEM_ALREADY_EXIST:
+        case FCC_STATUS_NOT_SUPPORTED:
             fcc_error_string = (char*)g_fcc_general_status_error_str;
             break;
         case FCC_STATUS_CA_ERROR:

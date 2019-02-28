@@ -68,8 +68,9 @@ palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, siz
  * @param[out] randomBuf A buffer to hold the generated number.
  * @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
  *
- \note `pal_init()` MUST be called before this function
- \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
+ * \note `pal_init()` MUST be called before this function
+ * \note If non-volatile entropy is expected, the entropy must have been injected before this function is called. Non-volatile entropy may be injected using `pal_plat_osEntropyInject()`.
+ * \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeBytes);
 

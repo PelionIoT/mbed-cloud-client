@@ -389,21 +389,24 @@ typedef struct storage_rbp_lookup_record_ {
     const char *rbp_data_name;
 } storage_rbp_lookup_record_s;
 
-#define STORAGE_SOTP_NUMBER_OF_TYPES 5 
 /**
 * sotp type table, correlating for each sotp type and name.
 */
 //todo : remove all items except rot and entropy
-static const storage_rbp_lookup_record_s storage_rbp_lookup_table[STORAGE_SOTP_NUMBER_OF_TYPES] = {
+static const storage_rbp_lookup_record_s storage_rbp_lookup_table[] = {
     { FCC_FACTORY_DISABLE_FLAG_SIZE,               STORAGE_RBP_FACTORY_DONE_NAME },
-    { FCC_ENTROPY_SIZE,                            STORAGE_RBP_RANDOM_SEED_NAME },
     { FCC_TIME_SIZE,                               STORAGE_RBP_SAVED_TIME_NAME },
     { FCC_TIME_SIZE,                               STORAGE_RBP_LAST_TIME_BACK_NAME },
     { FCC_CA_IDENTIFICATION_SIZE,                  STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME }
 };
+
+#define ARRAY_LENGTH(array) (sizeof(array)/sizeof((array)[0]))
+
+#define STORAGE_SOTP_NUMBER_OF_TYPES ARRAY_LENGTH(storage_rbp_lookup_table) 
+
 static bool storage_check_name_and_get_required_size(const char *item_name, uint16_t *required_size_out)
 {
-    int index = 0;
+    size_t index = 0;
 
     for (index = 0; index < STORAGE_SOTP_NUMBER_OF_TYPES; index++) {
         if (strlen(item_name) == strlen(storage_rbp_lookup_table[index].rbp_data_name)) {
@@ -512,11 +515,11 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
     palStatus_t pal_status = PAL_SUCCESS;
     palSSTItemInfo_t palItemInfo;
     uint32_t flag_mask = 0;
-
+    
     //Build complete data name (also checks name validity)
     kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
-
+    
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Data already exists");
 
@@ -662,7 +665,7 @@ kcm_status_e storage_data_read(
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change single certificate name");
 
         //Get size
-        kcm_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
+        pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
         if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
             return  KCM_STATUS_ITEM_NOT_FOUND;
         }
@@ -869,7 +872,7 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
 
     //Write the certificate to the storage
     pal_status = pal_SSTSet(kcm_complete_name, kcm_cert_data, kcm_cert_data_size, flag_mask);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write data to backup");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write data to storage");
 
     //Increase chian current index
     chain_context->current_cert_index++;
@@ -1128,7 +1131,6 @@ static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_chain_cert_name_info_s cert_name_info = { 0, false };
     char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
-    //palStatus_t pal_status = PAL_SUCCESS;
 
     do {
         cert_name_info.certificate_index = chain_context->current_cert_index;
@@ -1144,7 +1146,7 @@ static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_
 
         //we don't check the result of storage_file_delete, as it is possible that not all certificates were saved to the storage
         if (kcm_status == KCM_STATUS_SUCCESS) {
-            kcm_status = pal_SSTRemove(kcm_complete_name);
+            pal_SSTRemove(kcm_complete_name);
         }
 
         //Only in case of invalid create operation we will remove wrong chain from backup path too
@@ -1160,7 +1162,7 @@ static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_
 
             //we don't check the result of storage_file_delete, as it is possible that not all certificates were saved to the storage
             if (kcm_status == KCM_STATUS_SUCCESS) {
-                kcm_status = pal_SSTRemove(kcm_complete_name);
+                pal_SSTRemove(kcm_complete_name);
             }
         }
 

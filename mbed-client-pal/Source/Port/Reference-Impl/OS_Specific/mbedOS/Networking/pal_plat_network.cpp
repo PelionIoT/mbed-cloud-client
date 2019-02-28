@@ -69,6 +69,8 @@ void palConnectCallBack()
             bool isConnected() const ;
             void attachCallback();
             Socket* getActiveSocket();
+            void setActiveSocket(Socket *socket);
+
             palSocketType_t getSocketType() const;
             char getAndResetRxBuffer();
             bool isRxBufferSet() const;
@@ -101,8 +103,8 @@ void palConnectCallBack()
             nsapi_size_or_error_t recv(void *data, nsapi_size_t size);
             //nsapi TCP server socket funcitons exposed:
             nsapi_error_t listen(int backlog = 1);
-            nsapi_error_t accept(TCPSocket *connection, SocketAddress *address = NULL);
-
+            Socket* accept(nsapi_error_t *error);
+            void freeSocket(bool freeSocket);
 
         private:
             bool initialized;
@@ -117,6 +119,7 @@ void palConnectCallBack()
             events::EventQueue* shared_event_queue;
             char rxBuffer;
             bool rxBufferSet;
+            bool deleteSocket;
         };
 
         void PALSocketWrapper::updateCallback( palSelectCallbackFunction_t selectCallback )
@@ -146,6 +149,11 @@ void palConnectCallBack()
         Socket* PALSocketWrapper::getActiveSocket()
         {
             return activeSocket;
+        }
+
+        void PALSocketWrapper::setActiveSocket(Socket* socket)
+        {
+            activeSocket = socket;
         }
 
         char PALSocketWrapper::getAndResetRxBuffer()
@@ -244,6 +252,7 @@ void palConnectCallBack()
             activeSocket = socket;
             socketTypeVal = socketType;
             isNonBlockingOnCreation = isNonBlocking;
+            deleteSocket = true;
             activeSocket->set_blocking(!isNonBlocking);
             if (NULL != callback)
             {
@@ -262,7 +271,11 @@ void palConnectCallBack()
             if (NULL != activeSocket)
             {
                 status = activeSocket->close();
-                delete activeSocket;
+                // When allocated by accept() call, socket will destroy itself on close();
+                if (deleteSocket)
+                {
+                    delete activeSocket;
+                }
                 activeSocket = NULL;
             }
             return  status;
@@ -313,7 +326,7 @@ void palConnectCallBack()
             nsapi_size_or_error_t status = NSAPI_ERROR_OK;
             PAL_VALIDATE_CONDITION_WITH_ERROR(((false == initialized) || (PAL_SOCK_DGRAM != socketTypeVal)), NSAPI_ERROR_PARAMETER); // udp sockets only
 
-            status = ((UDPSocket*)activeSocket)->recvfrom(address, data,  size);
+            status = activeSocket->recvfrom(address, data,  size);
             return  status;
         }
 
@@ -321,7 +334,7 @@ void palConnectCallBack()
         {
             nsapi_size_or_error_t status = NSAPI_ERROR_OK;
             PAL_VALIDATE_CONDITION_WITH_ERROR(((false == initialized) || (PAL_SOCK_DGRAM != socketTypeVal)), NSAPI_ERROR_PARAMETER); // udp sockets only
-            status = ((UDPSocket*)activeSocket)->sendto(address, data, size);
+            status = activeSocket->sendto(address, data, size);
             return  status;
         }
 
@@ -333,7 +346,7 @@ void palConnectCallBack()
 
             connectState = PAL_PLAT_SOCKET_CONNECTING;
             updateCallback(palConnectCallBack); // make sure callback is enabled to see if we get callback to signal connections end
-            status = ((TCPSocket*)activeSocket)->connect(address);
+            status = activeSocket->connect(address);
             if (status >= 0 || status == NSAPI_ERROR_IS_CONNECTED)
             {
                 connectState = PAL_PLAT_SOCKET_CONNECTED;
@@ -351,7 +364,7 @@ void palConnectCallBack()
             nsapi_size_or_error_t status = NSAPI_ERROR_OK;
             PAL_VALIDATE_CONDITION_WITH_ERROR(((false == initialized) || (PAL_SOCK_STREAM != socketTypeVal)), NSAPI_ERROR_PARAMETER); // tcp sockets only
 
-            status = ((TCPSocket*)activeSocket)->send( data, size);
+            status = ((TCPSocket*)activeSocket)->send(data, size);
             return  status;
         }
 
@@ -359,7 +372,7 @@ void palConnectCallBack()
         {
             nsapi_size_or_error_t status = NSAPI_ERROR_OK;
             PAL_VALIDATE_CONDITION_WITH_ERROR(((false == initialized) || (PAL_SOCK_STREAM != socketTypeVal)),NSAPI_ERROR_PARAMETER); // tcp sockets only
-            status = ((TCPSocket*)activeSocket)->recv(data, size);
+            status = activeSocket->recv(data, size);
             return  status;
         }
         //nsapi TCP server socket funcitons exposed:
@@ -367,20 +380,25 @@ void palConnectCallBack()
         {
             nsapi_error_t status = NSAPI_ERROR_OK;
             PAL_VALIDATE_CONDITION_WITH_ERROR(((false == initialized) || (PAL_SOCK_STREAM_SERVER != socketTypeVal)), NSAPI_ERROR_PARAMETER); // udp sockets only
-            status = ((TCPServer*)activeSocket)->listen(backlog);
+            status = activeSocket->listen(backlog);
             return  status;
         }
 
-        nsapi_error_t PALSocketWrapper::accept(TCPSocket *connection, SocketAddress *address)
+        Socket* PALSocketWrapper::accept(nsapi_error_t *error)
         {
-            nsapi_error_t status = NSAPI_ERROR_OK;
-            PAL_VALIDATE_CONDITION_WITH_ERROR(((false == initialized) || (PAL_SOCK_STREAM_SERVER != socketTypeVal)),NSAPI_ERROR_PARAMETER); // udp sockets only
+            *error = NSAPI_ERROR_OK;
 
-            status = ((TCPServer*)activeSocket)->accept(connection, address);
-            return  status;
+            if (!initialized || PAL_SOCK_STREAM_SERVER != socketTypeVal) {
+                *error = NSAPI_ERROR_PARAMETER;
+            }
+
+            return activeSocket->accept(error);
         }
 
-
+        void PALSocketWrapper::freeSocket(bool freeSocket)
+        {
+           deleteSocket = freeSocket;
+        }
 
 
 PAL_PRIVATE NetworkInterface* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
@@ -388,6 +406,8 @@ PAL_PRIVATE NetworkInterface* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_
 PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
 
 PAL_PRIVATE  uint32_t s_pal_network_initialized = 0;
+
+PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* arg,  palSocket_t* socket);
 
 PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 {
@@ -626,84 +646,10 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
     return result;
 }
 
-
-
-
 palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* socket)
 {
-    int result = PAL_SUCCESS;
-    PALSocketWrapper* socketObj = NULL;
-    Socket* internalSocket = NULL;
-
-    PAL_VALIDATE_ARGUMENTS((NULL == socket))
-
-    if (PAL_NET_DEFAULT_INTERFACE == interfaceNum)
-    {
-        interfaceNum = 0;
-    }
-
-    if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_DGRAM == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) // check correct parameters for UDP socket
-    {
-        internalSocket = new UDPSocket(s_pal_networkInterfacesSupported[interfaceNum]);
-    }
-#if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
-    else if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_STREAM == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) // check correct parameters for TCP socket
-    {
-        internalSocket = new TCPSocket(s_pal_networkInterfacesSupported[interfaceNum]);
-    }
-    else if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_STREAM_SERVER == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) // check correct parameters for TCP Server socket
-    {
-        internalSocket = new TCPServer(s_pal_networkInterfacesSupported[interfaceNum]);
-    }
-#endif
-    else
-    {
-        result =  PAL_ERR_INVALID_ARGUMENT;
-    }
-
-    if ((PAL_SUCCESS == result ) && (NULL == internalSocket))
-    {
-        result = PAL_ERR_NO_MEMORY;
-    }
-
-    if (PAL_SUCCESS == result)
-    {
-
-        socketObj = new PALSocketWrapper();
-        if (NULL != socketObj)
-        {
-            if (0 == socketObj->initialize(internalSocket, type, nonBlockingSocket, NULL, NULL))
-            {
-                *socket = (palSocket_t)socketObj;
-            }
-            else
-            {
-                result = PAL_ERR_INVALID_ARGUMENT;
-            }
-
-        }
-        else
-        {
-            delete internalSocket;
-            result = PAL_ERR_NO_MEMORY;
-        }
-
-    }
-
-    if (PAL_SUCCESS != result) //cleanup
-    {
-        if (NULL != internalSocket)
-        {
-            delete internalSocket;
-        }
-        if (NULL != socketObj)
-        {
-            delete socketObj;
-        }
-    }
-    return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+    return create_socket(domain, type, nonBlockingSocket, interfaceNum, NULL, NULL, socket);
 }
-
 
 palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
 {
@@ -1002,24 +948,18 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
 {
     int result = PAL_SUCCESS;
 
-    SocketAddress incomingAddr;
-
     PAL_VALIDATE_ARGUMENTS ((NULL == socket));
-
     PALSocketWrapper* socketObj = (PALSocketWrapper*)socket;
-    result = socketObj->accept( (TCPSocket*)(*(PALSocketWrapper**)acceptedSocket)->getActiveSocket(), &incomingAddr);
+    PALSocketWrapper *out = (PALSocketWrapper*)*acceptedSocket;
+
+    out->setActiveSocket(socketObj->accept(&result));
+    out->freeSocket(false);
+
     if (result < 0)
     {
         result = translateErrorToPALError(result);
     }
-    else
-    {
-#if (PAL_DNS_API_VERSION != 2)
-        result = socketAddressToPalSockAddr(incomingAddr, address, addressLen);
-#else
-        result = socketAddressToPalSockAddr(incomingAddr, address);
-#endif
-    }
+
     return result;
 }
 
@@ -1046,6 +986,7 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
 
 palStatus_t pal_plat_recv(palSocket_t socket, void *buf, size_t len, size_t* recievedDataSize)
 {
+
     int result = PAL_SUCCESS;
     int status = 0;
     uint8_t* internalBufferPtr = (uint8_t*)buf;
@@ -1073,6 +1014,7 @@ palStatus_t pal_plat_recv(palSocket_t socket, void *buf, size_t len, size_t* rec
             return PAL_ERR_SOCKET_CONNECTION_CLOSED;
         }
     }
+
     *recievedDataSize = status + bufferUsed;
     return result;
 }
@@ -1096,6 +1038,7 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
     {
         *sentDataSize = status;
     }
+
     return result;
 }
 
@@ -1107,74 +1050,7 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* arg,  palSocket_t* socket)
 {
-    int result = PAL_SUCCESS;
-    PALSocketWrapper * socketObj = NULL;
-    Socket* internalSocket = NULL;
-
-    PAL_VALIDATE_ARGUMENTS((NULL == socket));
-
-    if (PAL_NET_DEFAULT_INTERFACE == interfaceNum)
-    {
-        interfaceNum = 0;
-    }
-
-    if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_DGRAM == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) //check that we got correct parameters for UDP socket
-    {
-        internalSocket = new UDPSocket(s_pal_networkInterfacesSupported[interfaceNum]);
-    }
-#if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
-    else if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_STREAM == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) //check that we got correct parameters for TCP socket
-    {
-        internalSocket = new TCPSocket(s_pal_networkInterfacesSupported[interfaceNum]);
-    }
-    else if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_STREAM_SERVER == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) //check that we got correct parameters for TCP Server socket
-    {
-        internalSocket = new TCPServer(s_pal_networkInterfacesSupported[interfaceNum]);
-    }
-#endif
-    else
-    {
-        result = PAL_ERR_INVALID_ARGUMENT;
-    }
-
-    if ((PAL_SUCCESS == result) && (NULL == internalSocket))
-    {
-        result = PAL_ERR_NO_MEMORY;
-    }
-
-    if (PAL_SUCCESS == result)
-    {
-        socketObj = new PALSocketWrapper();
-        if (NULL != socketObj)
-        {
-            if (0 == socketObj->initialize(internalSocket, type, nonBlockingSocket, callback, arg))
-            {
-                *socket = (palSocket_t)socketObj;
-            }
-            else
-            {
-                result = PAL_ERR_INVALID_ARGUMENT;
-            }
-        }
-        else
-        {
-            delete internalSocket;
-            result = PAL_ERR_NO_MEMORY;
-        }
-    }
-
-    if (PAL_SUCCESS != result) //cleanup
-    {
-        if (NULL != internalSocket)
-        {
-            delete internalSocket;
-        }
-        if (NULL != socketObj)
-        {
-            delete socketObj;
-        }
-    }
-    return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+    return create_socket(domain, type, nonBlockingSocket, interfaceNum, callback, arg, socket);
 }
 
 #endif
@@ -1278,4 +1154,72 @@ palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
 #endif //  PAL_DNS_API_VERSION
 #endif
 
+PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* arg,  palSocket_t* socket)
+{
+    int result = PAL_SUCCESS;
+    PALSocketWrapper * socketObj = NULL;
+    InternetSocket* internalSocket = NULL;
 
+    PAL_VALIDATE_ARGUMENTS((NULL == socket));
+
+    if (PAL_NET_DEFAULT_INTERFACE == interfaceNum)
+    {
+        interfaceNum = 0;
+    }
+
+    if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_DGRAM == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) //check that we got correct parameters for UDP socket
+    {
+        internalSocket = new UDPSocket;
+    }
+#if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
+    else if ((s_pal_numberOFInterfaces > interfaceNum) && (PAL_SOCK_STREAM == type || PAL_SOCK_STREAM_SERVER == type) && ((PAL_AF_INET == domain) || (PAL_AF_INET6 == domain) || (PAL_AF_UNSPEC == domain))) //check that we got correct parameters for TCP socket
+    {
+        internalSocket = new TCPSocket;
+    }
+#endif
+    else
+    {
+        result = PAL_ERR_INVALID_ARGUMENT;
+    }
+
+    if (internalSocket && result == PAL_SUCCESS)
+    {
+        int result = internalSocket->open(s_pal_networkInterfacesSupported[interfaceNum]);
+        if (result < 0)
+        {
+            result =  translateErrorToPALError(result);
+        }
+    }
+    else
+    {
+        result = PAL_ERR_NO_MEMORY;
+    }
+
+    if (PAL_SUCCESS == result)
+    {
+        socketObj = new PALSocketWrapper();
+        if (NULL != socketObj)
+        {
+            if (0 == socketObj->initialize(internalSocket, type, nonBlockingSocket, callback, arg))
+            {
+                *socket = (palSocket_t)socketObj;
+            }
+            else
+            {
+                result = PAL_ERR_INVALID_ARGUMENT;
+            }
+        }
+        else
+        {
+            delete internalSocket;
+            result = PAL_ERR_NO_MEMORY;
+        }
+    }
+
+    if (PAL_SUCCESS != result) //cleanup
+    {
+        delete internalSocket;
+        delete socketObj;
+    }
+    return result;
+}

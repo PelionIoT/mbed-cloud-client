@@ -23,7 +23,6 @@ set(PAL_RTOS_SRCS
     ${PAL_PORT_SOURCE_DIR}/Board_Specific/TARGET_${MBED_CLOUD_CLIENT_DEVICE}/pal_plat_${MBED_CLOUD_CLIENT_DEVICE}.c
     ${PAL_PORT_SOURCE_DIR}/RTOS/pal_plat_rtos.c
 )
-
 set(PAL_FILESYSTEM_SRCS
     ${PAL_MODULES_SOURCE_DIR}/Storage/FileSystem/pal_fileSystem.c
     ${PAL_PORT_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem.c
@@ -47,11 +46,14 @@ set(PAL_CRYPTO_SRCS
 set(PAL_DRBG_SRCS
     ${PAL_MODULES_SOURCE_DIR}/DRBG/pal_drbg.c
     # XXX: following file is in completely wrong place, it is tied to SOTP, not MBEDTLS
-    ${PAL_PORT_SOURCE_DIR}/../../Lib_Specific/${TLS_LIBRARY}/Entropy/pal_plat_entropy_sotp.c
 )
 
 set(PAL_ROT_SRCS
     ${PAL_MODULES_SOURCE_DIR}/ROT/pal_rot.c
+)
+
+set(PAL_ENTROPY_SRCS
+    ${PAL_MODULES_SOURCE_DIR}/Entropy/pal_entropy.c
 )
 
 set(PAL_TIME_SRCS
@@ -76,9 +78,16 @@ set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/SOTP/pal_pl
 # Add the platform independent DRBG implementation
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/SOTP/pal_plat_drbg_sotp.c)
 
+# Add the platform independent entropy implementation
+set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy/pal_plat_entropy_sotp.c)
+
 # Add the platform independent flash-over-filesystem implementation, which gets used if 
 # PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM==1
 set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/Flash/FlashOverFilesystem/pal_plat_internalFlash_FlashOverFilesystem.c)
+
+# Add the platform independent noise implementation (used by the DRBG mdule)
+set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/pal_plat_drbg_noise.c)
+
 
 # Create the RTOS module library
 add_library(palRTOS STATIC "${PAL_RTOS_SRCS}")
@@ -91,6 +100,10 @@ add_library(palNetworking STATIC "${PAL_NETWORKING_SRCS}")
 
 # Create the ROT module library
 add_library(palROT STATIC "${PAL_ROT_SRCS}")
+
+# Create the Entropy module library
+add_library(palEntropy STATIC "${PAL_ENTROPY_SRCS}")
+
 
 # Create the TLS module library
 add_library(palTLS STATIC "${PAL_TLS_SRCS}")
@@ -118,8 +131,8 @@ add_library(pal STATIC "${PAL_SRCS}")
 
 
 # Add dependency to SOTP and FCC so they will be built before and linked with PAL into final executable.
-add_dependencies(pal palRTOS palFilesystem palNetworking palCrypto palDRBG palROT sotp palTLS palTime)
-target_link_libraries(pal palRTOS palFilesystem palNetworking palCrypto palDRBG palROT sotp palTLS palTime)
+add_dependencies(pal palRTOS palFilesystem palNetworking palCrypto palDRBG palROT palEntropy sotp palTLS palTime)
+target_link_libraries(pal palRTOS palFilesystem palNetworking palCrypto palDRBG palROT palEntropy sotp palTLS palTime)
 
 # Bring in the ROT implementation from platform-common/application side. This can be
 # empty also, selection is done based on PAL_USE_HW_ROT: if it is 0, then the pal_rot.c will need

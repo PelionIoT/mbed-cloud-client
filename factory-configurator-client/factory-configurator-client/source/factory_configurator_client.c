@@ -215,16 +215,14 @@ fcc_status_e fcc_verify_device_configured_4mbed_cloud(void)
 
 fcc_status_e fcc_entropy_set(const uint8_t *buf, size_t buf_size)
 {
-    fcc_status_e fcc_status;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+    palStatus_t pal_status;
+    SA_PV_LOG_INFO_FUNC_ENTER("buf_size = %" PRIu32, (uint32_t)buf_size);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_is_fcc_initialized), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(buf_size != FCC_ENTROPY_SIZE, FCC_STATUS_INVALID_PARAMETER, "Size of entropy provided is %" PRIu32 ", Should be %" PRIu32 , (uint32_t)buf_size, (uint32_t)FCC_ENTROPY_SIZE);
 
-    kcm_status = storage_fcc_rbp_write(STORAGE_RBP_RANDOM_SEED_NAME, buf, buf_size, true);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_FILE_EXIST), FCC_STATUS_ENTROPY_ERROR, "Entropy already exist in storage");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_INVALID_PARAMETER), FCC_STATUS_INVALID_PARAMETER, "Failed to set entropy");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), "Failed to set entropy");
+    pal_status = pal_osEntropyInject(buf, buf_size); 
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), fcc_convert_pal_to_fcc_status(pal_status), "Failed to set entropy, pal status =%" PRId32, pal_status);
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return FCC_STATUS_SUCCESS;
@@ -235,7 +233,7 @@ fcc_status_e fcc_rot_set(const uint8_t *buf, size_t buf_size)
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
 
-    SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+    SA_PV_LOG_INFO_FUNC_ENTER("buf_size = %" PRIu32 , (uint32_t)buf_size);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_is_fcc_initialized), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((buf == NULL || buf_size != FCC_ROT_SIZE), FCC_STATUS_INVALID_PARAMETER, "Invalid params");
@@ -266,7 +264,7 @@ fcc_status_e fcc_time_set(uint64_t time)
 
 fcc_status_e fcc_is_factory_disabled(bool *is_factory_disabled)
 {
-    fcc_status_e fcc_status;
+
     int64_t factory_disable_flag = 0;
     size_t data_actual_size_out = 0;
     palStatus_t pal_status = PAL_SUCCESS;
@@ -277,8 +275,8 @@ fcc_status_e fcc_is_factory_disabled(bool *is_factory_disabled)
 
     pal_status = storage_rbp_read(STORAGE_RBP_FACTORY_DONE_NAME, (uint8_t *)(&factory_disable_flag), sizeof(factory_disable_flag), &data_actual_size_out);
     SA_PV_LOG_INFO("pal_status:%" PRId32", factory_disable_flag:%" PRIuMAX "\n", pal_status, factory_disable_flag);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && pal_status != PAL_ERR_ITEM_NOT_EXIST), fcc_status = fcc_convert_pal_to_fcc_status(pal_status), "Failed for storage_fcc_rbp_read");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(((factory_disable_flag != 0) && (factory_disable_flag != 1)), FCC_STATUS_FACTORY_DISABLED_ERROR, "Failed for fcc_sotp_buffer_retrieve");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && pal_status != PAL_ERR_ITEM_NOT_EXIST), fcc_convert_pal_to_fcc_status(pal_status), "Failed for storage_rbp_read");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((factory_disable_flag != 0) && (factory_disable_flag != 1)), FCC_STATUS_FACTORY_DISABLED_ERROR, "Failed for storage_rbp_read");
 
     // If we get here - it must be either "0" or "1"
     *is_factory_disabled = (factory_disable_flag == 1) ? true : false;
@@ -289,9 +287,9 @@ fcc_status_e fcc_is_factory_disabled(bool *is_factory_disabled)
 
 fcc_status_e fcc_factory_disable(void)
 {
-    fcc_status_e fcc_status;
     palStatus_t pal_status = PAL_SUCCESS;
     int64_t factory_disable_flag = 1;
+    size_t data_actual_size_out = 0;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
@@ -299,8 +297,13 @@ fcc_status_e fcc_factory_disable(void)
 
     pal_status = storage_rbp_write(STORAGE_RBP_FACTORY_DONE_NAME, (uint8_t *)(&factory_disable_flag), sizeof(factory_disable_flag), true);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_ITEM_EXIST), FCC_STATUS_FACTORY_DISABLED_ERROR, "FCC already disabled in storage");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_INVALID_ARGUMENT), FCC_STATUS_INVALID_PARAMETER, "Failed to set storage_fcc_rbp_write");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), fcc_status = fcc_convert_pal_to_fcc_status(pal_status), "Failed to set storage_fcc_rbp_write");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_INVALID_ARGUMENT), FCC_STATUS_INVALID_PARAMETER, "Failed to set storage_rbp_write");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), fcc_convert_pal_to_fcc_status(pal_status), "Failed to set storage_rbp_write");
+
+    //Check FACTORY_DONE written correctly
+    pal_status = storage_rbp_read(STORAGE_RBP_FACTORY_DONE_NAME, (uint8_t *)(&factory_disable_flag), sizeof(factory_disable_flag), &data_actual_size_out);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS || data_actual_size_out != sizeof(factory_disable_flag)), FCC_STATUS_FACTORY_DISABLED_ERROR, "Failed to set storage_rbp_write");
+
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return FCC_STATUS_SUCCESS;

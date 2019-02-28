@@ -93,6 +93,8 @@ void TEST_pal_rtos_GROUP_RUNNER(void);
 
 void TEST_pal_rot_GROUP_RUNNER(void);
 
+void TEST_pal_entropy_GROUP_RUNNER(void);
+
 void TEST_pal_socket_GROUP_RUNNER(void);
 
 void TEST_pal_time_GROUP_RUNNER(void);
@@ -132,6 +134,7 @@ typedef enum _palTestModules_t
     PAL_TEST_MODULE_START,
     PAL_TEST_MODULE_RTOS = PAL_TEST_MODULE_START,
     PAL_TEST_MODULE_ROT,
+    PAL_TEST_MODULE_ENTROPY,
     PAL_TEST_MODULE_SOCKET,
     PAL_TEST_MODULE_TIME,
     PAL_TEST_MODULE_TLS,
@@ -177,6 +180,7 @@ int palNetworkTestMain(void);
 int palCryptoTestMain(void);
 int palDRBGTestMain(void);
 int palROTTestMain(void);
+int palEntropyTestMain(void);
 int palRTOSTestMain(void);
 int palStorageTestMain(void);
 int palTimeTestMain(void);

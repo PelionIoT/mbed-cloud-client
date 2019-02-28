@@ -213,6 +213,9 @@ typedef enum {
     PAL_ERR_X509_CERT_VERIFY_FAILED =                       PAL_ERR_CRYPTO_ERROR_BASE + 51,
     PAL_ERR_FAILED_TO_SET_EXT_KEY_USAGE =                   PAL_ERR_CRYPTO_ERROR_BASE + 52,
     PAL_ERR_CRYPTO_ALLOC_FAILED =                           PAL_ERR_CRYPTO_ERROR_BASE + 53,
+    PAL_ERR_ENTROPY_EXISTS =                                PAL_ERR_CRYPTO_ERROR_BASE + 54,
+    PAL_ERR_ENTROPY_TOO_LARGE =                             PAL_ERR_CRYPTO_ERROR_BASE + 55,
+    PAL_ERR_CTR_DRBG_NOT_SEEDED =                           PAL_ERR_CRYPTO_ERROR_BASE + 56,
     PAL_ERR_X509_BADCERT_EXPIRED =                          PAL_ERR_MODULE_BITMASK_BASE + 0x01, //!< Value must not be changed in order to be able to create bit mask
     PAL_ERR_X509_BADCERT_FUTURE =                           PAL_ERR_MODULE_BITMASK_BASE + 0x02, //!< Value must not be changed in order to be able to create bit mask
     PAL_ERR_X509_BADCERT_BAD_MD =                           PAL_ERR_MODULE_BITMASK_BASE + 0x04, //!< Value must not be changed in order to be able to create bit mask

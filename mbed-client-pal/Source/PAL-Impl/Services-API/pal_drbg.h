@@ -45,8 +45,9 @@ extern "C" {
  * @param[out] randomBuf A buffer to hold the generated number.
  * @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
  *
- \note `pal_init()` MUST be called before this function
- \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
+ * \note `pal_init()` MUST be called before this function.
+ * \note If non-volatile entropy is expected, the entropy must have been injected before this function is called. If entropy has not been injected to non-volatile memory, us `pal_plat_osEntropyInject()`.
+ * \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes);
 
@@ -55,6 +56,7 @@ palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes);
  * @param[out] randomInt A 32-bit buffer to hold the generated number.
  *
  \note `pal_init()` MUST be called before this function.
+ \note If non-volatile entropy is expected, the entropy must be in storage when this function is called. Non-volatile entropy may be injected using `pal_plat_osEntropyInject()`.
  \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_osRandom32bit(uint32_t *randomInt);

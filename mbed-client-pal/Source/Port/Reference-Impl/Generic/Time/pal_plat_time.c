@@ -40,26 +40,37 @@ palStatus_t pal_plat_initTime(void)
     palStatus_t  ret = PAL_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
     size_t actualLenBytes = 0;
-    
+
     ret = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&getTime, sizeof(uint64_t), &actualLenBytes);
-#if (MBED_CONF_APP_DEVELOPER_MODE == 0)
-// In developer mode, ignore errors from reading time.
-// Developer mode is running with binary, that deletes internal flash during flashing of the image and thus rbp error will be returned
+    //In case the weak time corrupted (could be due to power failure) :
+    // 1. Set 0 getTime 
+    // 2. Rewrite STORAGE_RBP_SAVED_TIME_NAME with 0, to avoid an error in pal_plat_osSetStrongTime later, when the function tries first to read the weak time.
+    // 3. Avoid error status and continue.
     if ((ret != PAL_SUCCESS) && (ret != PAL_ERR_ITEM_NOT_EXIST))
     {
+        getTime = 0;
+        //Rewrite weak time to avoid error in pal_plat_osSetStrongTime
+        ret = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&getTime, sizeof(uint64_t), false);
         pal_status = ret;
     }
-#endif
 
     ret = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t *)&lastTimeBack, sizeof(uint64_t),&actualLenBytes);
-#if (MBED_CONF_APP_DEVELOPER_MODE == 0)
-// In developer mode, ignore errors from reading time.
-// Developer mode is running with binary, that deletes internal flash during flashing of the image and thus rbp error will be returned
-    if ((PAL_SUCCESS != ret) && (PAL_ERR_ITEM_NOT_EXIST != ret))
+    //Strong time : avoid error, reset device time and continue
+    //In case the strong time corrupted (could be due to power failure) : 
+    //1. Set device time to 0,to enforce the device to update the time against trusted server later.
+    //2. Set 0 lastTimeBack 
+    //3. Rewrite STORAGE_RBP_LAST_TIME_BACK_NAME with 0, to avoid an error in pal_plat_osSetWeak later, when the functions could try first to read the strong time.
+    //4. Set weak time value getTime to 0 , to avoid setting of the value to device time with pal_status = pal_osSetTime(PAL_MAX(rtcTime, getTime)) ,
+    //   that called in this function later. In case of strong time corruption, we need to keep the device time value - 0.
+    if ((ret != PAL_SUCCESS) && (ret != PAL_ERR_ITEM_NOT_EXIST))
     {
+        pal_plat_osSetTime(0); //Set device time to 0
+        lastTimeBack = 0;
+        //Rewrite strong time to avoid error in pal_plat_osSetWeak functions
+        ret = storage_rbp_write(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t *)&lastTimeBack, sizeof(uint64_t), false);
         pal_status = ret;
+        getTime = 0; //to avoid setting of the value to device time with  pal_status = pal_osSetTime(PAL_MAX(rtcTime, getTime))
     }
-#endif
 
     if (lastTimeBack > getTime)
     {//Enter here only when reset occurs during set weak or strong time

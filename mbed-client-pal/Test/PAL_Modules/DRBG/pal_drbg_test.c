@@ -1,18 +1,20 @@
-/*******************************************************************************
- * Copyright 2016-2018 ARM Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *******************************************************************************/
+// ----------------------------------------------------------------------------
+// Copyright 2016-2019 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ----------------------------------------------------------------------------
 
 #include "pal.h"
 #include "unity.h"
@@ -20,7 +22,6 @@
 #include "pal_plat_drbg.h"
 #include "pal_plat_drbg.h"
 #include "test_runners.h"
-#include "sotp.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -48,14 +49,12 @@ TEST_SETUP(pal_drbg)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
 #if !PAL_USE_HW_TRNG
-    // Ensure SOTP has a random seed
-    uint32_t sotpCounter = 0;
-    uint8_t buf[(PAL_INITIAL_RANDOM_SIZE * 2 + sizeof(sotpCounter))] PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 = { 0 };
-    const uint16_t sotpLenBytes = PAL_INITIAL_RANDOM_SIZE + sizeof(sotpCounter);
-    uint32_t* ptrSotpWrite = (uint32_t*)buf;
-    sotp_result_e sotpResult = sotp_set(SOTP_TYPE_RANDOM_SEED, sotpLenBytes, ptrSotpWrite);
-    TEST_ASSERT_EQUAL_HEX(SOTP_SUCCESS, sotpResult);
+    // If no hardware trng - entropy must be injected for random to work
+    uint8_t entropy_buf[48] = { 0 };
+    status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
+    TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
 #endif
+
 }
 
 TEST_TEAR_DOWN(pal_drbg)

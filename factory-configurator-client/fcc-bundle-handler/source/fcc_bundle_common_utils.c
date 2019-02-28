@@ -232,12 +232,11 @@ error_exit:
     return false;
 }
 
-fcc_status_e fcc_bundle_process_sotp_buffer(cn_cbor *cbor_bytes,const char *rbp_item_name)
+fcc_status_e fcc_bundle_process_buffer(cn_cbor *cbor_bytes,const char *rbp_item_name, fcc_bundle_data_buffer_type_e buffer_type)
 {
     uint8_t *buf;
     size_t buf_size;
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     bool status;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
@@ -245,14 +244,20 @@ fcc_status_e fcc_bundle_process_sotp_buffer(cn_cbor *cbor_bytes,const char *rbp_
     status = get_data_buffer_from_cbor(cbor_bytes, &buf, &buf_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((status == false), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Unable to retrieve data from cn_cbor");
     
-    if ( strcmp(rbp_item_name, STORAGE_RBP_ROT_NAME) == 0) {
-        fcc_status = fcc_rot_set(buf, buf_size);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_STORE_ERROR, exit, "Unable to store rot ");
-    } else {
-        kcm_status = storage_fcc_rbp_write(rbp_item_name, buf, buf_size, true);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_STORE_ERROR, exit, "Unable to store data to sotp");
+    
+    switch (buffer_type) {
+        case(FCC_BUNDLE_BUFFER_TYPE_ROT):
+            fcc_status = fcc_rot_set(buf, buf_size);
+            break;
+        case(FCC_BUNDLE_BUFFER_TYPE_ENTROPY):
+            fcc_status = fcc_entropy_set(buf, buf_size);
+            break;
+        default:
+            fcc_status = FCC_STATUS_ERROR; // Internal error should not happens. If it does, there is a bug in the code
+            break;
     }
 
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Unable to store data");
 
 exit:
     if (fcc_status != FCC_STATUS_SUCCESS) {

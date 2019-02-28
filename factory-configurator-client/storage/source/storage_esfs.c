@@ -382,7 +382,6 @@ kcm_status_e storage_fcc_rbp_write(
     int64_t aligned_8_bytes_buffer[MAX_SOTP_BUFFER_SIZE / 8];
     uint16_t sotp_buffer_size = 0;
     sotp_type_e sotp_type = SOTP_MAX_TYPES;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size > UINT16_MAX || data_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
@@ -414,7 +413,7 @@ kcm_status_e storage_fcc_rbp_write(
     memcpy(aligned_8_bytes_buffer, data, data_size);
 
     sotp_result = sotp_set(sotp_type, (uint16_t)(data_size), (const uint32_t*)aligned_8_bytes_buffer);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result != SOTP_SUCCESS), kcm_status = sotp_to_kcm_error_translation(sotp_result), "sotp_set failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result != SOTP_SUCCESS), sotp_to_kcm_error_translation(sotp_result), "sotp_set failed");
 
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -444,7 +443,6 @@ kcm_status_e storage_fcc_rbp_read(
     int64_t aligned_8_bytes_buffer[MAX_SOTP_BUFFER_SIZE / 8] = { 0 };
     size_t actual_data_size = 0;
     sotp_type_e sotp_type = SOTP_MAX_TYPES;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
@@ -461,7 +459,7 @@ kcm_status_e storage_fcc_rbp_read(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size < required_size), KCM_STATUS_INVALID_PARAMETER, "Wrong buf_size provided. Must be size of exactly %" PRIu32 " bytes", (uint32_t)required_size);
 
     sotp_result = sotp_get(sotp_type, (uint16_t)data_size, (uint32_t*)aligned_8_bytes_buffer, (uint16_t*)&actual_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result != SOTP_SUCCESS), kcm_status = sotp_to_kcm_error_translation(sotp_result), "sotp_get failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result != SOTP_SUCCESS), sotp_to_kcm_error_translation(sotp_result), "sotp_get failed");
 
     // Copy from aligned buffer to callers uint8_t* buffer
     memcpy(data, aligned_8_bytes_buffer, actual_data_size);

@@ -72,15 +72,11 @@
 #define SN_NSDL_EP_REGISTER_MESSAGE     1
 #define SN_NSDL_EP_UPDATE_MESSAGE       2
 
-#ifdef YOTTA_CFG_DISABLE_OBS_FEATURE
-#define COAP_DISABLE_OBS_FEATURE YOTTA_CFG_DISABLE_OBS_FEATURE
-#elif defined MBED_CONF_MBED_CLIENT_COAP_DISABLE_OBS_FEATURE
+#if defined MBED_CONF_MBED_CLIENT_COAP_DISABLE_OBS_FEATURE
 #define COAP_DISABLE_OBS_FEATURE MBED_CONF_MBED_CLIENT_COAP_DISABLE_OBS_FEATURE
 #endif
 
-#ifdef YOTTA_CFG_DISABLE_BOOTSTRAP_FEATURE
-#define MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE YOTTA_CFG_DISABLE_BOOTSTRAP_FEATURE
-#elif defined MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+#if defined MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 #define MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 #endif
 
@@ -127,7 +123,7 @@ static bool             validate(uint8_t* ptr, uint32_t len, char illegalChar);
 static bool             sn_nsdl_check_uint_overflow(uint16_t resource_size, uint16_t param_a, uint16_t param_b);
 static void             remove_previous_block_data(struct nsdl_s *handle, sn_nsdl_addr_s *src_ptr, const uint32_t block_number);
 static bool             update_last_block_data(struct nsdl_s *handle, sn_coap_hdr_s *coap_packet_ptr, bool block1);
-#if defined(FEA_TRACE_SUPPORT) || MBED_CONF_MBED_TRACE_ENABLE || YOTTA_CFG_MBED_TRACE || (defined(YOTTA_CFG) && !defined(NDEBUG))
+#if MBED_CONF_MBED_TRACE_ENABLE
 static const char*      sn_nsdl_coap_status_description(sn_coap_status_e status);
 static const char*      sn_nsdl_coap_message_code_desc(int msg_code);
 static const char*      sn_nsdl_coap_message_type_desc(int msg_type);
@@ -2378,7 +2374,7 @@ bool sn_nsdl_remove_resource_attribute(sn_nsdl_static_resource_parameters_s *par
 
 void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
 {
-#if defined(FEA_TRACE_SUPPORT) || MBED_CONF_MBED_TRACE_ENABLE || YOTTA_CFG_MBED_TRACE || (defined(YOTTA_CFG) && !defined(NDEBUG))
+#if MBED_CONF_MBED_TRACE_ENABLE
     if (!coap_header_ptr) {
         return;
     }
@@ -2482,7 +2478,7 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
 #endif
 }
 
-#if defined(FEA_TRACE_SUPPORT) || MBED_CONF_MBED_TRACE_ENABLE || YOTTA_CFG_MBED_TRACE || (defined(YOTTA_CFG) && !defined(NDEBUG))
+#if MBED_CONF_MBED_TRACE_ENABLE
 const char *sn_nsdl_coap_status_description(sn_coap_status_e status)
 {
     switch(status) {

@@ -136,20 +136,24 @@ fcc_status_e fcc_time_set(uint64_t time);
 
 /* === Entropy and RoT injection === */
 
-/** Sets Entropy.
-*   If  device does not have its own entropy - this function must be called after fcc_init() and prior to any other FCC or KCM functions.
-*   This API should be used if device has its own entropy and user wishes to add his own entropy.
+/** Sets non-volatile entropy that will be used when seeding deterministic random bit generator (DRBG) instances, for random number generations.
+*   To set non-volatile entropy, call this function after fcc_init() and prior to any other FCC or KCM functions.
+*   You must use this API if your device does not have a true random number generator (TRNG).
 *
 *     @param buf The buffer containing the entropy.
 *     @param buf_size The size of buf in bytes. Must be exactly FCC_ENTROPY_SIZE.
 *
 *     @returns
-*        Operation status.
+*        FCC_STATUS_SUCCESS - Entropy injected successfully.
+*        FCC_STATUS_ENTROPY_ERROR - Entropy already exists in device. Successive entropy sets are not permitted.
+*        FCC_STATUS_INVALID_PARAMETER - Either buf is NULL or buf_size does not equal FCC_ENTROPY_SIZE.
+*        FCC_STATUS_NOT_SUPPORTED - Image built in a way that does not expect entropy to be injected.
+*        Otherwise - any one of the `::fcc_status_e` errors.
 */
 fcc_status_e fcc_entropy_set(const uint8_t *buf, size_t buf_size);
 
 /** Sets root of trust
-*   If user wishes to set his own root of trust, this function must be called after fcc_init() and fcc_entropy_set() (if user sets his own entropy),
+*   To set your own root of trust, call this function after fcc_init() and fcc_entropy_set() (if you set your own entropy),
 *   and prior to any other FCC or KCM functions.
 *
 *     @param buf The buffer containing the root of trust.
