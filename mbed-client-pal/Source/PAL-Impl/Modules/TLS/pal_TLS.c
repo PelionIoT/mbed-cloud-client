@@ -576,14 +576,6 @@ palStatus_t pal_sslDebugging(uint8_t turnOn)
 }
 
 
-/*! Turn on/off the TLS library debugging for the given configuration handle. The logs are sent via the mbedTrace.
-*   In case of release mode, an error will be returned.
-*
-* @param[in] palTLSConf : the TLS confuguraiton to modify
-* @param[in] turnOn: if greater than 0 turn on debugging, otherwise turn it off
-*
-\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
-*/
 palStatus_t pal_sslSetDebugging(palTLSConfHandle_t palTLSConf, uint8_t turnOn)
 {
     palStatus_t status = PAL_SUCCESS;

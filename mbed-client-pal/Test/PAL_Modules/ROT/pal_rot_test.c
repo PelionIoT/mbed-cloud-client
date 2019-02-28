@@ -1,18 +1,20 @@
-/*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *******************************************************************************/
+// ----------------------------------------------------------------------------
+// Copyright 2016-2019 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ----------------------------------------------------------------------------
 
 #include "pal.h"
 #include "unity.h"
@@ -42,6 +44,13 @@ TEST_SETUP(pal_rot)
 // reset storage before each tests to avoid possible RoT leftovers
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     pal_SSTReset();
+#if !PAL_USE_HW_TRNG
+    // If no hardware trng - entropy must be injected for random to work
+    uint8_t entropy_buf[48] = { 0 };
+    status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
+    TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
+#endif
+
 #else
     sotp_reset();
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

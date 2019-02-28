@@ -412,7 +412,6 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
         // Set to NULL so that the user does not accidentally free a non NULL pointer after the function returns.
         *bundle_response_out = NULL;
     }
-
     // Check params
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!fcc_is_initialized()), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((bundle_response_out == NULL), FCC_STATUS_INVALID_PARAMETER, "Invalid bundle_response_out");
@@ -444,44 +443,33 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
     status = parse_keep_alive_session_group(main_list_cb);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, free_cbor_list_and_out, "parse_keep_alive_session_group failed");
 
-
-    //Until full implementation of entropy injection we need to set RoT first, otherwise RoT will be created by set entopy.
-    //Fixme : when entropy implemented cwitch order of RoT and entropy injection => first entropy, second RoT
-    /* If RoT injection is expected (to derive storage key) it also must be done prior to storage calls */
-    group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ROT_NAME);
-    if (group_value_cb) {
-        // FIXME: Use fcc_rot_set() instead
-        fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, STORAGE_RBP_ROT_NAME);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for RoT");
-    }
-
-    /*
+/*
      * In order for file functions to work properly, we must first inject the entropy, 
      * if we have one to inject. If entropy is expected, its existance is required for
      * every random number generation in the system.
-     * If FCC_ENTROPY_NAME / FCC_ROT_NAME not in bundle (and user did not use the fcc_entropy_set(), or fcc_rot_set()), 
+     * If FCC_ENTROPY_NAME not in bundle (and user did not use the fcc_entropy_set()), 
      * then device must have TRNG or storage functions will fail.
      */
     group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ENTROPY_NAME);
     if (group_value_cb) {
-        // FIXME: Use fcc_entropy_set() instead
-        fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, STORAGE_RBP_RANDOM_SEED_NAME);
+        fcc_status = fcc_bundle_process_buffer(group_value_cb, STORAGE_RBP_RANDOM_SEED_NAME, FCC_BUNDLE_BUFFER_TYPE_ENTROPY);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for entropy");
     }
-#if 0
+
     /* If RoT injection is expected (to derive storage key) it also must be done prior to storage calls */
     group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ROT_NAME);
     if (group_value_cb) {
-        // FIXME: Use fcc_rot_set() instead
-        fcc_status = fcc_bundle_process_sotp_buffer(group_value_cb, STORAGE_RBP_ROT_NAME);
+        fcc_status = fcc_bundle_process_buffer(group_value_cb, STORAGE_RBP_ROT_NAME, FCC_BUNDLE_BUFFER_TYPE_ROT);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for RoT");
     }
-#endif
+
     /*
      * At this point we assume that if user expects to inject an entropy - it exists
      * in storage, and if not - device has TRNG and it is safe to call storage functions.
-     * Therefore, we may now call kcm_init() which also initializes the time module (which
-     * uses secure storage).  
+     * The next calls may fail if for some unlikely reason, one of the following is true:
+     *     1. User expects an entropy (i.e MBEDTLS_ENTROPY_NV_SEED is defined), yet entropy
+     *        was not included in bundle, and fcc_entropy_set() was not called.
+     *     2. User does not expect an entropy and device does not have a TRNG (PAL_USE_HW_TRNG=0)
      */
 
     // Now we may initialize the KCM, including the secure time and the file systen

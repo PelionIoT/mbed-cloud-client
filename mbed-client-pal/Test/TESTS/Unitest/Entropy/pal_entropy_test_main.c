@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016-2018 ARM Ltd.
+ * Copyright 2016-2019 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,15 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "pal.h"
-#include "pal_plat_drbg.h"
+#include "test_runners.h"
 
-
-palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes)
+int main(int argc, char * argv[])
 {
-    return pal_plat_osRandomBuffer_blocking(randomBuf, bufSizeBytes);
-}
+    (void)argc;
+    (void)argv;
 
-// a simple wrapper, no need to keep it on platform layer. This uses also direct
-// call to pal_plat_osRandomBuffer() in order to let linker to remove as many unused
-// as possible.
-palStatus_t pal_osRandom32bit(uint32_t *randomInt)
-{
-    palStatus_t status;
-    status = pal_plat_osRandomBuffer_blocking((uint8_t*)randomInt, sizeof(uint32_t));
-    return status;
+    // the tests may actually assert on failure, so they may not return anything useful status
+    // and a nonzero return value is typically a sign of platform initialization failure
+    return palEntropyTestMain();
 }
-
 

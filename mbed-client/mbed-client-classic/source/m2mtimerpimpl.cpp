@@ -87,7 +87,7 @@ M2MTimerPimpl::~M2MTimerPimpl()
 void M2MTimerPimpl::initialize_tasklet()
 {
     // A micro-optimization to avoid operations on mutex on every time the timer is started.
-    // After all, the tasklet needs to be created just once for the lifecyle of whole Mbed cloud client.
+    // After all, the tasklet needs to be created just once for the lifecyle of whole client.
     if (_status == STATUS_INIT_NOT_DONE_YET) {
 
         eventOS_scheduler_mutex_wait();

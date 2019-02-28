@@ -63,6 +63,8 @@ file(GLOB PAL_TEST_RTOS_SRCS "${PAL_TESTS_SOURCE_DIR}/RTOS/*.c")
 
 file(GLOB PAL_TEST_ROT_SRCS "${PAL_TESTS_SOURCE_DIR}/ROT/*.c")
 
+file(GLOB PAL_TEST_ENTROPY_SRCS "${PAL_TESTS_SOURCE_DIR}/Entropy/*.c")
+
 file(GLOB PAL_TEST_SANITY_SRCS "${PAL_TESTS_SOURCE_DIR}/Sanity/*.c")
 
 file(GLOB PAL_TEST_NETWORK_SRCS "${PAL_TESTS_SOURCE_DIR}/Networking/*.c")
@@ -93,6 +95,8 @@ file(GLOB PAL_TEST_RUNNER_SANITY_SRCS "${PAL_TESTS_RUNNER_DIR}/Sanity/*.c")
 file(GLOB PAL_TEST_RUNNER_RTOS_SRCS "${PAL_TESTS_RUNNER_DIR}/RTOS/*.c")
 
 file(GLOB PAL_TEST_RUNNER_ROT_SRCS "${PAL_TESTS_RUNNER_DIR}/ROT/*.c")
+
+file(GLOB PAL_TEST_RUNNER_ENTROPY_SRCS "${PAL_TESTS_RUNNER_DIR}/Entropy/*.c")
 
 file(GLOB PAL_TEST_RUNNER_NETWORK_SRCS "${PAL_TESTS_RUNNER_DIR}/Networking/*.c")
 
@@ -146,6 +150,7 @@ set(test_src ${PAL_TEST_MAIN_SRCS})
 set (PAL_TEST_FLAGS
     -DPAL_TEST_RTOS
     -DPAL_TEST_ROT
+	-DPAL_TEST_ENTROPY
     -DPAL_TEST_DRBG
     -DPAL_TEST_FS
     -DPAL_TEST_UPDATE
@@ -184,6 +189,11 @@ set(rot_test_src ${test_src}; ${PAL_TEST_RUNNER_ROT_SRCS}; ${PAL_TEST_ROT_SRCS})
 CREATE_TEST_LIBRARY(ROTTests "${rot_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(ROTTests pal palROT palunity platformCommon)
 target_link_libraries(ROTTests pal palROT palunity platformCommon)
+
+set(entropy_test_src ${test_src}; ${PAL_TEST_RUNNER_ENTROPY_SRCS}; ${PAL_TEST_ENTROPY_SRCS}) 
+CREATE_TEST_LIBRARY(EntropyTests "${entropy_test_src}" "${PAL_TEST_FLAGS}")
+add_dependencies(EntropyTests pal palunity platformCommon)
+target_link_libraries(EntropyTests pal palunity platformCommon)
 
 set(network_test_src ${test_src}; ${PAL_TEST_RUNNER_NETWORK_SRCS}; ${PAL_TEST_NETWORK_SRCS}) 
 CREATE_TEST_LIBRARY(NetworkTests "${network_test_src}" "${PAL_TEST_FLAGS}")
@@ -239,6 +249,6 @@ target_link_libraries(SotpTests pal palunity platformCommon)
 set(all_test_src ${test_src}; ${PAL_TEST_RUNNER_FULL_SRCS})
 CREATE_TEST_LIBRARY(palTests "${all_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(palTests pal palunity sanityTests platformCommon)
-target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests NetworkTests DRBGTests FileSystemTests SSTTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
+target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests EntropyTests NetworkTests DRBGTests FileSystemTests SSTTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
 
 

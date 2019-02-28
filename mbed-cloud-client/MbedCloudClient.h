@@ -72,7 +72,7 @@ public:
 
 /*! \file MbedCloudClient.h
  *  \brief MbedCloudClient.
- *  This class provides an interface for handling all the mbed Cloud Client Interface operations
+ *  This class provides an interface for handling all the client interface operations
  *  including device provisioning, identity setup, device resource management defined in the OMA
  *  LWM2M specifications, and update firmware.
  *  Device resource management includes Bootstrapping, Client Registration, Device Management &
@@ -400,7 +400,7 @@ public:
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     /**
      * @brief Returns the pointer to the inner object list.
-     * The list is not allowed to be modified and is owned by the Mbed Cloud Client instance.
+     * The list is not allowed to be modified and is owned by the client instance.
      * @return The inner object list pointer.
      */
     const M2MBaseList *get_object_list() const;

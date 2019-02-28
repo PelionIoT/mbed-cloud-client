@@ -306,6 +306,16 @@ palStatus_t pal_CtrDRBGInit(palCtrDrbgCtxHandle_t* ctx, const void* seed, size_t
     return status;
 }
 
+palStatus_t pal_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx)
+{
+    palStatus_t status = PAL_SUCCESS;
+
+    PAL_VALIDATE_ARGUMENTS(NULLPTR == ctx)
+
+    status = pal_plat_CtrDRBGIsSeeded(ctx);
+    return status;
+}
+
 palStatus_t pal_CtrDRBGGenerate(palCtrDrbgCtxHandle_t ctx, unsigned char* out, size_t len)
 {
     palStatus_t status = PAL_SUCCESS;

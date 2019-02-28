@@ -86,6 +86,7 @@ fcc_status_e fcc_developer_flow(void)
     const fcc_deloveper_mode_item_params_s* mandatory_items_iter = &fcc_deloveper_mode_item_params_table[0];
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((!fcc_is_initialized()), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
 
     for (; mandatory_items_iter->item_name!= NULL; mandatory_items_iter++) {
 

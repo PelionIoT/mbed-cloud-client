@@ -76,4 +76,12 @@
     #define PAL_USE_HW_RTC 0
 #endif
 
+// DEVICE_TRNG is a define that mbed-os defines for every board that is configured to have a TRNG
+// mbedtls uses this define when gathering entropy 
+#if defined(DEVICE_TRNG) && !defined(PAL_USE_HW_TRNG)
+    #define PAL_USE_HW_TRNG 1
+#elif !defined(DEVICE_TRNG) && !defined(PAL_USE_HW_TRNG)
+    #define PAL_USE_HW_TRNG 0
+#endif
+
 #endif /* PAL_MBEDOS_CONFIGURATION_H_ */

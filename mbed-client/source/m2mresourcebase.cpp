@@ -663,8 +663,8 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
         } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {
             tr_debug("M2MResourceBase::handle_put_request() - Request Content-type: %d", coap_content_type);
 
-            if(COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||
-               COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_content_type) {
+            if(COAP_CONTENT_OMA_OPAQUE_TYPE != coap_content_type &&
+               COAP_CONTENT_OMA_PLAIN_TEXT_TYPE != coap_content_type) {
                 msg_code = COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT;
             } else {
 #ifndef DISABLE_BLOCK_MESSAGE
@@ -694,21 +694,16 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                     msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                 } else if ((strcmp(uri_path(), SERVER_LIFETIME_PATH) == 0)) {
                     // Check that lifetime can't go below 60s
-                    char *query = (char*)alloc_string_copy(received_coap_header->payload_ptr,
-                                                           received_coap_header->payload_len);
-
-                    if (query) {
-                        int32_t lifetime = atol(query);
-                        if (lifetime < MINIMUM_REGISTRATION_TIME) {
+                    if(received_coap_header->payload_ptr) {
+                        int64_t lifetime;
+                        bool success = String::convert_ascii_to_int((char*)received_coap_header->payload_ptr, received_coap_header->payload_len, lifetime);
+                        if ((success == false) || (lifetime < MINIMUM_REGISTRATION_TIME)) {
                             tr_error("M2MResourceBase::handle_put_request() - lifetime value % " PRId32 " not acceptable", lifetime);
                             msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                         }
-                        free(query);
-                    }
-                    else {
-                        // memory allocation for query fails
-                        tr_error("M2MResourceBase::handle_put_request() - Out of memory !!!");
-                        msg_code = COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR;
+                    } else {
+                        tr_error("M2MResourceBase::handle_put_request() - empty lifetime payload not acceptable");
+                        msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                     }
                 }
 

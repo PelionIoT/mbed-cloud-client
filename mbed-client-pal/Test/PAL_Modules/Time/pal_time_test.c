@@ -46,6 +46,14 @@ TEST_SETUP(pal_time)
     // Reset storage before pal_initTime since there might be CMAC lefovers
     // in internal flash which might fail storage access in pal_initTime
     pal_SSTReset();
+
+#if !PAL_USE_HW_TRNG
+    // If no hardware trng - entropy must be injected for random to work
+    uint8_t entropy_buf[48] = { 0 };
+    status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
+    TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
+#endif
+
 #else 
     sotp_reset();
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

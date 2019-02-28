@@ -1,5 +1,23 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 2.2.1 (28.02.2019)
+
+#### Device Management Connect client
+
+* Fixed handling of blockwise message during concurrent notification sending.
+* Fixed handling of content type format for PUT requests on resource level. Client only accepts `text/plain` and `opaque` content-types.
+
+#### Factory Configurator client
+
+* [Mbed OS] Support for injecting external entropy for devices using [KVstore](https://os.mbed.com/docs/mbed-os/v5.11/apis/kvstore.html) (internal flash).
+
+#### Platform Adaptation Layer (PAL)
+
+* [Mbed OS] Fixed the usage of deprecated socket APIs.
+* Added logic to `pal_plat_initTime` to recover from data corruption due to power failure.
+* Improved API documentation.
+* [Mbed OS] Support for injecting external entropy for devices using [KVstore](https://os.mbed.com/docs/mbed-os/v5.11/apis/kvstore.html) (internal flash).
+
 ### Release 2.2.0 (25.02.2019)
 
 #### Device Management Connect client
@@ -7,8 +25,8 @@
 * Updated Mbed CoAP to 4.7.4.
     * Mbed CoAP for non-Mbed OS platforms is one patch release ahead of the Mbed OS version (5.11.3) of Mbed CoAP.
 * Implemented DTLS fragmentation support for Device Management Client.
-  * If your device has constraints with network buffer sizes where the DTLS handshake packets cannot fit into the single MTU, this configuration allow smaller packet size (minimum fragment length of 512 bytes + DTLS headers).
-  * This feature is supported from MbedTLS 2.15.1 onwards.
+  * If your device has constraints with network buffer sizes where the DTLS handshake packets cannot fit into a single MTU, this configuration allows smaller packet size (minimum fragment length of 512 bytes + DTLS headers).
+  * This feature is supported from Mbed TLS 2.15.1 onwards.
   * To enable support, define `mbed-client-pal.pal-max-frag-len = <value>` in the `mbed_app.json` file.
   * Value 0 = disabled, 1 = `MBEDTLS_SSL_MAX_FRAG_LEN_512`, 2= `MBEDTLS_SSL_MAX_FRAG_LEN_1024`, 3 = `MBEDTLS_SSL_MAX_FRAG_LEN_2048`.
   * The value must be twice the defined value of `SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE`, otherwise your client will give a compilation error with mismatching configuration options.

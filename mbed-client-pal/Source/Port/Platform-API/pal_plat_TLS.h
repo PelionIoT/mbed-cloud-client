@@ -131,8 +131,8 @@ palStatus_t pal_plat_addEntropySource(palEntropySource_f entropyCallback);
 
 /*!	\brief Set the supported cipher suites to the configuration context.
  *
- * @param[in] palTLSConf: The TLS configuration context.
- * @param[in] palSuites: The supported cipher suites to be added.
+ * @param[in] sslConf: The TLS configuration context.
+ * @param[in] palSuite: The supported cipher suites to be added.
  *
  * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */

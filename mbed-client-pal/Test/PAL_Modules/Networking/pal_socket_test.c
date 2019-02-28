@@ -644,6 +644,9 @@ void palNetClientFunc(void const *argument)
 
 /*! \brief /b ServerSocketScenario tests a TCP client-server scenario using device loopback.
 *
+* \note In mbed-os lwip loopback feature must be enabled to make test working.
+* This can be done by enabling LWIP_NETIF_LOOPBACK flag.
+* The sequence below is an approximation of the actual order of execution.
 * \note The test steps are divided into those in the server main thread (S1..S13) and those in the client thread (C1..C8).
 * The sequence below is an approximation of the actual order of execution.
 *
@@ -674,10 +677,7 @@ void palNetClientFunc(void const *argument)
 */
 TEST(pal_socket, ServerSocketScenario)
 {
-#ifdef TARGET_LIKE_MBED
-    // TODO: fix with https://jira.arm.com/browse/IOTCLT-3197
-    TEST_IGNORE_MESSAGE("Ignored, IOTCLT-3197, ServerSocketScenario causes stackoverflow");
-#endif
+
     palStatus_t result = PAL_SUCCESS;
     palSocketAddress_t address2 = { 0 };
     const char* messageOut = "HTTP/1.0 200 OK";

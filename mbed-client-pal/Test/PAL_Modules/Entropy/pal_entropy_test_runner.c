@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2017-2018 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,17 +16,12 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#ifndef MBED_STATS_HELPER_H
-#define MBED_STATS_HELPER_H
+#include "unity.h"
+#include "unity_fixture.h"
+#include "pal.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void print_mbed_stats(void);
-
-#ifdef __cplusplus
+TEST_GROUP_RUNNER(pal_entropy)
+{
+    RUN_TEST_CASE(pal_entropy, inject);
 }
-#endif
 
-#endif /* MBED_STATS_HELPER_H */

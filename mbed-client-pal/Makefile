@@ -72,18 +72,22 @@ C_SRC += ${wildcard Source/PAL-Impl/Modules/Storage/Flash/*.c}
 C_SRC += ${wildcard Source/PAL-Impl/Modules/Time/*.c}
 C_SRC += ${wildcard Source/PAL-Impl/Modules/TLS/*.c}
 C_SRC += ${wildcard Source/PAL-Impl/Modules/Update/*.c}
+C_SRC += ${wildcard Source/PAL-Impl/Modules/Entropy/*.c}
+
 
 # library specific
 C_SRC += ${wildcard Source/Port/Reference-Impl/Lib_Specific/mbedTLS/Crypto/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/Lib_Specific/mbedTLS/TLS/*.c}
-C_SRC += ${wildcard Source/Port/Reference-Impl/Lib_Specific/mbedTLS/Entropy/*.c}
+C_SRC += ${wildcard Source/Port/Reference-Impl/Lib_Specific/mbedTLS/DRBG/*.c}
 
 # platform specific code
 C_SRC += ${wildcard Source/Port/Reference-Impl/OS_Specific/SXOS/RTOS/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/OS_Specific/SXOS/Networking/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/OS_Specific/SXOS/Storage/FileSystem/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Time/*.c}
+C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/DRBG/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/DRBG/SOTP/*.c}
+C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Entropy/*.c}
 
 # flash emulation layer
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Storage/Flash/FlashOverFilesystem/*.c}

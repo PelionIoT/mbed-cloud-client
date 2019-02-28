@@ -989,28 +989,87 @@ palStatus_t pal_plat_CtrDRBGFree(palCtrDrbgCtxHandle_t* ctx)
     return status;
 }
 
-palStatus_t pal_plat_CtrDRBGSeed(palCtrDrbgCtxHandle_t ctx, const void* seed, size_t len)
+palStatus_t pal_plat_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx)
+{
+    // If using mbedtls with entropy sources, if the reseed_counter is 0 - this means seeding has not been done yet and generating a random number will not work
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)ctx;
+    if (palCtrDrbgCtx->ctrDrbgCtx.reseed_counter > 0)
+    {
+        return PAL_SUCCESS;
+    }
+    else if (palCtrDrbgCtx->ctrDrbgCtx.reseed_counter == 0)
+    {
+        return PAL_ERR_CTR_DRBG_NOT_SEEDED;
+    }
+    else 
+    {
+        return PAL_ERR_GENERIC_FAILURE; // Having the reseed counter negative indicates some wierd error. Perhaps uninitialized context
+    }
+#else
+    // If not using mbedtls with entropy sources, reseed_counter will always be 0 and seeding is done in a lazy fashion
+    // so we return the not seeded error so when pal_plat_CtrDRBGSeedFromEntropySources() is called, we will seed with the mock
+    // entropy function and context as necessary
+    return PAL_ERR_CTR_DRBG_NOT_SEEDED;
+#endif
+}
+
+// FIXME: Currently not public in pal_plat_Crypto.h and is called from pal_plat_drbg_w_entropy_sources.c
+// With a forward declaration
+// This function will later be public, deprecating pal_plat_CtrDRBGSeed() (pal_plat_CtrDRBGInit will call this directly).
+// Changing this requires some work - therefore not done yet
+/**
+ * If ctx is not seeded - seed it
+ * If ctx is already seeded - reseed it
+ */
+palStatus_t pal_plat_CtrDRBGSeedFromEntropySources(palCtrDrbgCtxHandle_t ctx, int (*f_entropy)(void *, unsigned char *, size_t), const void* additionalData, size_t additionalDataLen)
 {
     palStatus_t status = PAL_SUCCESS;
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)ctx;
 
-    platStatus = mbedtls_ctr_drbg_seed_entropy_len(&palCtrDrbgCtx->ctrDrbgCtx, pal_plat_entropySourceDRBG, &palCtrDrbgCtx->entropy, seed, len, 0);
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    status = pal_CtrDRBGIsSeeded(ctx);
+    if (status == PAL_ERR_CTR_DRBG_NOT_SEEDED) // First call - DRBG not seeded yet
     {
-        switch(platStatus)
-        {
-            case MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED:
-                status = PAL_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED;
-                break;
-            default:
-                {
-                    PAL_LOG_ERR("Crypto ctrdrbg seed status %" PRId32 "", platStatus);
-                    status = PAL_ERR_GENERIC_FAILURE;
-                }
-        }
+        platStatus = mbedtls_ctr_drbg_seed(&palCtrDrbgCtx->ctrDrbgCtx, f_entropy, &palCtrDrbgCtx->entropy, additionalData, additionalDataLen);
+    } 
+    
+    /*
+     * DRBG already seeded, so function was invoked for reseeding -
+     * perhaps storage was deleted and new entropy injected.
+     * Note that entropy callback and context are already in palCtrDrbgCtx->ctrDrbgCtx context
+     */
+    else if (status == PAL_SUCCESS)
+    {
+        platStatus = mbedtls_ctr_drbg_reseed(&palCtrDrbgCtx->ctrDrbgCtx, additionalData, additionalDataLen);
     }
+    else
+    {
+        return PAL_ERR_GENERIC_FAILURE; 
+    }
+    
+    switch(platStatus)
+    {
+        case CRYPTO_PLAT_SUCCESS:
+            status = PAL_SUCCESS;
+            break;
+        case MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED:
+            status = PAL_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED;
+            break;
+        default:
+            {
+                PAL_LOG_ERR("Crypto ctrdrbg seed status %" PRId32 "", platStatus);
+                status = PAL_ERR_GENERIC_FAILURE;
+            }
+    }
+
     return status;
+}
+
+// FIXME: When pal_plat_CtrDRBGSeedFromEntropySources is public, this function should no longer be used
+palStatus_t pal_plat_CtrDRBGSeed(palCtrDrbgCtxHandle_t ctx, const void* seed, size_t len)
+{
+    return pal_plat_CtrDRBGSeedFromEntropySources(ctx, pal_plat_entropySourceDRBG, seed, len);
 }
 
 palStatus_t pal_plat_CtrDRBGGenerate(palCtrDrbgCtxHandle_t ctx, unsigned char* out, size_t len)
@@ -1024,7 +1083,16 @@ palStatus_t pal_plat_CtrDRBGGenerateWithAdditional(palCtrDrbgCtxHandle_t ctx, un
     palStatus_t status = PAL_SUCCESS;
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)ctx;
-    
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    // If using mbedtls with entropy sources, make sure the DRBG is seeded
+    status = pal_plat_CtrDRBGIsSeeded(ctx);
+    if (status != PAL_SUCCESS)
+    {
+        return status;
+    }
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
     platStatus = mbedtls_ctr_drbg_random_with_add(&palCtrDrbgCtx->ctrDrbgCtx, out, len, additional, additionalLen);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
@@ -2133,7 +2201,13 @@ palStatus_t pal_plat_x509CSRFromCertWriteDER(palX509Handle_t x509Cert, palx509CS
 #endif
 PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len)
 {
-    (void)data;
+    palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)data;
+    
+    // Simply signal to ourselves that the DRBG is seeded (we set the seed as the additional data when seeding)
+    if (data)
+    {
+        palCtrDrbgCtx->ctrDrbgCtx.reseed_counter = 1;
+    }
     return CRYPTO_PLAT_SUCCESS;
 }
 

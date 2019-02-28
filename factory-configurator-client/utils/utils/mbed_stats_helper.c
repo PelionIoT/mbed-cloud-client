@@ -34,7 +34,7 @@
     Print mbed-os stack and heap usage to stdout and to text file named mbedos_stats.txt.
     Note: Make sure MBED_HEAP_STATS_ENABLED or MBED_STACK_STATS_ENABLED flags are defined
 */
-void print_mbed_stats()
+void print_mbed_stats(void)
 {
     palStatus_t pal_result = PAL_SUCCESS;
     // Max size of directory acquired by pal_fsGetMountPoint + file name (including '/') + '\0'

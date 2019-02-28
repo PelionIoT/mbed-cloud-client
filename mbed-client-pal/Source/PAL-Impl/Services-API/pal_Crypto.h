@@ -446,6 +446,18 @@ palStatus_t pal_CCMEncrypt(palCCMHandle_t ctx, unsigned char* input,
  */
 palStatus_t pal_CtrDRBGInit(palCtrDrbgCtxHandle_t* ctx, const void* seed, size_t len);
 
+/*! \brief Check whether a Counter mode Deterministic Random Byte Generator (CTR-DRBG) context is seeded.
+ *
+ * Calls to `pal_CtrDRBGGenerate()` only succeed when the context is seeded.
+ *
+ * @param[in] ctx:	The CTR-DRBG context to be checked.
+ *
+ * \return PAL_SUCCESS if the CTR-DRBG is seeded.
+ * \return PAL_ERR_CTR_DRBG_NOT_SEEDED if the CTR-DRBG is not yet seeded, meaning calls to `pal_CtrDRBGGenerate()` will fail.
+ * \return Any other negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx);
+
 /*! \brief Generate a pseudo random number using the Counter mode Deterministic Random Byte Generator (CTR-DRBG).
  *
  * @param[in] ctx:        The CTR-DRBG context.

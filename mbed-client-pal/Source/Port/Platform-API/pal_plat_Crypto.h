@@ -304,6 +304,18 @@ palStatus_t pal_plat_CtrDRBGInit(palCtrDrbgCtxHandle_t* ctx);
  */
 palStatus_t pal_plat_CtrDRBGFree(palCtrDrbgCtxHandle_t* ctx);
 
+/*! \brief Check whether a Counter mode Deterministic Random Byte Generator (CTR-DRBG) context is seeded.
+ *
+ * Calls to `pal_plat_CtrDRBGGenerate()` only succeed when the context is seeded.
+ *
+ * @param[in] ctx:	The CTR-DRBG context to be checked.
+ *
+ * \return PAL_SUCCESS if the CTR-DRBG is seeded.
+ * \return PAL_ERR_CTR_DRBG_NOT_SEEDED if the CTR-DRBG is not yet seeded, meaning calls to `pal_plat_CtrDRBGGenerate()` will fail.
+ * \return Any other negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_plat_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx);
+
 /*!	\brief Set the initial seed for a Counter mode Deterministic Random Byte Generation (CTR-DRBG) context.
  *
  * @param[in] ctx:	The CTR-DRBG context to be seeded.
