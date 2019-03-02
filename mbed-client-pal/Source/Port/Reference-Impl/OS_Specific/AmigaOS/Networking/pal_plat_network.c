@@ -199,6 +199,7 @@ enum AsyncAction {
     DO_NOTHING,
     DO_CONNECT,
     DO_SEND,
+    DO_RECV,
     DO_GETHOSTBYNAME,
 };
 
@@ -207,6 +208,7 @@ struct AsyncActionStruct {
     void *arg1;
     void *arg2;
     void *arg3;
+    int resultCode;
     int returnVal;
 };
 
@@ -319,7 +321,7 @@ STATIC struct Hook error_hook =
 struct pollfd {
     int fd;
     //short events; /* not used */
-    short revents; /* not used */
+    //short revents; /* not used */
 };
 
 /* Type used for the number of file descriptors.  */
@@ -492,6 +494,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     struct fd_set fd_read_set;
     struct fd_set fd_write_set;
     struct fd_set fd_except_set;
+    int    fd_id = 0;
     // SIGBREAKF_CTRL_D = remove socket
     // SIGBREAKF_CTRL_E = add socket
     // SIGBREAKF_CTRL_F = kill it
@@ -521,7 +524,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
     while (result == PAL_SUCCESS) //As long as all goes well loop forever
     {
-        printf("wait for mutex\n");
+        //printf("wait for mutex\n");
 
         // Critical section to update globals
         result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
@@ -544,8 +547,12 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
             for (int i=0; i < nfds; i++)
             {
-                fds[i].revents = 0;
-                s_callbackFilter[i] = 0;
+                //fds[i].revents = 0;
+                //s_callbackFilter[i] = 0;
+                if(fds[i].fd > fd_id)
+                {
+                    fd_id = fds[i].fd;
+                }
             }
         }
         result = pal_osMutexRelease(s_mutexSocketCallbacks);
@@ -555,13 +562,12 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             break;
         }
 
-        printf("wait for socket signals n: %u bmask: %u\n", nfds, bmask);
+        //printf("wait for socket signals n: %u bmask: %u\n", nfds, bmask);
         // block until a SIGIO signal is received or break signal
         //if (lastUSRCounter == s_palUSR1Counter) // no updates to the sockets that need to be polled (wait for next IO)  - if there were updates skip waiting and proceeed to poll
-        res = waitselect(nfds + 1, &fd_read_set, &fd_write_set, &fd_except_set, NULL, &bmask);
-        //res = waitselect(nfds + 1, NULL, &fd_write_set, NULL, NULL, &bmask);
+        res = waitselect(fd_id + 1, &fd_read_set, &fd_write_set, &fd_except_set, NULL, &bmask);
 
-        printf("got signals n: %u bmask: %u\n", res, bmask);
+        //printf("got signals n: %d bmask: %u\n", res, bmask);
 
         // Check for thread termination request
         if(bmask & SIGBREAKF_CTRL_F)
@@ -636,13 +642,52 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
               case DO_CONNECT:
                 {
                     printf("DO_CONNECT\n");
-                    g_asyncActionStruct.returnVal = connect((intptr_t)g_asyncActionStruct.arg1,(struct sockaddr *)g_asyncActionStruct.arg2, *((int *)g_asyncActionStruct.arg3));
+                    int c_res = connect((intptr_t)g_asyncActionStruct.arg1,(struct sockaddr *)g_asyncActionStruct.arg2, *((int *)g_asyncActionStruct.arg3));
+                    printf("Connect ret_val: %d\n",  g_asyncActionStruct.resultCode);
+                    if(c_res == -1)
+                    {
+                        g_asyncActionStruct.resultCode = translateErrorToPALError(errno);
+                    } else
+                    {
+                        g_asyncActionStruct.resultCode = PAL_SUCCESS;
+                    }
                 }
                 break;
               case DO_SEND:
                 {
                     printf("DO_SEND\n");
-                    g_asyncActionStruct.returnVal = send((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0);
+                    int s_res = send((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0);
+                    printf("s_res: %d\n", s_res);
+                    if(s_res == -1)
+                    {
+                        g_asyncActionStruct.resultCode = translateErrorToPALError(errno);
+                    }
+                    else
+                    {
+                        g_asyncActionStruct.resultCode = PAL_SUCCESS;
+                        g_asyncActionStruct.returnVal = s_res;
+                    }
+                    printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
+
+                }
+                break;
+              case DO_RECV:
+                {
+                    printf("DO_RECV\n");
+                    int r_res = recv((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0);
+                    printf("r_res: %d\n", r_res);
+
+                    if(r_res == -1)
+                    {
+                        g_asyncActionStruct.resultCode = translateErrorToPALError(errno);
+                    }
+                    else
+                    {
+                        g_asyncActionStruct.resultCode = PAL_SUCCESS;
+                        g_asyncActionStruct.returnVal = r_res;
+                    }
+                    printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
+
                 }
                 break;
               case DO_GETHOSTBYNAME:
@@ -671,7 +716,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         // socket) the next call to ppoll will also immediately return with the same result.
         if(res >0 || errno == EINTR)
         {
-            printf("in signal handler\n");
+            //printf("in signal handler\n");
             unsigned int i;
             errno = 0;
             // Some event was triggered, so iterate over all watched fds's and call the relevant callbacks.
@@ -679,13 +724,31 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             {
                 if(FD_ISSET(fds[i].fd, &fd_read_set) || FD_ISSET(fds[i].fd, &fd_write_set) || FD_ISSET(fds[i].fd, &fd_except_set))
                 {
-                    printf("found socket %u\n", i);
+                    //printf("found socket %u\n", i);
                     //if ((fds[i].revents != filter) && ((fds[i].revents != POLLOUT) || (fds[i].revents != s_callbackFilter[i])) ) // this is handlign for a special scenario when a specific event which shouldnt happen is sent to all unconnected sockets in Linux triggering an unwanted callback.
-                    if (!(FD_ISSET(fds[i].fd, &fd_write_set) && FD_ISSET(fds[i].fd, &fd_except_set)))
+                    //if (!(FD_ISSET(fds[i].fd, &fd_write_set) && FD_ISSET(fds[i].fd, &fd_except_set)))
+
+                    if (FD_ISSET(fds[i].fd, &fd_write_set) && !(s_callbackFilter[i] & 1))
                     {
-                        printf("callback triggered\n");
+                        s_callbackFilter[i] |= 1;
+                        printf("write callback triggered\n");
                         callbacks[i](callbackArgs[i]);
                     }
+
+                    if (FD_ISSET(fds[i].fd, &fd_read_set) && !(s_callbackFilter[i] & (1 << 1)))
+                    {
+                        s_callbackFilter[i] |= 1 << 1;
+                        printf("read callback triggered\n");
+                        callbacks[i](callbackArgs[i]);
+                    }
+
+                    if (FD_ISSET(fds[i].fd, &fd_except_set) && !(s_callbackFilter[i] & (1 << 2)))
+                    {
+                        s_callbackFilter[i] |= 1 << 2;
+                        printf("except callback triggered\n");
+                        callbacks[i](callbackArgs[i]);
+                    }
+
                     result = pal_osMutexWait(s_mutexSocketEventFilter, PAL_RTOS_WAIT_FOREVER);
                     if (PAL_SUCCESS != result)
                     {
@@ -710,7 +773,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         }
         else
         {
-            PAL_LOG_ERR("Error in async socket manager");
+            PAL_LOG_ERR("Error in async socket manager, errno: %d\n", errno);
         }
     }  // while
 
@@ -1333,14 +1396,9 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
         Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
 
         // Wait for the async action to complete
-        result = pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+        pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
 
-        res = g_asyncActionStruct.returnVal;
-
-        if(res == -1)
-        {
-            result = translateErrorToPALError(errno);
-        }
+        result = g_asyncActionStruct.resultCode;
     }
 
     return result;
@@ -1351,20 +1409,31 @@ palStatus_t pal_plat_recv(palSocket_t socket, void *buffer, size_t len, size_t* 
     palStatus_t result = PAL_SUCCESS;
     ssize_t res;
 
+    printf("pal_plat_recv\n");
+
     clearSocketFilter((intptr_t)socket);
-    res = recv((intptr_t)socket, buffer, len, 0);
-    if(res ==  -1)
+
+    g_asyncActionStruct.action = DO_RECV;
+    g_asyncActionStruct.arg1 = (void *)socket;
+    g_asyncActionStruct.arg2 = (void *)buffer;
+    g_asyncActionStruct.arg3 = (void *)&len;
+
+    Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
+
+    // Wait for the async action to complete
+    pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+
+    result = g_asyncActionStruct.resultCode;
+
+    if(result == PAL_SUCCESS)
     {
-        result = translateErrorToPALError(errno);
-    }
-    else
-    {
-        if (0 == res)
+        if(0 == g_asyncActionStruct.returnVal)
         {
             result = PAL_ERR_SOCKET_CONNECTION_CLOSED;
         }
-        *recievedDataSize = res;
+        *recievedDataSize = g_asyncActionStruct.returnVal;
     }
+
     return result;
 }
 
@@ -1383,18 +1452,13 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
     Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
 
     // Wait for the async action to complete
-    result = pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+    pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
 
-    res = g_asyncActionStruct.returnVal;
+    result = g_asyncActionStruct.resultCode;
 
-    // should probably handle these in the async manager, but will do(?) for now
-    if(res == -1)
+    if(result == PAL_SUCCESS)
     {
-        result = translateErrorToPALError(errno);
-    }
-    else
-    {
-        *sentDataSize = res;
+        *sentDataSize = g_asyncActionStruct.returnVal;
     }
 
     return result;
