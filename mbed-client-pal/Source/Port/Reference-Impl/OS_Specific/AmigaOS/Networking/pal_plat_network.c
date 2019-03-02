@@ -495,6 +495,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
     struct fd_set fd_write_set;
     struct fd_set fd_except_set;
     int    fd_id = 0;
+    bool   trigger_callback = false;
     // SIGBREAKF_CTRL_D = remove socket
     // SIGBREAKF_CTRL_E = add socket
     // SIGBREAKF_CTRL_F = kill it
@@ -732,20 +733,26 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                     {
                         s_callbackFilter[i] |= 1;
                         printf("write callback triggered\n");
-                        callbacks[i](callbackArgs[i]);
+                        trigger_callback = true;
                     }
 
                     if (FD_ISSET(fds[i].fd, &fd_read_set) && !(s_callbackFilter[i] & (1 << 1)))
                     {
                         s_callbackFilter[i] |= 1 << 1;
                         printf("read callback triggered\n");
-                        callbacks[i](callbackArgs[i]);
+                        trigger_callback = true;
                     }
 
                     if (FD_ISSET(fds[i].fd, &fd_except_set) && !(s_callbackFilter[i] & (1 << 2)))
                     {
                         s_callbackFilter[i] |= 1 << 2;
                         printf("except callback triggered\n");
+                        trigger_callback = true;
+                    }
+
+                    if(trigger_callback)
+                    {
+                        trigger_callback = false;
                         callbacks[i](callbackArgs[i]);
                     }
 
