@@ -195,6 +195,23 @@ BOOL isAsyncSocket(int socket)
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
 
+enum AsyncAction {
+    DO_NOTHING,
+    DO_CONNECT,
+    DO_SEND,
+    DO_GETHOSTBYNAME,
+};
+
+struct AsyncActionStruct {
+    int action;
+    void *arg1;
+    void *arg2;
+    void *arg3;
+    int returnVal;
+};
+
+struct AsyncActionStruct g_asyncActionStruct;
+
 #include <exec/types.h>
 extern struct Library * __SocketBase;
 
@@ -311,7 +328,7 @@ typedef unsigned long int nfds_t;
 static palThreadID_t s_pollThread = NULLPTR;
 static palMutexID_t s_mutexSocketCallbacks = 0;
 static palMutexID_t s_mutexSocketEventFilter = 0;
-static palSemaphoreID_t s_socketCreateSemaphore = 0;
+static palSemaphoreID_t s_socketAsyncActionSemaphore = 0;
 static palSemaphoreID_t s_socketCallbackSemaphore = 0;
 // Replace s_socketCallbackSignalSemaphore with message port that waits for (Wait) signals from:
 // - sockets directly: s_palIOCounter++; (ditch the variable as well)
@@ -607,12 +624,42 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             }
 
             //Signal async create socket that socket has been created
-            pal_osSemaphoreRelease(s_socketCreateSemaphore);
+            pal_osSemaphoreRelease(s_socketAsyncActionSemaphore);
         }
 
         if(bmask & SIGBREAKF_CTRL_D)
         {
-            printf("SIGBREAKF_CTRL_D signaled (Close socket)\n");
+            printf("SIGBREAKF_CTRL_D signaled (async socket action)\n");
+
+            switch(g_asyncActionStruct.action)
+            {
+              case DO_CONNECT:
+                {
+                    printf("DO_CONNECT\n");
+                    g_asyncActionStruct.returnVal = connect((intptr_t)g_asyncActionStruct.arg1,(struct sockaddr *)g_asyncActionStruct.arg2, *((int *)g_asyncActionStruct.arg3));
+                }
+                break;
+              case DO_SEND:
+                {
+                    printf("DO_SEND\n");
+                    g_asyncActionStruct.returnVal = send((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0);
+                }
+                break;
+              case DO_GETHOSTBYNAME:
+                {
+                    printf("DO_GETHOSTBYNAME\n");
+                    g_asyncActionStruct.arg2 = (void *)gethostbyname((const char *)g_asyncActionStruct.arg1);
+                }
+                break;
+              default:
+                break;
+            };
+
+            if(g_asyncActionStruct.action != 0)
+            {
+                g_asyncActionStruct.action = DO_NOTHING;
+                pal_osSemaphoreRelease(s_socketAsyncActionSemaphore);
+            }
         }
 
         // Restore signal mask
@@ -685,6 +732,8 @@ palStatus_t pal_plat_socketsInit(void* context)
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
 
+    g_asyncActionStruct.action = DO_NOTHING;
+
     FD_ZERO(&s_fdset);
 
     result = pal_osMutexCreate(&s_mutexSocketCallbacks);
@@ -706,7 +755,7 @@ palStatus_t pal_plat_socketsInit(void* context)
         return result;
     }
 
-    result = pal_osSemaphoreCreate(0, &s_socketCreateSemaphore);
+    result = pal_osSemaphoreCreate(0, &s_socketAsyncActionSemaphore);
     if (result != PAL_SUCCESS)
     {
         return result;
@@ -847,7 +896,7 @@ palStatus_t pal_plat_socketsTerminate(void* context)
         firstError = result;
     }
 
-    result = pal_osMutexDelete(&s_socketCreateSemaphore);
+    result = pal_osMutexDelete(&s_socketAsyncActionSemaphore);
     if ((PAL_SUCCESS != result ) && (PAL_SUCCESS == firstError))
     {
         // TODO print error using logging mechanism when available.
@@ -1261,7 +1310,6 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     return result;
 }
 
-
 palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
 {
     int result = PAL_SUCCESS;
@@ -1277,7 +1325,17 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
         // clean filter to get the callback on first attempt
         clearSocketFilter((intptr_t)socket);
 
-        res = connect((intptr_t)socket,(struct sockaddr *)&internalAddr, addressLen);
+        g_asyncActionStruct.action = DO_CONNECT;
+        g_asyncActionStruct.arg1 = (void *)socket;
+        g_asyncActionStruct.arg2 = (void *)&internalAddr;
+        g_asyncActionStruct.arg3 = (void *)&addressLen;
+
+        Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
+
+        // Wait for the async action to complete
+        result = pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+
+        res = g_asyncActionStruct.returnVal;
 
         if(res == -1)
         {
@@ -1317,7 +1375,19 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 
     clearSocketFilter((intptr_t)socket);
 
-    res = send((intptr_t)socket, buf, len, 0);
+    g_asyncActionStruct.action = DO_SEND;
+    g_asyncActionStruct.arg1 = (void *)socket;
+    g_asyncActionStruct.arg2 = (void *)buf;
+    g_asyncActionStruct.arg3 = (void *)&len;
+
+    Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
+
+    // Wait for the async action to complete
+    result = pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+
+    res = g_asyncActionStruct.returnVal;
+
+    // should probably handle these in the async manager, but will do(?) for now
     if(res == -1)
     {
         result = translateErrorToPALError(errno);
@@ -1335,15 +1405,13 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket)
 {
-    int err;
     palStatus_t result;
 
-    //We pass this data structure to async manager thread which creates socket for us
+    //Pass this data structure to async manager thread which creates socket for us
+    //TODO change to use the CTRL_D signal with the same struct as others do (and add more args)
     s_async_socket.domain = domain;
     s_async_socket.type = type;
-    //TODO fix blocking connect for asynchronous sockets
-    //s_async_socket.nonBlockingSocket = nonBlockingSocket;
-    s_async_socket.nonBlockingSocket = true;
+    s_async_socket.nonBlockingSocket = nonBlockingSocket;
     s_async_socket.interfaceNum = interfaceNum;
     s_async_socket.socket = socket;
     s_async_socket.callback = callback;
@@ -1353,7 +1421,7 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
     Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_E);
 
     // Wait for the socket to be created
-    result = pal_osSemaphoreWait(s_socketCreateSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+    result = pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
     if (result != PAL_SUCCESS)
     {
         // TODO print error using logging mechanism when available.
@@ -1377,7 +1445,16 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
     struct sockaddr_in remotehost;
     unsigned int i = 0;
 
-    hn = gethostbyname(url);
+    g_asyncActionStruct.action = DO_GETHOSTBYNAME;
+    g_asyncActionStruct.arg1 = (void *)url;
+
+    Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
+
+    // Wait for the async action to complete
+    result = pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+
+    hn = (struct hostent *)g_asyncActionStruct.arg2;
+
     if(NULL == hn)
     {
         result = translateErrorToPALError(errno);
