@@ -200,6 +200,8 @@ enum AsyncAction {
     DO_CONNECT,
     DO_SEND,
     DO_RECV,
+    //DO_SENDTO,
+    DO_RECVFROM,
     DO_GETHOSTBYNAME,
 };
 
@@ -208,6 +210,7 @@ struct AsyncActionStruct {
     void *arg1;
     void *arg2;
     void *arg3;
+    void *arg4;
     int resultCode;
     int returnVal;
 };
@@ -330,6 +333,7 @@ typedef unsigned long int nfds_t;
 static palThreadID_t s_pollThread = NULLPTR;
 static palMutexID_t s_mutexSocketCallbacks = 0;
 static palMutexID_t s_mutexSocketEventFilter = 0;
+static palMutexID_t s_mutexSocketAsync = 0;
 static palSemaphoreID_t s_socketAsyncActionSemaphore = 0;
 static palSemaphoreID_t s_socketCallbackSemaphore = 0;
 // Replace s_socketCallbackSignalSemaphore with message port that waits for (Wait) signals from:
@@ -636,15 +640,15 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
         if(bmask & SIGBREAKF_CTRL_D)
         {
-            printf("SIGBREAKF_CTRL_D signaled (async socket action)\n");
+            //printf("SIGBREAKF_CTRL_D signaled (async socket action)\n");
 
             switch(g_asyncActionStruct.action)
             {
               case DO_CONNECT:
                 {
-                    printf("DO_CONNECT\n");
+                    //printf("DO_CONNECT\n");
                     int c_res = connect((intptr_t)g_asyncActionStruct.arg1,(struct sockaddr *)g_asyncActionStruct.arg2, *((int *)g_asyncActionStruct.arg3));
-                    printf("Connect ret_val: %d\n",  g_asyncActionStruct.resultCode);
+
                     if(c_res == -1)
                     {
                         g_asyncActionStruct.resultCode = translateErrorToPALError(errno);
@@ -652,13 +656,15 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                     {
                         g_asyncActionStruct.resultCode = PAL_SUCCESS;
                     }
+
+                    printf("Connect ret_val: %d, errno: %d\n",  g_asyncActionStruct.resultCode, errno);
                 }
                 break;
               case DO_SEND:
                 {
-                    printf("DO_SEND\n");
+                    //printf("DO_SEND\n");
                     int s_res = send((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0);
-                    printf("s_res: %d\n", s_res);
+                    //printf("s_res: %d\n", s_res);
                     if(s_res == -1)
                     {
                         g_asyncActionStruct.resultCode = translateErrorToPALError(errno);
@@ -668,15 +674,15 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                         g_asyncActionStruct.resultCode = PAL_SUCCESS;
                         g_asyncActionStruct.returnVal = s_res;
                     }
-                    printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
+                    //printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
 
                 }
                 break;
               case DO_RECV:
                 {
-                    printf("DO_RECV\n");
+                    //printf("DO_RECV\n");
                     int r_res = recv((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0);
-                    printf("r_res: %d\n", r_res);
+                    //printf("r_res: %d\n", r_res);
 
                     if(r_res == -1)
                     {
@@ -687,13 +693,50 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                         g_asyncActionStruct.resultCode = PAL_SUCCESS;
                         g_asyncActionStruct.returnVal = r_res;
                     }
-                    printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
+                    //printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
+
+                }
+                break;
+                // case DO_SENDTO:
+                // {
+                //     //printf("DO_SENDTO\n");
+                //     int s_res = send((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0);
+                //     //printf("s_res: %d\n", s_res);
+                //     if(s_res == -1)
+                //     {
+                //         g_asyncActionStruct.resultCode = translateErrorToPALError(errno);
+                //     }
+                //     else
+                //     {
+                //         g_asyncActionStruct.resultCode = PAL_SUCCESS;
+                //         g_asyncActionStruct.returnVal = s_res;
+                //     }
+                //     //printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
+
+                // }
+                // break;
+              case DO_RECVFROM:
+                {
+                    //printf("DO_RECVFROM\n");
+                    socklen_t addrlen = sizeof(struct sockaddr_in);
+                    int r_res = recvfrom((intptr_t)g_asyncActionStruct.arg1, (const void *)g_asyncActionStruct.arg2, *((size_t *)g_asyncActionStruct.arg3), 0 ,(struct sockaddr *)g_asyncActionStruct.arg4, &addrlen);
+
+                    if(r_res == -1)
+                    {
+                        g_asyncActionStruct.resultCode = translateErrorToPALError(errno);
+                    }
+                    else
+                    {
+                        g_asyncActionStruct.resultCode = PAL_SUCCESS;
+                        g_asyncActionStruct.returnVal = r_res;
+                    }
+                    //printf("g_asyncActionStruct.resultCode: %d\n", g_asyncActionStruct.resultCode);
 
                 }
                 break;
               case DO_GETHOSTBYNAME:
                 {
-                    printf("DO_GETHOSTBYNAME\n");
+                    //printf("DO_GETHOSTBYNAME\n");
                     g_asyncActionStruct.arg2 = (void *)gethostbyname((const char *)g_asyncActionStruct.arg1);
                 }
                 break;
@@ -732,21 +775,21 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                     if (FD_ISSET(fds[i].fd, &fd_write_set) && !(s_callbackFilter[i] & 1))
                     {
                         s_callbackFilter[i] |= 1;
-                        printf("write callback triggered\n");
+                        //printf("write callback triggered\n");
                         trigger_callback = true;
                     }
 
                     if (FD_ISSET(fds[i].fd, &fd_read_set) && !(s_callbackFilter[i] & (1 << 1)))
                     {
                         s_callbackFilter[i] |= 1 << 1;
-                        printf("read callback triggered\n");
+                        //printf("read callback triggered\n");
                         trigger_callback = true;
                     }
 
                     if (FD_ISSET(fds[i].fd, &fd_except_set) && !(s_callbackFilter[i] & (1 << 2)))
                     {
                         s_callbackFilter[i] |= 1 << 2;
-                        printf("except callback triggered\n");
+                        //printf("except callback triggered\n");
                         trigger_callback = true;
                     }
 
@@ -775,7 +818,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         }
         else if (res == 0)
         {
-            printf("waitselect abort by signal\n");
+            //printf("waitselect abort by signal\n");
             // Broken out by signal
         }
         else
@@ -807,6 +850,12 @@ palStatus_t pal_plat_socketsInit(void* context)
     FD_ZERO(&s_fdset);
 
     result = pal_osMutexCreate(&s_mutexSocketCallbacks);
+    if (result != PAL_SUCCESS)
+    {
+        return result;
+    }
+
+    result = pal_osMutexCreate(&s_mutexSocketAsync);
     if (result != PAL_SUCCESS)
     {
         return result;
@@ -960,6 +1009,13 @@ palStatus_t pal_plat_socketsTerminate(void* context)
     }
 
     result = pal_osMutexDelete(&s_mutexSocketCallbacks);
+    if ((PAL_SUCCESS != result ) && (PAL_SUCCESS == firstError))
+    {
+        // TODO print error using logging mechanism when available.
+        firstError = result;
+    }
+
+    result = pal_osMutexDelete(&s_mutexSocketAsync);
     if ((PAL_SUCCESS != result ) && (PAL_SUCCESS == firstError))
     {
         // TODO print error using logging mechanism when available.
@@ -1219,22 +1275,29 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
     palStatus_t result = PAL_SUCCESS;
     ssize_t res;
     struct sockaddr_in internalAddr;
-    socklen_t addrlen;
 
     clearSocketFilter((intptr_t)socket);
-    addrlen = sizeof(struct sockaddr_in);
-    res = recvfrom((intptr_t)socket, buffer, length, 0 ,(struct sockaddr *)&internalAddr, &addrlen);
-    if(res == -1)
-    {
-        result = translateErrorToPALError(errno);
-    }
-    else // only return address / bytesReceived in case of success
+
+    g_asyncActionStruct.action = DO_RECVFROM;
+    g_asyncActionStruct.arg1 = (void *)socket;
+    g_asyncActionStruct.arg2 = (void *)buffer;
+    g_asyncActionStruct.arg3 = (void *)&length;
+    g_asyncActionStruct.arg4 = (void *)&internalAddr;
+
+    Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
+
+    // Wait for the async action to complete
+    pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+
+    result = g_asyncActionStruct.resultCode;
+
+    if(PAL_SUCCESS == result) // only return address / bytesReceived in case of success
     {
         if ((NULL != from) && (NULL != fromLength))
         {
             result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&internalAddr, from, fromLength);
         }
-        *bytesReceived = res;
+        *bytesReceived = g_asyncActionStruct.returnVal;
     }
 
     return result;
@@ -1384,9 +1447,10 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
 {
     int result = PAL_SUCCESS;
     int res;
-    struct sockaddr_in internalAddr = {0} ;
 
     printf("pal_plat_connect\n");
+
+    struct sockaddr_in internalAddr = {0} ;
 
     result = pal_plat_SockAddrToSocketAddress(address, (struct sockaddr *)&internalAddr);
 
@@ -1406,7 +1470,12 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
         pal_osSemaphoreWait(s_socketAsyncActionSemaphore, PAL_RTOS_WAIT_FOREVER, NULL);
 
         result = g_asyncActionStruct.resultCode;
+
+        //Added delay here to prevent case where connect is called again too quickly resulting in errno EINVAL
+        //the caveat is that it will add delay to first call
+        pal_osDelay(30);
     }
+    printf("finish connect\n");
 
     return result;
 }
