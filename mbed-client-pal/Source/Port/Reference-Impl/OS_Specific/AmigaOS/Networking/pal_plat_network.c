@@ -370,6 +370,30 @@ static struct create_socket s_async_socket;
 
 static const unsigned int PAL_SOCKETS_TERMINATE = 10000;
 
+PAL_PRIVATE void setSocketFilter( int socketFD, int bitmask)
+{
+    palStatus_t result = PAL_SUCCESS;
+    int i = 0;
+    result = pal_osMutexWait(s_mutexSocketEventFilter, PAL_RTOS_WAIT_FOREVER);
+    if (PAL_SUCCESS != result)
+    {
+        PAL_LOG_ERR("error waiting for mutex"); // we want to zero the flag even if this fails beacuse it is better to get an extra event than miss one.
+    }
+    for (i = 0; i < PAL_NET_TEST_MAX_ASYNC_SOCKETS; i++)
+    {
+        if (s_fds[i].fd == socketFD)
+        {
+            s_callbackFilter[i] |= bitmask;
+            break;
+        }
+    }
+    result = pal_osMutexRelease(s_mutexSocketEventFilter);
+    if (PAL_SUCCESS != result)
+    {
+        PAL_LOG_ERR("error releasing mutex");
+    }
+}
+
 PAL_PRIVATE void clearSocketFilter( int socketFD, int bitmask)
 {
     palStatus_t result = PAL_SUCCESS;
@@ -402,7 +426,7 @@ PAL_PRIVATE palStatus_t openSocketLibrary()
     long status;
 
     if(__SocketBase != NULL) {
-        printf("closing socketbase\n");
+        //printf("closing socketbase\n");
         CloseLibrary(__SocketBase);
         __SocketBase = NULL;
     }
@@ -415,7 +439,7 @@ PAL_PRIVATE palStatus_t openSocketLibrary()
         return PAL_ERR_GENERIC_FAILURE;
     }
 
-	printf("Successfully opened bsdsocket.library\n");
+	//printf("Successfully opened bsdsocket.library\n");
 
     /* Wire the library's errno variable to our local errno. */
 	tags[0].ti_Tag	= SBTM_SETVAL(SBTC_ERRNOLONGPTR);
@@ -442,7 +466,7 @@ PAL_PRIVATE palStatus_t openSocketLibrary()
 
 	if(status != 0)
 	{
-		printf("couldn't initialize the library");
+		//printf("couldn't initialize the library");
         return PAL_ERR_GENERIC_FAILURE;
 	}
 
@@ -525,7 +549,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         PAL_LOG_ERR("Error in async socket manager on semaphore release");
     }
 
-    printf("finished initialization\n");
+    //printf("finished initialization\n");
 
     while (result == PAL_SUCCESS) //As long as all goes well loop forever
     {
@@ -552,8 +576,17 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
             for (int i=0; i < nfds; i++)
             {
+
                 //fds[i].revents = 0;
                 //s_callbackFilter[i] = 0;
+                if((s_callbackFilter[i] & 1)) //we are interested about non masked sockets only
+                {
+                    FD_CLR(fds[i].fd, &fd_write_set);
+                }
+                if((s_callbackFilter[i] & (1 << 1))) //we are interested about non masked sockets only
+                {
+                    FD_CLR(fds[i].fd, &fd_read_set);
+                }
                 if(fds[i].fd > fd_id)
                 {
                     fd_id = fds[i].fd;
@@ -579,7 +612,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         {
             if(s_nfds == PAL_SOCKETS_TERMINATE)
             {
-                printf("SIGBREAKF_CTRL_F signaled (terminate)\n");
+                //printf("SIGBREAKF_CTRL_F signaled (terminate)\n");
                 s_nfds = 0; // Reset s_ndfs
                 s_socketThreadTerminateSignaled = true; // mark that the thread has receieved the termination request
                 bmask = SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
@@ -591,7 +624,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         /* add socket signaled */
         if(bmask & SIGBREAKF_CTRL_E)
         {
-            printf("SIGBREAKF_CTRL_E signaled (Create socket)\n");
+            //printf("SIGBREAKF_CTRL_E signaled (Create socket)\n");
             //Async socket needs to be created here for signals to work (actually maybe not, but not gonna change it anymore)
             s_async_socket.result = pal_plat_socket(s_async_socket.domain,  s_async_socket.type,  s_async_socket.nonBlockingSocket,  s_async_socket.interfaceNum, s_async_socket.socket);
 
@@ -619,7 +652,8 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                 }
 
                 // make sure a recycled socket structure does not contain obsolete event filter
-                clearSocketFilter((intptr_t)*s_async_socket.socket, (1 << 2 | 1 << 1 | 1));
+                //clearSocketFilter((intptr_t)*s_async_socket.socket, (1 << 2 | 1 << 1 | 1));
+                setSocketFilter((intptr_t)*s_async_socket.socket, (1 << 2 | 1 << 1 | 1));
 
                 s_fds[s_nfds].fd = (intptr_t)*(s_async_socket.socket);
                 FD_SET(s_fds[s_nfds].fd, &s_fdset);
@@ -657,7 +691,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                         g_asyncActionStruct.resultCode = PAL_SUCCESS;
                     }
 
-                    printf("Connect ret_val: %d, errno: %d\n",  g_asyncActionStruct.resultCode, errno);
+                    //printf("Connect ret_val: %d, errno: %d\n",  g_asyncActionStruct.resultCode, errno);
                 }
                 break;
               case DO_SEND:
@@ -768,7 +802,13 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             {
                 if(FD_ISSET(fds[i].fd, &fd_read_set) || FD_ISSET(fds[i].fd, &fd_write_set) || FD_ISSET(fds[i].fd, &fd_except_set))
                 {
-                    //printf("found socket %u\n", i);
+                    // printf("socket %u\n", i);
+                    // if(FD_ISSET(fds[i].fd, &fd_read_set))
+                    //     printf("read set\n");
+                    // if(FD_ISSET(fds[i].fd, &fd_write_set))
+                    //     printf("write set\n");
+                    // if(FD_ISSET(fds[i].fd, &fd_except_set))
+                    //     printf("except set\n");
                     //if ((fds[i].revents != filter) && ((fds[i].revents != POLLOUT) || (fds[i].revents != s_callbackFilter[i])) ) // this is handlign for a special scenario when a specific event which shouldnt happen is sent to all unconnected sockets in Linux triggering an unwanted callback.
                     //if (!(FD_ISSET(fds[i].fd, &fd_write_set) && FD_ISSET(fds[i].fd, &fd_except_set)))
 
@@ -784,21 +824,21 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                         if (FD_ISSET(fds[i].fd, &fd_write_set) && !(s_callbackFilter[i] & 1))
                         {
                             s_callbackFilter[i] |= 1;
-                            printf("write callback triggered\n");
+                            //printf("write callback triggered\n");
                             trigger_callback = true;
                         }
 
                         if (FD_ISSET(fds[i].fd, &fd_read_set) && !(s_callbackFilter[i] & (1 << 1)))
                         {
                             s_callbackFilter[i] |= 1 << 1;
-                            printf("read callback triggered\n");
+                            //printf("read callback triggered\n");
                             trigger_callback = true;
                         }
 
                         if (FD_ISSET(fds[i].fd, &fd_except_set) && !(s_callbackFilter[i] & (1 << 2)))
                         {
                             s_callbackFilter[i] |= 1 << 2;
-                            printf("except callback triggered\n");
+                            //printf("except callback triggered\n");
                             trigger_callback = true;
                         }
 
@@ -966,7 +1006,7 @@ palStatus_t pal_plat_socketsTerminate(void* context)
     palStatus_t result = PAL_SUCCESS;
     palStatus_t firstError = PAL_SUCCESS;
 
-    printf("in pal_plat_socketsTerminate\n");
+    //printf("in pal_plat_socketsTerminate\n");
 
 #if PAL_NET_ASYNCHRONOUS_SOCKET_API
     // Critical section to update globals
@@ -980,13 +1020,13 @@ palStatus_t pal_plat_socketsTerminate(void* context)
         firstError = result;
     }
 
-    printf("got mutuex!\n");
+    //printf("got mutuex!\n");
 
     s_nfds = PAL_SOCKETS_TERMINATE;
     // Tell the poll thread to interrupt so that it can check for termination.
     if(s_pollThread != NULLPTR)
     {
-        printf("singlaing to termineit!\n");
+        //printf("singlaing to termineit!\n");
         Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_F);
     }
 
@@ -1064,7 +1104,7 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
     }
     else
     {
-        printf("create socket\n");
+        //printf("create socket\n");
         if (nonBlockingSocket)
         {
             fcntl( sockfd, F_SETFL, fcntl(sockfd, F_GETFL ) | O_NONBLOCK );
@@ -1329,7 +1369,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
     int res;
     unsigned int i,j;
 
-    printf("pal_plat_close\n");
+    //printf("pal_plat_close\n");
 
     if  (*socket == (void *)PAL_LINUX_INVALID_SOCKET) // socket already closed - return success.
     {
@@ -1364,7 +1404,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
             s_callbackArgs[j] = 0;
             s_nfds--;
             // Tell the poll thread to remove the socket
-            printf("SIGBREAKF_CTRL_D\n");
+            //printf("SIGBREAKF_CTRL_D\n");
             Signal((struct Task *)s_pollThread, SIGBREAKF_CTRL_D);
             break;
         }
@@ -1449,7 +1489,7 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
     int result = PAL_SUCCESS;
     int res;
 
-    printf("pal_plat_connect\n");
+    //printf("pal_plat_connect\n");
 
     struct sockaddr_in internalAddr = {0} ;
 
@@ -1476,7 +1516,7 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
         //the caveat is that it will add delay to first call
         pal_osDelay(50);
     }
-    printf("finish connect\n");
+    //printf("finish connect\n");
 
     return result;
 }
@@ -1486,7 +1526,7 @@ palStatus_t pal_plat_recv(palSocket_t socket, void *buffer, size_t len, size_t* 
     palStatus_t result = PAL_SUCCESS;
     ssize_t res;
 
-    printf("pal_plat_recv\n");
+    //printf("pal_plat_recv\n");
 
     clearSocketFilter((intptr_t)socket, 1 << 1);
 
