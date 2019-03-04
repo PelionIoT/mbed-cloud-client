@@ -370,7 +370,7 @@ static struct create_socket s_async_socket;
 
 static const unsigned int PAL_SOCKETS_TERMINATE = 10000;
 
-PAL_PRIVATE void clearSocketFilter( int socketFD)
+PAL_PRIVATE void clearSocketFilter( int socketFD, int bitmask)
 {
     palStatus_t result = PAL_SUCCESS;
     int i = 0;
@@ -384,7 +384,7 @@ PAL_PRIVATE void clearSocketFilter( int socketFD)
 
         if (s_fds[i].fd == socketFD)
         {
-            s_callbackFilter[i] = 0;
+            s_callbackFilter[i] &= ~bitmask;
             break;
         }
     }
@@ -619,7 +619,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                 }
 
                 // make sure a recycled socket structure does not contain obsolete event filter
-                clearSocketFilter((intptr_t)*s_async_socket.socket);
+                clearSocketFilter((intptr_t)*s_async_socket.socket, (1 << 2 | 1 << 1 | 1));
 
                 s_fds[s_nfds].fd = (intptr_t)*(s_async_socket.socket);
                 FD_SET(s_fds[s_nfds].fd, &s_fdset);
@@ -772,33 +772,6 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                     //if ((fds[i].revents != filter) && ((fds[i].revents != POLLOUT) || (fds[i].revents != s_callbackFilter[i])) ) // this is handlign for a special scenario when a specific event which shouldnt happen is sent to all unconnected sockets in Linux triggering an unwanted callback.
                     //if (!(FD_ISSET(fds[i].fd, &fd_write_set) && FD_ISSET(fds[i].fd, &fd_except_set)))
 
-                    if (FD_ISSET(fds[i].fd, &fd_write_set) && !(s_callbackFilter[i] & 1))
-                    {
-                        s_callbackFilter[i] |= 1;
-                        //printf("write callback triggered\n");
-                        trigger_callback = true;
-                    }
-
-                    if (FD_ISSET(fds[i].fd, &fd_read_set) && !(s_callbackFilter[i] & (1 << 1)))
-                    {
-                        s_callbackFilter[i] |= 1 << 1;
-                        //printf("read callback triggered\n");
-                        trigger_callback = true;
-                    }
-
-                    if (FD_ISSET(fds[i].fd, &fd_except_set) && !(s_callbackFilter[i] & (1 << 2)))
-                    {
-                        s_callbackFilter[i] |= 1 << 2;
-                        //printf("except callback triggered\n");
-                        trigger_callback = true;
-                    }
-
-                    if(trigger_callback)
-                    {
-                        trigger_callback = false;
-                        callbacks[i](callbackArgs[i]);
-                    }
-
                     result = pal_osMutexWait(s_mutexSocketEventFilter, PAL_RTOS_WAIT_FOREVER);
                     if (PAL_SUCCESS != result)
                     {
@@ -807,11 +780,39 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                     else
                     {
                         //s_callbackFilter[i] = fds[i].revents;
+
+                        if (FD_ISSET(fds[i].fd, &fd_write_set) && !(s_callbackFilter[i] & 1))
+                        {
+                            s_callbackFilter[i] |= 1;
+                            printf("write callback triggered\n");
+                            trigger_callback = true;
+                        }
+
+                        if (FD_ISSET(fds[i].fd, &fd_read_set) && !(s_callbackFilter[i] & (1 << 1)))
+                        {
+                            s_callbackFilter[i] |= 1 << 1;
+                            printf("read callback triggered\n");
+                            trigger_callback = true;
+                        }
+
+                        if (FD_ISSET(fds[i].fd, &fd_except_set) && !(s_callbackFilter[i] & (1 << 2)))
+                        {
+                            s_callbackFilter[i] |= 1 << 2;
+                            printf("except callback triggered\n");
+                            trigger_callback = true;
+                        }
+
                         result = pal_osMutexRelease(s_mutexSocketEventFilter);
                         if (PAL_SUCCESS != result)
                         {
                             PAL_LOG_ERR("error releasing mutex");
                         }
+                    }
+
+                    if(trigger_callback)
+                    {
+                        trigger_callback = false;
+                        callbacks[i](callbackArgs[i]);
                     }
                 }
             }
@@ -1276,7 +1277,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
     ssize_t res;
     struct sockaddr_in internalAddr;
 
-    clearSocketFilter((intptr_t)socket);
+    clearSocketFilter((intptr_t)socket, 1 << 1);
 
     g_asyncActionStruct.action = DO_RECVFROM;
     g_asyncActionStruct.arg1 = (void *)socket;
@@ -1308,7 +1309,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
     palStatus_t result = PAL_SUCCESS;
     ssize_t res;
 
-    clearSocketFilter((intptr_t)socket);
+    clearSocketFilter((intptr_t)socket, 1);
     res = sendto((intptr_t)socket, buffer, length, 0, (struct sockaddr *)to, toLength);
     if(res == -1)
     {
@@ -1457,7 +1458,7 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
     if (result == PAL_SUCCESS)
     {
         // clean filter to get the callback on first attempt
-        clearSocketFilter((intptr_t)socket);
+        clearSocketFilter((intptr_t)socket, 1);
 
         g_asyncActionStruct.action = DO_CONNECT;
         g_asyncActionStruct.arg1 = (void *)socket;
@@ -1473,7 +1474,7 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
 
         //Added delay here to prevent case where connect is called again too quickly resulting in errno EINVAL
         //the caveat is that it will add delay to first call
-        pal_osDelay(30);
+        pal_osDelay(50);
     }
     printf("finish connect\n");
 
@@ -1487,7 +1488,7 @@ palStatus_t pal_plat_recv(palSocket_t socket, void *buffer, size_t len, size_t* 
 
     printf("pal_plat_recv\n");
 
-    clearSocketFilter((intptr_t)socket);
+    clearSocketFilter((intptr_t)socket, 1 << 1);
 
     g_asyncActionStruct.action = DO_RECV;
     g_asyncActionStruct.arg1 = (void *)socket;
@@ -1518,7 +1519,7 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
     palStatus_t result = PAL_SUCCESS;
     ssize_t res;
 
-    clearSocketFilter((intptr_t)socket);
+    clearSocketFilter((intptr_t)socket, 1);
 
     g_asyncActionStruct.action = DO_SEND;
     g_asyncActionStruct.arg1 = (void *)socket;
