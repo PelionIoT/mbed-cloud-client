@@ -202,6 +202,11 @@ FILE(GLOB MBED_CLOUD_CLIENT_SRC
     "${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/*.cpp"
 )
 
+if (${OS_BRAND} MATCHES AmigaOS)
+# avoid "mbed-cloud-client/mbed-client/mbed-client-classic/source/m2mconnectionhandlerpimpl.cpp:160:1: internal compiler error: in connect_traces, at dwarf2cfi.c:2752"
+set_source_files_properties(../mbed-cloud-client/mbed-client/mbed-client-classic/source/m2mconnectionhandlerpimpl.cpp PROPERTIES COMPILE_FLAGS -O0)
+endif()
+
 # This part gets split into separate nanostacklibservice, which is needed
 # as the mbedTrace -library points to ip6tos and there is a dependency chain of
 # pal->mbed-trace->nanostack-libservice. Without this, the PAL should add mbedCloudClient 
