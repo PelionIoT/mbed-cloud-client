@@ -36,7 +36,8 @@
 #include <proto/dos.h>
 #include <proto/battclock.h>
 #include <resources/battclock.h>
-#include <clib/timer_protos.h>
+//#include <clib/timer_protos.h>
+#include <inline/timer.h>
 
 #include "semaphore.h"
 

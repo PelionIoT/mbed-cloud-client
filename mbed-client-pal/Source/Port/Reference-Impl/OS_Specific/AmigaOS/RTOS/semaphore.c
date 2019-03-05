@@ -1,4 +1,5 @@
 #include <proto/exec.h>
+#include <proto/dos.h>
 #include <errno.h>
 #include "semaphore.h"
 
