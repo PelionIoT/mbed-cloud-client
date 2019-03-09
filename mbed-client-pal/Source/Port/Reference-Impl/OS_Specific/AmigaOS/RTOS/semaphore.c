@@ -4,16 +4,16 @@
 #include "semaphore.h"
 
 int sem_init(sem_t *sem, int pshared, unsigned int value)
-{    
+{
     if (sem == NULL || value > (unsigned int)SEM_VALUE_MAX)
     {
         errno = EINVAL;
         return -1;
     }
 
-    sem->value = value;    
+    sem->value = value;
     InitSemaphore(&sem->gate);
-    InitSemaphore(&sem->mutex);    
+    InitSemaphore(&sem->mutex);
 
     if(sem->value == 0)
     {
@@ -24,7 +24,7 @@ int sem_init(sem_t *sem, int pshared, unsigned int value)
 }
 
 int sem_destroy(sem_t *sem)
-{    
+{
     if (sem == NULL)
     {
         errno = EINVAL;
@@ -41,12 +41,12 @@ int sem_destroy(sem_t *sem)
     sem->value = 0;
     ReleaseSemaphore(&sem->mutex);
     ReleaseSemaphore(&sem->gate);
-        
+
     return 0;
 }
 
 int sem_trywait(sem_t *sem)
-{    
+{
     if (sem == NULL)
     {
         errno = EINVAL;
@@ -69,14 +69,14 @@ int sem_trywait(sem_t *sem)
     }
 
     ReleaseSemaphore(&sem->mutex);
-    
+
     return 0;
 }
 
 int sem_timedwait(sem_t *sem, const struct timespec *abstime)
 {
     #if 0
-    int result = 0;    
+    int result = 0;
 
     if (sem == NULL)
     {
@@ -111,7 +111,7 @@ int sem_timedwait(sem_t *sem, const struct timespec *abstime)
 }
 
 int sem_wait(sem_t *sem)
-{     
+{
     //return sem_timedwait(sem, NULL);
 
     if (sem == NULL)
@@ -119,29 +119,26 @@ int sem_wait(sem_t *sem)
         errno = EINVAL;
         return -1;
     }
-obtain:
+
     ObtainSemaphore(&sem->gate);
     //check if we started nesting here, and if so, apply some remedy
-    if(sem->gate.ss_NestCount == 2) {        
+    if(sem->gate.ss_NestCount == 2) {
         //decrement nesting value, while still holding the gate semaphore
         ReleaseSemaphore(&sem->gate);
         //the idea here is to wait until value gets incremented, and only then obtain gate semaphore
         while(1) {
             if(AttemptSemaphoreShared(&sem->mutex)) {
                 if(sem->value > 0) {
-                    //Finally release our hold of gate
-                    ReleaseSemaphore(&sem->gate);                    
-                    //Done with this loop, get on with it
-                    ReleaseSemaphore(&sem->mutex);
-                    goto obtain;
+                    goto decrement;
                 }
-                ReleaseSemaphore(&sem->mutex);                                     
+                ReleaseSemaphore(&sem->mutex);
             }
             //delay here until stuff happens
             Delay(1);
         }
     }
-    ObtainSemaphore(&sem->mutex);    
+    ObtainSemaphore(&sem->mutex);
+decrement:
     sem->value--;
 
     if(sem->value > 0) {
@@ -154,7 +151,7 @@ obtain:
 }
 
 int sem_post(sem_t *sem)
-{    
+{
     if (sem == NULL)
     {
         errno = EINVAL;
@@ -165,7 +162,7 @@ int sem_post(sem_t *sem)
 
     if (sem->value >= SEM_VALUE_MAX)
     {
-        ReleaseSemaphore(&sem->mutex);        
+        ReleaseSemaphore(&sem->mutex);
         errno = EOVERFLOW;
         return -1;
     }
@@ -185,23 +182,23 @@ int sem_post(sem_t *sem)
 }
 
 int sem_getvalue(sem_t *sem, int *sval)
-{    
+{
     if (sem == NULL || sval == NULL)
     {
         errno = EINVAL;
         return -1;
     }
-    
+
     if (AttemptSemaphore(&sem->mutex))
-    {        
+    {
         *sval = sem->value;
         ReleaseSemaphore(&sem->mutex);
     }
     else
-    {   
+    {
         // if one or more threads are waiting to lock the semaphore,
         // then return the negative of the waiters
-        *sval = -sem->gate.ss_QueueCount;        
+        *sval = -sem->gate.ss_QueueCount;
     }
 
     return 0;
