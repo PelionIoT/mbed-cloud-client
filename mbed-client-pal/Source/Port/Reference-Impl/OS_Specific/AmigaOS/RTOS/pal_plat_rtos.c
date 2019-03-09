@@ -31,7 +31,7 @@
 #include <exec/memory.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
- 
+
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/battclock.h>
@@ -126,10 +126,10 @@ void pal_plat_osReboot(void)
 * \return PAL_SUCCESS(0) in case of success, PAL_ERR_CREATION_FAILED in case of failure.
 */
 palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
-{   
+{
     palStatus_t status = PAL_SUCCESS;
-    struct EClockVal tmp; 
-    (void)opaqueContext;        
+    struct EClockVal tmp;
+    (void)opaqueContext;
 
     status = pal_osMutexCreate(&g_threadsMutex);
     if (PAL_SUCCESS != status)
@@ -143,7 +143,7 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
     {
         goto end;
     }
-    
+
     {
         g_TimerIO  = (struct timerequest *)malloc(sizeof(struct timerequest ));
         if(NULL == g_TimerIO)
@@ -159,14 +159,14 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
             status = PAL_ERR_CREATION_FAILED;
             goto end;
         }
-        
+
         TimerBase = (struct Library *)g_TimerIO->tr_node.io_Device;
 
         unsigned long eClockFreq = ReadEClock(&tmp);
         // Roundup the frequency to minimize error
         g_tickFreq = (unsigned long)(((float)eClockFreq / 1000.0)+0.5);
     }
-    
+
     #if (PAL_USE_HW_RTC)
     status = pal_plat_rtcInit();
     #endif
@@ -217,7 +217,7 @@ palStatus_t pal_plat_RTOSDestroy(void)
  */
 
 uint64_t pal_plat_osKernelSysTick(void) // optional API - not part of original CMSIS API.
-{   
+{
     struct EClockVal ticks_now;
     ReadEClock(&ticks_now);
 
@@ -229,7 +229,7 @@ uint64_t pal_plat_osKernelSysTick(void) // optional API - not part of original C
  * since we return microsecods as ticks, just return the value
  */
 uint64_t pal_plat_osKernelSysTickMicroSec(uint64_t microseconds)
-{    
+{
     uint64_t ticksIn = (microseconds * g_tickFreq) / 1000;
     return ticksIn;
 }
@@ -238,7 +238,7 @@ uint64_t pal_plat_osKernelSysTickMicroSec(uint64_t microseconds)
  * \return The system tick frequency.
  */
 inline uint64_t pal_plat_osKernelSysTickFrequency(void)
-{    
+{
     return g_tickFreq * 1000;
 }
 
@@ -284,22 +284,22 @@ PAL_PRIVATE int32_t threadFunction(void)
     {
         goto end;
     }
-    
+
     char thisThreadID = atoi(thisProcess->pr_Task.tc_Node.ln_Name);
-    //printf("Thread id: %d\n", thisThreadID);    
+    //printf("Thread id: %d\n", thisThreadID);
     if(-1 == thisThreadID )
     {
         goto end;
-    }    
-     
+    }
+
     //This feels a bit stupid, but lets keep it like this until other issues get rooted out
     for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
-    {                    
+    {
         if (g_threadsArray[i] && g_threadsArray[i]->threadID == thisThreadID)
-        {                     
+        {
             threadData = &g_threadsArray[i];
-            break;            
-        }        
+            break;
+        }
     }
 
     if(NULL == threadData)
@@ -313,7 +313,7 @@ PAL_PRIVATE int32_t threadFunction(void)
     userFunction = (*threadData)->userFunction;
     userFunctionArgument = (*threadData)->userFunctionArgument;
     if (NULL == (*threadData)->thread) // maybe null if this thread has a higher priority than the thread which created this thread
-    {   
+    {
         PAL_THREADS_MUTEX_LOCK(status);
         if (PAL_SUCCESS != status)
         {
@@ -325,14 +325,14 @@ PAL_PRIVATE int32_t threadFunction(void)
         {
             goto end;
         }
-    }        
-    
+    }
+
     if(NULL != userFunction) {
         //printf("calling userfunction\n");
         userFunction(userFunctionArgument); // invoke user function with user argument (use local vars) - note we're not under mutex lock anymore
     }
 
-    
+
     PAL_THREADS_MUTEX_LOCK(status);
     if (PAL_SUCCESS != status)
     {
@@ -341,7 +341,7 @@ PAL_PRIVATE int32_t threadFunction(void)
     //printf("free thread\n");
     threadFree(threadData); // clean up
     PAL_THREADS_MUTEX_UNLOCK(status)
-end:    
+end:
     return 0;
 }
 
@@ -349,9 +349,9 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
 {
     palStatus_t status = PAL_SUCCESS;
     palThreadData_t** threadData;
-    struct Process * sysThreadID = NULLPTR;    
+    struct Process * sysThreadID = NULLPTR;
     char childprocessname[5];
-    BPTR output;    
+    BPTR output;
 
     /* Open the console for the child process. */
     if (output = Open("CONSOLE:", MODE_OLDFILE));
@@ -385,8 +385,8 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
                     NP_StackSize,   stackSize,
                     NP_Priority,    priority,
                     NP_FreeSeglist, FALSE,
-                    NP_CloseOutput, TRUE,                    
-                    TAG_END);  
+                    NP_CloseOutput, TRUE,
+                    TAG_END);
 
     PAL_THREADS_MUTEX_LOCK(status);
     if (PAL_SUCCESS != status)
@@ -394,15 +394,15 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
         goto end;
     }
     if (NULL != sysThreadID)
-    { 
+    {
         //printf("Thread creation great success!\n");
-        
+
         if ((NULL != *threadData) && (NULL == (*threadData)->thread)) // *threadData maybe null in case the thread has already finished and cleaned up, sysThreadID maybe null if the created thread is lower priority than the creating thread
         {
             (*threadData)->thread = sysThreadID; // set the thread id
         }
         *threadID = (palThreadID_t)sysThreadID;
-    }   
+    }
     else
     {
         //printf("Thread creation failed!\n");
@@ -423,11 +423,11 @@ palThreadID_t pal_plat_osThreadGetId(void)
 palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
 {
     palStatus_t status = PAL_ERR_RTOS_TASK;
-    struct Process *sysThreadID = (struct Process *)*threadID;    
+    struct Process *sysThreadID = (struct Process *)*threadID;
     palThreadData_t** threadData = NULL;
 
     char thisThreadID = atoi(sysThreadID->pr_Task.tc_Node.ln_Name);
-    //printf("terminate Thread id: %d\n", thisThreadID);    
+    //printf("terminate Thread id: %d\n", thisThreadID);
 
     if ((struct Process *)FindTask(NULL) != sysThreadID) // self termination not allowed
     {
@@ -436,24 +436,24 @@ palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
         {
             goto end;
         }
-        
+
         for (int i = 0; i < PAL_MAX_CONCURRENT_THREADS; i++)
         {
             if (g_threadsArray[i] && g_threadsArray[i]->threadID == thisThreadID)
-            {         
+            {
                 threadData = &g_threadsArray[i];
                 break;
             }
         }
 
         if (threadData) // thread may have ended or terminated already
-        {         
+        {
             //TODO
             //there might be a way to stop / terminate process in AmigaOS, need some digging to do
             //fow now, lets just free this data structure
             threadFree(threadData);
         }
-        PAL_THREADS_MUTEX_UNLOCK(status);        
+        PAL_THREADS_MUTEX_UNLOCK(status);
     }
 end:
     return status;
@@ -493,11 +493,6 @@ typedef struct palTimerThreadContext
     // semaphore used for signaling both the thread startup and thread closure
     palSemaphoreID_t startStopSemaphore;
 
-    // If set, the timer thread will stop its loop, signal the startStopSemaphore
-    // and run out of thread function. This is set and accessed while holding the
-    // g_timerListMutex.
-    volatile bool threadStopRequested;
-
 } palTimerThreadContext_t;
 
 
@@ -519,14 +514,14 @@ PAL_PRIVATE void palTimerThread(void const *args)
 
     if(NULL != g_timerMsgPort)
     {
-        
-    
+
+
         //int err = 0;
 
         //sigset_t signal_set_to_wait;
 
         //sigemptyset(&signal_set_to_wait);
-        //sigaddset(&signal_set_to_wait, PAL_TIMER_SIGNAL);    
+        //sigaddset(&signal_set_to_wait, PAL_TIMER_SIGNAL);
 
         // signal the caller that thread has started
         if (pal_osSemaphoreRelease(context->startStopSemaphore) != PAL_SUCCESS) {
@@ -538,7 +533,7 @@ PAL_PRIVATE void palTimerThread(void const *args)
 
             //siginfo_t info;
 
-            // wait for signal from a timer        
+            // wait for signal from a timer
             //err = sigwaitinfo(&signal_set_to_wait, &info);
 
             //printf("waitPort\n");
@@ -562,61 +557,54 @@ PAL_PRIVATE void palTimerThread(void const *args)
             //     if (errno != EINTR) {
             //         PAL_LOG_ERR("palTimerThread: sigwaitinfo failed with %d\n", errno);
             //     }
-            // } else         
-                // before using the timer list or threadStopRequested flag, we need to claim the mutex
+            // } else
+
                 pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
 
-                if (context->threadStopRequested) {
+                struct palTimerInfo *temp_timer = (struct palTimerInfo*)g_timerList;
 
-                    // release mutex and bail out
-                    // Coverity fix - Unchecked return value. Function pal_osMutexRelease already contains error trace.
-                    (void)pal_osMutexRelease(g_timerListMutex);
-                    break;
+                palTimerFuncPtr found_function = NULL;
+                void *found_funcArgs;
 
-                } else {
+                // Check, if the timer still is on the list. It may have been deleted, if the
+                // signal delivery / client callback has taken some time.
+                while (temp_timer != NULL) {
 
-                    struct palTimerInfo *temp_timer = (struct palTimerInfo*)g_timerList;
+                    if ((struct Message *)temp_timer->TimerIO == TimerMSG) {
 
-                    palTimerFuncPtr found_function = NULL;
-                    void *found_funcArgs;
-
-                    // Check, if the timer still is on the list. It may have been deleted, if the
-                    // signal delivery / client callback has taken some time.
-                    while (temp_timer != NULL) {
-
-                        if ((struct Message *)temp_timer->TimerIO == TimerMSG) {
-
-                            // Ok, found the timer from list, backup the parameters as we release
-                            // the mutex after this loop, before calling the callback and the
-                            // temp_timer may very well get deleted just after the mutex is released.
-                            if(!temp_timer->aborted)
-                            {
-                                found_function = temp_timer->function;
-                                found_funcArgs = temp_timer->funcArgs;
-                            }
-
-                            break;
-                        } else {
-                            temp_timer = temp_timer->next;
-                        }
-                    }
-
-                    // Release the list mutex before callback to avoid callback deadlocking other threads
-                    // if they try to create a timer.
-                    // Coverity fix - 243862 Unchecked return value
-                    (void)pal_osMutexRelease(g_timerListMutex);
-
-                    // the function may be NULL here if the timer was already freed
-                    if (found_function) {
-                        // finally call the callback function
-                        found_function(found_funcArgs);
-                        // if periodic, re-schedule
-                        if(palOsTimerPeriodic == temp_timer->timerType)
+                        // Ok, found the timer from list, backup the parameters as we release
+                        // the mutex after this loop, before calling the callback and the
+                        // temp_timer may very well get deleted just after the mutex is released.
+                        if(!temp_timer->aborted)
                         {
-                            SendIO((struct IORequest *)temp_timer->TimerIO);
+                            found_function = temp_timer->function;
+                            found_funcArgs = temp_timer->funcArgs;
                         }
+
+                        break;
+                    } else {
+                        temp_timer = temp_timer->next;
                     }
                 }
+
+                // Release the list mutex before callback to avoid callback deadlocking other threads
+                // if they try to create a timer.
+                // Coverity fix - 243862 Unchecked return value
+                (void)pal_osMutexRelease(g_timerListMutex);
+
+                // the function may be NULL here if the timer was already freed
+                if (found_function) {
+                    // finally call the callback function
+                    found_function(found_funcArgs);
+                    // if periodic, re-schedule
+                    if(palOsTimerPeriodic == temp_timer->timerType)
+                    {
+                        SendIO((struct IORequest *)temp_timer->TimerIO);
+                    }
+                } else {
+                    printf("aborting thread!\n");
+                }
+
             }
         }
         DeleteMsgPort(g_timerMsgPort);
@@ -634,8 +622,6 @@ PAL_PRIVATE palStatus_t startTimerThread()
     status = pal_osSemaphoreCreate(0, &s_palTimerThreadContext.startStopSemaphore);
 
     if (status == PAL_SUCCESS) {
-
-        s_palTimerThreadContext.threadStopRequested = false;
 
         status = pal_osThreadCreateWithAlloc(palTimerThread, &s_palTimerThreadContext, PAL_osPriorityReservedHighResTimer,
                                                 PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE, NULL, &s_palHighResTimerThreadID);
@@ -662,43 +648,16 @@ PAL_PRIVATE palStatus_t stopTimerThread()
     struct Message wakeupMsg;
 
     //printf("stopTimerThread\n");
-    status = pal_osMutexWait(g_timerListMutex, PAL_RTOS_WAIT_FOREVER);
-    //printf("got mutex\n");
 
     if (status == PAL_SUCCESS) {
-
-        // set the flag to end the thread
-        s_palTimerThreadContext.threadStopRequested = true;
-
-        // send message to global message port to wake the thread
-        // for some reason this fails to wakeup the thread, so we send the message AND signal
+        // send message to global message port to wake and terminate the thread
         PutMsg(g_timerMsgPort, &wakeupMsg);
 
         //Signal((struct Task *)s_palHighResTimerThreadID, SIGBREAKF_CTRL_F);
 
-        // ping the timer thread that it should start shutdown
-        // pthread_t sysThreadID = (pthread_t)s_palHighResTimerThreadID;
-        // int err;
-
-        // do {
-
-        //     // Send the signal to wake up helper thread. A cleaner way would
-        //     // use pthread_sigqueue() as it allows sending the sival, but that
-        //     // does not really matter as the threadStopRequested flag is
-        //     // always checked before accessing the sival. pthread_sigqueue() is also
-        //     // missing from eg. musl library.
-        //     err = pthread_kill(sysThreadID, PAL_TIMER_SIGNAL);
-
-        // } while (err == EAGAIN); // retry (spin, yuck!) if the signal queue is full
-
-        // Coverity fix - 243859 Unchecked return value. There is not much doable if fail. StopTimerThread is part of shutdown step.
-        (void)pal_osMutexRelease(g_timerListMutex);
-
-        //printf("yield mutex\n");
-
         // pthread_sigqueue() failed, which is a sign of thread being dead, so a wait
         // on semaphore would cause a deadlock.
-        //if (err == 0) 
+        //if (err == 0)
         {
 
             // wait for for acknowledgement that timer thread is going down
@@ -709,7 +668,7 @@ PAL_PRIVATE palStatus_t stopTimerThread()
 
         // and clean up the thread
         status = pal_osThreadTerminate(&s_palHighResTimerThreadID);
-        //printf("stop OK\n");        
+        //printf("stop OK\n");
     }
     return status;
 }
@@ -727,11 +686,11 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         palTimerType_t timerType, palTimerID_t* timerID)
 {
     palStatus_t status = PAL_SUCCESS;
-    
+
     struct palTimerInfo* timerInfo = NULL;
     {
         //struct sigevent sig;
-        //timer_t localTimer;        
+        //timer_t localTimer;
 
         if ((NULL == timerID) || (NULL == (void*) function))
         {
@@ -756,12 +715,12 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         }
 
         //Allocate message port for timer
-        //(timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort = g_timerMsgPort;        
+        //(timerInfo->TimerIO)->tr_node.io_Message.mn_ReplyPort = g_timerMsgPort;
 
         timerInfo->function = function;
         timerInfo->funcArgs = funcArgument;
         timerInfo->timerType = timerType;
-        timerInfo->aborted = false;    
+        timerInfo->aborted = false;
 
 
         // memset(&sig, 0, sizeof(sig));
@@ -774,9 +733,9 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
 
         if (OpenDevice( TIMERNAME, UNIT_VBLANK, (struct IORequest *) timerInfo->TimerIO, 0L))
 		{
-            status = PAL_ERR_NO_MEMORY;            
+            status = PAL_ERR_NO_MEMORY;
             goto finish;
-        }    
+        }
 
         // int ret = timer_create(CLOCK_MONOTONIC, &sig, &localTimer);
         // if (-1 == ret)
@@ -816,7 +775,7 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function, void* funcArgument,
         if (NULL != timerInfo)
         {
             if(NULL != timerInfo->TimerIO)
-            {                
+            {
                 //free(timerInfo->TimerIO);
                 DeleteIORequest(timerInfo->TimerIO);
             }
@@ -847,21 +806,21 @@ PAL_PRIVATE void convertMilli2Timeval(uint32_t millisec, struct timeval* ts)
 palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
 {
     palStatus_t status = PAL_SUCCESS;
-    
+
     if (NULL == (struct palTimerInfo *) timerID)
     {
         return PAL_ERR_INVALID_ARGUMENT;
     }
 
-    struct palTimerInfo* timerInfo = (struct palTimerInfo *) timerID;    
+    struct palTimerInfo* timerInfo = (struct palTimerInfo *) timerID;
 
     timerInfo->aborted = false;
     timerInfo->TimerIO->tr_node.io_Command = TR_ADDREQUEST;
-    convertMilli2Timeval(millisec, &(timerInfo->TimerIO->tr_time));    
+    convertMilli2Timeval(millisec, &(timerInfo->TimerIO->tr_time));
 
     SendIO((struct IORequest *)timerInfo->TimerIO);
     //TODO if repeating, do SendIO in callback/wrapper/thread?
-    
+
     return status;
 }
 
@@ -874,7 +833,7 @@ palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
 palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
 {
     palStatus_t status = PAL_SUCCESS;
-    
+
     if (NULL == (struct palTimerInfo *) timerID)
     {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -882,7 +841,7 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
 
     struct palTimerInfo* timerInfo = (struct palTimerInfo *) timerID;
     timerInfo->aborted = true;
-    AbortIO((struct IORequest *)timerInfo->TimerIO);    
+    AbortIO((struct IORequest *)timerInfo->TimerIO);
 
     return status;
 }
@@ -929,11 +888,11 @@ palStatus_t pal_plat_osTimerDelete(palTimerID_t* timerID)
         }
     }
 
-    
+
     if(NULL != timerInfo->TimerIO)
-    {        
+    {
         free(timerInfo->TimerIO);
-    }    
+    }
 
     // 243863 Unchecked return value
     (void)pal_osMutexRelease(g_timerListMutex);
@@ -1341,8 +1300,8 @@ palStatus_t pal_plat_osSemaphoreDelete(palSemaphoreID_t* semaphoreID)
 int32_t pal_plat_osAtomicIncrement(int32_t* valuePtr, int32_t increment)
 {
     //int32_t res = __sync_add_and_fetch(valuePtr, increment);
-    _Atomic int32_t res = __atomic_add_fetch(valuePtr, increment,__ATOMIC_SEQ_CST);    
-    return res;    
+    _Atomic int32_t res = __atomic_add_fetch(valuePtr, increment,__ATOMIC_SEQ_CST);
+    return res;
 }
 
 
@@ -1365,7 +1324,7 @@ palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, siz
 }
 
 #if (PAL_USE_HW_RTC)
-palStatus_t pal_plat_osGetRtcTime(uint64_t *rtcGetTime)	
+palStatus_t pal_plat_osGetRtcTime(uint64_t *rtcGetTime)
 {
     struct Library * BattClockBase = OpenResource(BATTCLOCKNAME);
     *rtcGetTime = (uint64_t)ReadBattClock();
@@ -1382,12 +1341,12 @@ palStatus_t pal_plat_osSetRtcTime(uint64_t rtcSetTime)
 }
 
 palStatus_t pal_plat_rtcInit(void)
-{       
+{
     return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_rtcDeInit(void)
-{      
+{
     return PAL_SUCCESS;
 }
 
