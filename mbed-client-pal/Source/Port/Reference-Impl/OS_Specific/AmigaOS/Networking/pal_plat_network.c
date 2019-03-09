@@ -661,6 +661,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                 s_callbackArgs[s_nfds] = s_async_socket.callbackArgument;
                 s_nfds++;
                 result = pal_osMutexRelease(s_mutexSocketCallbacks);
+                //printf("Created socket id %d\n", s_fds[s_nfds].fd);
                 if (result != PAL_SUCCESS)
                 {
                     PAL_LOG_ERR("Error in async socket manager on pal_osMutexRelease");
@@ -680,8 +681,8 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
             {
               case DO_CONNECT:
                 {
-                    //printf("DO_CONNECT\n");
-                    int c_res = connect((intptr_t)g_asyncActionStruct.arg1,(struct sockaddr *)g_asyncActionStruct.arg2, *((int *)g_asyncActionStruct.arg3));
+                    //printf("DO_CONNECT %d\n", *((intptr_t*)g_asyncActionStruct.arg1));
+                    int c_res = connect(*((intptr_t*)g_asyncActionStruct.arg1),(const struct sockaddr *)g_asyncActionStruct.arg2, sizeof(struct sockaddr));
 
                     if(c_res == -1)
                     {
@@ -1500,8 +1501,10 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
         // clean filter to get the callback on first attempt
         clearSocketFilter((intptr_t)socket, 1);
 
+        //printf("call connect: %d\n", socket);
+
         g_asyncActionStruct.action = DO_CONNECT;
-        g_asyncActionStruct.arg1 = (void *)socket;
+        g_asyncActionStruct.arg1 = (void *)&socket;
         g_asyncActionStruct.arg2 = (void *)&internalAddr;
         g_asyncActionStruct.arg3 = (void *)&addressLen;
 
