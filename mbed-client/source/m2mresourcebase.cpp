@@ -191,7 +191,17 @@ bool M2MResourceBase::set_resource_read_callback(read_resource_value_callback ca
                                             (void*)callback,
                                             M2MCallbackAssociation::M2MResourceBaseValueReadCallback,
                                             client_args);
+}
 
+bool M2MResourceBase::set_resource_read_size_callback(read_resource_value_size_callback callback, void *client_args)
+{
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueReadSizeCallback);
+    M2MBase::lwm2m_parameters_s* param = M2MBase::get_lwm2m_parameters();
+    param->read_write_callback_set = true;
+    return M2MCallbackStorage::add_callback(*this,
+                                            (void*)callback,
+                                            M2MCallbackAssociation::M2MResourceBaseValueReadSizeCallback,
+                                            client_args);
 }
 
 bool M2MResourceBase::set_resource_write_callback(write_resource_value_callback callback, void *client_args)
@@ -435,6 +445,23 @@ int M2MResourceBase::read_resource_value(const M2MResourceBase &resource, void *
     }
 }
 
+int M2MResourceBase::read_resource_value_size(const M2MResourceBase &resource, size_t *buffer_len)
+{
+    tr_debug("M2MResourceBase::read_resource_value_size");
+
+    M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(resource,
+                                                                            M2MCallbackAssociation::M2MResourceBaseValueReadSizeCallback);
+
+    if (item) {
+        read_resource_value_size_callback callback = (read_resource_value_size_callback)item->_callback;
+        assert(callback);
+        return (*callback)(resource, buffer_len, item->_client_args);
+    } else {
+        *buffer_len = value_length();
+        return 0;
+    }
+}
+
 bool M2MResourceBase::write_resource_value(const M2MResourceBase &resource, const uint8_t *buffer, const size_t buffer_size)
 {
     tr_debug("M2MResourceBase::write_resource_value");
@@ -480,7 +507,7 @@ int64_t M2MResourceBase::get_value_int() const
         // max length of int64_t string is 20 bytes + nil
         // The +1 here is there in case the string was already zero terminated.
 
-        
+
         bool success = String::convert_ascii_to_int(value_string, value_len, value_int);
         if (!success) {
             // note: the convert_ascii_to_int() actually allows one to pass the conversion

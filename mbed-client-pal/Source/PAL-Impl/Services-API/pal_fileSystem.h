@@ -349,6 +349,7 @@ palStatus_t pal_fsFseek(palFileDescriptor_t *fd, int32_t offset,
 /*! \brief This function gets the current read/write pointer of a file.
  *
  * @param[in]	fd A pointer to the open file object structure.
+ * @param[out] pos A pointer to a variable that receives the current file position.
  *
  * \return PAL_SUCCESS upon successful operation.
  * \return PAL_FILE_SYSTEM_ERROR For error code description, see \c palError_t.
@@ -392,8 +393,9 @@ palStatus_t pal_fsRmFiles(const char *pathName);
  */
 palStatus_t pal_fsCpFolder(const char *pathNameSrc, char *pathNameDest);
 
-/*! \brief This function sets the mount directory for the given storage ID (primary or secondary),
+/*! \brief This function sets the mount directory for the given storage ID (primary or secondary).
  *
+ * @param[in]  dataID Pointer to the target storage.
  * @param[in]  Path A pointer to a null-terminated string that specifies the root folder.
  *
  * \return PAL_SUCCESS upon successful operation.
@@ -404,8 +406,11 @@ palStatus_t pal_fsCpFolder(const char *pathNameSrc, char *pathNameDest);
  */
 palStatus_t pal_fsSetMountPoint(pal_fsStorageID_t dataID, const char *Path);
 
-/*! \brief This function gets the mount directory for the given storage ID (primary or secondary), The function copies the path to the user pre allocated buffer.
+/*! \brief This function gets the mount directory for the given storage ID (primary or secondary).
  *
+ * The function copies the path to a buffer pre-allocated by the user.
+ *
+ * @param[in]   dataID Pointer to the target storage.
  * @param[in]   length The length of the buffer.
  * @param[out]  Path A pointer to a \e pre-allocated \e buffer with size \c PAL_MAX_FOLDER_DEPTH_CHAR + 1 chars. The plus 1 is to account for the '\0' terminator at the end of the buffer
  *

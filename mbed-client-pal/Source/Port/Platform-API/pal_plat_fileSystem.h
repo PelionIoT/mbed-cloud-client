@@ -174,6 +174,7 @@ palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffs
 /*! \brief This function gets the current read/write pointer of a file.
  *
  * @param[in]	fd A pointer to the open file object structure.
+ * @param[out] pos A pointer to a variable that receives the current file position.
  *
  * \return PAL_SUCCESS upon a successful operation.
  * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
@@ -252,9 +253,6 @@ size_t pal_plat_fsSizeCheck(const char *stringToChk);
 
 /*! \brief This function sets up the mount point.
  *
- *
- * @param void
- *
  * \return PAL_SUCCESS upon a successful operation.
  * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
  *
@@ -262,15 +260,15 @@ size_t pal_plat_fsSizeCheck(const char *stringToChk);
 palStatus_t pal_plat_fsMountSystem(void);
 
 
-/*! \brief This function formats the SD partition indicated by `dataID`.
+/*! \brief This function formats the chosen SD partition.
  *
  * Mapping the ID to an actual partition is done in the porting layer.
  *
  *
  * @param[in] dataID The ID of the partition to be formatted.
  *
- * \return PAL_SUCCESS upon a successful operation.\n
- *         PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
+ * \return PAL_SUCCESS upon a successful operation.
+ * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
  *
  */
 palStatus_t pal_plat_fsFormat(pal_fsStorageID_t dataID);

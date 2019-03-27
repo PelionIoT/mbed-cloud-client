@@ -86,7 +86,11 @@ public:
 
         // typedef bool(*write_resource_value_callback) (const M2MResourceBase& resource,
         // const uint8_t *buffer, const size_t buffer_size, void *client_args);
-        M2MResourceBaseValueWriteCallback
+        M2MResourceBaseValueWriteCallback,
+
+        // typedef int(*read_resource_value_size_callback) (const M2MResourceBase& resource,
+        // size_t *buffer_size, void *client_args);
+        M2MResourceBaseValueReadSizeCallback
 
 #ifdef ENABLE_ASYNC_REST_RESPONSE
         // typedef bool(*handle_async_coap_request_cb) (const M2MBase& base,

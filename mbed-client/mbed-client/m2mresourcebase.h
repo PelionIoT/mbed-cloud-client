@@ -95,6 +95,17 @@ public:
                                                 void *client_args);
 
     /*
+     * \brief Read resource value size callback function.
+     * \param resource Pointer to resource whose size will be read
+     * \param buffer_size[OUT] Buffer size
+     * \param client_args Client arguments
+     * \return Error code, 0 on success otherwise < 0
+     */
+    typedef int(*read_resource_value_size_callback) (const M2MResourceBase& resource,
+                                                     size_t *buffer_size,
+                                                     void *client_args);
+
+    /*
      * \brief Set resource value callback function.
      * \param resource Pointer to resource whose value will be updated
      * \param buffer Buffer containing the new value
@@ -196,7 +207,7 @@ public:
     bool set_execute_function(execute_callback_2 callback);
 
     /**
-     * \brief Sets the function that is executed when the resource value change.
+     * \brief Sets the callback function that is executed when reading the resource value.
      * \param callback The function pointer that needs to be executed.
      * \param client_args Client arguments.
      * \return True, if callback could be set, false otherwise.
@@ -204,7 +215,15 @@ public:
     bool set_resource_read_callback(read_resource_value_callback callback, void *client_args);
 
     /**
-     * \brief Sets the function that is executed when reading the resource value.
+     * \brief Sets the callback function that is executed when reading the resource value size.
+     * \param callback The function pointer that needs to be executed.
+     * \param client_args Client arguments.
+     * \return True, if callback could be set, false otherwise.
+     */
+    bool set_resource_read_size_callback(read_resource_value_size_callback callback, void *client_args);
+
+    /**
+     * \brief Sets the callback function that is executed when writing the resource value.
      * \param callback The function pointer that needs to be executed.
      * \param client_args Client arguments.
      * \return True, if callback could be set, false otherwise.
@@ -216,10 +235,19 @@ public:
      * \note If "read_resource_value_callback" is not set this is internally calling value() and value_length() API's.
      * \param resource Pointer to resource whose value will be read.
      * \param buffer[OUT] Buffer where the value is stored.
-     * \param buffer_len[IN/OUT] Buffer length
+     * \param buffer_len[IN/OUT] Buffer size
      * \return Error code, 0 on success otherwise < 0
      */
     int read_resource_value(const M2MResourceBase& resource, void *buffer, size_t *buffer_len);
+
+    /**
+     * \brief Executes the function that is set in "set_resource_read_size_callback".
+     * \note If "read_resource_value_size_callback" is not set this is internally calling value_length() API.
+     * \param resource Pointer to resource whose size will be read.
+     * \param buffer_len[OUT] Buffer size
+     * \return Error code, 0 on success otherwise < 0
+     */
+    int read_resource_value_size(const M2MResourceBase& resource, size_t *buffer_len);
 
     /**
      * \brief Executes the function that is set in "set_resource_write_callback".

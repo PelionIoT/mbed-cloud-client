@@ -451,6 +451,16 @@ private: // state machine state functions
     void start_register_update(M2MUpdateRegisterData *data);
 
     /**
+     * When the client has resumed.
+     */
+    void state_resume(EventData *data);
+
+    /**
+     * When the client has paused.
+     */
+    void state_pause();
+
+    /**
     * State enumeration order must match the order of state
     * method entries in the state map
     */
@@ -473,7 +483,9 @@ private: // state machine state functions
         STATE_COAP_DATA_RECEIVED, // 15
         STATE_PROCESSING_COAP_DATA,
         STATE_COAP_DATA_PROCESSED,
-        STATE_WAITING,
+        STATE_PAUSE,
+        STATE_RESUME,
+        STATE_WAITING, // 20
         STATE_MAX_STATES
     };
 

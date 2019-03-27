@@ -127,4 +127,6 @@
     #define PAL_INITIALIZED_BEFORE_TESTS 0
 #endif
 
+#define PAL_SKIP_TEST_MODULE_SST
+
 #endif /* PAL_SXOS_CONFIGURATION_H_ */

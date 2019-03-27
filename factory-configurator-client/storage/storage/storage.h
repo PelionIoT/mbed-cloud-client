@@ -116,7 +116,7 @@ typedef enum {
 * Structure containing all necessary data of a child X509 Certificate to be validated with its signers public key
 */
 typedef struct kcm_cert_chain_prev_params_int_ {
-    uint8_t signature[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES]; //!< The signature of certificate.
+    uint8_t signature[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES]; //!< The signature of certificate.
     size_t signature_actual_size;                                      //!< The size of signature.
     uint8_t htbs[CS_SHA256_SIZE];                                      //!< The hash of certificate's tbs.
     size_t htbs_actual_size;                                           //!< The size of hash digest.
@@ -213,34 +213,6 @@ palStatus_t storage_rbp_write(
 palStatus_t storage_rbp_delete(const char *item_name);
 #endif
 
-/** FCC initiated operation, writes a rollback protected data.
-*
-*   @param[in] item_name A string name of the rollback protected item
-*   @param[in] data A pointer to memory with the data to write into the storage. Can be NULL if data_length is 0.
-*   @param[in] data_size The data length in bytes. Can be 0 if we wish to write an empty file.
-*   @param[in] is_write_once Write once flag.
-*   @returns
-*        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_fcc_rbp_write(
-    const char *item_name,
-    const uint8_t *data,
-    size_t data_size,
-    bool is_write_once);
-/** FCC initiated operation, writes a rollback protected data.
-*
-*   @param[in] item_name A string name of the rollback protected item
-*   @param[in] data A pointer to memory with the data to write into the storage. Can be NULL if data_length is 0.
-*   @param[in] data_size The data length in bytes. Can be 0 if we wish to write an empty file.
-*   @param[in] is_write_once Write once flag.
-*   @returns
-*        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_fcc_rbp_read(
-    const char *item_name,
-    uint8_t *data,
-    size_t data_size,
-    size_t *data_actual_lenght_out);
 /* === Initialization and Finalization === */
 
 /** Initializes storage so that it can be used.
@@ -500,6 +472,8 @@ kcm_status_e storage_cert_chain_close(
     kcm_cert_chain_handle kcm_chain_handle,
     kcm_data_source_type_e data_source_type);
 
+
+#include "storage_psa.h"
 
 #ifdef __cplusplus
 }

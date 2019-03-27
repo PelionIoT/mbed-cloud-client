@@ -75,7 +75,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=2.2.1";
+const char *MCC_VERSION = "mccv=3.0.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -2433,46 +2433,25 @@ bool M2MNsdlInterface::validate_security_object()
         uint32_t sec_mode = _security->resource_value_int(M2MSecurity::SecurityMode, instance_id);
         uint32_t is_bs_server = _security->resource_value_int(M2MSecurity::BootstrapServer, instance_id);
 
-        uint32_t chain_size = 0;
-        uint32_t server_key_size = 0;
-        uint32_t pkey_size = 0;
-
-        size_t buffer_size = MAX_CERTIFICATE_SIZE;
-        uint8_t certificate[MAX_CERTIFICATE_SIZE];
-        uint8_t *certificate_ptr = (uint8_t *)&certificate;
+        size_t chain_size = 0;
+        size_t server_key_size = 0;
+        size_t pkey_size = 0;
 
         // Read through callback if set
         M2MResource *res = _security->get_resource(M2MSecurity::OpenCertificateChain, instance_id);
         if (res) {
             M2MBase::lwm2m_parameters_s *param = res->get_lwm2m_parameters();
             if (param->read_write_callback_set) {
-                // Read the chain size
-                if (_security->resource_value_buffer(M2MSecurity::OpenCertificateChain, certificate_ptr, instance_id, &buffer_size) == 0) {
-                    // Only set size if no error when reading
-                    chain_size = buffer_size;
-                }
-                _security->resource_value_buffer(M2MSecurity::CloseCertificateChain, certificate_ptr, instance_id, &buffer_size);
+                _security->resource_value_buffer_size(M2MSecurity::OpenCertificateChain, instance_id, &chain_size);
+                _security->resource_value_buffer_size(M2MSecurity::CloseCertificateChain, instance_id, &chain_size);
             } else {
-                // Read directly from the resource
-                if (_security->resource_value_buffer(M2MSecurity::PublicKey, certificate_ptr, instance_id, &buffer_size) == 0) {
-                    // Only set size if no error when reading
-                    chain_size = buffer_size;
-                }
+                // Read directly from the resource. Used only in "client only" mode.
+                _security->resource_value_buffer_size(M2MSecurity::PublicKey, instance_id, &chain_size);
             }
         }
 
-        buffer_size = MAX_CERTIFICATE_SIZE;
-
-        if (_security->resource_value_buffer(M2MSecurity::ServerPublicKey, certificate_ptr, instance_id, &buffer_size) == 0) {
-            // Only set size if no error when reading
-            server_key_size = buffer_size;
-        }
-
-        buffer_size = MAX_CERTIFICATE_SIZE;
-        if (_security->resource_value_buffer(M2MSecurity::Secretkey, certificate_ptr, instance_id, &buffer_size) == 0) {
-            // Only set size if no error when reading
-            pkey_size = buffer_size;
-        }
+        _security->resource_value_buffer_size(M2MSecurity::ServerPublicKey, instance_id, &server_key_size);
+        _security->resource_value_buffer_size(M2MSecurity::Secretkey, instance_id, &pkey_size);
 
         tr_info("M2MNsdlInterface::validate_security_object - Server URI /0/0: %s", address.c_str());
         tr_info("M2MNsdlInterface::validate_security_object - is bs server /0/1: %" PRIu32, is_bs_server);

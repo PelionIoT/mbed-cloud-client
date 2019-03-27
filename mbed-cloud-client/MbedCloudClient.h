@@ -88,21 +88,64 @@ public:
      * that can occur during various client operations.
      */
     typedef enum {
-        ConnectErrorNone                        = M2MInterface::ErrorNone, // Range reserved for Connector Error from 0x30 - 0x3FF
+        // Range 0x30 - 0x3FF reserved for Connector error.
+        ConnectErrorNone                        = M2MInterface::ErrorNone,
+
+        // Not used.
         ConnectAlreadyExists                    = M2MInterface::AlreadyExists,
+
+        // Bootstrap failed.
+        // Client recovers automatically.
         ConnectBootstrapFailed                  = M2MInterface::BootstrapFailed,
+
+        // Security object is not valid or server rejects the registration.
+        // No internal recovery mechanism. Actions needed on the application side.
         ConnectInvalidParameters                = M2MInterface::InvalidParameters,
+
+        // Cannot unregister as client is not registered.
+        // No internal recovery mechanism. Actions needed on the application side.
         ConnectNotRegistered                    = M2MInterface::NotRegistered,
+
+        // Registration has timed out.
+        // Client recovers automatically.
         ConnectTimeout                          = M2MInterface::Timeout,
+
+        // Socket level operation error.
+        // Client recovers automatically.
         ConnectNetworkError                     = M2MInterface::NetworkError,
+
+        // Failed to parse an incoming CoAP message.
+        // Client will continue working, no actions needed.
         ConnectResponseParseFailed              = M2MInterface::ResponseParseFailed,
+
+        // Unknown CoAP level error.
+        // Client recovers automatically.
         ConnectUnknownError                     = M2MInterface::UnknownError,
+
+        // Memory allocation has failed.
+        // No internal recovery mechanism. Actions needed on the application side.
         ConnectMemoryConnectFail                = M2MInterface::MemoryFail,
+
+        // API call is not allowed for now.
+        // Application should try again later.
         ConnectNotAllowed                       = M2MInterface::NotAllowed,
+
+        // Failed to initialize secure connection or DTLS/TLS handshake failed.
+        // Client recovers automatically.
         ConnectSecureConnectionFailed           = M2MInterface::SecureConnectionFailed,
+
+        // DNS resolving has failed.
+        // Client recovers automatically.
         ConnectDnsResolvingFailed               = M2MInterface::DnsResolvingFailed,
+
+        // Not used.
         ConnectorFailedToStoreCredentials       = M2MInterface::FailedToStoreCredentials,
+
+        // Failed to read credentials from storage.
+        // No internal recovery mechanism. Actions needed on the application side.
         ConnectorFailedToReadCredentials        = M2MInterface::FailedToReadCredentials,
+
+        // Not used.
         ConnectorInvalidCredentials,
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         UpdateWarningNoActionRequired           = UpdateClient::WarningBase, // Range reserved for Update Error from 0x0400 - 0x04FF

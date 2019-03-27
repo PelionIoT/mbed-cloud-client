@@ -81,6 +81,7 @@ const char g_fcc_crypto_cert_not_trusted_error_str[] = "Certificate not trusted:
 const char g_fcc_crypto_invalid_x509_attr_error_str[] = "X509 attribute invalid:";
 const char g_fcc_crypto_invalid_x509_extension_error_str[] = "X509 extension invalid:";
 const char g_fcc_crypto_invalid_pk_key_format_error_str[] = "Public key format invalid:";
+const char g_fcc_crypto_invalid_private_key_error_str[] = "Private key invalid:";
 const char g_fcc_crypto_invalid_public_key_error_str[] = "Public key invalid:";
 const char g_fcc_crypto_ecp_invalid_key_error_str[] = "EC key invalid:";
 const char g_fcc_crypto_pk_key_invalid_version_error_str[] = "Public key version invalid:";
@@ -423,6 +424,9 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
             break;
         case KCM_CRYPTO_STATUS_PK_KEY_INVALID_FORMAT:
             kcm_error_string = (char*)g_fcc_crypto_invalid_pk_key_format_error_str;
+            break;
+        case KCM_CRYPTO_STATUS_INVALID_PK_PRIVKEY:
+            kcm_error_string = (char*)g_fcc_crypto_invalid_private_key_error_str;
             break;
         case KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY:
             kcm_error_string = (char*)g_fcc_crypto_invalid_public_key_error_str;

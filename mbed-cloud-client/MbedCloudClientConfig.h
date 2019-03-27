@@ -86,7 +86,7 @@
  * so they may be removed in the future releases.
  */
 #ifndef MBED_CLOUD_CLIENT_STL_API
-#define MBED_CLOUD_CLIENT_STL_API 1
+#define MBED_CLOUD_CLIENT_STL_API 0
 #endif
 
 /**
@@ -98,7 +98,7 @@
  * leakage, we need to maintain the old behavior for a while and just allow one to remove it.
  */
 #ifndef MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION
-#define MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION 1
+#define MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION 0
 #endif
 
 /**

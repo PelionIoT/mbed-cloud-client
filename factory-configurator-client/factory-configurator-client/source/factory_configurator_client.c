@@ -24,7 +24,10 @@
 #include "common_utils.h"
 #include "pal.h"
 #include "fcc_utils.h"
-
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "psa/lifecycle.h"
+#include "key_slot_allocator.h"
+#endif
 /**
 * Device general info
 */
@@ -136,13 +139,39 @@ fcc_status_e fcc_storage_delete()
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
-//when using SST don't check this since we want to delete storage before initialization
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_is_fcc_initialized), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
 #endif
+
+
+    // Finalize KCM before deleting all the storage. This way KCM module will do a lazy init again (also re-initializing the PSA if used)
+    status = kcm_finalize();
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), FCC_STATUS_KCM_STORAGE_ERROR, "Failed kcm_finalize");
+
+    // This will delete the external storage such as certificates, etc
+    // However, RBP data may remain in storage (in case of V7 or V8)
+    // We remove the external storage first because some of its metadata mey be contained inside the internal storage,
+    // and we may need access to it when deleting the external storage
     status = storage_reset();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((status == KCM_STATUS_ESFS_ERROR), FCC_STATUS_KCM_STORAGE_ERROR, "Failed in storage_reset. got ESFS error");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), FCC_STATUS_ERROR, "Failed storage reset");
+
+    // If using PSA - change to clean state
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    psa_status_t psa_status;
+
+    /* Go back to an empty storage state
+     * * In case of non-PSA boards (such as K64F and K66F) with KVSTORE config, this is not really needed, as kv_reset() 
+     *   called by storage_reset()) as PSA and RBP items are stored in the same TDBStore. In this case, the call will
+     *   get us from an empty storage state to an empty storage state.
+     * * In case of a user provided SST, we do not know whether pal_SSTReset() will also remove the PSA storage (probably
+     *   not), so we probably need this call.
+     * * In case of actual PSA boards, with KVSTORE config, we must call this function so the PSA storage is removed.
+     */
+    psa_status = mbed_psa_reboot_and_request_new_security_state(PSA_LIFECYCLE_ASSEMBLY_AND_TEST);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), FCC_STATUS_ERROR, "Failed storage reset");
+
+#endif
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return FCC_STATUS_SUCCESS;

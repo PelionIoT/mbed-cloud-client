@@ -15,7 +15,6 @@
 */
 
 #include "pal.h"
-#include "pal_Crypto.h"
 #include <string.h>
 #include "esfs.h"
 

@@ -27,7 +27,6 @@ TEST_GROUP_RUNNER(pal_tls)
     RUN_TEST_CASE(pal_tls, tlsCACertandPSK);
     RUN_TEST_CASE(pal_tls, tlsHandshakeUDPTimeOut);
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP);
-    RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_nonBlocking);
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_FutureLWM2M); //Far future LWM2M - should update the time in SOTP
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate); // Near future LWM2M - No SOTP time update
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert);   // Expired LWM2M - Certificate verification MUST fail
@@ -36,6 +35,4 @@ TEST_GROUP_RUNNER(pal_tls)
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate); // Near past BootStrap - No SOTP time update
     RUN_TEST_CASE(pal_tls, TCPHandshakeWhileCertVerify_threads);
     RUN_TEST_CASE(pal_tls, tlsHandshakeUDP);
-    RUN_TEST_CASE(pal_tls, tlsHandshakeUDP_NonBlocking);
 }
-

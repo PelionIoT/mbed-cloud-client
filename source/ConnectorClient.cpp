@@ -73,28 +73,42 @@ class EventData {
 
 };
 
-static int read_callback_helper(const char *key, void *buffer, size_t *buffer_len)
+static int read_size_callback_helper(const char *key, size_t *buffer_len)
 {
-    size_t cert_size = 0;
+    *buffer_len = 0;
     if (strcmp(key, g_fcc_lwm2m_device_private_key_name) == 0 ||
         strcmp(key, g_fcc_bootstrap_device_private_key_name) == 0) {
         if (ccs_item_size(key, buffer_len, CCS_PRIVATE_KEY_ITEM) != CCS_STATUS_SUCCESS) {
-            *buffer_len = 0;
-            return CCS_STATUS_ERROR;
-        }
-
-        if (ccs_get_item(key, (uint8_t*)buffer, *buffer_len, &cert_size, CCS_PRIVATE_KEY_ITEM) != CCS_STATUS_SUCCESS) {
-            *buffer_len = 0;
             return CCS_STATUS_ERROR;
         }
     } else {
         if (ccs_item_size(key, buffer_len, CCS_CERTIFICATE_ITEM) != CCS_STATUS_SUCCESS) {
-            *buffer_len = 0;
+            return CCS_STATUS_ERROR;
+        }
+    }
+
+    return CCS_STATUS_SUCCESS;
+}
+
+static int read_callback_helper(const char *key, void *buffer, size_t *buffer_len)
+{
+    size_t cert_size = 0;
+    *buffer_len = 0;
+    if (strcmp(key, g_fcc_lwm2m_device_private_key_name) == 0 ||
+        strcmp(key, g_fcc_bootstrap_device_private_key_name) == 0) {
+        if (read_size_callback_helper(key, buffer_len) != CCS_STATUS_SUCCESS) {
+            return CCS_STATUS_ERROR;
+        }
+
+        if (ccs_get_item(key, (uint8_t*)buffer, *buffer_len, &cert_size, CCS_PRIVATE_KEY_ITEM) != CCS_STATUS_SUCCESS) {
+            return CCS_STATUS_ERROR;
+        }
+    } else {
+        if (read_size_callback_helper(key, buffer_len) != CCS_STATUS_SUCCESS) {
             return CCS_STATUS_ERROR;
         }
 
         if (ccs_get_item(key, (uint8_t*)buffer, *buffer_len, &cert_size, CCS_CERTIFICATE_ITEM) != CCS_STATUS_SUCCESS) {
-            *buffer_len = 0;
             return CCS_STATUS_ERROR;
         }
     }
@@ -103,6 +117,8 @@ static int read_callback_helper(const char *key, void *buffer, size_t *buffer_le
 
     return CCS_STATUS_SUCCESS;
 }
+
+
 
 static bool write_security_object_data_to_kcm(const M2MResourceBase& resource, const uint8_t *buffer, const size_t buffer_size, void */*client_args*/)
 {
@@ -181,7 +197,40 @@ static int read_security_object_data_from_kcm(const M2MResourceBase& resource, v
     return CCS_STATUS_ERROR;
 }
 
-static int open_certificate_chain_callback(const M2MResourceBase& resource, void */*buffer*/, size_t *chain_size, void *client_args)
+static int read_security_object_data_size_from_kcm(const M2MResourceBase& resource, size_t *buffer_len, void */*client_args*/)
+{
+    uint32_t resource_id = resource.name_id();
+    uint16_t object_instance_id = resource.object_instance_id();
+    switch (resource_id) {
+        case M2MSecurity::PublicKey:
+            if (object_instance_id == M2MSecurity::Bootstrap) {
+                return read_size_callback_helper(g_fcc_bootstrap_device_certificate_name, buffer_len);
+            } else {
+                return read_size_callback_helper(g_fcc_lwm2m_device_certificate_name, buffer_len);
+            }
+
+        case M2MSecurity::ServerPublicKey:
+            if (object_instance_id == M2MSecurity::Bootstrap) {
+                return read_size_callback_helper(g_fcc_bootstrap_server_ca_certificate_name, buffer_len);
+            } else {
+                return read_size_callback_helper(g_fcc_lwm2m_server_ca_certificate_name, buffer_len);
+            }
+
+        case M2MSecurity::Secretkey:
+            if (object_instance_id == M2MSecurity::Bootstrap) {
+                return read_size_callback_helper(g_fcc_bootstrap_device_private_key_name, buffer_len);
+            } else {
+                return read_size_callback_helper(g_fcc_lwm2m_device_private_key_name, buffer_len);
+            }
+
+        default:
+            break;
+    }
+
+    return CCS_STATUS_ERROR;
+}
+
+static int open_certificate_chain_callback(const M2MResourceBase& resource, size_t *chain_size, void *client_args)
 {
     void *handle = NULL;
     uint16_t object_instance_id = resource.object_instance_id();
@@ -208,7 +257,7 @@ static int read_certificate_chain_callback(const M2MResourceBase& /*resource*/, 
     return status;
 }
 
-static int close_certificate_chain_callback(const M2MResourceBase& /*resource*/, void */*buffer*/, size_t *, void *client_args)
+static int close_certificate_chain_callback(const M2MResourceBase& /*resource*/, size_t *, void *client_args)
 {
     ccs_status_e status = CCS_STATUS_ERROR;
     ConnectorClient *client = (ConnectorClient*) client_args;
@@ -1333,24 +1382,27 @@ void ConnectorClient::init_security_object()
                 M2MResource* res = _security->get_resource(M2MSecurity::ServerPublicKey, i);
                 if (res) {
                     res->set_resource_read_callback(read_security_object_data_from_kcm, this);
+                    res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
                     res->set_resource_write_callback(write_security_object_data_to_kcm, this);
                 }
 
                 res = _security->get_resource(M2MSecurity::PublicKey, i);
                 if (res) {
                     res->set_resource_read_callback(read_security_object_data_from_kcm, this);
+                    res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
                     res->set_resource_write_callback(write_security_object_data_to_kcm, this);
                 }
 
                 res = _security->get_resource(M2MSecurity::Secretkey, i);
                 if (res) {
                     res->set_resource_read_callback(read_security_object_data_from_kcm, this);
+                    res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
                     res->set_resource_write_callback(write_security_object_data_to_kcm, this);
                 }
 
                 res = _security->get_resource(M2MSecurity::OpenCertificateChain, i);
                 if (res) {
-                    res->set_resource_read_callback(open_certificate_chain_callback, this);
+                    res->set_resource_read_size_callback(open_certificate_chain_callback, this);
                 }
 
                 res = _security->get_resource(M2MSecurity::ReadDeviceCertificateChain, i);
@@ -1360,7 +1412,7 @@ void ConnectorClient::init_security_object()
 
                 res = _security->get_resource(M2MSecurity::CloseCertificateChain, i);
                 if (res) {
-                    res->set_resource_read_callback(close_certificate_chain_callback, this);
+                    res->set_resource_read_size_callback(close_certificate_chain_callback, this);
                 }
             }
         }

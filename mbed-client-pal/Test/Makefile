@@ -81,6 +81,7 @@ C_SRC += ${wildcard PAL_Modules/Crypto/*.c}
 C_SRC += ${wildcard PAL_Modules/Networking/*.c}
 C_SRC += ${wildcard PAL_Modules/RTOS/*.c}
 C_SRC += ${wildcard PAL_Modules/FileSystem/*.c}
+C_SRC += ${wildcard PAL_Modules/Sanity/*.c}
 C_SRC += ${wildcard PAL_Modules/SOTP/*.c}
 C_SRC += ${wildcard PAL_Modules/Storage/*.c}
 C_SRC += ${wildcard PAL_Modules/Time/*.c}

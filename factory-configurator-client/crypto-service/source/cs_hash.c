@@ -16,24 +16,22 @@
 
 #include "pv_error_handling.h"
 #include "cs_hash.h"
-#include "pal_Crypto.h"
+#include "pal.h"
 #include "cs_utils.h"
+#include "pv_macros.h"
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "psa/crypto.h"
+#endif
+
 
 kcm_status_e cs_hash(cs_hash_mode_e mode, const uint8_t *data, size_t data_size, uint8_t *digest, size_t digest_size)
 {
-    palStatus_t pal_status = PAL_SUCCESS;
-
     SA_PV_ERR_RECOVERABLE_RETURN_IF((data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid data pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((digest == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid digest pointer");
-  
-    switch (mode) {
-        case CS_SHA256:
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((digest_size != CS_SHA256_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid digest size");
-            pal_status = pal_sha256(data, data_size, digest);
-            break;
-        default:
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((true), KCM_CRYPTO_STATUS_UNSUPPORTED_HASH_MODE, "Hash mode not supported");
-    }
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((mode != CS_SHA256), KCM_CRYPTO_STATUS_UNSUPPORTED_HASH_MODE, "Hash mode not supported");
 
+    PV_UNUSED_PARAM(digest_size);
+
+    palStatus_t pal_status = pal_sha256(data, data_size, digest);
     return cs_error_handler(pal_status);
 }

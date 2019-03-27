@@ -33,14 +33,12 @@
 #include <netdb.h>
 #include <ifaddrs.h>
 #include <errno.h>
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
 #include <pthread.h>
 #include <poll.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <time.h>
 #include <assert.h>
-#endif
 
 #define TRACE_GROUP "PAL"
 
@@ -53,7 +51,7 @@
 
 
 typedef struct palNetInterfaceName{
-    char interfaceName[PAL_NET_MAX_IF_NAME_LENGTH];
+    char *interfaceName;
 } palNetInterfaceName_t;
 
 PAL_PRIVATE palNetInterfaceName_t s_palNetworkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES];
@@ -111,6 +109,10 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     case EINTR:
         status = PAL_ERR_SOCKET_INTERRUPTED;
         break;
+    case EAI_AGAIN:
+    case EAI_NONAME:
+        status = PAL_ERR_SOCKET_DNS_ERROR;
+        break;
     default:
         PAL_LOG_ERR("translateErrorToPALError() cannot translate %d", errnoValue);
         status = PAL_ERR_SOCKET_GENERIC;
@@ -119,14 +121,12 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     return status;
 }
 
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
+
 static pthread_t s_pollThread = NULLPTR;
 static palMutexID_t s_mutexSocketCallbacks = 0;
 static palMutexID_t s_mutexSocketEventFilter = 0;
 static palSemaphoreID_t s_socketCallbackSemaphore = 0;
 static palSemaphoreID_t s_socketCallbackSignalSemaphore = 0;
-
-
 
 // These must be updated only when protected by s_mutexSocketCallbacks
 static palAsyncSocketCallback_t s_callbacks[PAL_NET_TEST_MAX_ASYNC_SOCKETS] = {0};
@@ -345,7 +345,7 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
         }
     }  // while
 }
-#endif // PAL_NET_ASYNCHRONOUS_SOCKET_API
+
 
 PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_t* palAddr, struct sockaddr* output)
 {
@@ -456,9 +456,6 @@ palStatus_t pal_plat_socketsInit(void* context)
         return PAL_SUCCESS; // already initialized.
     }
 
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
-
     result = pal_osMutexCreate(&s_mutexSocketCallbacks);
     if (result != PAL_SUCCESS)
     {
@@ -470,7 +467,6 @@ palStatus_t pal_plat_socketsInit(void* context)
     {
         return result;
     }
-
 
     result = pal_osSemaphoreCreate(0, &s_socketCallbackSignalSemaphore);
     if (result != PAL_SUCCESS)
@@ -518,14 +514,12 @@ palStatus_t pal_plat_socketsInit(void* context)
             goto end;
         }
     }
-#endif
 
 end:
     if (PAL_SUCCESS == result)
     {
         s_pal_network_initialized = 1;
     }
-
 
     return result;
 }
@@ -549,8 +543,7 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
     {
         if (s_palNumOfInterfaces < PAL_MAX_SUPORTED_NET_INTERFACES)
         {
-            strncpy(s_palNetworkInterfacesSupported[s_palNumOfInterfaces].interfaceName, (const char *)context, PAL_NET_MAX_IF_NAME_LENGTH-1);
-            s_palNetworkInterfacesSupported[s_palNumOfInterfaces].interfaceName[PAL_NET_MAX_IF_NAME_LENGTH-1] = '\0';
+            s_palNetworkInterfacesSupported[s_palNumOfInterfaces].interfaceName = (char *)context;
             *interfaceIndex = s_palNumOfInterfaces;
             ++s_palNumOfInterfaces;
         }
@@ -565,9 +558,14 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
 
 palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
 {
-    strcpy(s_palNetworkInterfacesSupported[interfaceIndex].interfaceName, "");
-    --s_palNumOfInterfaces;
-    return PAL_SUCCESS;
+    if (interfaceIndex < PAL_MAX_SUPORTED_NET_INTERFACES &&
+        s_palNetworkInterfacesSupported[interfaceIndex].interfaceName) {
+        s_palNetworkInterfacesSupported[interfaceIndex].interfaceName = NULL;
+        --s_palNumOfInterfaces;
+        return PAL_SUCCESS;
+    } else {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
 }
 
 palStatus_t pal_plat_socketsTerminate(void* context)
@@ -576,7 +574,6 @@ palStatus_t pal_plat_socketsTerminate(void* context)
     palStatus_t result = PAL_SUCCESS;
     palStatus_t firstError = PAL_SUCCESS;
 
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
     // Critical section to update globals
     result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
     if (result != PAL_SUCCESS)
@@ -630,7 +627,6 @@ palStatus_t pal_plat_socketsTerminate(void* context)
         // TODO print error using logging mechanism when available.
         firstError = result;
     }
-#endif // PAL_NET_ASYNCHRONOUS_SOCKET_API
 
     s_pal_network_initialized = 0;
 
@@ -643,7 +639,7 @@ palStatus_t pal_plat_socketsTerminate(void* context)
  * The socket should be bound to interface pal_plat_bind API (bind to address reflects the bound between
  * socket and interface).
  */
-palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* sockt)
+palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* sockt)
 {
     int result = PAL_SUCCESS;
     intptr_t sockfd;
@@ -845,7 +841,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
         PAL_LOG_DBG("socket close called on socket which was already closed");
         return result;
     }
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
+
     // Critical section to update globals
     result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
     if (result != PAL_SUCCESS)
@@ -884,7 +880,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
         // TODO print error using logging mechanism when available.
         return result;
     }
-#endif // PAL_NET_ASYNCHRONOUS_SOCKET_API
+
     // In Linux it is ok to close a socket while it is being polled, but may not be on other os's
     res = close((intptr_t) *socket);
     if(res == -1)
@@ -960,8 +956,43 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
     return result;
 }
 
+PAL_PRIVATE palStatus_t registerAsyncSocketParams(palSocket_t socket, palAsyncSocketCallback_t callback, void* callbackArgument)
+{
+    palStatus_t result;
+
+    // Critical section to update globals
+    result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
+    if (result != PAL_SUCCESS)
+    {
+        // TODO print error using logging mechanism when available.
+        return result;
+    }
+
+    // make sure a recycled socket structure does not contain obsolete event filter
+    clearSocketFilter((intptr_t)socket);
+
+    s_fds[s_nfds].fd = (intptr_t)socket;
+    s_fds[s_nfds].events = POLLIN|POLLERR;  //TODO POLLOUT missing is not documented
+    s_callbacks[s_nfds] = callback;
+    s_callbackArgs[s_nfds] = callbackArgument;
+    s_nfds++;
+    result = pal_osMutexRelease(s_mutexSocketCallbacks);
+
+    if (result != PAL_SUCCESS)
+    {
+        // TODO print error using logging mechanism when available.
+        return result;
+    }
+
+    // Tell the poll thread to add the new socket
+    pthread_kill(s_pollThread, SIGUSR1);
+    return result;
+}
 
 #if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
+
+#if PAL_NET_SERVER_SOCKET_API
+
 palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 {
     palStatus_t result = PAL_SUCCESS;
@@ -976,7 +1007,7 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 }
 
 
-palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
+palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument)
 {
     intptr_t res = 0;
     palStatus_t result = PAL_SUCCESS;
@@ -996,6 +1027,12 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     }
     else
     {
+        result = registerAsyncSocketParams((palSocket_t)res, callback, callbackArgument);
+        if(result != PAL_SUCCESS)
+        {
+            return result;
+        }
+
         *acceptedSocket = (palSocket_t*)res;
         *addressLen = sizeof(palSocketAddress_t);
         result = pal_plat_socketAddressToPalSockAddr((struct sockaddr *)&internalAddr, address, &internalAddrLen);
@@ -1004,6 +1041,7 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     return result;
 }
 
+#endif // PAL_NET_SERVER_SOCKET_API
 
 palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
 {
@@ -1071,76 +1109,44 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
 
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket)
 {
 
     int err;
     int flags;
-    palStatus_t result = pal_plat_socket(domain,  type,  nonBlockingSocket,  interfaceNum, socket);
+    palStatus_t result = create_socket(domain,  type,  nonBlockingSocket,  interfaceNum, socket);
 
+    // initialize the socket to be ASYNC so we get SIGIO's for it
+    // XXX: this needs to be conditionalized as the blocking IO might have some use also.
+    err = fcntl((intptr_t)*socket, F_SETOWN, getpid());
+    assert(err != -1);
 
+    flags = fcntl((intptr_t)*socket, F_GETFL, 0);
+    assert(flags >= 0);
 
-        // initialize the socket to be ASYNC so we get SIGIO's for it
-        // XXX: this needs to be conditionalized as the blocking IO might have some use also.
-        err = fcntl((intptr_t)*socket, F_SETOWN, getpid());
-        assert(err != -1);
+    flags |= O_ASYNC;
 
-        flags = fcntl((intptr_t)*socket, F_GETFL, 0);
-        assert(flags >= 0);
+    err = fcntl((intptr_t)*socket, F_SETFL, flags);
 
-        flags |= O_ASYNC;
-
-        err = fcntl((intptr_t)*socket, F_SETFL, flags);
-
-        if (err == -1)
-        {
-            result = translateErrorToPALError(errno);
-        }
-
+    if (err == -1)
+    {
+        result = translateErrorToPALError(errno);
+    }
 
     if (result == PAL_SUCCESS)
     {
-        // Critical section to update globals
-        result = pal_osMutexWait(s_mutexSocketCallbacks, PAL_RTOS_WAIT_FOREVER);
-        if (result != PAL_SUCCESS)
-        {
-            // TODO print error using logging mechanism when available.
-            return result;
-        }
-
-        // make sure a recycled socket structure does not contain obsolete event filter
-        clearSocketFilter((intptr_t)*socket);
-
-        s_fds[s_nfds].fd = (intptr_t)*socket;
-        s_fds[s_nfds].events = POLLIN|POLLERR;  //TODO POLLOUT missing is not documented
-        s_callbacks[s_nfds] = callback;
-        s_callbackArgs[s_nfds] = callbackArgument;
-        s_nfds++;
-        result = pal_osMutexRelease(s_mutexSocketCallbacks);
-        if (result != PAL_SUCCESS)
-        {
-            // TODO print error using logging mechanism when available.
-            return result;
-        }
-        // Tell the poll thread to add the new socket
-        pthread_kill(s_pollThread, SIGUSR1);
+        result = registerAsyncSocketParams(*socket, callback, callbackArgument);
     }
 
     return result;
 
 }
 
-#endif
-
 #if PAL_NET_DNS_SUPPORT
 
-palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* length)
+palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *address, palSocketLength_t* length)
 {
     palStatus_t result = PAL_SUCCESS;
-    palSocketAddress_t localAddress = {0};
-    palSocketAddress_t zeroAddress = {0};
     struct addrinfo *pAddrInf = NULL;
     struct addrinfo hints = {0};
     int res;
@@ -1164,7 +1170,7 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
 
-    res = getaddrinfo(url, NULL, &hints, &pAddrInf);
+    res = getaddrinfo(hostname, NULL, &hints, &pAddrInf);
     if(res < 0)
     {
         // getaddrinfo returns EAI-error. In case of EAI_SYSTEM, the error
@@ -1185,16 +1191,7 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
     {
         if ((pAddrInf != NULL) && (pAddrInf->ai_family == supportedAddressType1 || pAddrInf->ai_family == supportedAddressType2))
         {
-            result = pal_plat_socketAddressToPalSockAddr((struct sockaddr*)pAddrInf->ai_addr, &localAddress, length);
-
-            if (0 == memcmp(localAddress.addressData, zeroAddress.addressData, PAL_NET_MAX_ADDR_SIZE) ) // invalid 0 address
-            {
-                result = PAL_ERR_SOCKET_DNS_ERROR;
-            }
-            else
-            {
-                *address = localAddress;
-            }
+            result = pal_plat_socketAddressToPalSockAddr((struct sockaddr*)pAddrInf->ai_addr, address, length);
         }
         else
         {

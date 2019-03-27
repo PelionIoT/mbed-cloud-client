@@ -22,7 +22,7 @@
 
 #if 0
 // This block is useful when building on new environment and one needs to find out,
-// how to pass the "include-file.h" macro value via multiple layers of scripts 
+// how to pass the "include-file.h" macro value via multiple layers of scripts
 // and different reserved char escaping conventions.
 #define XSTR(x) STR(x)
 #define STR(x) #x
@@ -78,7 +78,6 @@
 
 
 
-
 /*
  * Network configuration
  */
@@ -87,16 +86,16 @@
     #define PAL_NET_TCP_AND_TLS_SUPPORT         true //!< Add PAL support for TCP.
 #endif
 
-#ifndef PAL_NET_ASYNCHRONOUS_SOCKET_API
-    #define PAL_NET_ASYNCHRONOUS_SOCKET_API     true //!< Add PAL support for asynchronous sockets.
-#endif
-
 #ifndef PAL_NET_DNS_SUPPORT
     #define PAL_NET_DNS_SUPPORT                 true //!< Add PAL support for DNS lookup.
 #endif
 
 #if (PAL_NET_DNS_SUPPORT == true) && !(defined(PAL_DNS_API_VERSION))
 #define PAL_DNS_API_VERSION 0 //!< syncronous DNS API
+#endif
+
+#ifndef PAL_NET_SERVER_SOCKET_API
+    #define PAL_NET_SERVER_SOCKET_API                 true //!< Add PAL support for server socket.
 #endif
 
 #ifndef PAL_SUPPORT_IP_V4

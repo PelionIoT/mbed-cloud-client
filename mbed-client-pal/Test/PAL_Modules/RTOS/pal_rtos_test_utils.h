@@ -45,7 +45,7 @@ typedef struct threadsArgument{
     uint32_t arg5;
     uint32_t arg6;
     uint32_t arg7;
-	uint8_t threadCounter;
+    uint8_t threadCounter;
 }threadsArgument_t;
 
 
@@ -74,15 +74,16 @@ void palTimerFunc4(void const *argument);
 void palTimerFunc5(void const *argument);
 void palTimerFunc6(void const *argument);
 void palTimerFunc7(void const *argument);
+void palTimerFunc8(void const *argument);
 
 
 void palThreadFuncWaitForEverTest(void const *argument);
 
 void RecursiveLockThread(void const *param);
 typedef struct palRecursiveMutexParam{
-	palMutexID_t mtx;
-	palSemaphoreID_t sem;
-	size_t count;
+    palMutexID_t mtx;
+    palSemaphoreID_t sem;
+    size_t count;
     palThreadID_t higherPriorityThread;
     palThreadID_t lowerPriorityThread;
     palThreadID_t activeThread;

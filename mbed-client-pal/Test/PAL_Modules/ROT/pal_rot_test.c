@@ -28,11 +28,20 @@
 #else
 #include "sotp.h"
 #endif
+#if (PAL_USE_HW_ROT == 1)
+#ifdef __SXOS__
+#include "hal_sys.h"
+#ifndef ROT_MEM_ADDR
+#define ROT_MEM_ADDR  0x00001000
+#endif
+bool rot_key_set = false;
+#endif
+#endif
 
 #define TRACE_GROUP "PAL"
-
 TEST_GROUP(pal_rot);
 
+uint8_t setRoTKey[16] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f }; //16 bytes=128bit
 
 TEST_SETUP(pal_rot)
 {
@@ -54,6 +63,18 @@ TEST_SETUP(pal_rot)
 #else
     sotp_reset();
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
+#if (PAL_USE_HW_ROT == 1)
+#ifdef __SXOS__
+    // SXOS sets ROT to secure section of chip
+    if (rot_key_set == false) {
+        uint32_t csStatus = hal_SysEnterCriticalSection();
+        memd_Flash_security_REG_Write(ROT_MEM_ADDR, sizeof(setRoTKey), 0, setRoTKey);
+        hal_SysExitCriticalSection(csStatus);
+        rot_key_set = true;
+    }
+#endif
+#endif
 }
 
 TEST_TEAR_DOWN(pal_rot)
@@ -262,15 +283,14 @@ TEST(pal_rot, GetRoTKeyTest)
 * | 6 | Read ROT  key  using `pal_plat_osGetRoT`                                       | PAL_SUCCESS |
 * | 7 | Compare read rot buffer with set rot buffer`                                   | PAL_SUCCESS |
 */
+
 TEST(pal_rot, SeTRoTKeyTest)
 {
-#if (PAL_USE_HW_ROT == 0)
     palStatus_t status = PAL_SUCCESS;
     size_t keyLenBytes = 16;
-    uint8_t timesToDerive = 1;
     uint8_t readRoTKey[keyLenBytes]; //16 bytes=128bit
-    uint8_t setRoTKey[16] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f }; //16 bytes=128bit
 
+#if (PAL_USE_HW_ROT == 0)
     /*#1*/
     status = pal_plat_osGetRoT(readRoTKey, keyLenBytes);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_ITEM_NOT_EXIST, status);
@@ -293,6 +313,13 @@ TEST(pal_rot, SeTRoTKeyTest)
     status = memcmp(readRoTKey, setRoTKey, keyLenBytes);
     TEST_ASSERT_EQUAL(status, 0); //The ROT must be the same 
 #else // PAL_USE_HW_ROT =1
+#ifdef __SXOS__
+    status = pal_plat_osGetRoT(readRoTKey, keyLenBytes);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    TEST_ASSERT_EQUAL_MEMORY(setRoTKey, readRoTKey, keyLenBytes);
+#else
     TEST_IGNORE_MESSAGE("Ignored, for configuration  PAL_USE_HW_ROT=1, set pal_osSetRoT is not implemented ");
+#endif
 #endif
 }

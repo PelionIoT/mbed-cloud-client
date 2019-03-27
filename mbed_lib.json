@@ -17,12 +17,18 @@
         "disable-certificate-enrollment": {
             "help": "Enables or disables certificate enrollment feature",
             "options": ["null", "1"],
-            "default": null,
-            "value": null
+            "default": 1,
+            "value": 1
         },
         "external-sst-support": {
             "help": "Enables external secure storage feature (KVstore)",
             "options": ["null", "1"],
+            "default": 1,
+            "value": 1
+        },
+        "psa-support": {
+            "help": "Enables Platform Security Architecture (PSA) feature",
+            "options": [ "null", "1" ],
             "default": null,
             "value": null
         }

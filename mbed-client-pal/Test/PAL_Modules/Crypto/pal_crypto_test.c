@@ -27,7 +27,9 @@
 #endif
 #include <string.h>
 #include <time.h>
-
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "crypto.h"
+#endif
 
 TEST_GROUP(pal_crypto);
 
@@ -44,6 +46,12 @@ TEST_SETUP(pal_crypto)
     TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
 #endif
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // After entropy is injected, it is safe to initialize PSA
+    psa_status_t psa_status;
+    psa_status = psa_crypto_init();
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+#endif
     // Initialize the time module
     status = pal_initTime();
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);

@@ -12,7 +12,12 @@
             "help": "Maximum fragment length value for the payload in one packet, doesnt include TLS header and encryption overhead. Is needed for constrainted devices having low MTU sizes, Value 0 = disabled, 1 = MBEDTLS_SSL_MAX_FRAG_LEN_512, 2= MBEDTLS_SSL_MAX_FRAG_LEN_1024, 3 = MBEDTLS_SSL_MAX_FRAG_LEN_2048, 4 = MBEDTLS_SSL_MAX_FRAG_LEN_4096",
             "macro_name": "PAL_MAX_FRAG_LEN",
             "value": 0
-        } 
+        },
+        "pal-net-server-socket-api": {
+            "help": "Enable/disable server socket features(accept(), listen())",
+            "macro_name": "PAL_NET_SERVER_SOCKET_API",
+            "value": 1
+        }
     },
     "target_overrides": {
         "MODULE_UBLOX_ODIN_W2": {
@@ -20,4 +25,5 @@
         }
     }
 }
+
 

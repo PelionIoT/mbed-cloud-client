@@ -69,7 +69,6 @@ void palConnectCallBack()
             bool isConnected() const ;
             void attachCallback();
             Socket* getActiveSocket();
-            void setActiveSocket(Socket *socket);
 
             palSocketType_t getSocketType() const;
             char getAndResetRxBuffer();
@@ -101,9 +100,13 @@ void palConnectCallBack()
             nsapi_error_t connect(const SocketAddress &address);
             nsapi_size_or_error_t send(const void *data, nsapi_size_t size);
             nsapi_size_or_error_t recv(void *data, nsapi_size_t size);
+
+#if PAL_NET_SERVER_SOCKET_API
             //nsapi TCP server socket funcitons exposed:
             nsapi_error_t listen(int backlog = 1);
             Socket* accept(nsapi_error_t *error);
+#endif // PAL_NET_SERVER_SOCKET_API
+
             void freeSocket(bool freeSocket);
 
         private:
@@ -149,11 +152,6 @@ void palConnectCallBack()
         Socket* PALSocketWrapper::getActiveSocket()
         {
             return activeSocket;
-        }
-
-        void PALSocketWrapper::setActiveSocket(Socket* socket)
-        {
-            activeSocket = socket;
         }
 
         char PALSocketWrapper::getAndResetRxBuffer()
@@ -375,6 +373,8 @@ void palConnectCallBack()
             status = activeSocket->recv(data, size);
             return  status;
         }
+
+#if PAL_NET_SERVER_SOCKET_API
         //nsapi TCP server socket funcitons exposed:
         nsapi_error_t PALSocketWrapper::listen(int backlog )
         {
@@ -390,10 +390,12 @@ void palConnectCallBack()
 
             if (!initialized || PAL_SOCK_STREAM_SERVER != socketTypeVal) {
                 *error = NSAPI_ERROR_PARAMETER;
+                return NULL;
             }
 
             return activeSocket->accept(error);
         }
+#endif // PAL_NET_SERVER_SOCKET_API
 
         void PALSocketWrapper::freeSocket(bool freeSocket)
         {
@@ -511,9 +513,14 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
 
 palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
 {
-    s_pal_networkInterfacesSupported[interfaceIndex] = NULL;
-    --s_pal_numberOFInterfaces;
-    return PAL_SUCCESS;
+    if (interfaceIndex < PAL_MAX_SUPORTED_NET_INTERFACES &&
+        s_pal_networkInterfacesSupported[interfaceIndex]) {
+        s_pal_networkInterfacesSupported[interfaceIndex] = NULL;
+        --s_pal_numberOFInterfaces;
+        return PAL_SUCCESS;
+    } else {
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
 }
 
 palStatus_t pal_plat_socketsTerminate(void* context)
@@ -644,11 +651,6 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
         result = pal_setSockAddrPort(out, input.get_port());
     }
     return result;
-}
-
-palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* socket)
-{
-    return create_socket(domain, type, nonBlockingSocket, interfaceNum, NULL, NULL, socket);
 }
 
 palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
@@ -928,6 +930,7 @@ palSelectCallbackFunction_t s_palSelectPalCallbackFunctions[PAL_NET_SOCKET_SELEC
 
 #if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
 
+#if PAL_NET_SERVER_SOCKET_API
 
 palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 {
@@ -944,25 +947,34 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 }
 
 
-palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
+palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument)
 {
     int result = PAL_SUCCESS;
-
+    bool isNonBlocking = callback ? true : false;
     PAL_VALIDATE_ARGUMENTS ((NULL == socket));
     PALSocketWrapper* socketObj = (PALSocketWrapper*)socket;
-    PALSocketWrapper *out = (PALSocketWrapper*)*acceptedSocket;
 
-    out->setActiveSocket(socketObj->accept(&result));
-    out->freeSocket(false);
+    // Create wrapper
+    PALSocketWrapper *out = new PALSocketWrapper;
 
+    // Try to accept incoming socket
+    Socket *s = socketObj->accept(&result);
     if (result < 0)
     {
         result = translateErrorToPALError(result);
+        delete out;
+    } else
+    {
+        // Incoming socket accepted - initialize the wrapper
+        out->initialize(s, PAL_SOCK_STREAM, isNonBlocking, callback, callbackArgument);
+        out->freeSocket(false);
+        *acceptedSocket = out;
     }
 
     return result;
 }
 
+#endif // PAL_NET_SERVER_SOCKET_API
 
 palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
 {
@@ -1044,30 +1056,24 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
 
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
-
-
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* arg,  palSocket_t* socket)
 {
     return create_socket(domain, type, nonBlockingSocket, interfaceNum, callback, arg, socket);
 }
 
-#endif
-
 #if PAL_NET_DNS_SUPPORT
 #if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
-palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* length)
+palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *address, palSocketLength_t* length)
 {
     palStatus_t result = PAL_SUCCESS;
     SocketAddress translatedAddress; // by default use the fist supported net interface - TODO: do we need to select a different interface?
     if (s_pal_networkInterfacesSupported[0]) {
 #if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress);
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname(hostname, &translatedAddress);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV4_ONLY
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress, NSAPI_IPv4);
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname(hostname, &translatedAddress, NSAPI_IPv4);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV6_ONLY
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname(url, &translatedAddress, NSAPI_IPv6);
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname(hostname, &translatedAddress, NSAPI_IPv6);
 #else
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
@@ -1097,7 +1103,7 @@ void pal_plat_getAddressInfoAsync_callback(void *data, nsapi_error_t result, Soc
         status = translateErrorToPALError(result);
     }
 
-    info->callback(info->url, info->address, status, info->callbackArgument); // invoke callback
+    info->callback(info->hostname, info->address, status, info->callbackArgument); // invoke callback
     free(info);
 }
 
@@ -1118,7 +1124,7 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo* info)
     if (s_pal_networkInterfacesSupported[0] == NULL) {
         result = PAL_ERR_INVALID_ARGUMENT;
     } else {
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname_async(info->url, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
+        result = s_pal_networkInterfacesSupported[0]->gethostbyname_async(info->hostname, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
     }
 
     PAL_LOG_DBG("pal_plat_getAddressInfoAsync result %d", result);
@@ -1184,7 +1190,7 @@ PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t 
 
     if (internalSocket && result == PAL_SUCCESS)
     {
-        int result = internalSocket->open(s_pal_networkInterfacesSupported[interfaceNum]);
+        result = internalSocket->open(s_pal_networkInterfacesSupported[interfaceNum]);
         if (result < 0)
         {
             result =  translateErrorToPALError(result);
@@ -1211,7 +1217,6 @@ PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t 
         }
         else
         {
-            delete internalSocket;
             result = PAL_ERR_NO_MEMORY;
         }
     }
@@ -1221,5 +1226,6 @@ PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t 
         delete internalSocket;
         delete socketObj;
     }
+
     return result;
 }

@@ -652,7 +652,7 @@ TEST(pal_rtos, PeriodicTimerAccuracyUnityTest)
  *
 * | # |    Step                                                                                          |   Expected                     |
 * |---|--------------------------------------------------------------------------------------------------|--------------------------------|
-* | 1 | Create a one-shot timer, which calls `palTimerFunc6` when triggered, using `pal_osTimerCreate`.  | PAL_SUCCESS                    |
+* | 1 | Create a one-shot timer, which calls `palTimerFunc8` when triggered, using `pal_osTimerCreate`.  | PAL_SUCCESS                    |
 * | 2 | Start the timer using `pal_osTimerStart`.                                                        | PAL_SUCCESS                    |
 * | 3 | Sleep for a period.                                                                              | PAL_SUCCESS                    |
 * | 4 | Check that timer is in fired only one time.                                                      | PAL_SUCCESS                    |
@@ -667,7 +667,7 @@ TEST(pal_rtos, OneShotTimerStopUnityTest)
     g_timerArgs.ticksInFunc1 = 0;
 
     /*#1*/
-    status = pal_osTimerCreate(palTimerFunc6, &timerID1, palOsTimerOnce, &timerID1);
+    status = pal_osTimerCreate(palTimerFunc8, &timerID1, palOsTimerOnce, &timerID1);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
     status = pal_osTimerStart(timerID1, 500);
@@ -801,14 +801,14 @@ TEST(pal_rtos, HighResTimerUnityTest)
     uint32_t expectedTicks;
     uint32_t ticksInFuncError;
 
-	g_timerArgs.ticksBeforeTimer = 0;
+    g_timerArgs.ticksBeforeTimer = 0;
     g_timerArgs.ticksInFunc1 = 0;
     g_timerArgs.ticksInFunc2 = 0;
-	
+
     /*#1*/
     status = pal_osTimerCreate(palTimerFunc3, NULL, palOsTimerPeriodic, &timerID1);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    
+
     /*#2*/
     status = pal_osTimerCreate(palTimerFunc4, NULL, palOsTimerPeriodic, &timerID2);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -820,14 +820,14 @@ TEST(pal_rtos, HighResTimerUnityTest)
     /*#4*/
     status = pal_osTimerStart(timerID2, PAL_TEST_HIGH_RES_TIMER);
     if (PAL_SUCCESS == status) // behavior is slightly different for Linux due to high res timer limitation there (only one at a time supported there)
-	{
-		status = pal_osTimerStop(timerID2);
-		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-	}
-	else  
-	{
-		TEST_ASSERT_EQUAL_HEX(PAL_ERR_NO_HIGH_RES_TIMER_LEFT, status);
-	}
+    {
+        status = pal_osTimerStop(timerID2);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+    else
+    {
+        TEST_ASSERT_EQUAL_HEX(PAL_ERR_NO_HIGH_RES_TIMER_LEFT, status);
+    }
     /*#5*/
     status = pal_osDelay(500);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -856,7 +856,7 @@ TEST(pal_rtos, HighResTimerUnityTest)
     status = pal_osTimerDelete(&timerID1);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_EQUAL(NULLPTR, timerID1);
-    
+
     /*#10*/
     status = pal_osTimerDelete(&timerID2);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -879,7 +879,7 @@ TEST(pal_rtos, TimerSleepUnityTest)
     palTimerID_t timerID1 = NULLPTR;
     uint32_t expectedTicks;
     uint32_t ticksInFuncError;
-    
+
     /*#1*/
     g_timerArgs.ticksBeforeTimer = 0;
     g_timerArgs.ticksInFunc1 = 0;
@@ -891,7 +891,7 @@ TEST(pal_rtos, TimerSleepUnityTest)
     /*#2*/
     status = pal_osTimerStart(timerID1, PAL_TEST_HIGH_RES_TIMER);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    
+
     /*#3*/
     status = pal_osDelay(PAL_TIME_TO_WAIT_MS);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -1007,8 +1007,8 @@ TEST(pal_rtos, PrimitivesUnityTest1)
 TEST(pal_rtos, PrimitivesUnityTest2)
 {
 #ifdef DEBUG
-	palStatus_t status = PAL_SUCCESS;
-	palThreadID_t threadID = NULLPTR;
+    palStatus_t status = PAL_SUCCESS;
+    palThreadID_t threadID = NULLPTR;
     int32_t tmp = 0;
     /*#1*/
     //Check thread parameter validation
@@ -1072,7 +1072,7 @@ TEST(pal_rtos, SemaphoreWaitForever)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#3*/
     timeStartMs = pal_osKernelSysMilliSecTick(pal_osKernelSysTick());
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status); // More than current epoch time -> success    
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status); // More than current epoch time -> success
     status = pal_osThreadCreateWithAlloc(palThreadFuncWaitForEverTest, (void *)&semaphore1, PAL_osPriorityAboveNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
@@ -1130,7 +1130,7 @@ TEST(pal_rtos, SemaphoreBasicTest)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_EQUAL(0, semaphore1);
 
-    
+
 #ifdef DEBUG
     //Check semaphore parameter validation
     int32_t tmp;
@@ -1261,7 +1261,7 @@ TEST(pal_rtos, pal_init_test)
 
 /*! \brief Check derivation of keys from the platform's Root of Trust using the KDF algorithm.
  *
- * 
+ *
  *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
@@ -1312,7 +1312,7 @@ TEST(pal_rtos, GetDeviceKeyTest_CMAC)
 
 /*! \brief Check derivation of keys from the platform's Root of Trust using the KDF algorithm.
  *
- * 
+ *
  *
 * | # |    Step                                                                        | Expected            |
 * |---|--------------------------------------------------------------------------------|---------------------|

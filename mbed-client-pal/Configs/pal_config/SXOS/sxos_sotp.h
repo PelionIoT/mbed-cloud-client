@@ -32,4 +32,7 @@
 // Only cellular (NBIoT) interface is supported
 #define PAL_MAX_SUPORTED_NET_INTERFACES         1
 
+// Define security sector address for ROT key
+#define ROT_MEM_ADDR  0x00001000
+
 #endif // !__SXOS_SOTP_H__

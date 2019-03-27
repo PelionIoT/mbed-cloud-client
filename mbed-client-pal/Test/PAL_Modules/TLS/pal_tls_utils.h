@@ -20,19 +20,14 @@
 #include "pal_network.h"
 #include "pal_TLS.h"
 
-typedef struct palTLSSocketTest{
-    palSocket_t socket;
-    palSocketAddress_t* socketAddress;
-    palSocketLength_t addressLength;
-    palTLSTransportMode_t transportationMode;
-}palTLSSocketTest_t;
-
-#define PAL_TLS_RESPONSE_WAIT_MS 5000
 #define DTLS_SERVER_PORT_TIMEOUT 9 //Discard protocol
 
 // This is a workaround for Linux PAL test compilation as credentials
 // from mbed_cloud_dev_credentials.c are not included in the build.
+#if defined (__LINUX__) || defined(__FREERTOS__)
 #define PAL_TLS_TEST_SERVER_ADDRESS "127.0.0.1"
+#endif
+
 #ifndef PAL_TLS_TEST_SERVER_ADDRESS
 // Use bootstrap server as test server by default
 // Expect mbed_cloud_dev_credentials.c to be compiled

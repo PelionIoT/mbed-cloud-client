@@ -2213,30 +2213,11 @@ int8_t sn_nsdl_remove_msg_from_retransmission(struct nsdl_s *handle, uint8_t *to
     }
 
 #if ENABLE_RESENDINGS
-    // Workaround until new "sn_coap_protocol_delete_retransmission_by_token" API is released
-    // return sn_coap_protocol_delete_retransmission_by_token(handle->grs->coap, token, token_len);
-    ns_list_foreach(coap_send_msg_s, stored_msg, &handle->grs->coap->linked_list_resent_msgs) {
-        uint8_t stored_token_len =  (stored_msg->send_msg_ptr->packet_ptr[0] & 0x0F);
-        if (stored_token_len == token_len) {
-            uint8_t stored_token[8];
-            memcpy(stored_token, &stored_msg->send_msg_ptr->packet_ptr[4], stored_token_len);
-            if (memcmp(stored_token, token, stored_token_len) == 0) {
-                uint16_t temp_msg_id = (stored_msg->send_msg_ptr->packet_ptr[2] << 8);
-                temp_msg_id += (uint16_t)stored_msg->send_msg_ptr->packet_ptr[3];
-                tr_debug("sn_nsdl_remove_msg_from_retransmission - removed msg_id: %d", temp_msg_id);
-                ns_list_remove(&handle->grs->coap->linked_list_resent_msgs, stored_msg);
-                --handle->grs->coap->count_resent_msgs;
 
-                handle->grs->coap->sn_coap_protocol_free(stored_msg->send_msg_ptr);
-                handle->grs->coap->sn_coap_protocol_free(stored_msg);
-
-                return 0;
-            }
-        }
-    }
-#endif
-
+    return sn_coap_protocol_delete_retransmission_by_token(handle->grs->coap, token, token_len);
+#else
     return SN_NSDL_FAILURE;
+#endif
 }
 
 #ifdef RESOURCE_ATTRIBUTES_LIST

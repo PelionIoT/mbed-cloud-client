@@ -84,6 +84,7 @@ typedef enum {
     KCM_CRYPTO_STATUS_SET_EXTENSION_FAILED,                   //!< Copying the extension from certificate to CSR failed.
     KCM_STATUS_RBP_ERROR,                                     //!< Roll back protected data operation failed.
     KCM_STATUS_FILE_NAME_INVALID,                             //!< File name contains an invalid character (Must only include the following characters: '0-9', 'A'-'Z','a'-'z', '.', '-', '_').
+    KCM_CRYPTO_STATUS_INVALID_PK_PRIVKEY,                     //!< Operation failed due to invalid pk private key.
     KCM_MAX_STATUS,
 } kcm_status_e;
 

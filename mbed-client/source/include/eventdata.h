@@ -89,6 +89,14 @@ public:
     M2MBaseList    _base_list;
 };
 
+class M2MResumeData : public EventData
+{
+public:
+    M2MResumeData(): _interface(NULL) {}
+    virtual ~M2MResumeData() {}
+    void        *_interface;
+    M2MBaseList _base_list;
+};
 
 #endif //EVENT_DATA_H
 

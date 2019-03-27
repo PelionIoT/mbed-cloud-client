@@ -278,6 +278,24 @@ palStatus_t pal_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCer
 #endif
 }
 
+palStatus_t pal_initPrivateKey(const void *buf, size_t buf_size, palPrivateKey_t* privateKey)
+{
+#if (PAL_ENABLE_X509 == 1)
+    PAL_VALIDATE_ARGUMENTS(NULL == buf || NULL == privateKey);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    PAL_VALIDATE_ARGUMENTS(sizeof(*privateKey) != buf_size);
+    memcpy(privateKey, buf, sizeof(*privateKey));
+
+#else
+    privateKey->buffer = buf;
+    privateKey->size = buf_size;
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif // PAL_ENABLE_X509 == 1
+    return PAL_SUCCESS;
+}
 palStatus_t pal_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateKey_t* privateKey)
 {
 #if (PAL_ENABLE_X509 == 1)

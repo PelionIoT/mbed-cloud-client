@@ -70,6 +70,7 @@ fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
         case KCM_CRYPTO_STATUS_PARSING_DER_PRIVATE_KEY:
         case KCM_CRYPTO_STATUS_PARSING_DER_PUBLIC_KEY:
         case KCM_CRYPTO_STATUS_PK_KEY_INVALID_FORMAT:
+        case KCM_CRYPTO_STATUS_INVALID_PK_PRIVKEY:
         case KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY:
         case KCM_CRYPTO_STATUS_ECP_INVALID_KEY:
         case KCM_CRYPTO_STATUS_PK_KEY_INVALID_VERSION:

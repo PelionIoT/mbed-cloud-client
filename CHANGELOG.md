@@ -1,5 +1,32 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 3.0.0 (27.03.2019)
+
+#### Device Management Connect client
+
+* Disabled STL and Namespace pollution by default. These are deprecated features.
+* [Mbed OS] Enabled secure storage feature (KVStore) by default.
+* [Mbed OS] Disabled certificate enrollment features by default. You can enable them from application by setting `"mbed-cloud-client.disable-certificate-enrollment": null` in the `mbed_app.json` file. This saves 5.5 KB of flash.
+
+#### Factory Configurator client
+
+* Integration with PSA APIs.
+* Factory Tool Communication Demo layer using asynchronous socket API.
+* Bugfix for running with IAR8.32 compiler.
+
+#### Device Management Update client
+
+Added a temporary workaround for Cypress PSOC6 target to read each block from an external block device twice.
+
+#### Platform Adaptation Layer (PAL)
+
+* [Mbed OS] Added support for PSA-enabled Mbed TLS that is part of Mbed OS 5.12 release.
+* Added new configuration flag for server socket APIs, `PAL_NET_SERVER_SOCKET_API`. The default is `1`.
+   * For quick porting, set it to `0`. You do not need to implement `pal_plat_accept` and `pal_plat_listen`, which factory configurator client requires for the factory flow.
+* Removed unused synchronous socket API implementation to reduce porting effort across different operating systems.
+* Removed unused `PAL_NET_ASYNCHRONOUS_SOCKET_API` flag since there is only asynchronous socket implementation.
+* Improved test coverage for platform tests.
+
 ### Release 2.2.1 (28.02.2019)
 
 #### Device Management Connect client
