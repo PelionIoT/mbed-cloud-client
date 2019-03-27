@@ -111,7 +111,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
         palX509_t owncert;
         palPrivateKey_t privateKey;
         palX509_t caChain;
-
+        size_t len;
         uint8_t certificate[MAX_CERTIFICATE_SIZE];
         uint8_t *certificate_ptr = (uint8_t *)&certificate;
 
@@ -129,30 +129,32 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
             return M2MConnectionHandler::ERROR_GENERIC;
         }
 
-        privateKey.size = MAX_CERTIFICATE_SIZE;
-        ret_code = security->resource_value_buffer(M2MSecurity::Secretkey, certificate_ptr, security_instance_id, (size_t*)&privateKey.size);
-        privateKey.buffer = certificate_ptr;
+        ret_code = security->resource_value_buffer(M2MSecurity::Secretkey, certificate_ptr, security_instance_id, &len);
 
         if (ret_code < 0) {
             tr_error("M2MConnectionSecurityPimpl::init - failed to read secret key");
             return M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS;
         }
 
+        if (pal_initPrivateKey(certificate_ptr, len, &privateKey) != PAL_SUCCESS) {
+            tr_error("M2MConnectionSecurityPimpl::init - pal_initPrivateKey failed");
+            return M2MConnectionHandler::ERROR_GENERIC;
+        }
+
+
         if (PAL_SUCCESS != pal_setOwnPrivateKey(_conf, &privateKey)) {
             tr_error("M2MConnectionSecurityPimpl::init - pal_setOwnPrivateKey failed");
             return M2MConnectionHandler::ERROR_GENERIC;
         }
 
-        void *dummy;
-
         // Open certificate chain, size parameter contains the depth of certificate chain
         size_t cert_chain_size = 0;
-        if (security->resource_value_buffer(M2MSecurity::OpenCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size) < 0) {
+        if (security->resource_value_buffer_size(M2MSecurity::OpenCertificateChain, security_instance_id, &cert_chain_size) < 0) {
             tr_error("M2MConnectionSecurityPimpl::init - fail to open certificate chain!");
             return M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS;
         } else if (cert_chain_size == 0) {
             tr_error("M2MConnectionSecurityPimpl::init - no certificate!");
-            security->resource_value_buffer(M2MSecurity::CloseCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
+            security->resource_value_buffer_size(M2MSecurity::CloseCertificateChain, security_instance_id, &cert_chain_size);
             return M2MConnectionHandler::ERROR_GENERIC;
         } else {
             tr_info("M2MConnectionSecurityPimpl::init - cert chain length: %lu", (unsigned long)cert_chain_size);
@@ -170,13 +172,13 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 
                 if (PAL_SUCCESS != pal_setOwnCertChain(_conf, &owncert)) {
                     tr_error("M2MConnectionSecurityPimpl::init - pal_setOwnCertChain failed");
-                    security->resource_value_buffer(M2MSecurity::CloseCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
+                    security->resource_value_buffer_size(M2MSecurity::CloseCertificateChain, security_instance_id, &cert_chain_size);
                     return M2MConnectionHandler::ERROR_GENERIC;
                 }
 
                 index++;
             }
-            security->resource_value_buffer(M2MSecurity::CloseCertificateChain, (uint8_t *&)dummy, security_instance_id, &cert_chain_size);
+            security->resource_value_buffer_size(M2MSecurity::CloseCertificateChain, security_instance_id, &cert_chain_size);
         }
 
     } else if (cert_mode == M2MSecurity::Psk) {

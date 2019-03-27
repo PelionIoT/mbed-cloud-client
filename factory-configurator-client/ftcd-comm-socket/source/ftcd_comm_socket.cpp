@@ -270,7 +270,7 @@ palStatus_t FtcdCommSocket::_accept(palSocket_t socket, palSocketAddress_t* addr
     palStatus_t pal_status, result;
 
     while (true) {
-        pal_status = pal_accept(socket, address, addressLen, acceptedSocket);
+        pal_status = pal_accept(socket, address, addressLen, acceptedSocket, _socket_event_ready_cb, (void*)this);
         if (pal_status == PAL_ERR_SOCKET_WOULD_BLOCK) { // Async socket has no connection to accept - wait on semaphore and try again
             pal_status = _wait_for_socket_event();
             if (pal_status == PAL_ERR_RTOS_TIMEOUT) { // Semaphore timeout means no event was triggered for _rcv_timeout ms so we return a WOULDBLOCK error according to blocking socket convention
@@ -488,19 +488,13 @@ bool FtcdCommSocket::_listen(void)
         return false;
     }
 
-    //Open server and client sockets
+    //Open server socket
     result = pal_asynchronousSocketWithArgument((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM_SERVER, true, _interface_index, _socket_event_ready_cb, (void*)this, &_server_socket);
     if (result != PAL_SUCCESS) {
         mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
         return false;
     }
 
-    result = pal_asynchronousSocketWithArgument((palSocketDomain_t)_current_domain_type, PAL_SOCK_STREAM, true, _interface_index, _socket_event_ready_cb, (void*)this, &_client_socket);
-
-    if (result != PAL_SUCCESS) {
-        mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "pal_socket failed");
-        return false;
-    }
     // reset connection state
     _connection_state = SOCKET_WAIT_FOR_CONNECTION;
 

@@ -30,7 +30,7 @@ timerArgument_t timerArgs;
 void palThreadFunc1(void const *argument)
 {
     volatile palThreadID_t threadID;
-	threadsArgument_t *tmp = (threadsArgument_t*)argument;
+    threadsArgument_t *tmp = (threadsArgument_t*)argument;
 #ifdef MUTEX_UNITY_TEST
     palStatus_t status = PAL_SUCCESS;
     PAL_PRINTF("palThreadFunc1::before mutex\n");
@@ -41,13 +41,13 @@ void palThreadFunc1(void const *argument)
     return; // for Mutex scenario, this should end here
 #endif //MUTEX_UNITY_TEST
 
-	tmp->arg1 = 10;
+    tmp->arg1 = 10;
     threadID = pal_osThreadGetId();
-    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);    
-    PAL_PRINTF("palThreadFunc1::Thread ID is %"PRIuPTR " \n", threadID);    
+    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);
+    PAL_PRINTF("palThreadFunc1::Thread ID is %"PRIuPTR " \n", threadID);
 #ifdef MUTEX_UNITY_TEST
-	status = pal_osMutexRelease(mutex1);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osMutexRelease(mutex1);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #endif //MUTEX_UNITY_TEST
     PAL_PRINTF("palThreadFunc1::STAAAAM\n");
 }
@@ -55,7 +55,7 @@ void palThreadFunc1(void const *argument)
 void palThreadFunc2(void const *argument)
 {
     volatile palThreadID_t threadID;
-	threadsArgument_t *tmp = (threadsArgument_t*)argument;
+    threadsArgument_t *tmp = (threadsArgument_t*)argument;
 #ifdef MUTEX_UNITY_TEST
     palStatus_t status = PAL_SUCCESS;
     PAL_PRINTF("palThreadFunc2::before mutex\n");
@@ -65,13 +65,13 @@ void palThreadFunc2(void const *argument)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #endif //MUTEX_UNITY_TEST
 
-	tmp->arg2 = 20;
+    tmp->arg2 = 20;
     threadID = pal_osThreadGetId();
-    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);    
+    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);
     PAL_PRINTF("palThreadFunc2::Thread ID is %"PRIuPTR "\n", threadID);
 #ifdef MUTEX_UNITY_TEST
-	status = pal_osMutexRelease(mutex2);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osMutexRelease(mutex2);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #endif //MUTEX_UNITY_TEST
     PAL_PRINTF("palThreadFunc2::STAAAAM\n");
 }
@@ -79,13 +79,13 @@ void palThreadFunc2(void const *argument)
 void palThreadFunc3(void const *argument)
 {
     volatile palThreadID_t threadID;
-	threadsArgument_t *tmp = (threadsArgument_t*)argument;
+    threadsArgument_t *tmp = (threadsArgument_t*)argument;
 
 #ifdef SEMAPHORE_UNITY_TEST
     palStatus_t status = PAL_SUCCESS;
     uint32_t semaphoresAvailable = 10;
     status = pal_osSemaphoreWait(semaphore1, 200, &semaphoresAvailable);
-    
+
     if (PAL_SUCCESS == status)
     {
         PAL_PRINTF("palThreadFunc3::semaphoresAvailable: %d\n", semaphoresAvailable);
@@ -103,7 +103,7 @@ void palThreadFunc3(void const *argument)
 #endif //SEMAPHORE_UNITY_TEST
     tmp->arg3 = 30;
     threadID = pal_osThreadGetId();
-    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);    
+    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);
     PAL_PRINTF("palThreadFunc3::Thread ID is %"PRIuPTR "\n", threadID);
 
 #ifdef SEMAPHORE_UNITY_TEST
@@ -117,7 +117,7 @@ void palThreadFunc3(void const *argument)
 void palThreadFunc4(void const *argument)
 {
     volatile palThreadID_t threadID;
-	threadsArgument_t *tmp = (threadsArgument_t*)argument;
+    threadsArgument_t *tmp = (threadsArgument_t*)argument;
 #ifdef MUTEX_UNITY_TEST
     palStatus_t status = PAL_SUCCESS;
     PAL_PRINTF("palThreadFunc4::before mutex\n");
@@ -127,9 +127,9 @@ void palThreadFunc4(void const *argument)
     pal_osDelay(3500);  //wait 3.5 seconds to make sure that the next thread arrive to this point
 #endif //MUTEX_UNITY_TEST
 
-	tmp->arg4 = 40;
+    tmp->arg4 = 40;
     threadID = pal_osThreadGetId();
-    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);    
+    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);
     PAL_PRINTF("Thread ID is %"PRIuPTR "\n", threadID);
 
 #ifdef MUTEX_UNITY_TEST
@@ -143,7 +143,7 @@ void palThreadFunc4(void const *argument)
 void palThreadFunc5(void const *argument)
 {
     volatile palThreadID_t threadID;
-	threadsArgument_t *tmp = (threadsArgument_t*)argument;
+    threadsArgument_t *tmp = (threadsArgument_t*)argument;
 #ifdef MUTEX_UNITY_TEST
     palStatus_t status = PAL_SUCCESS;
     PAL_PRINTF("palThreadFunc5::before mutex\n");
@@ -151,9 +151,9 @@ void palThreadFunc5(void const *argument)
     PAL_PRINTF("palThreadFunc5::after mutex: 0x%08x\n", status);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #endif //MUTEX_UNITY_TEST
-	tmp->arg5 = 50;
+    tmp->arg5 = 50;
     threadID = pal_osThreadGetId();
-    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);    
+    TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);
     PAL_PRINTF("Thread ID is %"PRIuPTR "\n", threadID);
 #ifdef MUTEX_UNITY_TEST
     status = pal_osMutexRelease(mutex1);
@@ -165,8 +165,8 @@ void palThreadFunc5(void const *argument)
 
 void palThreadFunc6(void const *argument)
 {
-	volatile palThreadID_t threadID;
-	threadsArgument_t *tmp = (threadsArgument_t*)argument;
+    volatile palThreadID_t threadID;
+    threadsArgument_t *tmp = (threadsArgument_t*)argument;
 #ifdef SEMAPHORE_UNITY_TEST
     palStatus_t status = PAL_SUCCESS;
     uint32_t semaphoresAvailable = 10;
@@ -175,7 +175,7 @@ void palThreadFunc6(void const *argument)
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_RTOS_PARAMETER, status);
     return;
 #endif //SEMAPHORE_UNITY_TEST
-	tmp->arg6 = 60;
+    tmp->arg6 = 60;
     threadID = pal_osThreadGetId();
     TEST_ASSERT_NOT_EQUAL(threadID, NULLPTR);
     PAL_PRINTF("Thread ID is %"PRIuPTR "\n", threadID);
@@ -209,10 +209,10 @@ void palTimerFunc3(void const *argument)
 }
 
 void palTimerFunc4(void const *argument)
-{ 
+{
     static int counter =0;
     counter++;
-	g_timerArgs.ticksInFunc1 = counter;
+    g_timerArgs.ticksInFunc1 = counter;
 }
 
 void palTimerFunc5(void const *argument) // function to count calls + wait alternatin short and long periods for timer drift test
@@ -256,79 +256,84 @@ void palTimerFunc7(void const *argument)
     }
 }
 
+void palTimerFunc8(void const *argument)
+{
+    g_timerArgs.ticksInFunc1++;
+}
+
 void palThreadFuncWaitForEverTest(void const *argument)
 {
-	pal_osDelay(PAL_TIME_TO_WAIT_MS/2);
-	pal_osSemaphoreRelease(*((palSemaphoreID_t*)(argument)));
+    pal_osDelay(PAL_TIME_TO_WAIT_MS/2);
+    pal_osSemaphoreRelease(*((palSemaphoreID_t*)(argument)));
 }
 
 void palRunThreads()
 {
-	palStatus_t status = PAL_SUCCESS;
-	palThreadID_t threadID1 = NULLPTR;
-	palThreadID_t threadID2 = NULLPTR;
-	palThreadID_t threadID3 = NULLPTR;
-	palThreadID_t threadID4 = NULLPTR;
-	palThreadID_t threadID5 = NULLPTR;
-	palThreadID_t threadID6 = NULLPTR;
+    palStatus_t status = PAL_SUCCESS;
+    palThreadID_t threadID1 = NULLPTR;
+    palThreadID_t threadID2 = NULLPTR;
+    palThreadID_t threadID3 = NULLPTR;
+    palThreadID_t threadID4 = NULLPTR;
+    palThreadID_t threadID5 = NULLPTR;
+    palThreadID_t threadID6 = NULLPTR;
 
-	status = pal_osThreadCreateWithAlloc(palThreadFunc1, &g_threadsArg, PAL_osPriorityIdle, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadCreateWithAlloc(palThreadFunc1, &g_threadsArg, PAL_osPriorityIdle, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID1);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadCreateWithAlloc(palThreadFunc2, &g_threadsArg, PAL_osPriorityLow, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID2);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadCreateWithAlloc(palThreadFunc2, &g_threadsArg, PAL_osPriorityLow, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID2);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadCreateWithAlloc(palThreadFunc3, &g_threadsArg, PAL_osPriorityNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID3);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadCreateWithAlloc(palThreadFunc3, &g_threadsArg, PAL_osPriorityNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID3);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadCreateWithAlloc(palThreadFunc4, &g_threadsArg, PAL_osPriorityBelowNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID4);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadCreateWithAlloc(palThreadFunc4, &g_threadsArg, PAL_osPriorityBelowNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID4);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_osDelay(PAL_RTOS_THREAD_CLEANUP_TIMER_MILISEC * 2); // dealy to work around mbedOS timer issue (starting more than 6 timers at once will cause a hang)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadCreateWithAlloc(palThreadFunc5, &g_threadsArg, PAL_osPriorityAboveNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID5);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadCreateWithAlloc(palThreadFunc5, &g_threadsArg, PAL_osPriorityAboveNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID5);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadCreateWithAlloc(palThreadFunc6, &g_threadsArg, PAL_osPriorityHigh, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID6);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadCreateWithAlloc(palThreadFunc6, &g_threadsArg, PAL_osPriorityHigh, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID6);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	pal_osDelay(PAL_TIME_TO_WAIT_MS/5);
+    pal_osDelay(PAL_TIME_TO_WAIT_MS/5);
 
-	status = pal_osThreadTerminate(&threadID1);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadTerminate(&threadID1);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadTerminate(&threadID2);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadTerminate(&threadID2);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadTerminate(&threadID3);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadTerminate(&threadID3);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadTerminate(&threadID4);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadTerminate(&threadID4);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadTerminate(&threadID5);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadTerminate(&threadID5);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-	status = pal_osThreadTerminate(&threadID6);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_osThreadTerminate(&threadID6);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 }
 
 void RecursiveLockThread(void const *param)
 {
-	size_t i = 0;
-	palStatus_t status;
-	palRecursiveMutexParam_t *actualParams = (palRecursiveMutexParam_t*)param;
+    size_t i = 0;
+    palStatus_t status;
+    palRecursiveMutexParam_t *actualParams = (palRecursiveMutexParam_t*)param;
     size_t countbeforeStart = 0;
     volatile palThreadID_t threadID = 10;
-	
+
     status = pal_osSemaphoreWait(actualParams->sem, PAL_RTOS_WAIT_FOREVER, NULL);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     for (i = 0; i < 100; ++i)
-	{
-		status = pal_osMutexWait(actualParams->mtx, PAL_RTOS_WAIT_FOREVER);
-		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    {
+        status = pal_osMutexWait(actualParams->mtx, PAL_RTOS_WAIT_FOREVER);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         if (i == 0)
         {
             countbeforeStart = actualParams->count;
@@ -340,29 +345,29 @@ void RecursiveLockThread(void const *param)
         TEST_ASSERT_NOT_EQUAL(NULLPTR, threadID);
         TEST_ASSERT_EQUAL(actualParams->activeThread, threadID);
         pal_osDelay(1);
-	}
+    }
 
     threadID = 10;
     pal_osDelay(50);
     TEST_ASSERT_EQUAL(100, actualParams->count - countbeforeStart);
-	for (i = 0; i < 100; ++i)
-	{
+    for (i = 0; i < 100; ++i)
+    {
         threadID = pal_osThreadGetId();
         TEST_ASSERT_NOT_EQUAL(NULLPTR, threadID);
         TEST_ASSERT_EQUAL(actualParams->activeThread, threadID);
-		actualParams->count++;
-		if (i == 99)
+        actualParams->count++;
+        if (i == 99)
         {
             TEST_ASSERT_EQUAL(200, actualParams->count - countbeforeStart);
             actualParams->activeThread = NULLPTR;
         }
 
         status = pal_osMutexRelease(actualParams->mtx);
-		TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
         pal_osDelay(1);
-	}
-  
+    }
+
     status = pal_osSemaphoreRelease(actualParams->sem);
-	TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 }
 

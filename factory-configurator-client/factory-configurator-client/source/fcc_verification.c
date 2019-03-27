@@ -30,6 +30,7 @@
 #include "fcc_utils.h"
 #include "pv_macros.h"
 #include "storage.h"
+#include "key_slot_allocator.h"
 
 
 #define FCC_10_YEARS_IN_SECONDS 315360000//10*365*24*60*60
@@ -170,14 +171,35 @@ static fcc_status_e verify_existence_and_set_warning(const uint8_t *parameter_na
     fcc_status_e output_info_fcc_status = FCC_STATUS_SUCCESS;
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     size_t item_size = 0;
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    kcm_key_handle_t priv_key_h = 0;
+    kcm_status_e kcm_close_status = KCM_STATUS_SUCCESS;
+#endif
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Check that second mode server uri is not present
-    kcm_status = kcm_item_get_data_size(parameter_name,
-                                        size_of_parameter_name,
-                                        parameter_type,
-                                        &item_size);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (parameter_type == KCM_PRIVATE_KEY_ITEM) {
+        kcm_status = kcm_item_get_handle(parameter_name, size_of_parameter_name,KCM_PRIVATE_KEY_ITEM, &priv_key_h);
+
+        if (priv_key_h != 0) {
+            kcm_close_status = kcm_item_close_handle(priv_key_h);
+            if (kcm_close_status != KCM_STATUS_SUCCESS) {
+                SA_PV_LOG_ERR("failed to close key handle");
+            }
+        }
+
+    }
+    else
+#endif
+    {
+        kcm_status = kcm_item_get_data_size(parameter_name,
+            size_of_parameter_name,
+            parameter_type,
+            &item_size);
+    }
 
     if (kcm_status == KCM_STATUS_SUCCESS && is_should_be_present == false) {
         output_info_fcc_status = fcc_store_warning_info((const uint8_t*)parameter_name, size_of_parameter_name, g_fcc_redundant_item_warning_str);
@@ -185,6 +207,7 @@ static fcc_status_e verify_existence_and_set_warning(const uint8_t *parameter_na
     if (kcm_status != KCM_STATUS_SUCCESS &&  is_should_be_present == true) {
         output_info_fcc_status = fcc_store_warning_info((const uint8_t*)parameter_name, size_of_parameter_name, g_fcc_item_not_set_warning_str);
     }
+
     SA_PV_ERR_RECOVERABLE_RETURN_IF((output_info_fcc_status != FCC_STATUS_SUCCESS),
                                     fcc_status = FCC_STATUS_WARNING_CREATE_ERROR,
                                     "Failed to create warning");
@@ -366,7 +389,6 @@ exit:
 */
 static fcc_status_e verify_server_uri(bool use_bootstrap)
 {
-
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     fcc_status_e output_info_fcc_status = FCC_STATUS_SUCCESS;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -490,6 +512,7 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
     size_t size_of_attribute_data = 0;
     uint8_t data_out[FCC_CA_IDENTIFICATION_SIZE] = { 0 };
     size_t data_size_out = 0;
+    palStatus_t pal_status;
     int result = 0;
 
 
@@ -531,8 +554,8 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
                                                            &size_of_attribute_data);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to get ca id attribute");
 
-        kcm_status = storage_fcc_rbp_read(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, data_out, size_of_attribute_data, &data_size_out);
-        if (kcm_status != KCM_STATUS_SUCCESS || data_size_out != size_of_attribute_data) {
+        pal_status = storage_rbp_read(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, data_out, size_of_attribute_data, &data_size_out);
+        if (pal_status != PAL_SUCCESS || data_size_out != size_of_attribute_data) {
             output_info_fcc_status = fcc_store_warning_info((const uint8_t*)parameter_name, size_of_parameter_name, g_fcc_ca_identifier_warning_str);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_WARNING_CREATE_ERROR, store_error_and_exit, "Failed to create warning");
         }
@@ -611,7 +634,6 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     uint8_t *second_mode_parameter_name = NULL;
     size_t size_of_second_mode_parameter_name = 0;
     uint8_t *private_key_data = NULL;
-    size_t size_of_private_key_data = 0;
     kcm_cert_chain_context_int_s *cert_chain;
     kcm_cert_chain_handle chain_handle;
     size_t chain_len = 0;
@@ -631,8 +653,18 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
         size_of_second_mode_parameter_name = strlen(g_fcc_bootstrap_device_private_key_name);
     }
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    kcm_key_handle_t priv_key_h = 0;
+
+    kcm_status = kcm_item_get_handle(parameter_name, size_of_parameter_name, KCM_PRIVATE_KEY_ITEM, &priv_key_h);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), store_error_and_exit, "Failed to get private key handle");
+
+#else
+    size_t size_of_private_key_data = 0;
+
     fcc_status = fcc_get_kcm_data(parameter_name, size_of_parameter_name, KCM_PRIVATE_KEY_ITEM, &private_key_data, &size_of_private_key_data);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to get device certificate");
+#endif
 
     //Check that device private key of second mode is not present, if yes - set warning
     fcc_status = verify_existence_and_set_warning(second_mode_parameter_name, size_of_second_mode_parameter_name, KCM_PRIVATE_KEY_ITEM, false);
@@ -665,8 +697,19 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to get device certificate descriptor");
 
     //Check device certificate public key
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+
+    kcm_status = cs_check_certifcate_public_key_psa(x509_cert_handle, priv_key_h);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, close_chain, "Failed to check device certificate public key");
+
+    kcm_status = kcm_item_close_handle(priv_key_h);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), close_chain, "Failed to close key handle");
+
+#else
     kcm_status = cs_check_certifcate_public_key(x509_cert_handle, private_key_data, size_of_private_key_data);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, close_chain, "Failed to check device certificate public key");
+#endif
 
     //Check if the certificate of second mode exists, if yes - set warning
     fcc_status = verify_existence_and_set_warning(second_mode_parameter_name, size_of_second_mode_parameter_name, KCM_CERTIFICATE_ITEM, false);
@@ -718,7 +761,21 @@ close_chain:
     kcm_cert_chain_close(chain_handle);
 
 store_error_and_exit:
+
     fcc_free(private_key_data);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    kcm_status_e kcm_close_status = KCM_STATUS_SUCCESS;
+
+    //If key handle wasn't close do it now
+    if (priv_key_h != 0 && fcc_status != FCC_STATUS_SUCCESS) {
+        kcm_close_status = kcm_item_close_handle(priv_key_h);
+        if (kcm_close_status != KCM_STATUS_SUCCESS) {
+            SA_PV_LOG_ERR("failed to close key handle");
+        }
+    }
+
+#endif
     cs_close_handle_x509_cert(&x509_cert_handle);
     if (fcc_status != FCC_STATUS_SUCCESS) {
         output_info_fcc_status = fcc_store_error_info(parameter_name, size_of_parameter_name, fcc_status);

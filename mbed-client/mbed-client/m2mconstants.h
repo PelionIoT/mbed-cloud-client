@@ -188,6 +188,7 @@ extern const String EMPTY;
 #define ERROR_REASON_26 "BS FIN fails: missing EST iep param"
 #define ERROR_REASON_27 "Call already in progress"
 #define ERROR_REASON_28 "Message sending timed out"
+#define ERROR_REASON_29 "Call not allowed for now, wrong state"
 
 #define COAP_ERROR_REASON_1 "bad-request"
 #define COAP_ERROR_REASON_2 "bad-option"

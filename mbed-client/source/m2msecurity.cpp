@@ -323,10 +323,24 @@ int M2MSecurity::resource_value_buffer(SecurityResource resource,
         if (M2MSecurity::PublicKey == resource        ||
             M2MSecurity::ServerPublicKey == resource  ||
             M2MSecurity::Secretkey == resource ||
-            M2MSecurity::OpenCertificateChain == resource ||
-            M2MSecurity::CloseCertificateChain == resource ||
             M2MSecurity::ReadDeviceCertificateChain == resource) {
             return res->read_resource_value(*(M2MResourceBase *)res, data, buffer_len);
+        }
+    }
+
+    return -1;
+}
+
+int M2MSecurity::resource_value_buffer_size(SecurityResource resource, uint16_t instance_id, size_t *buffer_len) const
+{
+    M2MResource* res = get_resource(resource, instance_id);
+    if (res) {
+        if (M2MSecurity::PublicKey == resource        ||
+            M2MSecurity::ServerPublicKey == resource  ||
+            M2MSecurity::Secretkey == resource ||
+            M2MSecurity::OpenCertificateChain == resource ||
+            M2MSecurity::CloseCertificateChain == resource) {
+            return res->read_resource_value_size(*(M2MResourceBase *)res, buffer_len);
         }
     }
 

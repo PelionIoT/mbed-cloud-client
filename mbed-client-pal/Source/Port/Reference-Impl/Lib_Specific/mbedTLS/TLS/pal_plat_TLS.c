@@ -19,7 +19,10 @@
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ssl_internal.h"
-
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "crypto.h"
+#include "stdio.h"
+#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -83,6 +86,10 @@ typedef struct palTLSConf {
     bool hasKeys;
     bool hasChain;
     int cipherSuites[PAL_MAX_ALLOWED_CIPHER_SUITES + 1];  // The +1 is for the Zero Termination required by mbedTLS
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    bool hasKeyHandle;
+    psa_key_handle_t key_handle;
+#endif
 }palTLSConf_t;
 
 
@@ -407,6 +414,10 @@ palStatus_t pal_plat_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf)
 {
     palStatus_t status = PAL_SUCCESS;
     palTLSConf_t* localConfigCtx = NULL;
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    psa_status_t psa_status = PSA_SUCCESS;
+#endif
+
 
     if (NULLPTR == palTLSConf || NULLPTR == *palTLSConf)
     {
@@ -417,6 +428,13 @@ palStatus_t pal_plat_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf)
 
     if (true == localConfigCtx->hasKeys)
     {
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+        if (true == localConfigCtx->hasKeyHandle && localConfigCtx->key_handle != 0)
+        {
+            psa_status = psa_close_key(localConfigCtx->key_handle);
+        }
+#endif
         mbedtls_pk_free(&localConfigCtx->pkey);
 #if (PAL_ENABLE_X509 == 1)
         mbedtls_x509_crt_free(&localConfigCtx->owncert);
@@ -436,6 +454,12 @@ palStatus_t pal_plat_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf)
     memset(localConfigCtx, 0, sizeof(palTLSConf_t));
     free(localConfigCtx);
     *palTLSConf = NULLPTR;
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (psa_status != PSA_SUCCESS)
+    {
+        return PAL_ERR_TLS_ERROR_BASE;
+    }
+#endif
     return status;
 }
 
@@ -795,6 +819,7 @@ finish:
 
 
 #if (PAL_ENABLE_X509 == 1)
+
 palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -811,12 +836,15 @@ palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX
         goto finish;
     }
 
-    platStatus = mbedtls_pk_parse_key(&localConfigCtx->pkey, (const unsigned char *)privateKey->buffer, privateKey->size, NULL, 0 );
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    platStatus = mbedtls_pk_setup_opaque(&localConfigCtx->pkey, *privateKey);
+
     if (SSL_LIB_SUCCESS != platStatus)
     {
         status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
         goto finish;
     }
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     platStatus = mbedtls_ssl_conf_own_cert(localConfigCtx->confCtx, &localConfigCtx->owncert, &localConfigCtx->pkey);
     if (SSL_LIB_SUCCESS != platStatus)
@@ -839,13 +867,24 @@ palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateK
 
     mbedtls_pk_init(&localConfigCtx->pkey);
 
-    platStatus = mbedtls_pk_parse_key(&localConfigCtx->pkey, (const unsigned char *)privateKey->buffer, privateKey->size, NULL, 0 );
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    platStatus = mbedtls_pk_setup_opaque(&localConfigCtx->pkey, *privateKey);
     if (SSL_LIB_SUCCESS != platStatus)
     {
         status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
         goto finish;
     }
+    localConfigCtx->key_handle = *privateKey;
+    localConfigCtx->hasKeyHandle = true;
 
+#else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+     platStatus = mbedtls_pk_parse_key(&localConfigCtx->pkey, (const unsigned char *)privateKey->buffer, privateKey->size, NULL, 0);
+     if (SSL_LIB_SUCCESS != platStatus)
+     {
+         status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
+         goto finish;
+     }
+#endif
 
     localConfigCtx->hasKeys = true;
 

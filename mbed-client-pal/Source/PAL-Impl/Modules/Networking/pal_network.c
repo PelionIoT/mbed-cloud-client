@@ -50,7 +50,7 @@ typedef struct pal_socketAddressInternal6{
 #if (PAL_DNS_API_VERSION == 1)
 typedef struct pal_asyncAddressInfo
 {
-    char* url;
+    char* hostname;
     palSocketAddress_t* address;
     palSocketLength_t* addressLength;
     palGetAddressInfoAsyncCallback_t callback;
@@ -230,16 +230,6 @@ palStatus_t pal_getSockAddrPort(const palSocketAddress_t* address, uint16_t* por
 }
 
 
-palStatus_t pal_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* socket)
-{
-    PAL_VALIDATE_ARGUMENTS (NULL == socket);
-
-    palStatus_t result = pal_plat_socket(domain, type, nonBlockingSocket, interfaceNum, socket);;
-
-    return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
-}
-
-
 palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
 {
 
@@ -326,23 +316,24 @@ palStatus_t pal_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t
 
 #if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
 
+#if PAL_NET_SERVER_SOCKET_API
+
 palStatus_t pal_listen(palSocket_t socket, int backlog)
 {
     palStatus_t result = pal_plat_listen(socket, backlog);
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
 
-
-palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
+palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument)
 {
-
     PAL_VALIDATE_ARGUMENTS ((NULL == acceptedSocket) || (NULL == address)|| (NULL == addressLen));
 
     palStatus_t result = PAL_SUCCESS;
-    result = pal_plat_accept(socket,  address, addressLen,  acceptedSocket);
+    result = pal_plat_accept(socket,  address, addressLen,  acceptedSocket, callback, callbackArgument);
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
 
+#endif // PAL_NET_SERVER_SOCKET_API
 
 palStatus_t pal_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
 {
@@ -378,12 +369,9 @@ palStatus_t pal_send(palSocket_t socket, const void* buf, size_t len, size_t* se
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
 
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
-
 palStatus_t pal_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, palSocket_t* socket)
 {
-    PAL_VALIDATE_ARGUMENTS((NULL == socket) || (NULL == callback));
+    PAL_VALIDATE_ARGUMENTS((NULL == socket) || (NULL == callback) || (nonBlockingSocket == false));
 
     palStatus_t result = PAL_SUCCESS;
     result = pal_plat_asynchronousSocket(domain,  type,  nonBlockingSocket,  interfaceNum,  callback, NULL, socket);
@@ -392,23 +380,21 @@ palStatus_t pal_asynchronousSocket(palSocketDomain_t domain, palSocketType_t typ
 
 palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket)
 {
-    PAL_VALIDATE_ARGUMENTS((NULL == socket) || (NULL == callback));
+    PAL_VALIDATE_ARGUMENTS((NULL == socket) || (NULL == callback) || (nonBlockingSocket == false));
 
     palStatus_t result = PAL_SUCCESS;
     result = pal_plat_asynchronousSocket(domain, type, nonBlockingSocket, interfaceNum, callback, callbackArgument, socket);
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
 
-#endif
-
 #if PAL_NET_DNS_SUPPORT
 #if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
-palStatus_t pal_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* addressLength)
+palStatus_t pal_getAddressInfo(const char *hostname, palSocketAddress_t *address, palSocketLength_t* addressLength)
 {
-    PAL_VALIDATE_ARGUMENTS ((NULL == url) || (NULL == address) || (NULL == addressLength));
+    PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == address) || (NULL == addressLength));
 
     palStatus_t result = PAL_SUCCESS;
-    result = pal_plat_getAddressInfo(url, address, addressLength);
+    result = pal_plat_getAddressInfo(hostname, address, addressLength);
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
 #endif
@@ -418,22 +404,22 @@ palStatus_t pal_getAddressInfo(const char *url, palSocketAddress_t *address, pal
 PAL_PRIVATE void getAddressInfoAsyncThreadFunc(void const* arg)
 {
     pal_asyncAddressInfo_t* info = (pal_asyncAddressInfo_t*)arg;
-    palStatus_t status = pal_getAddressInfo(info->url, info->address, info->addressLength);
+    palStatus_t status = pal_getAddressInfo(info->hostname, info->address, info->addressLength);
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("getAddressInfoAsyncThreadFunc: pal_getAddressInfo failed\n");
     }
-    info->callback(info->url, info->address, info->addressLength, status, info->callbackArgument); // invoke callback
+    info->callback(info->hostname, info->address, info->addressLength, status, info->callbackArgument); // invoke callback
     free(info);
 }
 
-palStatus_t pal_getAddressInfoAsync(const char* url,
+palStatus_t pal_getAddressInfoAsync(const char* hostname,
                                     palSocketAddress_t* address,
                                     palSocketLength_t* addressLength,
                                     palGetAddressInfoAsyncCallback_t callback,
                                     void* callbackArgument)
 {
-    PAL_VALIDATE_ARGUMENTS ((NULL == url) || (NULL == address) || (NULL == addressLength) || (NULL == callback))
+    PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == address) || (NULL == addressLength) || (NULL == callback))
 
     palStatus_t status;
     palThreadID_t threadID = NULLPTR;
@@ -443,7 +429,7 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
         status = PAL_ERR_NO_MEMORY;
     }
     else {
-        info->url = (char*)url;
+        info->hostname = (char*)hostname;
         info->address = address;
         info->addressLength = addressLength;
         info->callback = callback;
@@ -460,13 +446,13 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
 #ifndef TARGET_LIKE_MBED
 #error "PAL_DNS_API_VERSION 2 is only supported with mbed-os"
 #endif
-palStatus_t pal_getAddressInfoAsync(const char* url,
+palStatus_t pal_getAddressInfoAsync(const char* hostname,
                                      palSocketAddress_t* address,
                                      palGetAddressInfoAsyncCallback_t callback,
                                      void* callbackArgument,
                                      palDNSQuery_t* queryHandle)
 {
-    PAL_VALIDATE_ARGUMENTS ((NULL == url) || (NULL == address) || (NULL == callback))
+    PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == address) || (NULL == callback))
 
     palStatus_t status;
 
@@ -475,7 +461,7 @@ palStatus_t pal_getAddressInfoAsync(const char* url,
         status = PAL_ERR_NO_MEMORY;
     }
     else {
-        info->url = (char*)url;
+        info->hostname = (char*)hostname;
         info->address = address;
         info->callback = callback;
         info->callbackArgument = callbackArgument;

@@ -29,28 +29,24 @@ typedef struct storage_sotp_type_lookup_record_ {
     sotp_type_e sotp_type;
     const char *type_name;
 } storage_sotp_type_lookup_record_s;
-#define STORAGE_SOTP_NUMBER_OF_TYPES 9 
 /**
 * sotp type table, correlating for each sotp type and name.
 */
-static const storage_sotp_type_lookup_record_s storage_sotp_type_lookup_table[STORAGE_SOTP_NUMBER_OF_TYPES] = {
+static const storage_sotp_type_lookup_record_s storage_sotp_type_lookup_table[] = {
     { SOTP_TYPE_FACTORY_DONE,               STORAGE_RBP_FACTORY_DONE_NAME },
-    { SOTP_TYPE_RANDOM_SEED,                STORAGE_RBP_RANDOM_SEED_NAME },
     { SOTP_TYPE_SAVED_TIME,                 STORAGE_RBP_SAVED_TIME_NAME },
     { SOTP_TYPE_LAST_TIME_BACK,             STORAGE_RBP_LAST_TIME_BACK_NAME },
-    { SOTP_TYPE_ROT,                        STORAGE_RBP_ROT_NAME },
-    { SOTP_TYPE_TRUSTED_TIME_SRV_ID,        STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME },
-    { SOTP_TYPE_EXECUTION_MODE,             STORAGE_RBP_EXECUTION_MODE_NAME },
-    { SOTP_TYPE_OEM_TRANSFER_MODE_ENABLED,  STORAGE_RBP_OEM_TRANSFER_MODE_ENABLED_NAME },
-    { SOTP_TYPE_MIN_FW_VERSION,             STORAGE_RBP_MIN_FW_VERSION_NAME },
+    { SOTP_TYPE_TRUSTED_TIME_SRV_ID,        STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME }
 };
 
+#define ARRAY_LENGTH(array) (sizeof(array)/sizeof((array)[0]))
+#define STORAGE_SOTP_NUMBER_OF_TYPES ARRAY_LENGTH(storage_sotp_type_lookup_table) 
 
 extern bool g_kcm_initialized;
 
 static bool storage_get_sotp_type(const char *sotp_item, sotp_type_e *sotp_type)
 {
-    int index = 0;
+    size_t index = 0;
 
     for (index = 0; index < STORAGE_SOTP_NUMBER_OF_TYPES; index++) {
         if (strlen(sotp_item) == strlen(storage_sotp_type_lookup_table[index].type_name)){
@@ -63,68 +59,8 @@ static bool storage_get_sotp_type(const char *sotp_item, sotp_type_e *sotp_type)
     }
     return false;
 }
-static kcm_status_e sotp_to_kcm_error_translation(sotp_result_e err)
-{
-    kcm_status_e kcm_status;
-    switch (err)
-    {
-    case SOTP_SUCCESS:
-        kcm_status = KCM_STATUS_SUCCESS;
-        break;
-    case SOTP_NOT_FOUND:
-        kcm_status = KCM_STATUS_ITEM_NOT_FOUND;
-        break;
-    case SOTP_ALREADY_EXISTS:
-        kcm_status = KCM_STATUS_FILE_EXIST;//FCC_STATUS_INTERNAL_ITEM_ALREADY_EXIST
-        break;
-    case SOTP_READ_ERROR:
-    case SOTP_WRITE_ERROR:
-    case SOTP_DATA_CORRUPT:
-    case SOTP_BAD_VALUE:
-    case SOTP_BUFF_TOO_SMALL:
-    case SOTP_FLASH_AREA_TOO_SMALL:
-    case SOTP_OS_ERROR:
-    case SOTP_BUFF_NOT_ALIGNED:
-    default:
-        kcm_status = KCM_STATUS_RBP_ERROR;
-        break;
-    }
-    return kcm_status;
-}
 
-static bool storage_get_sotp_type_size(sotp_type_e sotp_type, uint16_t *required_size_out)
-{
-    size_t required_size;
-
-    switch (sotp_type) {
-    case SOTP_TYPE_ROT:
-        required_size = FCC_ROT_SIZE;
-        break;
-    case SOTP_TYPE_FACTORY_DONE:
-        required_size = FCC_FACTORY_DISABLE_FLAG_SIZE;
-        break;
-    case SOTP_TYPE_RANDOM_SEED:
-        required_size = FCC_ENTROPY_SIZE;
-        break;
-    case SOTP_TYPE_SAVED_TIME:
-        required_size = sizeof(uint64_t);
-        break;
-    case SOTP_TYPE_TRUSTED_TIME_SRV_ID:
-        required_size = FCC_CA_IDENTIFICATION_SIZE;
-        break;
-    default:
-        SA_PV_LOG_ERR("Wrong sotp_type");
-        return false;
-    }
-
-    // Success
-    *required_size_out = (uint16_t)required_size;
-
-    return true;
-}
-
-
-static kcm_status_e storage_allocate_and_create_compelete_name(const uint8_t *kcm_name, size_t kcm_name_len, const char *prefix, uint8_t **kcm_buffer_out, size_t *kcm_buffer_size_allocated_out)
+static kcm_status_e storage_allocate_and_create_complete_name(const uint8_t *kcm_name, size_t kcm_name_len, const char *prefix, uint8_t **kcm_buffer_out, size_t *kcm_buffer_size_allocated_out)
 {
     size_t prefix_length = 0;
     size_t total_length = 0;
@@ -170,8 +106,8 @@ static kcm_status_e storage_build_complete_item_name(kcm_item_type_e kcm_item_ty
     kcm_status = storage_item_name_get_prefix(kcm_item_type, data_source_type, &prefix);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_item_name_get_prefix");
 
-    kcm_status = storage_allocate_and_create_compelete_name(kcm_item_name, kcm_item_name_len, prefix, kcm_complete_name, kcm_complete_name_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_allocate_and_create_compelete_name");
+    kcm_status = storage_allocate_and_create_complete_name(kcm_item_name, kcm_item_name_len, prefix, kcm_complete_name, kcm_complete_name_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_allocate_and_create_complete_name");
 
     return kcm_status;
 }
@@ -303,6 +239,10 @@ palStatus_t storage_rbp_read(
     status = storage_get_sotp_type(item_name, &sotp_type);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((status != true), PAL_ERR_INVALID_ARGUMENT, "Invalid sotp data name");
 
+    // Prior to reading from the SOTP, set the data_actual_size_out to 0. sotp_get() writes only 2 bytes 
+    // to data_actual_size_out. If we don't do this, and the caller doesn't either, then *data_actual_size_out 
+    // will contain 2 bytes of information, and the rest will be some random garbage
+    *data_actual_size_out = 0;
     sotp_result = sotp_get(sotp_type,(uint16_t)data_size, (uint32_t*)data, (uint16_t*)data_actual_size_out);
     if (sotp_result == SOTP_NOT_FOUND) {
         //item not found. Print info level error
@@ -368,111 +308,6 @@ palStatus_t storage_rbp_delete(const char *item_name)
     return PAL_SUCCESS;
 }
 #endif
-
-
-kcm_status_e storage_fcc_rbp_write(
-    const char *item_name,
-    const uint8_t *data,
-    size_t data_size,
-    bool is_write_once)
-{
-    bool success;
-    sotp_result_e sotp_result;
-    uint16_t required_size = 0;
-    int64_t aligned_8_bytes_buffer[MAX_SOTP_BUFFER_SIZE / 8];
-    uint16_t sotp_buffer_size = 0;
-    sotp_type_e sotp_type = SOTP_MAX_TYPES;
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size > UINT16_MAX || data_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
-    SA_PV_LOG_INFO_FUNC_ENTER("data_size = %" PRIu32 " item_name = %s", (uint32_t)data_size, item_name);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
-
-    PV_UNUSED_PARAM(is_write_once);
-
-    success = storage_get_sotp_type(item_name, &sotp_type);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((success != true), KCM_STATUS_INVALID_PARAMETER, "Invalid sotp data name");
-
-    success = storage_get_sotp_type_size(sotp_type, &required_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((!success), KCM_STATUS_INVALID_PARAMETER, "Failed for get_sotp_type_size()");
-
-    if (sotp_type != SOTP_TYPE_SAVED_TIME) {
-        //Check if current type was already written to sotp by triyng to get the data
-        sotp_result = sotp_get_item_size(sotp_type, &sotp_buffer_size);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result == SOTP_SUCCESS), KCM_STATUS_FILE_EXIST, "The item was already written to sotp");
-    }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size != required_size), KCM_STATUS_INVALID_PARAMETER, "Wrong buf_size provided. Must be size of exactly %" PRIu32 " bytes", (uint32_t)required_size);
-
-    // Write buf to SOTP. Cast is OK since size must be divisible by 8
-
-    /*
-    * Copy from data (uint8_t*) to aligned_8_bytes_buffer (uint64_t*) to make sure that data is 8 byte aligned.
-    * Since sotp_set() gets a pointer to int64_t, if it is not aligned, and we just cast it to uint8_t*,
-    * ARMCC functions like memcpy will assume 8 byte alignment resulting in possible access of unallocated memory.
-    */
-    memcpy(aligned_8_bytes_buffer, data, data_size);
-
-    sotp_result = sotp_set(sotp_type, (uint16_t)(data_size), (const uint32_t*)aligned_8_bytes_buffer);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result != SOTP_SUCCESS), sotp_to_kcm_error_translation(sotp_result), "sotp_set failed");
-
-
-    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
-
-    return KCM_STATUS_SUCCESS;
-}
-
-/** FCC initiated operation, writes a rollback protected data.
-*
-*   @param[in] item_name A string name of the rollback protected item
-*   @param[in] data A pointer to memory with the data to write into the storage. Can be NULL if data_length is 0.
-*   @param[in] data_size The data length in bytes. Can be 0 if we wish to write an empty file.
-*   @param[in] is_write_once Write once flag.
-*   @returns
-*        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_fcc_rbp_read(
-    const char *item_name,
-    uint8_t *data,
-    size_t data_size,
-    size_t *data_actual_size_out)
-{
-
-    bool success;
-    sotp_result_e sotp_result;
-    uint16_t required_size = 0;
-    int64_t aligned_8_bytes_buffer[MAX_SOTP_BUFFER_SIZE / 8] = { 0 };
-    size_t actual_data_size = 0;
-    sotp_type_e sotp_type = SOTP_MAX_TYPES;
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size == 0 || data_size > UINT16_MAX ), KCM_STATUS_INVALID_PARAMETER, "Invalid data_size");
-    SA_PV_LOG_INFO_FUNC_ENTER("data_size = %" PRIu32 " item_name = %s", (uint32_t)data_size, item_name);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_actual_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid data_actual_size_out");
-
-    success = storage_get_sotp_type(item_name, &sotp_type);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((success != true), KCM_STATUS_INVALID_PARAMETER, "Invalid sotp data name");
-
-
-    success = storage_get_sotp_type_size(sotp_type, &required_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((!success), KCM_STATUS_INVALID_PARAMETER, "Failed for get_sotp_type_size()");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size < required_size), KCM_STATUS_INVALID_PARAMETER, "Wrong buf_size provided. Must be size of exactly %" PRIu32 " bytes", (uint32_t)required_size);
-
-    sotp_result = sotp_get(sotp_type, (uint16_t)data_size, (uint32_t*)aligned_8_bytes_buffer, (uint16_t*)&actual_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result != SOTP_SUCCESS), sotp_to_kcm_error_translation(sotp_result), "sotp_get failed");
-
-    // Copy from aligned buffer to callers uint8_t* buffer
-    memcpy(data, aligned_8_bytes_buffer, actual_data_size);
-
-    *data_actual_size_out = (size_t)(actual_data_size);
-
-    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
-
-    return KCM_STATUS_SUCCESS;
-
-}
-
-
 
 kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
     size_t kcm_item_name_len,
@@ -717,13 +552,13 @@ kcm_status_e storage_cert_chain_create(kcm_cert_chain_handle *kcm_chain_handle, 
     }
 
     if (data_source_type == KCM_ORIGINAL_ITEM) {
-        kcm_status = storage_allocate_and_create_compelete_name(kcm_chain_name, kcm_chain_name_len, KCM_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
+        kcm_status = storage_allocate_and_create_complete_name(kcm_chain_name, kcm_chain_name_len, KCM_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
     }
     else {
-        kcm_status = storage_allocate_and_create_compelete_name(kcm_chain_name, kcm_chain_name_len, KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
+        kcm_status = storage_allocate_and_create_complete_name(kcm_chain_name, kcm_chain_name_len, KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
     }
 
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_allocate_and_create_compelete_name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_allocate_and_create_complete_name");
 
     // allocate the context
     chain_context = (kcm_cert_chain_context_int_s*)fcc_malloc(sizeof(kcm_cert_chain_context_int_s));
@@ -926,12 +761,12 @@ kcm_status_e storage_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, co
     }
 
     if (data_source_type == KCM_ORIGINAL_ITEM) {
-        kcm_status = storage_allocate_and_create_compelete_name(kcm_chain_name, kcm_chain_name_len, KCM_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
+        kcm_status = storage_allocate_and_create_complete_name(kcm_chain_name, kcm_chain_name_len, KCM_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
     }
     else {
-        kcm_status = storage_allocate_and_create_compelete_name(kcm_chain_name, kcm_chain_name_len, KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
+        kcm_status = storage_allocate_and_create_complete_name(kcm_chain_name, kcm_chain_name_len, KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_allocate_and_create_compelete_name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_allocate_and_create_complete_name");
 
     // allocate the context
     chain_context = (kcm_cert_chain_context_int_s*)fcc_malloc(sizeof(kcm_cert_chain_context_int_s));
@@ -1019,10 +854,10 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
     }
     else if (kcm_status != KCM_STATUS_SUCCESS) {
         if (data_source_type == KCM_ORIGINAL_ITEM) {
-            kcm_status = storage_allocate_and_create_compelete_name(kcm_chain_name, kcm_chain_name_len, KCM_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
+            kcm_status = storage_allocate_and_create_complete_name(kcm_chain_name, kcm_chain_name_len, KCM_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
         }
         else {
-            kcm_status = storage_allocate_and_create_compelete_name(kcm_chain_name, kcm_chain_name_len, KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
+            kcm_status = storage_allocate_and_create_complete_name(kcm_chain_name, kcm_chain_name_len, KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0, &kcm_complete_name, &kcm_complete_name_size);
         }
 
         if (kcm_status == KCM_STATUS_SUCCESS) {

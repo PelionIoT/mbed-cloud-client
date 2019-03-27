@@ -105,6 +105,34 @@ extern "C" {
     */
     kcm_status_e kcm_item_get_data(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, uint8_t *kcm_item_data_out, size_t kcm_item_data_max_size, size_t * kcm_item_data_act_size_out);
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+    /* === Key Configuration Manager with PSA support uses PSA key IDs from 0x1 up to  0x2800 === */
+
+
+    /** Retrieves a PSA handle that refers to a valid existing private/public key in storage.
+    *   The handle remains valid until the application calls kcm_item_close_handle().
+    *   You can use the handle for the PSA key layer in mbed-crypto/include/psa/crypto.h.
+    *
+    *    @param[in] kcm_item_name KCM item name.
+    *    @param[in] kcm_item_name_len KCM item name length.
+    *    @param[in] kcm_item_type KCM item type as defined in `::kcm_item_type_e`.
+    *    @param[out] A handle value that refers to the target KCM item in storage.
+    *
+    *    @returns
+    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e kcm_item_get_handle(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, kcm_key_handle_t *key_handle_out);
+
+    /** Frees all resources associated with the PSA private/public key.
+    *
+    *    @param[in] item_h key handle.
+    *    @returns
+    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e kcm_item_close_handle(kcm_key_handle_t key_handle);
+#endif
+
     /* === Keys, Certificates and Configuration delete === */
 
     /** Delete a KCM item from a secure storage.

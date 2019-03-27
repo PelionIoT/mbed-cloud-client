@@ -32,7 +32,6 @@ extern "C" {
  * **PAL network socket API** /n
  * PAL network socket configuration options:
  * - define PAL_NET_TCP_AND_TLS_SUPPORT if TCP is supported by the platform and is required.
- * - define PAL_NET_ASYNCHRONOUS_SOCKET_API if asynchronous socket API is supported by the platform. Currently **mandatory**.
  * - define PAL_NET_DNS_SUPPORT if DNS name resolution is supported.
  */
 
@@ -68,16 +67,6 @@ palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex);
  * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
 */
 palStatus_t pal_plat_socketsTerminate(void* context);
-
-/*! \brief Get a network socket.
- * @param[in] domain The domain of the created socket. See `palSocketDomain_t` for supported types.
- * @param[in] type The type of the created socket. See `palSocketType_t` for supported types.
- * @param[in] nonBlockingSocket If true, the socket is non-blocking.
- * @param[in] interfaceNum The number of the network interface used for this socket. Select `PAL_NET_DEFAULT_INTERFACE` for the default interface.
- * @param[out] socket The socket is returned through this output parameter.
- * \return PAL_SUCCESS (0) in case of success. A specific negative error code in case of failure.
- */
-palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* socket);
 
 /*! \brief Set options for a network socket.
  *
@@ -151,6 +140,8 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
 
 #if PAL_NET_TCP_AND_TLS_SUPPORT // The functionality below is supported only if TCP is supported.
 
+#if PAL_NET_SERVER_SOCKET_API
+
 /*! \brief Use a socket to listen to incoming connections.
  *
  * You may also limit the queue of incoming connections.
@@ -165,9 +156,13 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog);
  * @param[out] address The source address of the incoming connection.
  * @param[in, out] addressLen The length of the address field on input, the length of the data returned on output.
  * @param[out] acceptedSocket The socket of the accepted connection is returned if the connection is accepted successfully.
+ * @param[in] callback The callback function to be attached to the asynchronous accepted socket. If socket is synchronous - this should be NULL.
+ * @param[in] callbackArgument The callback argument to be attached to the asynchronous accepted socket. If socket is synchronous - this should be NULL.
  * \return PAL_SUCCESS (0) in case of success, a specific negative error code in case of failure.
  */
-palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket);
+palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument);
+
+#endif // PAL_NET_SERVER_SOCKET_API
 
 /*! \brief Open a connection from a socket to a specific address.
  * @param[in] socket The socket to use for the connection to the given address. The socket passed to this function should be of type `PAL_SOCK_STREAM`, unless your specific implementation supports other types as well.
@@ -197,8 +192,6 @@ palStatus_t pal_plat_send(palSocket_t socket, const void* buf, size_t len, size_
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
 
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
-
 /*! \brief Get an asynchronous network socket.
  * @param[in] domain The domain of the created socket. See enum `palSocketDomain_t` for supported types.
  * @param[in] type The type of the created socket. See enum `palSocketType_t` for supported types.
@@ -209,21 +202,19 @@ palStatus_t pal_plat_send(palSocket_t socket, const void* buf, size_t len, size_
  */
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument , palSocket_t* socket);
 
-#endif
-
 #if PAL_NET_DNS_SUPPORT
 #if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
 
-/*! \brief This function translates a URL to a `palSocketAddress_t` that can be used with PAL sockets.
- * @param[in] url The URL to be translated to a `palSocketAddress_t`.
+/*! \brief This function translates a hostname to a `palSocketAddress_t` that can be used with PAL sockets.
+ * @param[in] hostname The hostname to be translated to a `palSocketAddress_t`.
  * @param[out] address The address for the output of the translation.
  * @param[out] addressLength The length of the output address.
  */
-palStatus_t pal_plat_getAddressInfo(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength);
+palStatus_t pal_plat_getAddressInfo(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength);
 
 #elif (PAL_DNS_API_VERSION == 2)
 
-/*! \brief This function translates a URL to a `palSocketAddress_t` that can be used with PAL sockets.
+/*! \brief This function translates a hostname to a `palSocketAddress_t` that can be used with PAL sockets.
  * @param[in] info address of `pal_asyncAddressInfo_t`.
  */
 palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo_t* info);

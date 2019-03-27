@@ -37,8 +37,7 @@ extern "C" {
 * **PAL network socket API** \n
 * PAL network socket configuration options:
 * + Set \c PAL_NET_TCP_AND_TLS_SUPPORT to true if TCP is supported by the platform and is required.
-* + Set \c PAL_NET_ASYNCHRONOUS_SOCKET_API to true if asynchronous socket API is supported by the platform and is required. This is currently \b mandatory.
-* + Set \c PAL_NET_DNS_SUPPORT to true if DNS URL lookup API is supported.
+* + Set \c PAL_NET_DNS_SUPPORT to true if DNS hostname lookup API is supported.
 */
 
 typedef uint32_t palSocketLength_t; /*!< \brief The length of data. */
@@ -158,16 +157,6 @@ palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Ad
  */
 palStatus_t pal_getSockAddrPort(const palSocketAddress_t* address, uint16_t* port);
 
-/*! \brief Create a network socket.
- * @param[in] domain The domain for the created socket. See `palSocketDomain_t` for supported types.
- * @param[in] type The type of the created socket. See `palSocketType_t` for supported types.
- * @param[in] nonBlockingSocket If true, the socket is created as non-blocking.
- * @param[in] interfaceNum The number of the network interface to be used for this socket. Select `PAL_NET_DEFAULT_INTERFACE` for the default interface.
- * @param[out] socket The created socket is returned through this output parameter.
- * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
- */
-palStatus_t pal_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* socket);
-
 /*! \brief Set the value for a socket option on a network socket.
  * @param[in] socket The socket to configure.
  * @param[in] optionName The identification of the socket option to set. See \c palSocketOptionName_t for supported options.
@@ -244,8 +233,14 @@ palStatus_t pal_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t
 #define PAL_NET_SELECT_IS_TX(socketStatus, index)   ((socketStatus[index] & PAL_NET_SOCKET_SELECT_TX_BIT) != 0) /*!< Check if TX bit is set in select result for a given socket index. */
 #define PAL_NET_SELECT_IS_ERR(socketStatus, index)  ((socketStatus[index] & PAL_NET_SOCKET_SELECT_ERR_BIT) != 0) /*!< Check if ERR bit is set in select result for a given socket index. */
 
+/*! \brief The type of the callback function passed when creating asynchronous sockets.
+ * @param[in] argument The user provided argument passed to the callback function.
+ */
+typedef void(*palAsyncSocketCallback_t)(void*);
+
 #if PAL_NET_TCP_AND_TLS_SUPPORT // The functionality below is supported only if TCP is supported.
 
+#if PAL_NET_SERVER_SOCKET_API
 
 /*! \brief Use a specific socket to listen for incoming connections. This may also limit the queue of incoming connections.
  * @param[in] socket The socket to listen to. The sockets passed to this function should usually be of type `PAL_SOCK_STREAM_SERVER`, though your specific implementation may support other types as well.
@@ -259,9 +254,13 @@ palStatus_t pal_listen(palSocket_t socket, int backlog);
  * @param[out] address The source address of the incoming connection.
  * @param[in,out] addressLen The length of `address` on input, the length of the data returned on output.
  * @param[out] acceptedSocket The socket of the accepted connection.
+ * @param[in] callback The callback function to be attached to the asynchronous accepted socket.
+ * @param[in] callbackArgument The callback argument to be attached to the asynchronous accepted socket.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket);
+palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument);
+
+#endif // PAL_NET_SERVER_SOCKET_API
 
 /*! \brief Open a connection from a socket to a specific address.
  * @param[in] socket The socket to use for a connection to the address. The socket passed to this function should usually be of type `PAL_SOCK_STREAM`, though your specific implementation may support other types as well.
@@ -292,14 +291,6 @@ palStatus_t pal_send(palSocket_t socket, const void* buf, size_t len, size_t* se
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
 
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
-
-/*! \brief The type of the callback function passed when creating asynchronous sockets.
- * @param[in] argument The user provided argument passed to the callback function.
- */
-typedef void(*palAsyncSocketCallback_t)(void*);
-
 /*! \brief Get an asynchronous network socket.
  * @param[in] domain The domain for the created socket. See enum `palSocketDomain_t` for supported types.
  * @param[in] type The type for the socket. See enum `palSocketType_t` for supported types.
@@ -324,57 +315,54 @@ palStatus_t pal_asynchronousSocket(palSocketDomain_t domain, palSocketType_t typ
 palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback,void* callbackArgument, palSocket_t* socket);
 
 
-
-#endif
-
 #if PAL_NET_DNS_SUPPORT
 #if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
 
-/*! \brief This function translates a URL to `palSocketAddress_t` which can be used with PAL sockets.
+/*! \brief This function translates a hostname to `palSocketAddress_t` which can be used with PAL sockets.
  *
- * Supports both IP address as a string, and URLs (using DNS lookup).
- * @param[in] url The URL (or IP address string) to be translated to a `palSocketAddress_t`.
+ * Supports both IP address as a string, and hostnames (using DNS lookup).
+ * @param[in] hostname The hostname (or IP address string) to be translated to a `palSocketAddress_t`.
  * @param[out] address The address for the output of the translation.
  */
-palStatus_t pal_getAddressInfo(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength);
+palStatus_t pal_getAddressInfo(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength);
 
 #if (PAL_DNS_API_VERSION == 1)
 
 /*! \brief Prototype of the callback function invoked when querying address info asynchronously using `pal_getAddressInfoAsync`.
- * @param[in] url The user-provided URL (or IP address string) that was requested to be translated.
+ * @param[in] hostname The user-provided hostname (or IP address string) that was requested to be translated.
  * @param[in] address The address for the output of the translation.
  * @param[in] addressLength The length of the address for the output of the translation in bytes.
  * @param[in] status The status of the operation - PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  * @param[in] callbackArgument The user callback argument.
  */
-typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument);
+typedef void(*palGetAddressInfoAsyncCallback_t)(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument);
 
-/*! \brief This function translates a URL to `palSocketAddress_t` which can be used with PAL sockets.
+/*! \brief This function translates a hostname to `palSocketAddress_t` which can be used with PAL sockets.
  *
- * Supports both IP address as a string, and URL (using DNS lookup).
+ * Supports both IP address as a string, and hostname (using DNS lookup).
  * \note This function is non-blocking.
- * @param[in] url The user-provided URL (or IP address string) to be translated.
+ * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
  * @param[out] address The address for the output of the translation.
  * @param[out] addressLength The length of the address for the output of the translation in bytes.
  * @param[in] callback The user-provided callback to be invoked once the function has completed.
  * @param[in] callbackArgument The user-provided callback argument which will be passed back to the callback function.
  */
-palStatus_t pal_getAddressInfoAsync(const char* url, palSocketAddress_t* address, palSocketLength_t* addressLength, palGetAddressInfoAsyncCallback_t callback, void* callbackArgument);
+palStatus_t pal_getAddressInfoAsync(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength, palGetAddressInfoAsyncCallback_t callback, void* callbackArgument);
 #endif
 
 #elif (PAL_DNS_API_VERSION == 2)
 typedef int32_t palDNSQuery_t; /*!< \brief PAL DNS query handle. Can be used to cancel the asynchronous DNS query. */
 
 /*! \brief Prototype of the callback function invoked when querying address info asynchronously using `pal_getAddressInfoAsync`.
- * @param[in] url The user-provided URL (or IP address string) to be translated.
+ * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
  * @param[out] address The address for the output of the translation.
  * @param[out] status The status of the operation - PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  * @param[in] callbackArgument The user callback argument.
  */
-typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddress_t* address, palStatus_t status, void* callbackArgument);
+typedef void(*palGetAddressInfoAsyncCallback_t)(const char* hostname, palSocketAddress_t* address, palStatus_t status, void* callbackArgument);
 
 /*! \brief Structure used by pal_getAddressInfoAsync.
- * @param[in] url The user-provided URL (or IP address string) to be translated.
+ * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
  * @param[out] address The address for the output of the translation.
  * @param[in] callback The user-provided callback.
  * @param[in] callbackArgument The user callback argument of `pal_GetAddressInfoAsyncCallback_t`.
@@ -382,23 +370,23 @@ typedef void(*palGetAddressInfoAsyncCallback_t)(const char* url, palSocketAddres
  */
 typedef struct pal_asyncAddressInfo
 {
-    char* url;
+    char* hostname;
     palSocketAddress_t* address;
     palGetAddressInfoAsyncCallback_t callback;
     void* callbackArgument;
     palDNSQuery_t *queryHandle;
 } pal_asyncAddressInfo_t;
 
-/*! \brief This function translates a URL to `palSocketAddress_t` which can be used with PAL sockets.
+/*! \brief This function translates a hostname to `palSocketAddress_t` which can be used with PAL sockets.
  *
- * Supports both IP address as a string, and URL (using DNS lookup).
+ * Supports both IP address as a string, and hostname (using DNS lookup).
  * \note The function is non-blocking.
- * @param[in] url The user-provided URL (or IP address string) to be translated.
+ * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
  * @param[out] address The address for the output of the translation.
  * @param[in] callback The user-provided callback to be invoked once the function has completed.
  * @param[out] queryHandle DNS query handler. Caller must take care of allocation. If not used, then set as `NULL`.
  */
-palStatus_t pal_getAddressInfoAsync(const char* url,
+palStatus_t pal_getAddressInfoAsync(const char* hostname,
                                      palSocketAddress_t* address,
                                      palGetAddressInfoAsyncCallback_t callback,
                                      void* callbackArgument,

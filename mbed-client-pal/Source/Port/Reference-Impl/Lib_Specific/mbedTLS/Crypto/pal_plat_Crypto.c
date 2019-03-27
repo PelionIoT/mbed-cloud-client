@@ -86,9 +86,20 @@ typedef struct palX509Ctx{
 }palX509Ctx_t;
 #endif
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 typedef struct palMD{
-     mbedtls_md_context_t md;
-}palMD_t;
+    mbedtls_md_context_t md;
+} palMD_t;
+#else
+
+#include "crypto.h"
+
+typedef struct palMD {
+    psa_hash_operation_t md;
+    psa_algorithm_t alg;
+} palMD_t;
+
+#endif
 
 #define CRYPTO_PLAT_SUCCESS 0
 #define CRYPTO_PLAT_GENERIC_ERROR (-1)
@@ -198,9 +209,34 @@ palStatus_t pal_plat_aesECB(palAesHandle_t aes, const unsigned char input[PAL_CR
 
 palStatus_t pal_plat_sha256(const unsigned char* input, size_t inLen, unsigned char* output)
 {    
+    palStatus_t status = PAL_SUCCESS;
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     mbedtls_sha256(input, inLen, output, 0);
-     
-    return PAL_SUCCESS;
+#else
+    palMDHandle_t md = 0;
+
+    status = pal_plat_mdInit(&md, PAL_SHA256);
+    if (PAL_SUCCESS != status)
+    {
+        return status;
+    }
+
+    status = pal_plat_mdUpdate(md, input, inLen);
+    if (status != PAL_SUCCESS)
+    {
+        goto finish;
+    }
+
+    status = pal_plat_mdFinal(md, output);
+
+finish:
+    if (0 != md)
+    {
+        (void)pal_plat_mdFree(&md);
+    }
+#endif
+    return status;
 }
 #if (PAL_ENABLE_X509 == 1)
 palStatus_t pal_plat_x509Initiate(palX509Handle_t* x509)
@@ -567,6 +603,7 @@ palStatus_t pal_plat_x509Free(palX509Handle_t* x509)
 
 #endif
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 palStatus_t pal_plat_mdInit(palMDHandle_t* md, palMDType_t mdType)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -727,6 +764,128 @@ palStatus_t pal_plat_mdFree(palMDHandle_t* md)
     *md = NULLPTR;
     return status;
 }
+#else //!MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+PAL_PRIVATE palStatus_t palToPsaMdType(palMDType_t palMdType, psa_algorithm_t *psaAlg)
+{
+    switch (palMdType)
+    {
+        case PAL_SHA256:
+            *psaAlg = PSA_ALG_SHA_256;
+            return PAL_SUCCESS;    
+        default:
+            return PAL_ERR_INVALID_MD_TYPE;
+    }
+}
+
+palStatus_t pal_plat_mdInit(palMDHandle_t* md, palMDType_t mdType)
+{
+    palStatus_t palStatus = PAL_SUCCESS;
+    psa_status_t status = PSA_SUCCESS;
+    psa_algorithm_t alg = 0;
+    palMD_t* localCtx = NULL;
+
+    palStatus = palToPsaMdType(mdType, &alg);
+    if (PAL_SUCCESS != palStatus)
+    {
+        return palStatus;
+    }
+
+    localCtx = (palMD_t*)malloc(sizeof(palMD_t));
+    if (NULL == localCtx)
+    {
+        return PAL_ERR_CREATION_FAILED;
+    }
+
+    memset(localCtx, 0, sizeof(palMD_t));
+
+    status = psa_hash_setup(&localCtx->md, alg);
+    if (PSA_SUCCESS != status)
+    {
+        palStatus = PAL_ERR_GENERIC_FAILURE;
+        goto finish;
+    }
+
+    localCtx->alg = alg;
+
+    *md = (uintptr_t)localCtx;
+
+finish:
+    if (PAL_SUCCESS != palStatus)
+    {
+        free(localCtx);
+    }
+    return palStatus;
+}
+
+palStatus_t pal_plat_mdUpdate(palMDHandle_t md, const unsigned char* input, size_t inLen)
+{
+    psa_status_t status = PSA_SUCCESS;
+    palStatus_t palStatus = PAL_SUCCESS;
+    palMD_t* localCtx = (palMD_t*)md;
+
+    status = psa_hash_update(&localCtx->md, input, inLen);
+    if (PSA_SUCCESS != status)
+    {
+        palStatus = PAL_ERR_GENERIC_FAILURE;
+    }
+
+    return palStatus;
+}
+
+
+palStatus_t pal_plat_mdGetOutputSize(palMDHandle_t md, size_t* bufferSize)
+{
+    palMD_t* localCtx = (palMD_t*)md;
+    
+    *bufferSize = PSA_HASH_SIZE(localCtx->alg);
+    if (0 == *bufferSize)
+    {
+        return PAL_ERR_GENERIC_FAILURE;
+    } 
+    else
+    {
+        return PAL_SUCCESS;
+    }
+}
+
+palStatus_t pal_plat_mdFinal(palMDHandle_t md, unsigned char* output)
+{
+    psa_status_t status = PSA_SUCCESS;
+    palStatus_t palStatus = PAL_SUCCESS;
+    palMD_t* localCtx = (palMD_t*)md;
+    size_t outputSize; // Size is determined by md when it was initialized, user should know it
+    size_t bufSize;
+
+    palStatus = pal_plat_mdGetOutputSize(md, &bufSize);
+    if (PAL_SUCCESS != palStatus)
+    {
+        return palStatus;
+    }
+
+    status = psa_hash_finish(&localCtx->md, output, bufSize, &outputSize);
+    if (PSA_SUCCESS != status)
+    {
+        palStatus = PAL_ERR_GENERIC_FAILURE;
+    }
+
+    return palStatus;
+}
+
+palStatus_t pal_plat_mdFree(palMDHandle_t* md)
+{
+    palMD_t* localCtx = (palMD_t*)*md;
+
+    localCtx = (palMD_t*)*md;
+
+    // Disragard psa_hash_abort() return value - not much we can do with it
+    (void)psa_hash_abort(&localCtx->md);
+    free(localCtx);
+    *md = NULLPTR;
+    return PAL_SUCCESS;
+}
+
+#endif //!MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #if (PAL_ENABLE_X509 == 1)
 palStatus_t pal_plat_verifySignature(palX509Handle_t x509, palMDType_t mdType, const unsigned char *hash, size_t hashLen, const unsigned char *sig, size_t sigLen)
 {
@@ -1236,6 +1395,7 @@ palStatus_t pal_plat_CMACFinish(palCMACHandle_t *ctx, unsigned char *output, siz
     return status;
 }
 #endif //PAL_CMAC_SUPPORT
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes, const unsigned char *input, size_t inputLenInBytes, unsigned char *output, size_t* outputLenInBytes)
 {
     const mbedtls_md_info_t *md_info = NULL;
@@ -1273,7 +1433,79 @@ palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes
 
     return status;
 }
+#else
+palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes, const unsigned char *input, size_t inputLenInBytes, unsigned char *output, size_t* outputLenInBytes)
+{
+    psa_status_t status = PSA_SUCCESS;
+    palStatus_t palStatus = PAL_SUCCESS;
+    psa_key_handle_t keyHandle = 0;
+    psa_mac_operation_t operation = { 0 };
+    psa_key_policy_t policy = {0};
+    size_t outLen = 0;
 
+    // Create volatile key handle
+    status = psa_allocate_key(&keyHandle);
+    if (PSA_SUCCESS != status)
+    {
+        return PAL_ERR_CRYPTO_ALLOC_FAILED;
+    }
+
+    // Set key policy to creat HMACs based on SHA256
+    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_SIGN ,PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    status = psa_set_key_policy(keyHandle, &policy);
+    if (PSA_SUCCESS != status) {
+        palStatus = PAL_ERR_GENERIC_FAILURE; 
+        goto finish;
+    }
+
+    // Import the key to the PSA handle
+    status = psa_import_key(keyHandle, PSA_KEY_TYPE_HMAC, key, keyLenInBytes);
+    if (PSA_SUCCESS != status)
+    {
+        palStatus = PAL_ERR_GENERIC_FAILURE;
+        goto finish;
+    }
+
+    // Setup MAC sign process
+    status = psa_mac_sign_setup(&operation, keyHandle, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    if (PSA_SUCCESS != status)
+    {
+        palStatus = PAL_ERR_HMAC_GENERIC_FAILURE;
+        goto finish;
+    }
+
+    status = psa_mac_update(&operation, input, inputLenInBytes);
+    if (PSA_SUCCESS != status)
+    {
+        palStatus = PAL_ERR_HMAC_GENERIC_FAILURE;
+        goto finish;
+    }
+
+    status = psa_mac_sign_finish(&operation, output, PAL_SHA256_SIZE, &outLen);
+    if (PSA_SUCCESS != status)
+    {
+        palStatus = PAL_ERR_HMAC_GENERIC_FAILURE;
+        goto finish;
+    }
+
+    // outputLenInBytes is optional and may be NULL
+    if (outputLenInBytes)
+    {
+        *outputLenInBytes = outLen;
+    }
+
+finish:
+
+    if (keyHandle)
+    {
+        // Nothing we can do if error occurs, so disregard the return value
+        (void)psa_destroy_key(keyHandle);
+    }
+
+    return palStatus;
+}
+
+#endif
 //! Check EC private key function. 
 PAL_PRIVATE palStatus_t pal_plat_ECCheckPrivateKey(palECGroup_t* ecpGroup, palECKeyHandle_t key, bool *verified)
 {

@@ -71,8 +71,8 @@ ccs_status_e ccs_check_item(const char* key, ccs_item_type_e item_type)
     }
 
     size_t real_size = 0;
-    kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key, strlen(key), (kcm_item_type_e)item_type, &real_size);
-    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
+    ccs_status_e ccs_status = ccs_item_size(key, &real_size, item_type);
+    if (ccs_status != CCS_STATUS_SUCCESS) {
         return CCS_STATUS_KEY_DOESNT_EXIST;
     }
     return CCS_STATUS_SUCCESS;
@@ -116,17 +116,43 @@ ccs_status_e ccs_item_size(const char* key, size_t* size_out, ccs_item_type_e it
     }
 
     tr_debug("CloudClientStorage::ccs_item_size [%s], item [%d]", key, item_type);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    kcm_key_handle_t key_h;
+#endif
+    kcm_status_e kcm_status;
 
     // Get kcm item size
-    kcm_status_e kcm_status = kcm_item_get_data_size((const uint8_t*)key,
-                                         strlen(key),
-                                         (kcm_item_type_e)item_type,
-                                         size_out);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (item_type == CCS_PRIVATE_KEY_ITEM) {
+
+        kcm_status = kcm_item_get_handle((const uint8_t*)key, strlen(key), (kcm_item_type_e)item_type, &key_h);
+        if (kcm_status == KCM_STATUS_SUCCESS) {
+            *size_out = sizeof(key_h);
+        }
+    } else {
+#endif
+        kcm_status = kcm_item_get_data_size((const uint8_t*)key,
+                                             strlen(key),
+                                             (kcm_item_type_e)item_type,
+                                             size_out);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    }
+#endif
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
         tr_debug("CloudClientStorage::ccs_item_size [%s] kcm error %d", key, kcm_status);
         return CCS_STATUS_ERROR;
     }
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (item_type == CCS_PRIVATE_KEY_ITEM) {
+        kcm_status = kcm_item_close_handle(key_h);
+        if (kcm_status != KCM_STATUS_SUCCESS) {
+            tr_debug("CloudClientStorage::ccs_item_size [%s] kcm close handle get error %d", key, kcm_status);
+            return CCS_STATUS_ERROR;
+        }
+    }
+#endif
 
     return CCS_STATUS_SUCCESS;
 }
@@ -142,17 +168,43 @@ ccs_status_e ccs_get_item(const char* key,
         return CCS_STATUS_ERROR;
     }
 
+    kcm_status_e kcm_status;
+
     tr_debug("CloudClientStorage::ccs_get_item [%s], type [%d]", key, item_type);
 
-    kcm_status_e kcm_status = kcm_item_get_data((const uint8_t*)key,
-                                    strlen(key),
-                                    (kcm_item_type_e)item_type,
-                                    buffer,
-                                    buffer_size,
-                                    value_length);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // If private key - get PSA key handle from KCM
+    if (item_type == CCS_PRIVATE_KEY_ITEM) {
+        kcm_key_handle_t key_h = 0;
+
+        // buffer must accommodate at least kcm handle
+        if (buffer_size < sizeof(key_h)) {
+            tr_error("CloudClientStorage::ccs_get_item insufficient buffer size");
+            return CCS_STATUS_ERROR;
+        }
+
+        kcm_status = kcm_item_get_handle((const uint8_t*)key,
+                                         strlen(key),
+                                         (kcm_item_type_e)item_type,
+                                         &key_h);
+        if (kcm_status == KCM_STATUS_SUCCESS) {
+            memcpy(buffer, &key_h, sizeof(key_h));
+            *value_length = sizeof(key_h);
+        }
+    } else {
+#endif
+        kcm_status = kcm_item_get_data((const uint8_t*)key,
+                                       strlen(key),
+                                       (kcm_item_type_e)item_type,
+                                       buffer,
+                                       buffer_size,
+                                       value_length);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    }
+#endif
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_debug("CloudClientStorage::ccs_get_item [%s] kcm error %d", key, kcm_status);
+        tr_error("CloudClientStorage::ccs_get_item [%s] kcm get error %d", key, kcm_status);
         return CCS_STATUS_ERROR;
     }
 

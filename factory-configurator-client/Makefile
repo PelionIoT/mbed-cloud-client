@@ -28,6 +28,7 @@ LOCAL_ADD_INCLUDE += \
 # PAL
 LOCAL_ADD_INCLUDE += \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-client-pal \
+                    ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-client-pal/Source \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-client-pal/Configs/pal_config \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-client-pal/Configs/pal_config/SXOS \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-client-pal/Source/PAL-Impl/Services-API \

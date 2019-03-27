@@ -19,9 +19,11 @@
 #include "pv_error_handling.h"
 #include "pv_macros.h"
 #include "storage.h"
-#include "esfs.h"
 #include "fcc_malloc.h"
 #include "pal_sst.h"
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "storage_psa.h"
+#endif
 
 extern bool g_kcm_initialized;
 //TODO: add short explanation about certificate chains naming
@@ -132,7 +134,7 @@ static kcm_status_e check_name_validity(const uint8_t * kcm_item_name, size_t kc
     return KCM_STATUS_SUCCESS;
 }
 
-kcm_status_e storage_create_compelete_data_name(
+kcm_status_e storage_create_complete_data_name(
     kcm_item_type_e  kcm_item_type,
     kcm_data_source_type_e data_source_type,
     const char *working_dir,
@@ -380,114 +382,6 @@ palStatus_t storage_rbp_write(
     return pal_status;
 }
 
-
-/**
-* rbp lookup record, correlating name and size of data
-*/
-typedef struct storage_rbp_lookup_record_ {
-    size_t rbp_required_size;
-    const char *rbp_data_name;
-} storage_rbp_lookup_record_s;
-
-/**
-* sotp type table, correlating for each sotp type and name.
-*/
-//todo : remove all items except rot and entropy
-static const storage_rbp_lookup_record_s storage_rbp_lookup_table[] = {
-    { FCC_FACTORY_DISABLE_FLAG_SIZE,               STORAGE_RBP_FACTORY_DONE_NAME },
-    { FCC_TIME_SIZE,                               STORAGE_RBP_SAVED_TIME_NAME },
-    { FCC_TIME_SIZE,                               STORAGE_RBP_LAST_TIME_BACK_NAME },
-    { FCC_CA_IDENTIFICATION_SIZE,                  STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME }
-};
-
-#define ARRAY_LENGTH(array) (sizeof(array)/sizeof((array)[0]))
-
-#define STORAGE_SOTP_NUMBER_OF_TYPES ARRAY_LENGTH(storage_rbp_lookup_table) 
-
-static bool storage_check_name_and_get_required_size(const char *item_name, uint16_t *required_size_out)
-{
-    size_t index = 0;
-
-    for (index = 0; index < STORAGE_SOTP_NUMBER_OF_TYPES; index++) {
-        if (strlen(item_name) == strlen(storage_rbp_lookup_table[index].rbp_data_name)) {
-            if (memcmp(storage_rbp_lookup_table[index].rbp_data_name, item_name, strlen(storage_rbp_lookup_table[index].rbp_data_name)) == 0) {
-                *required_size_out = (uint16_t)storage_rbp_lookup_table[index].rbp_required_size;
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-kcm_status_e storage_fcc_rbp_write(
-    const char *item_name,
-    const uint8_t *data,
-    size_t data_size,
-    bool is_write_once)
-{
-    bool success;
-    uint16_t required_size = 0;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint32_t flag_mask = PAL_SST_REPLAY_PROTECTION_FLAG;
-    palStatus_t pal_status = PAL_SUCCESS;
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size > UINT16_MAX || data_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
-    SA_PV_LOG_INFO_FUNC_ENTER("data_size = %" PRIu32 " item_name = %s", (uint32_t)data_size, item_name);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
-
-    success = storage_check_name_and_get_required_size(item_name, &required_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((!success), KCM_STATUS_INVALID_PARAMETER, "storage_check_name_and_get_required_size failed ");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size != required_size), KCM_STATUS_INVALID_PARAMETER, "Wrong buf_size provided. Must be size of exactly %" PRIu32 " bytes", (uint32_t)required_size);
-
-    if (is_write_once == true) {
-        flag_mask |= PAL_SST_WRITE_ONCE_FLAG;
-    }
-
-    pal_status = pal_SSTSet(item_name, data, data_size, flag_mask);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_SST_WRITE_PROTECTED), kcm_status = KCM_STATUS_FILE_EXIST, "Failed to write fcc rbp data");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write fcc rbp data");
-
-    return kcm_status;
-}
-
-/** FCC initiated operation, writes a rollback protected data.
-*
-*   @param[in] item_name A string name of the rollback protected item
-*   @param[in] data A pointer to memory with the data to write into the storage. Can be NULL if data_length is 0.
-*   @param[in] data_size The data length in bytes. Can be 0 if we wish to write an empty file.
-*   @param[in] is_write_once Write once flag.
-*   @returns
-*        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_fcc_rbp_read(
-    const char *item_name,
-    uint8_t *data,
-    size_t data_size,
-    size_t *data_actual_size_out)
-{
-    bool success;
-    uint16_t required_size = 0;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid param data");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size == 0 || data_size > UINT16_MAX), KCM_STATUS_INVALID_PARAMETER, "Invalid data_size");
-    SA_PV_LOG_INFO_FUNC_ENTER("data_size = %" PRIu32 " item_name = %s", (uint32_t)data_size, item_name);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_actual_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid data_actual_size_out");
-
-    success = storage_check_name_and_get_required_size(item_name, &required_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((!success), KCM_STATUS_INVALID_PARAMETER, "Failed for get_sotp_type_size()");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_size < required_size), KCM_STATUS_INVALID_PARAMETER, "Wrong buf_size provided. Must be size of exactly %" PRIu32 " bytes", (uint32_t)required_size);
-
-    pal_status = pal_SSTGet(item_name, data, data_size, data_actual_size_out);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = storage_error_handler(pal_status), "Failed to get data size");
-
-    return kcm_status;
-}
-
-
 /** Writes a new item to storage
 *
 *    @param[in] kcm_item_name KCM item name.
@@ -517,11 +411,19 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
     uint32_t flag_mask = 0;
     
     //Build complete data name (also checks name validity)
-    kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
     
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Data already exists");
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (kcm_item_type == KCM_PRIVATE_KEY_ITEM || kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
+        kcm_status = storage_import_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name), kcm_item_type, kcm_item_data, kcm_item_data_size, kcm_item_is_factory);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to import key");
+        goto Exit;  //success
+    }
+#endif
 
     //Check if certificate chain with the same name is exists, if yes -> return an error
     if (kcm_item_type == KCM_CERTIFICATE_ITEM) { 
@@ -531,7 +433,7 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
         cert_name_info.is_last_certificate = false;
 
         //Build complete name of first chain certificate
-        kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_item_name, kcm_item_name_len, kcm_complete_name);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change single certificate name");
 
         pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
@@ -540,7 +442,7 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
 
         //Revert the name to certificate complete name 
         //Build complete name of single certificate
-        kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change first certificate name");
     }
 
@@ -551,7 +453,7 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
 
     if (kcm_item_is_factory == true) {
         //Set the complete name to backup path
-        kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_BACKUP_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_BACKUP_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change first certificate name to backup path");
 
         //Write the data to backup path
@@ -559,7 +461,7 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write data to backup");
 
         //Set the backup path back to working
-        kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change first certificate nameFailed to change to backup path");
 
     }
@@ -568,6 +470,9 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
     pal_status = pal_SSTSet(kcm_complete_name, kcm_item_data, kcm_item_data_size, flag_mask);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write data");
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+Exit:
+#endif
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
@@ -583,6 +488,10 @@ kcm_status_e storage_data_size_read(
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palSSTItemInfo_t palItemInfo;
     palStatus_t pal_status = PAL_SUCCESS;
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    uint8_t der_pub_key[KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE];
+    size_t der_pub_key_act_size;
+#endif
 
     // Validate function parameters
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
@@ -591,6 +500,9 @@ kcm_status_e storage_data_size_read(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type >= KCM_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Kcm size out pointer is NULL");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type == KCM_PRIVATE_KEY_ITEM), KCM_STATUS_NOT_PERMITTED, "Cannot query private key size from PSA key store");
+#endif
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -599,9 +511,18 @@ kcm_status_e storage_data_size_read(
     }
 
     //Build complete data name
-    kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to to build complete name");
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
+        kcm_status = storage_export_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name),kcm_item_type, der_pub_key, sizeof(der_pub_key), &der_pub_key_act_size);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to export key");
+        //Set value of data size
+        *kcm_item_data_size_out = der_pub_key_act_size;
+        goto Exit; // success
+    }
+#endif
 
     //Try to get data info
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
@@ -614,6 +535,11 @@ kcm_status_e storage_data_size_read(
 
     //Set value of data size
     *kcm_item_data_size_out = palItemInfo.itemSize;
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+Exit:
+#endif
+
     SA_PV_LOG_INFO_FUNC_EXIT("kcm data size = %" PRIu32 "", (uint32_t)*kcm_item_data_size_out);
     return kcm_status;
 }
@@ -640,6 +566,9 @@ kcm_status_e storage_data_read(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type >= KCM_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_data_act_size_out");
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((kcm_item_data_out == NULL) && (kcm_item_data_max_size > 0)), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data NULL and kcm_item_data_size greater than 0");
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type == KCM_PRIVATE_KEY_ITEM), KCM_STATUS_NOT_PERMITTED, "Cannot query private key bytes from PSA key store");
+#endif
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -648,8 +577,16 @@ kcm_status_e storage_data_read(
     }
 
     //Build complete data name
-    kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to to build complete name");
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
+        kcm_status = storage_export_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name), kcm_item_type, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to export key");
+        goto Exit; // success
+    }
+#endif
 
     //Get size
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
@@ -661,7 +598,7 @@ kcm_status_e storage_data_read(
         cert_name_info.is_last_certificate = false;
 
         //Change complete certificate name to first certificate in chain with the same name
-        kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_item_name, kcm_item_name_len, kcm_complete_name);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change single certificate name");
 
         //Get size
@@ -683,6 +620,10 @@ kcm_status_e storage_data_read(
 
     pal_status = pal_SSTGet(kcm_complete_name, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to get data ");
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+Exit:
+#endif
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
@@ -712,12 +653,25 @@ kcm_status_e storage_data_delete(
     }
 
     //Build complete data name
-    kcm_status = storage_create_compelete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to to build complete name");
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    if (kcm_item_type == KCM_PRIVATE_KEY_ITEM || kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
+        // clear key from key-slot-allocator
+        kcm_status = storage_destory_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name));
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed evacuating a key slot");
+        goto Exit; // success
+    }
+#endif
+    
     //Remove the item name
     pal_status = pal_SSTRemove(kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = storage_error_handler(pal_status), "Failed to delete data");
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+Exit:
+#endif
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
@@ -733,7 +687,7 @@ static kcm_status_e storage_check_if_certificate_exists(const uint8_t *kcm_chain
     kcm_chain_cert_name_info_s cert_name_info = { 0 };
 
     //Build complete name of single certificate with given certificate chain name
-    kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_chain_name, kcm_chain_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_chain_name, kcm_chain_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     //If single certificate with the chain name is exists in the data base - return an error
@@ -743,7 +697,7 @@ static kcm_status_e storage_check_if_certificate_exists(const uint8_t *kcm_chain
     //Build complete name of first certificate name in the chain
     cert_name_info.certificate_index = 0;
     cert_name_info.is_last_certificate = false;
-    kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_chain_name, kcm_chain_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_chain_name, kcm_chain_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     //If first certificate with the chain name is exists in the data base - return an error
@@ -847,7 +801,7 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
     cert_name_info.certificate_index = chain_context->current_cert_index;
 
     //Build complete name of current certificate
-    kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, NULL, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, NULL, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     //If single certificate with the chain name is exists in the data base - return an error
@@ -858,7 +812,7 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
     if (chain_context->chain_is_factory == true) {
 
         //Set the complete name to backup path
-        kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_BACKUP_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+        kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_BACKUP_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change certificate name to backup path");
 
         //Write the data to backup path
@@ -867,7 +821,7 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
     }
 
     //Set the backup complete name
-    kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     //Write the certificate to the storage
@@ -940,7 +894,7 @@ kcm_status_e storage_cert_chain_get_next_data(kcm_cert_chain_handle *kcm_chain_h
     }
 
     //Build certificate name according to its index in certificate chain
-    kcm_status = storage_create_compelete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+    kcm_status = storage_create_complete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     pal_status = pal_SSTGet((const char*)kcm_complete_name, kcm_cert_data, kcm_max_cert_data_size, kcm_actual_cert_data_size);
@@ -970,7 +924,7 @@ static kcm_status_e set_certificates_info(kcm_cert_chain_context_int_s *chain_co
         cert_name_info.certificate_index = (uint32_t)certificate_index;
 
         //Build certificate name according to its index in certificate chain
-        kcm_status = storage_create_compelete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+        kcm_status = storage_create_complete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
         //Try to read certificate as not last certificate
@@ -981,7 +935,7 @@ static kcm_status_e set_certificates_info(kcm_cert_chain_context_int_s *chain_co
             cert_name_info.is_last_certificate = true;
 
             //Set the name certificate as last certificate in the chain
-            kcm_status = storage_create_compelete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+            kcm_status = storage_create_complete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
             SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
             //retrieve item info (size and flags)
@@ -1101,7 +1055,7 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
         }
 
         //Set the name certificate as last certificate in the chain
-        kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM,
+        kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM,
             data_source_type,
             STORAGE_WORKING_ACRONYM,
             &cert_name_info,
@@ -1136,7 +1090,7 @@ static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_
         cert_name_info.certificate_index = chain_context->current_cert_index;
 
         //Set the name of the certificate in working 
-        kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM,
+        kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM,
             data_source_type,
             STORAGE_WORKING_ACRONYM,
             &cert_name_info,
@@ -1152,7 +1106,7 @@ static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_
         //Only in case of invalid create operation we will remove wrong chain from backup path too
         if (operation_type == KCM_CHAIN_OP_TYPE_CREATE) {
             //Set the name the  certificate in backup (factory)
-            kcm_status = storage_create_compelete_data_name(KCM_CERTIFICATE_ITEM,
+            kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM,
                 data_source_type,
                 STORAGE_BACKUP_ACRONYM,
                 &cert_name_info,

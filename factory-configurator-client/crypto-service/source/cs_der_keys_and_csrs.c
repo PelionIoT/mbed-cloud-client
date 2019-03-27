@@ -22,6 +22,7 @@
 #include "cs_hash.h"
 #include "pk.h"
 #include "fcc_malloc.h"
+#include "key_slot_allocator.h"
 
 
 /*! Frees key handle.
@@ -118,7 +119,6 @@ static kcm_status_e der_key_verify(const uint8_t *der_key, size_t der_key_length
     pal_status = pal_ECCheckKey(grp, key_handle, key_type, &verified);
     SA_PV_ERR_RECOVERABLE_GOTO_IF(((PAL_SUCCESS != pal_status) || (verified != true)), kcm_status = cs_error_handler(pal_status), exit, "pal_ECCheckKey failed ");
 
-
 exit:
     //Free curve handler and key handle
     kcm_free_status = cs_free_pal_key_handle(&grp, &key_handle);
@@ -166,8 +166,9 @@ static kcm_status_e cs_key_pair_generate_int(palECKeyHandle_t key_handle, kcm_cr
 
     return KCM_STATUS_SUCCESS;
 }
+
 //For now only EC SECP256R keys supported!!!
-kcm_status_e cs_get_pub_raw_key_from_der(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out)
+kcm_status_e cs_pub_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
@@ -177,25 +178,25 @@ kcm_status_e cs_get_pub_raw_key_from_der(const uint8_t *der_key, size_t der_key_
     mbedtls_ecp_keypair *ecp_key_pair;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key pointer");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_length != KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_length");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_length == 0) || (der_key_length > KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_length");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_data_out");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_data_act_size_out pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_max_size < KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_size_out value");
 
     //Create new key handler
     pal_status = pal_ECKeyNew(&key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
 
     pal_status = pal_parseECPublicKeyFromDER(der_key, der_key_length, key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed");
 
     localECKey = (mbedtls_pk_context*)key_handle;
     ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
 
     //Get raw public key data
     mbdtls_result = mbedtls_ecp_point_write_binary(&ecp_key_pair->grp, &ecp_key_pair->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, raw_key_data_act_size_out, raw_key_data_out, raw_key_data_max_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_point_write_binary failed ");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((raw_key_data_max_size != KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "Wrong raw_key_data_max_size ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_point_write_binary failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((*raw_key_data_act_size_out != KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "Wrong raw_key_data_act_size_out");
 
 exit:
     //Free key handler
@@ -203,6 +204,94 @@ exit:
     return kcm_status;
 }
 
+//For now only EC SECP256R keys supported!!!
+kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_length, uint8_t *der_key_data_out, size_t der_key_data_max_size, size_t *der_key_data_act_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    palStatus_t pal_status = PAL_SUCCESS;
+    int mbdtls_result = 0;
+    palECKeyHandle_t key_handle = NULLPTR;
+    mbedtls_pk_context* localECKey;
+    mbedtls_ecp_keypair *ecp_key_pair;
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_length != KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_length");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_data_out");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_data_act_size_out pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_data_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_size_out value");
+
+    //Create new key handler
+    pal_status = pal_ECKeyNew(&key_handle);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
+
+    localECKey = (mbedtls_pk_context*)key_handle;
+
+    mbdtls_result = mbedtls_pk_setup(localECKey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_pk_setup failed ");
+
+    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+
+    mbdtls_result = mbedtls_ecp_group_load(&ecp_key_pair->grp, MBEDTLS_ECP_DP_SECP256R1);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_group_load failed ");
+
+    //Fill ecp_key_pair with raw public key data
+    mbdtls_result = mbedtls_ecp_point_read_binary(&ecp_key_pair->grp, &ecp_key_pair->Q, raw_key, raw_key_length);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_point_read_binary failed ");
+
+    pal_status = pal_writePublicKeyToDer(key_handle,der_key_data_out,der_key_data_max_size,der_key_data_act_size_out);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_writePublicKeyToDer failed ");
+
+exit:
+    //Free key handler
+    (void)pal_ECKeyFree(&key_handle);
+    return kcm_status;
+}
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+//For now only EC SECP256R keys supported!!!
+kcm_status_e cs_priv_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    palStatus_t pal_status = PAL_SUCCESS;
+    int mbdtls_result = 0;
+    palECKeyHandle_t key_handle = NULLPTR;
+    mbedtls_pk_context* localECKey;
+    mbedtls_ecp_keypair *ecp_key_pair;
+    size_t key_data_size;
+    
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_length == 0) || (der_key_length > KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_length");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_data_out");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_data_act_size_out pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_max_size < KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_size_out value");
+
+    //Create new key handler
+    pal_status = pal_ECKeyNew(&key_handle);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
+
+    pal_status = pal_parseECPrivateKeyFromDER(der_key, der_key_length, key_handle);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed ");
+
+    localECKey = (mbedtls_pk_context*)key_handle;
+    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+
+    // Get raw private key size
+    key_data_size = mbedtls_mpi_size(&ecp_key_pair->d);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((key_data_size != KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PRIVKEY, exit, "Wrong key_data_size");
+	
+    // Get raw private key data
+    mbdtls_result = mbedtls_mpi_write_binary(&ecp_key_pair->d, raw_key_data_out, key_data_size);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PRIVKEY, exit, "mbedtls_ecp_point_write_binary failed ");
+
+    *raw_key_data_act_size_out = key_data_size;
+
+exit:
+    //Free key handler
+    (void)pal_ECKeyFree(&key_handle);
+    return kcm_status;
+}
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 kcm_status_e cs_der_priv_key_verify(const uint8_t *key, size_t key_length)
 {
@@ -274,7 +363,7 @@ kcm_status_e cs_ecdsa_sign(const uint8_t *der_priv_key, size_t der_priv_key_leng
     SA_PV_ERR_RECOVERABLE_RETURN_IF((hash_dgst_len != CS_SHA256_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid hash digest size");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((out_sign == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid out signature pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((signature_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid signature_data_act_size_out pointer");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((signature_data_max_size < KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES), KCM_STATUS_INVALID_PARAMETER, "Invalid size of signature buffer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((signature_data_max_size < KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES), KCM_STATUS_INVALID_PARAMETER, "Invalid size of signature buffer");
 
     //Create new key handler
     kcm_status = cs_init_and_set_pal_key_handle(der_priv_key, der_priv_key_length, PAL_CHECK_PRIVATE_KEY, &grp, &key_handle);
@@ -296,7 +385,7 @@ exit:
 kcm_status_e cs_verify_key_pair(const uint8_t *priv_key_data, size_t priv_key_data_size, const uint8_t *pub_key_data, size_t pub_key_data_size)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t out_sign[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES] = { 0 };
+    uint8_t out_sign[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES] = { 0 };
     size_t size_of_sign = sizeof(out_sign);
     size_t act_size_of_sign = 0;
     const uint8_t hash_digest[] =
@@ -317,7 +406,6 @@ kcm_status_e cs_verify_key_pair(const uint8_t *priv_key_data, size_t priv_key_da
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_ecdsa_sign failed");
 
     return kcm_status;
-
 }
 
 kcm_status_e cs_key_pair_generate(kcm_crypto_key_scheme_e curve_name, uint8_t *priv_key_out, size_t priv_key_max_size, size_t *priv_key_act_size_out, uint8_t *pub_key_out,
@@ -342,10 +430,11 @@ exit:
         pal_ECKeyFree(&key_handle);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((key_handle != NULLPTR && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
     }
+
     return kcm_status;
 }
 
-static kcm_status_e cs_csr_generate_int(palECKeyHandle_t key_handle, const kcm_csr_params_s *csr_params,
+static kcm_status_e cs_csr_generate_int(palECKeyHandle_t priv_key_handle, const kcm_csr_params_s *csr_params,
                                         uint8_t *csr_buff_out, size_t csr_buff_max_size, size_t *csr_buff_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -384,7 +473,7 @@ static kcm_status_e cs_csr_generate_int(palECKeyHandle_t key_handle, const kcm_c
     SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set MD algorithm");
 
     // Set keys into CSR
-    pal_status = pal_x509CSRSetKey(x509CSR_handle, key_handle, NULLPTR);
+    pal_status = pal_x509CSRSetKey(x509CSR_handle, priv_key_handle, NULLPTR);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to Set keys into CSR");
 
     // Set CSR key usage
@@ -476,6 +565,70 @@ exit:
     }
     return kcm_status;
 }
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+kcm_status_e cs_csr_generate_psa(
+    kcm_key_handle_t priv_key_h,
+    const kcm_csr_params_s *csr_params,
+    uint8_t *csr_buff_out,
+    size_t csr_buff_max_size,
+    size_t *csr_buff_act_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    palECKeyHandle_t priv_key_pk_context_h = NULLPTR;
+    const psa_key_handle_t  priv_key_handle = (psa_key_handle_t)priv_key_h;
+    int mbedtls_status = 0;
+    palStatus_t pal_status = PAL_SUCCESS;
+
+    //Check parameters
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((priv_key_h == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid private key handle");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_params == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid CSR parameters");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid CSR out buffer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid CSR buffer size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_act_size_out pointer");
+
+    // Create new key handle
+    pal_status = pal_ECKeyNew(&priv_key_pk_context_h);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
+
+    //Initialize a PK context to wrap a PSA key slot
+    mbedtls_status = mbedtls_pk_setup_opaque((mbedtls_pk_context *)priv_key_pk_context_h, priv_key_handle);
+
+    //Translate the error
+    if (mbedtls_status != 0) {
+        switch (mbedtls_status) {
+            case MBEDTLS_ERR_PK_BAD_INPUT_DATA:
+                pal_status = PAL_ERR_PK_KEY_INVALID_FORMAT;
+                break;
+            case MBEDTLS_ERR_PK_FEATURE_UNAVAILABLE:
+                pal_status = PAL_ERR_PK_UNKNOWN_PK_ALG;
+                break;
+            case MBEDTLS_ERR_PK_ALLOC_FAILED:
+                pal_status = PAL_ERR_NO_MEMORY;
+                break;
+            default:
+                pal_status = PAL_ERR_GENERIC_FAILURE;
+        }
+    }
+
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), (kcm_status = cs_error_handler(pal_status)), exit, "mbedtls_pk_setup_opaque failed");
+
+    // Call to internal csr_generate
+    kcm_status = cs_csr_generate_int(priv_key_pk_context_h, csr_params, csr_buff_out, csr_buff_max_size, csr_buff_act_size_out);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), exit, "Failed to generate CSR");
+
+exit:
+    //Free key handler
+    if (priv_key_pk_context_h != NULLPTR) {
+        pal_ECKeyFree(&priv_key_pk_context_h);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((priv_key_pk_context_h != NULLPTR && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
+    }
+
+    return kcm_status;
+}
+#endif
+
 kcm_status_e cs_generate_keys_and_csr(kcm_crypto_key_scheme_e curve_name, const kcm_csr_params_s *csr_params, uint8_t *priv_key_out,
                                       size_t priv_key_max_size, size_t *priv_key_act_size_out, uint8_t *pub_key_out,
                                       size_t pub_key_max_size, size_t *pub_key_act_size_out, uint8_t *csr_buff_out,
@@ -506,7 +659,6 @@ exit:
     return kcm_status;
 }
 
-
 kcm_status_e cs_verify_items_correlation(cs_key_handle_t crypto_handle, const uint8_t *certificate_data, size_t certificate_data_len)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -514,18 +666,15 @@ kcm_status_e cs_verify_items_correlation(cs_key_handle_t crypto_handle, const ui
     cs_ec_key_context_s *cs_ec_key_handle = NULL;
     palX509Handle_t x509_cert = NULLPTR;
 
-
     //Check parameters
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((cs_ec_key_context_s *)crypto_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid crypto_handle");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((certificate_data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid certificate_data");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((certificate_data_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid certificate_data_len");
     cs_ec_key_handle = (cs_ec_key_context_s*)crypto_handle;
 
-
     //Create certificate handle
     kcm_status = cs_create_handle_from_der_x509_cert(certificate_data, certificate_data_len, &x509_cert);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((KCM_STATUS_SUCCESS != kcm_status), kcm_status, "cs_create_handle_from_der_x509_cert failed");
-
 
     //Check certificate and private key correlation
     kcm_status = cs_check_certifcate_public_key(x509_cert, cs_ec_key_handle->priv_key, cs_ec_key_handle->priv_key_size);

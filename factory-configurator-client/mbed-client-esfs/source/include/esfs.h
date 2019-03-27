@@ -17,11 +17,7 @@
 #define __ESFS_H
 
 #include <stdint.h>
-#include "pal_types.h"
-#include "pal_errors.h"
-#include "pal_macros.h"
-#include "pal_fileSystem.h"
-#include "pal_Crypto.h"
+#include "pal.h"
 
 
 

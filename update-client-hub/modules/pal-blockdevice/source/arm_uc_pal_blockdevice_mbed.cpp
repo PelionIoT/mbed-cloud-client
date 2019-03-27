@@ -23,6 +23,15 @@
 #include "update-client-pal-blockdevice/arm_uc_pal_blockdevice_platform.h"
 #include "mbed.h"
 
+#if defined(TARGET_CY8CKIT_062_WIFI_BT_PSA)
+
+#include "arm_uc_trace.h"
+
+#define SD_BLOCK_DEVICE_ERROR_CRC                -5009  /*!< CRC error */
+
+#endif //TARGET_CY8CKIT_062_WIFI_BT_PSA
+
+
 BlockDevice* arm_uc_blockdevice_ext = BlockDevice::get_default_instance();
 
 int32_t arm_uc_blockdevice_init(void)
@@ -56,7 +65,53 @@ int32_t arm_uc_blockdevice_read(uint8_t *buffer,
                                 uint64_t address,
                                 uint32_t size)
 {
+
+#if defined(TARGET_CY8CKIT_062_WIFI_BT_PSA)
+    /**
+     * Workaround for Cypress CY8CKIT_062 issue which might cause some bytes not to be read and return zero data.
+     * https://jira.arm.com/browse/IOTSTOR-815
+     * We read each block of data twice and compare their sha-256.
+     * If they are equal than we assume that data is correct, otherwise we read twice again
+    **/
+
+    int status, i;
+    int num_of_retries = 10;
+    uint8_t sha_calc[2][32];
+
+    while(num_of_retries--) {
+
+        for (i = 0; i < 2; i++) {
+            
+            // read data from external blockdevice
+            status = arm_uc_blockdevice_ext->read(buffer, address, size);
+            
+            //calculate sha256
+            if (!status) {
+                mbedtls_sha256((const unsigned char*) buffer, size, sha_calc[i], 0);
+            }
+            else {
+                //read failed, return error
+                return status;
+            }
+        }
+
+        //compare sha256 for two reads, if they are same, we assume that the data in buffer is valid
+        if (memcmp(sha_calc[0], sha_calc[1], 32) == 0) {
+            break;
+        }
+    }
+
+    if (num_of_retries == 0) {
+        UC_PAAL_ERR_MSG("failed to read consistent data from block device");
+        status =  SD_BLOCK_DEVICE_ERROR_CRC;
+    }
+
+    return status;
+    
+#else  //TARGET_CY8CKIT_062_WIFI_BT_PSA
     return arm_uc_blockdevice_ext->read(buffer, address, size);
+#endif
+
 }
 
 #endif /* #if defined(TARGET_LIKE_MBED) */

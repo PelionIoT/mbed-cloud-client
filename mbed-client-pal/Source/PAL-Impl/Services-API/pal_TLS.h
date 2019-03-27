@@ -60,8 +60,11 @@ typedef struct palTLSBuffer{
 
 typedef palTLSBuffer_t palX509_t;
 typedef palTLSBuffer_t palX509CRL_t;
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+typedef uintptr_t palPrivateKey_t;
+#else
 typedef palTLSBuffer_t palPrivateKey_t;
-
+#endif
 /*! \brief This callback is useful ONLY when mbed TLS is used as TLS platform library.
  *
  * In other platforms, you should NOT use this callback in the code.
@@ -151,6 +154,18 @@ palStatus_t pal_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t
  * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCert);
+
+/*! Initialize a private key object
+*
+* @param[in] buf:         If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined - pointer to a `uintptr_t` type, which contains the PSA handle.
+*                         If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is not defined - pointer to a private key.
+* @param[in] buf_size:    If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined - not relevant, as it is expected that buf points to a `uintptr_t` type.
+*                         If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is not defined - the size of the private key pointed to by buf. 
+* @param[out] privateKey: Pointer to an uninitialized `palPrivateKey_t` object.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_initPrivateKey(const void *buf, size_t buf_size, palPrivateKey_t* privateKey);
 
 /*! \brief Set your own private key.
  *

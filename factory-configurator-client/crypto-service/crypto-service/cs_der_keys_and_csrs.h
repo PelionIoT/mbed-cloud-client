@@ -33,10 +33,13 @@ extern "C" {
 typedef uintptr_t cs_key_handle_t;
 
 /* === EC max sizes === */
-#define KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE           150
-#define KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE            65
-#define KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE            91
-#define KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES  (256/8)*2 + 10 //74 bytes
+#define KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE               32
+#define KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE               150
+#define KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE                65
+#define KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE                91
+#define KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES  (256/8)*2 + 10 //74 bytes
+#define KCM_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE_IN_BYTES      64
+
 
 /** EC key context
 * Contains the private and public keys buffers
@@ -110,7 +113,52 @@ kcm_status_e cs_ecdsa_sign(const uint8_t *der_priv_key, size_t der_priv_key_leng
 * @return
 *     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
 */
-kcm_status_e cs_get_pub_raw_key_from_der(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out);
+kcm_status_e cs_pub_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out);
+
+/**Extracts public der key data from public raw key
+*
+*@raw_key[in] - RAW public key data.
+*@raw_key_length[in] - public key data size
+*@der_key_data_out[out] - der key out buffer
+*@der_key_data_max_size[in] - size of der key out buffer
+*@der_key_data_act_size_out[out] - actual output size of der key
+* @return
+*     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
+*/
+kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_length, uint8_t *der_key_data_out, size_t der_key_data_max_size, size_t *der_key_data_act_size_out);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+/**Extracts private raw key data from private key in DER format
+*
+*@der_key[in] - DER private key data.
+*@der_key_length[in] - private key data size
+*@raw_key_data_out[out] - raw key out buffer
+*@raw_key_data_max_size[in] - size of raw key out buffer
+*@raw_key_data_act_size_out[out] - actual output size of raw key
+* @return
+*     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
+*/
+kcm_status_e cs_priv_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out);
+
+/** Generate a general CSR from the given private key handle.
+* @param priv_key_h The private key handle.
+* @param csr_params Pointer to CSR request params struct.
+* @param csr_buff_out Out buffer for CSR to generate in DER format.
+* @param csr_buff_max_size Size of the CSR buffer
+* @param csr_buff_act_size_out Actual CSR size in bytes.
+*
+* @returns
+* Operation status.
+*/
+kcm_status_e cs_csr_generate_psa(
+    kcm_key_handle_t priv_key_h,
+    const kcm_csr_params_s *csr_params,
+    uint8_t *csr_buff_out,
+    size_t csr_buff_max_size,
+    size_t *csr_buff_act_size_out);
+	
+#endif
 
 /**Verifies correlation between private and public key.
 *

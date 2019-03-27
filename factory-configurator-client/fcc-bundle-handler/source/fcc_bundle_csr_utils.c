@@ -210,7 +210,7 @@ static fcc_status_e encode_next_csr(const cn_cbor *parser, cn_cbor *encoder)
     approximated_csr_size = cn_cbor_get_encoded_container_size(parser);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((approximated_csr_size < 0), fcc_status = FCC_STATUS_BUNDLE_ERROR, Exit, "Error getting encoded CBOR size");
 
-    approximated_csr_size += KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE + KCM_ECDSA_SECP256R1_MAX_SIGNATURE_SIZE_IN_BYTES;
+    approximated_csr_size += KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE + KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES;
 
     csr_buf = g_csr_next_available();
 

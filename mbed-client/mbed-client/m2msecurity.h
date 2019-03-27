@@ -222,6 +222,18 @@ public:
                                    uint16_t instance_id) const;
 
     /**
+     * \brief Get a size of the buffer.
+     * \param resource With this function, the following resources can return the size:
+     * 'PublicKey', 'ServerPublicKey', 'Secretkey'.
+     * \param instance_id Instance id of the security instance where resource value should be retrieved.
+     * \param [OUT]buffer_len The size of the buffer.
+     * \return Error code, 0 on success otherwise < 0
+     */
+    int resource_value_buffer_size(SecurityResource resource,
+                                   uint16_t instance_id,
+                                   size_t *buffer_len) const;
+
+    /**
      * \brief Returns the value of a given resource name, in integer format.
      * \param resource With this function, the following resources can return a value:
      * 'BootstrapServer', 'SecurityMode', 'SMSSecurityMode',

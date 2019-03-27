@@ -29,15 +29,11 @@
 //TODO: do we need to protect this agains multitheaded aceess?
 typedef struct palLwipSocketNetConnInfo {
     bool inUse;
-
     struct netconn *connection;
     struct netbuf *buffer;
     uint32_t offset;
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
     palAsyncSocketCallback_t callback;
     void *callbackArgument;
-#endif
 } palLwipNetConnInfo_t;
 
 PAL_PRIVATE palLwipNetConnInfo_t palInternalSocketInfo[MEMP_NUM_NETCONN] = {0};
@@ -48,9 +44,6 @@ PAL_PRIVATE palLwipNetConnInfo_t palInternalSocketInfo[MEMP_NUM_NETCONN] = {0};
 
 PAL_PRIVATE void* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
 PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
-
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
 
 // wrapper for callbacks because function signature is different.
 void palNetConAsyncCallback(struct netconn * connection, enum netconn_evt event, u16_t len)
@@ -68,8 +61,6 @@ void palNetConAsyncCallback(struct netconn * connection, enum netconn_evt event,
         }
     }
 }
-#endif
-
 
 palStatus_t pal_plat_socketsInit(void* context)
 {
@@ -113,7 +104,8 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
 
 palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
 {
-    if (interfaceIndex < PAL_MAX_SUPORTED_NET_INTERFACES)
+    if (interfaceIndex < PAL_MAX_SUPORTED_NET_INTERFACES &&
+        s_pal_networkInterfacesSupported[interfaceIndex])
     {
         s_pal_networkInterfacesSupported[interfaceIndex] = NULL;
         --s_pal_numberOFInterfaces;
@@ -241,82 +233,6 @@ PAL_PRIVATE palStatus_t pal_plat_setLwIPAddrFromSockAddr(ip_addr_t* address, con
     }
 
     return result;
-}
-
-
-palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* socket)
-{
-    int result = PAL_SUCCESS;
-    enum netconn_type connType = NETCONN_INVALID;
-    struct netconn * con;
-    uint32_t numberOfInterfaces = 0;
-    palLwipNetConnInfo_t* socketInfo = NULL;
-    uint32_t index = 0;
-
-    result = pal_plat_getNumberOfNetInterfaces(&numberOfInterfaces);
-    if (PAL_SUCCESS != result)
-    {
-        return result;
-    }
-
-    if (interfaceNum >= numberOfInterfaces)
-    {
-        return PAL_ERR_INVALID_ARGUMENT;
-    }
-
-    if (domain != PAL_AF_INET)
-    {
-        return PAL_ERR_NOT_IMPLEMENTED;
-    }
-
-    if ((PAL_SOCK_STREAM == type) || (PAL_SOCK_STREAM_SERVER == type))
-    {
-        connType = NETCONN_TCP;
-    }
-    else if (PAL_SOCK_DGRAM == type)
-    {
-        connType = NETCONN_UDP;
-    }
-    else
-    {
-        return PAL_ERR_INVALID_ARGUMENT;
-    }
-
-    for (index = 0; index < MEMP_NUM_NETCONN; index++) // allocate socket info structure.
-    {
-        if (false == palInternalSocketInfo[index].inUse)
-        {
-            palInternalSocketInfo[index].inUse = true;
-            socketInfo = &palInternalSocketInfo[index];
-            break;
-        }
-    }
-
-    if (NULL != socketInfo)
-    {
-        con = netconn_new(connType);
-        if (NULL != con)
-        {
-            // TODO(nirson01) : add binding to specific network interface  (interfaceNum)
-            if (nonBlockingSocket)
-            {
-                netconn_set_nonblocking(con, 1);
-            }
-            socketInfo->connection = con;
-            socketInfo->buffer = NULL;
-            *socket = (palSocket_t)socketInfo;
-        }
-        else
-        {
-            result = PAL_ERR_NO_MEMORY;
-        }
-    }
-    else
-    {
-        result = PAL_ERR_NO_MEMORY;
-    }
-
-    return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastrucature is finalized)
 }
 
 
@@ -611,9 +527,8 @@ palStatus_t pal_plat_close(palSocket_t* socket)
     socketInfo->inUse = false;
     socketInfo->offset = 0;
     socketInfo->connection = NULL;
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
     socketInfo->callback = NULL;
-#endif
+
     if (NULL != socketInfo->buffer )
     {
         netbuf_delete(socketInfo->buffer);
@@ -667,12 +582,11 @@ typedef struct palSocketSelectInfo
 
 PAL_PRIVATE palSocketSelectInfo_t s_select_state[PAL_NET_SOCKET_SELECT_MAX_SOCKETS] ;
 PAL_PRIVATE palSemaphoreID_t s_palSelectSemaphore = 0;
-//static bool s_palSelectSemaphoreInited = false;
 
 void palNetConSelectCallback(struct netconn * connection, enum netconn_evt event, u16_t len)
 {
     uint32_t index = 0;
-#ifdef PAL_NET_ASYNCHRONOUS_SOCKET_API
+
     for (index = 0; index < MEMP_NUM_NETCONN; index++)
     {
         if ((palInternalSocketInfo[index].inUse) && (palInternalSocketInfo[index].connection == connection) && (NULL != palInternalSocketInfo[index].callback))
@@ -681,7 +595,7 @@ void palNetConSelectCallback(struct netconn * connection, enum netconn_evt event
             break;
         }
     }
-#endif
+
     for (index = 0; index < PAL_NET_SOCKET_SELECT_MAX_SOCKETS; index++)
     {
         if (connection == s_select_state[index].connection)
@@ -703,6 +617,8 @@ void palNetConSelectCallback(struct netconn * connection, enum netconn_evt event
 
 #if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
 
+#if PAL_NET_SERVER_SOCKET_API
+
 palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 {
     palStatus_t result = PAL_SUCCESS;
@@ -721,7 +637,7 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
 }
 
 
-palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket)
+palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument)
 {
     palStatus_t result = PAL_SUCCESS;
     struct netconn * new_conn = NULL;
@@ -760,7 +676,8 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
         else
         {
             socketInfo->connection = new_conn;
-            socketInfo->callback = NULL;
+            socketInfo->callback = callback;
+            socketInfo->callbackArgument = callbackArgument;
             socketInfo->buffer = NULL;
             *acceptedSocket = (palSocket_t)socketInfo;
 
@@ -786,6 +703,7 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     return result;
 }
 
+#endif // PAL_NET_SERVER_SOCKET_API
 
 palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
 {
@@ -974,9 +892,6 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
 
-
-#if PAL_NET_ASYNCHRONOUS_SOCKET_API
-
 palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* callbackArgument, palSocket_t* socket)
 {
 
@@ -1054,21 +969,18 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastrucature is finalized)
 }
 
-#endif
-
-
 #if PAL_NET_DNS_SUPPORT
 
-palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* length)
+palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *address, palSocketLength_t* length)
 {
     palStatus_t result = PAL_SUCCESS;
     ip_addr_t addr = {0};
 
  // placeholder: no real ip filderting for DNS is lwip 1.4.1 (should be implmeneted in lwip 2).
 #if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
-    result = netconn_gethostbyname(url, &addr);
+    result = netconn_gethostbyname(hostname, &addr);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV4_ONLY
-    result = netconn_gethostbyname(url, &addr);
+    result = netconn_gethostbyname(hostname, &addr);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV6_ONLY
     #error ipv6 filter not supported for lwip 1.4.1
 #else

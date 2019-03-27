@@ -17,6 +17,8 @@
 #ifndef __KCM_DEFS_H__
 #define __KCM_DEFS_H__
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,6 +31,15 @@ extern "C" {
     /**
     * KCM item types
     */
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    /**
+    * KCM handle type
+    * Represents a reference to a private key in PSA store
+    */
+    typedef uintptr_t kcm_key_handle_t;
+#endif
+
     typedef enum {
         KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
         KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
