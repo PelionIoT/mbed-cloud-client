@@ -44,6 +44,13 @@
 #error "For async PAL DNS only API v2 or greater is supported on Mbed."
 #endif
 
+extern "C" void network_status_event(palNetworkStatus_t status, void *client_arg)
+{
+    assert(client_arg);
+    M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)client_arg;
+    instance->interface_event(status);
+}
+
 int8_t M2MConnectionHandlerPimpl::_tasklet_id = -1;
 
 // This is called from event loop, but as it is static C function, this is just a wrapper
@@ -67,6 +74,13 @@ void M2MConnectionHandlerPimpl::event_handler(arm_event_s *event)
     switch (event->event_type) {
 
         // Event from socket callback method
+        case M2MConnectionHandlerPimpl::EInterfaceConnected:
+            _observer.network_interface_status_change(M2MConnectionObserver::NetworkInterfaceConnected);
+            break;
+        case M2MConnectionHandlerPimpl::EInterfaceDisconnected:
+            _observer.network_interface_status_change(M2MConnectionObserver::NetworkInterfaceDisconnected);
+            break;
+
         case M2MConnectionHandlerPimpl::ESocketCallback:
         case M2MConnectionHandlerPimpl::ESocketTimerCallback:
 
@@ -683,6 +697,11 @@ void M2MConnectionHandlerPimpl::set_platform_network_handler(void *handler)
     if (PAL_SUCCESS != pal_registerNetworkInterface(handler, &_net_iface)) {
         tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Interface registration failed.");
     }
+
+    if (PAL_SUCCESS != pal_setConnectionStatusCallback(_net_iface, network_status_event, this)) {
+        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Connection status callback set failed.");
+    }
+
     tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler - index = %d", _net_iface);
 }
 
@@ -971,4 +990,20 @@ void M2MConnectionHandlerPimpl::force_close()
 void M2MConnectionHandlerPimpl::unregister_network_handler()
 {
     pal_unregisterNetworkInterface(_net_iface);
+}
+
+void M2MConnectionHandlerPimpl::interface_event(palNetworkStatus_t status)
+{
+    arm_event_s event = {0};
+    event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
+    event.data_ptr = this;
+    event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
+
+    if (status == PAL_NETWORK_STATUS_CONNECTED) {
+        event.event_type = M2MConnectionHandlerPimpl::EInterfaceConnected;
+    } else {
+        event.event_type = M2MConnectionHandlerPimpl::EInterfaceDisconnected;
+    }
+
+    eventOS_event_send(&event);
 }

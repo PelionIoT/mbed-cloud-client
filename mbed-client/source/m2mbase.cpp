@@ -77,13 +77,12 @@ M2MBase::M2MBase(const String& resource_name,
                 sn_nsdl_static_resource_parameters_s *params =
                         const_cast<sn_nsdl_static_resource_parameters_s *>(_sn_resource->dynamic_resource_params->static_resource_parameters);
                 memset(params, 0, sizeof(sn_nsdl_static_resource_parameters_s));
-                const size_t len = strlen(resource_type.c_str());
                 params->free_on_delete = true;
+#ifndef DISABLE_RESOURCE_TYPE
+                const size_t len = strlen(resource_type.c_str());
                 if (len > 0) {
 #ifndef RESOURCE_ATTRIBUTES_LIST
-#ifndef DISABLE_RESOURCE_TYPE
                     params->resource_type_ptr = (char*)alloc_string_copy((uint8_t*) resource_type.c_str(), len);
-#endif
 #else
                     sn_nsdl_attribute_item_s item;
                     item.attribute_name = ATTR_RESOURCE_TYPE;
@@ -91,6 +90,7 @@ M2MBase::M2MBase(const String& resource_name,
                     sn_nsdl_set_resource_attribute(_sn_resource->dynamic_resource_params->static_resource_parameters, &item);
 #endif
                 }
+#endif // DISABLE_RESOURCE_TYPE
                 params->path = path;
                 params->mode = (unsigned)mode;
                 params->external_memory_block = external_blockwise_store;

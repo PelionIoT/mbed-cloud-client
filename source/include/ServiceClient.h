@@ -82,8 +82,8 @@ public:
  *  \brief ServiceClient
  *  This class handles all internal interactions between various client
  *  components including connector, identity and update.
- *  This class maintains the state machine for the use case flow of mbed Cloud
- *  Client.
+ *  This class maintains the state machine for the use case flow of
+ *  client.
  */
 
 class ServiceClient : private ConnectorClientCallback
@@ -96,7 +96,9 @@ public:
      */
     enum StartupMainState {
         State_Init,
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         State_Bootstrap,
+#endif
         State_Register,
         State_Success,
         State_Failure,
@@ -246,10 +248,12 @@ protected :
     */
     void internal_event(StartupMainState new_state);
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
     * When the bootstrap is started.
     */
     void state_bootstrap();
+#endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
     * When the registration is started.

@@ -23,24 +23,24 @@
 extern "C" {
 #endif
 //includes for common headers in PAL
-#include "pal_configuration.h"
-#include "pal_macros.h"
-#include "pal_errors.h"
-#include "pal_types.h"
+#include "PAL-Impl/Services-API/pal_configuration.h"
+#include "PAL-Impl/Services-API/pal_macros.h"
+#include "PAL-Impl/Services-API/pal_errors.h"
+#include "PAL-Impl/Services-API/pal_types.h"
 
 //includes for modules headers.
-#include "pal_drbg.h"
-#include "pal_fileSystem.h"
-#include "pal_rot.h"
-#include "pal_rtos.h"
-#include "pal_network.h"
-#include "pal_time.h"
-#include "pal_TLS.h"
-#include "pal_Crypto.h"
-#include "pal_entropy.h"
-#include "pal_update.h"
-#include "pal_internalFlash.h"
-#include "pal_sst.h"
+#include "PAL-Impl/Services-API/pal_drbg.h"
+#include "PAL-Impl/Services-API/pal_fileSystem.h"
+#include "PAL-Impl/Services-API/pal_rot.h"
+#include "PAL-Impl/Services-API/pal_rtos.h"
+#include "PAL-Impl/Services-API/pal_network.h"
+#include "PAL-Impl/Services-API/pal_time.h"
+#include "PAL-Impl/Services-API/pal_TLS.h"
+#include "PAL-Impl/Services-API/pal_Crypto.h"
+#include "PAL-Impl/Services-API/pal_entropy.h"
+#include "PAL-Impl/Services-API/pal_update.h"
+#include "PAL-Impl/Services-API/pal_internalFlash.h"
+#include "PAL-Impl/Services-API/pal_sst.h"
 
 
 /*! \file pal.h

@@ -15,6 +15,7 @@ LOCAL_API_DEPENDS := \
                     ${API_PLATFORM_DEPENDS} \
 
 LOCAL_ADD_INCLUDE := \
+                    ${PAL_BASE}/Source \
                     ${PAL_BASE}/Source/PAL-Impl \
                     ${PAL_BASE}/Source/PAL-Impl/Services-API \
                     ${PAL_BASE}/Source/Port/Platform-API \

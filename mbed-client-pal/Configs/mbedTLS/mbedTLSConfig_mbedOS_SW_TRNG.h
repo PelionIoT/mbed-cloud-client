@@ -20,7 +20,7 @@
 #define PAL_MBEDTLS_USER_CONFIG_H
 
 
-/*! All of the following definitions are mandatory requirements for correct 
+/*! All of the following definitions are mandatory requirements for correct
 *   functionality of PAL TLS and Crypto components.
 *   Please do not disable them.
 */
@@ -230,9 +230,13 @@
     #define MBEDTLS_AES_ROM_TABLES
 #endif //MBEDTLS_AES_ROM_TABLES
 
+// Read SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE from user config file
+#ifdef MBED_CLIENT_USER_CONFIG_FILE
+#include MBED_CLIENT_USER_CONFIG_FILE
+#endif
 // Reduce IO buffer to save RAM, default is 16KB
 #ifndef MBEDTLS_SSL_MAX_CONTENT_LEN
-    #define MBEDTLS_SSL_MAX_CONTENT_LEN 4096
+    #define MBEDTLS_SSL_MAX_CONTENT_LEN SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE * 4
 #endif //MBEDTLS_SSL_MAX_CONTENT_LEN
 
 // needed for Base64 encoding Opaque data for
@@ -256,7 +260,7 @@
 #undef MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED
 
 //#define MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
-   
+
 // Remove error messages, save 10KB of ROM
 #undef MBEDTLS_ERROR_C
 
@@ -325,6 +329,15 @@
 #undef MBEDTLS_CHACHA20_C
 #undef MBEDTLS_CHACHAPOLY_C
 #undef MBEDTLS_POLY1305_C
+
+// Tune elliptic curve configuration.
+// This will hit the performance a bit but will decrease the RAM consumption by 4k.
+#define MBEDTLS_ECP_WINDOW_SIZE 2
+#define MBEDTLS_ECP_FIXED_POINT_OPTIM 0
+
+// Do not save a copy of the peer certificate.
+// This will reduce the RAM consumption roughly by 1500 bytes.
+#undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
 
 #include "mbedtls/check_config.h"
 

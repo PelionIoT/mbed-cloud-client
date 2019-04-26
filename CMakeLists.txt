@@ -52,6 +52,7 @@ ADD_GLOBALDIR(${MBED_CLIENT_SOURCE_DIR}/mbed-client-mbed-tls/mbed-client-mbedtls
 # pal headers
 
 SET(PAL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-pal/Source)
+ADD_GLOBALDIR(${PAL_SOURCE_DIR})
 ADD_GLOBALDIR(${PAL_SOURCE_DIR}/PAL-Impl/Services-API)
 ADD_GLOBALDIR(${PAL_SOURCE_DIR}/Port/Platform-API)
 

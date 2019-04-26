@@ -1,5 +1,18 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 3.1.0 (26.04.2019)
+
+* Fixed client State machine for handling `pause()` handling. Fixes issues when `pause()` call was ignored when other operations were in effect.
+* Implemented network status callback handling for client library. Now client will react to changes in network status callbacks to speed up client connection recovery during reconnection.
+* Improved internal flagging of client library to enable further optimizations and modularization of client components.
+
+#### Platform Adaptation Layer (PAL)
+
+* Improved TLS configuration to optimize RAM usage.
+* Improvement header include handling inside PAL layer.
+* CMake improvements.
+* Improvements for PAL unit tests.
+
 ### Release 3.0.0 (27.03.2019)
 
 #### Device Management Connect client

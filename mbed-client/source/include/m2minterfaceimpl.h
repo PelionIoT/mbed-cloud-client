@@ -85,6 +85,7 @@ public:
      */
     virtual ~M2MInterfaceImpl();
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
      * @brief Initiates bootstrapping of the client with the provided Bootstrap
      * server information.
@@ -104,6 +105,7 @@ public:
      * @brief Finishes on going bootstrap in cases where client is the one to finish it.
      */
     virtual void finish_bootstrap();
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
      * @brief Initiates registration of the provided Security object to the
@@ -320,6 +322,8 @@ protected: // From M2MNsdlObserver
 
     virtual void client_unregistered();
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
     virtual void bootstrap_done();
 
     virtual void bootstrap_finish();
@@ -329,6 +333,7 @@ protected: // From M2MNsdlObserver
     virtual void bootstrap_error_wait(const char *reason);
 
     virtual void bootstrap_error(const char *reason);
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     virtual void coap_data_processed();
 
@@ -348,6 +353,8 @@ protected: // From M2MConnectionObserver
 
     virtual void data_sent();
 
+    virtual void network_interface_status_change(NetworkInterfaceStatus status);
+
 protected: // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type);
@@ -360,6 +367,7 @@ private: // state machine state functions
     */
     void state_idle(EventData* data);
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
     * When the client starts bootstrap.
     */
@@ -379,6 +387,7 @@ private: // state machine state functions
     * When the server has sent response and bootstrapping is done.
     */
     void state_bootstrapped( EventData *data);
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
     * When the client starts register.
@@ -466,12 +475,14 @@ private: // state machine state functions
     */
     enum E_States {
         STATE_IDLE = 0,
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         STATE_BOOTSTRAP,
         STATE_BOOTSTRAP_ADDRESS_RESOLVED,
         STATE_BOOTSTRAP_RESOURCE_CREATED,
         STATE_BOOTSTRAP_WAIT,
         STATE_BOOTSTRAP_ERROR_WAIT, // 5
         STATE_BOOTSTRAPPED,
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         STATE_REGISTER,
         STATE_REGISTER_ADDRESS_RESOLVED,
         STATE_REGISTERED,

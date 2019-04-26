@@ -63,6 +63,12 @@ typedef enum {
     PAL_AF_INET6 = 10, /*!< \brief IP version 6.    */
 } palSocketDomain_t;
 
+/*! \brief Network status event. */
+typedef enum {
+    PAL_NETWORK_STATUS_DISCONNECTED = 0,
+    PAL_NETWORK_STATUS_CONNECTED = 1
+} palNetworkStatus_t;
+
 /*! \brief Socket types supported by PAL. */
 typedef enum {
 #if PAL_NET_TCP_AND_TLS_SUPPORT
@@ -92,6 +98,7 @@ typedef enum {
 typedef uint8_t palIpV4Addr_t[PAL_IPV4_ADDRESS_SIZE];
 typedef uint8_t palIpV6Addr_t[PAL_IPV6_ADDRESS_SIZE];
 
+typedef void(*connectionStatusCallback) (palNetworkStatus_t status, void *client_arg);
 
 /*! \brief Register a network interface for use with PAL sockets.
  *
@@ -223,6 +230,13 @@ palStatus_t pal_getNumberOfNetInterfaces(uint32_t* numInterfaces);
  */
 palStatus_t pal_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t* interfaceInfo);
 
+/*! \brief Set listener for connection status events.
+ * @param[in] interfaceNum Index of the network interface to be listen.
+ * @param[in] callback Callback that is called when network interface status change.
+ * @param[in] client_arg The argument which is passed to the callback function.
+ * \return PAL_SUCCESS (0) in case of success, a specific negative error code in case of failure.
+ */
+palStatus_t pal_setConnectionStatusCallback(uint32_t interfaceNum, connectionStatusCallback callback, void *client_arg);
 
 #define PAL_NET_SOCKET_SELECT_MAX_SOCKETS 8
 #define PAL_NET_SOCKET_SELECT_RX_BIT (1)

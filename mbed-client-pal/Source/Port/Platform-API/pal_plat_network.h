@@ -190,6 +190,14 @@ palStatus_t pal_plat_recv(palSocket_t socket, void* buf, size_t len, size_t* rec
  */
 palStatus_t pal_plat_send(palSocket_t socket, const void* buf, size_t len, size_t* sentDataSize);
 
+/*! \brief Set listener for connection status events.
+ * @param[in] interfaceIndex Index of the network interface to be listen.
+ * @param[in] callback Callback that is called when network interface status change.
+ * @param[in] client_arg The argument which is passed to the callback function.
+ * \return PAL_SUCCESS (0) in case of success, a specific negative error code in case of failure.
+ */
+palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connectionStatusCallback callback, void *client_arg);
+
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
 
 /*! \brief Get an asynchronous network socket.
@@ -228,7 +236,6 @@ palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
 #endif //  PAL_DNS_API_VERSION
 
 #endif // PAL_NET_DNS_SUPPORT
-
 
 #ifdef __cplusplus
 }

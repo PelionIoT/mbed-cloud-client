@@ -219,16 +219,6 @@ palStatus_t pal_plat_renegotiate(palTLSHandle_t palTLSHandle, uint64_t serverTim
  */
 palStatus_t pal_plat_tlsSetSocket(palTLSConfHandle_t palTLSConf, palTLSSocket_t* socket);
 
-/*! \brief Set your own certificate chain and private key.
- *
- * @param[in] palTLSConf: The TLS configuration context.
- * @param[in] ownCert: Your own public certificate chain.
- * @param[in] privateKey: Your own private key.
- *
- * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
- */
-palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey);
-
 /*! \brief Set your own certificate chain.
  *
  * @param[in] palTLSConf: The TLS configuration context.

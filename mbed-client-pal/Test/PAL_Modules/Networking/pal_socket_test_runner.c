@@ -39,4 +39,5 @@ TEST_GROUP_RUNNER(pal_socket)
     RUN_TEST_CASE(pal_socket, keepaliveOff);
     RUN_TEST_CASE(pal_socket, tcp_echo);
     RUN_TEST_CASE(pal_socket, udp_echo);
+    RUN_TEST_CASE(pal_socket, interfaceStatusListener);
 }

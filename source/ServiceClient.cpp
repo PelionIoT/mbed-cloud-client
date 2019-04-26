@@ -184,8 +184,11 @@ void ServiceClient::finish_initialization(void)
         /* Add Device Object to object list. */
         _client_objs->push_back(device_object);
     }
-
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     internal_event(State_Bootstrap);
+#else
+    internal_event(State_Register);
+#endif
 }
 
 ConnectorClient &ServiceClient::connector_client()
@@ -234,9 +237,11 @@ void ServiceClient::state_function(StartupMainState current_state)
 {
     switch (current_state) {
         case State_Init:        // -> Goes to bootstrap state
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         case State_Bootstrap:    // -> State_Register OR State_Failure
             state_bootstrap();
             break;
+#endif
         case State_Register:     // -> State_Succes OR State_Failure
             state_register();
             break;
@@ -252,6 +257,7 @@ void ServiceClient::state_function(StartupMainState current_state)
     }
 }
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 void ServiceClient::state_bootstrap()
 {
     tr_info("ServiceClient::state_bootstrap()");
@@ -274,7 +280,7 @@ void ServiceClient::state_bootstrap()
         _connector_client.start_bootstrap();
     }
 }
-
+#endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 void ServiceClient::state_register()
 {
     tr_info("ServiceClient::state_register()");
@@ -307,9 +313,11 @@ void ServiceClient::connector_error(M2MInterface::Error error, const char *reaso
     if (_current_state == State_Register) {
         registration_process_result(ConnectorClient::State_Registration_Failure);
     }
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     else if (_current_state == State_Bootstrap) {
         registration_process_result(ConnectorClient::State_Bootstrap_Failure);
     }
+#endif
     _service_callback.error(int(error),reason);
     internal_event(State_Failure);
 }

@@ -43,16 +43,16 @@
         #define MBEDTLS_FREESCALE_LTC_DES       /* Enable use of LTC DES.*/
     #endif
     #define MBEDTLS_FREESCALE_LTC_AES           /* Enable use of LTC AES.*/
-    #if defined(FSL_FEATURE_LTC_HAS_GCM) && FSL_FEATURE_LTC_HAS_GCM 
+    #if defined(FSL_FEATURE_LTC_HAS_GCM) && FSL_FEATURE_LTC_HAS_GCM
         #define MBEDTLS_FREESCALE_LTC_AES_GCM   /* Enable use of LTC AES GCM.*/
     #endif
-    #if defined(FSL_FEATURE_LTC_HAS_PKHA) && FSL_FEATURE_LTC_HAS_PKHA 
+    #if defined(FSL_FEATURE_LTC_HAS_PKHA) && FSL_FEATURE_LTC_HAS_PKHA
         #define MBEDTLS_FREESCALE_LTC_PKHA      /* Enable use of LTC PKHA.*/
     #endif
 #endif
 
 /* Enable MMCAU use in library if there is MMCAU on chip. */
-#if defined(FSL_FEATURE_SOC_MMCAU_COUNT) && (FSL_FEATURE_SOC_MMCAU_COUNT > 0) 
+#if defined(FSL_FEATURE_SOC_MMCAU_COUNT) && (FSL_FEATURE_SOC_MMCAU_COUNT > 0)
     #include "fsl_mmcau.h"
 
     #define MBEDTLS_FREESCALE_MMCAU_MD5         /* Enable use of MMCAU MD5.*/
@@ -497,7 +497,7 @@
 #define MBEDTLS_ECP_DP_SECP256R1_ENABLED
 //#define MBEDTLS_ECP_DP_SECP384R1_ENABLED
 //#ifndef MBEDTLS_FREESCALE_LTC_PKHA /* PKHA suports only <=512 */
-//#define MBEDTLS_ECP_DP_SECP521R1_ENABLED 
+//#define MBEDTLS_ECP_DP_SECP521R1_ENABLED
 //#endif
 //#define MBEDTLS_ECP_DP_SECP192K1_ENABLED
 //#define MBEDTLS_ECP_DP_SECP224K1_ENABLED
@@ -2550,6 +2550,10 @@
 #undef MBEDTLS_CHACHA20_C
 #undef MBEDTLS_CHACHAPOLY_C
 #undef MBEDTLS_POLY1305_C
+
+// Do not save a copy of the peer certificate.
+// This will reduce the RAM consumption roughly by 1500 bytes.
+#undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
 
 #if defined(TARGET_LIKE_MBED)
 #include "mbedtls/target_config.h"

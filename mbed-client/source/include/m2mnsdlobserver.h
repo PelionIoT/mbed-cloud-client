@@ -69,6 +69,7 @@ public :
     */
     virtual void client_unregistered() = 0;
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
     * @brief Informs that client bootstrapping is done.
     * @param security_object, M2MSecurity Object which contains information about
@@ -101,6 +102,7 @@ public :
     * @param reason, Error string explaining the failure reason
     */
     virtual void bootstrap_error(const char *reason) = 0;
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
     * @brief Informs that received data has been processed.

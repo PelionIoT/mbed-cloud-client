@@ -30,6 +30,10 @@
 #include "mbed-client/m2mtimer.h"
 #include "include/CloudClientStorage.h"
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#define MBED_CLIENT_DISABLE_EST_FEATURE
+#endif
+
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #include "include/EstClient.h"
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
@@ -74,7 +78,11 @@ public:
  * This class is intended to be used via ServiceClient, not directly.
  * This class contains also the bootstrap functionality.
  */
-class ConnectorClient : public M2MInterfaceObserver, public M2MTimerObserver {
+class ConnectorClient : public M2MInterfaceObserver
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+        , public M2MTimerObserver
+#endif
+{
 
 public:
     /**
@@ -121,10 +129,12 @@ public:
      */
     bool setup();
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
     *  \brief Starts the bootstrap sequence from the Service Client.
     */
     void start_bootstrap();
+#endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
     *  \brief Starts the registration sequence from the Service Client.
@@ -143,11 +153,13 @@ public:
     */
     M2MInterface * m2m_interface();
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
      * \brief Checks whether to use Bootstrap or direct Connector mode.
      * \return True if bootstrap mode, False if direct Connector flow
     */
     bool use_bootstrap();
+#endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
      * \brief Checks whether to go connector registration flow
@@ -194,12 +206,14 @@ public:
    const EstClient &est_client();
 #endif /* MBED_CLIENT_DISABLE_EST_FEATURE */
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
    /**
    * \brief Starts bootstrap sequence again.
    * This will clean the old LwM2M credentials.
    *
    */
    void bootstrap_again();
+#endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
 public:
     // implementation of M2MInterfaceObserver:
@@ -259,9 +273,10 @@ public:
      */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type);
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 protected: // from M2MTimerObserver
-
     virtual void timer_expired(M2MTimerObserver::Type type);
+#endif
 
 private:
     /**
@@ -283,6 +298,7 @@ private:
     */
     void internal_event(StartupSubStateRegistration new_state);
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
     * When the bootstrap starts.
     */
@@ -302,6 +318,7 @@ private:
     * When the bootstrap failed.
     */
     void state_bootstrap_failure();
+#endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
     /**
@@ -356,19 +373,12 @@ private:
      */
     bool create_register_object();
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
      * \brief A utility function to create an M2MSecurity object
      * for bootstrap.
      */
     bool create_bootstrap_object();
-
-    /**
-     * \brief A utility function to set the connector credentials
-     * in storage. This includes endpoint, domain, connector URI
-     *  and certificates.
-     * \param security, The Connector certificates.
-     */
-    ccs_status_e set_connector_credentials(M2MSecurity *security);
 
     /**
      * \brief A utility function to set the bootstrap credentials
@@ -381,6 +391,15 @@ private:
      * \brief A utility function to check whether bootstrap credentials are stored in KCM.
      */
     bool bootstrap_credentials_stored_in_kcm();
+#endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
+    /**
+     * \brief A utility function to set the connector credentials
+     * in storage. This includes endpoint, domain, connector URI
+     *  and certificates.
+     * \param security, The Connector certificates.
+     */
+    ccs_status_e set_connector_credentials(M2MSecurity *security);
 
     /**
      * \brief A utility function to check whether first to claim feature is configured.
@@ -416,10 +435,12 @@ private:
     M2MSecurity                         *_security;
     ConnectorClientEndpointInfo         _endpoint_info;
     M2MBaseList                         *_client_objs;
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     M2MTimer                            _rebootstrap_timer;
-    uint16_t                            _bootstrap_security_instance;
-    uint16_t                            _lwm2m_security_instance;
     uint16_t                            _rebootstrap_time;
+    uint16_t                            _bootstrap_security_instance;
+#endif
+    uint16_t                            _lwm2m_security_instance;
     void                                *_certificate_chain_handle;
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
     EstClient                           _est_client;

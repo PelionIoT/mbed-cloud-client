@@ -21,9 +21,7 @@
 #include "test_runners.h"
 #include <string.h>
 #include <stdlib.h>
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-#include "pal_sst.h"
-#else
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
 #endif
 

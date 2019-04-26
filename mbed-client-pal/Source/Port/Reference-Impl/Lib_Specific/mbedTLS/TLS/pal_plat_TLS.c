@@ -820,45 +820,6 @@ finish:
 
 #if (PAL_ENABLE_X509 == 1)
 
-palStatus_t pal_plat_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey)
-{
-    palStatus_t status = PAL_SUCCESS;
-    palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
-    int32_t platStatus = SSL_LIB_SUCCESS;
-
-    mbedtls_pk_init(&localConfigCtx->pkey);
-
-
-    platStatus = mbedtls_x509_crt_parse_der(&localConfigCtx->owncert, (const unsigned char *)ownCert->buffer, ownCert->size);
-    if (SSL_LIB_SUCCESS != platStatus)
-    {
-        status = PAL_ERR_TLS_FAILED_TO_PARSE_CERT;
-        goto finish;
-    }
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    platStatus = mbedtls_pk_setup_opaque(&localConfigCtx->pkey, *privateKey);
-
-    if (SSL_LIB_SUCCESS != platStatus)
-    {
-        status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
-        goto finish;
-    }
-#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-
-    platStatus = mbedtls_ssl_conf_own_cert(localConfigCtx->confCtx, &localConfigCtx->owncert, &localConfigCtx->pkey);
-    if (SSL_LIB_SUCCESS != platStatus)
-    {
-        status = PAL_ERR_TLS_FAILED_TO_SET_CERT;
-    }
-
-    localConfigCtx->hasKeys = true;
-
-finish:
-    PAL_LOG_DBG("TLS set and parse status %" PRIu32 ".", platStatus);
-    return status;
-}
-
 palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateKey_t* privateKey)
 {
     palStatus_t status = PAL_SUCCESS;

@@ -20,7 +20,7 @@
 #define PAL_MBEDTLS_USER_CONFIG_H
 
 
-/*! All of the following definitions are mandatory requirements for correct 
+/*! All of the following definitions are mandatory requirements for correct
 *   functionality of PAL TLS and Crypto components.
 *   Please do not disable them.
 */
@@ -317,6 +317,10 @@
 #undef MBEDTLS_CHACHA20_C
 #undef MBEDTLS_CHACHAPOLY_C
 #undef MBEDTLS_POLY1305_C
+
+// Do not save a copy of the peer certificate.
+// This will reduce the RAM consumption roughly by 1500 bytes.
+#undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
 
 #include "mbedtls/check_config.h"
 

@@ -25,7 +25,6 @@
 
 #define TRACE_GROUP "PAL"
 
-PAL_PRIVATE uint8_t g_storedCertSerial[PAL_CERT_ID_SIZE] __attribute__ ((aligned(4))) = {0};
 PAL_PRIVATE bool g_trustedServerValid = false;
 PAL_PRIVATE palMutexID_t g_palTLSHandshakeMutex = NULLPTR;
 
@@ -98,7 +97,6 @@ palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHan
         *palTLSHandle = (palTLSHandle_t)palTLSCtx;
     }
 
-    memset(g_storedCertSerial, 0, sizeof(g_storedCertSerial));
     g_trustedServerValid = false;
     palTLSCtx->retryHandShake = false;
 
@@ -246,22 +244,6 @@ palStatus_t pal_addEntropySource(palEntropySource_f entropyCallback)
     return status;
 }
 
-palStatus_t pal_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey)
-{
-#if (PAL_ENABLE_X509 == 1)
-    palStatus_t status = PAL_SUCCESS;
-    palTLSConfService_t* palTLSConfCtx =  (palTLSConfService_t*)palTLSConf;
-
-    PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConf);
-    PAL_VALIDATE_ARGUMENTS (NULLPTR == palTLSConfCtx->platTlsConfHandle || NULL == ownCert || NULL == privateKey);
-
-    status = pal_plat_setOwnCertAndPrivateKey(palTLSConfCtx->platTlsConfHandle, ownCert, privateKey);
-    return status;
-#else
-    return PAL_ERR_NOT_SUPPORTED;
-#endif
-}
-
 palStatus_t pal_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCert)
 {
 #if (PAL_ENABLE_X509 == 1)
@@ -348,6 +330,7 @@ palStatus_t pal_setCAChain(palTLSConfHandle_t palTLSConf, palX509_t* caChain, pa
             goto finish;
         }
 
+        uint8_t g_storedCertSerial[PAL_CERT_ID_SIZE] __attribute__ ((aligned(4))) = {0};
         if (!g_trustedServerValid)
         {
             size_t actualLenBytes;
