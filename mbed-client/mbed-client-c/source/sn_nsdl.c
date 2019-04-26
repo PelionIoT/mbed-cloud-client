@@ -50,6 +50,10 @@
 
 #include <stdlib.h>
 
+#if defined MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+#define MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+#endif
+
 /* Defines */
 #define TRACE_GROUP "mClt"
 #define RESOURCE_DIR_LEN                2
@@ -63,7 +67,11 @@
 #define OBS_PARAMETER_LEN               3
 #define AOBS_PARAMETER_LEN              5
 #define COAP_CON_PARAMETER_LEN          3
+
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 #define BS_EP_PARAMETER_LEN             3
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
 #define BS_QUEUE_MODE_PARAMETER_LEN     2
 #define RESOURCE_VALUE_PARAMETER_LEN    2
 #define FIRMWARE_DOWNLOAD_LEN           2
@@ -76,9 +84,7 @@
 #define COAP_DISABLE_OBS_FEATURE MBED_CONF_MBED_CLIENT_COAP_DISABLE_OBS_FEATURE
 #endif
 
-#if defined MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-#define MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-#endif
+
 
 /* Constants */
 static uint8_t      ep_name_parameter_string[]  = {'e', 'p', '='};      /* Endpoint name. A unique name for the registering node in a domain.  */
@@ -101,8 +107,11 @@ static uint8_t      firmware_download_uri[]   = {'f', 'w'}; /* Path for firmware
 static uint8_t      generic_download_uri[]    = {'d', 'o', 'w', 'n', 'l', 'o', 'a', 'd'}; /* Path for generic download. */
 
 /* * OMA BS parameters * */
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 static uint8_t bs_uri[]                         = {'b', 's'};
 static uint8_t bs_ep_name[]                     = {'e', 'p', '='};
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
 static uint8_t et_parameter[]                   = {'e', 't', '='};      /* Endpoint type */
 static uint8_t bs_queue_mode[]                  = {'b', '='};
 
@@ -238,8 +247,9 @@ uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
     sn_nsdl_clear_coap_resending_queue(handle);
 
     /*** Build endpoint register message ***/
-
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     handle->is_bs_server = false;
+#endif
 
     /* Allocate memory for header struct */
     register_message_ptr = sn_coap_parser_alloc_message(handle->grs->coap);
@@ -1696,10 +1706,12 @@ static int8_t sn_nsdl_local_rx_function(struct nsdl_s *handle, sn_coap_hdr_s *co
         handle->ep_information_ptr->domain_name_ptr = 0;
         handle->ep_information_ptr->domain_name_len = 0;
     }
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     else if (coap_packet_ptr->token_len == sizeof(handle->bootstrap_token) &&
              memcmp(coap_packet_ptr->token_ptr, &handle->bootstrap_token, coap_packet_ptr->token_len) == 0) {
         is_bs_msg = true;
     }
+#endif
 
     /* Store the current message token so that we can identify if same operation was initiated from callback */
     uint32_t temp_token = 0;
@@ -1712,9 +1724,11 @@ static int8_t sn_nsdl_local_rx_function(struct nsdl_s *handle, sn_coap_hdr_s *co
     else if (is_update_reg_msg) {
         temp_token = handle->update_register_token;
     }
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     else if (is_bs_msg) {
         temp_token = handle->bootstrap_token;
     }
+#endif
 
     /* No messages to wait for, or message was not response to our request */
     int ret = handle->sn_nsdl_rx_callback(handle, coap_packet_ptr, address_ptr);
@@ -1730,9 +1744,11 @@ static int8_t sn_nsdl_local_rx_function(struct nsdl_s *handle, sn_coap_hdr_s *co
     else if (is_update_reg_msg && temp_token == handle->update_register_token) {
         handle->update_register_token = 0;
     }
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     else if (is_bs_msg && temp_token == handle->bootstrap_token) {
         handle->bootstrap_token = 0;
     }
+#endif
     return ret;
 }
 

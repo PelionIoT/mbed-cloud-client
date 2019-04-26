@@ -1,5 +1,11 @@
 include_directories(Port/Platform-API)
+
+# This is so other modules could include pal.h
 ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR}/PAL-Impl/Services-API)
+
+# Add the current the directory of this of this file as a global dir pal.h could include more qualified paths 
+# and modules that use PAL could still include pal.h
+ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR})
 
 set (PAL_MODULES_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/PAL-Impl/Modules)
 set (PAL_PORT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Port/Reference-Impl/OS_Specific/${OS_BRAND})

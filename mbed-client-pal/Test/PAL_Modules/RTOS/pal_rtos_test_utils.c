@@ -187,6 +187,40 @@ void palThreadFunc6(void const *argument)
     PAL_PRINTF("palThreadFunc6::STAAAAM\n");
 }
 
+void palThreadFunc7(void const *argument)
+{
+    (void) argument;
+
+    /* Just do nothing here.. */
+}
+
+void palThreadFunc8(void const *argument)
+{
+    (void) argument;
+
+    /* Sleep when thread is terminated */
+    pal_osDelay(PAL_RTOS_WAIT_FOREVER);
+
+}
+
+void palThreadFunc9(void const *argument)
+{
+    (void) argument;
+
+    /* Do the while loop*/
+    while(1) {}
+
+}
+
+void palThreadFunc10(void const *argument)
+{
+    palSemaphoreID_t semaphore = (palSemaphoreID_t) argument;
+
+    /* Wait for semaphore - should not never return before thread is terminated*/
+    pal_osSemaphoreWait(semaphore, PAL_RTOS_WAIT_FOREVER, NULL);
+
+    TEST_FAIL_MESSAGE("Semaphore released before thread terminated");
+}
 
 void palTimerFunc1(void const *argument)
 {

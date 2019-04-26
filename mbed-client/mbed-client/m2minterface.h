@@ -142,6 +142,7 @@ public:
 
     virtual ~M2MInterface(){}
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
      * \brief Initiates bootstrapping of the client with the provided Bootstrap
      * Server information.
@@ -163,6 +164,7 @@ public:
      * \brief Finishes bootstrap in cases where client will be the one to finish it.
      */
     virtual void finish_bootstrap() = 0;
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
      * \brief Initiates the registration of a provided security object to the

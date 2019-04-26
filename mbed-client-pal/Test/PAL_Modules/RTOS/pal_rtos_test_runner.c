@@ -46,4 +46,8 @@ TEST_GROUP_RUNNER(pal_rtos)
     RUN_TEST_CASE(pal_rtos, pal_init_test);
     RUN_TEST_CASE(pal_rtos, Recursive_Mutex_Test);
     RUN_TEST_CASE(pal_rtos, pal_rtc);
+    RUN_TEST_CASE(pal_rtos, Thread_launch_and_terminate_in_row);
+    RUN_TEST_CASE(pal_rtos, Sleep_thread_launch_and_terminate);
+    RUN_TEST_CASE(pal_rtos, Loop_thread_launch_and_terminate);
+    RUN_TEST_CASE(pal_rtos, Semaphore_wait_thread_launch_and_terminate);
 }

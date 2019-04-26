@@ -736,9 +736,6 @@ TEST(pal_rtos, PeriodicTimerStopUnityTest)
 
 TEST(pal_rtos, TimerStartUnityTest)
 {
-    uint32_t expectedTicks;
-    uint32_t ticksInFuncError;
-
     palStatus_t status = PAL_SUCCESS;
     palTimerID_t timerID1 = NULLPTR;
     palTimerID_t timerID2 = NULLPTR;
@@ -1476,3 +1473,124 @@ TEST(pal_rtos, pal_rtc)
 #endif
 }
 
+/*! \brief Test for launching and terminating thread in row
+ *
+ * Thread is created which does nothing in its thread function but return. On
+ * test code side calls pal_osThreadCreateWithAlloc + pal_osThreadTerminate in row,
+ * without waits. This should catch the case where the shutdown OS call happens
+ * before the eg. the cleanup timer code in Mbed OS version gets ran.
+ *
+ * | # |    Step                                        |   Expected  |
+ * |---|------------------------------------------------|-------------|
+ * | 1 | Create thread that does nothing but returns    | PAL_SUCCESS |
+ * | 2 | Terminate thread right after creation          | PAL_SUCCESS |
+ */
+TEST(pal_rtos, Thread_launch_and_terminate_in_row)
+{
+    palStatus_t status;
+    palThreadID_t threadID = NULLPTR;
+
+    /*#1*/
+    status = pal_osThreadCreateWithAlloc(palThreadFunc7, NULL, PAL_osPriorityNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_osThreadTerminate(&threadID);
+    TEST_ASSERT_EQUAL(PAL_SUCCESS, status);
+
+}
+
+/*! \brief Test for creating a thread, which just sleeps
+ *
+ * Sleeping thread is created and is terminated right after creation.
+ * This should tests the stop in waiting-state.
+ *
+ * | # |    Step                                        |   Expected  |
+ * |---|------------------------------------------------|-------------|
+ * | 1 | Create thread that goes sleep                  | PAL_SUCCESS |
+ * | 2 | Wait for 1000ms                                |      -      |
+ * | 3 | Terminate thread                               | PAL_SUCCESS |
+ */
+TEST(pal_rtos, Sleep_thread_launch_and_terminate)
+{
+    palStatus_t status;
+    palThreadID_t threadID = NULLPTR;
+
+    /*#1*/
+    status = pal_osThreadCreateWithAlloc(palThreadFunc8, NULL, PAL_osPriorityNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    /* Wait for 1 second to make sure thread got time to start and run */
+    pal_osDelay(1000);
+
+    /*#3*/
+    status = pal_osThreadTerminate(&threadID);
+    TEST_ASSERT_EQUAL(PAL_SUCCESS, status);
+}
+
+/*! \brief Test for creating a thread, which has only infinite loop
+ *
+ * | # |    Step                                        |   Expected  |
+ * |---|------------------------------------------------|-------------|
+ * | 1 | Create thread that loops infinitely            | PAL_SUCCESS |
+ * | 2 | Wait for 1000ms                                |      -      |
+ * | 3 | Terminate thread                               | PAL_SUCCESS |
+ */
+TEST(pal_rtos, Loop_thread_launch_and_terminate)
+{
+    palStatus_t status;
+    palThreadID_t threadID = NULLPTR;
+
+    /*#1*/
+    status = pal_osThreadCreateWithAlloc(palThreadFunc9, NULL, PAL_osPriorityNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    /* Wait for 1 second to make sure thread got time to start and run */
+    pal_osDelay(1000);
+
+    /*#3*/
+    status = pal_osThreadTerminate(&threadID);
+    TEST_ASSERT_EQUAL(PAL_SUCCESS, status);
+}
+
+/*! \brief Test for creating a thread, which just sleeps
+ *
+ * Sleeping thread is created and is terminated right after creation.
+ * This should tests the stop in waiting-state.
+ *
+ * | # |    Step                                        |   Expected  |
+ * |---|------------------------------------------------|-------------|
+ * | 1 | Create semaphore                               | PAL_SUCCESS |
+ * | 2 | Create thread that waits for semaphore         | PAL_SUCCESS |
+ * | 3 | Wait for 1000ms                                |      -      |
+ * | 4 | Terminate thread                               | PAL_SUCCESS |
+ * | 5 | Delete semaphore                               | PAL_SUCCESS |
+ */
+TEST(pal_rtos, Semaphore_wait_thread_launch_and_terminate)
+{
+    palStatus_t status;
+    palThreadID_t threadID = NULLPTR;
+
+    /*#1*/
+    status = pal_osSemaphoreCreate(0, &semaphore1);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_osThreadCreateWithAlloc(palThreadFunc10, (void *)semaphore1, PAL_osPriorityNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#3*/
+    /* Wait for 1 second to make sure thread got time to start and run */
+    pal_osDelay(1000);
+
+    /*#4*/
+    status = pal_osThreadTerminate(&threadID);
+    TEST_ASSERT_EQUAL(PAL_SUCCESS, status);
+
+    /*#5*/
+    status = pal_osSemaphoreDelete(&semaphore1);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_EQUAL(NULLPTR, semaphore1);
+}

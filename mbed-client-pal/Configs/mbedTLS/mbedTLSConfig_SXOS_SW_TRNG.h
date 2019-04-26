@@ -284,6 +284,10 @@
 #undef MBEDTLS_CHACHAPOLY_C
 #undef MBEDTLS_POLY1305_C
 
+// Do not save a copy of the peer certificate.
+// This will reduce the RAM consumption roughly by 1500 bytes.
+#undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
+
 /**
  * \def MBEDTLS_SSL_RENEGOTIATION
  *

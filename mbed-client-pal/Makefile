@@ -12,6 +12,7 @@ LOCAL_API_DEPENDS := \
                     ${API_PLATFORM_DEPENDS} \
 
 LOCAL_ADD_INCLUDE := \
+                    ${LOCAL_NAME}/Source \
                     ${LOCAL_NAME}/Source/PAL-Impl \
                     ${LOCAL_NAME}/Source/PAL-Impl/Services-API \
                     ${LOCAL_NAME}/Source/Port/Platform-API \

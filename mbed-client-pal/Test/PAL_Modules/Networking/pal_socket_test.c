@@ -15,11 +15,10 @@
  *******************************************************************************/
 
 #include "pal.h"
-#include "pal_network.h"
 #include "unity.h"
 #include "unity_fixture.h"
 #include "test_runners.h"
-
+#include "mcc_common_setup.h"
 #include <string.h>
 // config file for keepalive server
 #include "pal_socket_test_address.h"
@@ -67,7 +66,7 @@ PAL_PRIVATE palSocket_t g_testSockets[PAL_NET_TEST_SOCKETS] = {0,0,0,0};
 #define PAL_NET_TEST_BUFFERED_UDP_MESSAGE_SIZE (1024 * 256)
 PAL_PRIVATE uint8_t *g_testRecvBuffer = NULLPTR;
 PAL_PRIVATE uint8_t *g_testSendBuffer = NULLPTR;
-
+PAL_PRIVATE bool g_interfaceConnected = false;
 #define PAL_NET_TEST_ECHO_TEST_SERVER_ADDRESS "echo.mbedcloudtesting.com"
 
 // the tests expect to have guaranteed forward progress, even if they fail. So the semaphore
@@ -1798,4 +1797,39 @@ TEST(pal_socket, tcp_echo)
 TEST(pal_socket, udp_echo)
 {
     echo_test(false);
+}
+
+#ifdef TARGET_LIKE_MBED
+void network_status_event_cb(palNetworkStatus_t status, void *client_arg)
+{
+    if (status == PAL_NETWORK_STATUS_CONNECTED) {
+        PAL_PRINTF("Interface connected!");
+        g_interfaceConnected = true;
+    } else {
+        PAL_PRINTF("Interface disconnected!");
+        g_interfaceConnected = false;
+    }
+}
+#endif
+
+TEST(pal_socket, interfaceStatusListener)
+{
+#ifdef TARGET_LIKE_MBED
+    palStatus_t result = PAL_SUCCESS;
+
+    result = pal_registerNetworkInterface(g_palTestNetworkInterface, &g_interfaceCTXIndex);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    result = pal_setConnectionStatusCallback(g_interfaceCTXIndex, &network_status_event_cb, NULL);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    g_interfaceConnected = true;
+    mcc_platform_close_connection();
+    TEST_ASSERT_EQUAL(g_interfaceConnected, false);
+
+    mcc_platform_init_connection();
+    TEST_ASSERT_EQUAL(g_interfaceConnected, true);
+#else
+    TEST_IGNORE_MESSAGE("Currently only supported on mbed-os!");
+#endif
 }

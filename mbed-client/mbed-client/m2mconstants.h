@@ -161,7 +161,6 @@ extern const String EMPTY;
 // Error Strings
 
 #define ERROR_REASON_1 "No security object found for Bootstrap"
-#define ERROR_REASON_2 "Bootstrap not allowed for now, try later"
 #define ERROR_REASON_3 "Bootstrap feature is disabled"
 #define ERROR_REASON_4 "No security object found for Registration"
 #define ERROR_REASON_5 "Registration not allowed for now, try later"
@@ -170,8 +169,6 @@ extern const String EMPTY;
 #define ERROR_REASON_8 "LWM2M server rejected client registration"
 #define ERROR_REASON_9 "Client in reconnection mode %s"
 #define ERROR_REASON_10 "Client cannot connect anymore %s"
-#define ERROR_REASON_11 "Bootstrap server URL is not correctly formed"
-#define ERROR_REASON_12 "Bootstrap resource is not correctly formed"
 #define ERROR_REASON_13 "LWM2M server URL is not correctly formed"
 #define ERROR_REASON_14 "LWM2M server address is not set correctly in client"
 #define ERROR_REASON_15 "Failed to do full registration because of missing parameters in registration"
@@ -179,13 +176,18 @@ extern const String EMPTY;
 #define ERROR_REASON_17 "Incoming CoAP message parsing failed"
 #define ERROR_REASON_18 "Sending reg-update failed as lifetime is less than 60 sec"
 #define ERROR_REASON_19 "LWM2M server URL is not correctly formed"
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+#define ERROR_REASON_2 "Bootstrap not allowed for now, try later"
+#define ERROR_REASON_11 "Bootstrap server URL is not correctly formed"
+#define ERROR_REASON_12 "Bootstrap resource is not correctly formed"
 #define ERROR_REASON_20 "BS PUT fails :%s"
 #define ERROR_REASON_21 "BS DEL fails :%s"
 #define ERROR_REASON_22 "BS FIN fails :%s"
 #define ERROR_REASON_23 "Bootstrap SecureConnection failed"
+#define ERROR_REASON_26 "BS FIN fails: missing EST iep param"
+#endif
 #define ERROR_REASON_24 "LWM2M server rejected client unregistration (not-found)"
 #define ERROR_REASON_25 "Failed to allocate registration message"
-#define ERROR_REASON_26 "BS FIN fails: missing EST iep param"
 #define ERROR_REASON_27 "Call already in progress"
 #define ERROR_REASON_28 "Message sending timed out"
 #define ERROR_REASON_29 "Call not allowed for now, wrong state"

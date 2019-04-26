@@ -19,8 +19,6 @@
 #include "pal.h"
 #include "unity.h"
 #include "unity_fixture.h"
-#include "pal_plat_drbg.h"
-#include "pal_plat_drbg.h"
 #include "test_runners.h"
 
 #include <string.h>

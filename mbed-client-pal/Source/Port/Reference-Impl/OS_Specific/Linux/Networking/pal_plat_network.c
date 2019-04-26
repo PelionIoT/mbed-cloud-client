@@ -1205,3 +1205,12 @@ palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *ad
 }
 
 #endif
+
+palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connectionStatusCallback callback, void *arg)
+{
+    (void)interfaceIndex;
+    (void)callback;
+    (void)arg;
+
+    return PAL_ERR_NOT_SUPPORTED;
+}

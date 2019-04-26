@@ -22,7 +22,6 @@
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
 #include "kvstore_global_api.h"
-#include "pal_sst.h"
 
 #define TEST_PAL_SST_MAX_ITEM_NAME_SIZE           120
 #define TEST_PAL_SST_MAX_INPUT_DATA_SIZE          10

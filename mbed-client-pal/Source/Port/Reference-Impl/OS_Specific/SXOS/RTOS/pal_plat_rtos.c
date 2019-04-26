@@ -31,6 +31,7 @@
 #include <stdio.h> // snprintf
 
 #define TRACE_GROUP "PAL"
+#define PAL_THREAD_PRIORITY_TRANSLATE(x) ((COS_MMI_TASKS_PRIORITY_BASE + (uint8_t)PAL_osPrioritylast) - x)
 
 extern palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes);
 
@@ -221,9 +222,10 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
     thread->userFunction = function;
     thread->userFunctionArgument = funcArgument;
 
-    // XXX: the priorities need a mapping, so far just use a 0x80 (0 is highest, 0xff lowest priority)
+    // 0xDC - 0xFA is reserved for MMI task, 0xDC is default
+    // (0 is highest, 0xff lowest priority)
 
-    uint8_t taskPriority = 0x80;
+    uint8_t taskPriority = PAL_THREAD_PRIORITY_TRANSLATE(priority);
 
     // Create and start a task. As the thread cleanup seems to require a COS_StopTask(),
     // we use a wrapper to call the user provided function and eventually do the cleanup.

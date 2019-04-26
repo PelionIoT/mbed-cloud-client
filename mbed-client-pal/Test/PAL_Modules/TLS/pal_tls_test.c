@@ -18,21 +18,24 @@
 #include "unity_fixture.h"
 #include "pal.h"
 #include "pal_tls_utils.h"
-#include "pal_network.h"
 #include "storage.h"
 #include "test_runners.h"
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-#include "pal_sst.h"
-#else
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
+#endif
+
+#if !PAL_USE_HW_TRNG
+#include "pal_plat_entropy.h"
 #endif
 
 #include <stdlib.h>
 
 #define TRACE_GROUP "PAL"
+#if (PAL_ENABLE_PSK == 1)
 #define PAL_TEST_PSK_IDENTITY "Client_identity"
-
 #define PAL_TEST_PSK {0x12,0x34,0x45,0x67,0x89,0x10}
+#endif
+
 #define PAL_WAIT_TIME	3
 
 #define HOSTNAME_STR_MAX_LEN 256
@@ -102,6 +105,7 @@ PAL_PRIVATE void socketCallback1( void * arg)
 }
 
 static void setCredentials(palTLSConfHandle_t handle);
+static void handshakeTCP(void);
 
 //! This structre is for tests only and MUST be the same structure as in the pal_TLS.c file
 //! For any change done in the original structure, please make sure to change this structure too.
@@ -130,7 +134,10 @@ TEST_SETUP(pal_tls)
     status = pal_init();
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    sotp_reset();
+#endif
+
 #if !PAL_USE_HW_TRNG
     // If no hardware trng - entropy must be injected for random to work
     uint8_t entropy_buf[48] = { 0 };
@@ -138,18 +145,13 @@ TEST_SETUP(pal_tls)
     TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
 #endif
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     // Reset storage before pal_initTime since there might be CMAC lefovers
     // in internal flash which might fail storage access in pal_initTime
     pal_SSTReset();
-#else
-    sotp_reset();
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
     // Initialize the time module, as this test uses time functionality
-    status = pal_initTime();
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    // Initialize the time module
     status = pal_initTime();
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -167,7 +169,6 @@ TEST_SETUP(pal_tls)
 
     status = pal_osSetTime(currentTime);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
 }
 
 TEST_TEAR_DOWN(pal_tls)
@@ -201,7 +202,7 @@ TEST(pal_tls, tlsConfiguration)
 {
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
-    palTLSTransportMode_t transportationMode =     PAL_TLS_MODE;
+    palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
     /*#1*/
     status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -325,13 +326,18 @@ TEST(pal_tls, tlsInitTLS)
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
 * | 1 | Initialize TLS configuration using `pal_initTLSConfiguration`.       | PAL_SUCCESS |
-* | 2 | Add keys to the configuration using `pal_setOwnCertAndPrivateKey`.           | PAL_SUCCESS |
-* | 3 | Initialize TLS context using `pal_initTLS`.                          | PAL_SUCCESS |
-* | 4 | Uninitialize TLS context using `pal_freeTLS`.                        | PAL_SUCCESS |
-* | 5 | Uninitialize TLS configuration using `pal_tlsConfigurationFree`.     | PAL_SUCCESS |
+* | 2 | Add keys to the configuration using `pal_setOwnCertChain`.           | PAL_SUCCESS |
+* | 3 | Add keys to the configuration using `pal_setOwnPrivateKey`.          | PAL_SUCCESS |
+* | 4 | Initialize TLS context using `pal_initTLS`.                          | PAL_SUCCESS |
+* | 5 | Uninitialize TLS context using `pal_freeTLS`.                        | PAL_SUCCESS |
+* | 6 | Uninitialize TLS configuration using `pal_tlsConfigurationFree`.     | PAL_SUCCESS |
 */
 TEST(pal_tls, tlsPrivateAndPublicKeys)
 {
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 #if (PAL_ENABLE_X509 == 1)
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
@@ -345,15 +351,18 @@ TEST(pal_tls, tlsPrivateAndPublicKeys)
     TEST_ASSERT_NOT_EQUAL(palTLSConf, NULLPTR);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
-    status = pal_setOwnCertAndPrivateKey(palTLSConf, &pubKey, &prvKey);
+    status = pal_setOwnCertChain(palTLSConf, &pubKey);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#3*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_setOwnPrivateKey(palTLSConf, &prvKey);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
-    status = pal_freeTLS(&palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#5*/
+    status = pal_freeTLS(&palTLSHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    /*#6*/
     status = pal_tlsConfigurationFree(&palTLSConf);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #else
@@ -426,9 +435,10 @@ TEST(pal_tls, tlsCACertandPSK)
 */
 TEST(pal_tls, tlsHandshakeTCP)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
@@ -458,12 +468,9 @@ TEST(pal_tls, tlsHandshakeTCP)
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
 
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -593,9 +600,10 @@ TEST(pal_tls, tlsHandshakeTCP)
 */
 TEST(pal_tls, tlsHandshakeUDP)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
@@ -626,12 +634,9 @@ TEST(pal_tls, tlsHandshakeUDP)
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_UDP);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -734,9 +739,10 @@ TEST(pal_tls, tlsHandshakeUDP)
 */
 TEST(pal_tls, tlsHandshakeUDPTimeOut)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
@@ -765,12 +771,9 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     /*#2*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_UDP);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -862,9 +865,10 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -896,12 +900,9 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     /*#2*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1037,9 +1038,10 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1061,10 +1063,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
 
-    //save valid time since the storage was cleared during TEST_SETUP
-    uint64_t valid_time = PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100;
-    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&valid_time, sizeof(uint64_t), false);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    //get and save valid time since the storage was cleared during TEST_SETUP
+    handshakeTCP();
 
     int32_t temp;
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
@@ -1088,12 +1088,9 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 
     /*#4*/
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1232,9 +1229,10 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 */
 TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1254,6 +1252,9 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
+    //get and save valid time since the storage was cleared during TEST_SETUP
+    handshakeTCP();
+
     /*#1*/
     status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -1262,12 +1263,9 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1374,7 +1372,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     /*#15*/
     status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-    TEST_ASSERT_TRUE(futureTime <= currentTime);
+    TEST_ASSERT_TRUE(futureTime > currentTime);
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
 #endif
@@ -1409,9 +1407,10 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 */
 TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1442,12 +1441,9 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     /*#2*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1670,9 +1666,10 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1696,10 +1693,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
-    //save valid time since the storage was cleared during TEST_SETUP
-    uint64_t valid_time = PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100;
-    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&valid_time, sizeof(uint64_t), false);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    // Get valid time
+    handshakeTCP();
 
     /*#1*/
     status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
@@ -1716,12 +1711,9 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     /*#3*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1931,9 +1923,10 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 */
 TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1959,10 +1952,8 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
-    //save valid time since the storage was cleared during TEST_SETUP
-    uint64_t valid_time = PAL_MIN_SEC_FROM_EPOCH + PAL_SECONDS_PER_DAY * 100;
-    status = storage_rbp_write(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t *)&valid_time, sizeof(uint64_t), false);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    //Get valid time since the storage was cleared during TEST_SETUP
+    handshakeTCP();
 
     /*#1*/
     status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
@@ -1978,12 +1969,9 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 
     /*#3*/
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        status = pal_close(&g_socket);
-        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -2165,6 +2153,93 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 #endif
 }
 
+static void handshakeTCP(void)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palTLSConfHandle_t palTLSConf = NULLPTR;
+    palTLSHandle_t palTLSHandle = NULLPTR;
+    palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
+    palSocketAddress_t socketAddr = {0};
+    palSocketLength_t addressLength = 0;
+    #if (PAL_ENABLE_PSK == 1)
+        const char* identity = PAL_TEST_PSK_IDENTITY;
+        const char psk[]= PAL_TEST_PSK;
+    #endif
+    palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
+    struct server_address server;
+
+    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+
+    status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
+
+    if (PAL_SUCCESS != status)
+    {
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    tlsSocket.addressLength = addressLength;
+    tlsSocket.socket = g_socket;
+
+    status = pal_setSockAddrPort(&socketAddr, server.port);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    int32_t temp;
+    status = pal_osSemaphoreCreate(1, &s_semaphoreID);
+    TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
+
+    do {
+        status = pal_connect(g_socket, &socketAddr, addressLength);
+        pal_osSemaphoreWait(s_semaphoreID, 100, &temp);
+    } while (status == PAL_ERR_SOCKET_IN_PROGRES || status == PAL_ERR_SOCKET_WOULD_BLOCK);
+
+    if (status == PAL_ERR_SOCKET_ALREADY_CONNECTED) {
+        status = PAL_SUCCESS;
+    }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_NOT_EQUAL(palTLSConf, NULLPTR);
+
+    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
+    //status = pal_sslSetDebugging(palTLSConf, true);
+    //TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    #if (PAL_ENABLE_X509 == 1)
+        setCredentials(palTLSConf);
+    #elif (PAL_ENABLE_PSK == 1)
+        status = pal_setPSK(palTLSConf, (const unsigned char*)identity, strlen(identity), (const unsigned char*)psk, sizeof(psk));
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    #endif
+
+    status = pal_tlsSetSocket(palTLSConf, &tlsSocket);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    do
+    {
+        status = pal_handShake(palTLSHandle, palTLSConf);
+        pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
+    }
+    while ((PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status));
+
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_freeTLS(&palTLSHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_tlsConfigurationFree(&palTLSConf);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_close(&g_socket);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+}
+
 // Introduce helper functions to be used in TCPHandshakeWhileCertVerify_threads test.
 // The test is only ran if PAL_USE_SECURE_TIME and PAL_ENABLE_X509 are set so helper
 // functions can also be under those checks
@@ -2213,9 +2288,13 @@ static palStatus_t ThreadHandshakeTCP()
 
     /*#4*/
     do {
-        status = pal_connect(g_socket, &socketAddr, addressLength);
+        status = pal_connect(socketTCP, &socketAddr, addressLength);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_SOCKET_IN_PROGRES || status == PAL_ERR_SOCKET_WOULD_BLOCK);
+
+    if (status == PAL_ERR_SOCKET_ALREADY_CONNECTED) {
+        status = PAL_SUCCESS;
+    }
 
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
@@ -2451,9 +2530,10 @@ static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, pal
 */
 TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
 {
-#if defined (__LINUX__) || defined(__FREERTOS__)
-    TEST_IGNORE_MESSAGE("Ignored, Linux PAL tests don't get credentials from mbed_cloud_dev_credentials.c");
-#endif
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -2466,11 +2546,11 @@ TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
-    if ((PAL_ERR_SOCKET_DNS_ERROR == status) || (PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY == status))
+    if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("error: address lookup returned an address not supported by current configuration cant continue test ( IPv6 add for IPv4 only configuration or IPv4 for IPv6 only configuration or error)");
-        return;
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_osSetTime(0);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);

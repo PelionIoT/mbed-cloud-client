@@ -19,6 +19,7 @@
 #include "pal.h"
 #include "pal_plat_internalFlash.h"
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #if ((!defined(PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM)) || (PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM == 0)) 
 
 ////////////////////////////PRIVATE///////////////////////////////////
@@ -113,3 +114,4 @@ PAL_PRIVATE palStatus_t pal_platFlashErrorTranslation(int32_t status)
 }
 
 #endif
+#endif // #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

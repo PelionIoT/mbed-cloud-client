@@ -20,10 +20,7 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal_plat_entropy.h"
-#include "pal_sst.h"
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-#include "pal_sst.h"
-#else
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
 #endif
 #include <stdlib.h>

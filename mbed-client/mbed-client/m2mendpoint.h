@@ -64,12 +64,12 @@ protected :
     M2MEndpoint( const M2MEndpoint& /*other*/ );
 
     /*
-     * \brief Data has been changed and it needs to be updated to Mbed Cloud.
+     * \brief Data has been changed and it needs to be updated to Device Management.
      */
     virtual void set_changed();
 
     /*
-     * \brief Clears the changed flag. This can be done when the data has been updated into Mbed Cloud.
+     * \brief You can clear the flag the when the data has been updated into Device Management.
      */
     void clear_changed();
 

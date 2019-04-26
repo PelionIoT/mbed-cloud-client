@@ -52,6 +52,12 @@ public:
         ESocketTimerCallback = 0x80
     };
 
+    // NOTE! Check that these values does not overlap with the SocketEvent values
+    enum InterfaceStatusEvent {
+        EInterfaceConnected     = 0x81,
+        EInterfaceDisconnected  = 0x82
+    };
+
     /**
     * @brief Constructor
     */
@@ -227,6 +233,8 @@ public:
      * @brief Internal helper for sending an event.
      */
     bool send_event(SocketEvent event_type);
+
+    void interface_event(palNetworkStatus_t status);
 
 private:
     typedef struct send_data_queue {

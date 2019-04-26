@@ -66,10 +66,17 @@ struct nsdl_s {
     uint32_t update_register_token;
     uint32_t register_token;
     uint32_t unregister_token;
+
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     uint32_t bootstrap_token;
+#endif
+
     uint32_t token_seed;
     unsigned int sn_nsdl_endpoint_registered:1;
+
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     unsigned int is_bs_server:1;
+#endif
 
     struct grs_s *grs;
     sn_nsdl_ep_parameters_s *ep_information_ptr;     // Endpoint parameters, Name, Domain etc..

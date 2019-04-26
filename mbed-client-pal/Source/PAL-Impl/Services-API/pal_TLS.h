@@ -135,17 +135,6 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
  */
 palStatus_t pal_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf);
 
-/*! \brief Set your own certificate chain and private key.
- *
- * @deprecated This function has been split into two separate functions, `pal_setOwnCertChain()` and `pal_setOwnPrivateKey()`.
- * @param[in] palTLSConf: The TLS configuration context.
- * @param[in] ownCert: Your own public certificate chain.
- * @param[in] privateKey: Your own private key.
- *
- * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
- */
-palStatus_t pal_setOwnCertAndPrivateKey(palTLSConfHandle_t palTLSConf, palX509_t* ownCert, palPrivateKey_t* privateKey);
-
 /*! \brief Set your own certificate chain.
  *
  * @param[in] palTLSConf: The TLS configuration context.
@@ -160,7 +149,7 @@ palStatus_t pal_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCer
 * @param[in] buf:         If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined - pointer to a `uintptr_t` type, which contains the PSA handle.
 *                         If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is not defined - pointer to a private key.
 * @param[in] buf_size:    If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined - not relevant, as it is expected that buf points to a `uintptr_t` type.
-*                         If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is not defined - the size of the private key pointed to by buf. 
+*                         If MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is not defined - the size of the private key pointed to by buf.
 * @param[out] privateKey: Pointer to an uninitialized `palPrivateKey_t` object.
 *
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.

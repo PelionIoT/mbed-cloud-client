@@ -49,7 +49,7 @@ class M2MEndpoint;
 
 /*! \file m2mbase.h
  *  \brief M2MBase.
- *  This class is the base class based on which all LWM2M object models
+ *  This class is the base class based on which all LwM2M object models
  *  can be created.
  *
  *  This serves as a base class for Objects, ObjectInstances and Resources.
@@ -334,8 +334,8 @@ public:
     /**
      * \brief Sets the object to be auto-observable.
      *
-     * \note This is not a standard CoAP or LWM2M feature and it only works in mbed Cloud.
-     * \note This must be called before registration process, since this info must be in a registration message.
+     * \note This is not a standard CoAP or LwM2M feature and it only works in Device Management.
+     * \note You must call this before registration process, since this info must be in a registration message.
      * \note Auto-observable will take higher precedence if both observable methods are set.
      *
      * \param auto_observable Is auto-obs feature enabled or not.
@@ -778,7 +778,7 @@ protected: // from M2MReportObserver
                                const uint8_t length);
 
     /**
-     * \brief The data has changed and it needs to be updated into Mbed Cloud.
+     * \brief The data has changed and it needs to be updated into Device Management.
      *        Current implementation maintains the changed state only in M2MEndpoint. If any of the changes in an
      *        object changes the M2M registration structure, the information is propagated to M2MEndpoint using
      *        this interface.

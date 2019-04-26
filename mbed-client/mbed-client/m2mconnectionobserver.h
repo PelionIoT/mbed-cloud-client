@@ -37,6 +37,11 @@ public :
         LWM2MServer
     }ServerType;
 
+    typedef enum {
+        NetworkInterfaceConnected,
+        NetworkInterfaceDisconnected
+    }NetworkInterfaceStatus;
+
     /**
      * \brief The M2MSocketAddress struct.
      * A unified container for holding socket address data
@@ -80,6 +85,8 @@ public :
     * \brief Indicates that data has been sent successfully.
     */
     virtual void data_sent() = 0;
+
+    virtual void network_interface_status_change(NetworkInterfaceStatus status) = 0;
 };
 
 #endif // M2M_CONNECTION_OBSERVER_H__

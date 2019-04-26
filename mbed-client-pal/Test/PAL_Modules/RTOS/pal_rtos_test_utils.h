@@ -57,6 +57,10 @@ void palThreadFunc3(void const *argument);
 void palThreadFunc4(void const *argument);
 void palThreadFunc5(void const *argument);
 void palThreadFunc6(void const *argument);
+void palThreadFunc7(void const *argument);
+void palThreadFunc8(void const *argument);
+void palThreadFunc9(void const *argument);
+void palThreadFunc10(void const *argument);
 
 
 typedef struct timerArgument{

@@ -124,7 +124,7 @@
 
 //! The maximum number of interfaces that can be supported at a time.
 #ifndef PAL_MAX_SUPORTED_NET_INTERFACES
-    #define PAL_MAX_SUPORTED_NET_INTERFACES 10
+    #define PAL_MAX_SUPORTED_NET_INTERFACES 1
 #endif
 
 //! Stack size for thread created when calling pal_getAddressInfoAsync

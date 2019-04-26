@@ -17,8 +17,11 @@
 #ifndef _PAL_PLAT_CRYPTO_H_
 #define _PAL_PLAT_CRYPTO_H_
 
-#include "pal_Crypto.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+#include "pal.h"
 /*! \file pal_plat_Crypto.h
  *  \brief PAL cryptographic - platform.
  *   This file contains cryptographic APIs that need to be implemented in the platform layer.
@@ -666,5 +669,7 @@ palStatus_t pal_plat_ECGroupFree(palCurveHandle_t* grp);
  */
 palStatus_t pal_plat_ECGroupInitAndLoad(palCurveHandle_t* grp, palGroupIndex_t index);
 
-
+#ifdef __cplusplus
+}
+#endif
 #endif //_PAL_PLAT_CRYPTO_H_

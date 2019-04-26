@@ -17,14 +17,10 @@
 // ----------------------------------------------------------------------------
 
 #include "pal.h"
-#include "pal_Crypto.h"
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal_crypto_test_data.h"
 #include "ssl.h"
-#if !PAL_USE_HW_TRNG
-#include "pal_plat_entropy.h"
-#endif
 #include <string.h>
 #include <time.h>
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT

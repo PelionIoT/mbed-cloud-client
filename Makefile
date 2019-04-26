@@ -51,6 +51,7 @@ LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/mbed-client-pal/Configs/pal_config \
                     ${LOCAL_NAME}/mbed-client-pal/Configs/pal_config/SXOS \
                     ${LOCAL_NAME}/mbed-client-pal/Source/PAL-Impl/Services-API \
+                    ${LOCAL_NAME}/mbed-client-pal/Source \
                     ${LOCAL_NAME}/mbed-client-pal/Source/Port/Platform-API \
 # update client
 LOCAL_ADD_INCLUDE += \

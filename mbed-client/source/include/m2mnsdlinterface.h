@@ -145,12 +145,14 @@ public:
     */
     bool remove_nsdl_resource(M2MBase *base);
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
      * @brief Creates the bootstrap object.
      * @param address Bootstrap address.
      * @return true if created and sent successfully else false.
     */
     bool create_bootstrap_resource(sn_nsdl_addr_s *address);
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
      * @brief Sets the register message to the server.
@@ -380,17 +382,12 @@ public:
     */
     void send_next_notification(bool clear_token);
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
      * @brief Store the "BS finished" response id.
      * @param msg_id Response id.
     */
     void store_bs_finished_response_id(uint16_t msg_id);
-
-    /**
-     * @brief Store the registration state.
-     * @param registered Registered to lwm2m server or not.
-    */
-    void set_registration_status(bool registered);
 
     /**
      * @brief Handle incoming bootstrap PUT message.
@@ -403,6 +400,13 @@ public:
      * @brief Handle bootstrap finish acknowledgement.
     */
     void handle_bootstrap_finish_ack(uint16_t msg_id);
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
+    /**
+     * @brief Store the registration state.
+     * @param registered Registered to lwm2m server or not.
+    */
+    void set_registration_status(bool registered);
 
     /**
      * @brief Returns total retransmission time
@@ -549,6 +553,7 @@ private:
     */
     void set_endpoint_lifetime_buffer(int lifetime);
 
+#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
      * @brief Handle bootstrap finished message.
      * @param coap_header, Received CoAP message
@@ -571,19 +576,22 @@ private:
     bool parse_bootstrap_message(sn_coap_hdr_s *coap_header, M2MNsdlInterface::ObjectType lwm2m_object_type);
 
     /**
-     * @brief Parse bootstrap TLV message.
-     * @param coap_header, Received CoAP message
-     * @return True if parsing was succesful else false
-    */
-    bool validate_security_object();
-
-    /**
      * @brief Handle bootstrap errors.
      * @param reason, Reason for Bootstrap failure.
      * @param wait, True if need to wait that ACK has been sent.
      *              False if reconnection can start immediately.
     */
     void handle_bootstrap_error(const char *reason, bool wait);
+
+    void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
+#endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
+    /**
+     * @brief Parse bootstrap TLV message.
+     * @param coap_header, Received CoAP message
+     * @return True if parsing was succesful else false
+    */
+    bool validate_security_object();
 
     /**
      * @brief Handle different coap errors.
@@ -664,8 +672,6 @@ private:
     void handle_register_update_response(const sn_coap_hdr_s *coap_header);
 
     void handle_request_response(const sn_coap_hdr_s *coap_header, struct request_context_s *request_context);
-
-    void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
 
     void handle_message_delivered(M2MBase *base, const M2MBase::MessageType type);
 

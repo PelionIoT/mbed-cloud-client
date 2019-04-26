@@ -24,6 +24,12 @@
 
 typedef void(*palSelectCallbackFunction_t)();
 
+typedef struct pal_plat_NetworkInterface{
+    NetworkInterface* interface;
+    void *clientArg;
+    connectionStatusCallback connectionStatusCb;
+} pal_plat_NetworkInterface_t;
+
 #if defined (__CC_ARM) || defined(__IAR_SYSTEMS_ICC__)
 
 void palSelectCallbackNull(void* arg)
@@ -242,7 +248,11 @@ void palConnectCallBack()
             // as the high priority queue and its thread is likely there already thanks to
             // arm_hal_timer.cpp. Technically the client side does not really care, if the events
             // were delayed a bit by other events or not.
+#if !MBED_CONF_NANOSTACK_HAL_CRITICAL_SECTION_USABLE_FROM_INTERRUPT
             shared_event_queue = mbed_highprio_event_queue();
+#else
+            shared_event_queue = mbed_event_queue();
+#endif
             PAL_VALIDATE_CONDITION_WITH_ERROR((shared_event_queue == NULL),NSAPI_ERROR_UNSUPPORTED);
 
             Callback<void()> mycall(this, &PALSocketWrapper::attachCallback);
@@ -403,13 +413,15 @@ void palConnectCallBack()
         }
 
 
-PAL_PRIVATE NetworkInterface* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
+PAL_PRIVATE pal_plat_NetworkInterface_t s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
 
 PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
 
 PAL_PRIVATE  uint32_t s_pal_network_initialized = 0;
 
 PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* arg,  palSocket_t* socket);
+
+void pal_plat_connectionStatusCallback(void *interfaceIndex, nsapi_event_t status, intptr_t param);
 
 PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 {
@@ -486,7 +498,7 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
 
     for (index = 0; index < s_pal_numberOFInterfaces; index++) // if specific context already registered return exisitng index instead of registering again.
     {
-        if (s_pal_networkInterfacesSupported[index] == context)
+        if (s_pal_networkInterfacesSupported[index].interface == context)
         {
             found = true;
             *interfaceIndex = index;
@@ -498,7 +510,7 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
     {
         if (s_pal_numberOFInterfaces < PAL_MAX_SUPORTED_NET_INTERFACES)
         {
-            s_pal_networkInterfacesSupported[s_pal_numberOFInterfaces] = (NetworkInterface*)context;
+            s_pal_networkInterfacesSupported[s_pal_numberOFInterfaces].interface = (NetworkInterface*)context;
             *interfaceIndex = s_pal_numberOFInterfaces;
             ++s_pal_numberOFInterfaces;
         }
@@ -511,11 +523,28 @@ palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interface
     return result;
 }
 
+palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connectionStatusCallback callback, void *arg)
+{
+    palStatus_t result = PAL_SUCCESS;
+    if (interfaceIndex > PAL_MAX_SUPORTED_NET_INTERFACES - 1) {
+        result = PAL_ERR_INVALID_ARGUMENT;
+    } else {
+        s_pal_networkInterfacesSupported[interfaceIndex].interface->add_event_listener(mbed::callback(&pal_plat_connectionStatusCallback, (void*)interfaceIndex));
+        s_pal_networkInterfacesSupported[interfaceIndex].connectionStatusCb = callback;
+        s_pal_networkInterfacesSupported[interfaceIndex].clientArg = arg;
+    }
+
+    return result;
+}
+
 palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
 {
     if (interfaceIndex < PAL_MAX_SUPORTED_NET_INTERFACES &&
-        s_pal_networkInterfacesSupported[interfaceIndex]) {
-        s_pal_networkInterfacesSupported[interfaceIndex] = NULL;
+        s_pal_networkInterfacesSupported[interfaceIndex].interface) {
+        s_pal_networkInterfacesSupported[interfaceIndex].interface->remove_event_listener(mbed::callback(&pal_plat_connectionStatusCallback, (void*)interfaceIndex));
+        s_pal_networkInterfacesSupported[interfaceIndex].interface = NULL;
+        s_pal_networkInterfacesSupported[interfaceIndex].clientArg = NULL;
+        s_pal_networkInterfacesSupported[interfaceIndex].connectionStatusCb = NULL;
         --s_pal_numberOFInterfaces;
         return PAL_SUCCESS;
     } else {
@@ -861,7 +890,7 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
     SocketAddress addr;
     PAL_VALIDATE_ARGUMENTS((interfaceNum >= s_pal_numberOFInterfaces));
 
-    address = s_pal_networkInterfacesSupported[interfaceNum]->get_ip_address(); // ip address returned is a null terminated string
+    address = s_pal_networkInterfacesSupported[interfaceNum].interface->get_ip_address(); // ip address returned is a null terminated string
     if (NULL != address)
     {
         addr.set_ip_address(address);
@@ -1067,13 +1096,13 @@ palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *ad
 {
     palStatus_t result = PAL_SUCCESS;
     SocketAddress translatedAddress; // by default use the fist supported net interface - TODO: do we need to select a different interface?
-    if (s_pal_networkInterfacesSupported[0]) {
+    if (s_pal_networkInterfacesSupported[0].interface) {
 #if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname(hostname, &translatedAddress);
+        result = s_pal_networkInterfacesSupported[0].interface->gethostbyname(hostname, &translatedAddress);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV4_ONLY
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname(hostname, &translatedAddress, NSAPI_IPv4);
+        result = s_pal_networkInterfacesSupported[0].interface->gethostbyname(hostname, &translatedAddress, NSAPI_IPv4);
 #elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV6_ONLY
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname(hostname, &translatedAddress, NSAPI_IPv6);
+        result = s_pal_networkInterfacesSupported[0].interface->gethostbyname(hostname, &translatedAddress, NSAPI_IPv6);
 #else
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
@@ -1121,10 +1150,10 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo* info)
 #error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
 #endif
 
-    if (s_pal_networkInterfacesSupported[0] == NULL) {
+    if (s_pal_networkInterfacesSupported[0].interface == NULL) {
         result = PAL_ERR_INVALID_ARGUMENT;
     } else {
-        result = s_pal_networkInterfacesSupported[0]->gethostbyname_async(info->hostname, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
+        result = s_pal_networkInterfacesSupported[0].interface->gethostbyname_async(info->hostname, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
     }
 
     PAL_LOG_DBG("pal_plat_getAddressInfoAsync result %d", result);
@@ -1146,8 +1175,8 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo* info)
 palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
 {
     palStatus_t status = PAL_ERR_INVALID_ARGUMENT;
-    if (s_pal_networkInterfacesSupported[0]) {
-        status = s_pal_networkInterfacesSupported[0]->gethostbyname_async_cancel(queryHandle);
+    if (s_pal_networkInterfacesSupported[0].interface) {
+        status = s_pal_networkInterfacesSupported[0].interface->gethostbyname_async_cancel(queryHandle);
     }
 
     if (PAL_SUCCESS != status) {
@@ -1190,7 +1219,7 @@ PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t 
 
     if (internalSocket && result == PAL_SUCCESS)
     {
-        result = internalSocket->open(s_pal_networkInterfacesSupported[interfaceNum]);
+        result = internalSocket->open(s_pal_networkInterfacesSupported[interfaceNum].interface);
         if (result < 0)
         {
             result =  translateErrorToPALError(result);
@@ -1225,7 +1254,38 @@ PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t 
     {
         delete internalSocket;
         delete socketObj;
+
     }
 
     return result;
+}
+
+void pal_plat_connectionStatusCallback(void *interfaceIndex, nsapi_event_t status, intptr_t param)
+{
+    uint32_t index = (uint32_t)interfaceIndex;
+    if (status == NSAPI_EVENT_CONNECTION_STATUS_CHANGE)
+    {
+        switch(param)
+        {
+            case NSAPI_STATUS_GLOBAL_UP:
+                if (s_pal_networkInterfacesSupported[index].connectionStatusCb)
+                {
+                   s_pal_networkInterfacesSupported[index].connectionStatusCb(PAL_NETWORK_STATUS_CONNECTED,
+                                                                          s_pal_networkInterfacesSupported[index].clientArg);
+                }
+                break;
+
+            case NSAPI_STATUS_DISCONNECTED:
+                if (s_pal_networkInterfacesSupported[index].connectionStatusCb)
+                {
+                    s_pal_networkInterfacesSupported[index].connectionStatusCb(PAL_NETWORK_STATUS_DISCONNECTED,
+                                                                           s_pal_networkInterfacesSupported[index].clientArg);
+                }
+                break;
+
+            default:
+                PAL_LOG_DBG("pal_plat_connectionStatusCallback - ignoring event %d", param);
+                break;
+        }
+    }
 }

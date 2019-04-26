@@ -63,8 +63,12 @@ palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t
 {
     PAL_VALIDATE_ARGUMENTS((networkInterfaceContext == NULL) || (interfaceIndex == NULL));
     palStatus_t result = pal_plat_registerNetworkInterface(networkInterfaceContext, interfaceIndex);
-
     return result;
+}
+
+palStatus_t pal_setConnectionStatusCallback(uint32_t interfaceIndex, connectionStatusCallback callback, void *client_arg)
+{
+    return pal_plat_setConnectionStatusCallback(interfaceIndex, callback, client_arg);
 }
 
 palStatus_t pal_unregisterNetworkInterface(uint32_t interfaceIndex)

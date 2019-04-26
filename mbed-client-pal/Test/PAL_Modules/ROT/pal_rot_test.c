@@ -20,12 +20,9 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal_plat_rot.h"
-#include "pal_sst.h"
 #include <string.h>
 #include <stdlib.h>
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-#include "pal_sst.h"
-#else
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
 #endif
 #if (PAL_USE_HW_ROT == 1)
