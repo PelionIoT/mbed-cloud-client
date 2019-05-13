@@ -1,5 +1,9 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 3.1.1 (13.05.2019)
+
+No changes.
+
 ### Release 3.1.0 (26.04.2019)
 
 * Fixed client State machine for handling `pause()` handling. Fixes issues when `pause()` call was ignored when other operations were in effect.
