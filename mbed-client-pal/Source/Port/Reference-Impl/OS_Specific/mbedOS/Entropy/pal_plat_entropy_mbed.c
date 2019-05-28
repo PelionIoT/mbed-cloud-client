@@ -16,9 +16,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-// MBEDTLS_PSA_HAS_ITS_IO is defined by default in mbed_lib.json of mbedcrypto (part of mbed-os)
-// and therefore is visible througout the entire code
-#if defined(MBEDTLS_PSA_HAS_ITS_IO) && defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)
 
 #include "pal.h"
 #include "pal_plat_entropy.h"
