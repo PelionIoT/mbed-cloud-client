@@ -205,6 +205,13 @@
 #endif //MBEDTLS_CIPHER_MODE_CTR
 
 // Save ROM and a few bytes of RAM by specifying our own ciphersuite list
+// TODO: replace all suites with a single chachapoly suite
+// TODO: try client lite with PSK with DTLS vs full client with certs and TLS
+// TODO: generate cert with shorter EC curve(might already be done) -- look for ec key type secp_256512 via openssl x509 cert inspection.
+// NOTE: PSK removes the need for x509 parser
+// TODO: enable cryptocell and see if RAM usage drops (probably won't but worth a try)
+// TODO: reach out to cryptocell folks for optimizations (Ron Elder)
+// TODO: with https://tls.mbed.org/kb/how-to/reduce-mbedtls-memory-and-storage-footprint make sure that PDMC is using the correct API along with configuring things properly
 #ifndef MBEDTLS_SSL_CIPHERSUITES
     #define MBEDTLS_SSL_CIPHERSUITES MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, \
                                      MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, \
