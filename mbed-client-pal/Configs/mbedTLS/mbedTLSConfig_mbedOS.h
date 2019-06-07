@@ -205,6 +205,8 @@
 #endif //MBEDTLS_CIPHER_MODE_CTR
 
 // Save ROM and a few bytes of RAM by specifying our own ciphersuite list
+// TODO: grep through each subsystem looking for mbed tls features that subsystem enables("MBEDTLS_*")
+// TODO: check what features are getting linked in during the build and look for anomolies then find which subsystem is enabling them(see above).
 // TODO: replace all suites with a single chachapoly suite
 // TODO: try client lite with PSK with DTLS vs full client with certs and TLS
 // TODO: generate cert with shorter EC curve(might already be done) -- look for ec key type secp_256512 via openssl x509 cert inspection.
