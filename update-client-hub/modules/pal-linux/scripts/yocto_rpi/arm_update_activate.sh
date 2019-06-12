@@ -107,10 +107,16 @@ if ! mount "/dev/${nextPartition}" /mnt/root; then
     exit 4
 fi
 # Uncompress the image
-if ! tar xvjf $FIRMWARE -C /mnt/root; then
-    echo "Image copy failed"
-    exit 5
+if ! tar xvf $FIRMWARE -C /mnt/root; then
+    echo "Image extract failed for tar, trying next bz2:"
+    if ! tar xvjf $FIRMWARE -C mnt/root; then
+        echo "Extract for bz2 also failed! Exiting"
+        echo "Image copy failed"
+        exit 5
+    fi
 fi
+echo "Extracted firmware successfully!"
+
 umount /mnt/root
 
 if ! mkdir -p /mnt/flags ; then

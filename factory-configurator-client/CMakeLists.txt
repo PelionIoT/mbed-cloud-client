@@ -15,7 +15,7 @@ SET(MODULES
 
 # add fcc-bundle-handler only if secsrv-cbor repo exist
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/secsrv-cbor)
-      list (APPEND MODULES fcc-bundle-handler)    
+      list (APPEND MODULES fcc-bundle-handler)
 endif()
 
 # includes
@@ -55,8 +55,17 @@ message("*********************************************************************")
 
 # fccstorage library
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/storage/storage)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/storage/source/include)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/include)
+
 FILE(GLOB FCC_STORAGE_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_items_pal_sst.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_items_pelion_sst.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/key_slot_allocator.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_dispatcher.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_common.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_psa.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_non_psa.c"
 )
 
 # fccstorage is depending sotp and esfs.
@@ -64,16 +73,25 @@ add_library(fccstorage STATIC "${FCC_STORAGE_SRC}")
 add_dependencies(fccstorage esfs sotp)
 target_link_libraries(fccstorage esfs sotp)
 
+# crypto service library
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/crypto-service/crypto-service)
+FILE(GLOB CRYPTO_SERVICE_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/crypto-service/source/*.c"
+)
+add_library(crypto-service STATIC "${CRYPTO_SERVICE_SRC}")
+#add_dependencies(crypto-service pal)
+#target_link_libraries(crypto-service pal)
+
 # key-config-manager library
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/key-config-manager)
 FILE(GLOB KEY_CONFIG_MANAGER_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/key_config_manager.c"
 )
 
 # fccstorage is depending sotp and esfs.
 add_library(key-config-manager STATIC "${KEY_CONFIG_MANAGER_SRC}")
-add_dependencies(key-config-manager certificate-enrollment-client)
-target_link_libraries(key-config-manager certificate-enrollment-client)
+add_dependencies(key-config-manager crypto-service fccstorage)
+target_link_libraries(key-config-manager crypto-service fccstorage)
 
 
 CREATE_LIBRARY(factory-configurator-client "${factory-configurator-client}" "")
@@ -84,7 +102,7 @@ add_dependencies(factory-configurator-client fccstorage key-config-manager pal)
 # Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
 # just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
 # automatically build all the submodules.
-target_link_libraries(factory-configurator-client fccstorage key-config-manager pal)
+target_link_libraries(factory-configurator-client fccstorage key-config-manager fccstorage pal)
 
 
 ADDSUBDIRS()

@@ -14,49 +14,47 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-#ifndef __STORAGE_ESFS_H__
-#define __STORAGE_ESFS_H__
+#ifndef __STORAGE_ITEMS_PELION_SST_H__
+#define __STORAGE_ITEMS_PELION_SST_H__
 
 #include <inttypes.h>
 #include "key_config_manager.h"
 #include "kcm_defs.h"
 #include "esfs.h"
-#include "cs_hash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-#define KCM_FILE_PREFIX_MAX_SIZE 12
 //ESFS defines
 #define STORAGE_FILENAME_MAX_SIZE ESFS_MAX_NAME_LENGTH
+
 typedef enum {
-    KCM_CERT_CHAIN_LEN_MD_TYPE,
-    KCM_MD_TYPE_MAX_SIZE // can't be bigger than ESFS_MAX_TYPE_LENGTH_VALUES
-} kcm_meta_data_type_e;
+    STORE_ESFS_MD_TYPE_CHAIN_LEN,
+    STORE_ESFS_MD_TYPE_MAX // can't be bigger than ESFS_MAX_TYPE_LENGTH_VALUES
+} store_esfs_meta_data_type_e;
 
 #if ESFS_MAX_TYPE_LENGTH_VALUES < KCM_MD_TYPE_MAX_SIZE
 #error "KCM_MD_TYPE_MAX_SIZE can't be greater than ESFS_MAX_TYPE_LENGTH_VALUES"
 #endif
 
-typedef struct kcm_meta_data_ {
-    kcm_meta_data_type_e type;
+typedef struct store_esfs_meta_data_ {
+    store_esfs_meta_data_type_e type;
     size_t data_size;
     uint8_t *data;
-} kcm_meta_data_s;
+} store_esfs_meta_data_s;
 
-typedef struct kcm_meta_data_list_ {
+typedef struct store_esfs_meta_data_list_ {
     // allocate a single meta data for each type
-    kcm_meta_data_s meta_data[KCM_MD_TYPE_MAX_SIZE];
+    store_esfs_meta_data_s meta_data[STORE_ESFS_MD_TYPE_MAX];
     size_t meta_data_count;
-} kcm_meta_data_list_s;
+} store_esfs_meta_data_list_s;
 
-typedef struct kcm_ctx_ {
+typedef struct store_esfs_file_ctx_ {
     esfs_file_t esfs_file_h;
     size_t file_size;
     bool is_file_size_checked;
-} kcm_ctx_s;
+} store_esfs_file_ctx_s;
 
 /* === File Operations === */
 
@@ -72,7 +70,12 @@ typedef struct kcm_ctx_ {
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_create(kcm_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length, const kcm_meta_data_list_s *kcm_meta_data_list, bool is_factory, bool is_encrypted);
+kcm_status_e storage_file_create(store_esfs_file_ctx_s *ctx, 
+                                 const uint8_t *file_name, 
+                                 size_t file_name_length, 
+                                 const store_esfs_meta_data_list_s *meta_data_list, 
+                                 bool is_factory, 
+                                 bool is_encrypted);
 
 /** Open existing file
 *
@@ -83,7 +86,7 @@ kcm_status_e storage_file_create(kcm_ctx_s *ctx, const uint8_t *file_name, size_
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_open(kcm_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length);
+kcm_status_e storage_file_open(store_esfs_file_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length);
 
 /** Close file in storage
 *
@@ -92,7 +95,7 @@ kcm_status_e storage_file_open(kcm_ctx_s *ctx, const uint8_t *file_name, size_t 
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_close(kcm_ctx_s *ctx);
+kcm_status_e storage_file_close(store_esfs_file_ctx_s *ctx);
 
 /** Write data to previously opened file in storage
 *
@@ -103,7 +106,7 @@ kcm_status_e storage_file_close(kcm_ctx_s *ctx);
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_write_with_ctx(kcm_ctx_s *ctx, const uint8_t *data, size_t data_length);
+kcm_status_e storage_file_write_with_ctx(store_esfs_file_ctx_s *ctx, const uint8_t *data, size_t data_length);
 
 
 /** Writes a new file to storage
@@ -120,7 +123,14 @@ kcm_status_e storage_file_write_with_ctx(kcm_ctx_s *ctx, const uint8_t *data, si
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_write(kcm_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length, const uint8_t *data, size_t data_length, const kcm_meta_data_list_s *kcm_meta_data_list, bool is_factory, bool is_encrypted);
+kcm_status_e storage_file_write(store_esfs_file_ctx_s *ctx, 
+                                const uint8_t *file_name, 
+                                size_t file_name_length, 
+                                const uint8_t *data, 
+                                size_t data_length, 
+                                const store_esfs_meta_data_list_s *meta_data_list, 
+                                bool is_factory, 
+                                bool is_encrypted);
 
 
 /** Returns the size of the data in a file
@@ -133,7 +143,7 @@ kcm_status_e storage_file_write(kcm_ctx_s *ctx, const uint8_t *file_name, size_t
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_size_get(kcm_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length, size_t *file_size_out);
+kcm_status_e storage_file_size_get(store_esfs_file_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length, size_t *file_size_out);
 
 /** Reads data from a file.
 *
@@ -147,7 +157,7 @@ kcm_status_e storage_file_size_get(kcm_ctx_s *ctx, const uint8_t *file_name, siz
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_read(kcm_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length, uint8_t *buffer_out, size_t buffer_size, size_t *buffer_actual_size_out);
+kcm_status_e storage_file_read(store_esfs_file_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length, uint8_t *buffer_out, size_t buffer_size, size_t *buffer_actual_size_out);
 
 /** Returns the size of the data in a file. The file should be opened by storage_file_open()
 *
@@ -157,7 +167,7 @@ kcm_status_e storage_file_read(kcm_ctx_s *ctx, const uint8_t *file_name, size_t 
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_size_get_with_ctx(kcm_ctx_s *ctx, size_t *file_size_out);
+kcm_status_e storage_file_size_get_with_ctx(store_esfs_file_ctx_s *ctx, size_t *file_size_out);
 
 /** Reads data from a file. The file should be opened by storage_file_open().
 *
@@ -169,7 +179,7 @@ kcm_status_e storage_file_size_get_with_ctx(kcm_ctx_s *ctx, size_t *file_size_ou
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_read_with_ctx(kcm_ctx_s *ctx, uint8_t *buffer_out, size_t buffer_size, size_t *buffer_actual_size_out);
+kcm_status_e storage_file_read_with_ctx(store_esfs_file_ctx_s *ctx, uint8_t *buffer_out, size_t buffer_size, size_t *buffer_actual_size_out);
 /** Deletes the file from storage
 *
 *   @param ctx KCM operation context.
@@ -179,7 +189,7 @@ kcm_status_e storage_file_read_with_ctx(kcm_ctx_s *ctx, uint8_t *buffer_out, siz
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_delete(kcm_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length);
+kcm_status_e storage_file_delete(store_esfs_file_ctx_s *ctx, const uint8_t *file_name, size_t file_name_length);
 
 /** Get the size of the stored meta data type. The file should be opened by storage_file_open().
 *
@@ -190,7 +200,7 @@ kcm_status_e storage_file_delete(kcm_ctx_s *ctx, const uint8_t *file_name, size_
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_get_meta_data_size(kcm_ctx_s *ctx, kcm_meta_data_type_e type, size_t *meta_data_size_out);
+kcm_status_e storage_file_get_meta_data_size(store_esfs_file_ctx_s *ctx, store_esfs_meta_data_type_e type, size_t *meta_data_size_out);
 
 /** Reads meta data into a kcm_meta_data
 *
@@ -203,10 +213,10 @@ kcm_status_e storage_file_get_meta_data_size(kcm_ctx_s *ctx, kcm_meta_data_type_
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_read_meta_data_by_type(kcm_ctx_s *ctx, kcm_meta_data_type_e type, uint8_t *buffer_out, size_t buffer_size, size_t *buffer_actual_size_out);
+kcm_status_e storage_file_read_meta_data_by_type(store_esfs_file_ctx_s *ctx, store_esfs_meta_data_type_e type, uint8_t *buffer_out, size_t buffer_size, size_t *buffer_actual_size_out);
 
 #ifdef __cplusplus
 }
 #endif
-#endif //__STORAGE_ESFS_H__
+#endif //__STORAGE_ITEMS_PELION_SST_H__
 #endif//MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

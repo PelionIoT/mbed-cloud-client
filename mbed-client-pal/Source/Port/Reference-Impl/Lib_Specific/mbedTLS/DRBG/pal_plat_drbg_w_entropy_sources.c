@@ -24,7 +24,7 @@
 
 // This file implements pal_plat_drbg.h for mbedtls properly
 
-#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) &&  !defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 #include "pal.h"
 #include "pal_plat_drbg.h"
 #include "sotp.h"

@@ -28,6 +28,8 @@
 
 #include <inttypes.h>
 
+#define TRACE_GROUP  "UCPI"
+
 #ifndef MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS
 #define MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS 0
 #endif

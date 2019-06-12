@@ -1980,18 +1980,7 @@ extern int8_t sn_nsdl_clear_coap_received_blockwise_messages(struct nsdl_s *hand
         return SN_NSDL_FAILURE;
     }
 
-    // Enable function once new CoAP API is released to mbed-os
-    // sn_coap_protocol_clear_received_blockwise_messages(handle->grs->coap);
-
-    /* Loop all stored Blockwise messages in Linked list */
-    ns_list_foreach_safe(coap_blockwise_payload_s, removed_payload_ptr, &handle->grs->coap->linked_list_blockwise_received_payloads) {
-        ns_list_remove(&handle->grs->coap->linked_list_blockwise_received_payloads, removed_payload_ptr);
-        /* Free memory of stored payload */
-        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr->addr_ptr);
-        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr->payload_ptr);
-        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr->token_ptr);
-        handle->grs->coap->sn_coap_protocol_free(removed_payload_ptr);
-    }
+    sn_coap_protocol_clear_received_blockwise_messages(handle->grs->coap);
 
     return SN_NSDL_SUCCESS;
 }

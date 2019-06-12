@@ -32,6 +32,7 @@
 
 palStatus_t pal_plat_DRBGSeed();
 
+#ifdef MBEDTLS_ENTROPY_NV_SEED
 //Error Translation from PSA module to PAL
 PAL_PRIVATE palStatus_t pal_osPsaErrorTranslation(psa_status_t err)
 {
@@ -49,7 +50,7 @@ PAL_PRIVATE palStatus_t pal_osPsaErrorTranslation(psa_status_t err)
     }
     return ret;
 }
-
+#endif //MBEDTLS_ENTROPY_NV_SEED
 /*
  * If entropy not in storage - store the entropy and seed the DRBG for future use
  * If entropy already in storage - do nothing return FCC_STATUS_ENTROPY_ERROR
@@ -58,17 +59,17 @@ PAL_PRIVATE palStatus_t pal_osPsaErrorTranslation(psa_status_t err)
 
 /**
  * Inject entropy to non-volatile memory via mbedtls PSA API
- * 
+ *
  * * If bufSizeBytes larger than 32, hash (SHA256) and inject the message digest (32 bytes)
  * * If it is exactly 32 inject the buffer
  * * If it is less than 32, return an error
- * 
+ *
  * After injecting, this API will seed the DRBG instance in pal_plat_drbg.
  * FIXME: When https://jira.arm.com/browse/IOTCRYPT-180 is resolved - no need to hash, just inject 48 bytes
  *
  * @param entropyBuf - pointer to buffer containing the entropy
  * @param bufSizeBytes - size of entropyBuf in bytes
- * 
+ *
  * @return PAL_SUCCESS - if operation is successful
  *         PAL_ERR_NOT_SUPPORTED - if code compiled in a way that does not expect an entropy to be injected (TRNG must be available)
  *         PAL_ERR_INVALID_ARGUMENT - bufSizeBytes too small
@@ -84,7 +85,7 @@ palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBy
 
     if (bufSizeBytes < PAL_SHA256_SIZE) {
         return PAL_ERR_INVALID_ARGUMENT;
-    } else if (bufSizeBytes > PAL_SHA256_SIZE) { 
+    } else if (bufSizeBytes > PAL_SHA256_SIZE) {
         if (pal_sha256(entropyBuf, bufSizeBytes, buf) != PAL_SUCCESS) {
             return PAL_ERR_GENERIC_FAILURE;
         }
@@ -93,7 +94,7 @@ palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBy
         bufSizeBytes = PAL_SHA256_SIZE;
     }
 
-    
+
     // Inject the entropy
     status = pal_osPsaErrorTranslation(mbedtls_psa_inject_entropy(entropyBuf, bufSizeBytes));
     if (status != PAL_SUCCESS && status != PAL_ERR_ENTROPY_EXISTS) {
@@ -112,7 +113,7 @@ palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBy
      */
 
     // Only now that the entropy is injected, we may seed the DRBG, and make calls to pal_plat_osRandomBuffer_blocking()
-    // FIXME: When the DRBG module moves to the client, it will provide a seeding API and fcc_entropy_set() will call 
+    // FIXME: When the DRBG module moves to the client, it will provide a seeding API and fcc_entropy_set() will call
     // the DRBG seeding function. Then pal_plat_osEntropyInject will not have to do so. Note that we seed the DRBG even
     // though pal_plat_osRandomBuffer_blocking() tries to seed it because we would like to know of failures as soon as
     // possible (already in the factory, were this API is invoked, as pal_plat_osRandomBuffer_blocking() may not be invoked

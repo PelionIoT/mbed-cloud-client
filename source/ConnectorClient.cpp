@@ -17,7 +17,9 @@
 // ----------------------------------------------------------------------------
 
 // fixup the compilation on ARMCC for PRId32
+#ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
+#endif
 #include <inttypes.h>
 
 #include "include/ConnectorClient.h"
@@ -29,6 +31,7 @@
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 
 #include "MbedCloudClient.h"
+#include "MbedCloudClientConfig.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2minterfacefactory.h"
 #include "mbed-client/m2mdevice.h"
@@ -45,12 +48,6 @@
 
 #include "ns_hal_init.h"
 
-#ifdef MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
-#define MBED_CLIENT_EVENT_LOOP_SIZE MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
-#else
-#define MBED_CLIENT_EVENT_LOOP_SIZE 1024
-#endif
-
 #define TRACE_GROUP "mClt"
 
 #define INTERNAL_ENDPOINT_PARAM     "&iep="
@@ -59,7 +56,6 @@
 #define CREDENTIAL_ERROR            "Failed to read credentials from storage"
 #define DEVICE_NOT_PROVISIONED      "Device not provisioned"
 #define CONNECTOR_ERROR_NO_MEMORY   "Not enough memory to store LWM2M credentials"
-
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #define ERROR_EST_ENROLLMENT_REQUEST_FAILED   "EST enrollment request failed"
@@ -338,7 +334,7 @@ bool ConnectorClient::setup()
 }
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
-const EstClient &ConnectorClient::est_client()
+const EstClient &ConnectorClient::est_client() const
 {
     return _est_client;
 }

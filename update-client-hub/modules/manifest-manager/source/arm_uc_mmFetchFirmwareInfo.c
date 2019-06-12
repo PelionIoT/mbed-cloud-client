@@ -96,6 +96,10 @@ int ARM_UC_mmGetImageRef(manifest_firmware_info_t *info, arm_uc_buffer_t *mfst_f
     return rc;
 }
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+#define VENDOR_INFO_STREAM_DELTA_SIZE_LEN_OFFSET 74
+#endif
+
 #define ARM_UC_MM_MFST_CRYPT_LOCAL_ID_FIELDS \
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_FMT_ENUM)\
     ENUM_AUTO(ARM_UC_MM_DER_MFST_FW_CRYPT_IV)\
@@ -299,6 +303,32 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
                 break;
             }
 
+
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+            //------------------------------------------------------------------------
+            // Store vendor info
+            ARM_UC_MM_SET_BUFFER(ctx->current_data, ctx->info->manifestBuffer);
+            ctx->current_data.size = ctx->info->manifestSize;
+            err = ARM_UC_mmGetVendorInfo(&ctx->current_data, &ctx->info->vendorInfo.vendorBuffer);
+            if (err.error != 0) {
+                break;
+            }
+
+            // Assuming here the deltaSize is always last in the VendorInfo, offset starts from 73
+            // like defined in arm_uc_mmManifestVendorInfoElementsDescription
+            // TODO: parse the whole DER/ASN1 structure from the vendorinfo -blob
+            uint64_t deltaSize = 0;
+            arm_uc_buffer_t temp_buf;
+
+            temp_buf.ptr = ctx->info->vendorInfo.vendorBuffer.ptr + VENDOR_INFO_STREAM_DELTA_SIZE_LEN_OFFSET + 1;
+            temp_buf.size = ctx->info->vendorInfo.vendorBuffer.ptr[VENDOR_INFO_STREAM_DELTA_SIZE_LEN_OFFSET];
+
+            deltaSize = ARM_UC_mmDerBuf2Uint64(&temp_buf);
+            ctx->info->vendorInfo.deltaSize = (uint32_t)deltaSize;
+            printf("ARM_UC_mmFetchFirmwareInfoFSM: vendorInfo.deltaSize: %" PRIu32 " \n", ctx->info->vendorInfo.deltaSize);
+
+#endif
+
             ctx->info->cipherMode = ARM_UC_MM_CIPHERMODE_NONE;
             // Found an encryption mode and firmware!
             uint32_t cryptoMode = ARM_UC_mmDerBuf2Uint(&buffers[0]);
@@ -306,8 +336,12 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
                 // Encryption not in use. Skip key, ID, and IV extraction.
                 rc = ARM_UC_mmGetImageRef(ctx->info, &fwBuf);
                 if (rc == 0) {
-                    ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
-                    err.code = ERR_NONE;
+                    if (ctx->info->size == 0) {
+                        err.code = MFST_ERR_FIRMWARE_SIZE;
+                    } else {
+                        ctx->state = ARM_UC_MM_FW_STATE_GET_FW_REF;
+                        err.code = ERR_NONE;
+                    }
                 } else {
                     err.code = MFST_ERR_DER_FORMAT;
                 }
@@ -317,30 +351,55 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
             // local key ID & encrypted key
             rc = ARM_UC_mmGetLocalIDAndKey(ctx->info, &fwBuf);
             if (!rc) {
-                ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
+                ctx->state = ARM_UC_MM_FW_STATE_GET_FW_REF;
                 err.code = ERR_NONE;
                 break;
             }
             // Certificate and encrypted key
             rc = ARM_UC_mmGetCertAndKey(ctx->info, &fwBuf);
             if (!rc) {
-                ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
+                ctx->state = ARM_UC_MM_FW_STATE_GET_FW_REF;
                 err.code = ERR_NONE;
                 break;
             }
             // Certificate and key table reference
             rc = ARM_UC_mmGetCertAndKeyTable(ctx->info, &fwBuf);
             if (!rc) {
-                ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
+                ctx->state = ARM_UC_MM_FW_STATE_GET_FW_REF;
                 err.code = ERR_NONE;
                 break;
             }
-
+            // Otherwise, the encryption info is invalid
+            ARM_UC_SET_ERROR(err, MFST_ERR_DER_FORMAT);
             break;
         }
     case ARM_UC_MM_FW_STATE_GET_FW_REF:
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+            /* We could decide whether to look for these fields based on
+         * the version number, but they are all optional anyway, so
+         * just treat them as optional fields with defaults.
+         */
+        err = ARM_UC_mmGetInstalledDigest(&ctx->current_data, &ctx->info->installedHash);
+        if (ARM_UC_IS_ERROR(err)) {
+            ARM_UC_buffer_shallow_copy(&ctx->info->installedHash, &ctx->info->hash);
+        }
+        err = ARM_UC_mmGetInstalledSize(&ctx->current_data, &ctx->info->installedSize);
+        if (ARM_UC_IS_ERROR(err)) {
+            ctx->info->installedSize = ctx->info->size;
+        }
+        err = ARM_UC_mmGetPrecursorDigest(&ctx->current_data, &ctx->info->precursor);
+        if (ARM_UC_IS_ERROR(err)) {
+            memset(&ctx->info->precursor, 0, sizeof(ctx->info->precursor));
+        }
+        err = ARM_UC_mmGetPriority(&ctx->current_data, &ctx->info->priority);
+        if (ARM_UC_IS_ERROR(err)) {
+            ctx->info->priority = 0;
+        }
+#endif
+        ctx->state = ARM_UC_MM_FW_STATE_NOTIFY;
+        err.code = ERR_NONE;
+        break;
 
-        // TODO: Ref only
     case ARM_UC_MM_FW_STATE_NOTIFY:
         ctx->state = ARM_UC_MM_FW_STATE_ROOT_NOTIFY_WAIT;
         err.code = MFST_ERR_PENDING;

@@ -117,10 +117,6 @@
     #define PAL_USE_SECURE_TIME 0
 #endif
 
-#ifndef PAL_USE_SOTP
-    #define PAL_USE_SOTP    0
-#endif
-
 /* To relax some pal_init/pal_destroy tests when running unit tests from testapp.
  * Can be that unit test is not only instance that initializes pal. */
 #ifndef PAL_INITIALIZED_BEFORE_TESTS

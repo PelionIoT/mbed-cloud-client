@@ -434,6 +434,7 @@ static void do_check_resume_activity(uintptr_t a_param)
         } else if (a_resume_p->sum_total_period >= a_resume_p->activity_max_time) {
             UC_RESUME_TRACE("resume max-activity-time reached - %" PRIu32 " secs",
                             a_resume_p->activity_max_time / 1000);
+
             // Past the maximum time we should keep trying, so just let it die.
             a_resume_p->currently_resuming = false;
             // Make the callback and let handler take care of it.

@@ -22,10 +22,15 @@
 
 #include "update-client-paal/arm_uc_paal_update.h"
 #include "update-client-paal/arm_uc_paal_update_api.h"
-
+#include "arm_uc_config.h"
 #define TRACE_GROUP  "UCPI"
 
 static const ARM_UC_PAAL_UPDATE *paal_update_implementation = NULL;
+
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+extern ARM_UC_PAAL_UPDATE ARM_UCP_DELTA_PAAL;
+extern arm_uc_error_t ARM_UC_DeltaPaal_SetPAALStorage(const ARM_UC_PAAL_UPDATE *implementation);
+#endif
 
 /**
  * @brief Set PAAL Update implementation.
@@ -37,7 +42,12 @@ arm_uc_error_t ARM_UCP_SetPAALUpdate(const ARM_UC_PAAL_UPDATE *implementation)
 {
     UC_PAAL_TRACE("ARM_UCP_SetPAALUpdate");
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+    paal_update_implementation = &ARM_UCP_DELTA_PAAL;
+    return ARM_UC_DeltaPaal_SetPAALStorage(implementation);
+#else
     paal_update_implementation = implementation;
+#endif
 
     return (arm_uc_error_t) { ERR_NONE };
 }

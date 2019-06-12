@@ -1,5 +1,7 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2019 ARM Ltd.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -254,6 +256,12 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
         goto finish;
     }
     ptrAttr = &attr;
+
+    if (stackSize < PTHREAD_STACK_MIN)
+    {        
+        PAL_LOG_WARN("Stack size is less than PTHREAD_STACK_MIN (%#x), change the stack size to PTHEAD_STACK_MIN\r\n", PTHREAD_STACK_MIN);
+        stackSize = PTHREAD_STACK_MIN;
+    }
 
     err = pthread_attr_setstacksize(ptrAttr, stackSize);
     if (0 != err)

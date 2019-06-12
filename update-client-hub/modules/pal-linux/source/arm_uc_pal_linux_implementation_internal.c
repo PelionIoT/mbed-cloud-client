@@ -35,6 +35,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#define TRACE_GROUP  "UCPI"
+
 /* pointer to external callback handler */
 static ARM_UC_PAAL_UPDATE_SignalEvent_t arm_uc_pal_external_callback = NULL;
 

@@ -933,7 +933,10 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
                         interfaceInfo->addressSize = sizeof(struct sockaddr_in6);
                     }
 
-                    strncpy(interfaceInfo->interfaceName, s_palNetworkInterfacesSupported[interfaceNum].interfaceName, strlen(s_palNetworkInterfacesSupported[interfaceNum].interfaceName));
+                    snprintf(interfaceInfo->interfaceName,
+                             sizeof(interfaceInfo->interfaceName),
+                             s_palNetworkInterfacesSupported[interfaceNum].interfaceName,
+                             strlen(s_palNetworkInterfacesSupported[interfaceNum].interfaceName));
 
                     result = pal_plat_socketAddressToPalSockAddr(ifa->ifa_addr, &interfaceInfo->address, &interfaceInfo->addressSize);
 

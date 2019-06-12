@@ -62,6 +62,11 @@ typedef struct _arm_uc_firmware_details_t {
     uint8_t signature[0];
 } arm_uc_firmware_details_t;
 
+typedef struct _arm_uc_delta_details_t {
+    uint8_t is_delta;
+    uint64_t delta_payload_size;
+} arm_uc_delta_details_t;
+
 /**
  * @brief Installer details struct.
  * @details Struct for reading the installer information.

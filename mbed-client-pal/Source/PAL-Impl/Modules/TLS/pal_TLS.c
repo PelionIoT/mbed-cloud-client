@@ -20,7 +20,15 @@
 
 // do not require storage unless this modules is configured to use it
 #if PAL_USE_SECURE_TIME
-#include "storage.h"
+#include "storage_items.h"
+#endif
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+#include "key_config_manager.h"
+static const char* kcm_session_item_name = "sslsession";
+static void pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf);
+static void pal_saveSslSessionToStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf);
+static void pal_removeSslSessionFromStorage(palTLSConfHandle_t palTLSConf);
 #endif
 
 #define TRACE_GROUP "PAL"
@@ -39,6 +47,7 @@ typedef struct palTLSConfService
 {
     bool trustedTimeServer;
     palTLSConfHandle_t platTlsConfHandle;
+    bool useSslSessionResume;
 }palTLSConfService_t;
 
 palStatus_t pal_initTLSLibrary(void)
@@ -99,6 +108,15 @@ palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHan
 
     g_trustedServerValid = false;
     palTLSCtx->retryHandShake = false;
+    palTLSCtx->serverTime = 0;
+
+    status = pal_plat_sslSetup(palTLSCtx->platTlsHandle, palTLSConfCtx->platTlsConfHandle);
+    if (PAL_SUCCESS == status)
+    {
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+        pal_loadSslSessionFromStorage(*palTLSHandle, palTLSConf);
+#endif //PAL_USE_SSL_SESSION_RESUME
+    }
 
 finish:
     if (PAL_SUCCESS == mutexStatus)
@@ -208,6 +226,7 @@ palStatus_t pal_initTLSConfiguration(palTLSConfHandle_t* palTLSConf, palTLSTrans
     }
 
     palTLSConfCtx->trustedTimeServer = false;
+    palTLSConfCtx->useSslSessionResume = false;
     *palTLSConf = (palTLSHandle_t)palTLSConfCtx;
 finish:
     if (PAL_SUCCESS != status)
@@ -424,12 +443,6 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
     PAL_VALIDATE_ARGUMENTS((NULLPTR == palTLSConfCtx || NULLPTR == palTLSCtx));
     PAL_VALIDATE_ARGUMENTS((NULLPTR == palTLSCtx->platTlsHandle || NULLPTR == palTLSConfCtx->platTlsConfHandle));
 
-    status = pal_plat_sslSetup(palTLSCtx->platTlsHandle, palTLSConfCtx->platTlsConfHandle);
-    if (PAL_SUCCESS != status)
-    {
-        goto finish;
-    }
-
     if (!palTLSCtx->retryHandShake)
     {
         status = pal_plat_handShake(palTLSCtx->platTlsHandle, &palTLSCtx->serverTime);
@@ -450,6 +463,9 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
                 {
                     status = PAL_ERR_X509_CERT_VERIFY_FAILED;
                     palTLSCtx->serverTime = 0;
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+                    pal_removeSslSessionFromStorage(palTLSConfCtx->platTlsConfHandle);
+#endif
                 }
             }
 #else
@@ -458,6 +474,7 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
                 status = PAL_ERR_X509_CERT_VERIFY_FAILED;
                 palTLSCtx->serverTime = 0;
             }
+
 #endif //PAL_USE_SECURE_TIME
         }
     }
@@ -466,10 +483,13 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
     {
         PAL_LOG_DBG("SSL START RENEGOTIATE");
         if (!palTLSConfCtx->trustedTimeServer) //! if we are not proccessing handshake with the time trusted server we
-        {									  //! will use PAL_TLS_VERIFY_REQUIRED authentication mode
+        {                                      //! will use PAL_TLS_VERIFY_REQUIRED authentication mode
             status = pal_plat_setAuthenticationMode(palTLSConfCtx->platTlsConfHandle, PAL_TLS_VERIFY_REQUIRED);
             if (PAL_SUCCESS != status)
             {
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+                pal_removeSslSessionFromStorage(palTLSConfCtx->platTlsConfHandle);
+#endif
                 goto finish;
             }
         }
@@ -491,12 +511,15 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
         //! We ignore the pal_updateTime() result, because it should not cause a failure to the handshake process.
         //! Logs are printed in the pal_updateTime() function in case of failure.
         pal_updateTime(palTLSCtx->serverTime, palTLSConfCtx->trustedTimeServer);
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+        pal_saveSslSessionToStorage(palTLSHandle, palTLSConf);
+#endif
     }
+
 #endif //PAL_USE_SECURE_TIME
 finish:
     return status;
 }
-
 
 palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult)
 {
@@ -576,7 +599,6 @@ palStatus_t pal_sslDebugging(uint8_t turnOn)
     return PAL_ERR_NOT_SUPPORTED;
 }
 
-
 palStatus_t pal_sslSetDebugging(palTLSConfHandle_t palTLSConf, uint8_t turnOn)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -586,3 +608,157 @@ palStatus_t pal_sslSetDebugging(palTLSConfHandle_t palTLSConf, uint8_t turnOn)
     status = pal_plat_sslSetDebugging(palTLSConfCtx->platTlsConfHandle, turnOn);
     return status;
 }
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+void pal_enableSslSessionStoring(palTLSConfHandle_t palTLSConf, bool enable)
+{
+    palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
+    palTLSConfCtx->useSslSessionResume = enable;
+}
+
+void pal_removeSslSessionFromStorage(palTLSConfHandle_t palTLSConf)
+{
+    palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
+    if (!palTLSConfCtx->useSslSessionResume)
+    {
+        PAL_LOG_ERR("pal_removeSslSessionFromStorage - feature not enabled!");
+        return;
+    }
+
+    kcm_item_delete((uint8_t *)kcm_session_item_name,
+                    strlen(kcm_session_item_name),
+                    KCM_CONFIG_ITEM);
+}
+
+void pal_saveSslSessionToStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf)
+{
+    palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
+    palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
+    uint8_t *session_data;
+    size_t session_size = 0;
+
+    if (!palTLSConfCtx->useSslSessionResume)
+    {
+        PAL_LOG_ERR("pal_saveSslSessionToStorage - feature not enabled!");
+        return;
+    }
+
+    session_data = pal_plat_GetSslSessionBuffer(palTLSCtx->platTlsHandle, &session_size);
+    if (!session_data)
+    {
+        PAL_LOG_ERR("pal_saveSslSessionToStorage - failed to get session buffer!");
+        return;
+    }
+
+    bool replace = false;
+    size_t act_size = 0;
+    kcm_status_e kcm_status = kcm_item_get_data_size((uint8_t *)kcm_session_item_name,
+                                   strlen(kcm_session_item_name),
+                                   KCM_CONFIG_ITEM, &act_size);
+
+    if (kcm_status != KCM_STATUS_SUCCESS)
+    {
+        replace = true;
+    }
+
+
+    // Check existing data before writing it again to storage
+    if (!replace)
+    {
+        replace = true;
+        uint8_t *existing_session = (uint8_t*)malloc(act_size);
+        if (!existing_session)
+        {
+            PAL_LOG_ERR("pal_saveSslSessionToStorage - failed to allocate buffer!");
+            free(session_data);
+            return;
+        }
+
+        size_t data_out = 0;
+        kcm_status = kcm_item_get_data((uint8_t *)kcm_session_item_name,
+                                       strlen(kcm_session_item_name),
+                                       KCM_CONFIG_ITEM, existing_session, act_size, &data_out);
+
+        if (kcm_status == KCM_STATUS_SUCCESS && memcmp(session_data, existing_session, act_size) == 0)
+        {
+            replace = false;
+        }
+
+        free(existing_session);
+    }
+
+    // Store only if session has changed or there is no data yet
+    if (replace)
+    {
+        PAL_LOG_DBG("pal_saveSslSessionToStorage - save a new session");
+        kcm_item_delete((uint8_t *)kcm_session_item_name,
+                                     strlen(kcm_session_item_name),
+                                     KCM_CONFIG_ITEM);
+
+        kcm_status = kcm_item_store((uint8_t *)kcm_session_item_name,
+                                    strlen(kcm_session_item_name),
+                                    KCM_CONFIG_ITEM,
+                                    false,
+                                    session_data,
+                                    session_size,
+                                    NULL);
+
+        if (kcm_status != KCM_STATUS_SUCCESS)
+        {
+            PAL_LOG_DBG("pal_saveSslSessionToStorage - failed to store data: %d", kcm_status);
+        }
+    }
+    else
+    {
+        PAL_LOG_DBG("pal_saveSslSessionToStorage - keep old session");
+    }
+
+    free(session_data);
+}
+
+void pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf)
+{
+    palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
+    palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
+
+    if (!palTLSConfCtx->useSslSessionResume)
+    {
+        PAL_LOG_ERR("pal_loadSslSessionFromStorage - feature not enabled!");
+        return;
+    }
+
+    size_t act_size = 0;
+    kcm_status_e kcm_status = kcm_item_get_data_size((uint8_t *)kcm_session_item_name,
+                                   strlen(kcm_session_item_name),
+                                   KCM_CONFIG_ITEM, &act_size);
+
+    if (kcm_status != KCM_STATUS_SUCCESS)
+    {
+        PAL_LOG_ERR("pal_loadSslSessionFromStorage - failed to get item size!");
+        return;
+    }
+
+    uint8_t *existing_session = (uint8_t*)malloc(act_size);
+    if (!existing_session)
+    {
+        PAL_LOG_ERR("pal_loadSslSessionFromStorage - failed to allocate buffer!");
+        return;
+    }
+
+    size_t data_out = 0;
+    kcm_status = kcm_item_get_data((uint8_t *)kcm_session_item_name,
+                                   strlen(kcm_session_item_name),
+                                   KCM_CONFIG_ITEM, existing_session, act_size, &data_out);
+
+    if (kcm_status != KCM_STATUS_SUCCESS)
+    {
+        PAL_LOG_ERR("pal_loadSslSessionFromStorage - failed to get item!");
+        free(existing_session);
+        return;
+    }
+
+    pal_plat_SetSslSession(palTLSCtx->platTlsHandle, existing_session);
+    free(existing_session);
+}
+
+#endif //PAL_USE_SSL_SESSION_RESUME

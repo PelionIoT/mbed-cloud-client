@@ -2,3 +2,6 @@
 */Test/*
 */test-utils/*
 */stubs/*
+delta-tool-internal/bsdiff/*
+delta-tool-internal/*.sh
+delta-tool-internal/test_data/*

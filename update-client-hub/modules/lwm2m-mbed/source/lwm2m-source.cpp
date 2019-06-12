@@ -29,14 +29,18 @@
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
 #include "update-client-lwm2m/DeviceMetadataResource.h"
 #include "update-client-common/arm_uc_config.h"
+#ifdef LWM2M_SOURCE_USE_C_API
+#include "firmware_update.h"
+#include "device_metadata.h"
+#include "lwm2m_get_req_handler.h"
+#endif
 
-/* error management */
-static arm_uc_error_t arm_ucs_lwm2m_error = {ERR_NONE};
-arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetError(void) { return arm_ucs_lwm2m_error; }
-arm_uc_error_t ARM_UCS_LWM2M_SOURCE_SetError(arm_uc_error_t an_error) { return (arm_ucs_lwm2m_error = an_error); }
+#include <stdio.h>
 
+#ifndef LWM2M_SOURCE_USE_C_API
 /* forward declaration */
 static void ARM_UCS_PackageCallback(const uint8_t *buffer, uint16_t length);
+#endif
 
 /* local copy of the received manifest */
 static uint8_t *arm_ucs_manifest_buffer = NULL;
@@ -44,19 +48,15 @@ static uint16_t arm_ucs_manifest_length = 0;
 
 /* callback function pointer and struct */
 static void (*ARM_UCS_EventHandler)(uintptr_t event) = 0;
-static arm_uc_callback_t callbackNodeManifest = { NULL, 0, NULL, 0 };
+static arm_uc_callback_t callbackNodeData = { NULL, 0, NULL, 0 };
 static arm_uc_callback_t callbackNodeNotification = { NULL, 0, NULL, 0 };
 
 #if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
-static bool arm_uc_get_data_request_transaction_ongoing = false;
-static size_t arm_uc_received_file_size = 0;
-static size_t arm_uc_total_file_size = 0;
 static void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, bool last_block,
                                          void *context);
 static void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *context);
 
 #define ARM_UCS_DEFAULT_COST (900)
-#define ARM_UCS_HASH_LENGTH  (40)
 
 // The hub uses a double buffer system to speed up firmware download and storage
 #define BUFFER_SIZE_MAX (ARM_UC_BUFFER_SIZE / 2) //  define size of the double buffers
@@ -65,28 +65,47 @@ static void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, 
 #error MBED_CLOUD_CLIENT_UPDATE_BUFFER must be at least double the size of SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
 #endif
 
-// Set proper Storage buffer size with requirements:
-// 1. Storage buffer size >= Block size (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE)
-// 1. & 2 AND is >= page size (BUFFER_SIZE_MAX)
-// 2. & 3. AND is multiple of Block size (X * SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE)
-#define STORAGE_BUFFER_SIZE max_storage(SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE, BUFFER_SIZE_MAX)
-//                                  1.               2.                 3.
-#define max_storage(X,Y)    ((X) > (Y) ? (X) : ( (Y%X==0) ? (Y) :(BLOCK_MULTIPLIER(X,Y)*X)))
+#ifndef MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE
+#define MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE 1
+#endif
 
-#define BLOCK_MULTIPLIER(X,Y)   ((Y/X)+1)
+/* consistency check */
+#if (MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE == 0)
+#error Update client storage page cannot be zero.
+#endif
 
-static uint8_t storage_message[STORAGE_BUFFER_SIZE];
-static arm_uc_buffer_t storage_buffer = {
-    .size_max = STORAGE_BUFFER_SIZE,
-    .size = 0,
-    .ptr = storage_message
-};
+/* Check that SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE is aligned with the storage page size */
+#if ((SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE % MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE) != 0)
+#error SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be divisible by the block page size
+#endif
 
-static arm_uc_buffer_t *output_buffer_ptr = NULL;
-static char *copy_full_url = NULL;
-static DownloadType download_type = FIRMWARE_DOWNLOAD; //default FIRMWARE = COAP download using filepath of server;
+#ifndef LWM2M_SOURCE_USE_C_API
+/* M2MInterface */
+static M2MInterface *arm_ucs_m2m_interface = NULL;
+#endif
 
 #endif // ARM_UC_FEATURE_FW_SOURCE_COAP
+
+#ifdef LWM2M_SOURCE_USE_C_API
+
+static endpoint_t *endpoint;
+
+void ARM_UCS_LWM2M_SOURCE_endpoint_set(endpoint_t *ep)
+{
+    endpoint = ep;
+}
+
+registry_t *ARM_UCS_LWM2M_SOURCE_registry_get(void)
+{
+    return &endpoint->registry;
+}
+
+const ARM_UPDATE_SOURCE *ARM_UCS_LWM2M_SOURCE_source_get(void)
+{
+   return &ARM_UCS_LWM2M_SOURCE;
+}
+
+#endif
 
 /**
  * @brief Get driver version.
@@ -138,15 +157,11 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event
     UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_Initialize: %p", cb_event);
     ARM_UC_INIT_ERROR(result, SRCE_ERR_INVALID_PARAMETER);
 
-#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
-    arm_uc_get_data_request_transaction_ongoing = false;
-    arm_uc_received_file_size = 0;
-    arm_uc_total_file_size = 0;
-#endif
-
     if (cb_event != 0) {
         /* store callback handler */
         ARM_UCS_EventHandler = cb_event;
+
+#ifndef LWM2M_SOURCE_USE_C_API
 
         /* Initialize LWM2M Firmware Update Object */
         FirmwareUpdateResource::Initialize();
@@ -157,11 +172,19 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event
         DeviceMetadataResource::Initialize();
 
         ARM_UC_SET_ERROR(result, ERR_NONE);
+
+#else
+        /* Initialize LWM2M Firmware Update Object */
+        if (firmware_update_initialize(&endpoint->registry) && device_metadata_create(&endpoint->registry)) {
+            ARM_UC_SET_ERROR(result, ERR_NONE);
+        } else {
+            firmware_update_destroy(&endpoint->registry);
+        }
+#endif
+
+
     }
 
-    if (ARM_UC_IS_ERROR(result)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(result);
-    }
     return result;
 }
 
@@ -172,8 +195,13 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Initialize(ARM_SOURCE_SignalEvent_t cb_event
 arm_uc_error_t ARM_UCS_LWM2M_SOURCE_Uninitialize(void)
 {
     ARM_UC_INIT_ERROR(retval, ERR_NONE);
+#ifndef LWM2M_SOURCE_USE_C_API
     DeviceMetadataResource::Uninitialize();
     FirmwareUpdateResource::Uninitialize();
+#else
+    device_metadata_destroy(&endpoint->registry);
+    firmware_update_destroy(&endpoint->registry);
+#endif
 
     return retval;
 }
@@ -204,9 +232,6 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefaultCost(uint32_t *cost)
         ARM_UC_SET_ERROR(result, ERR_NONE);
     }
 
-    if (ARM_UC_IS_ERROR(result)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(result);
-    }
     return result;
 }
 
@@ -254,20 +279,17 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestDefault(arm_uc_buffer_t *buffer,
 
             /* signal event handler that manifest has been copied to buffer */
             if (ARM_UCS_EventHandler) {
-                ARM_UC_PostCallback(&callbackNodeManifest,
+                ARM_UC_PostCallback(&callbackNodeData,
                                     ARM_UCS_EventHandler,
                                     EVENT_MANIFEST);
             }
         }
     }
 
-    if (ARM_UC_IS_ERROR(result)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(result);
-    }
     return result;
 }
 
-static void ARM_UCS_PackageCallback(const uint8_t *buffer, uint16_t length)
+bool ARM_UCS_LWM2M_SOURCE_manifast_received(const uint8_t *buffer, uint16_t length)
 {
     uint32_t event_code = EVENT_ERROR;
 
@@ -296,7 +318,17 @@ static void ARM_UCS_PackageCallback(const uint8_t *buffer, uint16_t length)
                             ARM_UCS_EventHandler,
                             event_code);
     }
+
+    return (event_code != EVENT_ERROR);
+
 }
+
+#ifndef LWM2M_SOURCE_USE_C_API
+static void ARM_UCS_PackageCallback(const uint8_t *buffer, uint16_t length)
+{
+    (void)ARM_UCS_LWM2M_SOURCE_manifast_received(buffer, length);
+}
+#endif
 
 
 /**
@@ -331,9 +363,7 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareURLCost(arm_uc_uri_t *uri,
         result.code = ERR_NONE ;
     }
 #endif
-    if (ARM_UC_IS_ERROR(result)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(result);
-    }
+
     return result;
 }
 
@@ -352,230 +382,118 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment(arm_uc_uri_t *uri,
                                                         arm_uc_buffer_t *buffer,
                                                         uint32_t offset)
 {
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
-    arm_uc_error_t retval = { .code = SRCE_ERR_INVALID_PARAMETER };
 #if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
-    if (uri == NULL || buffer == NULL || FirmwareUpdateResource::getM2MInterface() == NULL) {
-        return retval;
-    }
+    if (uri &&
+        uri->ptr &&
+        buffer &&
+        buffer->ptr &&
+#ifndef LWM2M_SOURCE_USE_C_API
+        arm_ucs_m2m_interface) {
+#else
+        endpoint) {
+#endif
 
-    UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: %s %s, buffer size: %" PRIu32 ", buffer max: %" PRIu32
-                  " offset: %" PRIu32, (const char *)uri->ptr, uri->path, buffer->size, buffer->size_max, offset);
-    UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: total file size %" PRIu32 ", received file size %" PRIu32,
-                  (uint32_t)arm_uc_total_file_size, (uint32_t)arm_uc_received_file_size);
+        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: %s%s, buffer size: %" PRIu32 ", buffer max: %" PRIu32
+                      " offset: %" PRIu32, (const char *) uri->host, uri->path, buffer->size, buffer->size_max, offset);
 
-    /*
-     * NOTE: we are using M2MInterface API "get_data_request()" asynchronously, so first call to GetFirmwareFragment()
-     * will not return anything in the buffer. Instead we will get COAP blocks into callback arm_uc_get_data_req_callback()
-     * where we will copy those to our internal storage_buffer. When storage_buffer has enough data
-     * (more or eq than buffer->size_max == Storage Page size) we will copy data from it to output buffer
-     * and indicate to Hub state machine using event EVENT_FIRMWARE
-     */
-    if (offset == 0) {
-        // First fragment
-        storage_buffer.size = 0;
-        arm_uc_received_file_size = 0;
-        arm_uc_total_file_size = 0;
-    } else if (arm_uc_received_file_size == 0) {
-        // The received file size was reset to zero indicating that we have received the full payload
-        // as indicated by the server but we are asked to carry on downloading from the given offset.
-        // This indicates a mismatch between the actual payload size in the server and that given in the manifest.
-        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: payload size indicated in manifest is bigger than that reported by server!");
-        if (ARM_UCS_EventHandler) {
-            ARM_UC_PostCallback(&callbackNodeManifest,
-                                ARM_UCS_EventHandler,
-                                EVENT_ERROR);
+        /* Convert URI struct back to URI string. */
+        buffer->size = 0;
+        if (uri->scheme == URI_SCHEME_COAPS) {
+            buffer->size = snprintf((char*) buffer->ptr, buffer->size_max, "coaps://%s%s", uri->host, uri->path);
+        } else if (uri->scheme == URI_SCHEME_HTTP) {
+            buffer->size = snprintf((char*) buffer->ptr, buffer->size_max, "http://%s%s", uri->host, uri->path);
         }
-        return retval;
-    }
+        buffer->ptr[buffer->size] = '\0';
 
-    output_buffer_ptr = buffer;
-    free(copy_full_url);
-    copy_full_url = (char *)malloc(arm_uc_calculate_full_uri_length(uri));
-    if (copy_full_url == NULL) {
-        //TODO to return SRCE_ERR_OUT_OF_MEMORY
-        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: ERROR OUT OF MEMORY for uri copy!");
-        return retval;
-    }
-    if (uri->scheme == URI_SCHEME_COAPS) {
-        strcpy(copy_full_url, UC_COAPS_STRING);
-    } else if (uri->scheme == URI_SCHEME_HTTP) {
-        strcpy(copy_full_url, UC_HTTP_STRING);
-    } else {
-        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Not Supported SCHEME! length of copy url: %u",
-                      sizeof(copy_full_url));
-        return retval;
-    }
-    strcat(copy_full_url, (const char *)uri->ptr);
-    strcat(copy_full_url, uri->path);
-
-    if ((arm_uc_received_file_size == arm_uc_total_file_size &&
-            arm_uc_received_file_size != 0)) {
-
-        // If last block - write to buffer and complete
-        if (storage_buffer.ptr &&
-                (arm_uc_received_file_size == arm_uc_total_file_size)) {
-            memcpy(buffer->ptr, storage_buffer.ptr, storage_buffer.size);
-            buffer->size = storage_buffer.size;
-            memmove(storage_buffer.ptr, storage_buffer.ptr + storage_buffer.size, (storage_buffer.size_max - storage_buffer.size));
-            storage_buffer.size -= buffer->size;
-        }
-
-        // We were waiting for one more state machine cycle for previous write to complete
-        // Now we can return with EVENT_FIRMWARE so that main state machine changes properly
-        if (ARM_UCS_EventHandler) {
-            ARM_UC_PostCallback(&callbackNodeManifest,
-                                ARM_UCS_EventHandler,
-                                EVENT_FIRMWARE);
-        }
-        retval.code = ERR_NONE;
-        arm_uc_received_file_size = 0;
-        arm_uc_total_file_size = 0;
-    } else if (!arm_uc_get_data_request_transaction_ongoing) {
-        // We need to get request for next block of data
-        UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment: Issue new get request for uri: %s, offset: %" PRIu32,
-                      copy_full_url, (uint32_t)arm_uc_received_file_size);
-        if (FirmwareUpdateResource::getM2MInterface()) {
-
-            FirmwareUpdateResource::getM2MInterface()->get_data_request(download_type,
-                                                                        copy_full_url,
-                                                                        arm_uc_received_file_size,
-                                                                        true,
-                                                                        arm_uc_get_data_req_callback,
-                                                                        arm_uc_get_data_req_error_callback,
-                                                                        FirmwareUpdateResource::getM2MInterface());
-
-            arm_uc_get_data_request_transaction_ongoing = true;
+        if (buffer->size) {
+            /* Request data fragment through M2M interface from offset. Requested length defaults
+               to the CoAP packet size when the asynchronous flag is set to true.
+            */
+#ifndef LWM2M_SOURCE_USE_C_API
+            arm_ucs_m2m_interface->get_data_request(FIRMWARE_DOWNLOAD,
+                                                    (const char*) buffer->ptr,
+                                                    offset,
+                                                    true,
+                                                    arm_uc_get_data_req_callback,
+                                                    arm_uc_get_data_req_error_callback,
+                                                    buffer);
+#else
+            get_handler_send_get_data_request(endpoint,
+                                              FIRMWARE_DOWNLOAD,
+                                              (const char*) buffer->ptr,
+                                              offset,
+                                              true,
+                                              arm_uc_get_data_req_callback,
+                                              arm_uc_get_data_req_error_callback,
+                                              buffer);
+#endif
 
             retval.code = ERR_NONE;
         }
-    } else {
-        // There is not enough data in Storage buffer yet
-        // AND We have Async get_data_request already ongoing
-        // -> Do nothing we should not get here?
-        // This can happen if GetFirmwareFragment is called again before
-        // the previous get completed with buffer and EVENT_FIRMWARE
-        UC_SRCE_ERR_MSG("Internal error: BLOCK - data request already ongoing");
     }
-    if (ARM_UC_IS_ERROR(retval)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(retval);
-    }
+
     return retval;
+
 #else
     (void) uri;
     (void) buffer;
     (void) offset;
+
     return retval;
 #endif //ARM_UC_FEATURE_FW_SOURCE_COAP
 }
 
 #if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
-void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, size_t total_size, bool last_block,
+/**
+ * @brief      Internal function for handling data reception.
+ *
+ * @param[in]  buffer       Pointer to buffer with received data.
+ * @param[in]  buffer_size  Buffer size.
+ * @param[in]  total_size   Total size of requested resource.
+ * @param[in]  last_block   Boolean to indicate if this is the last block of the resource.
+ * @param      context      Pointer to context passed in the originating call.
+ */
+void arm_uc_get_data_req_callback(const uint8_t *buffer,
+                                  size_t buffer_size,
+                                  size_t total_size,
+                                  bool last_block,
                                   void *context)
 {
-    (void)last_block;
+    (void) last_block;
+    (void) total_size;
 
-    UC_SRCE_TRACE("get_data_req_callback: %" PRIu32 ", %" PRIu32, (uint32_t)buffer_size, (uint32_t)total_size);
-    M2MInterface *interface = (M2MInterface *)context;
+    UC_SRCE_TRACE("get_data_req_callback: %" PRIu32 ", %" PRIu32,
+                  (uint32_t) buffer_size, (uint32_t) total_size);
 
-    if (arm_uc_received_file_size == 0) {
-        arm_uc_total_file_size = total_size;
-    }
+    /* Cast context back to buffer pointer. */
+    arm_uc_buffer_t *output_buffer = (arm_uc_buffer_t *) context;
 
-    arm_uc_received_file_size += buffer_size;
-    UC_SRCE_TRACE("get_data_req_callback:  received %" PRIu32 "/%" PRIu32, (uint32_t)arm_uc_received_file_size,
-                  (uint32_t)arm_uc_total_file_size);
+    /* Ensure buffer is valid. */
+    if (output_buffer &&
+        output_buffer->ptr &&
+        (output_buffer->size_max >= buffer_size)) {
 
-    if (arm_uc_received_file_size == arm_uc_total_file_size) {
-        UC_SRCE_TRACE("get_data_req_callback:  transfer completed\n");
-    }
+        /* Copy data to internal buffer and set size. */
+        memcpy(output_buffer->ptr, buffer, buffer_size);
+        output_buffer->size = buffer_size;
 
-    /*
-     * FLOW:
-     * 1. If there is space in Storage buffer for the incoming buffer -> copy buffer to storage buffer
-     * 2. Else signal error event EVENT_ERROR_BUFFER_SIZE
-     */
-    // Check there is space available in the storage buffer
-    if (storage_buffer.size_max - storage_buffer.size >= buffer_size) {
-        memcpy(storage_buffer.ptr + storage_buffer.size, buffer, buffer_size);
-        storage_buffer.size += buffer_size;
+        /* Signal hub data is ready. */
+        if (ARM_UCS_EventHandler) {
+            ARM_UC_PostCallback(&callbackNodeData,
+                                ARM_UCS_EventHandler,
+                                EVENT_FIRMWARE);
+        }
     } else {
-        // Error - no space available, signal it to source manager
-        UC_SRCE_TRACE("arm_uc_get_data_req_callback:  Storage Buffer OVERFLOW ERROR!! \n");
+        /* Signal hub an error occurred. */
         if (ARM_UCS_EventHandler) {
-            ARM_UC_PostCallback(&callbackNodeManifest,
+            ARM_UC_PostCallback(&callbackNodeData,
                                 ARM_UCS_EventHandler,
-                                EVENT_ERROR_BUFFER_SIZE);
+                                EVENT_ERROR);
         }
-        return;
     }
 
-    /*
-     * FLOW:
-     * 1. If there is enough data in storage-buffer now to complete to output buffer, copy now and indicate with EVENT_FIRMWARE
-     *    to continue to write -cycle
-     * 2. Else if this is the last block of data, copy the remaining (<size_max) to output buffer and indicate with
-     *    EVENT_FIRMWARE to continue to write-cycle
-     * 3. Else Request new block of data using API get_data_request
-     */
-    if (storage_buffer.size >= output_buffer_ptr->size_max) {
-        // 1. We have received into Storage buffer at least one page size of data
-        // -> Let's return it to UC Hub so that it can be written
-        UC_SRCE_TRACE("arm_uc_get_data_req_callback: return with Storage buffer size: %" PRIu32 ", buffer size: %" PRIu32,
-                      storage_buffer.size, output_buffer_ptr->size_max);
-        if (storage_buffer.ptr) {
-            memcpy(output_buffer_ptr->ptr, storage_buffer.ptr, output_buffer_ptr->size_max);
-            //storage_buffer.ptr += buffer->size_max;
-            memmove(storage_buffer.ptr, storage_buffer.ptr + output_buffer_ptr->size_max,
-                    (storage_buffer.size_max - output_buffer_ptr->size_max));
-            storage_buffer.size -= output_buffer_ptr->size_max;
-            output_buffer_ptr->size = output_buffer_ptr->size_max;
-        }
-
-        if (ARM_UCS_EventHandler) {
-            ARM_UC_PostCallback(&callbackNodeManifest,
-                                ARM_UCS_EventHandler,
-                                EVENT_FIRMWARE);
-        }
-        arm_uc_get_data_request_transaction_ongoing = false;
-    } else if (arm_uc_received_file_size == arm_uc_total_file_size &&
-               arm_uc_received_file_size != 0) {
-
-        // 2. this is the last block of data - copy to output buffer and complete with EVENT_FIRMWARE
-        if (storage_buffer.ptr &&
-                (arm_uc_received_file_size == arm_uc_total_file_size)) {
-            memcpy(output_buffer_ptr->ptr, storage_buffer.ptr, storage_buffer.size);
-            output_buffer_ptr->size = storage_buffer.size;
-
-            memmove(storage_buffer.ptr, storage_buffer.ptr + storage_buffer.size, (storage_buffer.size_max - storage_buffer.size));
-            storage_buffer.size = 0;
-        }
-
-        // We were waiting for one more state machine cycle for previous write to complete
-        // Now we can return with EVENT_FIRMWARE so that main state machine changes properly
-        if (ARM_UCS_EventHandler) {
-            ARM_UC_PostCallback(&callbackNodeManifest,
-                                ARM_UCS_EventHandler,
-                                EVENT_FIRMWARE);
-        }
-        arm_uc_get_data_request_transaction_ongoing = false;
-        free(copy_full_url);
-        copy_full_url = NULL;
-        arm_uc_received_file_size = 0;
-        arm_uc_total_file_size = 0;
-    } else  {
-        // 3. We want to issue new get data
-        UC_SRCE_TRACE("arm_uc_get_data_req_callback: Issue new get request for uri: %s, offset: %" PRIu32, copy_full_url,
-                      (uint32_t)arm_uc_received_file_size);
-        interface->get_data_request(download_type,
-                                        copy_full_url,
-                                        arm_uc_received_file_size,
-                                        true,
-                                        arm_uc_get_data_req_callback,
-                                        arm_uc_get_data_req_error_callback,
-                                        interface);
-        arm_uc_get_data_request_transaction_ongoing = true;
-    }
 #ifdef ARM_UC_COAP_DATA_PRINTOUT
     if (buffer) {
         uint32_t i = 0;
@@ -590,25 +508,52 @@ void arm_uc_get_data_req_callback(const uint8_t *buffer, size_t buffer_size, siz
 
             i += row_len;
         }
-
     }
 #endif
 }
 
+/**
+ * @brief      Internal function for handling request errors.
+ *
+ * @param[in]  error_code  Error code.
+ * @param      context     Pointer to context passed in the originating call.
+ */
 void arm_uc_get_data_req_error_callback(get_data_req_error_t error_code, void *context)
 {
-    UC_SRCE_TRACE("get_data_req_error_callback:  ERROR: %u\n", error_code);
-    arm_uc_received_file_size = 0;
-    arm_uc_total_file_size = 0;
-    arm_uc_get_data_request_transaction_ongoing = false;
-    free(copy_full_url);
-    copy_full_url = NULL;
-    download_type = FIRMWARE_DOWNLOAD;
+    UC_SRCE_TRACE("get_data_req_error_callback: ERROR: %u\n", error_code);
+
+    /* Propagate error to hub. */
     if (ARM_UCS_EventHandler) {
-        ARM_UC_PostCallback(&callbackNodeManifest,
+        ARM_UC_PostCallback(&callbackNodeData,
                             ARM_UCS_EventHandler,
                             EVENT_ERROR);
     }
+}
+
+/**
+ * @brief      Function for providing access to the M2M interface.
+ * @param      interface  Pointer to M2M interface.
+ * @return     Error code.
+ */
+arm_uc_error_t ARM_UCS_LWM2M_SOURCE_SetM2MInterface(M2MInterface *interface)
+{
+    UC_SRCE_TRACE("ARM_UCS_LWM2M_SOURCE_SetM2MInterface");
+
+    ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
+
+    if (interface) {
+#ifndef LWM2M_SOURCE_USE_C_API
+        arm_ucs_m2m_interface = interface;
+#endif
+        retval.code = ERR_NONE;
+
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
+        DeviceMetadataResource::setM2MInterface(interface);
+        FirmwareUpdateResource::setM2MInterface(interface);
+#endif
+    }
+
+    return retval;
 }
 #endif //ARM_UC_FEATURE_FW_SOURCE_COAP
 
@@ -640,9 +585,6 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURLCost(arm_uc_uri_t *uri,
         ARM_UC_SET_ERROR(result, ERR_NONE);
     }
 
-    if (ARM_UC_IS_ERROR(result)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(result);
-    }
     return result;
 }
 
@@ -670,9 +612,6 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURLCost(arm_uc_uri_t *uri,
         ARM_UC_SET_ERROR(result, ERR_NONE);
     }
 
-    if (ARM_UC_IS_ERROR(result)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(result);
-    }
     return result;
 }
 
@@ -696,9 +635,6 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetManifestURL(arm_uc_uri_t *uri,
 
     ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
-    if (ARM_UC_IS_ERROR(retval)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(retval);
-    }
     return retval;
 }
 
@@ -719,8 +655,5 @@ arm_uc_error_t ARM_UCS_LWM2M_SOURCE_GetKeytableURL(arm_uc_uri_t *uri,
 
     ARM_UC_INIT_ERROR(retval, SRCE_ERR_INVALID_PARAMETER);
 
-    if (ARM_UC_IS_ERROR(retval)) {
-        ARM_UCS_LWM2M_SOURCE_SetError(retval);
-    }
     return retval;
 }

@@ -725,7 +725,7 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                         int64_t lifetime;
                         bool success = String::convert_ascii_to_int((char*)received_coap_header->payload_ptr, received_coap_header->payload_len, lifetime);
                         if ((success == false) || (lifetime < MINIMUM_REGISTRATION_TIME)) {
-                            tr_error("M2MResourceBase::handle_put_request() - lifetime value % " PRId32 " not acceptable", lifetime);
+                            tr_error("M2MResourceBase::handle_put_request() - lifetime value % " PRId64 " not acceptable", lifetime);
                             msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                         }
                     } else {

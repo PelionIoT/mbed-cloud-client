@@ -45,6 +45,7 @@ typedef uintptr_t palGroupIDHandle_t;
 typedef uintptr_t palECKeyHandle_t;
 typedef uintptr_t palSignatureHandle_t;
 typedef uintptr_t palx509CSRHandle_t;
+typedef uintptr_t palKeyHandle_t;
 
 //! Key types to be set to the AES engine.
 typedef enum palAesKeyType{
@@ -90,6 +91,11 @@ typedef enum palASNTag{
 #define PAL_ASN1_TAG_BITS 0x1F
 #define PAL_CRYPT_BLOCK_SIZE 16
 #define PAL_SHA256_SIZE 32
+#define PAL_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE 64
+#define PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE 65
+#define PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE 74
+#define PAL_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE 91
+#define PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE 32
 
 typedef enum palFormat{
     PAL_POINT_CONVERSION_UNCOMPRESSED
@@ -145,6 +151,14 @@ typedef enum palX509Attr{
     PAL_X509_SIGNATUR_ATTR,
     PAL_X509_L_ATTR
 }palX509Attr_t;
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+//! Crypto buffer structure.
+typedef struct palCryptoBuffer{
+    uint8_t* buffer;
+    uint32_t size;
+} palCryptoBuffer_t;
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 
 /***************************************************/
@@ -288,11 +302,21 @@ palStatus_t pal_x509CertVerify(palX509Handle_t x509Cert, palX509Handle_t x509Cer
  */
 palStatus_t pal_x509CertVerifyExtended(palX509Handle_t x509Cert, palX509Handle_t x509CertChain, int32_t* verifyResult);
 
+/*! Check usage of certificate against extended-key-usage extension
+*
+* @param[in] x509Cert: A handle holding the parsed certificate.
+* @param[in] option: Intended usage (e.g.: PAL_X509_EXT_KU_CLIENT_AUTH)
+*
+\return PAL_SUCCESS if this use of the certificate is allowed, PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED if not
+*       or PAL_ERR_X509_UNKNOWN_OID if the given usage is unknown or not supported.
+*/
+palStatus_t pal_x509CertCheckExtendedKeyUsage(palX509Handle_t x509Cert, palExtKeyUsage_t usage);
+
 /*! \brief Deallocate all certificate data.
  *
  * @param[in,out] x509Cert: The certificate chain to free.
  *
- \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_x509Free(palX509Handle_t* x509Cert);
 
@@ -422,7 +446,7 @@ palStatus_t pal_CCMDecrypt(palCCMHandle_t ctx, unsigned char* input, size_t inLe
  * @param[in] input      A buffer holding the input data.
  * @param[in] inLen:     The length of the input data.
  * @param[in] iv:        The initialization vector.
- * @param[in] ivLen:     The length of the initalization vector in bytes.
+ * @param[in] ivLen:     The length of the initialization vector in bytes.
  * @param[in] add:       Additional data.
  * @param[in] addLen:    The length of additional data.
  * @param[out] output:   A buffer for holding the output data, must be at least `inLen` bytes wide.
@@ -583,6 +607,73 @@ palStatus_t pal_parseECPrivateKeyFromDER(const unsigned char* prvDERKey, size_t 
  \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_parseECPublicKeyFromDER(const unsigned char* pubDERKey, size_t keyLen, palECKeyHandle_t key);
+
+
+/*! \brief Parse a private key.
+ *
+ * @param[in] prvKeyHandle:   A palKey_t object - either a PSA private key handle or a buffer and size of private key
+ * @param[out] ECKeyHandle:   A handle for the context that holds the parsed private key.
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_parseECPrivateKeyFromHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle);
+
+/*! \brief Parse a public key.
+ *
+ * @param[in] pubKeyHandle:      A palKey_t object - either a PSA public key handle or a buffer and the size of a public key. 
+ * @param[out] ECKeyHandle:      A handle for the context that holds the parsed public key.
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_parseECPublicKeyFromHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle);
+
+/*!	\brief Convert ECDSA signature in RAW format to DER format.
+*
+* @param[in] rawSignature:             The RAW signature buffer.
+* @param[in] rawSignatureSize:         The RAW signature buffer size in bytes.
+* @param[out] derSignatureOut:         A buffer to hold the converted DER signature.
+* @param[in] derSignatureMaxSize:      The size of the DER signature buffer.
+* @param[out] derSignatureActSizeOut:  The actual size of the converted DER signature.
+*
+* \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_convertRawSignatureToDer(
+        const unsigned char         *rawSignature,
+        size_t                       rawSignatureSize,
+        unsigned char               *derSignatureOut,
+        size_t                       derSignatureMaxSize,
+        size_t                      *derSignatureActSizeOut);
+
+/*! \brief Compute the Elliptic Curve Digital Signature Algorithm (ECDSA) raw signature of a previously hashed message.
+* 
+*  The function supports keys with PAL_ECP_DP_SECP256R1 curve only.
+*
+* @param[in] privateKeyHanlde         A parsed private key.
+* @param[in] mdType:                  The MD algorithm to be used.
+* @param[in] hash:                    The message hash.
+* @param[in] hashSize:                The size of the  message buffer.
+* @param[in/out] outSignature:        A buffer to hold the computed raw signature.
+* @param[in] maxSignatureSize:        The size of the signature buffer.
+* @param[out] actualOutSignatureSize: The actual size of the calculated signature.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_asymmetricSign(const palECKeyHandle_t privateKeyHanlde, palMDType_t mdType, const unsigned char *hash, size_t hashSize, unsigned char *outSignature, size_t maxSignatureSize, size_t *actualOutSignatureSize);
+
+/*! \brief Verify the Elliptic Curve Digital Signature Algorithm (ECDSA) raw signature of a previously hashed message.
+*
+*  The function supports keys with PAL_ECP_DP_SECP256R1 curve only.
+* 
+* @param[in] publicKeyHanlde:    The public key for verification.
+* @param[in] mdType:             The MD algorithm to be used.
+* @param[in] hash:               The message hash.
+* @param[in] hashSize:           The size of the message buffer.
+* @param[in] signature:          The raw signature.
+* @param[in] signatureSize:      The size of the signature.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_asymmetricVerify(const palECKeyHandle_t publicKeyHanlde, palMDType_t mdType, const unsigned char *hash, size_t hashSize, const unsigned char *signature, size_t signatureSize);
 
 /*! \brief DER encode a private key from a key handle.
  *
@@ -753,13 +844,32 @@ palStatus_t pal_x509CSRFree(palx509CSRHandle_t *x509CSR);
 palStatus_t pal_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHandle_t peerPublicKey,
                                 const palECKeyHandle_t privateKey, palECKeyHandle_t outKey);
 
+/*! \brief Compute the raw shared secret using elliptic curve Diffie–Hellman.
+*
+* @param[in] derPeerPublicKey:            The DER public key from a peer.
+* @param[in] derPeerPublicKeySize:        The size of the DER public key from a peer.
+* @param[in] privateKeyHandle:            The private key handle.
+* @param[in/out] rawSharedSecretOut:      A buffer to hold the computed raw shared secret.
+* @param[in] rawSharedSecretMaxSize:      The size of the raw shared secret buffer.
+* @param[out] rawSharedSecretActSizeOut:  The actual size of the  raw shared secret buffer.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_ECDHKeyAgreement(
+    const uint8_t               *derPeerPublicKey,
+    size_t                       derPeerPublicKeySize,
+    const palECKeyHandle_t       privateKeyHandle,
+    unsigned char               *rawSharedSecretOut,
+    size_t                       rawSharedSecretMaxSize,
+    size_t                      *rawSharedSecretActSizeOut);
+
 /*! \brief Compute the Elliptic Curve Digital Signature Algorithm (ECDSA) signature of a previously hashed message.
  *
  * @param[in] grp:          The ECP group.
  * @param[in] mdType: The MD algorithm to be used.
  * @param[in] prvKey:       The private signing key.
  * @param[in] dgst:         The message hash.
- * @param[in] dgstLen:      The length ofthe  message buffer.
+ * @param[in] dgstLen:      The length of the message buffer.
  * @param[out] sig:         A buffer to hold the computed signature.
  * @param[out] sigLen:      The length of the computed signature.
  *
@@ -776,7 +886,7 @@ palStatus_t pal_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKeyHand
  * @param[in] sign:         The signature.
  * @param[in] sig:          A buffer to hold the computed signature.
  * @param[in] sigLen:       The length of the computed signature.
- * @param[out] verified:    A boolean to hold the verification result.
+ * @param[out] verified:    A Boolean to hold the verification result.
  *
  \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */

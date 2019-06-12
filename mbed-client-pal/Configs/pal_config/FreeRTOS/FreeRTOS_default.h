@@ -95,7 +95,7 @@
     #define PAL_INTERNAL_FLASH_SECTION_2_SIZE       0x1000
 #endif
 
-#ifndef PAL_USE_INTERNAL_FLASH 
+#ifndef PAL_USE_INTERNAL_FLASH
     #define PAL_USE_INTERNAL_FLASH  1
 #endif
 
@@ -106,4 +106,5 @@
 #ifndef PAL_USE_HW_RTC
     #define PAL_USE_HW_RTC    0
 #endif
+
 #endif /* PAL_FREERTOS_CONFIGURATION_H_ */

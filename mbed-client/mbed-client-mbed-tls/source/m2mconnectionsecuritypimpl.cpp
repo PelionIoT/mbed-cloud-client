@@ -97,6 +97,15 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 
     _init_done = M2MConnectionSecurityPimpl::INIT_CONFIGURING;
 
+    // Store session into storage only in case of mds.
+    // Otherwise first handshake against mds will fail.
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    if (M2MSecurity::Bootstrap == security_instance_id) {
+        pal_enableSslSessionStoring(_conf, false);
+    } else {
+        pal_enableSslSessionStoring(_conf, true);
+    }
+#endif
 
     if (_sec_mode == M2MConnectionSecurity::DTLS) {
         // PAL divides the defined MAX_TIMEOUT by 2
@@ -107,7 +116,6 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
         (M2MSecurity::SecurityModeType)security->resource_value_int(M2MSecurity::SecurityMode, security_instance_id);
 
     if (cert_mode == M2MSecurity::Certificate || cert_mode == M2MSecurity::EST ) {
-
         palX509_t owncert;
         palPrivateKey_t privateKey;
         palX509_t caChain;
@@ -140,7 +148,6 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
             tr_error("M2MConnectionSecurityPimpl::init - pal_initPrivateKey failed");
             return M2MConnectionHandler::ERROR_GENERIC;
         }
-
 
         if (PAL_SUCCESS != pal_setOwnPrivateKey(_conf, &privateKey)) {
             tr_error("M2MConnectionSecurityPimpl::init - pal_setOwnPrivateKey failed");
@@ -268,7 +275,7 @@ int M2MConnectionSecurityPimpl::start_handshake()
     return ret;
 }
 
-int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* connHandler)
+int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/)
 {
     tr_debug("M2MConnectionSecurityPimpl::connect");
     int ret = M2MConnectionHandler::ERROR_GENERIC;
@@ -278,6 +285,7 @@ int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* connHandler)
     }
 
     ret = start_handshake();
+
     tr_debug("M2MConnectionSecurityPimpl::connect - handshake ret: %d", ret);
     return ret;
 }

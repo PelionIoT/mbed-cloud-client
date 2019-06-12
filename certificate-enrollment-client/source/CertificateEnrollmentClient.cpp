@@ -1,12 +1,14 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018 ARM Ltd.
-//  
+// Copyright 2018-2019 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//  
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-//  
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,6 +16,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
 #include "CertificateEnrollmentClient.h"
 #include "mbed-client/m2mresource.h"
@@ -49,7 +52,7 @@ namespace CertificateEnrollmentClient {
 
     // Event type that is part of the arm_event_s structure.
     enum event_type_e {
-        EVENT_TYPE_INIT, // Some initializer - nothing done currently, initialization called by mbed cloud client
+        EVENT_TYPE_INIT, // Some initializer - nothing done currently, initialization called by the client
         EVENT_TYPE_RENEWAL_REQUEST, // Certificate renewal request. We can tell if it is initiated by the server or the device with the derived type of CertificateRenewalDataBase of the certificate descriptor / global variable
         EVENT_TYPE_EST_RESPONDED, // Certificate arrived from EST service, or EST failure
         EVENT_TYPE_MAX = 0xff // Must fit in a uint8_t (field in the arm_event_s struct)
@@ -585,3 +588,5 @@ void CertificateEnrollmentClient::testonly_certificate_renewal_post(void *arg)
 
 
 #endif // CERT_RENEWAL_TEST
+
+#endif // #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT

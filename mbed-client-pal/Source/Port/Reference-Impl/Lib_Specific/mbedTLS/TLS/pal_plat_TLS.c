@@ -24,6 +24,7 @@
 #include "stdio.h"
 #endif
 
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -45,9 +46,20 @@ PAL_PRIVATE mbedtls_time_t pal_mbedtlsTimeCB(mbedtls_time_t* timer);
 void mbedtls_debug_set_threshold( int threshold );
 #endif
 
-
 typedef mbedtls_ssl_context platTlsContext;
-typedef mbedtls_ssl_config platTlsConfiguraionContext;
+typedef mbedtls_ssl_config platTlsConfigurationContext;
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+/** Following items need to be stored from mbedtls_ssl_session info structure
+    to do the ssl session resumption.*/
+//int ciphersuite;            /*!< chosen ciphersuite */
+//size_t id_len;              /*!< session id length  */
+//unsigned char id[32];       /*!< session identifier */
+//unsigned char master[48];   /*!< the master secret  */
+
+// Size of the session data
+static const int ssl_session_size = 92;
+#endif
 
 PAL_PRIVATE mbedtls_entropy_context *g_entropy = NULL;
 PAL_PRIVATE bool g_entropyInitiated = false;
@@ -72,7 +84,7 @@ typedef struct palTLS {
 
 //! the full structures will be defined later in the implemetation.
 typedef struct palTLSConf {
-    platTlsConfiguraionContext*  confCtx;
+    platTlsConfigurationContext* confCtx;
     palTLSSocketHandle_t palIOCtx; // which will be used as bio context for mbedTLS
     palTLS_t* tlsContext; // to help us to get the index of the containing palTLS_t in the array. will be updated in the init
                           // maybe we need to make this an array, since index can be shared for more than one TLS context
@@ -90,12 +102,8 @@ typedef struct palTLSConf {
     bool hasKeyHandle;
     psa_key_handle_t key_handle;
 #endif
+
 }palTLSConf_t;
-
-
-
-
-
 
 PAL_PRIVATE palStatus_t translateTLSErrToPALError(int32_t error)
 {
@@ -334,7 +342,7 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
         goto finish;
     }
 
-    localConfigCtx->confCtx = (platTlsConfiguraionContext*)malloc(sizeof(platTlsConfiguraionContext));
+    localConfigCtx->confCtx = (platTlsConfigurationContext*)malloc(sizeof(platTlsConfigurationContext));
     if (NULL == localConfigCtx->confCtx)
     {
         status = PAL_ERR_NO_MEMORY;
@@ -343,6 +351,7 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
     localConfigCtx->tlsContext = NULL;
     localConfigCtx->hasKeys = false;
     localConfigCtx->hasChain = false;
+
     memset(localConfigCtx->cipherSuites, 0,(sizeof(int)* (PAL_MAX_ALLOWED_CIPHER_SUITES+1)) );
     mbedtls_ssl_config_init(localConfigCtx->confCtx);
 
@@ -724,6 +733,7 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
             status = PAL_ERR_GENERIC_FAILURE;
             goto finish;
         }
+
 #if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH) && (PAL_MAX_FRAG_LEN > 0)
         platStatus = mbedtls_ssl_conf_max_frag_len(localConfigCtx->confCtx, PAL_MAX_FRAG_LEN);
         if (SSL_LIB_SUCCESS != platStatus)
@@ -763,11 +773,13 @@ palStatus_t pal_plat_handShake(palTLSHandle_t palTLSHandle, uint64_t* serverTime
                 ( (uint32_t)localTLSCtx->tlsCtx.handshake->randbytes[32 + 2] << 8  ) |
                 ( (uint32_t)localTLSCtx->tlsCtx.handshake->randbytes[32 + 3] << 0  );
         }
+
         if (SSL_LIB_SUCCESS != platStatus)
         {
             status = translateTLSHandShakeErrToPALError(localTLSCtx, platStatus);
         }
     }
+
     return status;
 }
 
@@ -1319,3 +1331,56 @@ int mbedtls_platform_std_nv_seed_write( unsigned char *buf, size_t buf_len )
     return 0;
 }
 #endif //MBEDTLS_ENTROPY_NV_SEED
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+uint8_t* pal_plat_GetSslSessionBuffer(palTLSHandle_t palTLSHandle, size_t *buffer_size)
+{
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+    uint8_t* session_buffer = (uint8_t*)malloc(ssl_session_size);
+    if (session_buffer == NULL)
+    {
+        PAL_LOG_ERR("pal_plat_GetSslSessionBuffer - failed to allocate buffer");
+        return NULL;
+    }
+
+    mbedtls_ssl_session saved_ssl_session = {0};
+    int32_t platStatus = mbedtls_ssl_get_session(&localTLSCtx->tlsCtx, &saved_ssl_session);
+    if (platStatus == SSL_LIB_SUCCESS)
+    {
+        memcpy(session_buffer, (uint8_t*)&saved_ssl_session.id_len, sizeof(saved_ssl_session.id_len));
+        memcpy(session_buffer + sizeof(saved_ssl_session.id_len),
+               (uint8_t*)&saved_ssl_session.id, sizeof(saved_ssl_session.id));
+        memcpy(session_buffer + sizeof(saved_ssl_session.id_len) + sizeof(saved_ssl_session.id),
+               (uint8_t*)&saved_ssl_session.master, sizeof(saved_ssl_session.master));
+        memcpy(session_buffer + sizeof(saved_ssl_session.id_len) + sizeof(saved_ssl_session.id) + sizeof(saved_ssl_session.master),
+               (uint8_t*)&saved_ssl_session.ciphersuite, sizeof(saved_ssl_session.ciphersuite));
+
+        mbedtls_ssl_session_free(&saved_ssl_session);
+    }
+    else
+    {
+        PAL_LOG_ERR("pal_plat_GetSslSessionBuffer - failed to get ssl session %" PRId32, platStatus);
+        free(session_buffer);
+        return NULL;
+    }
+
+    *buffer_size = ssl_session_size;
+    return session_buffer;
+}
+
+void pal_plat_SetSslSession(palTLSHandle_t palTLSHandle, const uint8_t *session_buffer)
+{
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+
+    mbedtls_ssl_session saved_ssl_session = {0};
+    memcpy(&saved_ssl_session.id_len, session_buffer, sizeof(saved_ssl_session.id_len));
+    memcpy(&saved_ssl_session.id, session_buffer + sizeof(saved_ssl_session.id_len), sizeof(saved_ssl_session.id));
+    memcpy(&saved_ssl_session.master, session_buffer + sizeof(saved_ssl_session.id_len) + sizeof(saved_ssl_session.id), sizeof(saved_ssl_session.master));
+    memcpy(&saved_ssl_session.ciphersuite, session_buffer + sizeof(saved_ssl_session.id_len) + sizeof(saved_ssl_session.id) + sizeof(saved_ssl_session.master), sizeof(saved_ssl_session.ciphersuite));
+
+    int32_t platStatus = mbedtls_ssl_set_session(&localTLSCtx->tlsCtx, &saved_ssl_session);
+    if (platStatus != SSL_LIB_SUCCESS) {
+        PAL_LOG_ERR("pal_plat_SetSslSession - session set failed %" PRId32, platStatus);
+    }
+}
+#endif // PAL_USE_SSL_SESSION_RESUME

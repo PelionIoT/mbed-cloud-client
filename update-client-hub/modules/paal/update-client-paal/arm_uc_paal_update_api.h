@@ -32,9 +32,17 @@
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
+/*
+    Available update client trace flags:
+    ARM_UC_PAAL_TRACE_ENABLE
+*/
+
 #if defined(MBED_CONF_MBED_TRACE_ENABLE) && MBED_CONF_MBED_TRACE_ENABLE == 1
 
 #include "mbed-trace/mbed_trace.h"
+
+#undef ARM_UC_PAAL_TRACE_ENABLE
+#define ARM_UC_PAAL_TRACE_ENABLE 1
 
 #define ARM_UC_TRACE_DEBUG_PRINTF(module, fmt, ...) tr_debug("[%-4s] %s:%d: " fmt, module, __FILENAME__, __LINE__, ##__VA_ARGS__)
 #define ARM_UC_TRACE_ERROR_PRINTF(module, fmt, ...) tr_error("[%-4s] %s:%d: " fmt, module, __FILENAME__, __LINE__, ##__VA_ARGS__)

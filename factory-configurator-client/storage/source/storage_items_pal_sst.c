@@ -18,25 +18,20 @@
 #include <stdbool.h>
 #include "pv_error_handling.h"
 #include "pv_macros.h"
-#include "storage.h"
+#include "storage_items.h"
 #include "fcc_malloc.h"
 #include "pal_sst.h"
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-#include "storage_psa.h"
-#endif
+#include "storage_internal.h"
 
 extern bool g_kcm_initialized;
+
 //TODO: add short explanation about certificate chains naming
 #define STORAGE_MAX_ITEM_PREFIX_SIZE 16
-#define STORAGE_CHAIN_CERTIFICATE_INDEX_OFFSET_IN_PREFIX 3  //a,b,c,.. ==> Certa__, Certb__,
-#define STORAGE_CHAIN_CERTIFICATE_END_SIGN_OFFSET_IN_PREFIX 4  // e ==> Certae_
+#define STORAGE_CHAIN_CERTIFICATE_INDEX_OFFSET_IN_PREFIX 3  //a,b,c,.. ==> Crta__, Crtb__,
+#define STORAGE_CHAIN_CERTIFICATE_END_SIGN_OFFSET_IN_PREFIX 4  // e ==> Crtae_
 #define STORAGE_CHAIN_CERTIFICATE_END_OFFSET_IN_NAME  strlen(KCM_FILE_PREFIX_CERTIFICATE)//6 Size of certificate chain prefixes,the same for all chain certificates
 
-
-
-
-
-static kcm_status_e storage_error_handler(palStatus_t pal_status)
+static kcm_status_e pal_to_kcm_error_translation(palStatus_t pal_status)
 {
     kcm_status_e kcm_status;
 
@@ -63,9 +58,10 @@ static kcm_status_e storage_error_handler(palStatus_t pal_status)
     }
     return kcm_status;
 }
-static kcm_status_e storage_get_prefix(
+
+static kcm_status_e get_complete_prefix(
     kcm_item_type_e  kcm_item_type,
-    kcm_data_source_type_e data_source_type,
+    storage_item_prefix_type_e item_prefix_type,
     kcm_chain_cert_name_info_s *cert_name_info,
     char* prefix,
     size_t max_prefix_size)
@@ -74,32 +70,41 @@ static kcm_status_e storage_get_prefix(
     char *kcm_type_prefix;
 
     if (cert_name_info == NULL) {
-
         //For non-chain items use common function that returns item's prefix
-        kcm_status = storage_item_name_get_prefix((kcm_item_type_e)kcm_item_type, data_source_type,(const char**)&kcm_type_prefix);
+        kcm_status = storage_get_prefix_from_type((kcm_item_type_e)kcm_item_type, item_prefix_type,(const char**)&kcm_type_prefix);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during _kcm_item_name_get_prefix");
         SA_PV_ERR_RECOVERABLE_RETURN_IF((strlen(kcm_type_prefix) > max_prefix_size), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Failed during _kcm_item_name_get_prefix");
 
         memcpy((uint8_t*)prefix, kcm_type_prefix, strlen(kcm_type_prefix) + 1);
+    } else { //In case of chain build prefix according to current index
 
-    } else {
+        //1. First we build the first name certificate according to its type: Crta__ for KCM type  and bCrta_ for CE type.
+        //2. Then we change a certificate name according to its index : for example from bCrta_ --> bCrtc_
+        //3. We check if the certificate is last one in the chain , if yes we change its name be adding end sign : bCrtc_ --> bCrtce.
 
-        //In case of chain build prefix according to current index
-        if (data_source_type == KCM_ORIGINAL_ITEM) {
+        //1. First, build name of first certificate according to it's prefix type: KCM or CE.
+        if (item_prefix_type == STORAGE_ITEM_PREFIX_KCM) { //If item prefix type is KCM prefix, for example Crta__
+            //Check that the prefix size doesn't exceed max prefix size.
             SA_PV_ERR_RECOVERABLE_RETURN_IF((strlen(KCM_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE) > max_prefix_size), kcm_status = KCM_STATUS_INVALID_PARAMETER, "prefix exceedes max size");
-            
+            //Copy base of KCM first certificate name to the index
             memcpy((uint8_t*)prefix, KCM_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE, strlen(KCM_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE) + 1);//1 for '\0' from the KCM_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE define
-        }  else {
+        }  else { //If item prefix type is CE prefix - added 'b' letter in the beggining of the prefix, for example bCrta_
             SA_PV_ERR_RECOVERABLE_RETURN_IF((strlen(KCM_RENEWAL_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE) > max_prefix_size), kcm_status = KCM_STATUS_INVALID_PARAMETER, "prefix exceedes max size");
-            
+            //Copy base of CE first certificate name to the index
             memcpy((uint8_t*)prefix, KCM_RENEWAL_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE, strlen(KCM_RENEWAL_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE) + 1);//1 for '\0' from the KCM_RENEWAL_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE define
         }
 
+        //Check that index offset in certificate prefix doesn't exceed max prefix size.
         SA_PV_ERR_RECOVERABLE_RETURN_IF((STORAGE_CHAIN_CERTIFICATE_INDEX_OFFSET_IN_PREFIX > max_prefix_size), kcm_status = KCM_STATUS_INVALID_PARAMETER, "index exceedes max size");
+
+        //2. Convert certificate index's number to a char (a,b,c,d...), for example built prefix bCrta_ will be changed to bCrtc_, for third certificate name in the chain.
         prefix[STORAGE_CHAIN_CERTIFICATE_INDEX_OFFSET_IN_PREFIX] =(char) (cert_name_info->certificate_index + 'a'); 
-      
+
+        //If the certificate is the last one in the chain, set 'e' to the end sign offset in the prefix : bCrtc_ -->bCrtce
         if (cert_name_info->is_last_certificate == true) {
+            //Check that the end sign offset in the prefix doesn't exceed max prefix size.
             SA_PV_ERR_RECOVERABLE_RETURN_IF((STORAGE_CHAIN_CERTIFICATE_END_SIGN_OFFSET_IN_PREFIX > max_prefix_size), kcm_status = KCM_STATUS_INVALID_PARAMETER, "index exceedes max size"); 
+            //3. Set the end sign 'e' in the end sign offset
             prefix[STORAGE_CHAIN_CERTIFICATE_END_SIGN_OFFSET_IN_PREFIX] = 'e';
         }
     }
@@ -107,41 +112,46 @@ static kcm_status_e storage_get_prefix(
     return kcm_status;
 }
 
-static kcm_status_e check_name_validity(const uint8_t * kcm_item_name, size_t kcm_item_name_len)
+static kcm_status_e storage_get_first_cert_in_chain_name_and_info(storage_item_prefix_type_e item_prefix_type,
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len,
+    char *kcm_complete_name,
+    size_t kcm_complete_name_len,
+    palSSTItemInfo_t *palItemInfo)
 {
-    size_t i;
-    int ascii_val;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    palStatus_t pal_status = PAL_SUCCESS;
+    kcm_chain_cert_name_info_s cert_chain_info = { 0 };
+    cert_chain_info.certificate_index = 0;
+    cert_chain_info.is_last_certificate = false;
 
-    // Check size
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name_len > KCM_MAX_FILENAME_SIZE), KCM_STATUS_FILE_NAME_TOO_LONG, "kcm_item_name_len must be %d or less", KCM_MAX_FILENAME_SIZE);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_complete_name_len != KCM_MAX_FILENAME_SIZE || kcm_complete_name == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Wrong kcm_complete_name parameter");
 
-    // Iterate all the characters and make sure all belong to {'A'-'Z' , 'a'-'z' , '0'-'9' , '.' , '-' , '_' }
-    // Regular expression match: "^[a-zA-Z0-9_.-]*$"
-    for (i = 0; i < kcm_item_name_len; i++) {
-        ascii_val = (int)kcm_item_name[i];
-        if (!(
-            (ascii_val >= 'A' && ascii_val <= 'Z') ||
-            (ascii_val >= 'a' && ascii_val <= 'z') ||
-            (ascii_val == '.') ||
-            (ascii_val == '-') ||
-            (ascii_val == '_') ||
-            (ascii_val >= '0' && ascii_val <= '9')
-            )) {
-            return KCM_STATUS_FILE_NAME_INVALID;
-        }
+    //Change complete certificate name to first certificate in chain with the same name
+    kcm_status = storage_build_complete_working_item_name(KCM_CERTIFICATE_ITEM, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, &cert_chain_info);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change single certificate name");
+
+    //Get size
+    pal_status = pal_SSTGetInfo(kcm_complete_name, palItemInfo);
+    if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
+        return  KCM_STATUS_ITEM_NOT_FOUND;
     }
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to get data size");
 
-    return KCM_STATUS_SUCCESS;
+    SA_PV_LOG_WARN("Warning: The operation made on first certificate of the chain using single certificate API!");
+
+    return kcm_status;
 }
 
-kcm_status_e storage_create_complete_data_name(
+static kcm_status_e create_complete_item_name(
     kcm_item_type_e  kcm_item_type,
-    kcm_data_source_type_e data_source_type,
+    storage_item_prefix_type_e item_prefix_type,
     const char *working_dir,
     kcm_chain_cert_name_info_s *cert_name_info, 
     const uint8_t *kcm_name,
     size_t kcm_name_len,
-    char *kcm_buffer_out)
+    char *kcm_complete_name_out,
+    size_t *kcm_complete_name_size_out)
 {
     size_t prefix_length = 0;
     size_t total_length = 0;
@@ -151,13 +161,15 @@ kcm_status_e storage_create_complete_data_name(
     SA_PV_LOG_TRACE_FUNC_ENTER("name len=%" PRIu32 "", (uint32_t)kcm_name_len);
 
     //Check parameters
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_buffer_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_buffer_out parameter");
-    kcm_status = check_name_validity(kcm_name, kcm_name_len);
-    // Check that name is not too long. This is done only in this function since all KCM APIs using file names go through here.
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_complete_name_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_buffer_out parameter");
+    
+    // Check name validation. This is done only in this function since all KCM APIs using file names go
+    // through here.
+    kcm_status = storage_check_name_validity(kcm_name, kcm_name_len);
     SA_PV_ERR_RECOVERABLE_RETURN_IF(kcm_status != KCM_STATUS_SUCCESS, kcm_status, "Invalid KCM name");
 
     //Get item prefix according to source type and kcm type (including chains)
-    kcm_status = storage_get_prefix((kcm_item_type_e)kcm_item_type, data_source_type, cert_name_info,(char*) &prefix, sizeof(prefix)- 1);
+    kcm_status = get_complete_prefix((kcm_item_type_e)kcm_item_type, item_prefix_type, cert_name_info, (char*) &prefix, sizeof(prefix)- 1);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get item prefix");
 
     //Calculate total size of complete item name
@@ -168,23 +180,71 @@ kcm_status_e storage_create_complete_data_name(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((total_length > KCM_MAX_FILENAME_SIZE), KCM_STATUS_INVALID_PARAMETER, "KCM data name too long");
 
     /* Append prefix and name to allocated buffer */
-    memcpy(kcm_buffer_out, STORAGE_PELION_PREFIX, strlen(STORAGE_PELION_PREFIX));
-    memcpy(kcm_buffer_out + strlen(STORAGE_PELION_PREFIX), (uint8_t *)working_dir, strlen(working_dir));
-    memcpy(kcm_buffer_out + strlen(STORAGE_PELION_PREFIX)+ strlen(working_dir), (uint8_t *)prefix, prefix_length);
-    memcpy(kcm_buffer_out + strlen(STORAGE_PELION_PREFIX) + strlen(working_dir)+ prefix_length, (uint8_t *)kcm_name, kcm_name_len);
-    kcm_buffer_out[total_length] = '\0';
+    memcpy(kcm_complete_name_out, STORAGE_PELION_PREFIX, strlen(STORAGE_PELION_PREFIX));
+    memcpy(kcm_complete_name_out + strlen(STORAGE_PELION_PREFIX), (uint8_t *)working_dir, strlen(working_dir));
+    memcpy(kcm_complete_name_out + strlen(STORAGE_PELION_PREFIX) + strlen(working_dir), (uint8_t *)prefix, prefix_length);
+    memcpy(kcm_complete_name_out + strlen(STORAGE_PELION_PREFIX) + strlen(working_dir)+ prefix_length, (uint8_t *)kcm_name, kcm_name_len);
+    kcm_complete_name_out[total_length] = '\0';
+
+    if (kcm_complete_name_size_out != NULL) {
+        // The name being return is always null terminated, however,
+        // set the string size if caller asked for it
+        *kcm_complete_name_size_out = total_length;
+    }
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return KCM_STATUS_SUCCESS;
 }
 
+// This is static because, in storage_items_pelions_sst.c, the backup is done internally inside ESFS.
+// So this function is relevant only for storage_items_pal_sst.c
+static kcm_status_e build_complete_backup_item_name(
+    kcm_item_type_e kcm_item_type,
+    storage_item_prefix_type_e item_prefix_type,
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len,
+    char *kcm_complete_name_out,
+    void *cert_name_info)
+{
+    size_t kcm_complete_name_size_out;
 
-kcm_status_e storage_init()
+    return create_complete_item_name(kcm_item_type,
+                                     item_prefix_type,
+                                     STORAGE_BACKUP_ACRONYM,
+                                     (kcm_chain_cert_name_info_s *) cert_name_info,
+                                     kcm_item_name,
+                                     kcm_item_name_len,
+                                     kcm_complete_name_out,
+                                     &kcm_complete_name_size_out);
+}
+
+
+// The implementation for storage_items_pal_sst.c variant.
+kcm_status_e storage_build_complete_working_item_name(kcm_item_type_e kcm_item_type,
+                                                      storage_item_prefix_type_e item_prefix_type,
+                                                      const uint8_t *kcm_item_name,
+                                                      size_t kcm_item_name_len,
+                                                      char *kcm_complete_name_out,
+                                                      size_t *kcm_complete_name_size_out,
+                                                      void *cert_name_info)
+{
+    return create_complete_item_name(kcm_item_type,
+                                     item_prefix_type,
+                                     STORAGE_WORKING_ACRONYM,
+                                     (kcm_chain_cert_name_info_s *)cert_name_info,
+                                     kcm_item_name,
+                                     kcm_item_name_len,
+                                     kcm_complete_name_out,
+                                     kcm_complete_name_size_out);
+}
+
+kcm_status_e storage_specific_init()
 {
     palStatus_t pal_status = PAL_SUCCESS;
     size_t actual_size;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
     //check if flag file exists
     pal_status = pal_SSTGet(STORAGE_FACTORY_RESET_IN_PROGRESS_ITEM, NULL, 0, &actual_size);
     if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
@@ -199,10 +259,10 @@ kcm_status_e storage_init()
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 
-    return storage_error_handler(pal_status);
+    return pal_to_kcm_error_translation(pal_status);
 }
 
-kcm_status_e storage_finalize()
+kcm_status_e storage_specific_finalize()
 {
     return KCM_STATUS_SUCCESS;
 }
@@ -214,7 +274,7 @@ kcm_status_e storage_reset()
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     pal_status = pal_SSTReset();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), storage_error_handler(pal_status), "Failed pal_SSTReset  (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), pal_to_kcm_error_translation(pal_status), "Failed pal_SSTReset  (%" PRIu32 ")", pal_status);
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 
@@ -235,11 +295,11 @@ kcm_status_e storage_factory_reset()
 
     // set factory reset in progress item flag
     pal_status = pal_SSTSet(STORAGE_FACTORY_RESET_IN_PROGRESS_ITEM, NULL, 0, PAL_SST_REPLAY_PROTECTION_FLAG);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), exit, "Failed pal_SSTSet  (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), exit, "Failed pal_SSTSet  (%" PRIu32 ")", pal_status);
 
     //open iterator with working prefix
     pal_status = pal_SSTIteratorOpen(&sst_iterator, STORAGE_WORKING);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), exit, "Failed pal_SSTIteratorOpen  (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), exit, "Failed pal_SSTIteratorOpen  (%" PRIu32 ")", pal_status);
 
     //iterate over items with 'working' prefix and remove all items
     while ((pal_status = pal_SSTIteratorNext(sst_iterator, (char*)kcm_complete_name, KCM_MAX_FILENAME_SIZE)) == PAL_SUCCESS) {
@@ -252,22 +312,22 @@ kcm_status_e storage_factory_reset()
     }
 
     //verify that we went over all items
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = storage_error_handler(pal_status), iterator_close_end_exit, "Failed pal_SSTIteratorNext (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = pal_to_kcm_error_translation(pal_status), iterator_close_end_exit, "Failed pal_SSTIteratorNext (%" PRIu32 ")", pal_status);
 
     //close iterator
     pal_status = pal_SSTIteratorClose(sst_iterator);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), exit, "Failed pal_SSTIteratorClose (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), exit, "Failed pal_SSTIteratorClose (%" PRIu32 ")", pal_status);
 
     //open iterator with backup prefix
     pal_status = pal_SSTIteratorOpen(&sst_iterator, STORAGE_BACKUP);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), exit, "Failed pal_SSTIteratorOpen  (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), exit, "Failed pal_SSTIteratorOpen  (%" PRIu32 ")", pal_status);
 
     //iterate over items with 'backup' prefix 
     while ((pal_status = pal_SSTIteratorNext(sst_iterator, (char*)kcm_complete_name, KCM_MAX_FILENAME_SIZE)) == PAL_SUCCESS) {
 
         //retreive item info (size and flags)
         pal_status = pal_SSTGetInfo((const char*)kcm_complete_name, &item_info);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), iterator_close_end_exit, "Failed pal_SSTGetInfo  (%" PRIu32 ")", pal_status);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), iterator_close_end_exit, "Failed pal_SSTGetInfo  (%" PRIu32 ")", pal_status);
 
         //allocate buffer for the data according to its size
         data_buffer = malloc(item_info.itemSize);
@@ -275,7 +335,7 @@ kcm_status_e storage_factory_reset()
 
         //read factory item to the buffer
         pal_status = pal_SSTGet((const char*)kcm_complete_name, data_buffer, item_info.itemSize, &actual_data_size);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), free_memory_and_exit, "Failed pal_SSTGet  (%" PRIu32 ")", pal_status);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), free_memory_and_exit, "Failed pal_SSTGet  (%" PRIu32 ")", pal_status);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((item_info.itemSize != actual_data_size), kcm_status = KCM_STATUS_FILE_CORRUPTED, free_memory_and_exit, "Failed pal_SSTGet  (%" PRIu32 ")", pal_status);
 
         //change item name prefix to STORAGE_DEFAULT_PATH ('working' prefix)
@@ -283,18 +343,18 @@ kcm_status_e storage_factory_reset()
 
         //write item with 'working' prefix
         pal_status = pal_SSTSet((const char*)kcm_complete_name, data_buffer, item_info.itemSize, item_info.SSTFlagsBitmap);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), free_memory_and_exit, "Failed pal_SSTSet  (%" PRIu32 ")", pal_status);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), free_memory_and_exit, "Failed pal_SSTSet  (%" PRIu32 ")", pal_status);
 
         //free allocated buffer
         free(data_buffer);
     }
 
     //verify that we went over all items
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = storage_error_handler(pal_status), iterator_close_end_exit, "Failed pal_SSTIteratorNext (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = pal_to_kcm_error_translation(pal_status), iterator_close_end_exit, "Failed pal_SSTIteratorNext (%" PRIu32 ")", pal_status);
 
     //close iterator
     pal_status = pal_SSTIteratorClose(sst_iterator);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), exit, "Failed pal_SSTIteratorClose (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), exit, "Failed pal_SSTIteratorClose (%" PRIu32 ")", pal_status);
 
     //delete temporary file. if failed, set special status to `kcm_backup_status` since factory reset succedeed.
     pal_status = pal_SSTRemove(STORAGE_FACTORY_RESET_IN_PROGRESS_ITEM);
@@ -315,7 +375,7 @@ iterator_close_end_exit:
 
     //close iterator
     pal_status = pal_SSTIteratorClose(sst_iterator);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), exit, "Failed pal_SSTIteratorClose (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), exit, "Failed pal_SSTIteratorClose (%" PRIu32 ")", pal_status);
 
 exit:
 
@@ -382,25 +442,13 @@ palStatus_t storage_rbp_write(
     return pal_status;
 }
 
-/** Writes a new item to storage
-*
-*    @param[in] kcm_item_name KCM item name.
-*    @param[in] kcm_item_name_len KCM item name length.
-*    @param[in] kcm_item_type KCM item type as defined in `::kcm_item_type_e`
-*    @param[in] kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
-*    @param[in] data_source_type KCM item data source (original or backup).
-*    @param[in] kcm_item_data KCM item data buffer. Can be NULL if `kcm_item_data_size` is 0.
-*    @param[in] kcm_item_data_size KCM item data buffer size in bytes. Can be 0 if you wish to
-*     store an empty file.
-*
-*  @returns
-*        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.*/
-kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
+
+kcm_status_e storage_item_store_impl(const uint8_t * kcm_item_name,
     size_t kcm_item_name_len,
     kcm_item_type_e kcm_item_type,
     bool kcm_item_is_factory,
     bool kcm_item_is_encrypted,
-    kcm_data_source_type_e data_source_type,
+    storage_item_prefix_type_e item_prefix_type,
     const uint8_t * kcm_item_data,
     size_t kcm_item_data_size)
 {
@@ -409,21 +457,13 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
     palStatus_t pal_status = PAL_SUCCESS;
     palSSTItemInfo_t palItemInfo;
     uint32_t flag_mask = 0;
-    
+
     //Build complete data name (also checks name validity)
-    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
     
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Data already exists");
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    if (kcm_item_type == KCM_PRIVATE_KEY_ITEM || kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
-        kcm_status = storage_import_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name), kcm_item_type, kcm_item_data, kcm_item_data_size, kcm_item_is_factory);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to import key");
-        goto Exit;  //success
-    }
-#endif
 
     //Check if certificate chain with the same name is exists, if yes -> return an error
     if (kcm_item_type == KCM_CERTIFICATE_ITEM) { 
@@ -433,16 +473,16 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
         cert_name_info.is_last_certificate = false;
 
         //Build complete name of first chain certificate
-        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_build_complete_working_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, &cert_name_info);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change single certificate name");
 
         pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Data already exists");
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = storage_error_handler(pal_status), "pal_SSTGetInfo FAILED");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = pal_to_kcm_error_translation(pal_status), "pal_SSTGetInfo FAILED");
 
         //Revert the name to certificate complete name 
         //Build complete name of single certificate
-        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_build_complete_working_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, NULL);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change first certificate name");
     }
 
@@ -453,45 +493,38 @@ kcm_status_e storage_data_write_impl(const uint8_t * kcm_item_name,
 
     if (kcm_item_is_factory == true) {
         //Set the complete name to backup path
-        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_BACKUP_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = build_complete_backup_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change first certificate name to backup path");
 
         //Write the data to backup path
         pal_status = pal_SSTSet(kcm_complete_name, kcm_item_data, kcm_item_data_size, flag_mask);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write data to backup");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to write data to backup");
 
         //Set the backup path back to working
-        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+        kcm_status = storage_build_complete_working_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, NULL);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change first certificate nameFailed to change to backup path");
 
     }
 
     //Write the data to working path
     pal_status = pal_SSTSet(kcm_complete_name, kcm_item_data, kcm_item_data_size, flag_mask);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write data");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to write data");
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-Exit:
-#endif
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
 
-kcm_status_e storage_data_size_read(
+kcm_status_e storage_item_get_data_size(
     const uint8_t * kcm_item_name,
     size_t kcm_item_name_len,
     kcm_item_type_e kcm_item_type,
-    kcm_data_source_type_e data_source_type,
+    storage_item_prefix_type_e item_prefix_type,
     size_t * kcm_item_data_size_out)
 {
     char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palSSTItemInfo_t palItemInfo;
     palStatus_t pal_status = PAL_SUCCESS;
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    uint8_t der_pub_key[KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE];
-    size_t der_pub_key_act_size;
-#endif
 
     // Validate function parameters
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
@@ -499,10 +532,7 @@ kcm_status_e storage_data_size_read(
     SA_PV_LOG_INFO_FUNC_ENTER("item name = %.*s len=%" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type >= KCM_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Kcm size out pointer is NULL");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type == KCM_PRIVATE_KEY_ITEM), KCM_STATUS_NOT_PERMITTED, "Cannot query private key size from PSA key store");
-#endif
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -511,44 +541,36 @@ kcm_status_e storage_data_size_read(
     }
 
     //Build complete data name
-    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to to build complete name");
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    if (kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
-        kcm_status = storage_export_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name),kcm_item_type, der_pub_key, sizeof(der_pub_key), &der_pub_key_act_size);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to export key");
-        //Set value of data size
-        *kcm_item_data_size_out = der_pub_key_act_size;
-        goto Exit; // success
-    }
-#endif
 
     //Try to get data info
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to get data size");
 
-    //If the item is not found,at this stage we keep the error we need to read first certificate of a chain
     if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
-        return KCM_STATUS_ITEM_NOT_FOUND;
+        if (kcm_item_type == KCM_CERTIFICATE_ITEM) {
+            kcm_status = storage_get_first_cert_in_chain_name_and_info(item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, sizeof(kcm_complete_name), &palItemInfo);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to check single certificate name");
+            pal_status = PAL_SUCCESS;
+        } else {//not certificate
+            SA_PV_LOG_INFO("Item not found");
+            return KCM_STATUS_ITEM_NOT_FOUND;
+        }
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to get data size");
 
     //Set value of data size
     *kcm_item_data_size_out = palItemInfo.itemSize;
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-Exit:
-#endif
 
     SA_PV_LOG_INFO_FUNC_EXIT("kcm data size = %" PRIu32 "", (uint32_t)*kcm_item_data_size_out);
     return kcm_status;
 }
 
-kcm_status_e storage_data_read(
+kcm_status_e storage_item_get_data(
     const uint8_t * kcm_item_name,
     size_t kcm_item_name_len,
     kcm_item_type_e kcm_item_type,
-    kcm_data_source_type_e data_source_type,
+    storage_item_prefix_type_e item_prefix_type,
     uint8_t *kcm_item_data_out,
     size_t kcm_item_data_max_size,
     size_t *kcm_item_data_act_size_out)
@@ -562,13 +584,10 @@ kcm_status_e storage_data_read(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name_len");
     SA_PV_LOG_INFO_FUNC_ENTER("item name = %.*s len = %" PRIu32 ", data max size = %" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len, (uint32_t)kcm_item_data_max_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type >= KCM_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_data_act_size_out");
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((kcm_item_data_out == NULL) && (kcm_item_data_max_size > 0)), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data NULL and kcm_item_data_size greater than 0");
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type == KCM_PRIVATE_KEY_ITEM), KCM_STATUS_NOT_PERMITTED, "Cannot query private key bytes from PSA key store");
-#endif
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -577,74 +596,52 @@ kcm_status_e storage_data_read(
     }
 
     //Build complete data name
-    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to to build complete name");
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    if (kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
-        kcm_status = storage_export_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name), kcm_item_type, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to export key");
-        goto Exit; // success
-    }
-#endif
 
     //Get size
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
-
-    if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND && kcm_item_type == KCM_CERTIFICATE_ITEM) {
-
-        kcm_chain_cert_name_info_s cert_name_info = { 0 };
-        cert_name_info.certificate_index = 0;
-        cert_name_info.is_last_certificate = false;
-
-        //Change complete certificate name to first certificate in chain with the same name
-        kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_item_name, kcm_item_name_len, kcm_complete_name);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change single certificate name");
-
-        //Get size
-        pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
-        if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
-            return  KCM_STATUS_ITEM_NOT_FOUND;
-        }
-        SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = storage_error_handler(pal_status), "Failed to get data size");
-
-        SA_PV_LOG_WARN("Warning: Reading certificate chain using single certificate API");
-    }
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to get data size");
+    
     if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
-        //item not found. Print info level error
-        SA_PV_LOG_INFO("Item not found");
-        return KCM_STATUS_ITEM_NOT_FOUND;
+
+        if (kcm_item_type == KCM_CERTIFICATE_ITEM) {
+            kcm_status = storage_get_first_cert_in_chain_name_and_info(item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, sizeof(kcm_complete_name), &palItemInfo);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to check single certificate name");
+            pal_status = PAL_SUCCESS;
+        } else {
+            //item not found. Print info level error
+            SA_PV_LOG_INFO("Item not found");
+            return KCM_STATUS_ITEM_NOT_FOUND;
+        }
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = storage_error_handler(pal_status), "Failed to get data size");
+    //Check buffer size for the data
     SA_PV_ERR_RECOVERABLE_RETURN_IF((palItemInfo.itemSize > kcm_item_data_max_size), kcm_status = KCM_STATUS_INSUFFICIENT_BUFFER, "Data out buffer too small");
 
     pal_status = pal_SSTGet(kcm_complete_name, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to get data ");
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-Exit:
-#endif
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to get data ");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
 
-kcm_status_e storage_data_delete(
+kcm_status_e storage_item_delete(
     const uint8_t * kcm_item_name,
     size_t kcm_item_name_len,
     kcm_item_type_e kcm_item_type,
-    kcm_data_source_type_e data_source_type)
+    storage_item_prefix_type_e item_prefix_type)
 {
     char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
+    palSSTItemInfo_t palItemInfo;
 
     // Validate function parameters
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name_len");
     SA_PV_LOG_INFO_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type >= KCM_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -653,32 +650,35 @@ kcm_status_e storage_data_delete(
     }
 
     //Build complete data name
-    kcm_status = storage_create_complete_data_name(kcm_item_type, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_item_name, kcm_item_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(kcm_item_type, item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, NULL, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to to build complete name");
+   
+    //Get size
+    pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && pal_status != PAL_ERR_SST_ITEM_NOT_FOUND), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to get data size");
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    if (kcm_item_type == KCM_PRIVATE_KEY_ITEM || kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
-        // clear key from key-slot-allocator
-        kcm_status = storage_destory_key((const uint8_t *)kcm_complete_name, strlen(kcm_complete_name));
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed evacuating a key slot");
-        goto Exit; // success
+    if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND ) {
+
+        if (kcm_item_type == KCM_CERTIFICATE_ITEM) {
+            kcm_status = storage_get_first_cert_in_chain_name_and_info(item_prefix_type, kcm_item_name, kcm_item_name_len, kcm_complete_name, sizeof(kcm_complete_name), &palItemInfo);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to check single certificate name");
+            pal_status = PAL_SUCCESS;
+        } else {
+            SA_PV_LOG_INFO("Item not found");
+            return  KCM_STATUS_ITEM_NOT_FOUND;
+        }
     }
-#endif
-    
+
     //Remove the item name
     pal_status = pal_SSTRemove(kcm_complete_name);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = storage_error_handler(pal_status), "Failed to delete data");
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-Exit:
-#endif
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to delete data");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 
 }
 
-static kcm_status_e storage_check_if_certificate_exists(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, kcm_data_source_type_e data_source_type) {
+static kcm_status_e check_certificate_existance(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, storage_item_prefix_type_e item_prefix_type) {
 
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
@@ -687,7 +687,7 @@ static kcm_status_e storage_check_if_certificate_exists(const uint8_t *kcm_chain
     kcm_chain_cert_name_info_s cert_name_info = { 0 };
 
     //Build complete name of single certificate with given certificate chain name
-    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, NULL, kcm_chain_name, kcm_chain_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(KCM_CERTIFICATE_ITEM, item_prefix_type, kcm_chain_name, kcm_chain_name_len, kcm_complete_name, NULL, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     //If single certificate with the chain name is exists in the data base - return an error
@@ -697,7 +697,7 @@ static kcm_status_e storage_check_if_certificate_exists(const uint8_t *kcm_chain
     //Build complete name of first certificate name in the chain
     cert_name_info.certificate_index = 0;
     cert_name_info.is_last_certificate = false;
-    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, kcm_chain_name, kcm_chain_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(KCM_CERTIFICATE_ITEM, item_prefix_type, kcm_chain_name, kcm_chain_name_len, kcm_complete_name, NULL, &cert_name_info);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     //If first certificate with the chain name is exists in the data base - return an error
@@ -706,28 +706,29 @@ static kcm_status_e storage_check_if_certificate_exists(const uint8_t *kcm_chain
 
     return kcm_status;
 }
+
 kcm_status_e storage_cert_chain_create(
     kcm_cert_chain_handle *kcm_chain_handle,
     const uint8_t *kcm_chain_name,
     size_t kcm_chain_name_len,
     size_t kcm_chain_len,
     bool kcm_chain_is_factory,
-    kcm_data_source_type_e data_source_type)
+    storage_item_prefix_type_e item_prefix_type)
 {
      kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-     kcm_cert_chain_context_int_s *chain_context = NULL;
+     storage_cert_chain_context_s *chain_context = NULL;
      uint8_t *certificate_chain_name = NULL;
 
 
      // Validate function parameters
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name len");
     SA_PV_LOG_INFO_FUNC_ENTER("chain name =  %.*s, chain len =%" PRIu32 "", (int)kcm_chain_name_len, kcm_chain_name, (uint32_t)kcm_chain_len);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid handle");
     *kcm_chain_handle = NULL;
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_len == 0 || kcm_chain_len > KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid chain len");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type == KCM_BACKUP_ITEM && kcm_chain_is_factory == true), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_chain_is_factory");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type == STORAGE_ITEM_PREFIX_CE && kcm_chain_is_factory == true), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_chain_is_factory");
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -736,25 +737,25 @@ kcm_status_e storage_cert_chain_create(
     }
 
     //Check if certificate chain or single certificate with the same name already exists
-    kcm_status = storage_check_if_certificate_exists(kcm_chain_name, kcm_chain_name_len, data_source_type);
+    kcm_status = check_certificate_existance(kcm_chain_name, kcm_chain_name_len, item_prefix_type);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Data with the same name alredy exists");
 
     // allocate the context
-    chain_context = (kcm_cert_chain_context_int_s*)fcc_malloc(sizeof(kcm_cert_chain_context_int_s));
+    chain_context = (storage_cert_chain_context_s*)fcc_malloc(sizeof(storage_cert_chain_context_s));
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, "Failed to allocate memory for certificate chain context");
-    memset(chain_context, 0, sizeof(kcm_cert_chain_context_int_s));
+    memset(chain_context, 0, sizeof(storage_cert_chain_context_s));
 
     certificate_chain_name = fcc_malloc(kcm_chain_name_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((certificate_chain_name == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, Exit, "Failed to allocate memory for certificate chain name");
     memcpy(certificate_chain_name, kcm_chain_name, kcm_chain_name_len);
 
     //Prepare certificate chain context
-    chain_context->operation_type = KCM_CHAIN_OP_TYPE_CREATE;
+    chain_context->operation_type = STORAGE_CHAIN_OP_TYPE_CREATE;
     chain_context->chain_name = (uint8_t*)certificate_chain_name;
     chain_context->chain_name_len = kcm_chain_name_len;
     chain_context->num_of_certificates_in_chain = kcm_chain_len;
     chain_context->current_cert_index = 0;
-    chain_context->chain_is_factory = kcm_chain_is_factory;
+    chain_context->is_factory = kcm_chain_is_factory;
 
     *kcm_chain_handle = (kcm_cert_chain_handle)chain_context;
 
@@ -766,10 +767,17 @@ Exit:
     }
     return kcm_status;
 }
-
-kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, const uint8_t *kcm_cert_data, size_t kcm_cert_data_size, kcm_data_source_type_e data_source_type)
+/*
+  The function adds a certificate to the chain.
+  The name of the saved certificate determined by certificate's index in the chain 
+  and by certificate chain name:
+ 1. Crta__CertificateChainName   -  first certificate in the chain.
+ 2. Crtb__CertificateChainName   -  second certificate in the chain.
+ 3. Crtce_CertificateChainName   -  third last certificate in the chain.
+*/
+kcm_status_e storage_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, const uint8_t *kcm_cert_data, size_t kcm_cert_data_size, storage_item_prefix_type_e item_prefix_type)
 {
-    kcm_cert_chain_context_int_s *chain_context = (kcm_cert_chain_context_int_s*)kcm_chain_handle;
+    storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
     palSSTItemInfo_t palItemInfo = { 0 };
@@ -778,11 +786,11 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
     palStatus_t pal_status = PAL_SUCCESS;
 
     SA_PV_LOG_INFO_FUNC_ENTER("cert_data_size =%" PRIu32 "", (uint32_t)kcm_cert_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain handle");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->num_of_certificates_in_chain == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm context");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_cert_data == NULL || kcm_cert_data_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_cert_data or kcm_cert_data_size");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != KCM_CHAIN_OP_TYPE_CREATE), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != STORAGE_CHAIN_OP_TYPE_CREATE), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->current_cert_index >= chain_context->num_of_certificates_in_chain), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid certificate index");
 
     // Check if KCM initialized, if not initialize it
@@ -801,7 +809,7 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
     cert_name_info.certificate_index = chain_context->current_cert_index;
 
     //Build complete name of current certificate
-    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, NULL, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(KCM_CERTIFICATE_ITEM, item_prefix_type, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name, NULL, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     //If single certificate with the chain name is exists in the data base - return an error
@@ -809,24 +817,24 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Data with the same name already exists");
     //TODO : Add remove of the certificate and continue +add SA_PV_LOG_INFO
 
-    if (chain_context->chain_is_factory == true) {
+    if (chain_context->is_factory == true) {
 
         //Set the complete name to backup path
-        kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_BACKUP_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+        kcm_status = build_complete_backup_item_name(KCM_CERTIFICATE_ITEM, item_prefix_type, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name, &cert_name_info);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to change certificate name to backup path");
 
         //Write the data to backup path
         pal_status = pal_SSTSet(kcm_complete_name, kcm_cert_data, kcm_cert_data_size, flag_mask);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write certificate to backup");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to write certificate to backup");
     }
 
-    //Set the backup complete name
-    kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+    //Set the complete name to working path
+    kcm_status = storage_build_complete_working_item_name(KCM_CERTIFICATE_ITEM, item_prefix_type, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name, NULL, &cert_name_info);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
-    //Write the certificate to the storage
+    //Write the certificate to the working path
     pal_status = pal_SSTSet(kcm_complete_name, kcm_cert_data, kcm_cert_data_size, flag_mask);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed to write data to storage");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to write data to working");
 
     //Increase chian current index
     chain_context->current_cert_index++;
@@ -835,20 +843,20 @@ kcm_status_e storage_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, cons
     return KCM_STATUS_SUCCESS;
 }
 
-kcm_status_e storage_cert_chain_get_next_size(kcm_cert_chain_handle *kcm_chain_handle, kcm_data_source_type_e data_source_type, size_t *kcm_out_cert_data_size)
+kcm_status_e storage_cert_chain_get_next_size(kcm_cert_chain_handle *kcm_chain_handle, storage_item_prefix_type_e item_prefix_type, size_t *kcm_out_cert_data_size)
 {
-    kcm_cert_chain_context_int_s *chain_context = (kcm_cert_chain_context_int_s*)kcm_chain_handle;
+    storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     int certificate_index =(int)chain_context->current_cert_index;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
     // Validate function parameters
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain handle");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->num_of_certificates_in_chain == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid num_of_certificates_in_chain");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_out_cert_data_size == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_out_cert_data_size");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != KCM_CHAIN_OP_TYPE_OPEN), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != STORAGE_CHAIN_OP_TYPE_OPEN), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->current_cert_index >= chain_context->num_of_certificates_in_chain), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid certificate index");
 
     // Check if KCM initialized, if not initialize it
@@ -864,9 +872,13 @@ kcm_status_e storage_cert_chain_get_next_size(kcm_cert_chain_handle *kcm_chain_h
     return kcm_status;
 }
 
-kcm_status_e storage_cert_chain_get_next_data(kcm_cert_chain_handle *kcm_chain_handle, uint8_t *kcm_cert_data, size_t kcm_max_cert_data_size, kcm_data_source_type_e data_source_type, size_t *kcm_actual_cert_data_size)
+kcm_status_e storage_cert_chain_get_next_data(kcm_cert_chain_handle *kcm_chain_handle, 
+                                              uint8_t *kcm_cert_data, 
+                                              size_t kcm_max_cert_data_size, 
+                                              storage_item_prefix_type_e item_prefix_type, 
+                                              size_t *kcm_actual_cert_data_size)
 {
-    kcm_cert_chain_context_int_s *chain_context = (kcm_cert_chain_context_int_s*)kcm_chain_handle;
+    storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_chain_cert_name_info_s cert_name_info = { 0 , false };
     palStatus_t pal_status = PAL_SUCCESS;
@@ -874,13 +886,13 @@ kcm_status_e storage_cert_chain_get_next_data(kcm_cert_chain_handle *kcm_chain_h
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain handle");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->num_of_certificates_in_chain == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid num_of_certificates_in_chain");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_cert_data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_cert_data");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_max_cert_data_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_max_cert_data_size");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_actual_cert_data_size == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_actual_cert_data_size");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != KCM_CHAIN_OP_TYPE_OPEN), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != STORAGE_CHAIN_OP_TYPE_OPEN), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->current_cert_index >= chain_context->num_of_certificates_in_chain), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid certificate index");
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -894,11 +906,11 @@ kcm_status_e storage_cert_chain_get_next_data(kcm_cert_chain_handle *kcm_chain_h
     }
 
     //Build certificate name according to its index in certificate chain
-    kcm_status = storage_create_complete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+    kcm_status = storage_build_complete_working_item_name(KCM_LAST_ITEM, item_prefix_type, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name, NULL, &cert_name_info);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
     pal_status = pal_SSTGet((const char*)kcm_complete_name, kcm_cert_data, kcm_max_cert_data_size, kcm_actual_cert_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = storage_error_handler(pal_status), "Failed to get data size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(pal_status != PAL_SUCCESS, kcm_status = pal_to_kcm_error_translation(pal_status), "Failed to get data size");
 
     // file read, increase current_cert_index
     chain_context->current_cert_index++;
@@ -908,7 +920,7 @@ kcm_status_e storage_cert_chain_get_next_data(kcm_cert_chain_handle *kcm_chain_h
 }
 
 
-static kcm_status_e set_certificates_info(kcm_cert_chain_context_int_s *chain_context, kcm_data_source_type_e data_source_type)
+static kcm_status_e set_certificates_info(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
@@ -920,11 +932,10 @@ static kcm_status_e set_certificates_info(kcm_cert_chain_context_int_s *chain_co
     //Try to read all certificate in the chain, retrieve the number of certificates in the chain and their sizes
     for (certificate_index = 0; (certificate_index < KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN) && ( cert_name_info.is_last_certificate == false); certificate_index++)
     {
-
         cert_name_info.certificate_index = (uint32_t)certificate_index;
 
         //Build certificate name according to its index in certificate chain
-        kcm_status = storage_create_complete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+        kcm_status = storage_build_complete_working_item_name(KCM_LAST_ITEM, item_prefix_type, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name, NULL, &cert_name_info);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
         //Try to read certificate as not last certificate
@@ -935,7 +946,7 @@ static kcm_status_e set_certificates_info(kcm_cert_chain_context_int_s *chain_co
             cert_name_info.is_last_certificate = true;
 
             //Set the name certificate as last certificate in the chain
-            kcm_status = storage_create_complete_data_name(KCM_LAST_ITEM, data_source_type, STORAGE_WORKING_ACRONYM, &cert_name_info, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name);
+            kcm_status = storage_build_complete_working_item_name(KCM_LAST_ITEM, item_prefix_type, chain_context->chain_name, chain_context->chain_name_len, kcm_complete_name, NULL, &cert_name_info);
             SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
             //retrieve item info (size and flags)
@@ -947,7 +958,7 @@ static kcm_status_e set_certificates_info(kcm_cert_chain_context_int_s *chain_co
             }
 
         }
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = storage_error_handler(pal_status), "Failed pal_SSTGetInfo  (%" PRIu32 ")", pal_status);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = pal_to_kcm_error_translation(pal_status), "Failed pal_SSTGetInfo  (%" PRIu32 ")", pal_status);
 
         //Set in certificate info array the size of current index
         chain_context->certificates_info[certificate_index] = palItemInfo.itemSize;
@@ -958,21 +969,25 @@ static kcm_status_e set_certificates_info(kcm_cert_chain_context_int_s *chain_co
     return kcm_status;
 }
 
-kcm_status_e storage_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, kcm_data_source_type_e data_source_type, size_t *kcm_chain_len_out)
+kcm_status_e storage_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, 
+                                     const uint8_t *kcm_chain_name, 
+                                     size_t kcm_chain_name_len, 
+                                     storage_item_prefix_type_e item_prefix_type, 
+                                     size_t *kcm_chain_len_out)
 {
-    kcm_cert_chain_context_int_s *chain_context = (kcm_cert_chain_context_int_s*)kcm_chain_handle;
+    storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     uint8_t *certificate_chain_name = NULL;
 
     // Validate function parameters
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name len");
     SA_PV_LOG_INFO_FUNC_ENTER("chain name =  %.*s", (int)kcm_chain_name_len, kcm_chain_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid handle");
-    *kcm_chain_handle = NULL;
-    //SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_len_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain len out");
+
+    *kcm_chain_handle = NULL;
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -981,9 +996,9 @@ kcm_status_e storage_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, co
     }
 
     // allocate the context
-    chain_context = (kcm_cert_chain_context_int_s*)fcc_malloc(sizeof(kcm_cert_chain_context_int_s));
+    chain_context = (storage_cert_chain_context_s*)fcc_malloc(sizeof(storage_cert_chain_context_s));
     SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, "Failed to allocate memory for certificate chain context");
-    memset(chain_context, 0, sizeof(kcm_cert_chain_context_int_s));
+    memset(chain_context, 0, sizeof(storage_cert_chain_context_s));
 
     //Allocate memory for the certificate chain name
     certificate_chain_name = fcc_malloc(kcm_chain_name_len);
@@ -991,13 +1006,13 @@ kcm_status_e storage_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, co
     memcpy(certificate_chain_name, kcm_chain_name, kcm_chain_name_len);
 
     //Prepare certificate chain context
-    chain_context->operation_type = KCM_CHAIN_OP_TYPE_OPEN;
+    chain_context->operation_type = STORAGE_CHAIN_OP_TYPE_OPEN;
     chain_context->chain_name = (uint8_t*)certificate_chain_name;
     chain_context->chain_name_len = kcm_chain_name_len;
     chain_context->current_cert_index = 0;
 
     //Set certificates_info structure
-    kcm_status = set_certificates_info(chain_context,  data_source_type);
+    kcm_status = set_certificates_info(chain_context,  item_prefix_type);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, Exit,"Failed to set certificate chain context data");
 
     *kcm_chain_len_out = chain_context->num_of_certificates_in_chain;
@@ -1015,14 +1030,14 @@ Exit:
     return kcm_status;
 }
 
-kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, kcm_data_source_type_e data_source_type)
+kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, storage_item_prefix_type_e item_prefix_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_status_e final_kcm_status = KCM_STATUS_SUCCESS;
     size_t kcm_chain_len = 0;
     char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
     kcm_cert_chain_handle kcm_chain_handle;
-    kcm_cert_chain_context_int_s *chain_context;
+    storage_cert_chain_context_s *chain_context;
     kcm_chain_cert_name_info_s cert_name_info = { 0, false };
     palStatus_t pal_status = PAL_SUCCESS;
 
@@ -1030,7 +1045,7 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_chain_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_chain_name_len");
     SA_PV_LOG_INFO_FUNC_ENTER("chain name =  %.*s", (int)kcm_chain_name_len, kcm_chain_name);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -1038,13 +1053,13 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
     }
     // open the first file and read the kcm_chain_len from meta data
-    kcm_status = storage_cert_chain_open(&kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, data_source_type, &kcm_chain_len);
+    kcm_status = storage_cert_chain_open(&kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, item_prefix_type, &kcm_chain_len);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to open certificate chain\n");
 
-    chain_context = (kcm_cert_chain_context_int_s*)kcm_chain_handle;
+    chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
 
     //Go over all chain certificates and delete
     for (; chain_context->current_cert_index < kcm_chain_len; chain_context->current_cert_index++) {
@@ -1055,13 +1070,13 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
         }
 
         //Set the name certificate as last certificate in the chain
-        kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM,
-            data_source_type,
-            STORAGE_WORKING_ACRONYM,
-            &cert_name_info,
+        kcm_status = storage_build_complete_working_item_name(KCM_CERTIFICATE_ITEM,
+            item_prefix_type,
             chain_context->chain_name,
             chain_context->chain_name_len,
-            kcm_complete_name);
+            kcm_complete_name,
+            NULL,
+            &cert_name_info);
 
         //Remove certificate only if complete_data_name is valid
         if (kcm_status == KCM_STATUS_SUCCESS) {
@@ -1069,34 +1084,34 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
             pal_status = pal_SSTRemove(kcm_complete_name);
             if (pal_status != PAL_SUCCESS) {
                 //If Remove failed, record the error and continue delete process
-                final_kcm_status = storage_error_handler(pal_status);
+                final_kcm_status = pal_to_kcm_error_translation(pal_status);
             }
         }
     }
 
-    (void)storage_cert_chain_close(kcm_chain_handle, data_source_type);
+    (void)storage_cert_chain_close(kcm_chain_handle, item_prefix_type);
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return final_kcm_status;
 }
 
-static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_context, kcm_data_source_type_e data_source_type, kcm_chain_operation_type_e operation_type)
+static void chain_delete(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_chain_cert_name_info_s cert_name_info = { 0, false };
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };    
 
     do {
         cert_name_info.certificate_index = chain_context->current_cert_index;
 
         //Set the name of the certificate in working 
-        kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM,
-            data_source_type,
-            STORAGE_WORKING_ACRONYM,
-            &cert_name_info,
+        kcm_status = storage_build_complete_working_item_name(KCM_CERTIFICATE_ITEM,
+            item_prefix_type,
             chain_context->chain_name,
             chain_context->chain_name_len,
-            kcm_complete_name);
+            kcm_complete_name,
+            NULL,
+            &cert_name_info);
 
         //we don't check the result of storage_file_delete, as it is possible that not all certificates were saved to the storage
         if (kcm_status == KCM_STATUS_SUCCESS) {
@@ -1104,15 +1119,14 @@ static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_
         }
 
         //Only in case of invalid create operation we will remove wrong chain from backup path too
-        if (operation_type == KCM_CHAIN_OP_TYPE_CREATE) {
+        if (chain_context->operation_type == STORAGE_CHAIN_OP_TYPE_CREATE) {
             //Set the name the  certificate in backup (factory)
-            kcm_status = storage_create_complete_data_name(KCM_CERTIFICATE_ITEM,
-                data_source_type,
-                STORAGE_BACKUP_ACRONYM,
-                &cert_name_info,
+            kcm_status = build_complete_backup_item_name(KCM_CERTIFICATE_ITEM,
+                item_prefix_type,
                 chain_context->chain_name,
                 chain_context->chain_name_len,
-                kcm_complete_name);
+                kcm_complete_name,
+                &cert_name_info);
 
             //we don't check the result of storage_file_delete, as it is possible that not all certificates were saved to the storage
             if (kcm_status == KCM_STATUS_SUCCESS) {
@@ -1129,14 +1143,14 @@ static void storage_cert_chain_files_delete(kcm_cert_chain_context_int_s *chain_
     } while (true);
 }
 
-kcm_status_e storage_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle, kcm_data_source_type_e data_source_type)
+kcm_status_e storage_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle, storage_item_prefix_type_e item_prefix_type)
 {
-    kcm_cert_chain_context_int_s *chain_context = (kcm_cert_chain_context_int_s*)kcm_chain_handle;
+    storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_source_type != KCM_ORIGINAL_ITEM && data_source_type != KCM_BACKUP_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
 
     if (kcm_chain_handle == NULL) {
         goto Exit; // and return KCM_STATUS_SUCCESS
@@ -1149,9 +1163,9 @@ kcm_status_e storage_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle, kc
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
     }
 
-    if (chain_context->operation_type == KCM_CHAIN_OP_TYPE_CREATE &&  chain_context->current_cert_index < chain_context->num_of_certificates_in_chain) {
+    if (chain_context->operation_type == STORAGE_CHAIN_OP_TYPE_CREATE &&  chain_context->current_cert_index < chain_context->num_of_certificates_in_chain) {
         // user added less certificates than num_of_certificates_in_chain, delete all and return error
-        storage_cert_chain_files_delete(chain_context, data_source_type, KCM_CHAIN_OP_TYPE_CREATE);
+        chain_delete(chain_context, item_prefix_type);
         SA_PV_ERR_RECOVERABLE_GOTO_IF(true, (kcm_status = KCM_STATUS_CLOSE_INCOMPLETE_CHAIN), Exit, "Closing incomplete kcm chain");
     }
 
@@ -1164,7 +1178,5 @@ Exit:
 
     return kcm_status;
 }
-
-
 
 #endif

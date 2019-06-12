@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,6 +21,10 @@
 
 #include "update-client-source-http-socket/arm_uc_http_socket.h"
 #include "update-client-common/arm_uc_common.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Initialize Http module.
@@ -123,5 +127,9 @@ void arm_uc_http_socket_callback(uintptr_t unused);
  * @param unused Unused.
  */
 void arm_uc_http_socket_end_resume(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // __ARM_UC_HTTP_SOCKET_PRIVATE_H__

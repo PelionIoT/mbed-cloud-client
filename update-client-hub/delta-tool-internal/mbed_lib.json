@@ -1,0 +1,10 @@
+{
+    "name": "delta-tool",
+    "config": {
+        "BS_PATCH_COMPILE_TIME_MEMORY_ALLOC": {
+            "help": "memory allocated statically during compile time to bspatch module, will need to be around 2* frame size defined in bsdiff during delta creation. If defined to 0, malloc will be used instead",
+            "macro_name": "BS_PATCH_COMPILE_TIME_MEMORY_ALLOC",
+            "value": 1024
+        }
+    }
+}

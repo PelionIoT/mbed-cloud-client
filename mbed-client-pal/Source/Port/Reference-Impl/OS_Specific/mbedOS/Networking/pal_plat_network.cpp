@@ -14,6 +14,11 @@
  * limitations under the License.
  *******************************************************************************/
 
+// Note: this macro is needed on armcc to get the the PRI*32 macros
+// from inttypes.h in a C++ code.
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
 
 #include "pal.h"
 #include "pal_plat_network.h"
@@ -1156,7 +1161,7 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo* info)
         result = s_pal_networkInterfacesSupported[0].interface->gethostbyname_async(info->hostname, mbed::Callback<void(nsapi_error_t, SocketAddress *)>(pal_plat_getAddressInfoAsync_callback,(void*)info), version);
     }
 
-    PAL_LOG_DBG("pal_plat_getAddressInfoAsync result %d", result);
+    PAL_LOG_DBG("pal_plat_getAddressInfoAsync result %" PRId32 ".", result);
     if (result < 0) {
         result = translateErrorToPALError(result);
     }
@@ -1180,7 +1185,7 @@ palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
     }
 
     if (PAL_SUCCESS != status) {
-        PAL_LOG_ERR("pal_cancelAddressInfoAsync failed with %ld", status);
+        PAL_LOG_ERR("pal_cancelAddressInfoAsync failed with %" PRId32 ".", status);
     }
     return status;
 }

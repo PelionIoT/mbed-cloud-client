@@ -37,7 +37,7 @@
 #define TRACE_GROUP "mClt"
 
 #ifndef MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY
-#define MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY 60
+#define MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY 30
 #endif
 
 #if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
@@ -742,25 +742,25 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
         close_socket();
 
     } else {
-        // Comes here only if error is M2MConnectionHandler::ERROR_GENERIC
+        // Comes here only if error is M2MConnectionHandler::ERROR_GENERIC or M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ
         if (_handshake_retry++ > MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY) {
 
             tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - Max TLS retry fail");
+
             _handshake_retry = 0;
             _observer.socket_error(M2MConnectionHandler::SOCKET_ABORT, true);
             close_socket();
 
         }
+
         eventOS_event_timer_cancel(ESocketTimerCallback, M2MConnectionHandlerPimpl::_tasklet_id);
 
         // There is required to set event.data_ptr for eventloop_event_handler.
         arm_event_s event = {0};
         event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
-        event.sender = 0;
         event.event_id = ESocketTimerCallback;
         event.event_type = ESocketTimerCallback;
         event.data_ptr = this;
-        event.event_data = 0;
         event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
         eventOS_event_timer_request_in(&event, eventOS_event_timer_ms_to_ticks(1000));
     }

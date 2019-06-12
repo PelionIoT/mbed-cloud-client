@@ -1,5 +1,57 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 3.2.0 (12.06.2019)
+
+#### Device Management Connect client
+
+* Relaxed the enforcement of client configuration. Only `SN_COAP_MAX_BLOCKWISE_SIZE` is considered as a mandatory application configuration due to bootstrap and update (CoAP download) dependencies.
+  * `LIFETIME` (default 3600 seconds), `ENDPOINT_TYPE` ("default") and `TRANSPORT_MODE` (default TCP) now have defaults. The application does not need to define them if default values are acceptable.
+* Added new public APIs to the `MbedCloudClient` class to request Enrollment over Secure Transport (EST) (`est_request_enrollment`) and free the resulting certificate chain context (`est_free_cert_chain_context`).
+
+#### Device Management Update client
+
+* Added the delta update feature into Update client.
+* Fixed HTTP download for very small files.
+* Implemented a check to reject zero bytes firmware.
+* Fixed installation authorization logic which was proceeding without waiting for the application callback.
+* Fixed manifest manager to report correct error codes.
+* Fixed PAL include files.
+* Optimized flash and RAM footprint for CoAP source.
+* Added a check to ensure that `SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE` is aligned with the storage page size.
+* Added code to read the active firmware metadata header from file. This enables e-2-e testing with filesystem storage in a Linux host.
+* Added heap and stack statistic trace messages.
+
+#### Factory configurator client
+
+* Naming restrictions for KCM APIs are now identical for KVStore and Pelion Secure Storage solutions (ESFS-SOTP):
+  * `kcm_item_name` must only include characters `a`-`z`, `A`-`Z`, `0`-`9`, `_`, `-`, `.`.
+  * The max `kcm_item_name` length is 100 bytes.
+  * This deprecates Pelion Secure Storage naming restrictions.
+* New APIs:
+  * `kcm_asymmetric_sign` computes ECDSA raw signature on hash digest using associated private key name. Supports keys with EC SECP256R1 curve only.
+  * `kcm_asymmetric_verify` verifies ECDSA raw signature on hash digest using associated private key name. Supports keys with EC SECP256R1 curve only.
+  * `kcm_generate_random` generates a random number into a given buffer.
+  * `kcm_ecdh_key_agreement` computes a shared secret using the elliptic curve Diffie Hellman algorithm.
+* Fixed a bug in conversion of private key from DER to raw.
+* `kcm_item_close_handle` receives a pointer to the handle instead of the handle. This is a bugfix for crash when `kcm_item_close_handle` is called twice.
+
+#### Platform Adaptation Layer (PAL)
+
+New cryptographic APIs implemented for PSA and non-PSA variants:
+
+* `pal_parseECPrivateKeyFromHandle` parses EC private key from PAL private key handle.
+* `pal_parseECPublicKeyFromHandle` parses EC public key from PAL public key handle.
+* `pal_asymmetricSign` computes ECDSA raw signature of a previously hashed message. Supports keys with EC SECP256R1 curve only.
+* `pal_asymmetricVerify` verifies the ECDSA raw signature of a previously hashed message. Supports keys with EC SECP256R1 curve only.
+* `pal_ECDHKeyAgreement` computes raw shared secret key using elliptic curve Diffie–Hellman algorithm.
+
+Other changes:
+
+* Fixed unnessary dependencies to `SN_COAP_MAX_BLOCKWISE_SIZE` parameter.
+* Added `pal_x509CertCheckExtendedKeyUsage` that checks the usage of certificate against `extended-key-usage` extension.
+* [Linux] When creating threads, use the system provided `PTHREAD_STACK_MIN` as a minimum value. Previously, the application was allowed to define values smaller than the system-defined minimum.
+* Implemented **SSL session resume** feature. This feature is enabled by default. Use the `PAL_USE_SSL_SESSION_RESUME` flag to control it.
+
 ### Release 3.1.1 (13.05.2019)
 
 No changes.

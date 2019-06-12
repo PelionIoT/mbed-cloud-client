@@ -45,6 +45,7 @@ TEST_GROUP_RUNNER(pal_crypto)
     RUN_TEST_CASE(pal_crypto, X509_Parse);
     RUN_TEST_CASE(pal_crypto, X509_ReadAttributes);
     RUN_TEST_CASE(pal_crypto, X509_Verify);
+    RUN_TEST_CASE(pal_crypto, X509_VerifyExtendedKeyUsage);
 
     //Elliptic Curves
     RUN_TEST_CASE(pal_crypto, ECKey_checkKey);
@@ -56,4 +57,11 @@ TEST_GROUP_RUNNER(pal_crypto)
     RUN_TEST_CASE(pal_crypto, X509_tbs_hash);
 
     RUN_TEST_CASE(pal_crypto, ECKey_GenerateKeys);
+
+    RUN_TEST_CASE(pal_crypto, ECSig_RawToDER);
+
+    RUN_TEST_CASE(pal_crypto, ECKey_SignVerify);
+
+    RUN_TEST_CASE(pal_crypto, ECKey_Agreement);
+    
 }

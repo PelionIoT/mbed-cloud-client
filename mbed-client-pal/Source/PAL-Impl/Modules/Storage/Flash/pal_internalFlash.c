@@ -99,7 +99,7 @@ size_t pal_internalFlashGetPageSize(void)
 
     size_t ret = pal_plat_internalFlashGetPageSize();
 
-    
+
     return ret;
 }
 
@@ -163,6 +163,9 @@ palStatus_t pal_internalFlashDeInit(void)
     if (PAL_SUCCESS == ret)
     {
         ret = pal_plat_internalFlashDeInit();
+        if (PAL_SUCCESS != ret) {
+            PAL_LOG_ERR("pal_plat_internalFlashDeInit Error %" PRId32 ".", ret);
+        }
 
 #if PAL_THREAD_SAFETY
         ret = pal_osSemaphoreRelease(flashSem);

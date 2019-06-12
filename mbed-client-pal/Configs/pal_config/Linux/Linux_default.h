@@ -1,5 +1,7 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2019 ARM Ltd.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +59,6 @@
 #ifndef PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE
     #define PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE (1024 * 24)
 #endif
-
 
 #ifndef PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE
     #define PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE (1024 * 16)
@@ -128,6 +129,23 @@
 #ifndef PAL_TIMER_SIGNAL
     // Signal number for timer completition signal, a RT signal is needed to get signal queueing
     #define PAL_TIMER_SIGNAL (SIGRTMIN+0)
+#endif
+
+// Sanity check for defined stack sizes
+#if (PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
+#warning "PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
+#endif
+
+#if (PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
+#warning "PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
+#endif
+
+#if (PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
+#warning "PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
+#endif
+
+#if (PAL_NOISE_TRNG_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
+#warning "PAL_NOISE_TRNG_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
 #endif
 
 #endif /* PAL_DEFAULT_LINUX_CONFIGURATION_H_ */

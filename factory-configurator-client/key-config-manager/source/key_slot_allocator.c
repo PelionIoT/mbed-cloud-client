@@ -16,10 +16,10 @@
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #include "fcc_malloc.h"
 #include "kcm_defs.h"
-#include "storage.h"
 #include "key_slot_allocator.h"
 #include "pv_error_handling.h"
 #include "pv_macros.h"
+#include "storage_dispatcher.h"
 #include "psa/crypto_types.h"
 #include "psa/crypto.h"
 
@@ -326,16 +326,16 @@ static kcm_status_e load_table(ksa_table_s *ksa_table)
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     // read the table size first
-    kcm_status = storage_data_size_read((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM, KCM_ORIGINAL_ITEM, &ksa_file_size);
+    kcm_status = kcm_item_get_data_size((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM, &ksa_file_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((kcm_status != KCM_STATUS_SUCCESS) && (kcm_status != KCM_STATUS_ITEM_NOT_FOUND)), kcm_status, "Failed querying KSA table size (%d)", kcm_status);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS) && (ksa_file_size != sizeof(ksa_table_s)), KCM_STATUS_STORAGE_ERROR, "Table size in backend store is (%" PRIu32 "B) while we expect (%" PRIu32 "B)", (uint32_t)ksa_file_size, (uint32_t)(sizeof(ksa_table_s)));
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((kcm_status == KCM_STATUS_SUCCESS) && (ksa_file_size != sizeof(ksa_table_s))), KCM_STATUS_STORAGE_ERROR, "Table size in backend store is (%" PRIu32 "B) while we expect (%" PRIu32 "B)", (uint32_t)ksa_file_size, (uint32_t)(sizeof(ksa_table_s)));
 
     if (kcm_status == KCM_STATUS_SUCCESS) {
         SA_PV_LOG_TRACE("KSA table found in store (table size %" PRIu32 "B)", (uint32_t)(ksa_file_size));
 
         // try to load table from store (bear in mind that it may not exist)
         // TBD: check if casting could not compromise buffer alignment
-        kcm_status = storage_data_read((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM, KCM_ORIGINAL_ITEM, (uint8_t *)ksa_table, sizeof(ksa_table_s), &ksa_file_size);
+        kcm_status = kcm_item_get_data((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM, (uint8_t *)ksa_table, sizeof(ksa_table_s), &ksa_file_size);
         SA_PV_ERR_RECOVERABLE_GOTO_IF(((kcm_status != KCM_STATUS_SUCCESS) && (kcm_status != KCM_STATUS_ITEM_NOT_FOUND)), (kcm_status = kcm_status), exit, "Failed reading KSA table from store (%d)", kcm_status);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((sizeof(ksa_table_s) != ksa_file_size), (kcm_status = kcm_status), exit, "Inconsist table size while raeding table from backend store");
     } else {
@@ -371,12 +371,12 @@ static kcm_status_e store_table(const ksa_table_s *ksa_table)
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-    kcm_status = storage_data_delete((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM, KCM_ORIGINAL_ITEM);
+    kcm_status = kcm_item_delete((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM);
     if ((kcm_status != KCM_STATUS_SUCCESS) && (kcm_status != KCM_STATUS_ITEM_NOT_FOUND)) {
         SA_PV_LOG_ERR("Failed deleting KSA table from store (%d)", kcm_status);
     }
 
-    kcm_status = storage_data_write((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM, true, KCM_ORIGINAL_ITEM, (const uint8_t *)ksa_table, sizeof(ksa_table_s));
+    kcm_status = kcm_item_store((const uint8_t*)KSA_TABLE_FILE_NAME, strlen(KSA_TABLE_FILE_NAME), KCM_CONFIG_ITEM, true, (const uint8_t *)ksa_table, sizeof(ksa_table_s), NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed writing KSA table to store (%d)", kcm_status);
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
@@ -646,7 +646,8 @@ kcm_status_e ksa_store_key_to_psa( const uint8_t *key_name,
                                     const uint8_t *key,
                                     size_t key_size,
                                     kcm_crypto_key_scheme_e curve_name,
-                                    bool is_factory)
+                                    bool is_factory,
+                                    const kcm_security_desc_s kcm_item_info)
 {
     kcm_status_e kcm_status;
     psa_key_id_t free_psa_key_id = 0;
@@ -696,24 +697,33 @@ kcm_status_e ksa_store_key_to_psa( const uint8_t *key_name,
     kcm_status = get_free_psa_key_id_and_handle(&free_psa_key_id, &key_handle);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed getting PSA free slot (%d)", kcm_status);
 
+
     // convert curve_name to pal_group_id
     switch (curve_name) {
         case KCM_SCHEME_EC_SECP256R1:
             if (kcm_key_type == KCM_PRIVATE_KEY_ITEM) {
                 psa_key_type = PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_SECP256R1);
-                psa_key_usage = PSA_KEY_USAGE_SIGN | PSA_KEY_USAGE_VERIFY;
+                if (kcm_item_info == NULL) {
+                    psa_key_usage = PSA_KEY_USAGE_SIGN | PSA_KEY_USAGE_VERIFY;
+                }
                 key_size_bits = PSA_BYTES_TO_BITS(32);
             } else { // kcm_key_type == KCM_PUBLIC_KEY_ITEM
                 psa_key_type = PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_CURVE_SECP256R1);
-                psa_key_usage = PSA_KEY_USAGE_VERIFY;
+                if (kcm_item_info == NULL) {
+                    psa_key_usage = PSA_KEY_USAGE_VERIFY;
+                }
             }
             break;
         default:
             SA_PV_ERR_RECOVERABLE_GOTO_IF(true, kcm_status = KCM_CRYPTO_STATUS_UNSUPPORTED_CURVE, exit, "unsupported curve name");
     }
 
-    //Set the fields of a policy structure.
-    psa_key_policy_set_usage(&policy, psa_key_usage, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    //Set the policy
+    if (kcm_item_info == NULL) {
+        psa_key_policy_set_usage(&policy, psa_key_usage, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    } else {
+        memcpy(&policy, (psa_key_policy_t*)kcm_item_info, sizeof(psa_key_policy_t));
+    }
 
     //Set the usage policy on a key slot.
     psa_status = psa_set_key_policy(key_handle,&policy);
@@ -771,7 +781,7 @@ kcm_status_e ksa_export_key_from_psa( const uint8_t *key_name,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid key_data_out pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_data_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid key_data_max_size");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid key_data_act_size_out pointer");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_key_type != KCM_PUBLIC_KEY_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_key_type");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_key_type != KCM_PUBLIC_KEY_ITEM), KCM_STATUS_INVALID_PARAMETER, "Can only export public key");
 
     if (!g_ksa_initialized) {
         kcm_status = ksa_init();

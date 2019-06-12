@@ -153,7 +153,7 @@ static arm_uc_error_t validateManifestVersion(arm_uc_buffer_t *buffer)
     arm_uc_error_t err = ARM_UC_mmGetVersion(buffer, &val);
     if (err.code == ERR_NONE) {
         // Verify the manifest version
-        if (val != MANIFEST_SUPPORTED_VERSION) {
+        if (val < MANIFEST_SUPPORTED_VERSION || val > MANIFEST_SUPPORTED_VERSION_EXT) {
             ARM_UC_MFST_SET_ERROR(err, MFST_ERR_VERSION);
         }
     }
@@ -219,14 +219,60 @@ static arm_uc_error_t validateFirmwareApplicability(arm_uc_buffer_t *buffer)
     if (err.code == ERR_NONE) {
         err = ARM_UC_mmGetDeviceGuid(buffer, &device_guid);
     }
-    if (err.code == ERR_NONE)
+    if (err.code == ERR_NONE) {
         err = pal_deviceIdentityCheck(
                   (vendor_guid.size != 0UL ? &vendor_guid : NULL),
                   (class_guid.size != 0UL ? &class_guid : NULL),
                   (device_guid.size != 0UL ? &device_guid : NULL)
               );
+    }
+
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+    if (err.code == ERR_NONE) {
+        uint32_t version;
+        err = ARM_UC_mmGetVersion(buffer, &version);
+        if (err.code == ERR_NONE && version != 1) {
+            ARM_UC_SET_ERROR(err, MFST_ERR_VERSION);
+        }
+    }
+#endif
     return err;
 }
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+arm_uc_error_t validateDeltaParameters(arm_uc_buffer_t *buffer)
+{
+    const int keyIDs[] = {
+        ARM_UC_MM_DER_MFST_PRECUSOR_DIGEST,
+        ARM_UC_MM_DER_MFST_PRIORITY,
+        ARM_UC_MM_DER_MFST_FW_INSTALLEDSIZE,
+        ARM_UC_MM_DER_MFST_FW_INSTALLEDDIGEST,
+    };
+    uint32_t format;
+    arm_uc_error_t err = ARM_UC_mmGetFwFormat(buffer, &format);
+    if (ARM_UC_IS_ERROR(err)) {
+        return err;
+    }
+
+    if (format == 1) {
+        ARM_UC_SET_ERROR(err, ERR_NONE);
+    } else if (format == 5) {
+        arm_uc_buffer_t buffers[ARRAY_SIZE(keyIDs)];
+
+        int rc = ARM_UC_mmDERGetSignedResourceValues(
+            buffer,
+            ARRAY_SIZE(keyIDs),
+            keyIDs,
+            buffers);
+        if (rc) {
+            ARM_UC_SET_ERROR(err, MFST_ERR_DER_FORMAT);
+        }
+
+    } else {
+        ARM_UC_SET_ERROR(err, MFST_ERR_FORMAT);
+    }
+    return err;
+}
+#endif
 /*
  * DOT Setup
  * DOT: digraph {
@@ -317,7 +363,7 @@ static arm_uc_error_t state_verifyHash(struct arm_uc_mmInsertContext_t *ctx, uin
             ctx->state = ARM_UC_MM_INS_STATE_VERIFY_SIG_LOOP;
         } else {
             // Unsigned manifests are not supported at this time, so they count as a failure.
-            ARM_UC_MFST_SET_ERROR(err, MFST_ERR_INVALID_SIGNATURE);
+            ARM_UC_MFST_SET_ERROR(err, MFST_ERR_FORMAT);
             ctx->state = ARM_UC_MM_INS_STATE_VERIFY_FAIL;
         }
     } else {
@@ -395,9 +441,9 @@ static arm_uc_error_t state_verifySignatureStart(struct arm_uc_mmInsertContext_t
             ctx->state = ARM_UC_MM_INS_STATE_VERIFY_PARAMS;
             ARM_UC_MFST_SET_ERROR(err, ERR_NONE);
         } else {
-            // WARNING: If the fingerprint is empty, MFST_ERR_INVALID_SIGNATURE is returned.
+            // WARNING: If the fingerprint is empty, MFST_ERR_FORMAT is returned.
             // At least one signature is required.
-            ARM_UC_MFST_SET_ERROR(err, MFST_ERR_INVALID_SIGNATURE);
+            ARM_UC_MFST_SET_ERROR(err, MFST_ERR_FORMAT);
             ctx->state = ARM_UC_MM_INS_STATE_VERIFY_FAIL;
         }
     }
@@ -451,6 +497,14 @@ static arm_uc_error_t state_verifySignature(struct arm_uc_mmInsertContext_t *ctx
 static arm_uc_error_t state_verifyParameters(struct arm_uc_mmInsertContext_t *ctx, uint32_t *event)
 {
     arm_uc_error_t err = validateFirmwareApplicability(&ctx->manifest);
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+    if (err.error == ERR_NONE) {
+        err = validateDeltaParameters(&ctx->manifest);
+        if (ARM_UC_IS_ERROR(err)) {
+            UC_MMGR_ERR_MSG("validateDeltaParameters failed with error %s", ARM_UC_err2Str(err));
+        }
+    }
+#endif
     if (err.error == ERR_NONE) {
         ctx->state = ARM_UC_MM_INS_STATE_VERIFY_TS_START;
     }

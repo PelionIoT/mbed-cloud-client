@@ -18,7 +18,7 @@
 
 // This critical section implementation is generic for mbed OS targets,
 // except Nordic ones
-#if defined(TARGET_LIKE_MBED) && !defined(TARGET_NORDIC)
+#if defined(TARGET_LIKE_MBED) && !defined(TARGET_NRF51)
 
 #include <stdint.h>                  // uint32_t, UINT32_MAX
 #include <stddef.h>                  // NULL

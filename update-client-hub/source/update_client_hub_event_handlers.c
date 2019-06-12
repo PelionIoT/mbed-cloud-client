@@ -394,7 +394,7 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
 
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION) {
                 /* Download approved. Download firmware. */
-                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED);
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_SETUP_FIRMWARE);
             }
             break;
 
@@ -403,6 +403,7 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
 
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION) {
                 /* Installation approved. Set firmware as active image and reboot. */
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
             }
             break;
 
@@ -415,9 +416,9 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
 
             /* TODO: use timeout to ensure callback doesn't stall reboot */
             switch (arm_uc_hub_state) {
-                case ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED:
-                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED");
-                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_SETUP_FIRMWARE);
+                case ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION_REPORT_DONE:
+                    UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION_REPORT_DONE");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION);
                     break;
                 case ARM_UC_HUB_STATE_AWAIT_FIRMWARE_MONITOR_REPORT_DONE:
                     UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_AWAIT_FIRMWARE_MONITOR_REPORT_DONE");
@@ -429,7 +430,6 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
                     break;
                 case ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION:
                     UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION");
-                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
                     break;
                 case ARM_UC_HUB_STATE_INSTALL_AUTHORIZED:
                     UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_INSTALL_AUTHORIZED");

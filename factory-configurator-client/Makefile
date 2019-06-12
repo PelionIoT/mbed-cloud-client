@@ -53,6 +53,7 @@ LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/mbed-client-esfs/source/include \
                     ${LOCAL_NAME}/utils/utils \
                     ${LOCAL_NAME}/storage/storage \
+                    ${LOCAL_NAME}/storage/source/include \
                     ${LOCAL_NAME}/secsrv-cbor/secsrv-cbor \
 
 

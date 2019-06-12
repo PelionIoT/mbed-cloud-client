@@ -23,6 +23,9 @@
 
 #include <string.h>
 #include <stdlib.h>
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "crypto.h"
+#endif
 
 #define TRACE_GROUP "PAL"
 
@@ -52,6 +55,14 @@ TEST_SETUP(pal_drbg)
     status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
     TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
 #endif
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // After entropy is injected, it is safe to initialize PSA
+    psa_status_t psa_status;
+    psa_status = psa_crypto_init();
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+#endif
+
 
 }
 

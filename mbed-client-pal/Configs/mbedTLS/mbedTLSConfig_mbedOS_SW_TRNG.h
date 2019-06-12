@@ -230,14 +230,16 @@
     #define MBEDTLS_AES_ROM_TABLES
 #endif //MBEDTLS_AES_ROM_TABLES
 
-// Read SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE from user config file
-#ifdef MBED_CLIENT_USER_CONFIG_FILE
-#include MBED_CLIENT_USER_CONFIG_FILE
+// Reduce IO buffer to save RAM, set default to 4KB. Buffers can be smaller if MFL is enabled.
+// Buffer length must be sufficient to hold each handshake message in unfragmented form.
+// Largest message is it the Certificate message and size is selected based on that.
+#if (PAL_MAX_FRAG_LEN == 1)
+    #define MBEDTLS_SSL_MAX_CONTENT_LEN 1024
+#elif (PAL_MAX_FRAG_LEN == 2)
+    #define MBEDTLS_SSL_MAX_CONTENT_LEN 1024
+#else
+    #define MBEDTLS_SSL_MAX_CONTENT_LEN 4096
 #endif
-// Reduce IO buffer to save RAM, default is 16KB
-#ifndef MBEDTLS_SSL_MAX_CONTENT_LEN
-    #define MBEDTLS_SSL_MAX_CONTENT_LEN SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE * 4
-#endif //MBEDTLS_SSL_MAX_CONTENT_LEN
 
 // needed for Base64 encoding Opaque data for
 // registration payload, adds 500 bytes to flash.

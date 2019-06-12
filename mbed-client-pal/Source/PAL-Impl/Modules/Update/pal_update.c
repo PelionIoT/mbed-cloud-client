@@ -121,50 +121,50 @@ palStatus_t pal_imagePrepare(palImageId_t imageId, palImageHeaderDeails_t *heade
         buffer = malloc(PAL_KILOBYTE);
         if (NULL != buffer)
         {
-        	uint32_t writeCounter = 0;
-			memset(buffer,0,PAL_KILOBYTE);
-			while(writeCounter <= headerDetails->imageSize)
-			{
-                int written = safe_write(imageId,0,buffer,PAL_KILOBYTE);
+            uint32_t writeCounter = 0;
+            memset(buffer,0,PAL_KILOBYTE);
+            while(writeCounter <= headerDetails->imageSize)
+            {
+                size_t written = safe_write(imageId,0,buffer,PAL_KILOBYTE);
                 writeCounter+=PAL_KILOBYTE;
                 if (PAL_KILOBYTE != written)
                 {
                     ret = PAL_ERR_UPDATE_ERROR;
                 }
-			}
-			if ((PAL_SUCCESS == ret) && (writeCounter < headerDetails->imageSize))
-			{
-				//writing the last bytes
-                int written = safe_write(imageId,0,buffer,(headerDetails->imageSize - writeCounter));
+            }
+            if ((PAL_SUCCESS == ret) && (writeCounter < headerDetails->imageSize))
+            {
+                //writing the last bytes
+                size_t written = safe_write(imageId,0,buffer,(headerDetails->imageSize - writeCounter));
                 if ((headerDetails->imageSize - writeCounter) != written)
                 {
                     ret = PAL_ERR_UPDATE_ERROR;
                 }
-			}
-			free(buffer);
-			if (PAL_SUCCESS == ret)
-			{
-				ret = pal_fsFseek(&(image_file[imageId]),0,PAL_FS_OFFSET_SEEKSET);
-			}
-			else
-			{
-				char *image_path=(char *)image_path_alloc_from_index(imageId);
-				pal_fsUnlink(image_path);
-				free(image_path);
-			}
+            }
+            free(buffer);
+            if (PAL_SUCCESS == ret)
+            {
+                ret = pal_fsFseek(&(image_file[imageId]),0,PAL_FS_OFFSET_SEEKSET);
+            }
+            else
+            {
+                char *image_path=(char *)image_path_alloc_from_index(imageId);
+                pal_fsUnlink(image_path);
+                free(image_path);
+            }
         }
         else
         {
-        	ret = PAL_ERR_NO_MEMORY;
+            ret = PAL_ERR_NO_MEMORY;
         }
     }
     if (PAL_SUCCESS == ret)
     {
-    	g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_PREPARE);
+        g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_PREPARE);
     }
     else
     {
-    	g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_ERROR);
+        g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_ERROR);
     }
 
 
@@ -245,40 +245,40 @@ palStatus_t pal_imageActivate(palImageId_t imageId)
 
 palStatus_t pal_imageGetFirmwareHeaderData(palImageId_t imageId, palBuffer_t *headerData)
 {
-		palStatus_t ret = PAL_SUCCESS;
-		palFileDescriptor_t file = 0;
-		size_t xfer_size;
+        palStatus_t ret = PAL_SUCCESS;
+        palFileDescriptor_t file = 0;
+        size_t xfer_size;
         if (NULL == headerData)
         {
             return PAL_ERR_NULL_POINTER;
         }
-		if (headerData->maxBufferLength < sizeof(palFirmwareHeader_t))
-		{
+        if (headerData->maxBufferLength < sizeof(palFirmwareHeader_t))
+        {
             PAL_LOG_ERR("Firmware header buffer size is too small(is %" PRIu32 " needs to be at least %zu)\r\n"
-					    ,headerData->maxBufferLength, sizeof(palFirmwareHeader_t));
-			return PAL_ERR_INVALID_ARGUMENT;
-		}
+                        ,headerData->maxBufferLength, sizeof(palFirmwareHeader_t));
+            return PAL_ERR_INVALID_ARGUMENT;
+        }
 
-		const char *file_path = header_path_alloc_from_index(imageId);
-		if (file_path)
-		{
-			ret = pal_fsFopen(file_path, PAL_FS_FLAG_READONLY, &file);
-			if (ret == PAL_SUCCESS)
-			{
-				ret = pal_fsFread(&file, headerData->buffer, sizeof(palFirmwareHeader_t), &xfer_size);
-				if (PAL_SUCCESS == ret)
-				{
-					headerData->bufferLength = xfer_size;
-				}
-				pal_fsFclose(&file);
-			}
-			free((void*)file_path);
-		}
-		else
-		{
-			ret = PAL_ERR_NO_MEMORY;
-		}
-	    return ret;
+        const char *file_path = header_path_alloc_from_index(imageId);
+        if (file_path)
+        {
+            ret = pal_fsFopen(file_path, PAL_FS_FLAG_READONLY, &file);
+            if (ret == PAL_SUCCESS)
+            {
+                ret = pal_fsFread(&file, headerData->buffer, sizeof(palFirmwareHeader_t), &xfer_size);
+                if (PAL_SUCCESS == ret)
+                {
+                    headerData->bufferLength = xfer_size;
+                }
+                pal_fsFclose(&file);
+            }
+            free((void*)file_path);
+        }
+        else
+        {
+            ret = PAL_ERR_NO_MEMORY;
+        }
+        return ret;
 }
 
 palStatus_t pal_imageGetActiveHash(palBuffer_t *hash)
@@ -431,8 +431,8 @@ PAL_PRIVATE size_t safe_read(uint32_t index, size_t offset, uint8_t *buffer, uin
     status = pal_fsFread(&(image_file[index]), buffer, size, &xfer_size);
     if (status == PAL_SUCCESS)
     {
-    	last_read_nwrite[index] = read_nwrite;
-		last_seek_pos[index] += xfer_size;
+        last_read_nwrite[index] = read_nwrite;
+        last_seek_pos[index] += xfer_size;
     }
 
     return xfer_size;
@@ -451,18 +451,18 @@ PAL_PRIVATE size_t safe_write(uint32_t index, size_t offset, const uint8_t *buff
     if (status == PAL_SUCCESS)
     {
     status  = pal_fsFwrite(&(image_file[index]), buffer, size, &xfer_size);
-		if (status == PAL_SUCCESS)
-		{
-			last_read_nwrite[index] = read_nwrite;
-			last_seek_pos[index] += xfer_size;
+        if (status == PAL_SUCCESS)
+        {
+            last_read_nwrite[index] = read_nwrite;
+            last_seek_pos[index] += xfer_size;
 
-			if (size != xfer_size)
-			{
-				//printf("WRONG SIZE expected %u got %lu\r\n", size, xfer_size);
-				return 0;
-			}
+            if (size != xfer_size)
+            {
+                //printf("WRONG SIZE expected %u got %lu\r\n", size, xfer_size);
+                return 0;
+            }
 
-		}
+        }
     }
 
     return xfer_size;
@@ -592,20 +592,20 @@ PAL_PRIVATE const char *path_join_and_alloc(const char * const * path_list)
     char *path = (char*)malloc(string_size);
     if (NULL != path)
     {
-    	memset(path, 0, string_size);
-    	// Write joined path
-    	pos = 0;
-    	while (path_list[pos] != NULL)
-    	{
-    		bool has_slash = '/' == path_list[pos][strlen(path_list[pos]) - 1];
-    		bool is_last = NULL == path_list[pos + 1];
+        memset(path, 0, string_size);
+        // Write joined path
+        pos = 0;
+        while (path_list[pos] != NULL)
+        {
+            bool has_slash = '/' == path_list[pos][strlen(path_list[pos]) - 1];
+            bool is_last = NULL == path_list[pos + 1];
             strncat(path, path_list[pos], string_size - strlen(path) - 1);
-    		if (!has_slash && !is_last)
-    		{
+            if (!has_slash && !is_last)
+            {
                 strncat(path, "/", string_size - strlen(path) - 1);
-    		}
-    		pos++;
-    	}
+            }
+            pos++;
+        }
     }
     return path;
 }

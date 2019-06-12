@@ -20,6 +20,7 @@
 #include "mbed-trace/mbed_trace.h"
 #include "ftcd_comm_base.h"
 #include "cs_hash.h"
+#include "kcm_defs.h"
 #include "fcc_malloc.h"
 
 #define TRACE_GROUP "fcbs"
@@ -115,7 +116,7 @@ ftcd_comm_status_e FtcdCommBase::wait_for_message(uint8_t **message_out, uint32_
     if (_use_signature == true) {
         //read message signature
 
-        uint8_t sig_from_message[CS_SHA256_SIZE];
+        uint8_t sig_from_message[KCM_SHA256_SIZE];
         success = read_message_signature(sig_from_message, sizeof(sig_from_message));
         if (!success) {
             mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Failed getting signature bytes");
@@ -125,7 +126,7 @@ ftcd_comm_status_e FtcdCommBase::wait_for_message(uint8_t **message_out, uint32_
         }
 
         //calculate message signature
-        uint8_t self_calculated_sig[CS_SHA256_SIZE];
+        uint8_t self_calculated_sig[KCM_SHA256_SIZE];
         kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
         kcm_status = cs_hash(CS_SHA256, message, message_size, self_calculated_sig, sizeof(self_calculated_sig));
         if (kcm_status != KCM_STATUS_SUCCESS) {
@@ -136,7 +137,7 @@ ftcd_comm_status_e FtcdCommBase::wait_for_message(uint8_t **message_out, uint32_
         }
 
         //compare signatures
-        if (memcmp(self_calculated_sig, sig_from_message, CS_SHA256_SIZE) != 0) {
+        if (memcmp(self_calculated_sig, sig_from_message, KCM_SHA256_SIZE) != 0) {
             mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Inconsistent message signature");
             status_code = FTCD_COMM_INCONSISTENT_MESSAGE_SIGNATURE;
             fcc_free(message);
@@ -172,7 +173,7 @@ ftcd_comm_status_e FtcdCommBase::_send_response(const uint8_t *response_message,
         response_size += (uint32_t)sizeof(uint32_t); // MESSAGE SIZE
         response_size += response_message_size; // MESSAGE DATA
         if (_use_signature == true) {
-            response_size += CS_SHA256_SIZE; // SIGNATURE
+            response_size += KCM_SHA256_SIZE; // SIGNATURE
         }
     }
 
@@ -226,9 +227,9 @@ ftcd_comm_status_e FtcdCommBase::_send_response(const uint8_t *response_message,
 
         if (_use_signature == true) {
             kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-            uint8_t sig[CS_SHA256_SIZE];
+            uint8_t sig[KCM_SHA256_SIZE];
 
-            kcm_status = cs_hash(CS_SHA256, response_message, response_message_size, sig, CS_SHA256_SIZE);
+            kcm_status = cs_hash(CS_SHA256, response_message, response_message_size, sig, KCM_SHA256_SIZE);
             if (kcm_status != KCM_STATUS_SUCCESS) {
                 mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Failed calculating response message signature");
                 fcc_free(response);
@@ -236,7 +237,7 @@ ftcd_comm_status_e FtcdCommBase::_send_response(const uint8_t *response_message,
             }
 
             // SIGNATURE
-            memcpy(response + offset, sig, CS_SHA256_SIZE);
+            memcpy(response + offset, sig, KCM_SHA256_SIZE);
         }
     }
 

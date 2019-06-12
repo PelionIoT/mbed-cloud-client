@@ -38,7 +38,6 @@ typedef uintptr_t cs_key_handle_t;
 #define KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE                65
 #define KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE                91
 #define KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES  (256/8)*2 + 10 //74 bytes
-#define KCM_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE_IN_BYTES      64
 
 
 /** EC key context
@@ -140,23 +139,6 @@ kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_le
 *     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
 */
 kcm_status_e cs_priv_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out);
-
-/** Generate a general CSR from the given private key handle.
-* @param priv_key_h The private key handle.
-* @param csr_params Pointer to CSR request params struct.
-* @param csr_buff_out Out buffer for CSR to generate in DER format.
-* @param csr_buff_max_size Size of the CSR buffer
-* @param csr_buff_act_size_out Actual CSR size in bytes.
-*
-* @returns
-* Operation status.
-*/
-kcm_status_e cs_csr_generate_psa(
-    kcm_key_handle_t priv_key_h,
-    const kcm_csr_params_s *csr_params,
-    uint8_t *csr_buff_out,
-    size_t csr_buff_max_size,
-    size_t *csr_buff_act_size_out);
 	
 #endif
 
@@ -193,8 +175,7 @@ kcm_status_e cs_key_pair_generate(kcm_crypto_key_scheme_e curve_name,
                                   size_t *pub_key_act_size_out);
 
 /** Generate a general CSR from the given private key.
-* @param priv_key The private key buffer in DER format.
-* @param priv_key_size The private key buffer size.
+* @param priv_key_handle The private key handle.
 * @param csr_params Pointer to CSR request params struct.
 * @param csr_buff_out Out buffer for CSR to generate in DER format.
 * @param csr_buff_max_size Size of the CSR buffer
@@ -203,40 +184,11 @@ kcm_status_e cs_key_pair_generate(kcm_crypto_key_scheme_e curve_name,
 * @returns
 * Operation status.
 */
-kcm_status_e cs_csr_generate(const uint8_t *priv_key,
-                             size_t priv_key_size,
+kcm_status_e cs_csr_generate(const kcm_key_handle_t priv_key_handle,
                              const kcm_csr_params_s *csr_params,
                              uint8_t *csr_buff_out,
                              size_t csr_buff_max_size,
                              size_t *csr_buff_act_size_out);
-
-/** Generate private key and CSR from the given crypto scheme DER.
-* @param curve_name The curve name
-* @param csr_params Pointer to CSR request params struct.
-* @param priv_key_out Out buffer for private key to generate in DER format.
-* @param priv_key_max_size Size of the private key buffer
-* @param priv_key_act_size_out Actual private key size in bytes.
-* @param pub_key_out Out buffer for public key to generate in DER format. Send NULL if no public key needed.
-* @param pub_key_max_size Size of the public key buffer
-* @param pub_key_act_size_out Actual public key size in bytes.
-* @param csr_buff_out Out buffer for CSR to generate in DER format.
-* @param csr_buff_max_size Size of the CSR buffer
-* @param csr_buff_act_size_out Actual CSR size in bytes.
-*
-* @returns
-* Operation status.
-*/
-kcm_status_e cs_generate_keys_and_csr(kcm_crypto_key_scheme_e curve_name,
-                                      const kcm_csr_params_s *csr_params,
-                                      uint8_t *priv_key_out,
-                                      size_t priv_key_max_size,
-                                      size_t *priv_key_act_size_out,
-                                      uint8_t *pub_key_out,
-                                      size_t pub_key_max_size,
-                                      size_t *pub_key_act_size_out,
-                                      uint8_t *csr_buff_out,
-                                      const size_t csr_buff_max_size,
-                                      size_t *csr_buff_act_size_out);
 
 /** Allocates and initializes a key object and return the key handle.
 *
@@ -291,6 +243,57 @@ storage.
 */
 
 kcm_status_e cs_verify_items_correlation(cs_key_handle_t crypto_handle, const uint8_t *certificate_data, size_t certificate_data_len);
+
+/** Calculates asymmetric signature on hash digest using private key handle.
+*
+*   The function uses a handle to private key to compute the Elliptic Curve Digital Signature Algorithm (ECDSA)
+*   raw signature of a previously hashed message
+*
+*    @param[in] kcm_private_key_handle                             Handle to private key.
+*    @param[in] hash_digest                                        The hash digest buffer.
+*    @param[in] hash_digest_len                                    Length of the hash digest buffer.
+*    @param[out] signature_data_out                                A pointer to the output buffer for calculated signature.
+*    @param[in] signature_data_max_size                            The size of signature buffer.
+*    @param[out] signature_data_act_size_out                       The actual size of the output signature buffer.
+*
+*   @return
+*       Status from  kcm_status_e corresponding to pal status.
+*/
+kcm_status_e cs_asymmetric_sign (kcm_key_handle_t kcm_prv_key_handle, const uint8_t *hash_digest, 
+    size_t hash_digest_size, uint8_t *signature_data_out, size_t signature_data_max_size, size_t *signature_data_act_size_out);
+
+
+/** Verifies the signature of a previously hashed message using associated public key handle.
+*
+*   The function uses a key handle according to the public key unique name to verify 
+*   the Elliptic Curve Digital Signature Algorithm (ECDSA) raw signature of a previously hashed message.
+*
+*    @param[in] kcm_pub_key_handle                          Handle to public key..
+*    @param[in] hash_digest                                 The hash digest buffer.
+*    @param[in] hash_digest_size                            The size of the hash digest buffer.
+*    @param[in] signature                                   The signature buffer.
+*    @param[in] signature_size                               The size of the signature buffer.
+*
+*   @return
+*       Status from  kcm_status_e corresponding to pal status
+*/
+kcm_status_e  cs_asymmetric_verify(kcm_key_handle_t kcm_pub_key_handle, const uint8_t *hash_digest, 
+        size_t hash_digest_size, const uint8_t *signature, size_t signature_len);
+
+
+/*! \brief Compute the raw shared secret using elliptic curve Diffie–Hellman.
+*
+* @param[in]  kcm_private_key_handle       Handle to private key.
+* @param[in]  peer_public_key:             The public key from a peer
+* @param[in]  peer_public_pub_key_size:    The size of the public key from a peer.
+* @param[out] shared_secret:               A buffer to hold the computed raw shared secret.
+* @param[in]  shared_secret_max_size:      The size of the raw shared secret buffer.
+* @param[out] shared_secret_act_size_out:  The actual size of the  raw shared secret buffer.
+*
+\return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+*/
+kcm_status_e cs_ecdh_key_agreement(kcm_key_handle_t kcm_private_key_handle, const uint8_t *peer_public_key, 
+                size_t peer_public_pub_key_size, uint8_t *shared_secret, size_t shared_secret_max_size, size_t *shared_secret_act_size_out); 
 
 #ifdef __cplusplus
 }

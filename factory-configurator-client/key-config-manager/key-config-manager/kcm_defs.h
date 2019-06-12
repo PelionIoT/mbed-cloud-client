@@ -31,15 +31,6 @@ extern "C" {
     /**
     * KCM item types
     */
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    /**
-    * KCM handle type
-    * Represents a reference to a private key in PSA store
-    */
-    typedef uintptr_t kcm_key_handle_t;
-#endif
-
     typedef enum {
         KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
         KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
@@ -80,14 +71,6 @@ extern "C" {
         KCM_CSR_EXT_KU_OCSP_SIGNING =     (1 << 9)  //!< OCSP Signing.
     } kcm_csr_ext_key_usage_e;
 
-    /**
-    * Security descriptor - contains different ACLs such as remote ACL, local ACL and audit.
-    * Currently defined to `void*.`
-    * May be changed in the future.
-    */
-    typedef void* kcm_security_desc_s;
-
-
     /** Cryptographic scheme types
     *   Currently only ECC-256 curve is supported.
     *   More schemes can be added later on.
@@ -95,27 +78,24 @@ extern "C" {
     typedef enum {
         KCM_SCHEME_NONE,
         KCM_SCHEME_EC_SECP256R1,       //!< KCM ECC cryptographic scheme, 256-bits NIST curve.
-    }kcm_crypto_key_scheme_e;
-
-    /**
-    * Maximum KCM file name length.
-    * If you are using Mbed OS 5.11 or higher with the built-in secure storage (KVStore), or your own secure storage (ported to the Pelion client), the KCM file name must be less than or equal to 100 bytes.
-    * If you are using the Pelion client secure storage (SOTP and ESFS), the KCM file names must be less than or equal to 1012 bytes. Note that this feature will be deprecated in the future and the KCM file name will have to be less than or equal to 100 bytes.
-    */
-#ifndef  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-    #define KCM_MAX_FILENAME_SIZE  1012
-#else
-    #define KCM_MAX_FILENAME_SIZE  100
-#endif
-    /**
-    * Maximal length of the certificate chain in the device
-    */
-    #define KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN 5
+    } kcm_crypto_key_scheme_e;
 
     /*
     * Certificate chain handle
     */
     typedef void* kcm_cert_chain_handle;
+
+    /**
+    * KCM key handle type
+    * Represents a reference to internal kcm key handler
+    */
+    typedef uintptr_t kcm_key_handle_t;
+
+    /**
+    * Optional item info.
+    * Currently used only for PSA configuration for PSA key policy transfer.
+    */
+    typedef void* kcm_security_desc_s;
 
     /** This struct contains CSR parameters for future generated CSR
     *
@@ -132,6 +112,30 @@ extern "C" {
         uint32_t ext_key_usage;
     } kcm_csr_params_s;
 
+    /**
+    * Maximum KCM file name length.
+    */
+    #define KCM_MAX_FILENAME_SIZE  100
+
+    /**
+    * Maximum length of the certificate chain on the device.
+    */
+    #define KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN 5
+
+    /**
+    * Size in bytes of the EC SECP256R1 hash digest.
+    */
+    #define KCM_SHA256_SIZE                         32
+
+    /**
+    * Size in bytes of the EC SECP256R1 signature in raw format.
+    */
+    #define KCM_EC_SECP256R1_SIGNATURE_RAW_SIZE     64
+
+    /**
+    * Size in bytes of the EC SECP256R1 shared secret.
+    */
+    #define KCM_EC_SECP256R1_SHARED_SECRET_SIZE     32
 
 #ifdef __cplusplus
 }

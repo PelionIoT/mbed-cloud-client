@@ -21,7 +21,7 @@
 #include "general_utils.h"
 #include "fcc_utils.h"
 #include "factory_configurator_client.h"
-#include "storage.h"
+#include "storage_items.h"
 
 #define  FCC_MAX_SIZE_OF_STRING 512
 

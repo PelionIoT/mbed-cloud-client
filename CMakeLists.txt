@@ -94,7 +94,7 @@ SET(FCC_MODULES
     mbed-client-esfs
 )
 
-# XXX: do NOT do this, no need to spam ~5KB of FCC include paths for each CC/CXX invocation. 
+# XXX: do NOT do this, no need to spam ~5KB of FCC include paths for each CC/CXX invocation.
 # includes
 #FOREACH(module ${FCC_MODULES})
 #    ADD_GLOBALDIR(${FACTORY_CLIENT_SOURCE_DIR}/${module}/${module})
@@ -109,6 +109,7 @@ include_directories(${FACTORY_CLIENT_SOURCE_DIR}/secure_store)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/secure_store/secure_store)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/storage)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/storage/storage)
+include_directories(${FACTORY_CLIENT_SOURCE_DIR}/storage/source/include)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/key-config-manager)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/key-config-manager/source/include)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/utils)
@@ -165,10 +166,10 @@ FILE(GLOB MBED_CLIENT_RANDLIB_SRC
 
 # This part gets split into separate nanostacklibservice, which is needed
 # as the mbedTrace -library points to ip6tos and there is a dependency chain of
-# pal->mbed-trace->nanostack-libservice. Without this, the PAL should add mbedCloudClient 
+# pal->mbed-trace->nanostack-libservice. Without this, the PAL should add mbedCloudClient
 # as dependency and that would also create a circular dependency, which is a nightmare on linking time.
 #
-# Note: the native Makefile of nanostack-libservice will create a library called "libservice", 
+# Note: the native Makefile of nanostack-libservice will create a library called "libservice",
 # so just to avoid some collisions, name of the library created by this is different and matches
 # the current name of the repository (nanostack-libservice).
 FILE(GLOB NANOSTACK_LIBSERVICE_SRC
@@ -204,7 +205,7 @@ FILE(GLOB MBED_COAP_SRC
 message("MbedCloudClient sources = \n ${MBED_CLOUD_CLIENT_SRC}")
 
 # Note: this is not using the CREATE_LIBRARY() on purpose, as it would pollute all the
-# executables with the library. 
+# executables with the library.
 
 add_library(nshalpal STATIC "${NS_HAL_PAL_SRC}")
 

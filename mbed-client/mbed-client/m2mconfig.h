@@ -83,7 +83,54 @@ using namespace m2m;
  * NOTE! This will disable usage of some API's and also change some API signatures.
  * By default this is disabled.
  */
+
 #undef MBED_CLIENT_MEMORY_OPTIMIZED_API
+#if defined (__ICCARM__)
+#define m2m_deprecated
+#else
+#define m2m_deprecated __attribute__ ((deprecated))
+#endif
+
+// This is valid for mbed-client-mbedtls
+// For other SSL implementation there
+// can be other
+
+/*
+*\brief A callback function for a random number
+* required by the mbed-client-mbedtls module.
+*/
+typedef uint32_t (*random_number_cb)(void) ;
+
+/*
+*\brief An entropy structure for an mbedtls entropy source.
+* \param entropy_source_ptr The entropy function.
+* \param p_source  The function data.
+* \param threshold A minimum required from the source before entropy is released
+*                  (with mbedtls_entropy_func()) (in bytes).
+* \param strong    MBEDTLS_ENTROPY_SOURCE_STRONG = 1 or
+*                  MBEDTSL_ENTROPY_SOURCE_WEAK = 0.
+*                  At least one strong source needs to be added.
+*                  Weaker sources (such as the cycle counter) can be used as
+*                  a complement.
+*/
+typedef struct mbedtls_entropy {
+    int     (*entropy_source_ptr)(void *, unsigned char *,size_t , size_t *);
+    void    *p_source;
+    size_t  threshold;
+    int     strong;
+}entropy_cb;
+
+
+// Include user provided configuration
+#ifdef MBED_CLOUD_CLIENT_USER_CONFIG_FILE
+#include MBED_CLOUD_CLIENT_USER_CONFIG_FILE
+#endif
+
+#ifdef MBED_CLIENT_USER_CONFIG_FILE
+#include MBED_CLIENT_USER_CONFIG_FILE
+#endif
+
+// Handle first configuration provided via Mbed CLI.
 
 #if defined MBED_CONF_MBED_CLIENT_RECONNECTION_COUNT
 #define MBED_CLIENT_RECONNECTION_COUNT MBED_CONF_MBED_CLIENT_RECONNECTION_COUNT
@@ -139,44 +186,7 @@ using namespace m2m;
 #define MEMORY_OPTIMIZED_API MBED_CONF_MBED_CLIENT_MEMORY_OPTIMIZED_API
 #endif
 
-#if defined (__ICCARM__)
-#define m2m_deprecated
-#else
-#define m2m_deprecated __attribute__ ((deprecated))
-#endif
-
-// This is valid for mbed-client-mbedtls
-// For other SSL implementation there
-// can be other
-
-/*
-*\brief A callback function for a random number
-* required by the mbed-client-mbedtls module.
-*/
-typedef uint32_t (*random_number_cb)(void) ;
-
-/*
-*\brief An entropy structure for an mbedtls entropy source.
-* \param entropy_source_ptr The entropy function.
-* \param p_source  The function data.
-* \param threshold A minimum required from the source before entropy is released
-*                  (with mbedtls_entropy_func()) (in bytes).
-* \param strong    MBEDTLS_ENTROPY_SOURCE_STRONG = 1 or
-*                  MBEDTSL_ENTROPY_SOURCE_WEAK = 0.
-*                  At least one strong source needs to be added.
-*                  Weaker sources (such as the cycle counter) can be used as
-*                  a complement.
-*/
-typedef struct mbedtls_entropy {
-    int     (*entropy_source_ptr)(void *, unsigned char *,size_t , size_t *);
-    void    *p_source;
-    size_t  threshold;
-    int     strong;
-}entropy_cb;
-
-#ifdef MBED_CLIENT_USER_CONFIG_FILE
-#include MBED_CLIENT_USER_CONFIG_FILE
-#endif
+// Define defaults if not defined yet.
 
 #ifndef MBED_CLIENT_RECONNECTION_COUNT
 #define MBED_CLIENT_RECONNECTION_COUNT 3

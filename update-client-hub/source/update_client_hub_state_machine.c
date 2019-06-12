@@ -42,6 +42,10 @@
 #include "update-client-pal-linux/arm_uc_pal_linux_ext.h"
 #endif // ARM_UC_FEATURE_ROOTLESS_STAGE_1
 
+#if defined (MBED_HEAP_STATS_ENABLED) || defined (MBED_STACK_STATS_ENABLED)
+#include "mbed_stats.h"
+#endif
+
 /*****************************************************************************/
 /* Global variables                                                          */
 /*****************************************************************************/
@@ -71,6 +75,8 @@ static arm_uc_buffer_t back_buffer = {
 // version (timestamp) of the current running application
 static arm_uc_firmware_details_t arm_uc_active_details = { 0 };
 static bool arm_uc_active_details_available = false;
+
+static arm_uc_delta_details_t arm_uc_hub_delta_details = { 0 };
 
 // bootloader information
 static arm_uc_installer_details_t arm_uc_installer_details = { 0 };
@@ -126,11 +132,25 @@ static void arm_uc_hub_debug_output()
                uri.host, uri.port, uri.path);
     }
 
-    printf("Firmware size: %" PRIu32 "\r\n", fwinfo.size);
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+    printf("Firmware size: %" PRIu32 "\r\n", fwinfo.installedSize);
 
+    printf("Payload size: %" PRIu32 "\r\n", fwinfo.size);
+    printf("Firmware hash (%" PRIu32 "): ", fwinfo.installedHash.size);
+
+    for (unsigned i = 0; i < fwinfo.installedHash.size; i++) {
+        printf("%02" PRIx8, fwinfo.installedHash.ptr[i]);
+#else
+    printf("Firmware size: %" PRIu32 "\r\n", fwinfo.size);
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+    if (arm_uc_hub_firmware_config.is_delta) {
+        printf("Firmware Delta payload size: %" PRIu32 "\r\n", fwinfo.vendorInfo.deltaSize);
+    }
+#endif
     printf("Firmware hash (%" PRIu32 "): ", fwinfo.hash.size);
     for (unsigned i = 0; i < fwinfo.hash.size; i++) {
         printf("%02" PRIx8, fwinfo.hash.ptr[i]);
+#endif //ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST
     }
     printf("\r\n");
 
@@ -166,6 +186,44 @@ static void arm_uc_hub_debug_output()
 #endif
 
 /*****************************************************************************/
+/* Heap statistic                                                            */
+/*****************************************************************************/
+
+#if defined (MBED_HEAP_STATS_ENABLED)
+static void arm_uc_hub_printHeapStats()
+{
+    mbed_stats_heap_t heap_stats;
+    mbed_stats_heap_get(&heap_stats);
+    UC_HUB_TRACE("\r\nheap_stats_current_size: %" PRIu32
+                 "\r\nheap_stats_alloc_cnt: %" PRIu32,
+                 heap_stats.current_size,
+                 heap_stats.alloc_cnt);
+}
+#endif
+
+/*****************************************************************************/
+/* Stack statistic                                                           */
+/*****************************************************************************/
+
+#if defined (MBED_STACK_STATS_ENABLED)
+static void arm_uc_hub_printStackStats()
+{
+    int cnt = osThreadGetCount();
+    mbed_stats_stack_t *stack_stats = (mbed_stats_stack_t*) malloc(cnt * sizeof(mbed_stats_stack_t));
+    if (stack_stats) {
+        cnt = mbed_stats_stack_get_each(stack_stats, cnt);
+        for (int i = 0; i < cnt; i++) {
+            UC_HUB_TRACE("Thread: 0x%" PRIx32 ", Stack size: %" PRIu32 ", Max stack used: %" PRIu32,
+                         stack_stats[i].thread_id,
+                         stack_stats[i].reserved_size,
+                         stack_stats[i].max_size);
+        }
+        free(stack_stats);
+    }
+}
+#endif
+
+/*****************************************************************************/
 /* State machine                                                             */
 /*****************************************************************************/
 
@@ -196,6 +254,11 @@ void ARM_UC_HUB_setInitializationCallback(void (*callback)(uintptr_t))
 arm_uc_firmware_details_t *ARM_UC_HUB_getActiveFirmwareDetails(void)
 {
     return arm_uc_active_details_available ? &arm_uc_active_details : NULL;
+}
+
+arm_uc_delta_details_t *ARM_UC_HUB_getDeltaDetails(void)
+{
+    return &arm_uc_hub_delta_details;
 }
 
 void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
@@ -294,7 +357,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 printf("layout: %" PRIu32 "\r\n", arm_uc_installer_details.layout);
 #endif
 
-                /* report installer details to mbed cloud */
+                /* report installer details to Device Management */
                 arm_uc_buffer_t bootloader_hash = {
                     .size_max = ARM_UC_SHA256_SIZE,
                     .size = ARM_UC_SHA256_SIZE,
@@ -389,7 +452,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_CHECK_VERSION");
 
                 /* give up if the format is unsupported */
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+                if (!ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_RAW_BINARY) && !ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
+#else
                 if (!ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_RAW_BINARY)) {
+#endif
+
                     ARM_UC_SET_ERROR(retval, MFST_ERR_FORMAT);
                     HANDLE_ERROR(retval, "Firmware Format unsupported");
                 }
@@ -418,8 +486,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP");
 
                 /* store pointer to hash */
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+                arm_uc_hub_firmware_config.hash = &fwinfo.installedHash;
+#else
                 arm_uc_hub_firmware_config.hash = &fwinfo.hash;
-
+#endif
                 /* parse the url string into a arm_uc_uri_t struct */
                 retval = arm_uc_str2uri(fwinfo.uri.ptr, fwinfo.uri.size, &uri);
 
@@ -438,9 +509,22 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     break;
                 }
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+                // With new manifest fields the payload size is in manifest size-field
+                arm_uc_hub_firmware_config.package_size = fwinfo.installedSize;
+#else
                 /* store firmware size */
                 arm_uc_hub_firmware_config.package_size = fwinfo.size;
+#endif // ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+
+                if(ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
+                    arm_uc_hub_firmware_config.is_delta = 1;
+                } else {
+                    arm_uc_hub_firmware_config.is_delta = 0;
+                }
+#endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
                 /* read cryptography mode to determine if firmware is encrypted */
                 switch (fwinfo.cipherMode) {
                     case ARM_UC_MM_CIPHERMODE_NONE:
@@ -505,18 +589,31 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 #endif
 
                 /* Set new state */
-                new_state = ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION;
+                new_state = ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZATION_MONITOR_REPORT;
                 break;
 
             /*****************************************************************/
             /* Download authorization                                        */
             /*****************************************************************/
+            case ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZATION_MONITOR_REPORT:
+                UC_HUB_TRACE("ARM_UC_HUB_STATE_DONWLOAD_AUTHORIZATION_MONITOR_REPORT");
+
+                /* Signal control center */
+                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_AWAITING_DOWNLOAD_APPROVAL);
+
+                /* Set new state */
+                new_state = ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION_REPORT_DONE;
+                break;
+
+            case ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION_REPORT_DONE:
+                UC_HUB_TRACE("ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION_REPORT_DONE");
+                break;
+
             case ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION");
 
                 /* Signal control center */
                 ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_DOWNLOAD);
-                ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_AWAITING_DOWNLOAD_APPROVAL);
 
                 /* Set new state */
                 new_state = ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION;
@@ -524,12 +621,6 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION");
-                break;
-
-            case ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED:
-                UC_HUB_TRACE("ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED");
-
-                /* Set new state */
                 break;
 
             /*****************************************************************/
@@ -576,11 +667,40 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* use manifest timestamp as firmware header version */
                 arm_uc_hub_firmware_details.version = fwinfo.timestamp;
-                arm_uc_hub_firmware_details.size    = fwinfo.size;
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+                arm_uc_hub_firmware_details.size    = fwinfo.installedSize;
                 /* copy hash */
                 memcpy(arm_uc_hub_firmware_details.hash,
-                       fwinfo.hash.ptr,
+                       fwinfo.installedHash.ptr,
                        ARM_UC_SHA256_SIZE);
+#else
+                arm_uc_hub_firmware_details.size    = fwinfo.size;
+#endif
+
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+                if(arm_uc_hub_firmware_config.is_delta == 1) {
+                    arm_uc_hub_delta_details.is_delta = arm_uc_hub_firmware_config.is_delta;
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+                    // New manifest 1.0 with new fields
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_SETUP_FIRMWARE NEW MANIFEST 1.0 FORMAT WITH NEW FIELDS!");
+                    arm_uc_hub_delta_details.delta_payload_size = fwinfo.size;
+#else
+                    arm_uc_hub_delta_details.delta_payload_size = fwinfo.vendorInfo.deltaSize;
+
+                    /* copy hash */
+                    memcpy(arm_uc_hub_firmware_details.hash,
+                           fwinfo.hash.ptr,
+                           ARM_UC_SHA256_SIZE);
+
+                } else {
+                    /* copy hash */
+                    memcpy(arm_uc_hub_firmware_details.hash,
+                           fwinfo.hash.ptr,
+                           ARM_UC_SHA256_SIZE);
+#endif
+                }
+#endif // ARM_UC_FEATURE_DELTA_PAAL
+
 #if 0
                 memcpy(arm_uc_hub_firmware_details.campaign,
                        configuration.campaign,
@@ -594,7 +714,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                                                         &front_buffer);
                 new_state = ARM_UC_HUB_STATE_AWAIT_FIRMWARE_SETUP;
                 if (retval.code != ERR_NONE) {
+                    // @todo: no separate error for Prepare ?
+                    ARM_UC_HUB_ErrorHandler(FIRM_ERR_WRITE,
+                                            ARM_UC_HUB_STATE_SETUP_FIRMWARE);
                     HANDLE_ERROR(retval, "ARM_UC_FirmwareManager Setup failed")
+                    /* signal warning through external handler */
                 }
             }
             break;
@@ -634,12 +758,27 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     front_buffer.size = 0;
                     back_buffer.size = 0;
                     retval = ARM_UC_SourceManager.GetFirmwareFragment(&uri, &front_buffer, firmware_offset);
-                    HANDLE_ERROR(retval, "GetFirmwareFragment failed")
+                    if (retval.code !=ERR_NONE) {
+                        // @todo: no separate error for Prepare ?
+                        ARM_UC_HUB_ErrorHandler(SOMA_ERR_NO_ROUTE_TO_SOURCE,
+                                                ARM_UC_HUB_STATE_FETCH_FIRST_FRAGMENT);
+                        HANDLE_ERROR(retval, "GetFirmwareFragment failed")
+                    }
                 }
                 break;
 
             case ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD");
+
+                uint32_t fw_downloadSize = fwinfo.size;
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+#if !defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)
+                if (arm_uc_hub_firmware_config.is_delta) {
+                    fw_downloadSize = fwinfo.vendorInfo.deltaSize;
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD USING Delta payload download size: %" PRIu32, fwinfo.vendorInfo.deltaSize);
+                }
+#endif
+#endif
 
                 /* swap the front and back buffers
                    the back buffer contained just downloaded firmware chunk
@@ -658,21 +797,31 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     /* increase offset by the amount that we just downloaded */
                     firmware_offset += back_buffer.size;
                     retval = ARM_UC_FirmwareManager.Write(&back_buffer);
-                    HANDLE_ERROR(retval, "ARM_UC_FirmwareManager Update failed")
+                    if (retval.code != ERR_NONE) {
+                        // @todo: no separate error for Prepare ?
+                        ARM_UC_HUB_ErrorHandler(FIRM_ERR_WRITE,
+                                                ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD);
+                        HANDLE_ERROR(retval, "ARM_UC_FirmwareManager Update failed")
+                    }
                 }
                 /* go fetch a new chunk using the front buffer if more are expected */
-                if (firmware_offset < fwinfo.size) {
+                if (firmware_offset < fw_downloadSize) {
                     front_buffer.size = 0;
                     UC_HUB_TRACE("Getting next fragment at offset: %" PRIu32, firmware_offset);
                     retval = ARM_UC_SourceManager.GetFirmwareFragment(&uri, &front_buffer, firmware_offset);
-                    HANDLE_ERROR(retval, "GetFirmwareFragment failed")
+                    if (retval.code != ERR_NONE) {
+                        // @todo: no separate error for Prepare ?
+                        ARM_UC_HUB_ErrorHandler(SOMA_ERR_NO_ROUTE_TO_SOURCE,
+                                                ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD);
+                        HANDLE_ERROR(retval, "GetFirmwareFragment failed")
+                    }
                 } else {
                     // Terminate the process, but first ensure the last fragment has been stored.
                     UC_HUB_TRACE("Last fragment fetched.");
                     new_state = ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_STORED;
                 }
                 /* report progress */
-                ARM_UC_ControlCenter_ReportProgress(firmware_offset, fwinfo.size);
+                ARM_UC_ControlCenter_ReportProgress(firmware_offset, fw_downloadSize);
                 break;
 
             case ARM_UC_HUB_STATE_WAIT_FOR_STORAGE:
@@ -822,4 +971,17 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 break;
         }
     } while (arm_uc_hub_state != new_state);
+
+    if (new_state == ARM_UC_HUB_STATE_IDLE || new_state == ARM_UC_HUB_STATE_PREP_REBOOT) {
+#if defined (MBED_HEAP_STATS_ENABLED)
+        arm_uc_hub_printHeapStats();
+#endif
+
+#if defined (MBED_STACK_STATS_ENABLED)
+        arm_uc_hub_printStackStats();
+#endif
+    }
+
+
+
 }

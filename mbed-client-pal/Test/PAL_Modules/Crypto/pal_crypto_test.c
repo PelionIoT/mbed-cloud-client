@@ -40,6 +40,7 @@ TEST_SETUP(pal_crypto)
     uint8_t entropy_buf[48] = { 0 };
     status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
     TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
+
 #endif
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
@@ -902,6 +903,46 @@ TEST(pal_crypto, X509_Verify)
 }
 
 /**
+* @brief Test the validity of a certain usage against the extended-key-usage V3 extension of a given X509 certificate.
+*
+* Reads a X509 certificate, specific usage such as `PAL_X509_EXT_KU_CLIENT_AUTH` and `PAL_X509_EXT_KU_OCSP_SIGNING`
+* and validates with `pal_x509CertCheckExtendedKeyUsage`.
+*
+* Uses `x509_ca_with_extended_key_usage`.
+*
+For each test vector:
+* | # |    Step                        |   Expected  |
+* |---|--------------------------------|-------------|
+* | 1 | Initialize X509 certificate context using `pal_x509Initiate`.                                               | PAL_SUCCESS |
+* | 2 | Parse a valid x509 certificate using `pal_x509CertParse`.                                                   | PAL_SUCCESS |
+* | 3 | Check the usage against the extended-key-usage V3 extension using `pal_x509CertCheckExtendedKeyUsage`.      | PAL_SUCCESS |
+* | 4 | Release X509 certificate context.                                                                           | PAL_SUCCESS |
+*/
+TEST(pal_crypto, X509_VerifyExtendedKeyUsage)
+{
+#if (PAL_ENABLE_X509 == 1)
+    palStatus_t result = PAL_SUCCESS;
+    palX509Handle_t caCert = NULLPTR;
+
+    /*#1*/
+    result = pal_x509Initiate(&caCert);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    TEST_ASSERT_NOT_EQUAL(caCert, NULLPTR);
+    /*#2*/
+    result = pal_x509CertParse(caCert, x509_ca_with_extended_key_usage, sizeof(x509_ca_with_extended_key_usage));
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    /*#3*/
+    result = pal_x509CertCheckExtendedKeyUsage(caCert, PAL_X509_EXT_KU_CLIENT_AUTH);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    result = pal_x509CertCheckExtendedKeyUsage(caCert, PAL_X509_EXT_KU_OCSP_SIGNING);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED, result);
+    /*#4*/
+    result = pal_x509Free(&caCert);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+#endif
+}
+
+/**
  * @brief Test the parsing of elliptic-curves keys (public and private).
  *
  * Uses `parse_ec_key_data`.
@@ -1280,4 +1321,403 @@ TEST(pal_crypto, ECKey_GenerateKeys)
     /*#8*/
     result = pal_ECKeyFree(&key_handle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+}
+
+
+/**
+* @brief Test the convertion of RAW signature to DER signature
+*
+* Uses `pal_convertRawSignatureToDer`.
+*
+* | # |    Step                        |   Expected  |
+* |---|--------------------------------|-------------|
+* | 1 | Convert fixed RAW signature to DER format.                                                 | PAL_SUCCESS |
+* | 2 | Verify out DER signature equal expected signature.                                         | PAL_SUCCESS |
+* | On debug only                                                                                  |
+* | 3 | Test invalid RAW signature size.                                                           | PAL_ERR_INVALID_ARGUMENT |
+* | 4 | Test invalid DER signature buffer.                                                         | PAL_ERR_INVALID_ARGUMENT |
+* | 5 | Test invalid DER signature size.                                                           | PAL_ERR_INVALID_ARGUMENT |
+*/
+TEST(pal_crypto, ECSig_RawToDER)
+{
+    palStatus_t result;
+    unsigned char raw_signature[PAL_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE] = { 0x98, 0xB1, 0x4B, 0xEB, 0xF6, 0xDB, 0x8A, 0xFB, 0x5F, 0xF5, 0x72, 0x35, 0xBA, 0x15, 0x5B, 0x3A, 0xC7, 0xD4, 0x87, 0xA8, 0xE0, 0x4F, 0xE4, 0x2F, 0xFF, 0x3C, 0x51, 0x0D, 0xB9, 0xD5, 0x2E, 0xA6, 0x3B, 0x06, 0x17, 0x5E, 0x30, 0x07, 0x75, 0x33, 0x01, 0xFD, 0xBC, 0x62, 0x9F, 0xCE, 0x99, 0xA7, 0xD3, 0xBD, 0x0A, 0x39, 0xB3, 0xE0, 0xCF, 0x3A, 0x34, 0x1E, 0x1A, 0xF6, 0x0F, 0xB7, 0x6B, 0x83 };
+    unsigned char der_signature[PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE] = { 0 };
+    unsigned char exepected_der_sig[] = { 0x30, 0x45, 0x02, 0x21, 0x00, 0x98, 0xB1, 0x4B, 0xEB, 0xF6, 0xDB, 0x8A, 0xFB, 0x5F, 0xF5, 0x72, 0x35, 0xBA, 0x15, 0x5B, 0x3A, 0xC7, 0xD4, 0x87, 0xA8, 0xE0, 0x4F, 0xE4, 0x2F, 0xFF, 0x3C, 0x51, 0x0D, 0xB9, 0xD5, 0x2E, 0xA6, 0x02, 0x20, 0x3B, 0x06, 0x17, 0x5E, 0x30, 0x07, 0x75, 0x33, 0x01, 0xFD, 0xBC, 0x62, 0x9F, 0xCE, 0x99, 0xA7, 0xD3, 0xBD, 0x0A, 0x39, 0xB3, 0xE0, 0xCF, 0x3A, 0x34, 0x1E, 0x1A, 0xF6, 0x0F, 0xB7, 0x6B, 0x83 };
+    size_t act_size_of_der_sign = 0;
+
+    /*#1*/
+    result = pal_convertRawSignatureToDer(raw_signature,sizeof(raw_signature),der_signature,sizeof(der_signature),&act_size_of_der_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#2*/
+    TEST_ASSERT_EQUAL_HEX(sizeof(exepected_der_sig), act_size_of_der_sign);
+    TEST_ASSERT_EQUAL_MEMORY(exepected_der_sig, der_signature, act_size_of_der_sign);
+
+#ifdef DEBUG
+    /*#3*/
+    result = pal_convertRawSignatureToDer(raw_signature,PAL_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE-1,der_signature,sizeof(der_signature),&act_size_of_der_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, result);
+
+    /*#4*/
+    result = pal_convertRawSignatureToDer(raw_signature,sizeof(raw_signature),NULL,sizeof(der_signature),&act_size_of_der_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, result);
+
+    /*#5*/
+    result = pal_convertRawSignatureToDer(raw_signature,sizeof(raw_signature),der_signature,PAL_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE,&act_size_of_der_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, result);
+#endif
+}
+
+/**
+* @brief Test the sign and verify functions of elliptic-curves keys.
+*
+* Uses `pal_asymmetricSign` and `pal_asymmetricVerify`.
+*
+* | #  |    Step                                                                                                            |   Expected                   |
+* |----|--------------------------------------------------------------------------------------------------------------------|------------------------------|
+* PSA ONLY INITIALIZAITON
+* | 1  | Allocate PSA volatile key for private key using `psa_allocate_key`.                                                | PAL_SUCCESS                  | 
+* | 2  | Set policy using `psa_key_policy_set_usage` and `psa_set_key_policy`.                                              | PAL_SUCCESS                  |
+* | 3  | Import the private key using `psa_import_key`.                                                                     | PAL_SUCCESS                  |
+* | 4  | Allocate PSA volatile key for public key using `psa_allocate_key`.                                                 | PAL_SUCCESS                  |
+* | 5  | Set policy using `psa_key_policy_set_usage` and `psa_set_key_policy`.                                              | PAL_SUCCESS                  |
+* | 6  | Import the public key using `psa_import_key`.                                                                      | PAL_SUCCESS                  |
+* | 7  | Allocate PSA volatile key for wrong public key using `psa_allocate_key`.                                           | PAL_SUCCESS                  |
+* | 8  | Set policy using `psa_key_policy_set_usage` and `psa_set_key_policy`.                                              | PAL_SUCCESS                  |
+* | 9  | Import the wrong public key using `psa_import_key`.                                                                | PAL_SUCCESS                  |
+* TEST FLOW
+* | 1  | Initialize a new EC key using `pal_ECKeyNew`.                                                                      | PAL_SUCCESS                  |
+* | 2  | Parse private key data using `pal_parseECPrivateKeyFromHandle`.                                                    | PAL_SUCCESS                  |
+* | 3  | Compute signature for digest with private key using `pal_asymmetricSign`.                                          | PAL_SUCCESS                  |
+* | 4  | Release the EC key using `pal_ECKeyFree`.                                                                          | PAL_SUCCESS                  |
+* | 5  | Initialize a new EC key using `pal_ECKeyNew` for pairs's public key.                                               | PAL_SUCCESS                  |
+* | 6  | Parse public  key data using `pal_parseECPrivateKeyFromHandle`.                                                    | PAL_SUCCESS                  |
+* | 7  | Initialize a new EC key using `pal_ECKeyNew` to generate additional key pair.                                      | PAL_SUCCESS                  |
+* | 8  | Parse additional public key data using `pal_parseECPrivateKeyFromHandle`.                                          | PAL_SUCCESS                  |
+* | 9  | Verify signature with additional public key using `pal_asymmetricVerify`                                           | PAL_ERR_PK_SIG_VERIFY_FAILED |
+* | 10 | Verify signature with original public key using `pal_asymmetricVerify`                                             | PAL_SUCCESS                  |
+* | 11 | Release the EC original public key using `pal_ECKeyFree`.                                                          | PAL_SUCCESS                  |
+* | 12 | Release the EC additional public key using `pal_ECKeyFree`.                                                        | PAL_SUCCESS                  |
+* PSA ONLY FINALIZATION
+* | 1  | Destroy private volatile key using `psa_close_key`                                                                 | PAL_SUCCESS                  |
+* | 2  | Destroy public volatile key using `psa_close_key`                                                                  | PAL_SUCCESS                  |
+* | 3  | Destroy wrong public volatile key using `psa_close_key`                                                            | PAL_SUCCESS                  |
+*/
+TEST(pal_crypto, ECKey_SignVerify)
+{
+
+    palStatus_t result;
+    palECKeyHandle_t key_handle = NULLPTR;
+    palECKeyHandle_t wrong_pub_key_handle = NULLPTR;
+    palKeyHandle_t prvDERKey;
+    palKeyHandle_t pubDERKey;
+    palKeyHandle_t pubDERKeyWrong;
+    size_t act_size_of_sign;
+    unsigned char hash_digest[] =
+    { 0x34, 0x70, 0xCD, 0x54, 0x7B, 0x0A, 0x11, 0x5F, 0xE0, 0x5C, 0xEB, 0xBC, 0x07, 0xBA, 0x91, 0x88,
+        0x27, 0x20, 0x25, 0x6B, 0xB2, 0x7A, 0x66, 0x89, 0x1A, 0x4B, 0xB7, 0x17, 0x11, 0x04, 0x86, 0x6F };
+    unsigned char signature[64] = { 0 };
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+    palCryptoBuffer_t prvKey_ctx, pubKey_ctx,wrongKey_ctx;
+    const uint8_t wrong_ecc_public_key[91] = { 0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02,
+        0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00, 0x04, 0x6c, 0x44, 0xee, 0x60, 0x46,
+        0x3e, 0x14, 0x52, 0xd0, 0x7e, 0xb1, 0xd5, 0xe6, 0xc0, 0x1c, 0xcb, 0xd3, 0x20, 0x7e, 0xcb, 0x1f, 0xb0, 0x75, 0x3c, 0xca,
+        0xff, 0xd4, 0x8a, 0xc2, 0xb8, 0xe0, 0xfd, 0x0d, 0xc2, 0x41, 0xc7, 0x52, 0xc7, 0x0e, 0x3b, 0x53, 0x25, 0xc1, 0x7e, 0x38,
+        0xa0, 0x49, 0x56, 0x34, 0x27, 0x4e, 0xdd, 0x4c, 0xa8, 0x5a, 0x2a, 0xfa, 0xca, 0x66, 0x77, 0x8b, 0xd8, 0x8d, 0x3e, };
+
+
+    prvKey_ctx.buffer = (uint8_t*)parse_ec_key_data[2].key;
+    prvKey_ctx.size = parse_ec_key_data[2].len;
+    pubKey_ctx.buffer = (uint8_t*)parse_ec_key_data[3].key;
+    pubKey_ctx.size = parse_ec_key_data[3].len;
+    wrongKey_ctx.buffer = (uint8_t*)wrong_ecc_public_key;
+    wrongKey_ctx.size = sizeof(wrong_ecc_public_key);
+
+    //set handles
+    prvDERKey = (uintptr_t)&prvKey_ctx;
+    pubDERKey = (uintptr_t)&pubKey_ctx;
+    pubDERKeyWrong = (uintptr_t)&wrongKey_ctx;
+
+#else
+
+    psa_status_t psa_status = PSA_SUCCESS;
+    psa_key_policy_t policy = PSA_KEY_POLICY_INIT;
+    uint8_t* rawPrvKeyData = (uint8_t*)parse_ec_key_data[2].raw_key;
+    size_t rawPrvKeySize = parse_ec_key_data[2].raw_key_length;
+    uint8_t* rawPubKeyData = (uint8_t*)parse_ec_key_data[3].raw_key;
+    size_t rawPubKeySize = parse_ec_key_data[3].raw_key_length;
+
+    unsigned char rawPubKeyDataWrong[65] = {0x4, 0x6C, 0x44, 0xEE, 0x60, 0x46, 0x3E, 0x14, 0x52, 0xD0, 0x7E, 0xB1, 0xD5, 0xE6, 0xC0, 0x1C,
+    0xCB, 0xD3, 0x20, 0x7E, 0xCB, 0x1F, 0xB0, 0x75, 0x3C, 0xCA, 0xFF, 0xD4, 0x8A, 0xC2, 0xB8, 0xE0, 0xFD, 0xD, 0xC2, 0x41, 0xC7, 0x52,
+    0xC7, 0xE, 0x3B, 0x53, 0x25, 0xC1, 0x7E, 0x38, 0xA0, 0x49, 0x56, 0x34, 0x27, 0x4E, 0xDD, 0x4C, 0xA8, 0x5A, 0x2A, 0xFA, 0xCA, 0x66,
+    0x77, 0x8B, 0xD8, 0x8D, 0x3E,};
+
+    /*1*/
+    psa_status = psa_allocate_key((psa_key_handle_t*)&prvDERKey);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*2*/
+    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_SIGN | PSA_KEY_USAGE_VERIFY, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    psa_status = psa_set_key_policy((psa_key_handle_t)prvDERKey, &policy);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*3*/
+    psa_status = psa_import_key((psa_key_handle_t)prvDERKey, PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_SECP256R1), rawPrvKeyData, rawPrvKeySize);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*4*/
+    psa_status = psa_allocate_key((psa_key_handle_t*)&pubDERKey);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*5*/
+    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_VERIFY, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    psa_status = psa_set_key_policy((psa_key_handle_t)pubDERKey, &policy);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*6*/
+    psa_status = psa_import_key((psa_key_handle_t)pubDERKey, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_CURVE_SECP256R1), rawPubKeyData, rawPubKeySize);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*7*/
+    psa_status = psa_allocate_key((psa_key_handle_t*)&pubDERKeyWrong);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*8*/
+    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_VERIFY, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    psa_status = psa_set_key_policy((psa_key_handle_t)pubDERKeyWrong, &policy);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*9*/
+    psa_status = psa_import_key((psa_key_handle_t)pubDERKeyWrong, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_CURVE_SECP256R1), rawPubKeyDataWrong, sizeof(rawPubKeyDataWrong));
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+#endif
+
+    /*#1*/
+    result = pal_ECKeyNew(&key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#2*/
+    result = pal_parseECPrivateKeyFromHandle(prvDERKey, key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#3*/
+    result = pal_asymmetricSign(key_handle, PAL_SHA256, hash_digest, sizeof(hash_digest), signature, sizeof(signature), &act_size_of_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#4*/
+     result = pal_ECKeyFree(&key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#5*/
+    result = pal_ECKeyNew(&key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#6*/
+    result = pal_parseECPublicKeyFromHandle(pubDERKey, key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#7*/
+    result = pal_ECKeyNew(&wrong_pub_key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    
+    /*#8*/
+    result = pal_parseECPublicKeyFromHandle(pubDERKeyWrong, wrong_pub_key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#9*/
+    result = pal_asymmetricVerify(wrong_pub_key_handle, PAL_SHA256,hash_digest, sizeof(hash_digest), signature, act_size_of_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_ERR_PK_SIG_VERIFY_FAILED, result);
+
+    /*#10*/
+    result = pal_asymmetricVerify(key_handle, PAL_SHA256, hash_digest, sizeof(hash_digest), signature, act_size_of_sign);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+
+    /*#11*/
+    result = pal_ECKeyFree(&key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#12*/
+    result = pal_ECKeyFree(&wrong_pub_key_handle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    /*1*/
+    psa_status = psa_close_key((psa_key_handle_t)prvDERKey);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*2*/
+    psa_status = psa_close_key((psa_key_handle_t)pubDERKey);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    /*3*/
+    psa_status = psa_close_key((psa_key_handle_t)pubDERKeyWrong);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+#endif
+
+}
+
+
+
+/**
+* @brief Test the ECDH key agreement functions of elliptic-curves keys.
+*
+* Uses `pal_ECDHKeyAgreement` 
+*
+* | #  |    Step                                                                                                            |   Expected                   |
+* |----|--------------------------------------------------------------------------------------------------------------------|------------------------------|
+* | 1  | Initialize a new EC key using `pal_ECKeyNew` for our private key.                                                  | PAL_SUCCESS                  |
+* | 2  | Parse our private key data using `pal_parseECPrivateKeyFromHandle`.                                                | PAL_SUCCESS                  |
+* | 3  | Compute our shared secret using `pal_ECDHKeyAgreement`.                                                            | PAL_SUCCESS                  |
+* | 4  | Initialize a new EC key using `pal_ECKeyNew` for their private key.                                                | PAL_SUCCESS                  |
+* | 5  | Parse their private key data using `pal_parseECPrivateKeyFromHandle`.                                              | PAL_SUCCESS                  |
+* | 6  | Compute their shared secret using `pal_ECDHKeyAgreement`.                                                          | PAL_SUCCESS                  |
+* | 7  | Check size of output secrets.                                                                                      | PAL_SUCCESS                  |
+* | 8  | Compare the data of the both secrets.                                                                              | PAL_SUCCESS                  |
+* | 9  | Release the EC our private key using `pal_ECKeyFree`.                                                              | PAL_SUCCESS                  |
+* | 10 | Release the EC their private key using `pal_ECKeyFree`.                                                            | PAL_SUCCESS                  |
+*/
+TEST(pal_crypto, ECKey_Agreement)
+{
+    palStatus_t result;
+    palECKeyHandle_t ourPrivKeyHandle = NULLPTR;
+    palECKeyHandle_t theirPrivKeyHandle = NULLPTR;
+    unsigned char ourSharedSecret[PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE] = { 0 };
+    unsigned char theirSharedSecret[PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE] = { 0 };
+    size_t actSizeOfOurSharedSecret = 0;
+    size_t actSizeOfTheirSharedSecret = 0;
+    palKeyHandle_t ourPrvPalKey;
+    palKeyHandle_t ourPubPalKey;
+    palKeyHandle_t theirPrvPalKey;
+    palKeyHandle_t theirPubPalKey;
+    uint8_t *theirPubKey = NULL;
+    uint8_t theirPubKeySize = 0;
+    uint8_t *ourPubKey = NULL;
+    uint8_t ourPubKeySize = 0;
+
+
+    //setup keys
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    palCryptoBuffer_t ourPrvKey_ctx, ourPubKey_ctx, theirPrvKey_ctx, theirPubKey_ctx;
+
+    //Set our pal crypto buffers
+    ourPrvKey_ctx.buffer = key_agreement_private_key;
+    ourPrvKey_ctx.size = sizeof(key_agreement_private_key);
+    ourPubKey_ctx.buffer = key_agreement_public_key;
+    ourPubKey_ctx.size = sizeof(key_agreement_public_key);
+
+    //Set their crypto buffers
+    theirPrvKey_ctx.buffer = (uint8_t*)parse_ec_key_data[2].key;
+    theirPrvKey_ctx.size = parse_ec_key_data[2].len;
+    theirPubKey_ctx.buffer = (uint8_t*)parse_ec_key_data[3].key;
+    theirPubKey_ctx.size = parse_ec_key_data[3].len;
+
+    //set pal key handles
+    ourPrvPalKey = (uintptr_t)&ourPrvKey_ctx;
+    ourPubPalKey = (uintptr_t)&ourPubKey_ctx;
+    theirPrvPalKey = (uintptr_t)&theirPrvKey_ctx;
+    theirPubPalKey = (uintptr_t)&theirPubKey_ctx;
+#else
+
+    psa_status_t psa_status = PSA_SUCCESS;
+    psa_key_handle_t ourPrvKeyPsaHandle = 0;
+    psa_key_handle_t theirPrvKeyPsaHandle = 0;
+    psa_key_policy_t policy ;
+    unsigned char rawKeyDataOur[32] = { 0x16, 0xec, 0xed, 0x76, 0x21, 0xe4, 0x67, 0x06, 0x81, 0x6b, 0xfd, 0x93, 0x54, 0x67, 0xdb, 0x2a, 0x23, 0x03, 0x49, 0x38, 0xb0, 0xe2, 0x3d, 0xfa, 0x0b, 0x22, 0xb8, 0x07, 0xaf, 0xab, 0x43, 0xa4 };
+    unsigned char rawKeyDataTheir[32] = { 0xbd, 0x42, 0xd6, 0x36, 0x31, 0x2d, 0xf3, 0x2b, 0x31, 0xeb, 0xe6, 0xe3, 0xc8, 0x63, 0x61, 0xa8, 0x45, 0x92, 0x2c, 0x70, 0xab, 0x02, 0xc7, 0x45, 0xa7, 0xba, 0x7f, 0x39, 0xd3, 0xfd, 0xf0, 0x07 };
+
+    //Allocate our private key
+    psa_status = psa_allocate_key(&ourPrvKeyPsaHandle);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    //Set usage and algorithm
+    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_DERIVE, PSA_ALG_ECDH(PSA_ALG_SELECT_RAW));
+    psa_status = psa_set_key_policy(ourPrvKeyPsaHandle, &policy);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    //Import the key
+    psa_status = psa_import_key(ourPrvKeyPsaHandle, PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_SECP256R1), rawKeyDataOur, sizeof(rawKeyDataOur));
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    ourPrvPalKey = (palKeyHandle_t)ourPrvKeyPsaHandle;
+
+    //Allocate our their key
+    psa_status = psa_allocate_key(&theirPrvKeyPsaHandle);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+    //Set usage and algorithm
+    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_DERIVE, PSA_ALG_ECDH(PSA_ALG_SELECT_RAW));
+    psa_status = psa_set_key_policy(theirPrvKeyPsaHandle, &policy);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    //Import the key
+    psa_status = psa_import_key(theirPrvKeyPsaHandle, PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_SECP256R1), rawKeyDataTheir, sizeof(rawKeyDataTheir));
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+    theirPrvPalKey = (palKeyHandle_t)theirPrvKeyPsaHandle;
+
+#endif
+
+    ourPubKey = key_agreement_public_key;
+    ourPubKeySize = sizeof(key_agreement_private_key);
+    theirPubKey = (uint8_t*)parse_ec_key_data[3].key;
+    theirPubKeySize = parse_ec_key_data[3].len;
+
+    /*#1*/
+    result = pal_ECKeyNew(&ourPrivKeyHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#2*/
+    result = pal_parseECPrivateKeyFromHandle(ourPrvPalKey, ourPrivKeyHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#3*/
+    result = pal_ECDHKeyAgreement(theirPubKey, theirPubKeySize, ourPrivKeyHandle, ourSharedSecret, sizeof(ourSharedSecret), &actSizeOfOurSharedSecret);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    TEST_ASSERT_EQUAL_HEX(PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE, actSizeOfOurSharedSecret);
+
+    /*#4*/
+    result = pal_ECKeyNew(&theirPrivKeyHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#5*/
+    result = pal_parseECPrivateKeyFromHandle(theirPrvPalKey, theirPrivKeyHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#6*/
+    result = pal_ECDHKeyAgreement(ourPubKey, ourPubKeySize, theirPrivKeyHandle, theirSharedSecret, sizeof(theirSharedSecret), &actSizeOfTheirSharedSecret);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+    TEST_ASSERT_EQUAL_HEX(PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE, actSizeOfTheirSharedSecret);
+
+    /*#7*/
+    TEST_ASSERT_EQUAL_HEX(actSizeOfTheirSharedSecret, actSizeOfOurSharedSecret);
+
+    /*#8*/
+    TEST_ASSERT_EQUAL_MEMORY(theirSharedSecret, ourSharedSecret, PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE);
+
+    /*#9*/
+    result = pal_ECKeyFree(&ourPrivKeyHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+    /*#10*/
+    result = pal_ECKeyFree(&theirPrivKeyHandle);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    //free allocated resources
+    psa_status = psa_close_key(theirPrvKeyPsaHandle);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+
+    psa_status = psa_close_key(ourPrvKeyPsaHandle);
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+
+#endif
+
 }

@@ -136,6 +136,17 @@ palStatus_t pal_x509CertVerifyExtended(palX509Handle_t x509Cert, palX509Handle_t
     return status;
 }
 
+palStatus_t pal_x509CertCheckExtendedKeyUsage(palX509Handle_t x509Cert, palExtKeyUsage_t usage)
+{
+#if (PAL_ENABLE_X509 == 1)
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS(NULLPTR == x509Cert);
+    return pal_plat_x509CertCheckExtendedKeyUsage(x509Cert, usage);
+#else
+    return PAL_ERR_NOT_SUPPORTED;
+#endif
+}
+
 palStatus_t pal_x509CertVerify(palX509Handle_t x509Cert, palX509Handle_t x509CertChain)
 {
 #if (PAL_ENABLE_X509 == 1)
@@ -443,6 +454,53 @@ palStatus_t pal_parseECPublicKeyFromDER(const unsigned char* pubDERKey, size_t k
     return status;
 }
 
+palStatus_t pal_parseECPrivateKeyFromHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS(( NULLPTR == ECKeyHandle ))
+
+    status =  pal_plat_parseECPrivateKeyFromHandle(prvKeyHandle, ECKeyHandle);
+    return status;
+}
+
+
+palStatus_t pal_parseECPublicKeyFromHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS( NULLPTR == ECKeyHandle)
+
+    status =  pal_plat_parseECPublicKeyFromHandle(pubKeyHandle, ECKeyHandle);
+    return status;
+}
+
+palStatus_t  pal_convertRawSignatureToDer(const unsigned char *rawSignature, size_t  rawSignatureSize, unsigned char *derSignatureOut, size_t derSignatureMaxSize, size_t *derSignatureActSizeOut)
+{
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS(NULL == rawSignature || NULL == derSignatureOut || NULL == derSignatureActSizeOut)
+    PAL_VALIDATE_ARGUMENTS(rawSignatureSize != PAL_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE || derSignatureMaxSize < PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE)
+
+    status =  pal_plat_convertRawSignatureToDer(rawSignature, rawSignatureSize, derSignatureOut, derSignatureMaxSize, derSignatureActSizeOut);
+    return status;
+}
+
+palStatus_t pal_asymmetricSign(palECKeyHandle_t privateKeyHanlde, palMDType_t mdType, const unsigned char *hash,size_t hashSize, unsigned char *outSignature, size_t maxSignatureSize, size_t *actualOutSignatureSize)
+{
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS(NULLPTR == privateKeyHanlde || NULL == hash || NULL == outSignature || NULL == actualOutSignatureSize)
+
+    status =  pal_plat_asymmetricSign(privateKeyHanlde, mdType, hash, hashSize, outSignature, maxSignatureSize, actualOutSignatureSize);
+    return status;
+}
+
+palStatus_t pal_asymmetricVerify(palECKeyHandle_t publicKeyHandle, palMDType_t mdType, const unsigned char *hash, size_t hashSize, const unsigned char *signature, size_t signatureSize)
+{
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS((NULLPTR == publicKeyHandle || NULL == hash || NULL == signature))
+
+    status = pal_plat_asymmetricVerify(publicKeyHandle, mdType, hash, hashSize, signature, signatureSize);
+    return status;
+}
+
 palStatus_t pal_writePrivateKeyToDer(palECKeyHandle_t key, unsigned char* derBuffer, size_t bufferSize, size_t* actualSize)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -636,6 +694,21 @@ palStatus_t pal_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHandle_
     return status;
 }
 
+palStatus_t pal_ECDHKeyAgreement(
+    const uint8_t               *derPeerPublicKey,
+    size_t                       derPeerPublicKeySize,
+    const palECKeyHandle_t       privateKeyHandle,
+    unsigned char               *rawSharedSecretOut,
+    size_t                       rawSharedSecretMaxSize,
+    size_t                      *rawSharedSecretActSizeOut)
+{
+
+    palStatus_t status = PAL_SUCCESS;
+    PAL_VALIDATE_ARGUMENTS(( NULLPTR == derPeerPublicKey || NULLPTR == privateKeyHandle || NULLPTR == rawSharedSecretOut || NULLPTR == rawSharedSecretActSizeOut))
+
+    status = pal_plat_ECDHKeyAgreement(derPeerPublicKey, derPeerPublicKeySize, privateKeyHandle, rawSharedSecretOut, rawSharedSecretMaxSize, rawSharedSecretActSizeOut);
+    return status;
+}
 palStatus_t pal_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKeyHandle_t prvKey, unsigned char* dgst, 
 							uint32_t dgstLen, unsigned char *sig, size_t *sigLen)
 {

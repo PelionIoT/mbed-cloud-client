@@ -61,6 +61,9 @@ typedef struct _ARM_UCFM_Setup {
     arm_uc_buffer_t *hash;
     uint32_t package_id;
     uint32_t package_size;
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+    uint8_t is_delta;
+#endif
 } ARM_UCFM_Setup_t;
 
 typedef struct _ARM_UC_FIRMWARE_MANAGER {

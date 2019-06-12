@@ -94,6 +94,8 @@ set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/Flash/FlashOver
 # Add the platform independent noise implementation (used by the DRBG mdule)
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/pal_plat_drbg_noise.c)
 
+# Add PSA implementation for generating random buffer
+set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/PSA/pal_plat_drbg_psa.c)
 
 # Create the RTOS module library
 add_library(palRTOS STATIC "${PAL_RTOS_SRCS}")
@@ -113,8 +115,8 @@ add_library(palEntropy STATIC "${PAL_ENTROPY_SRCS}")
 
 # Create the TLS module library
 add_library(palTLS STATIC "${PAL_TLS_SRCS}")
-add_dependencies(palTLS ${TLS_LINK_LIBRARY} palTime)
-target_link_libraries(palTLS ${TLS_LINK_LIBRARY} palTime)
+add_dependencies(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager)
+target_link_libraries(palTLS ${TLS_LINK_LIBRARY} palTime key-config-manager)
 
 # Create the Crypto module library
 add_library(palCrypto STATIC "${PAL_CRYPTO_SRCS}")
@@ -173,5 +175,6 @@ endif()
 if (${OS_BRAND} MATCHES "FreeRTOS")
     target_link_libraries(pal board)
 endif()
+
 
 
