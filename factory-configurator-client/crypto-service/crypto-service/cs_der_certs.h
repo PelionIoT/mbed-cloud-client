@@ -25,8 +25,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include "kcm_status.h"
-#include "cs_hash.h"
-#include "storage.h"
+#include "storage_items.h"
 
 /*
 * Types certificate's attributes
@@ -43,9 +42,10 @@ typedef enum cs_certificate_attribute_type_ {
 } cs_certificate_attribute_type_e;
 
 
-/** Parameters of the previous certificate in the chain required to verify that the current cert actually signed the previous one.
+/** 
+* Parameters of the previous certificate in the chain required to verify that the current cert actually signed the previous one.
 */
-typedef kcm_cert_chain_prev_params_int_s cs_child_cert_params_s;
+typedef storage_chain_prev_cert_params_s cs_child_cert_params_s;
 
 
 /** Verify handle of x509 formatted certificate using certificate chain handle.
@@ -95,7 +95,7 @@ kcm_status_e cs_add_to_chain_x509_cert(const uint8_t *cert, size_t cert_length, 
 
 /**Close created x509 handle certificate.
 *
-*@x509_cert_handle[in/out] – handle of parsed x509 certificate.
+*@x509_cert_handle[in/out] â€“ handle of parsed x509 certificate.
 * @return
 *     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
 */
@@ -147,14 +147,14 @@ kcm_status_e  cs_attr_get_data_size_x509_cert(palX509Handle_t x509_cert,
 *@x509_cert[in] - handle of  x509 certificate.
 *@hash[in] - hash digest for verification
 *@hash_size[in] - size of hash digest.
-*@signature[in] - pointer to signature.
+*@signature[in] - pointer to signature in der format.
 *@signature_size[in] -signature size.
 *
 * @return
 *     KCM_STATUS_SUCCESS on success, otherwise appropriate error from  kcm_status_e.
 */
 
-kcm_status_e  cs_x509_cert_verify_signature(palX509Handle_t x509_cert,
+kcm_status_e  cs_x509_cert_verify_der_signature(palX509Handle_t x509_cert,
                                             const unsigned char *hash,
                                             size_t hash_size,
                                             const unsigned char *signature,

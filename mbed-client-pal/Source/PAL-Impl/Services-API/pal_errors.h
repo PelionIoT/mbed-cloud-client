@@ -195,7 +195,7 @@ typedef enum {
     PAL_ERR_FAILED_TO_VERIFY_SIGNATURE =                    PAL_ERR_CRYPTO_ERROR_BASE + 33,
     PAL_ERR_FAILED_TO_WRITE_PRIVATE_KEY =                   PAL_ERR_CRYPTO_ERROR_BASE + 34,
     PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY  =                   PAL_ERR_CRYPTO_ERROR_BASE + 35,
-    PAL_ERR_FAILED_TO_COMPUTE_SHRED_KEY =                   PAL_ERR_CRYPTO_ERROR_BASE + 36,
+    PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY =                  PAL_ERR_CRYPTO_ERROR_BASE + 36,
     PAL_ERR_INVALID_X509_ATTR =                             PAL_ERR_CRYPTO_ERROR_BASE + 37,
     PAL_ERR_INVALID_CIPHER_ID =                             PAL_ERR_CRYPTO_ERROR_BASE + 38,
     PAL_ERR_CMAC_START_FAILED =                             PAL_ERR_CRYPTO_ERROR_BASE + 39,
@@ -216,6 +216,9 @@ typedef enum {
     PAL_ERR_ENTROPY_EXISTS =                                PAL_ERR_CRYPTO_ERROR_BASE + 54,
     PAL_ERR_ENTROPY_TOO_LARGE =                             PAL_ERR_CRYPTO_ERROR_BASE + 55,
     PAL_ERR_CTR_DRBG_NOT_SEEDED =                           PAL_ERR_CRYPTO_ERROR_BASE + 56,
+    PAL_ERR_PK_SIGN_FAILED =                                PAL_ERR_CRYPTO_ERROR_BASE + 57,
+    PAL_ERR_PARSING_KEY =                                   PAL_ERR_CRYPTO_ERROR_BASE + 58,
+    PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED =          PAL_ERR_CRYPTO_ERROR_BASE + 59,
     PAL_ERR_X509_BADCERT_EXPIRED =                          PAL_ERR_MODULE_BITMASK_BASE + 0x01, //!< Value must not be changed in order to be able to create bit mask
     PAL_ERR_X509_BADCERT_FUTURE =                           PAL_ERR_MODULE_BITMASK_BASE + 0x02, //!< Value must not be changed in order to be able to create bit mask
     PAL_ERR_X509_BADCERT_BAD_MD =                           PAL_ERR_MODULE_BITMASK_BASE + 0x04, //!< Value must not be changed in order to be able to create bit mask

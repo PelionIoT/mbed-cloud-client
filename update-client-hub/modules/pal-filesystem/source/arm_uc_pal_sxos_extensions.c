@@ -37,6 +37,7 @@
 
 #include <fota.h>
 #include <vfs.h>
+#include <tgt_m.h>
 
 
 static void (*arm_ucex_sxos_callback)(uint32_t) = NULL;
@@ -46,6 +47,8 @@ static void (*arm_ucex_sxos_callback)(uint32_t) = NULL;
 
 // Header filename for new image (during update process)
 #define IMAGE_HEADER_FILENAME_UPDATE    "header_update.bin"
+
+#define OEM_HASH_VALUE_MAX_ITEM_LEN     (ARM_UC_SHA256_SIZE / 2)
 
 static FOTA_ENV_T fenv = {
     .packFname = FOTA_PACK_DEFAULT_FILENAME,
@@ -150,8 +153,24 @@ arm_uc_error_t pal_ext_installerGetDetails(arm_uc_installer_details_t *details)
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
     if (details) {
-        /* dummy implementation, return 0 */
+        const char *build_release;
+        const char *build_version;
+
         memset(details, 0, sizeof(arm_uc_installer_details_t));
+
+        /* Get values from SXOS */
+        build_release = tgt_GetBuildRelease();
+        build_version = tgt_GetBuildVerNo();
+
+        if (build_release) {
+            memcpy(details->oem_hash, build_release, (strlen(build_release) > OEM_HASH_VALUE_MAX_ITEM_LEN) ? OEM_HASH_VALUE_MAX_ITEM_LEN : strlen(build_release));
+        }
+
+        if (build_version) {
+            memcpy(details->oem_hash + OEM_HASH_VALUE_MAX_ITEM_LEN, build_version, (strlen(build_version) > OEM_HASH_VALUE_MAX_ITEM_LEN) ? OEM_HASH_VALUE_MAX_ITEM_LEN : strlen(build_version));
+        }
+
+        tr_info("OEM hash value: %s", trace_array(details->oem_hash, ARM_UC_SHA256_SIZE));
 
         result.code = ERR_NONE;
 

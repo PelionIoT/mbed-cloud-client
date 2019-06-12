@@ -19,9 +19,6 @@
 #ifndef __SXOS_SOTP_H__
 #define __SXOS_SOTP_H__
 
-// currently the SOTP is always needed to emulate ROT
-#define PAL_USE_SOTP                            1
-
 #define PAL_ENABLE_X509                         1
 #define PAL_USE_HW_ROT                          1
 #define PAL_USE_HW_RTC                          1

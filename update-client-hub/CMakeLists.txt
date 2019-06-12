@@ -1,6 +1,6 @@
 INCLUDE(CMakeForceCompiler)
 # CROSS COMPILER SETTING
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.5)
 SET(CMAKE_SYSTEM_NAME Generic)
 
 SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -21,6 +21,12 @@ ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/monitor)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/paal)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-http)
+ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-local-file)
+ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/delta-paal)
+ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-local-file)
+ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/delta-tool-internal/include)
+ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/delta-tool-internal/source)
+
 
 include_directories(${UPDATE_SOURCE_DIR}/update-client-hub)
 include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue/atomic-queue)
@@ -44,6 +50,8 @@ include_directories(${UPDATE_SOURCE_DIR}/modules/source/update-client-source)
 include_directories(${UPDATE_SOURCE_DIR}/modules/source-http/update-client-source-http)
 include_directories(${UPDATE_SOURCE_DIR}/modules/source-http-socket)
 include_directories(${UPDATE_SOURCE_DIR}/modules/source-http-socket/update-client-source-http-socket)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-local-file)
+include_directories(${UPDATE_SOURCE_DIR}/modules/source-local-file/update-client-source-local-file)
 include_directories(${UPDATE_SOURCE_DIR}/modules/source-manager)
 include_directories(${UPDATE_SOURCE_DIR}/modules/source-manager/update-client-source-manager)
 include_directories(${UPDATE_SOURCE_DIR}/modules/paal/update-client-paal)
@@ -53,6 +61,8 @@ include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap/update-client-pal-flashiap)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-linux)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-linux/update-client-pal-linux)
+include_directories(${UPDATE_SOURCE_DIR}/modules/delta-paal/update-client-delta-paal)
+include_directories(${UPDATE_SOURCE_DIR}/delta-tool-internal/include)
 
 # XXX: currently only the Linux target builds out of the cmake environments, so
 # let's ignore most of the code on other OS'.
@@ -79,12 +89,15 @@ FILE(GLOB UPDATE_SRC
     "${UPDATE_SOURCE_DIR}/modules/manifest-manager/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/source-http/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/source-http-socket/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/source-local-file/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/source-manager/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/paal/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/pal-filesystem/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/pal-flashiap/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/pal-flashiap/source/*.cpp"
     "${UPDATE_SOURCE_DIR}/modules/pal-linux/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/delta-paal/source/*.c"
+    "${UPDATE_SOURCE_DIR}/delta-tool-internal/source/*.c"
 )
 else()
 FILE(GLOB UPDATE_SRC

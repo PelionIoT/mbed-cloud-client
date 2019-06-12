@@ -23,6 +23,7 @@
 
 #include "update-client-lwm2m/DeviceMetadataResource.h"
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
+#include "update-client-common/arm_uc_config.h"
 #include "update-client-common/arm_uc_types.h"
 #include "pal4life-device-identity/pal_device_identity.h"
 #include <inttypes.h>
@@ -52,6 +53,11 @@ static M2MResource *OEMBootloaderHashResource = NULL; // /10255/0/2
 static M2MResource *vendorIdResource          = NULL; // /10255/0/3
 static M2MResource *classIdResource           = NULL; // /10255/0/4
 static M2MResource *deviceIdResource          = NULL; // /10255/0/5
+
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
+/* M2MInterface */
+static M2MInterface *_m2m_interface = NULL;
+#endif
 }
 
 
@@ -67,7 +73,7 @@ void DeviceMetadataResource::Initialize(void)
 
         /* The LWM2M Firmware Update Object is at /10255 */
 #if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
-        deviceMetadataObject = M2MInterfaceFactory::create_object(10255, FirmwareUpdateResource::getM2MInterface());
+        deviceMetadataObject = M2MInterfaceFactory::create_object(10255, _m2m_interface);
 #else
         deviceMetadataObject = M2MInterfaceFactory::create_object("10255");
 #endif
@@ -282,6 +288,21 @@ M2MObject *DeviceMetadataResource::getObject()
 
     return deviceMetadataObject;
 }
+
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
+int32_t DeviceMetadataResource::setM2MInterface(M2MInterface *interface)
+{
+    UC_SRCE_TRACE("DeviceMetadataResource::setM2MInterface");
+
+    int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
+
+    if (interface != NULL) {
+        _m2m_interface = interface;
+        result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
+    }
+    return result;
+}
+#endif
 
 void DeviceMetadataResource::Uninitialize()
 {

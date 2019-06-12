@@ -82,7 +82,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=3.1.1";
+const char *MCC_VERSION = "mccv=3.2.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -2373,7 +2373,7 @@ void M2MNsdlInterface::handle_bootstrap_delete(sn_coap_hdr_s *coap_header,sn_nsd
     sn_coap_hdr_s *coap_response = NULL;
     uint8_t msg_code = COAP_MSG_CODE_RESPONSE_DELETED;
     String object_name = coap_to_string(coap_header->uri_path_ptr,
-                                          coap_header->uri_path_len);
+                                        coap_header->uri_path_len);
     tr_info("M2MNsdlInterface::handle_bootstrap_delete - obj %s", object_name.c_str());
     if(!_identity_accepted) {
         tr_warn("M2MNsdlInterface::handle_bootstrap_delete - Message received out-of-order - IGNORE");
@@ -2450,9 +2450,9 @@ bool M2MNsdlInterface::validate_security_object()
         tr_info("M2MNsdlInterface::validate_security_object - Server URI /0/0: %s", address.c_str());
         tr_info("M2MNsdlInterface::validate_security_object - is bs server /0/1: %" PRIu32, is_bs_server);
         tr_info("M2MNsdlInterface::validate_security_object - Security Mode /0/2: %" PRIu32, sec_mode);
-        tr_info("M2MNsdlInterface::validate_security_object - Public chain size /0/3: %" PRIu32, chain_size);
-        tr_info("M2MNsdlInterface::validate_security_object - Server Public key size /0/4: %" PRIu32, server_key_size);
-        tr_info("M2MNsdlInterface::validate_security_object - Secret key size /0/5: %" PRIu32, pkey_size);
+        tr_info("M2MNsdlInterface::validate_security_object - Public chain size /0/3: %" PRIu32, (uint32_t)chain_size);
+        tr_info("M2MNsdlInterface::validate_security_object - Server Public key size /0/4: %" PRIu32, (uint32_t)server_key_size);
+        tr_info("M2MNsdlInterface::validate_security_object - Secret key size /0/5: %" PRIu32, (uint32_t)pkey_size);
         if (address.empty()) {
             return false;
         }
@@ -2993,6 +2993,11 @@ void M2MNsdlInterface::set_registration_status(bool registered)
     if (!registered) {
         remove_ping_from_response_list();
     }
+}
+
+bool M2MNsdlInterface::is_registered() const
+{
+    return _registered;
 }
 
 void M2MNsdlInterface::handle_register_response(const sn_coap_hdr_s *coap_header)
@@ -3614,7 +3619,9 @@ struct M2MNsdlInterface::coap_response_s* M2MNsdlInterface::find_delayed_respons
     coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
     while (data) {
         if (data->uri_path &&
-            strcmp(data->uri_path, uri_path) == 0 && data->type == type && ((message_id == UNDEFINED_MSG_ID)) || (data->msg_id == message_id)) {
+            strcmp(data->uri_path, uri_path) == 0 &&
+            data->type == type &&
+            ((message_id == UNDEFINED_MSG_ID) || (data->msg_id == message_id))) {
             return data;
         }
         data = (coap_response_s *)ns_list_get_next(&_response_list, data);

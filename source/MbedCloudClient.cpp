@@ -336,3 +336,23 @@ void MbedCloudClient::resume(void *iface)
         _client.connector_client().m2m_interface()->resume(iface, _object_list);
     }
 }
+
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+est_status_e MbedCloudClient::est_request_enrollment(const char *cert_name,
+                                                     const size_t cert_name_length,
+                                                     uint8_t *csr,
+                                                     const size_t csr_length,
+                                                     est_enrollment_result_cb result_cb,
+                                                     void *context) const
+{
+    if (cert_name == NULL || cert_name_length == 0 || csr == NULL || csr_length == 0 || result_cb == NULL) {
+        return EST_STATUS_INVALID_PARAMETERS;
+    }
+    return _client.connector_client().est_client().est_request_enrollment(cert_name, cert_name_length, csr, csr_length, result_cb, context);
+}
+
+void MbedCloudClient::est_free_cert_chain_context(cert_chain_context_s *context) const
+{
+    _client.connector_client().est_client().free_cert_chain_context(context);
+}
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE

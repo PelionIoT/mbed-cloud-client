@@ -15,96 +15,11 @@
 // ----------------------------------------------------------------------------
 #include <stdio.h>
 #include "pv_log.h"
-#include "cs_hash.h"
 #include "cs_der_keys_and_csrs.h"
 #include "cs_der_certs.h"
 #include "pal.h"
 #include "pv_error_handling.h"
 #include "key_slot_allocator.h"
-
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-
-#include "ecdsa.h"
-#include "asn1write.h"
-#include "mbed_trace.h"
-#include "pv_macros.h"
-
-// FIXME: those should be implemented in pal
-static int ecdsa_signature_to_asn1(
-    const mbedtls_mpi *r, const mbedtls_mpi *s,
-    unsigned char *sig, size_t *slen)
-{
-    int ret;
-    unsigned char buf[MBEDTLS_ECDSA_MAX_LEN];
-    unsigned char *p = buf + sizeof(buf);
-    size_t len = 0;
-
-    ret = mbedtls_asn1_write_mpi(&p, buf, s);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((ret < 0), ret, "mbedtls_asn1_write_mpi error");
-
-    len += (size_t)ret;
-
-    ret = mbedtls_asn1_write_mpi(&p, buf, r);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((ret < 0), ret, "mbedtls_asn1_write_mpi error");
-
-    len += (size_t)ret;
-
-    ret = mbedtls_asn1_write_len(&p, buf, len);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((ret < 0), ret, "mbedtls_asn1_write_len error");
-
-    len += (size_t)ret;
-
-    ret = mbedtls_asn1_write_tag(&p, buf, (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((ret < 0), ret, "mbedtls_asn1_write_len error");
-
-    len += (size_t)ret;
-
-    memcpy(sig, p, len);
-    *slen = len;
-
-    return 0;
-}
-
-kcm_status_e cs_sig_write_der(
-    const uint8_t *sig_raw, size_t sig_raw_size,
-    uint8_t *sig_der_out, size_t sig_der_max_size, size_t *sig_der_size_out)
-{
-    int ret;
-    mbedtls_mpi R, S;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sig_raw == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_data");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sig_der_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid sig_der_out");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sig_der_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid sig_der_size_out");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((sig_raw_size != KCM_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE_IN_BYTES), KCM_CRYPTO_STATUS_UNSUPPORTED_HASH_MODE, "Unexpected raw signature size");
-
-    mbedtls_mpi_init(&R);
-    mbedtls_mpi_init(&S);
-
-    ret = mbedtls_mpi_read_binary(&R, sig_raw, KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((ret < 0), (kcm_status = KCM_STATUS_ERROR), exit, "Failed for reading R point (%d)", ret);
-
-    ret = mbedtls_mpi_read_binary(&S, &(sig_raw[KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE]), KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((ret < 0), (kcm_status = KCM_STATUS_ERROR), exit, "Failed for reading S point (%d)", ret);
-    
-    // TBD: check sig_der_max_size
-    PV_UNUSED_PARAM(sig_der_max_size);
-
-    ret = ecdsa_signature_to_asn1(&R, &S, sig_der_out, sig_der_size_out);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((ret < 0), (kcm_status = KCM_STATUS_ERROR), exit, "ecdsa_signature_to_asn1() failed (%d)", ret);
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-
-exit:
-    mbedtls_mpi_free(&R);
-    mbedtls_mpi_free(&S);
-
-    return kcm_status;
-}
-#endif
 
 kcm_status_e cs_error_handler(palStatus_t pal_status)
 {
@@ -187,7 +102,36 @@ kcm_status_e cs_error_handler(palStatus_t pal_status)
 
 /* The function checks private and certificate's public key correlation
 */
-kcm_status_e cs_check_certifcate_public_key(palX509Handle_t x509_cert, const uint8_t *private_key_data, size_t size_of_private_key_data)
+kcm_status_e cs_check_cert_with_priv_handle(palX509Handle_t x509_cert, kcm_key_handle_t priv_key_h)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    palStatus_t pal_status;
+    uint8_t raw_signature[KCM_EC_SECP256R1_SIGNATURE_RAW_SIZE] = { 0 };
+    uint8_t der_signature[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES] = { 0 };
+    size_t act_raw_signature_size = 0;
+    size_t act_der_signature_size = 0;
+    const uint8_t hash_digest[] =
+    { 0x34, 0x70, 0xCD, 0x54, 0x7B, 0x0A, 0x11, 0x5F, 0xE0, 0x5C, 0xEB, 0xBC, 0x07, 0xBA, 0x91, 0x88,
+        0x27, 0x20, 0x25, 0x6B, 0xB2, 0x7A, 0x66, 0x89, 0x1A, 0x4B, 0xB7, 0x17, 0x11, 0x04, 0x86, 0x6F };
+
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    kcm_status = cs_asymmetric_sign(priv_key_h, hash_digest, sizeof(hash_digest), raw_signature, sizeof(raw_signature), &act_raw_signature_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_asymmetric_sign failed");
+
+    // convert signature from raw to der
+    pal_status = pal_convertRawSignatureToDer(raw_signature, act_raw_signature_size, der_signature, sizeof(der_signature), &act_der_signature_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), cs_error_handler(pal_status), "Failed converting signature from RAW to DER format");
+
+    kcm_status = cs_x509_cert_verify_der_signature(x509_cert, hash_digest, sizeof(hash_digest), der_signature, act_der_signature_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_x509_cert_verify_der_signature failed");
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    return kcm_status;
+}
+
+// FIXME - Currently, for CEC only. Can be removed once CEC support PSA.
+kcm_status_e cs_check_cert_with_priv_data(palX509Handle_t x509_cert, const uint8_t *private_key_data, size_t size_of_private_key_data)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     uint8_t out_sign[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES] = { 0 }; // DER format expected
@@ -202,41 +146,9 @@ kcm_status_e cs_check_certifcate_public_key(palX509Handle_t x509_cert, const uin
     kcm_status = cs_ecdsa_sign(private_key_data, size_of_private_key_data, hash_digest, sizeof(hash_digest), out_sign, size_of_sign, &act_size_of_sign);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_ecdsa_sign failed");
 
-    kcm_status = cs_x509_cert_verify_signature(x509_cert, hash_digest, sizeof(hash_digest), out_sign, act_size_of_sign);
+    kcm_status = cs_x509_cert_verify_der_signature(x509_cert, hash_digest, sizeof(hash_digest), out_sign, act_size_of_sign);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_x509_cert_verify_signature failed");
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-/* The function checks private and certificate's public key correlation
-*/
-kcm_status_e cs_check_certifcate_public_key_psa(palX509Handle_t x509_cert, kcm_key_handle_t priv_key_h)
-{
-    psa_status_t psa_status;
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t signature_raw[64] = { 0 };  // binary (raw) format expected
-    size_t signature_raw_size_written = 0;
-    uint8_t signature_der[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES];
-    size_t signature_der_size_written = 0;
-    const uint8_t hash_digest[] = {
-        0x34, 0x70, 0xCD, 0x54, 0x7B, 0x0A, 0x11, 0x5F, 0xE0, 0x5C, 0xEB, 0xBC, 0x07, 0xBA, 0x91, 0x88,
-        0x27, 0x20, 0x25, 0x6B, 0xB2, 0x7A, 0x66, 0x89, 0x1A, 0x4B, 0xB7, 0x17, 0x11, 0x04, 0x86, 0x6F
-    };
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    psa_status = psa_asymmetric_sign((psa_key_handle_t)priv_key_h, PSA_ALG_ECDSA(PSA_ALG_SHA_256), hash_digest, sizeof(hash_digest), signature_raw, sizeof(signature_raw), &signature_raw_size_written);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), kcm_status, "psa_asymmetric_sign failed");
-
-    kcm_status = cs_sig_write_der(signature_raw, signature_raw_size_written, signature_der, sizeof(signature_der), &signature_der_size_written);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed converting signature from Binary (raw) to DER format");
-
-    kcm_status = cs_x509_cert_verify_signature(x509_cert, hash_digest, sizeof(hash_digest), signature_der, signature_der_size_written);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_x509_cert_verify_signature failed");
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return kcm_status;
-}
-#endif

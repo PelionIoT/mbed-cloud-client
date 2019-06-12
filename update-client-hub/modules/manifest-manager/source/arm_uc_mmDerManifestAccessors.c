@@ -16,6 +16,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-manifest-manager/update-client-manifest-types.h"
 #include "arm_uc_mmDerManifestAccessors.h"
 #include "arm_uc_mmDerManifestParser.h"
 #include <string.h>
@@ -92,6 +93,14 @@ arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t *buffer, uint64_t *val)
     *val = ARM_UC_mmDerBuf2Uint64(&field);
     return (arm_uc_error_t) {ERR_NONE};
 }
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+arm_uc_error_t ARM_UC_mmGetVendorInfo(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val) {
+    const int32_t fieldID = ARM_UC_MM_DER_MFST_VENDOR_INFO;
+    int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);
+    if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
+    return (arm_uc_error_t) {ERR_NONE};
+}
+#endif
 arm_uc_error_t ARM_UC_mmGetValidFrom(arm_uc_buffer_t *buffer, uint64_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_VALID_FROM;
@@ -133,7 +142,33 @@ arm_uc_error_t ARM_UC_mmGetDeviceGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *
     if (rc || guid->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     return (arm_uc_error_t) {ERR_NONE};
 }
-
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+arm_uc_error_t ARM_UC_mmGetPrecursorDigest(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid)
+{
+    const int32_t fieldID = ARM_UC_MM_DER_MFST_PRECUSOR_DIGEST;
+    int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, guid);
+    if (rc || guid->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
+    return (arm_uc_error_t) {ERR_NONE};
+}
+arm_uc_error_t ARM_UC_mmGetPriority(arm_uc_buffer_t *buffer, uint64_t *val)
+{
+    const int32_t fieldID = ARM_UC_MM_DER_MFST_PRIORITY;
+    arm_uc_buffer_t field = { 0UL };
+    int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, &field);
+    if (rc || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
+    *val = ARM_UC_mmDerBuf2Uint64(&field);
+    return (arm_uc_error_t) {ERR_NONE};
+}
+arm_uc_error_t ARM_UC_mmGetFwFormat(arm_uc_buffer_t *buffer, uint32_t *val)
+{
+    arm_uc_buffer_t field = { 0UL };
+    const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_FMT_ENUM;
+    int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, &field);
+    if (rc || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
+    *val = ARM_UC_mmDerBuf2Uint(&field);
+    return (arm_uc_error_t) {ERR_NONE};
+}
+#endif
 arm_uc_error_t ARM_UC_mmGetFwInitVector(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_CRYPT_IV;
@@ -164,6 +199,24 @@ arm_uc_error_t ARM_UC_mmGetFwHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     return (arm_uc_error_t) {ERR_NONE};
 }
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+arm_uc_error_t ARM_UC_mmGetInstalledSize(arm_uc_buffer_t *buffer, arm_uc_image_size_t *val)
+{
+    arm_uc_buffer_t field = { 0UL };
+    const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_INSTALLEDSIZE;
+    int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, &field);
+    if (rc || field.ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
+    *val = ARM_UC_mmDerBuf2Uint64(&field);
+    return (arm_uc_error_t) {ERR_NONE};
+}
+arm_uc_error_t ARM_UC_mmGetInstalledDigest(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
+{
+    const int32_t fieldID = ARM_UC_MM_DER_MFST_FW_INSTALLEDDIGEST;
+    int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);
+    if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
+    return (arm_uc_error_t) {ERR_NONE};
+}
+#endif
 arm_uc_error_t ARM_UC_mmGetFwSymmKey(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     return (arm_uc_error_t) {MFST_ERR_VERSION};
@@ -175,6 +228,7 @@ arm_uc_error_t ARM_UC_mmGetFwCertId(arm_uc_buffer_t *buffer, arm_uc_buffer_t *va
     if (rc || val->ptr == NULL) return (arm_uc_error_t) {MFST_ERR_DER_FORMAT};
     return (arm_uc_error_t) {ERR_NONE};
 }
+
 arm_uc_error_t ARM_UC_mmGetDescription(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val)
 {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_DESC;

@@ -285,7 +285,9 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportState(arm_uc_monitor_state_t state)
         arm_uc_monitor_struct->SendState(state);
         result.code = ERR_NONE;
     }
-
+#if defined(TEST_USING_LOCAL_SOURCES) && TEST_USING_LOCAL_SOURCES == 1
+    ARM_UC_ControlCenter_Notification_Handler();
+#endif
     return result;
 }
 
@@ -305,6 +307,9 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportUpdateResult(arm_uc_monitor_result_t u
         arm_uc_monitor_struct->SendUpdateResult(updateResult);
         result.code = ERR_NONE;
     }
+#if defined(TEST_USING_LOCAL_SOURCES) && TEST_USING_LOCAL_SOURCES == 1
+    ARM_UC_ControlCenter_Notification_Handler();
+#endif
 
     return result;
 }

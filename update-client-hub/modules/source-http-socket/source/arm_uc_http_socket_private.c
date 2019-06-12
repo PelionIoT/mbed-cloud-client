@@ -20,6 +20,8 @@
 
 #if defined(ARM_UC_FEATURE_FW_SOURCE_HTTP) && (ARM_UC_FEATURE_FW_SOURCE_HTTP == 1)
 
+
+
 /**
  * This file implements a streaming update source over HTTP.
  * See arm_uc_http.c for more info on the pre-fetch and caching.
@@ -40,6 +42,8 @@
 #include <string.h>
 #include <inttypes.h>
 #include "arm_uc_socket_help.h"
+#include "arm_uc_http_socket_private.h"
+#include "update-client-source-http/arm_uc_source_http.h"
 
 // TRACE.
 // ------
@@ -307,7 +311,7 @@ static arm_uc_error_t arm_uc_http_get_address_info(void)
     UC_SRCE_TRACE_ENTRY(">> %s", __func__);
     if (context == NULL) {
         UC_SRCE_ERR_MSG("error: context == NULL, &context = %" PRIxPTR, (uintptr_t)context);
-        ARM_UCS_Http_SetError(SRCE_ERR_UNINITIALIZED);
+        ARM_UCS_Http_SetError((arm_uc_error_t) {SRCE_ERR_UNINITIALIZED});
         return ARM_UC_ERROR(SRCE_ERR_UNINITIALIZED);
     } else {
         UC_SRCE_TRACE("Starting PAL DNS lookup");
@@ -872,6 +876,13 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
                                         req_type_str,
                                         request_uri->path,
                                         request_uri->host);
+        if (request_buffer->size >= request_buffer->size_max) {
+            arm_uc_http_socket_fatal_error(UCS_HTTP_EVENT_ERROR_BUFFER_SIZE);
+            ARM_UC_SET_ERROR(status, SRCE_ERR_ABORT);
+        }
+    }
+
+    if (ARM_UC_IS_NOT_ERROR(status)) {
         /* If fragment then construct the Range field that makes this a partial content request */
         if (request_type == RQST_TYPE_GET_FRAG) {
             context->open_burst_requested = request_buffer->size_max * frags_per_burst;
@@ -882,7 +893,7 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
                     /* preventing overflow */;
                     http_segment_end = UINT32_MAX;
                 } else {
-                    http_segment_end=context->request_offset + burst_default;
+                    http_segment_end = context->request_offset + burst_default;
                 }
 
                 request_buffer->size += snprintf((char *) request_buffer->ptr + request_buffer->size,
@@ -890,26 +901,38 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
                                                  "Range: bytes=%" PRIu32 "-%" PRIu32 "\r\n",
                                                  context->request_offset,
                                                  http_segment_end);
+                if (request_buffer->size >= request_buffer->size_max) {
+                    arm_uc_http_socket_fatal_error(UCS_HTTP_EVENT_ERROR_BUFFER_SIZE);
+                    ARM_UC_SET_ERROR(status, SRCE_ERR_ABORT);
+                }
             } else {
                 // just request remaining file from start offset
                 request_buffer->size += snprintf((char *) request_buffer->ptr + request_buffer->size,
-                                     request_buffer->size_max - request_buffer->size,
-                                     "Range: bytes=%" PRIu32 "-\r\n",
-                                     context->request_offset
-                                     );
+                                                 request_buffer->size_max - request_buffer->size,
+                                                 "Range: bytes=%" PRIu32 "-\r\n",
+                                                 context->request_offset);
+                if (request_buffer->size >= request_buffer->size_max) {
+                    arm_uc_http_socket_fatal_error(UCS_HTTP_EVENT_ERROR_BUFFER_SIZE);
+                    ARM_UC_SET_ERROR(status, SRCE_ERR_ABORT);
+                }
             }
         }
+    }
+
+    if (ARM_UC_IS_NOT_ERROR(status)) {
         /* Terminate request with a carriage return and newline */
         request_buffer->size += snprintf((char *) request_buffer->ptr + request_buffer->size,
                                          request_buffer->size_max - request_buffer->size,
                                          "\r\n");
-
-        /* Terminate string */
-        request_buffer->ptr[request_buffer->size] = '\0';
-        UC_SRCE_TRACE("%s \r\n %s  \r\n  request_buffer->size %"PRIx32"\r\n request_buffer->size_max %"PRIx32,
-                      __func__, request_buffer->ptr, request_buffer->size,request_buffer->size_max);
-
+        if (request_buffer->size >= request_buffer->size_max) {
+            arm_uc_http_socket_fatal_error(UCS_HTTP_EVENT_ERROR_BUFFER_SIZE);
+            ARM_UC_SET_ERROR(status, SRCE_ERR_ABORT);
+        }
     }
+
+    UC_SRCE_TRACE("%s\r\n%.*s\r\nrequest_buffer->size %"PRIx32"\r\n request_buffer->size_max %"PRIx32,
+                  __func__, request_buffer->size_max, request_buffer->ptr,
+                  request_buffer->size,request_buffer->size_max);
 
     if (ARM_UC_IS_NOT_ERROR(status)) {
         /* Send HTTP request */
@@ -944,6 +967,7 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
         UC_SRCE_TRACE("warning: on socket send request = %" PRIx32, (uint32_t)status.code);
         ARM_UCS_Http_SetError(status);
     }
+
     return status;
 }
 
@@ -1323,7 +1347,9 @@ arm_uc_error_t arm_uc_http_socket_process_header_return_codes(
                         UC_SRCE_TRACE_VERBOSE("last burst in flight! %" PRIu32 " of burst %" PRIu32,
                                               content_length, (request_buffer->size_max * frags_per_burst));
                     }
-                    if (request_buffer->size < request_buffer->size_max) {
+                    // context->open_burst_expected contains content length
+                    // and request_buffer->size how much data was reveiced
+                    if (request_buffer->size < context->open_burst_expected) {
                         /* Expecting more data - continue receiving */
                         UC_SRCE_TRACE_VERBOSE("expecting more fragment data after header (got %" PRIu32 " of %" PRIu32 " max)",
                                               request_buffer->size,
@@ -1766,10 +1792,18 @@ void arm_uc_http_socket_callback(
                 case SOCKET_EVENT_LOOKUP_START:
                     UC_SRCE_TRACE_SM("event: lookup start");
                     context->resume_socket_phase = SOCKET_EVENT_LOOKUP_START;
-                    if (arm_uc_dns_lookup_is_cached()) {
+                    if (arm_uc_open_http_socket_matches_request() && arm_uc_dns_lookup_is_cached()) {
                         status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_LOOKUP_DONE);
                     } else {
+                        // clear previous dns cache
+                        arm_uc_http_clear_dns_cache_fields();
+
+                        // close socket to force a re-connect
+                        arm_uc_http_socket_close();
+
+                        // do dns lookup
                         status = arm_uc_http_get_address_info();
+
                         // The DNS lookup must *always* return BUSY, even if failed,
                         //   and then handle the error in the callback handler.
                         // There is no expected-event here, it must pass on its own merits.
@@ -1933,45 +1967,57 @@ void arm_uc_http_socket_callback(
                         break;
                     }
                     UC_SRCE_TRACE_SM("event: frag more");
-                    status = arm_uc_http_socket_receive();
-                    switch (ARM_UC_GET_ERROR(status)) {
-                        case SRCE_ERR_BUSY:
-                            // Nothing to read from the socket (it returned WOULD_BLOCK),
-                            //   so carry on in the same state, waiting for a callback from the socket.
-                            // The resume-monitor should catch timeout errors.
-                            // mbedOS tries again because implementations are slow enough to benefit.
-                            UC_SRCE_TRACE_VERBOSE("event: empty fragment receive");
-                            if (++empty_receive < MAX_EMPTY_RECEIVES) {
-                                status = arm_uc_http_install_app_event(SOCKET_EVENT_FRAG_MORE);
-                            } else {
-                                UC_SRCE_TRACE_VERBOSE("event: max empty fragment receives");
-                                // just wait for notification, the rest hasn't arrived yet.
-                                context->expected_socket_event = SOCKET_EVENT_FRAG_MORE;
-                                ARM_UC_SET_ERROR(status, ERR_NONE);
-                            }
-                            break;
-                        case ERR_NONE:
-                            UC_SRCE_TRACE_VERBOSE("http socket receive event: no error. Reset resume engine");
-                            arm_uc_resume_resynch_monitoring(&resume_http);
-                            ++context->number_of_pieces;
-                            empty_receive = 0;
-
-                            received_enough = false;
-                            status = arm_uc_http_socket_has_received_frag(&received_enough);
-                            if (ARM_UC_IS_NOT_ERROR(status)) {
-                                if (received_enough) {
-                                    status = arm_uc_http_socket_process_frag();
-                                    if (ARM_UC_IS_NOT_ERROR(status)) {
-                                        status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_FRAG_DONE);
-                                    }
-                                } else {
+                    // if state is for cases when http header and body fit into one buffer.
+                    // On that case arm_uc_http_socket_receive will return error
+                    if (context->open_burst_expected == context->open_burst_received &&
+                        context->open_burst_received != 0 &&
+                        context->request_buffer->size_max>context->open_burst_received){
+                        UC_SRCE_TRACE_SM("body already received");
+                        status = arm_uc_http_socket_process_frag();
+                        if (ARM_UC_IS_NOT_ERROR(status)) {
+                            status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_FRAG_DONE);
+                        }
+                    } else {
+                        status = arm_uc_http_socket_receive();
+                        switch (ARM_UC_GET_ERROR(status)) {
+                            case SRCE_ERR_BUSY:
+                                // Nothing to read from the socket (it returned WOULD_BLOCK),
+                                //   so carry on in the same state, waiting for a callback from the socket.
+                                // The resume-monitor should catch timeout errors.
+                                // mbedOS tries again because implementations are slow enough to benefit.
+                                UC_SRCE_TRACE_VERBOSE("event: empty fragment receive");
+                                if (++empty_receive < MAX_EMPTY_RECEIVES) {
                                     status = arm_uc_http_install_app_event(SOCKET_EVENT_FRAG_MORE);
+                                } else {
+                                    UC_SRCE_TRACE_VERBOSE("event: max empty fragment receives");
+                                    // just wait for notification, the rest hasn't arrived yet.
+                                    context->expected_socket_event = SOCKET_EVENT_FRAG_MORE;
+                                    ARM_UC_SET_ERROR(status, ERR_NONE);
                                 }
-                            }
-                            break;
-                        default:
-                            ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
-                            break;
+                                break;
+                            case ERR_NONE:
+                                UC_SRCE_TRACE_VERBOSE("http socket receive event: no error. Reset resume engine");
+                                arm_uc_resume_resynch_monitoring(&resume_http);
+                                ++context->number_of_pieces;
+                                empty_receive = 0;
+
+                                received_enough = false;
+                                status = arm_uc_http_socket_has_received_frag(&received_enough);
+                                if (ARM_UC_IS_NOT_ERROR(status)) {
+                                    if (received_enough) {
+                                        status = arm_uc_http_socket_process_frag();
+                                        if (ARM_UC_IS_NOT_ERROR(status)) {
+                                            status = arm_uc_http_prepare_skip_to_event(SOCKET_EVENT_FRAG_DONE);
+                                        }
+                                    } else {
+                                        status = arm_uc_http_install_app_event(SOCKET_EVENT_FRAG_MORE);
+                                    }
+                                }
+                                break;
+                            default:
+                                ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
+                                break;
+                        }
                     }
                     break;
 

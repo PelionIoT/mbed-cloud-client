@@ -72,6 +72,20 @@ arm_ucp_worker_t arm_uc_worker_parameters_activate = {
     .post_runner = NULL
 };
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+arm_ucp_worker_t arm_uc_worker_parameters_prepare = {
+    .command = "/opt/arm/arm_update_prepare.sh",
+    .header   = 1,
+    .firmware = 1,
+    .location = 0,
+    .offset   = 0,
+    .size     = 0,
+    .success_event = ARM_UC_PAAL_EVENT_PREPARE_DONE,
+    .failure_event = ARM_UC_PAAL_EVENT_PREPARE_ERROR,
+    .post_runner = NULL
+};
+#endif
+
 arm_uc_error_t ARM_UC_PAL_Linux_Initialize_Yocto_RPi(ARM_UC_PAAL_UPDATE_SignalEvent_t callback)
 {
     extern arm_ucp_worker_config_t arm_uc_worker_parameters;
@@ -82,7 +96,11 @@ arm_uc_error_t ARM_UC_PAL_Linux_Initialize_Yocto_RPi(ARM_UC_PAAL_UPDATE_SignalEv
     arm_uc_worker_parameters.finalize       = NULL;
     arm_uc_worker_parameters.initialize     = NULL;
     arm_uc_worker_parameters.installer      = NULL;
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+    arm_uc_worker_parameters.prepare        = &arm_uc_worker_parameters_prepare;
+#else
     arm_uc_worker_parameters.prepare        = NULL;
+#endif
     arm_uc_worker_parameters.read           = NULL;
     arm_uc_worker_parameters.write          = NULL;
 

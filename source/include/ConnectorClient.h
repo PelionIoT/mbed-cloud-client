@@ -203,7 +203,7 @@ public:
    /**
     * \brief Get reference to the EST client instance.
    */
-   const EstClient &est_client();
+   const EstClient &est_client() const;
 #endif /* MBED_CLIENT_DISABLE_EST_FEATURE */
 
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE

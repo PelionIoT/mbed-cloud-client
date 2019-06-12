@@ -31,6 +31,8 @@
 
 #define HEADER_SIZE     (OTA_CRC32_OFS + 4)
 
+#define TRACE_GROUP  "UCPI"
+
 typedef enum {
     BASE_ADDRESS_RUNNING,
     BASE_ADDRESS_SPARE

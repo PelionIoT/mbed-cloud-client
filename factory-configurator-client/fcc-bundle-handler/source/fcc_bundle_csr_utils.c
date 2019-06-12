@@ -18,7 +18,7 @@
 #include "fcc_malloc.h"
 #include "pv_error_handling.h"
 #include "fcc_utils.h"
-#include "storage.h"
+#include "storage_items.h"
 #include "fcc_bundle_fields.h"
 #include "fcc_time_profiling.h"
 

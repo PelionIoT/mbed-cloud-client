@@ -38,6 +38,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "crypto.h"
+#endif
 
 #define TRACE_GROUP "PAL"
 
@@ -64,6 +67,7 @@ PAL_PRIVATE int pal_plat_entropySource( void *data, unsigned char *output, size_
 PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len);
 
 
+
 typedef struct palSign{
     mbedtls_mpi r;
     mbedtls_mpi s;
@@ -86,13 +90,13 @@ typedef struct palX509Ctx{
 }palX509Ctx_t;
 #endif
 
+
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 typedef struct palMD{
     mbedtls_md_context_t md;
 } palMD_t;
-#else
 
-#include "crypto.h"
+#else
 
 typedef struct palMD {
     psa_hash_operation_t md;
@@ -100,6 +104,7 @@ typedef struct palMD {
 } palMD_t;
 
 #endif
+
 
 #define CRYPTO_PLAT_SUCCESS 0
 #define CRYPTO_PLAT_GENERIC_ERROR (-1)
@@ -587,6 +592,54 @@ palStatus_t pal_plat_x509CertVerifyExtended(palX509Handle_t x509Cert, palX509Han
     }
 
     return status;
+}
+
+palStatus_t pal_plat_x509CertCheckExtendedKeyUsage(palX509Handle_t x509Cert, palExtKeyUsage_t usage)
+{
+    palX509Ctx_t *localCert = (palX509Ctx_t*)x509Cert;
+    const char *oid = NULL;
+    size_t oid_size;
+    int ret;
+
+    switch (usage) {
+        case PAL_X509_EXT_KU_ANY:
+            oid = MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE;
+            oid_size = MBEDTLS_OID_SIZE(MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE);
+            break;
+        case PAL_X509_EXT_KU_SERVER_AUTH:
+            oid = MBEDTLS_OID_SERVER_AUTH;
+            oid_size = MBEDTLS_OID_SIZE(MBEDTLS_OID_SERVER_AUTH);
+            break;
+        case PAL_X509_EXT_KU_CLIENT_AUTH:
+            oid = MBEDTLS_OID_CLIENT_AUTH;
+            oid_size = MBEDTLS_OID_SIZE(MBEDTLS_OID_CLIENT_AUTH);
+            break;
+        case PAL_X509_EXT_KU_CODE_SIGNING:
+            oid = MBEDTLS_OID_CODE_SIGNING;
+            oid_size = MBEDTLS_OID_SIZE(MBEDTLS_OID_CODE_SIGNING);
+            break;
+        case PAL_X509_EXT_KU_EMAIL_PROTECTION:
+            oid = MBEDTLS_OID_EMAIL_PROTECTION;
+            oid_size = MBEDTLS_OID_SIZE(MBEDTLS_OID_EMAIL_PROTECTION);
+            break;
+        case PAL_X509_EXT_KU_TIME_STAMPING:
+            oid = MBEDTLS_OID_TIME_STAMPING;
+            oid_size = MBEDTLS_OID_SIZE(MBEDTLS_OID_TIME_STAMPING);
+            break;
+        case PAL_X509_EXT_KU_OCSP_SIGNING:
+            oid = MBEDTLS_OID_OCSP_SIGNING;
+            oid_size = MBEDTLS_OID_SIZE(MBEDTLS_OID_OCSP_SIGNING);
+            break;
+        default:
+            return PAL_ERR_X509_UNKNOWN_OID;
+    }
+
+    ret = mbedtls_x509_crt_check_extended_key_usage(&localCert->crt, oid, oid_size);
+    if (ret != 0) {
+        return PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED;
+    }
+
+    return PAL_SUCCESS;
 }
 
 palStatus_t pal_plat_x509Free(palX509Handle_t* x509)
@@ -1636,46 +1689,66 @@ PAL_PRIVATE bool pal_plat_isPEM(const unsigned char* key, size_t keyLen)
     return result;
 }
 
-palStatus_t pal_plat_parseECPrivateKeyFromDER(const unsigned char* prvDERKey, size_t keyLen, palECKeyHandle_t key)
+PAL_PRIVATE palStatus_t pal_plat_pkMbedtlsToPalError(int32_t platStatus)
 {
     palStatus_t status = PAL_SUCCESS;
+
+    switch (platStatus)
+    {
+    case CRYPTO_PLAT_SUCCESS:
+        break;
+    case MBEDTLS_ERR_PK_UNKNOWN_PK_ALG:
+        status = PAL_ERR_PK_UNKNOWN_PK_ALG;
+        break;
+    case MBEDTLS_ERR_PK_KEY_INVALID_VERSION:
+        status = PAL_ERR_PK_KEY_INVALID_VERSION;
+        break;
+    case MBEDTLS_ERR_PK_UNKNOWN_NAMED_CURVE:
+        status = PAL_ERR_NOT_SUPPORTED_CURVE;
+        break;
+    case MBEDTLS_ERR_PK_KEY_INVALID_FORMAT:
+        status = PAL_ERR_PK_KEY_INVALID_FORMAT;
+        break;
+    case MBEDTLS_ERR_PK_INVALID_PUBKEY + MBEDTLS_ERR_ASN1_LENGTH_MISMATCH: //This is how mbedTLS returns erros for this function
+        status = PAL_ERR_PK_INVALID_PUBKEY_AND_ASN1_LEN_MISMATCH;
+        break;
+    case MBEDTLS_ERR_PK_PASSWORD_REQUIRED:
+        status = PAL_ERR_PK_PASSWORD_REQUIRED;
+        break;
+    case MBEDTLS_ERR_ECP_INVALID_KEY:
+        status = PAL_ERR_ECP_INVALID_KEY;
+        break;
+    default:
+        status = PAL_ERR_CRYPTO_ERROR_BASE;
+    }
+    return status;
+
+}
+palStatus_t pal_plat_parseECPrivateKeyFromDER(const unsigned char* prvDERKey, size_t keyLen, palECKeyHandle_t key)
+{
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     palECKey_t* localECKey = (palECKey_t*)key;
+    palStatus_t status = PAL_SUCCESS;
 
     if(pal_plat_isPEM(prvDERKey, keyLen))
     {
-    	return PAL_ERR_INVALID_ARGUMENT;
+        return PAL_ERR_INVALID_ARGUMENT;
     }
 
     platStatus = mbedtls_pk_parse_key(localECKey, prvDERKey, keyLen, NULL, 0);
-    switch(platStatus)
-    {
-        case CRYPTO_PLAT_SUCCESS:
-            break;
-        case MBEDTLS_ERR_PK_UNKNOWN_PK_ALG:
-            status = PAL_ERR_PK_UNKNOWN_PK_ALG;
-            break;
-        case MBEDTLS_ERR_PK_KEY_INVALID_VERSION:
-            status = PAL_ERR_PK_KEY_INVALID_VERSION;
-            break;
-        case MBEDTLS_ERR_PK_KEY_INVALID_FORMAT:
-            status = PAL_ERR_PK_KEY_INVALID_FORMAT;
-            break;
-        case MBEDTLS_ERR_PK_PASSWORD_REQUIRED:
-            status = PAL_ERR_PK_PASSWORD_REQUIRED;
-            break;
-        default:
-            status = PAL_ERR_PARSING_PRIVATE_KEY;
-    }
 
+    status = pal_plat_pkMbedtlsToPalError(platStatus);
+
+    if (status == PAL_ERR_CRYPTO_ERROR_BASE) {
+        return PAL_ERR_PARSING_PRIVATE_KEY;
+    }
     return status;
 }
-
 palStatus_t pal_plat_parseECPublicKeyFromDER(const unsigned char* pubDERKey, size_t keyLen, palECKeyHandle_t key)
 {
-    palStatus_t status = PAL_SUCCESS;
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     palECKey_t* localECKey = (palECKey_t*)key;
+    palStatus_t status = PAL_SUCCESS;
 
     if (pal_plat_isPEM(pubDERKey, keyLen))
     {
@@ -1683,31 +1756,119 @@ palStatus_t pal_plat_parseECPublicKeyFromDER(const unsigned char* pubDERKey, siz
     }
 
     platStatus = mbedtls_pk_parse_public_key(localECKey, pubDERKey, keyLen);
-    switch(platStatus)
-    {
-        case CRYPTO_PLAT_SUCCESS:
-            break;
-        case MBEDTLS_ERR_PK_UNKNOWN_PK_ALG:
-            status = PAL_ERR_PK_UNKNOWN_PK_ALG;
-            break;
-        case MBEDTLS_ERR_PK_UNKNOWN_NAMED_CURVE:
-            status = PAL_ERR_NOT_SUPPORTED_CURVE;
-            break;
-        case MBEDTLS_ERR_PK_KEY_INVALID_FORMAT:
-            status = PAL_ERR_PK_KEY_INVALID_FORMAT;
-            break;
-        case MBEDTLS_ERR_PK_INVALID_PUBKEY + MBEDTLS_ERR_ASN1_LENGTH_MISMATCH: //This is how mbedTLS returns erros for this function
-            status = PAL_ERR_PK_INVALID_PUBKEY_AND_ASN1_LEN_MISMATCH;
-            break;
-        case MBEDTLS_ERR_ECP_INVALID_KEY:
-            status = PAL_ERR_ECP_INVALID_KEY;
-            break;
-        default:
-            status = PAL_ERR_PARSING_PUBLIC_KEY;
+
+    status = pal_plat_pkMbedtlsToPalError(platStatus);
+
+    if (status == PAL_ERR_CRYPTO_ERROR_BASE) {
+        return PAL_ERR_PARSING_PUBLIC_KEY;
     }
+    return status;
+}
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+palStatus_t pal_plat_parseECPrivateKeyFromHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    psa_key_handle_t psaHandle = (psa_key_handle_t)prvKeyHandle;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    palECKey_t* localECKey = (palECKey_t*)ECKeyHandle;
+
+    platStatus = mbedtls_pk_setup_opaque(localECKey, psaHandle);
+
+    return pal_plat_pkMbedtlsToPalError(platStatus);
+}
+
+PAL_PRIVATE palStatus_t pal_plat_convertPublicRawKeyToDer(const uint8_t *rawKey, size_t rawKeyLength, uint8_t *derKeyDataOut, size_t derKeyDataMaxSize, size_t *derKeyDataActSizeOut)
+{
+    palStatus_t palStatus = PAL_SUCCESS;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    palECKeyHandle_t keyECHandle = NULLPTR;
+    mbedtls_pk_context* localECKey;
+    mbedtls_ecp_keypair *ecpKeyPair;
+
+    //Create new key handler
+    palStatus = pal_plat_ECKeyNew(&keyECHandle);
+    if (palStatus != PAL_SUCCESS ) {
+        return palStatus;
+    }
+
+    localECKey = (mbedtls_pk_context*)keyECHandle;
+
+    platStatus = mbedtls_pk_setup(localECKey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+    if (CRYPTO_PLAT_SUCCESS != platStatus) {
+        palStatus = PAL_ERR_PARSING_PUBLIC_KEY;
+        goto finish;
+    }
+    ecpKeyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+
+    platStatus = mbedtls_ecp_group_load(&ecpKeyPair->grp, MBEDTLS_ECP_DP_SECP256R1);
+    if (CRYPTO_PLAT_SUCCESS != platStatus) {
+        palStatus = PAL_ERR_PARSING_PUBLIC_KEY;
+        goto finish;
+    }
+    //Fill ecpKeyPair with raw public key data
+    platStatus = mbedtls_ecp_point_read_binary(&ecpKeyPair->grp, &ecpKeyPair->Q, rawKey, rawKeyLength);
+    if (CRYPTO_PLAT_SUCCESS != platStatus) {
+        palStatus = PAL_ERR_PARSING_PUBLIC_KEY;
+        goto finish;
+    }
+
+    palStatus = pal_writePublicKeyToDer(keyECHandle, derKeyDataOut, derKeyDataMaxSize, derKeyDataActSizeOut);
+finish:
+    //Free key handler
+    (void)pal_plat_ECKeyFree(&keyECHandle);
+    return palStatus;
+}
+
+palStatus_t pal_plat_parseECPublicKeyFromHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    psa_key_handle_t psaHandle = (psa_key_handle_t)pubKeyHandle;
+    psa_status_t psa_status = PSA_SUCCESS;
+    palStatus_t pal_status = PAL_SUCCESS;
+    uint8_t rawPubKeyData[PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE] = { 0 };
+    size_t actRawPubKeyDataSize = 0;
+    uint8_t derPubKeyData[PAL_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE] = { 0 };
+    size_t actDerPubKeyDataSize = 0;
+
+    //Export public key
+    psa_status = psa_export_public_key(psaHandle, rawPubKeyData, sizeof(rawPubKeyData), &actRawPubKeyDataSize);
+    if (psa_status != PSA_SUCCESS || actRawPubKeyDataSize != PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE) {
+        return PAL_ERR_PARSING_PUBLIC_KEY;
+    }
+
+    //Convert public raw key to DER format
+    pal_status = pal_plat_convertPublicRawKeyToDer((const uint8_t *)rawPubKeyData, actRawPubKeyDataSize, derPubKeyData, sizeof(derPubKeyData), &actDerPubKeyDataSize);
+    if (pal_status != PAL_SUCCESS || actDerPubKeyDataSize != PAL_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE) {
+        return PAL_ERR_PARSING_PUBLIC_KEY;
+    }
+
+    //Parse the public key
+    pal_status = pal_plat_parseECPublicKeyFromDER(derPubKeyData, actDerPubKeyDataSize, ECKeyHandle);
+    return pal_status;
+}
+#else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+palStatus_t pal_plat_parseECPrivateKeyFromHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    palStatus_t status = PAL_SUCCESS;
+
+    palCryptoBuffer_t* localkey = (palCryptoBuffer_t*) prvKeyHandle;
+
+    status = pal_plat_parseECPrivateKeyFromDER(localkey->buffer, (size_t)localkey->size, ECKeyHandle);
 
     return status;
 }
+
+palStatus_t pal_plat_parseECPublicKeyFromHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    palStatus_t status = PAL_SUCCESS;
+
+    palCryptoBuffer_t* localkey = (palCryptoBuffer_t*) pubKeyHandle;
+
+    status = pal_plat_parseECPublicKeyFromDER(localkey->buffer, (size_t)localkey->size, ECKeyHandle);
+    return status;
+}
+#endif//!MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+
 
 //! Move data from the end of the buffer to the begining, this function is needed since mbedTLS
 //! write functions write the data at the end of the buffers.
@@ -1918,7 +2079,7 @@ palStatus_t pal_plat_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHa
         platStatus = mbedtls_ecdh_compute_shared(ecpGroup, &outKeyPair->d, &pubKeyPair->Q, &prvKeyPair->d, mbedtls_ctr_drbg_random, (void*)&ctrDrbgCtx);
         if (CRYPTO_PLAT_SUCCESS != platStatus)
         {
-            status = PAL_ERR_FAILED_TO_COMPUTE_SHRED_KEY;
+            status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
         }
     }
     else 
@@ -1932,6 +2093,145 @@ palStatus_t pal_plat_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHa
     return status;
 }
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+palStatus_t pal_plat_ECDHKeyAgreement(
+    const uint8_t               *derPeerPublicKey,
+    size_t                       derPeerPublicKeySize,
+    const palECKeyHandle_t       privateKeyHandle,
+    unsigned char               *rawSharedSecretOut,
+    size_t                       rawSharedSecretMaxSize,
+    size_t                      *rawSharedSecretActSizeOut)
+{
+
+    palStatus_t status = PAL_SUCCESS;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    palECKeyHandle_t peerPublicKeyHandle;
+    mbedtls_ecdh_context ecdhContext;
+    mbedtls_ecp_keypair* pubPeerKeyPair = NULL;
+    mbedtls_ecp_keypair* prvKeyPair = NULL;
+
+    //Initialize a new key handle
+    status = pal_plat_ECKeyNew(&peerPublicKeyHandle);
+    if (status != PAL_SUCCESS) {
+        return status;
+    }
+
+ 
+    //Parse public peer key to initialized handle
+    status = pal_plat_parseECPublicKeyFromDER(derPeerPublicKey, derPeerPublicKeySize, peerPublicKeyHandle);
+    if (status != PAL_SUCCESS) {
+        goto release_ec_context_and_finish;
+    }
+
+    //Init ecdh context
+    mbedtls_ecdh_init(&ecdhContext);
+
+    //Get ecp keys form private and public peer key handles
+    pubPeerKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)peerPublicKeyHandle)->pk_ctx;
+    prvKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)privateKeyHandle)->pk_ctx;
+
+    if (NULL != pubPeerKeyPair && NULL != prvKeyPair)
+    {
+        //Set up the ECDH context from an EC private and peer public keys
+        if ((platStatus = mbedtls_ecdh_get_params(&ecdhContext, prvKeyPair, MBEDTLS_ECDH_OURS)) != 0 ||
+            (platStatus = mbedtls_ecdh_get_params(&ecdhContext, pubPeerKeyPair, MBEDTLS_ECDH_THEIRS)) != 0)
+        {
+            status = PAL_ERR_ECP_BAD_INPUT_DATA;
+            goto release_all_and_finish;
+        }
+
+        //Caluclate shared secret
+        status = mbedtls_ecdh_calc_secret(&ecdhContext, rawSharedSecretActSizeOut, rawSharedSecretOut, rawSharedSecretMaxSize, pal_plat_entropySource, NULL);
+        if (platStatus != CRYPTO_PLAT_SUCCESS || *rawSharedSecretActSizeOut != PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE)
+        {
+            status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
+        }//platStatus != CRYPTO_PLAT_SUCCESS
+
+    } else {//NULL == pubPeerKeyPair || NULL == prvKeyPair)
+        status = PAL_ERR_INVALID_ARGUMENT;
+    }
+
+release_all_and_finish:
+    mbedtls_ecdh_free(&ecdhContext);
+release_ec_context_and_finish:
+    (void)pal_plat_ECKeyFree(&peerPublicKeyHandle);
+    return status;
+}
+#else //#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+palStatus_t pal_plat_ECDHKeyAgreement(
+    const uint8_t               *derPeerPublicKey,
+    size_t                       derPeerPublicKeySize,
+    const palECKeyHandle_t       privateKeyHandle,
+    unsigned char               *rawSharedSecretOut,
+    size_t                       rawSharedSecretMaxSize,
+    size_t                      *rawSharedSecretActSizeOut)
+{
+    palStatus_t status = PAL_SUCCESS;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    psa_status_t psa_status = PSA_SUCCESS;
+    palECKeyHandle_t peerPublicKeyHandle;
+    mbedtls_ecp_keypair* pubPeerKeyPair = NULL;
+    uint8_t raw_public_key[PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE] = { 0 };
+    size_t act_raw_public_key_size = 0;
+    psa_crypto_generator_t generator = PSA_CRYPTO_GENERATOR_INIT;
+    size_t generator_size = 0;
+    //Set PSA handle
+    psa_key_handle_t *privatKeyPSAHandle =(psa_key_handle_t*)((mbedtls_pk_context*)((palECKey_t*)privateKeyHandle)->pk_ctx);
+
+    //Initialize a new key handle
+    status = pal_plat_ECKeyNew(&peerPublicKeyHandle);
+    if (status != PAL_SUCCESS) {
+        return status;
+    }
+
+    //Parse public peer key to initialized handle
+    status = pal_plat_parseECPublicKeyFromDER(derPeerPublicKey, derPeerPublicKeySize, peerPublicKeyHandle);
+    if (status != PAL_SUCCESS) {
+        goto finish;
+    }
+
+    //Set ecp key pair
+    pubPeerKeyPair = (mbedtls_ecp_keypair*)(((palECKey_t*)peerPublicKeyHandle)->pk_ctx);
+
+    //Get raw public key data
+    platStatus = mbedtls_ecp_point_write_binary(&pubPeerKeyPair->grp, &pubPeerKeyPair->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &act_raw_public_key_size, raw_public_key, sizeof(raw_public_key));
+    if (platStatus != PAL_SUCCESS || act_raw_public_key_size!= PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE) {
+        status = PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY;
+        goto finish;
+    }
+
+    //Calculate key agreement
+    psa_status = psa_key_agreement(&generator, (psa_key_handle_t)*privatKeyPSAHandle, raw_public_key, act_raw_public_key_size, PSA_ALG_ECDH(PSA_ALG_SELECT_RAW));
+    if (psa_status != PSA_SUCCESS) {
+        status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
+        goto finish;
+    }
+
+    //Get generator capacity
+    psa_status = psa_get_generator_capacity(&generator, &generator_size);
+    if (psa_status != PSA_SUCCESS || generator_size != PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE || rawSharedSecretMaxSize < generator_size) {
+        status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
+        goto finish;
+    }
+
+    //Get generator data
+    psa_status = psa_generator_read(&generator, rawSharedSecretOut, generator_size);
+    if (psa_status != PSA_SUCCESS) {
+        status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
+        goto finish;
+    }
+    //Update the output data
+    *rawSharedSecretActSizeOut = generator_size;
+
+finish:
+    //Release allocated resources
+    (void)pal_plat_ECKeyFree(&peerPublicKeyHandle);
+    (void)psa_generator_abort(&generator);
+    return status;
+}
+
+#endif //#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 palStatus_t pal_plat_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKeyHandle_t prvKey, unsigned char* dgst, uint32_t dgstLen, unsigned char* sig, size_t* sigLen)
 {
@@ -2013,6 +2313,202 @@ finish:
     mbedtls_ecdsa_free(&localECDSA);
     return status;
 }
+
+PAL_PRIVATE palStatus_t pal_plat_convertDerSignatureToRaw(const unsigned char * derSignature, size_t derSignatureSize, unsigned char *outRawSignature, size_t curveRawSignatureSize)
+{
+    palStatus_t status = PAL_SUCCESS;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    size_t len = 0;
+    mbedtls_mpi r, s;
+    unsigned char *p = (unsigned char *)derSignature;
+    const unsigned char *end = derSignature + derSignatureSize;
+
+
+    //Initialize mpis
+    mbedtls_mpi_init(&r);
+    mbedtls_mpi_init(&s);
+
+    //Check first asn1 tag
+    platStatus = mbedtls_asn1_get_tag(&p, end, &len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+    if (platStatus != CRYPTO_PLAT_SUCCESS) {
+        status = PAL_ERR_ASN1_UNEXPECTED_TAG;
+        goto cleanup;
+    }
+
+    //Check output len size
+    if (p + len != end) {
+        status = PAL_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    } 
+
+    //Get signature components:  r and s
+    if ((platStatus = mbedtls_asn1_get_mpi(&p, end, &r)) != 0 ||
+        (platStatus = mbedtls_asn1_get_mpi(&p, end, &s)) != 0)
+    {
+        status  = PAL_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+    //Check size of each component
+    if ((mbedtls_mpi_size(&r) > curveRawSignatureSize/2) || (mbedtls_mpi_size(&s) > curveRawSignatureSize/2))
+    {
+        status = PAL_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    //Write the components to binary format
+    platStatus = mbedtls_mpi_write_binary(&r, outRawSignature, curveRawSignatureSize/2);
+    if (platStatus != CRYPTO_PLAT_SUCCESS )
+    {
+        status = PAL_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    platStatus = mbedtls_mpi_write_binary(&s, outRawSignature + curveRawSignatureSize/2, curveRawSignatureSize/2);
+    if (platStatus != CRYPTO_PLAT_SUCCESS)
+    {
+        status = PAL_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+cleanup:
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
+    return status;
+}
+
+PAL_PRIVATE palStatus_t ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_mpi *s, unsigned char *sig, size_t sigMaxSize ,size_t *sigActSizeOut)
+{
+    int ret;
+    unsigned char buf[PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE];
+    unsigned char *p = buf + sizeof(buf);
+    size_t len = 0;
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, s));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, len));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+
+    if (sigMaxSize < len) {
+        return PAL_ERR_BUFFER_TOO_SMALL;
+    }
+
+    memcpy(sig, p, len);
+    *sigActSizeOut = len;
+
+    return PAL_SUCCESS;
+}
+
+palStatus_t pal_plat_convertRawSignatureToDer(const unsigned char *rawSignature, size_t  rawSignatureSize, unsigned char *derSignatureOut, size_t derSignatureMaxSize, size_t *derSignatureActSizeOut)
+{
+    palStatus_t status = PAL_SUCCESS;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    mbedtls_mpi r, s;
+    
+    mbedtls_mpi_init(&r);
+    mbedtls_mpi_init(&s);
+
+    //Read r component
+    platStatus = mbedtls_mpi_read_binary(&r, rawSignature, rawSignatureSize /2);
+    if (platStatus != CRYPTO_PLAT_SUCCESS)
+    {
+        status = PAL_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+    //Read s component
+    platStatus = mbedtls_mpi_read_binary(&s, rawSignature + rawSignatureSize /2, rawSignatureSize /2);
+    if (platStatus != CRYPTO_PLAT_SUCCESS)
+    {
+        status = PAL_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    status = ecdsa_signature_to_asn1(&r, &s, derSignatureOut, derSignatureMaxSize, derSignatureActSizeOut);
+
+cleanup:
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
+
+    return status;
+}
+
+palStatus_t pal_plat_asymmetricSign( palECKeyHandle_t privateKeyHandle, palMDType_t mdType, const unsigned char *hash, size_t hashSize, unsigned char *outSignature, size_t maxSignatureSize, size_t *actualOutSignatureSize)
+{
+    palStatus_t status = PAL_SUCCESS;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    mbedtls_md_type_t mdAlg = MBEDTLS_MD_NONE;
+    palECKey_t* localECKey = (palECKey_t*)privateKeyHandle;
+    unsigned char derSignature[PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE] = { 0 };
+    size_t derSignatureSize = sizeof(derSignature);
+    size_t rawSignatureSize = PAL_ECDSA_SECP256R1_SIGNATURE_RAW_SIZE;
+
+    //Set md algorithm
+    switch (mdType)
+    {
+    case PAL_SHA256:
+        mdAlg = MBEDTLS_MD_SHA256;
+        break;
+    default:
+        return PAL_ERR_INVALID_MD_TYPE;
+    }
+
+    //Check if output buffer is big enough
+    if (maxSignatureSize < rawSignatureSize)
+        return PAL_ERR_BUFFER_TOO_SMALL;
+
+    //Create signature in asn1 format
+    platStatus = mbedtls_pk_sign(localECKey, mdAlg, hash, hashSize, derSignature, &derSignatureSize, pal_plat_entropySource, NULL);
+    if (platStatus != CRYPTO_PLAT_SUCCESS) {
+        status = PAL_ERR_PK_SIGN_FAILED;
+    }
+
+
+    //Convert asn1 signature to raw format
+    platStatus = pal_plat_convertDerSignatureToRaw(derSignature, derSignatureSize, outSignature, rawSignatureSize);
+    if (platStatus != CRYPTO_PLAT_SUCCESS) {
+       return PAL_ERR_FAILED_TO_WRITE_SIGNATURE;
+    }
+
+    //Update the output signature size
+    *actualOutSignatureSize = rawSignatureSize;
+
+    return status;
+}
+
+palStatus_t pal_plat_asymmetricVerify(palECKeyHandle_t publicKeyHandle, palMDType_t mdType, const unsigned char *hash, size_t hashSize, const unsigned char *signature, size_t signatureSize)
+{
+    palStatus_t status = PAL_SUCCESS;
+    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    mbedtls_md_type_t mdAlg = MBEDTLS_MD_NONE;
+    palECKey_t* localECKey = (palECKey_t*)publicKeyHandle;
+    unsigned char derSignature[PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE] = { 0 };
+    size_t derSignatureSize = sizeof(derSignature);
+
+    switch (mdType)
+    {
+    case PAL_SHA256:
+        mdAlg = MBEDTLS_MD_SHA256;
+        break;
+    default:
+        status = PAL_ERR_INVALID_MD_TYPE;
+    }
+
+    //Convert asn1 signature to raw format
+    platStatus = pal_plat_convertRawSignatureToDer(signature, signatureSize, derSignature, sizeof(derSignature), &derSignatureSize);
+    if (platStatus != CRYPTO_PLAT_SUCCESS) {
+        return PAL_ERR_FAILED_TO_WRITE_SIGNATURE;
+    }
+
+    platStatus = mbedtls_pk_verify(localECKey, mdAlg, hash, hashSize, derSignature, derSignatureSize);
+    if (platStatus != CRYPTO_PLAT_SUCCESS) {
+        return PAL_ERR_PK_SIG_VERIFY_FAILED;
+    }
+
+    return status;
+}
+
+
+
 #if (PAL_ENABLE_X509 == 1)
 palStatus_t pal_plat_x509CSRInit(palx509CSRHandle_t *x509CSR)
 {
@@ -2430,7 +2926,10 @@ palStatus_t pal_plat_x509CSRFromCertWriteDER(palX509Handle_t x509Cert, palx509CS
     // write CSR
     return pal_plat_x509CSRWriteDER(x509CSR, derBuf, derBufLen, actualDerBufLen);
 }
+
 #endif
+
+
 PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len)
 {
     palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)data;

@@ -35,4 +35,6 @@ TEST_GROUP_RUNNER(pal_tls)
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate); // Near past BootStrap - No SOTP time update
     RUN_TEST_CASE(pal_tls, TCPHandshakeWhileCertVerify_threads);
     RUN_TEST_CASE(pal_tls, tlsHandshakeUDP);
+    RUN_TEST_CASE(pal_tls, tlsHandshake_SessionResume);
+
 }

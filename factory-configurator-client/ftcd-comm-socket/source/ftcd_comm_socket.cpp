@@ -120,7 +120,7 @@ FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_
     _server_socket = NULL;
     _client_socket = NULL;
     _connection_state = SOCKET_WAIT_FOR_CONNECTION;
-    (void)pal_osSemaphoreCreate(1, &_async_sem);
+    (void)pal_osSemaphoreCreate(0, &_async_sem); // Create with count 0 so first wait will block
     (void)pal_osSemaphoreCreate(1, &_lock);
 
 }
@@ -139,7 +139,7 @@ FtcdCommSocket::FtcdCommSocket(const void *interfaceHandler, ftcd_socket_domain_
     _server_socket = NULL;
     _client_socket = NULL;
     _connection_state = SOCKET_WAIT_FOR_CONNECTION;
-    (void)pal_osSemaphoreCreate(1, &_async_sem);
+    (void)pal_osSemaphoreCreate(0, &_async_sem); // Create with count 0 so first wait will block
     (void)pal_osSemaphoreCreate(1, &_lock);
 }
 
@@ -155,6 +155,9 @@ FtcdCommSocket::~FtcdCommSocket()
     if (_client_socket != NULL) {
         pal_close(&_client_socket);
     }
+
+    (void)pal_osSemaphoreDelete(&_async_sem);
+    (void)pal_osSemaphoreDelete(&_lock);
 }
 
 
@@ -478,13 +481,6 @@ bool FtcdCommSocket::_listen(void)
 
     if (_current_domain_type != FTCD_IPV4) {
         mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "\n Wrong domain type");
-        return false;
-    }
-
-    // Decrement sem count to 0 prior to socket creation. This assures that no socket async event may occur while sem=1 (the initial value)
-    // Following call to pal_osSemaphoreWait will block
-    result = pal_osSemaphoreWait(_async_sem, PAL_RTOS_WAIT_FOREVER, NULL);
-    if (PAL_SUCCESS != result) {
         return false;
     }
 

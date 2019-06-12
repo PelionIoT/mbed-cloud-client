@@ -48,9 +48,10 @@ typedef enum {
     ARM_UC_HUB_STATE_MANIFEST_COMPLETE,
     ARM_UC_HUB_STATE_CHECK_VERSION,
     ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP,
+    ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZATION_MONITOR_REPORT,
+    ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION_REPORT_DONE,
     ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION,
     ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION,
-    ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZED,
     ARM_UC_HUB_STATE_SETUP_FIRMWARE,
     ARM_UC_HUB_STATE_AWAIT_FIRMWARE_SETUP,
     ARM_UC_HUB_STATE_FIRMWARE_SETUP_DONE,
@@ -101,6 +102,8 @@ void ARM_UC_HUB_setInitializationCallback(void (*callback)(uintptr_t));
  * @brief Return the active firmware details or NULL if they're not yet available.
  */
 arm_uc_firmware_details_t *ARM_UC_HUB_getActiveFirmwareDetails(void);
+
+arm_uc_delta_details_t *ARM_UC_HUB_getDeltaDetails(void);
 
 #ifdef __cplusplus
 }

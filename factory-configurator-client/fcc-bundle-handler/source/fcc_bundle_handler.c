@@ -24,7 +24,7 @@
 #include "fcc_time_profiling.h"
 #include "fcc_utils.h"
 #include "fcc_bundle_fields.h"
-#include "storage.h"
+#include "storage_items.h"
 
 /**
 * Defines for cbor layer

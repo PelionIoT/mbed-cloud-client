@@ -277,4 +277,17 @@ palStatus_t pal_sslSetDebugging(palTLSConfHandle_t palTLSConf,uint8_t turnOn);
  */
 palStatus_t pal_sslDebugging(uint8_t turnOn);
 
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+/*! \brief Enable SSL session storing. Disabled by default.
+ *
+ * @param[in] palTLSConf: The TLS configuration context.
+ * @param[in] enable: Enable session storing.
+ *
+ * \note This function MUST be called (if needed) before calling the `pal_initTLS()` function.
+ *
+ */
+void pal_enableSslSessionStoring(palTLSConfHandle_t palTLSConf, bool enable);
+
+#endif // PAL_USE_SSL_SESSION_RESUME
+
 #endif // _PAL_DTLS_H_

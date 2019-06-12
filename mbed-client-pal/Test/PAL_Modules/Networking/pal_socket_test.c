@@ -22,6 +22,9 @@
 #include <string.h>
 // config file for keepalive server
 #include "pal_socket_test_address.h"
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "crypto.h"
+#endif
 
 #ifdef __LINUX__
 #include <netdb.h>
@@ -58,10 +61,8 @@ PAL_PRIVATE palSocket_t g_testSockets[PAL_NET_TEST_SOCKETS] = {0,0,0,0};
 #define PAL_NET_TEST_GOOGLE_CDN_HOST "ajax.googleapis.com" /*! CDN host server */
 #define PAL_NET_TEST_GOOGLE_CDN_HOST_PORT 80 /*! CDN host port */
 #define PAL_NET_TEST_GOOGLE_CDN_REQUEST "GET /ajax/libs/jquery/3.2.1/jquery.js HTTP/1.0\r\nHost:" PAL_NET_TEST_GOOGLE_CDN_HOST "\r\n\r\n" /*! HTTP get request */
-#define PAL_NET_TEST_BUFFERED_TCP_BUF_SIZE_SMALL 8
-#define PAL_NET_TEST_BUFFERED_TCP_BUF_SIZE_LARGE 1024
-#define PAL_NET_TEST_BUFFERED_UDP_BUF_SIZE_SMALL 64
-#define PAL_NET_TEST_BUFFERED_UDP_BUF_SIZE_LARGE 512
+#define PAL_NET_TEST_BUFFERED_BUF_SIZE_SMALL 64
+#define PAL_NET_TEST_BUFFERED_BUF_SIZE_LARGE 1024
 #define PAL_NET_TEST_BUFFERED_UDP_PORT 2606
 #define PAL_NET_TEST_BUFFERED_UDP_MESSAGE_SIZE (1024 * 256)
 PAL_PRIVATE uint8_t *g_testRecvBuffer = NULLPTR;
@@ -778,6 +779,21 @@ TEST(pal_socket, ServerSocketScenario)
     /*#S3*/
     uint32_t rand_number = 0;
     uint16_t incoming_port;
+    
+#if !PAL_USE_HW_TRNG
+    palStatus_t status = PAL_SUCCESS;
+    // If no hardware trng - entropy must be injected for random to work
+    uint8_t entropy_buf[48] = { 0 };
+    status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
+    TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
+#endif
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // psa_crypto_init required to generate random buffer in PSA implementation
+    psa_status_t psa_status;
+    psa_status = psa_crypto_init();
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     pal_osRandomBuffer((uint8_t*)&rand_number, sizeof(rand_number));
     incoming_port = (uint16_t)(35400 + (rand_number % (40000 - 35400)));
@@ -1251,7 +1267,7 @@ end:
 */
 TEST(pal_socket, socketUDPBufferedSmall)
 {
-    socketUDPBuffered(PAL_NET_TEST_BUFFERED_UDP_BUF_SIZE_SMALL);
+    socketUDPBuffered(PAL_NET_TEST_BUFFERED_BUF_SIZE_SMALL);
 }
 
 /*! \brief Test function UDP socket read in large chunks
@@ -1260,7 +1276,7 @@ TEST(pal_socket, socketUDPBufferedSmall)
 */
 TEST(pal_socket, socketUDPBufferedLarge)
 {
-    socketUDPBuffered(PAL_NET_TEST_BUFFERED_UDP_BUF_SIZE_LARGE);
+    socketUDPBuffered(PAL_NET_TEST_BUFFERED_BUF_SIZE_LARGE);
 }
 
 
@@ -1363,6 +1379,7 @@ PAL_PRIVATE void socketTCPBuffered(size_t bufSize)
         read = 0;
         memset(g_testRecvBuffer, 0, bufSize + 1);
         result = pal_recv(g_testSockets[0], g_testRecvBuffer, bufSize, &read);
+
         /*#9*/
         if (body && result == PAL_SUCCESS)
         {
@@ -1412,7 +1429,7 @@ PAL_PRIVATE void socketTCPBuffered(size_t bufSize)
 */
 TEST(pal_socket, socketTCPBufferedSmall)
 {
-    socketTCPBuffered(PAL_NET_TEST_BUFFERED_TCP_BUF_SIZE_SMALL);
+    socketTCPBuffered(PAL_NET_TEST_BUFFERED_BUF_SIZE_SMALL);
 }
 
 /*! \brief Test function TCP socket read in large chunks
@@ -1421,7 +1438,7 @@ TEST(pal_socket, socketTCPBufferedSmall)
 */
 TEST(pal_socket, socketTCPBufferedLarge)
 {
-    socketTCPBuffered(PAL_NET_TEST_BUFFERED_TCP_BUF_SIZE_LARGE);
+    socketTCPBuffered(PAL_NET_TEST_BUFFERED_BUF_SIZE_LARGE);
 }
 
 #if (PAL_DNS_API_VERSION == 1)

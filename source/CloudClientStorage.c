@@ -146,7 +146,7 @@ ccs_status_e ccs_item_size(const char* key, size_t* size_out, ccs_item_type_e it
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     if (item_type == CCS_PRIVATE_KEY_ITEM) {
-        kcm_status = kcm_item_close_handle(key_h);
+        kcm_status = kcm_item_close_handle(&key_h);
         if (kcm_status != KCM_STATUS_SUCCESS) {
             tr_debug("CloudClientStorage::ccs_item_size [%s] kcm close handle get error %d", key, kcm_status);
             return CCS_STATUS_ERROR;

@@ -109,7 +109,7 @@ void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mIn
     if (service) {
         _service = service;
     }
-    
+
     /* create event */
     eventOS_scheduler_mutex_wait();
     if (update_client_tasklet_id == -1) {
@@ -183,7 +183,7 @@ static void UpdateClient::initialization(void)
     */
     ARM_UC_CONTROL_SetM2MInterface(_m2m_interface);
 #endif
-    
+
     /* Register sink for telemetry */
     ARM_UC_HUB_AddMonitor(&ARM_UCS_LWM2M_MONITOR);
 
@@ -261,7 +261,7 @@ static void UpdateClient::certificate_done(arm_uc_error_t error,
 
 static void UpdateClient::initialization_done(uintptr_t result)
 {
-    tr_info("internal initialization done: %" PRIu32 " %p", result, (void*)pal_osThreadGetId());
+    tr_info("internal initialization done: %" PRIxPTR " %p", result, (void*)pal_osThreadGetId());
     if (_service) {
         _service->finish_initialization();
     }

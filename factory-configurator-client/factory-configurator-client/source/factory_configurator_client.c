@@ -18,15 +18,14 @@
 #include "key_config_manager.h"
 #include "pv_error_handling.h"
 #include "fcc_verification.h"
-#include "storage.h"
+#include "storage_items.h"
 #include "fcc_defs.h"
 #include "fcc_malloc.h"
 #include "common_utils.h"
 #include "pal.h"
 #include "fcc_utils.h"
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT) && defined(TARGET_LIKE_MBED)
 #include "psa/lifecycle.h"
-#include "key_slot_allocator.h"
 #endif
 /**
 * Device general info
@@ -150,14 +149,14 @@ fcc_status_e fcc_storage_delete()
 
     // This will delete the external storage such as certificates, etc
     // However, RBP data may remain in storage (in case of V7 or V8)
-    // We remove the external storage first because some of its metadata mey be contained inside the internal storage,
+    // We remove the external storage first because some of its metadata may be contained inside the internal storage,
     // and we may need access to it when deleting the external storage
     status = storage_reset();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((status == KCM_STATUS_ESFS_ERROR), FCC_STATUS_KCM_STORAGE_ERROR, "Failed in storage_reset. got ESFS error");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), FCC_STATUS_ERROR, "Failed storage reset");
 
     // If using PSA - change to clean state
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT) && defined(TARGET_LIKE_MBED)
     psa_status_t psa_status;
 
     /* Go back to an empty storage state
@@ -167,6 +166,7 @@ fcc_status_e fcc_storage_delete()
      * * In case of a user provided SST, we do not know whether pal_SSTReset() will also remove the PSA storage (probably
      *   not), so we probably need this call.
      * * In case of actual PSA boards, with KVSTORE config, we must call this function so the PSA storage is removed.
+     * * Irrelevant for PSA over Linux
      */
     psa_status = mbed_psa_reboot_and_request_new_security_state(PSA_LIFECYCLE_ASSEMBLY_AND_TEST);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), FCC_STATUS_ERROR, "Failed storage reset");

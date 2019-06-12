@@ -288,6 +288,11 @@ uint32_t ARM_UC_SchedulerGetHighWatermark(void);
  */
 int32_t ARM_UC_SchedulerGetQueuedCount(void);
 
+/**
+ * @brief Remove all pending callbacks in the scheduler's queue
+ */
+void ARM_UC_DrainCallbackQueue(void);
+
 #ifdef __cplusplus
 }
 #endif

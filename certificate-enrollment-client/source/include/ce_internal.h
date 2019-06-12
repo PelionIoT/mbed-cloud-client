@@ -24,7 +24,7 @@
 #include "kcm_defs.h"
 #include "est_defs.h"
 #include "ce_status.h"
-#include "storage.h"
+#include "storage_items.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,11 +63,11 @@ extern "C" {
     /*! The API deletes set of items (key pair and certificate/certificate chain) according to given name and source type.
     *    @param[in] item_name                item name string.
     *    @param[in] source_data_type         type of data type to verify (backup or original)
-    *    @param[in] is_public_key                    flag that indicates if public key exists in the storage.
+    *    @param[in] is_public_key            flag that indicates if public key exists in the storage.
     *    @returns
     *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e ce_clean_items(const char *item_name, kcm_data_source_type_e data_source_type, bool is_public_key);
+    kcm_status_e ce_clean_items(const char *item_name, storage_item_prefix_type_e data_source_type, bool is_public_key);
 
     /*! The API creates renewal status file with item_name data.
     *    @param[in] item_name                item name string.

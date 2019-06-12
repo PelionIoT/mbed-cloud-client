@@ -20,7 +20,6 @@
 #define __ARM_UCS_FIRMWARE_UPDATE_RESOURCE_H__
 
 #include "mbed-client/m2minterfacefactory.h"
-#include "mbed-client/m2minterface.h"
 #include "mbed-client/m2mresource.h"
 #include "mbed-client/m2mobject.h"
 #include "update-client-common/arm_uc_config.h"
@@ -42,7 +41,7 @@ int32_t addPackageCallback(void (*cb)(const uint8_t *buffer, uint16_t length));
 
 #if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE == 0)
 /* Add callback for resource /5/0/2, Update */
-int32_t addUpdateCallback(void (*cb)(void));
+arm_uc_error_t addUpdateCallback(void (*cb)(void));
 #endif
 
 /* Add callback for when send{State, UpdateResult} is done */
@@ -60,11 +59,9 @@ int32_t sendPkgName(const uint8_t *name, uint16_t length);
 /* Send version for resource /10252/0/6, PkgVersion */
 int32_t sendPkgVersion(uint64_t version);
 
-#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
 int32_t setM2MInterface(M2MInterface *interface);
-
-M2MInterface *getM2MInterface(void);
-#endif //ARM_UC_FEATURE_FW_SOURCE_COAP
+#endif
 }
 
 #endif // __ARM_UCS_FIRMWARE_UPDATE_RESOURCE_H__

@@ -24,6 +24,9 @@
 #include "sotp.h"
 #endif
 #include <stdlib.h>
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "crypto.h"
+#endif
 
 
 TEST_GROUP(pal_entropy);
@@ -80,6 +83,15 @@ TEST(pal_entropy, inject)
 #else 
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #endif
+
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // psa_crypto_init required to generate random buffer in PSA implementation
+    psa_status_t psa_status;
+    psa_status = psa_crypto_init();
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+#endif
+
     /*#2*/
     status = pal_osRandomBuffer(out_buf, sizeof(out_buf));
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -128,6 +140,13 @@ TEST(pal_entropy, inject)
     /*#4*/
     status = pal_osEntropyInject(entropy, PAL_PLAT_MAX_ENTROPY_SIZE); 
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // psa_crypto_init required to generate random buffer in PSA implementation
+    psa_status_t psa_status;
+    psa_status = psa_crypto_init();
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+#endif
 
     // Now that entropy exists, we may successfully generate a random buffer
     /*#5*/

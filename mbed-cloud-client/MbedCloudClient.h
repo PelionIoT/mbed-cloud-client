@@ -21,6 +21,9 @@
 #define __MBED_CLOUD_CLIENT_H__
 
 #include "include/ServiceClient.h"
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+#include "est_defs.h"
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -425,7 +428,7 @@ public:
     * \brief Initiate a renewal for a specific certificate.
     * The process will generate new keys in order to create a CSR. The CSR is then sent to the EST service to retrieve the renewed certificate.
     * The new certificate is then safely stored in the device, along with its corresponding private key.
-    * Note: The certificate to be removed *must* already exist in the device.
+    * Note: The certificate to be renewed *must* already exist in the device.
     * \param cert_name A null terminated C string indicating the name of the certificate to be renewed.
     * \return CE_STATUS_SUCCESS if the asynchronous operation has started successfully. In this case, user callback will be executed at the end of the operation, indicating completion status.
     *         If any other ce_status_e:: status is returned - operation encountered some error prior to the start of the asynchronous stage and user callback will NOT be executed.
@@ -467,6 +470,33 @@ public:
      * \param iface A handler to the network interface.
      */
     void resume(void *iface);
+
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+    /**
+     * \brief Perform enrollment over secure transport for a certificate signing request.
+     *
+     * \param cert_name Name of certificate to enroll.
+     * \param cert_name_length Length of certificate name.
+     * \param csr Buffer containing the certificate signing request.
+     * \param csr_length Length of CSR buffer.
+     * \param result_cb Callback function that will be called when enrollment finishes.
+     * \param context Optional pointer to a user context.
+     */
+    est_status_e est_request_enrollment(const char *cert_name,
+                                        const size_t cert_name_length,
+                                        uint8_t *csr,
+                                        const size_t csr_length,
+                                        est_enrollment_result_cb result_cb,
+                                        void *context) const;
+
+    /**
+     * \brief Free a certificate chain context structure passed to a est_enrollment_result_cb
+     * callback function.
+     *
+     * \param context Certificate chain context to free.
+     */
+    void est_free_cert_chain_context(cert_chain_context_s *context) const;
+#endif // !MBED_CLIENT_DISABLE_EST_FEATURE
 
 protected: // from ServiceClientCallback
 

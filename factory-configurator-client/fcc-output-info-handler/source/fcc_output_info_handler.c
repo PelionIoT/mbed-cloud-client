@@ -88,6 +88,7 @@ const char g_fcc_crypto_pk_key_invalid_version_error_str[] = "Public key version
 const char g_fcc_crypto_pk_password_requerd_error_str[] = "Public key password required:";
 const char g_fcc_crypto_unknown_pk_algorithm_error_str[] = "Public key algorithm unknown:";
 const char g_fcc_crypto_chain_validation_error_str[] = "Chain validation error:";
+const char g_fcc_crypto_entropy_missing_error_str[] = "Entropy missing error:";
 const char g_fcc_self_generated_certificate_validation_error_str[] = "Self-generated certificate validation failed:";
 //warning strings
 const char g_fcc_item_not_set_warning_str[] = "Item not set:";
@@ -445,6 +446,9 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
             break;
         case KCM_CRYPTO_STATUS_SET_EXTENSION_FAILED:
             kcm_error_string = (char*)g_fcc_crypto_invalid_x509_attr_error_str;
+            break;
+        case KCM_CRYPTO_STATUS_ENTROPY_MISSING:
+            kcm_error_string = (char*)g_fcc_crypto_entropy_missing_error_str;
             break;
         case KCM_STATUS_SUCCESS:
         case KCM_MAX_STATUS:

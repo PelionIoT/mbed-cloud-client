@@ -200,9 +200,11 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             break;
         case MFST_ERR_INVALID_STATE:
             TRACE_ARGS("MFST_ERR_INVALID_STATE");
+            error_monitor = ARM_UC_UPDATE_RESULT_MANIFEST_NONSPECIFIC_ERROR;
             break;
         case MFST_ERR_BAD_EVENT:
             TRACE_ARGS("MFST_ERR_BAD_EVENT");
+            error_monitor = ARM_UC_UPDATE_RESULT_MANIFEST_NONSPECIFIC_ERROR;
             break;
         case MFST_ERR_EMPTY_FIELD:
             TRACE_ARGS("MFST_ERR_EMPTY_FIELD");
@@ -227,6 +229,10 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             TRACE_ARGS("MFST_ERR_MISSING_KEYTABLE");
             error_external = ARM_UC_WARNING_BAD_KEYTABLE;
             error_monitor = ARM_UC_UPDATE_RESULT_MANIFEST_MISSING_ITEM;
+            break;
+        case MFST_ERR_FIRMWARE_SIZE:
+            TRACE_ARGS("MFST_ERR_FIRMWARE_SIZE");
+            error_monitor = ARM_UC_UPDATE_RESULT_MANIFEST_NONSPECIFIC_ERROR;
             break;
 
         /* Source Manager */

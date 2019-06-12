@@ -19,34 +19,12 @@
 
 #define DTLS_SERVER_PORT_TIMEOUT 9 //Discard protocol
 
-/* Workaround for Linux and Freertos builds. Cloud credentials must be defined in build
- * before running tests. Now just defined as NULL to make build work.
-*/
-#if defined (__LINUX__) ||  defined(__FREERTOS__)
-
-#if defined (__CC_ARM)          /* ARM compiler. */
-    #warning("You must define mbed cloud credentials before running TLS tests")
-#else
-    #pragma message ("You must define mbed cloud credentials before running TLS tests")
-#endif
-
-/* Defined as NULL */
-#define MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI NULL
-#define MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY NULL
-#define MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE NULL
-#define MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE NULL
-
-#else
-
 extern const char MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI[];
 extern const uint8_t MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY[];
 extern const uint8_t MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE[];
 extern const uint8_t MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE[];
 
-#endif /* defined (__LINUX__) ||  defined(__FREERTOS__) */
-
-#define PAL_TLS_TEST_SERVER_ADDRESS_UDP MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI
-#define PAL_TLS_TEST_SERVER_ADDRESS_TCP MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI
+#define PAL_TLS_TEST_SERVER_ADDRESS MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI
 #define PAL_TLS_TEST_DEVICE_PRIVATE_KEY MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY
 #define PAL_TLS_TEST_SERVER_CA MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE
 #define PAL_TLS_TEST_DEVICE_CERTIFICATE MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE

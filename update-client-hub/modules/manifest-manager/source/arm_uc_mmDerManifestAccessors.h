@@ -21,6 +21,7 @@
 // WARNING: THIS IS A MACHINE-GENERATED FILE. DO NOT MODIFY.
 #include "update-client-common/arm_uc_error.h"
 #include "update-client-common/arm_uc_common.h"
+#include "update-client-manifest-manager/update-client-manifest-types.h"
 #define MFST_MAGIC 1414743629
 enum {
     ARM_UC_MFST_CRYPTOMODE_UNINIT = 0,
@@ -40,14 +41,22 @@ arm_uc_error_t ARM_UC_mmGetNonce(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
 arm_uc_error_t ARM_UC_mmGetVendorGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid);
 arm_uc_error_t ARM_UC_mmGetClassGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid);
 arm_uc_error_t ARM_UC_mmGetDeviceGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid);
+arm_uc_error_t ARM_UC_mmGetPrecursorDigest(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
 arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t *buffer, uint64_t *val);
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+arm_uc_error_t ARM_UC_mmGetVendorInfo(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+#endif
 arm_uc_error_t ARM_UC_mmGetValidFrom(arm_uc_buffer_t *buffer, uint64_t *val);
 arm_uc_error_t ARM_UC_mmGetValidTo(arm_uc_buffer_t *buffer, uint64_t *val);
 arm_uc_error_t ARM_UC_mmGetCertificateId(arm_uc_buffer_t *buffer, uint32_t sigIdx, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetPriority(arm_uc_buffer_t* buffer, uint64_t* val);
+arm_uc_error_t ARM_UC_mmGetFwFormat(arm_uc_buffer_t *buffer, uint32_t *val);
 arm_uc_error_t ARM_UC_mmGetFwInitVector(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
 arm_uc_error_t ARM_UC_mmGetFwUri(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
 arm_uc_error_t ARM_UC_mmGetFwSize(arm_uc_buffer_t *buffer, uint32_t *val);
 arm_uc_error_t ARM_UC_mmGetFwHash(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
+arm_uc_error_t ARM_UC_mmGetInstalledSize(arm_uc_buffer_t* buffer, arm_uc_image_size_t* val);
+arm_uc_error_t ARM_UC_mmGetInstalledDigest(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
 arm_uc_error_t ARM_UC_mmGetFwSymmKey(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
 arm_uc_error_t ARM_UC_mmGetFwCertId(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
 arm_uc_error_t ARM_UC_mmGetDescription(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);

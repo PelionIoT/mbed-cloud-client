@@ -19,9 +19,6 @@
 #include "pal.h"
 #include "cs_utils.h"
 #include "pv_macros.h"
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-#include "psa/crypto.h"
-#endif
 
 
 kcm_status_e cs_hash(cs_hash_mode_e mode, const uint8_t *data, size_t data_size, uint8_t *digest, size_t digest_size)

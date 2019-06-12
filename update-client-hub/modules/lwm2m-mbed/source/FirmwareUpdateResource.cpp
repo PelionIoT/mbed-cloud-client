@@ -102,7 +102,7 @@ static arm_uc_callback_t callbackNodePackage = { NULL, 0, NULL, 0 };
 static arm_uc_callback_t callbackNodePackageURI = { NULL, 0, NULL, 0 };
 static arm_uc_callback_t callbackNodeResourceUpdate = { NULL, 0, NULL, 0 };
 
-#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
 /* M2MInterface */
 static M2MInterface *_m2m_interface;
 #endif
@@ -442,13 +442,15 @@ int32_t FirmwareUpdateResource::addPackageCallback(void (*cb)(const uint8_t *buf
 
 #if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE == 0)
 /* Add callback for resource /10252/0/9, Update */
-int32_t FirmwareUpdateResource::addUpdateCallback(void (*cb)(void))
+arm_uc_error_t FirmwareUpdateResource::addUpdateCallback(void (*cb)(void))
 {
     UC_SRCE_TRACE("FirmwareUpdateResource::addUpdateCallback: %p", cb);
 
+    ARM_UC_INIT_ERROR(retval, ERR_NONE);
+
     externalUpdateCallback = cb;
 
-    return ARM_UCS_LWM2M_INTERNAL_SUCCESS;
+    return retval;
 }
 #endif
 
@@ -542,7 +544,7 @@ int32_t FirmwareUpdateResource::sendPkgVersion(uint64_t version)
     return result;
 }
 
-#if defined(ARM_UC_FEATURE_FW_SOURCE_COAP) && (ARM_UC_FEATURE_FW_SOURCE_COAP == 1)
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
 int32_t FirmwareUpdateResource::setM2MInterface(M2MInterface *interface)
 {
     UC_SRCE_TRACE("FirmwareUpdateResource::setM2MInterface");
@@ -555,12 +557,7 @@ int32_t FirmwareUpdateResource::setM2MInterface(M2MInterface *interface)
     }
     return result;
 }
-
-M2MInterface *FirmwareUpdateResource::getM2MInterface(void)
-{
-    return _m2m_interface;
-}
-#endif //ARM_UC_FEATURE_FW_SOURCE_COAP
+#endif
 
 void FirmwareUpdateResource::Uninitialize(void)
 {

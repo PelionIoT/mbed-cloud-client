@@ -17,7 +17,6 @@
 #include "pv_error_handling.h"
 #include "cs_der_certs.h"
 #include "cs_der_keys_and_csrs.h"
-#include "cs_hash.h"
 #include "pal.h"
 #include "cs_utils.h"
 #include "stdbool.h"
@@ -253,7 +252,7 @@ kcm_status_e  cs_attr_get_data_x509_cert(palX509Handle_t x509_cert,
     return kcm_status;
 };
 
-kcm_status_e  cs_x509_cert_verify_signature(palX509Handle_t x509_cert, const unsigned char *hash, size_t hash_size, const unsigned char *signature, size_t signature_size)
+kcm_status_e  cs_x509_cert_verify_der_signature(palX509Handle_t x509_cert, const unsigned char *hash, size_t hash_size, const unsigned char *signature, size_t signature_size)
 {
 
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -261,7 +260,7 @@ kcm_status_e  cs_x509_cert_verify_signature(palX509Handle_t x509_cert, const uns
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((x509_cert == NULLPTR), KCM_STATUS_INVALID_PARAMETER, "Invalid x509_cert");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((hash == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid hash pointer");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((hash_size != CS_SHA256_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid hash digest size");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((hash_size != KCM_SHA256_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid hash digest size");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((signature == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid signature pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((signature_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid signature size");
 

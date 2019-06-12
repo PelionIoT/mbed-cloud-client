@@ -29,52 +29,60 @@
 *  parameters.
 */
 
+// Include configurations from mbed-client.
+#include "mbed-client/m2mconfig.h"
+
+// Include user defined configuration.
+#ifdef MBED_CLOUD_CLIENT_USER_CONFIG_FILE
+#include MBED_CLOUD_CLIENT_USER_CONFIG_FILE
+#endif
+
+#ifdef MBED_CLIENT_USER_CONFIG_FILE
+#include MBED_CLIENT_USER_CONFIG_FILE
+#endif
+
 #if defined (__ICCARM__)
 #define m2m_deprecated
 #else
 #define m2m_deprecated __attribute__ ((deprecated))
 #endif
 
-#ifdef __DOXYGEN__
-// This __DOXYGEN__ block is for documentation purposes only and it does not affect application build.
-
 /**
 * \def MBED_CLOUD_CLIENT_ENDPOINT_TYPE
 *
-* \brief This is mandatory MACRO and MUST be enabled. You MUST define it like this #define MBED_CLOUD_CLIENT_ENDPOINT_TYPE "default".
+* \brief This is an optional MACRO. You can define it like this #define MBED_CLOUD_CLIENT_ENDPOINT_TYPE "default".
 */
-#define MBED_CLOUD_CLIENT_ENDPOINT_TYPE          /* "default" */
+#ifndef MBED_CLOUD_CLIENT_ENDPOINT_TYPE
+#define MBED_CLOUD_CLIENT_ENDPOINT_TYPE             "default"
+#endif
 
 /**
 * \def MBED_CLOUD_CLIENT_LIFETIME
 *
-* \brief This is mandatory MACRO and MUST be enabled. You MUST define it like this: #define MBED_CLOUD_CLIENT_LIFETIME 3600.
+* \brief This is optional MACRO. You can define it like this: #define MBED_CLOUD_CLIENT_LIFETIME 3600.
 * This value denotes time in seconds.
 */
-#define MBED_CLOUD_CLIENT_LIFETIME               /* 3600 */
+#ifndef MBED_CLOUD_CLIENT_LIFETIME
+#define MBED_CLOUD_CLIENT_LIFETIME                  3600
+#endif
 
 /**
 * \def MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP
 *
 * \brief Enable this MACRO if you want to enable UDP mode for the client.
-*/
-#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP
-
-/**
+*
 * \def MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP
 *
-* \brief Enable this MACRO if you want to enable TCP mode for the client.
-*/
-#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP
-
-/**
+* \brief Enable this MACRO if you want to enable TCP mode for the client. This is the default for client.
+*
 * \def MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE
 *
 * \brief Enable this MACRO if you want to enable UDP_QUEUE mode for the client.
 */
-#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE
 
-#endif // __DOXYGEN__
+#if !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP) && !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP) && !defined(MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE)
+#define MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP
+#endif
 
 /**
  * \def MBED_CLOUD_CLIENT_STL_API this flag controls the API's which use C++'s
@@ -86,7 +94,7 @@
  * so they may be removed in the future releases.
  */
 #ifndef MBED_CLOUD_CLIENT_STL_API
-#define MBED_CLOUD_CLIENT_STL_API 0
+#define MBED_CLOUD_CLIENT_STL_API                   0
 #endif
 
 /**
@@ -98,7 +106,7 @@
  * leakage, we need to maintain the old behavior for a while and just allow one to remove it.
  */
 #ifndef MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION
-#define MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION 0
+#define MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION   0
 #endif
 
 /**
@@ -107,10 +115,8 @@
 * \brief This is mandatory MACRO and is set to 0 by default. This implies that the client picks a random port
  * for listening to the incoming connection.
 */
-#define MBED_CLOUD_CLIENT_LISTEN_PORT           0
-
-#ifdef MBED_CLOUD_CLIENT_USER_CONFIG_FILE
-#include MBED_CLOUD_CLIENT_USER_CONFIG_FILE
+#ifndef MBED_CLOUD_CLIENT_LISTEN_PORT
+#define MBED_CLOUD_CLIENT_LISTEN_PORT               0
 #endif
 
 #include "MbedCloudClientConfigCheck.h"

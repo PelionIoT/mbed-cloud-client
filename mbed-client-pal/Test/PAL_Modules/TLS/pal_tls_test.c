@@ -14,11 +14,12 @@
  * limitations under the License.
  *******************************************************************************/
 
+
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal.h"
 #include "pal_tls_utils.h"
-#include "storage.h"
+#include "storage_items.h"
 #include "test_runners.h"
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
@@ -28,8 +29,16 @@
 #include "pal_plat_entropy.h"
 #endif
 
-#include <stdlib.h>
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+#include "key_config_manager.h"
+#endif
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "crypto.h"
+#endif
+
+
+#include <stdlib.h>
 #define TRACE_GROUP "PAL"
 #if (PAL_ENABLE_PSK == 1)
 #define PAL_TEST_PSK_IDENTITY "Client_identity"
@@ -39,6 +48,12 @@
 #define PAL_WAIT_TIME	3
 
 #define HOSTNAME_STR_MAX_LEN 256
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+static bool isSslSessionAvailable();
+static void removeSslSession();
+static const char* ssl_session_item_name = "sslsession";
+#endif
 
 PAL_PRIVATE palSocket_t g_socket = 0;
 extern void * g_palTestTLSInterfaceCTX; // this is set by the palTestMain funciton
@@ -105,7 +120,7 @@ PAL_PRIVATE void socketCallback1( void * arg)
 }
 
 static void setCredentials(palTLSConfHandle_t handle);
-static void handshakeTCP(void);
+static void do_handshake(palTLSTransportMode_t mode, bool enable_session_storing);
 
 //! This structre is for tests only and MUST be the same structure as in the pal_TLS.c file
 //! For any change done in the original structure, please make sure to change this structure too.
@@ -143,6 +158,13 @@ TEST_SETUP(pal_tls)
     uint8_t entropy_buf[48] = { 0 };
     status = pal_osEntropyInject(entropy_buf, sizeof(entropy_buf));
     TEST_ASSERT(status == PAL_SUCCESS || status == PAL_ERR_ENTROPY_EXISTS);
+#endif
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // psa_crypto_init required to generate random buffer in PSA implementation
+    psa_status_t psa_status;
+    psa_status = psa_crypto_init();
+    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
 #endif
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
@@ -316,7 +338,9 @@ TEST(pal_tls, tlsInitTLS)
     /*#6*/
     status = pal_tlsConfigurationFree(&palTLSConf);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
 }
+
 
 
 /**
@@ -334,17 +358,20 @@ TEST(pal_tls, tlsInitTLS)
 */
 TEST(pal_tls, tlsPrivateAndPublicKeys)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+
 #if (PAL_ENABLE_X509 == 1)
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
     palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
     palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
-    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
+
+    palPrivateKey_t prvKey;
+    status = pal_initPrivateKey((const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE, &prvKey);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#1*/
     status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
@@ -368,8 +395,12 @@ TEST(pal_tls, tlsPrivateAndPublicKeys)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_ENABLE_X509 not set");
 #endif
-}
 
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
+}
 
 /**
 * @brief Test TLS initialization and uninitialization with additional certificate and pre-shared keys.
@@ -435,10 +466,8 @@ TEST(pal_tls, tlsCACertandPSK)
 */
 TEST(pal_tls, tlsHandshakeTCP)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
@@ -464,13 +493,13 @@ TEST(pal_tls, tlsHandshakeTCP)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
 
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -574,6 +603,11 @@ TEST(pal_tls, tlsHandshakeTCP)
     /*#15*/
     status = pal_close(&g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
 /**
@@ -600,10 +634,8 @@ TEST(pal_tls, tlsHandshakeTCP)
 */
 TEST(pal_tls, tlsHandshakeUDP)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
@@ -631,12 +663,12 @@ TEST(pal_tls, tlsHandshakeUDP)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_UDP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -717,6 +749,11 @@ TEST(pal_tls, tlsHandshakeUDP)
     /*#15*/
     status = pal_close(&g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
 /**
@@ -739,10 +776,8 @@ TEST(pal_tls, tlsHandshakeUDP)
 */
 TEST(pal_tls, tlsHandshakeUDPTimeOut)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
@@ -769,11 +804,11 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_UDP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -836,6 +871,11 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     status = pal_close(&g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+        TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
 /**
@@ -865,10 +905,8 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -898,11 +936,11 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1010,6 +1048,11 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
 #endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+            TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
 /**
@@ -1038,10 +1081,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1061,10 +1102,10 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     int32_t verifyResult = 0;
     struct server_address server;
 
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     //get and save valid time since the storage was cleared during TEST_SETUP
-    handshakeTCP();
+    do_handshake(PAL_TLS_MODE, false);
 
     int32_t temp;
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
@@ -1090,7 +1131,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1202,6 +1243,11 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
 #endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+                TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
 
@@ -1229,10 +1275,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 */
 TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1253,19 +1297,19 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
     //get and save valid time since the storage was cleared during TEST_SETUP
-    handshakeTCP();
+    do_handshake(PAL_TLS_MODE, false);
 
     /*#1*/
     status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1376,6 +1420,12 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
 #endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
+
 }
 
 /**
@@ -1407,10 +1457,8 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 */
 TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1439,11 +1487,11 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1635,6 +1683,11 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
 #endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
 /**
@@ -1666,10 +1719,8 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 */
 TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1694,7 +1745,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
     // Get valid time
-    handshakeTCP();
+    do_handshake(PAL_TLS_MODE, false);
 
     /*#1*/
     status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
@@ -1709,11 +1760,11 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#3*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -1892,6 +1943,12 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
 #endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
+
 }
 
 /**
@@ -1923,10 +1980,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 */
 TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -1946,14 +2001,14 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     int32_t verifyResult = 0;
     struct server_address server;
 
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     int32_t temp;
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
     //Get valid time since the storage was cleared during TEST_SETUP
-    handshakeTCP();
+    do_handshake(PAL_TLS_MODE, false);
 
     /*#1*/
     status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
@@ -1971,7 +2026,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -2151,14 +2206,19 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
 #endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
-static void handshakeTCP(void)
+static void do_handshake(palTLSTransportMode_t mode, bool enable_session_storing)
 {
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
-    palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
+    palTLSTransportMode_t transportationMode = mode;
     palSocketAddress_t socketAddr = {0};
     palSocketLength_t addressLength = 0;
     #if (PAL_ENABLE_PSK == 1)
@@ -2168,16 +2228,23 @@ static void handshakeTCP(void)
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
     struct server_address server;
 
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
+    if (mode == PAL_TLS_MODE)
+    {
+        status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
+    }
+    else
+    {
+        status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_DGRAM, true, 0, socketCallback1, &g_socket);
+    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
 
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -2191,19 +2258,26 @@ static void handshakeTCP(void)
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
-    do {
-        status = pal_connect(g_socket, &socketAddr, addressLength);
-        pal_osSemaphoreWait(s_semaphoreID, 100, &temp);
-    } while (status == PAL_ERR_SOCKET_IN_PROGRES || status == PAL_ERR_SOCKET_WOULD_BLOCK);
+    if (mode == PAL_TLS_MODE)
+    {
+        do {
+            status = pal_connect(g_socket, &socketAddr, addressLength);
+            pal_osSemaphoreWait(s_semaphoreID, 100, &temp);
+        } while (status == PAL_ERR_SOCKET_IN_PROGRES || status == PAL_ERR_SOCKET_WOULD_BLOCK);
 
-    if (status == PAL_ERR_SOCKET_ALREADY_CONNECTED) {
-        status = PAL_SUCCESS;
+        if (status == PAL_ERR_SOCKET_ALREADY_CONNECTED) {
+            status = PAL_SUCCESS;
+        }
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     }
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_NOT_EQUAL(palTLSConf, NULLPTR);
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    pal_enableSslSessionStoring(palTLSConf, enable_session_storing);
+#endif
 
     status = pal_initTLS(palTLSConf, &palTLSHandle);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -2275,7 +2349,7 @@ static palStatus_t ThreadHandshakeTCP()
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
@@ -2530,10 +2604,8 @@ static void runTLSThreadTest(palThreadFuncPtr func1, palThreadFuncPtr func2, pal
 */
 TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
 {
-    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
-            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
-        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
-    }
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
     palStatus_t status = PAL_SUCCESS;
@@ -2543,12 +2615,12 @@ TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
     palSocketLength_t addressLength = 0;
     struct server_address server;
 
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
-        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS_TCP);
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -2574,14 +2646,71 @@ TEST(pal_tls, TCPHandshakeWhileCertVerify_threads)
 #else
     TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_ENABLE_X509 not set");
 #endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
+}
+
+/**
+* @brief Test SSL Session Resume (TCP)
+*/
+TEST(pal_tls, tlsHandshake_SessionResume)
+{
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+    if (MBED_CLOUD_DEV_BOOTSTRAP_SERVER_URI == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY == NULL ||
+            MBED_CLOUD_DEV_BOOTSTRAP_SERVER_ROOT_CA_CERTIFICATE == NULL || MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE  == NULL) {
+        TEST_IGNORE_MESSAGE("Ignored, no credentials from mbed_cloud_dev_credentials.c");
+    }
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+
+    // Check that session is not stored into file system since feature is disabled by default.
+    do_handshake(PAL_DTLS_MODE, false);
+    TEST_ASSERT(!isSslSessionAvailable());
+
+    // Handshake again, session should be now stored into file system.
+    do_handshake(PAL_DTLS_MODE, true);
+    TEST_ASSERT(isSslSessionAvailable());
+
+    // This time handshake will use the saved session.
+    // Currently can be verified only through mbedtls logs.
+    do_handshake(PAL_DTLS_MODE, true);
+    TEST_ASSERT(isSslSessionAvailable());
+
+    // TLS tests, clear old session first
+    removeSslSession();
+    TEST_ASSERT(!isSslSessionAvailable());
+    do_handshake(PAL_TLS_MODE, true);
+    TEST_ASSERT(isSslSessionAvailable());
+
+    // This time handshake will use the saved session.
+    // Currently can be verified only through mbedtls logs.
+    do_handshake(PAL_TLS_MODE, true);
+    TEST_ASSERT(isSslSessionAvailable());
+
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SSL_SESSION_RESUME not set");
+#endif // PAL_USE_SSL_SESSION_RESUME
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
 }
 
 static void setCredentials(palTLSConfHandle_t handle)
 {
     palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
-    palPrivateKey_t prvKey = {(const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE};
     palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
+
     palStatus_t status;
+    palPrivateKey_t prvKey;
+    status = pal_initPrivateKey((const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE, &prvKey);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_setOwnCertChain(handle, &pubKey);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -2590,3 +2719,44 @@ static void setCredentials(palTLSConfHandle_t handle)
     status = pal_setCAChain(handle, &caCert, NULL);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 }
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+static bool isSslSessionAvailable()
+{
+    size_t act_size = 0;
+    kcm_status_e kcm_status = kcm_init();
+    if (kcm_status != KCM_STATUS_SUCCESS)
+    {
+        return false;
+    }
+
+    kcm_status = kcm_item_get_data_size((uint8_t *)ssl_session_item_name,
+                                   strlen(ssl_session_item_name),
+                                   KCM_CONFIG_ITEM, &act_size);
+
+    if (kcm_status == KCM_STATUS_SUCCESS)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+static void removeSslSession()
+{
+    kcm_status_e kcm_status = kcm_init();
+    if (kcm_status != KCM_STATUS_SUCCESS)
+    {
+        return;
+    }
+    else
+    {
+        kcm_item_delete((uint8_t *)ssl_session_item_name,
+                        strlen(ssl_session_item_name),
+                        KCM_CONFIG_ITEM);
+    }
+}
+#endif //PAL_USE_SSL_SESSION_RESUME
+

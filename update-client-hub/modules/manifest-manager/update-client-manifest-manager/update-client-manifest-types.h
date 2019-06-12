@@ -53,6 +53,21 @@ typedef struct manifest_guid_t {
     };
 } manifest_guid_t;
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+/**
+ * @brief The manifest_vendor_info_t struct
+ * @details Contains the details about for example the delta image
+ */
+struct manifest_vendor_info_t  {
+    arm_uc_buffer_t     vendorBuffer;       // To store the whole octet stream
+    uint32_t            enumDeltaVariant; // 0 = reserved, 1=arm-stream-diff-lz4
+    arm_uc_buffer_t     preCursorHash;       ///< The hash of the delta image
+    arm_uc_buffer_t     deltaHash;       ///< The hash of the delta image
+    uint32_t            deltaSize;       ///< The size of the delta in bytes
+};
+typedef struct manifest_vendor_info_t manifest_vendor_info_t;
+#endif
+
 /**
  * @brief Allowed cryptographic modes
  * This list must be kept in sync with the manifest generator.
@@ -97,20 +112,39 @@ enum arm_uc_mmCipherMode_t {
     ARM_UC_MM_CIPHERMODE_CERT_KEYTABLE,
 };
 
+#if UINTPTR_MAX <= 0xffffffff
+typedef uint32_t arm_uc_image_size_t;
+#else // UINTPTR_MAX > 0xffffffff
+typedef uint64_t arm_uc_image_size_t;
+#endif
+
 /**
  * @brief   Firmware Information
  * @details Contains the details about the firmware image referenced by the manifest
  */
 struct manifest_firmware_info_t {
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+    uint32_t        version;    ///< Version of the manifest structure
+#endif
     uint64_t        timestamp;  ///< Root Manifest timestamp.
     manifest_guid_t format;     /**< The format used for the firmware. This is either an enum when the first 96 bits
                                  *   are 0. Otherwise, this is a RFC4122 GUID. */
-
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+    arm_uc_buffer_t     precursor;     ///< Digest of a firmware image that must already be present.
+    uint64_t            priority;      ///< Priority of the update.
+#endif
     uint32_t            cryptoMode;
-    uint32_t            size;       ///< The size of the firmware in bytes
-    arm_uc_buffer_t     hash;       ///< The hash of the firmware image
-    arm_uc_buffer_t     uri;        ///< The location of the firmware
-    arm_uc_buffer_t     strgId;     ///< The location of the firmware
+    uint32_t            size;          ///< The size of the firmware resource in bytes
+    arm_uc_buffer_t     hash;          ///< The hash of the firmware resource image
+    arm_uc_buffer_t     uri;           ///< The location of the firmware resource
+    arm_uc_buffer_t     strgId;        ///< The installation location of the firmware
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+    arm_uc_image_size_t installedSize; ///< The installed size of the firmware in bytes
+    arm_uc_buffer_t     installedHash; ///< The installed hash of the firmware image
+#endif
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+    manifest_vendor_info_t vendorInfo;
+#endif
 
     uint32_t            cipherMode;
     arm_uc_buffer_t     initVector; ///< AES initialization vector. 0 is not permitted.
@@ -134,7 +168,6 @@ struct manifest_firmware_info_t {
     uint8_t  manifestBuffer[640];
 };
 typedef struct manifest_firmware_info_t manifest_firmware_info_t;
-
 
 #ifdef __cplusplus
 }

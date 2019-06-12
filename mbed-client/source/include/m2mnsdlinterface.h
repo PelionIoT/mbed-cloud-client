@@ -409,6 +409,12 @@ public:
     void set_registration_status(bool registered);
 
     /**
+     * @brief Get the client registration status.
+     * @return True if client registered otherwise False.
+    */
+    bool is_registered() const;
+
+    /**
      * @brief Returns total retransmission time
      * @resend_count Resend count
      * @return Total retransmission time

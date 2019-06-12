@@ -26,7 +26,6 @@
 #include "pal.h"
 #include "sotp.h"
 #ifndef palMDHandle_t
-#include "pal_Crypto.h"
 #include "pal_plat_rot.h"
 #else
 #include "mbedtls/md.h"

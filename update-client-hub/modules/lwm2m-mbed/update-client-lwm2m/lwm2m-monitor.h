@@ -21,6 +21,6 @@
 
 #include "update-client-monitor/arm_uc_monitor.h"
 
-extern ARM_UPDATE_MONITOR ARM_UCS_LWM2M_MONITOR;
+extern const ARM_UPDATE_MONITOR ARM_UCS_LWM2M_MONITOR;
 
 #endif // __ARM_UCS_LWM2M_MONITOR_H__

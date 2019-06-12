@@ -37,6 +37,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#define TRACE_GROUP  "UCPI"
+
 extern linux_worker_thread_info_t linux_worker_thread;
 
 /* worker struct, must be accessible externally */
@@ -168,6 +170,7 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
+    UC_PAAL_TRACE("ARM_UC_PAL_Linux_Prepare");
     if (details && buffer) {
         UC_PAAL_TRACE("details size: %" PRIu64, details->size);
 
@@ -249,19 +252,32 @@ arm_uc_error_t ARM_UC_PAL_Linux_Prepare(uint32_t location,
             UC_PAAL_ERR_MSG("could not write header");
         }
 
+        UC_PAAL_TRACE("ARM_UC_PAL_Linux_Prepare write header done!");
         /* signal completion or perform extended preparation */
         if (result.error == ERR_NONE) {
             /* set explicit ERR_NONE upon success */
             result.code = ERR_NONE;
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+
+            arm_uc_delta_details_t *delta_details = { 0 };
+            delta_details = ARM_UC_HUB_getDeltaDetails();
+            UC_PAAL_TRACE("ARM_UC_PAL_Linux_Prepare write going to worker...is_delta: %" PRIu8 , delta_details->is_delta);
+            // For now trigger the prepare-script only for delta as it is not needed for Full image
+            if (arm_uc_worker_parameters.prepare && delta_details->is_delta) {
+#else
             if (arm_uc_worker_parameters.prepare) {
+#endif
                 /* use extended prepare, invoke script from worker thread */
                 /* export location */
                 arm_uc_pal_linux_internal_set_location(&location);
+                UC_PAAL_TRACE("ARM_UC_PAL_Linux_Prepare write going to worker 2...");
 
                 /* create a second thread which executes worker_parameters_prepare */
                 result = spawn_thread(arm_uc_pal_linux_extended_post_worker,
                                       arm_uc_worker_parameters.prepare);
+                UC_PAAL_TRACE("ARM_UC_PAL_Linux_Prepare write worker returned %" PRIu32, result.code);
+
             } else {
                 /* call event handler */
                 arm_uc_pal_linux_signal_callback(ARM_UC_PAAL_EVENT_PREPARE_DONE, false);

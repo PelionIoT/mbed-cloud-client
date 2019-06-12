@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -26,7 +26,6 @@
 #include "include/ServiceClient.h"
 #include "include/CloudClientStorage.h"
 #include "include/UpdateClientResources.h"
-#include "include/UpdateClient.h"
 #include "factory_configurator_client.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-trace/mbed_trace.h"

@@ -32,15 +32,15 @@
 #endif
 
 #ifndef MBED_CLOUD_CLIENT_LIFETIME
-#error "MBED_CLOUD_CLIENT_LIFETIME must be defined with valid non-zero lifetime value in seconds, default is 60"
+#error "MBED_CLOUD_CLIENT_LIFETIME must be defined with valid non-zero lifetime value in seconds, default is 3600"
 #endif
 
 #ifndef MBED_CLOUD_CLIENT_LISTEN_PORT
 #error "MBED_CLOUD_CLIENT_LISTEN_PORT must be defined with valid non-zero port number, default is 0"
 #endif
 
-#if !defined (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE) || (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE < 16) || (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE > 1024)
-#error "SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be defined with one of the values from this - 128, 256, 512 or 1024"
+#if !defined(SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE) || (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE < 16) || (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE > 1024)
+#error "SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be defined with one of the values from this - 16, 32, 64, 128, 256, 512 or 1024"
 #endif
 
 #if defined (MBED_CLOUD_CLIENT_TRANSPORT_MODE_TCP_QUEUE)
@@ -94,6 +94,10 @@ defined (MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE) || defined(MBED_CLOUD_CLIEN
 
 #if defined (PAL_MAX_FRAG_LEN) && (PAL_MAX_FRAG_LEN == 2) && (SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE > 512)
 #error "SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be 512 or lower."
+#endif
+
+#ifndef MBED_CLIENT_EVENT_LOOP_SIZE
+#error "MBED_CLIENT_EVENT_LOOP_SIZE is mandatory parameter which should be defined always."
 #endif
 
 #endif // MBED_CLOUD_CONFIG_CHECK_H

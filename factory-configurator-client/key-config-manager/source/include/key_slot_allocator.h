@@ -68,11 +68,11 @@ kcm_status_e ksa_init(void);
 */
 kcm_status_e ksa_fini(void);
 
-    /**
-    *   Clear the volatile KSA tables (active and backup)
-    *   Use this API to clear the tables if the storage is wiped, without using a KCM API (i.e fcc_storage_delete())
-    */
-    void clear_volatile_ksa_tables(void);
+/**
+*   Clear the volatile KSA tables (active and backup)
+*   Use this API to clear the tables if the storage is wiped, without using a KCM API (i.e fcc_storage_delete())
+*/
+void clear_volatile_ksa_tables(void);
 
 /** Reset Key Slot Allocator to factory initial state by restoring all factory items
 * from backend store.
@@ -88,9 +88,10 @@ kcm_status_e ksa_factory_reset(void);
 * @key_name[IN] The complete key name in binary representation
 * @key_name_size[IN] The complete key name size in bytes
 * @kcm_key_type[IN] KCM key type as defined in `::kcm_item_type_e`
-* @key[IN] The key data, if NULL, generate keypair with key_name
+* @key[IN] The key data, if NULL, generate key pair with key_name
 * @key_size[IN] The key data size , can be 0 if key is NULL
 * @is_factory[IN] set to "true" if this item is factory, "false" otherwise
+* @kcm_item_info[IN] Additional key data
 *
 * @returns ::KCM_STATUS_SUCCESS if the given key name occupied a new key slot or one of the `::kcm_status_e` errors in case of an error.
 * @        ::KCM_STATUS_KEY_EXIST if the given key name already exist.
@@ -101,7 +102,8 @@ kcm_status_e ksa_store_key_to_psa( const uint8_t *key_name,
                                     const uint8_t *key,
                                     size_t key_size,
                                     kcm_crypto_key_scheme_e curve_name,
-                                    bool is_factory);
+                                    bool is_factory,
+                                    const kcm_security_desc_s kcm_item_info);
 
 /** Exports public key from PSA slot.
 *

@@ -37,6 +37,10 @@ int32_t setBootloaderHash(arm_uc_buffer_t *hash);
 
 /* set OEM bootloader hash resource /10255/0/2 */
 int32_t setOEMBootloaderHash(arm_uc_buffer_t *hash);
+
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
+int32_t setM2MInterface(M2MInterface *interface);
+#endif
 }
 
 #endif // __ARM_UCS_DEVICE_METADATA_RESOURCE_H__

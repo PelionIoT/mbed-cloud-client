@@ -74,6 +74,8 @@
    is assumed to be trusted */
 #define ARM_UC_PAL_HEADER_SIZE (uint32_t) ARM_UC_INTERNAL_HEADER_SIZE_V2
 
+#define TRACE_GROUP  "UCPI"
+
 static uint64_t arm_uc_pal_flashiap_firmware_size = 0;
 
 static void (*arm_uc_pal_flashiap_callback)(uint32_t) = NULL;

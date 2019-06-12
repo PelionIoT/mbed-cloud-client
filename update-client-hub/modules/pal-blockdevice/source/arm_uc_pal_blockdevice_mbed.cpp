@@ -26,6 +26,7 @@
 #if defined(TARGET_CY8CKIT_062_WIFI_BT_PSA)
 
 #include "arm_uc_trace.h"
+#include "update-client-paal/arm_uc_paal_update_api.h"
 
 #define SD_BLOCK_DEVICE_ERROR_CRC                -5009  /*!< CRC error */
 

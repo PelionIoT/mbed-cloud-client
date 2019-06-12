@@ -404,54 +404,7 @@ static bool try_clear_callbacks_pending() {
     return run_again;
 }
 
-void ARM_UC_ProcessQueue(void)
-{
-    arm_uc_callback_t *element = NULL;
-
-    while (true) {
-        element = NULL;
-        /* Always consider the error callback first */
-        if (plugin_error_pending) {
-            /* Clear the read lock */
-            plugin_error_pending = 0;
-            element = &plugin_error_callback;
-        }
-        /* If the error callback isn't taken, get an element from the queue */
-        else if (callbacks_pending){
-            element = (arm_uc_callback_t *) aq_pop_head(&arm_uc_queue);
-        }
-        /* If the queue is empty */
-        if (element == NULL) {
-            /* Try to shut down queue processing */
-            if (! try_clear_callbacks_pending()) {
-                break;
-            }
-        }
-
-        UC_SDLR_TRACE("%s Invoking %p(%lu)", __PRETTY_FUNCTION__, element->callback, element->parameter);
-        /* Store the callback locally */
-        void *callback = element->callback;
-        /* Store the parameter locally */
-        uint32_t parameter = element->parameter;
-
-        /* Release the lock on the element */
-        UC_SDLR_TRACE("%s Releasing %p", __PRETTY_FUNCTION__, element);
-        void *ctx;
-        aq_element_release((void *) element, &ctx);
-        /* Free the element if it was pool allocated */
-        UC_SDLR_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
-        callback_pool_free((void *) element);
-
-        /* execute callback */
-        if (ctx == ATOMIC_QUEUE_NO_CONTEXT) {
-            ((arm_uc_no_context_callback_t)callback)(parameter);
-        } else {
-            ((arm_uc_context_callback_t)callback)(ctx, parameter);
-        }
-    }
-}
-
-bool ARM_UC_ProcessSingleCallback(void)
+bool ARM_UC_ProcessElement(bool execute)
 {
     bool call_again = true;
     /* always check the error callback first */
@@ -486,11 +439,13 @@ bool ARM_UC_ProcessSingleCallback(void)
         UC_SDLR_TRACE("%s Freeing %p", __PRETTY_FUNCTION__, element);
         callback_pool_free((void *) element);
 
-        /* execute callback */
-        if (ctx == ATOMIC_QUEUE_NO_CONTEXT) {
-            ((arm_uc_no_context_callback_t)callback)(parameter);
-        } else {
-            ((arm_uc_context_callback_t)callback)(ctx, parameter);
+        if (execute) {
+            /* execute callback */
+            if (ctx == ATOMIC_QUEUE_NO_CONTEXT) {
+                ((arm_uc_no_context_callback_t)callback)(parameter);
+            } else {
+                ((arm_uc_context_callback_t)callback)(ctx, parameter);
+            }
         }
 
         /* Try to shut down queue processing */
@@ -498,4 +453,19 @@ bool ARM_UC_ProcessSingleCallback(void)
     }
 
     return call_again || plugin_error_pending;
+}
+
+void ARM_UC_ProcessQueue(void)
+{
+    while(ARM_UC_ProcessSingleCallback());
+}
+
+bool ARM_UC_ProcessSingleCallback(void)
+{
+    return ARM_UC_ProcessElement(true);
+}
+
+void ARM_UC_DrainCallbackQueue(void)
+{
+    while(ARM_UC_ProcessElement(false));
 }
