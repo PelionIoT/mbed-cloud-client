@@ -119,7 +119,7 @@ static const fcc_bundle_group_lookup_record_s fcc_groups_lookup_table[FCC_MAX_CO
 * @return
 *     true for success, false otherwise.
 */
-static bool prepare_reponse_message(uint8_t **bundle_response_out, size_t *bundle_response_size_out, fcc_status_e fcc_status, cn_cbor *encoder, const uint8_t *session_id, size_t session_id_len)
+static bool prepare_response_message(uint8_t **bundle_response_out, size_t *bundle_response_size_out, fcc_status_e fcc_status, cn_cbor *encoder, const uint8_t *session_id, size_t session_id_len)
 {
     bool status = false;
     cn_cbor_errback err;
@@ -301,7 +301,7 @@ static bool fcc_bundle_process_session_id(cn_cbor *parser, cn_cbor *encoder, con
     // Get the session ID from the message and make sure that it is either a text or bytes string
     SA_PV_ERR_RECOVERABLE_RETURN_IF((parser->type != CN_CBOR_TEXT), false, "Session ID of wrong type");
 
-    // Output the values for use of the prepare_reponse_message() function in case of an error during the bundle handling process
+    // Output the values for use of the prepare_response_message() function in case of an error during the bundle handling process
     *session_id = (uint8_t *)parser->v.bytes;
     *session_id_len = (size_t)parser->length;
 
@@ -477,7 +477,7 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), free_cbor_list_and_out, "Failed for kcm_init");
 
     // Check if factory flow is disabled (if flag in storage), if it is, do not proceed
-    // Turn on is_fcc_factory_disabled even if we get an error, so that we know not tp prepare a response
+    // Turn on is_fcc_factory_disabled even if we get an error, so that we know not to prepare a response
     fcc_status = fcc_is_factory_disabled(&is_fcc_factory_disabled);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), is_fcc_factory_disabled = true, free_cbor_list_and_out, "Failed for fcc_is_factory_disabled");
     SA_PV_ERR_RECOVERABLE_GOTO_IF((is_fcc_factory_disabled), fcc_status = FCC_STATUS_FACTORY_DISABLED_ERROR, free_cbor_list_and_out, "FCC is disabled, service not available");
@@ -589,7 +589,7 @@ exit:
     // If we discovered that factory is disabled (or fcc_is_factory_disabled failed) - do not prepare a response
     if (is_fcc_factory_disabled == false) {
         //Prepare bundle response message
-        status = prepare_reponse_message(bundle_response_out, bundle_response_size_out, fcc_status, response_cbor, session_id, session_id_len);
+        status = prepare_response_message(bundle_response_out, bundle_response_size_out, fcc_status, response_cbor, session_id, session_id_len);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != true), FCC_STATUS_BUNDLE_RESPONSE_ERROR, "Failed to prepare out response");
         SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
         FCC_END_TIMER("Total fcc_bundle_handler device", 0, fcc_bundle_timer);

@@ -215,5 +215,19 @@ kcm_status_e storage_reset_to_factory_state(void)
     return kcm_status;
 }
 
+kcm_status_e storage_reset(void)
+{
+    kcm_status_e kcm_status;
+
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    kcm_status = storage_specific_reset();
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for storage specific reset");
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+
+    return kcm_status;
+}
+
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 

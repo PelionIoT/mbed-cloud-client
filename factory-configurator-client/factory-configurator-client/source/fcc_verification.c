@@ -626,7 +626,7 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     size_t size_of_parameter_name = 0;
     uint8_t *second_mode_parameter_name = NULL;
     size_t size_of_second_mode_parameter_name = 0;
-    storage_cert_chain_context_s *cert_chain;
+    storage_cert_chain_context_s *cert_chain = NULL;
     kcm_cert_chain_handle chain_handle;
     size_t chain_len = 0;
     palX509Handle_t x509_cert_handle = NULLPTR;

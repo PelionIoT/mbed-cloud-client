@@ -82,7 +82,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=3.2.0";
+const char *MCC_VERSION = "mccv=3.3.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 

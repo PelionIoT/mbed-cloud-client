@@ -28,13 +28,19 @@
 #include "psa/crypto_types.h"
 
 
-/** The maximum individual keys allow to store in KSA
+/** ksa table version current version number
 */
-#define KSA_MAX_TABLE_ENTRIES 15
+#define KSA_TABLE_VERSION_NUM    0x1
+
+/** The initial individual keys allow to store in KSA
+*/
+#define KSA_INITIAL_TABLE_ENTRIES 10
 
 
-/** 0 is not a valid slot number under any circumstance
-* as defined in psa_crypto.h
+/* 0 is not a valid handle under any circumstance. This
+* implementation provides slots number 1 to N where N is the
+* number of available slots.
+* Defined in psa_crypto.h
 */
 #define KSA_INVALID_SLOT_NUMBER 0
 
