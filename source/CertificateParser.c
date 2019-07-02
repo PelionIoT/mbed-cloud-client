@@ -50,7 +50,7 @@ bool extract_field_from_certificate(const uint8_t* cer, size_t cer_len, const ch
         pal_x509Free(&cert);
         return false;
     }    
-    ret = pal_x509CertGetAttribute(cert, attr, value, 64, &len);
+    ret = pal_x509CertGetAttribute(cert, attr, value, 65, &len);
     if (ret != PAL_SUCCESS) {
         tr_error("extract_field_from_certificate - cert attr get failed: %d", (int)ret);
         pal_x509Free(&cert);

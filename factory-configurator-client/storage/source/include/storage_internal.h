@@ -35,13 +35,13 @@
 */
 
 kcm_status_e storage_item_store_impl(const uint8_t * kcm_item_name,
-        size_t kcm_item_name_len,
-        kcm_item_type_e kcm_item_type,
-        bool kcm_item_is_factory,
-        bool kcm_item_is_encrypted,
-        storage_item_prefix_type_e item_prefix_type,
-        const uint8_t * kcm_item_data,
-        size_t kcm_item_data_size);
+                                     size_t kcm_item_name_len,
+                                     kcm_item_type_e kcm_item_type,
+                                     bool kcm_item_is_factory,
+                                     bool kcm_item_is_encrypted,
+                                     storage_item_prefix_type_e item_prefix_type,
+                                     const uint8_t * kcm_item_data,
+                                     size_t kcm_item_data_size);
 
 /**
 *   The function returns prefix, according to kcm type and data source type
@@ -66,28 +66,49 @@ kcm_status_e storage_get_prefix_from_type(kcm_item_type_e kcm_item_type, storage
  *                                          there is no guaranty null terminator at the end of the name, the caller MUST
  *                                          use the kcm_complete_name_size_out to verify the name actual size.
  * @param[out] kcm_complete_name_size_out   KCM item name length.
- * @param[out] cert_name_info               KCM certificate name info. Relevant for storage_items_pal_sst.c only.
+ * @param[out] chain_cert_info              KCM certificate name info. Relevant for storage_items_pal_sst.c only.
  *                                          not used ion storage_items_pelion_sst.c implementation.
  */
 kcm_status_e storage_build_complete_working_item_name(
-        kcm_item_type_e kcm_item_type,
-        storage_item_prefix_type_e item_prefix_type,
-        const uint8_t *kcm_item_name,
-        size_t kcm_item_name_len,
-        char *kcm_complete_name_out,
-        size_t *kcm_complete_name_size_out,
-        void *cert_name_info);
+    kcm_item_type_e kcm_item_type,
+    storage_item_prefix_type_e item_prefix_type,
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len,
+    char *kcm_complete_name_out,
+    size_t *kcm_complete_name_size_out,
+    void *chain_cert_info);
 
 /**
  * The function checks KCM item name length. Should be less than ::KCM_MAX_FILENAME_SIZE bytes (including "\0")
  * Also checks characters validity. Can be only alphanumeric, ".", "-", "_"
- * 
+ *
  * @param[in] kcm_item_name                 KCM item name.
  * @param[in] kcm_item_name_len             KCM item name length. Must be at most ::KCM_MAX_FILENAME_SIZE bytes
  */
 kcm_status_e storage_check_name_validity(
-        const uint8_t *kcm_item_name, 
-        size_t kcm_item_name_len);
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len);
+
+/**
+ * The implementation of storage_cert_chain_add_next API.
+ * There are 2 implementations - one in storage_items_pal_sst.c and another one in storage_items_pelion_sst
+ *
+ *    @param[in] kcm_chain_handle                 certificate chain handle.
+ *    @param[in] kcm_cert_data                    pointer to certificate data in DER format.
+ *    @param[in] kcm_cert_data_size               size of certificate data buffer.
+ *    @param[in] item_prefix_type                 KCM item prefix type (KCM or CE) as defined in
+ * `::storage_item_prefix_type_e`
+ *
+ *    @returns
+ *        KCM_STATUS_SUCCESS in case of success.
+ *        KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED in case that one of the certificate in the chain failed to
+ * verify its predecessor In other casese - one of the `::kcm_status_e` errors.
+ *
+ */
+kcm_status_e storage_cert_chain_add_next_impl(kcm_cert_chain_handle kcm_chain_handle,
+        const uint8_t *kcm_cert_data,
+        size_t kcm_cert_data_size,
+        storage_item_prefix_type_e item_prefix_type);
 
 /** Initializes the specific storage backend so that it can be used.
 *   Must be called once after boot.

@@ -39,7 +39,7 @@ extern "C" {
     * Allocates and initializes file storage resources.
     *
     *    @returns
-    *       KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *       KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_init(void);
 
@@ -48,7 +48,7 @@ extern "C" {
     * Finalizes and frees file storage resources.
     *
     *    @returns
-    *       ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *       ::KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_finalize(void);
 
@@ -66,7 +66,7 @@ extern "C" {
     *    @param[in] kcm_item_name       KCM item name. See comment above.
     *    @param[in] kcm_item_name_len   KCM item name length. kcm_item_name_len must be at most ::KCM_MAX_FILENAME_SIZE bytes.
     *    @param[in] kcm_item_type       KCM item type as defined in `::kcm_item_type_e`.
-    *    @param[in] kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
+    *    @param[in] kcm_item_is_factory True if the KCM item is a factory item; otherwise, false.
     *    @param[in] kcm_item_data       KCM item data buffer. Can be NULL if `kcm_item_data_size` is 0.
     *    @param[in] kcm_item_data_size  KCM item data buffer size in bytes. Can be 0 if you want to store an empty file.
     *    @param[in] kcm_item_info       Optional item info. Currently, this parameter is used only for PSA configuration. The parameter points to
@@ -86,7 +86,7 @@ extern "C" {
                                 size_t                    kcm_item_data_size,
                                 const kcm_security_desc_s kcm_item_info);
 
-    /* === Keys, Certificates and Configuration data retrieval === */
+    /* === Key, certificate, and configuration data retrieval === */
 
     /**
     * Retrieves the KCM item data size from secure storage.
@@ -128,6 +128,29 @@ extern "C" {
                                    size_t          kcm_item_data_max_size,
                                    size_t         *kcm_item_data_act_size_out);
 
+    /**
+    * Retrieves KCM item data and its size from secure storage.
+    * The buffer for the data is allocated internally and the caller is responsible to free it.
+    * If kcm_status_e` error returned, no need to free the buffer
+    *
+    *    @param[in]  kcm_item_name              KCM item name.
+    *    @param[in]  kcm_item_name_len          KCM item name length.
+    *    @param[in]  kcm_item_type              KCM item type as defined in `::kcm_item_type_e`.
+    *    @param[out] kcm_item_data_out          KCM item data output buffer. The buffer allocated internally. 
+    *    @param[out] kcm_item_data_size_out     KCM item data output buffer size in bytes.
+    *
+    *    @returns
+    *        ::KCM_STATUS_SUCCESS            in case of success.
+    *        ::KCM_STATUS_ITEM_NOT_FOUND     if kcm_item_name isn't found in the secure storage.
+    *        One of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e kcm_item_get_size_and_data(const uint8_t * kcm_item_name,
+                                            size_t kcm_item_name_len,
+                                            kcm_item_type_e kcm_item_type,
+                                            uint8_t ** kcm_item_data_out,
+                                            size_t * kcm_item_data_size_out);
+
+
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     /* === Key and Configuration Manager with Platform Secure Architecture (PSA) support uses PSA key IDs from 0x1 up to 0x2800 === */
@@ -142,7 +165,7 @@ extern "C" {
     *    @param[in]  kcm_item_name_len KCM item name length.
     *    @param[in]  kcm_item_type     KCM item type as defined in `::kcm_item_type_e`.
     *                                  Only ::KCM_PRIVATE_KEY_ITEM and ::KCM_PUBLIC_KEY_ITEM are valid.
-    *                                  Other types will result in a ::KCM_STATUS_INVALID_PARAMETER error.
+    *                                  Other types result in a ::KCM_STATUS_INVALID_PARAMETER error.
     *    @param[out] key_handle_out    Pointer to handle for the PSA key.
     *
     *    @returns
@@ -156,18 +179,18 @@ extern "C" {
                                      kcm_key_handle_t *key_handle_out);
 
     /**
-    * Frees all resources associated with the PSA private/public key and sets zero to the handle value.
+    * Frees all resources associated with the PSA private/public key and sets the handle value to zero.
     * This API must be called after ::kcm_item_get_handle().
     *
-    *    @param[in] key_handle Pointer to handle of the PSA key.
+    *    @param[in] key_handle Pointer to the handle of the PSA key.
     *
     *    @returns
-    *        ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        ::KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_item_close_handle(kcm_key_handle_t *key_handle);
 #endif
 
-    /* === Keys, Certificates, and Configuration delete === */
+    /* === Key, certificate, and configuration delete === */
 
     /**
     * Deletes a KCM item from a secure storage.
@@ -177,7 +200,7 @@ extern "C" {
     *    @param[in] kcm_item_type     KCM item type as defined in `::kcm_item_type_e`.
     *
     *    @returns
-    *        ::KCM_STATUS_SUCCESS status in case of success or one of ::kcm_status_e errors otherwise.
+    *        ::KCM_STATUS_SUCCESS status in case of success, or one of the ::kcm_status_e errors otherwise.
     */
     kcm_status_e kcm_item_delete(const uint8_t  *kcm_item_name,
                                  size_t          kcm_item_name_len,
@@ -193,10 +216,10 @@ extern "C" {
     *    @param[in]  kcm_chain_name                   Certificate chain name.
     *    @param[in]  kcm_chain_name_len               Certificate chain name length.
     *    @param[in]  kcm_chain_len                    The number of certificates in the chain.
-    *    @param[in]  kcm_chain_is_factory             True if the KCM chain is a factory item, otherwise false.
+    *    @param[in]  kcm_chain_is_factory             True if the KCM chain is a factory item; otherwise, false.
     *
     *    @returns
-    *        ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        ::KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_cert_chain_create(kcm_cert_chain_handle *kcm_chain_handle,
                                        const uint8_t         *kcm_chain_name,
@@ -214,8 +237,17 @@ extern "C" {
     *    @param[out] kcm_chain_len                     The length of the certificate chain.
     *
     *    @returns
-    *        ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    *        ::KCM_STATUS_SUCCESS in case of success
+    *      If the first certificate of the chain is missing, the function returns a
+    *        ::KCM_STATUS_ITEM_NOT_FOUND error.
+    *      If one of the next certificates is missing, the function returns:
+    *        ::KCM_STATUS_ITEM_NOT_FOUND for SST storage configuration.
+    *        ::KCM_STATUS_SUCCESS for Device Management Client secure storage configuration.
+    *                  If there is an attempt to read the missing certificate using the opened chain handle, through the `::kcm_cert_chain_get_next_size`
+    *                  or `::kcm_cert_chain_get_next_data` APIs, the called API then returns a ::KCM_STATUS_ITEM_NOT_FOUND error.
+    *      One of the `::kcm_status_e` errors otherwise.
     */
+
     kcm_status_e kcm_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle,
                                      const uint8_t         *kcm_chain_name,
                                      size_t                 kcm_chain_name_len,

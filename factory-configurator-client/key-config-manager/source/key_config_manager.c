@@ -86,12 +86,12 @@ kcm_status_e kcm_finalize(void)
     return kcm_status;
 }
 
-kcm_status_e kcm_item_store(const uint8_t * kcm_item_name, 
-                            size_t kcm_item_name_len, 
-                            kcm_item_type_e kcm_item_type, 
-                            bool kcm_item_is_factory, 
-                            const uint8_t * kcm_item_data, 
-                            size_t kcm_item_data_size, 
+kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
+                            size_t kcm_item_name_len,
+                            kcm_item_type_e kcm_item_type,
+                            bool kcm_item_is_factory,
+                            const uint8_t * kcm_item_data,
+                            size_t kcm_item_data_size,
                             const kcm_security_desc_s kcm_item_info)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -163,6 +163,42 @@ kcm_status_e kcm_item_get_data(const uint8_t * kcm_item_name, size_t kcm_item_na
     }
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_read");
 
+    return kcm_status;
+}
+
+kcm_status_e kcm_item_get_size_and_data(const uint8_t * kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, uint8_t ** kcm_item_data_out, size_t * kcm_item_data_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    size_t kcm_item_data_act_size;
+
+    SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+
+    // Validate function parameter
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data_out is NULL");
+    *kcm_item_data_out = NULL;
+
+    // read the data size
+    kcm_status = kcm_item_get_data_size(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_data_size_out);
+    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
+        return kcm_status;
+    }
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get data size");
+
+    //allocate buffer for kcm data
+    *kcm_item_data_out = malloc(*kcm_item_data_size_out);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((*kcm_item_data_out == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed to allocate memory for kcm data buffer");
+
+    //read data to the buffer
+    kcm_status =  kcm_item_get_data(kcm_item_name, kcm_item_name_len, kcm_item_type, *kcm_item_data_out, *kcm_item_data_size_out, &kcm_item_data_act_size);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_item_data_act_size != *kcm_item_data_size_out), kcm_status = KCM_STATUS_ERROR, free_and_exit,"Inconsistent data size");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, free_and_exit, "Failed during storage_data_read");
+
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+
+    return KCM_STATUS_SUCCESS;
+
+free_and_exit:
+    free(*kcm_item_data_out);
     return kcm_status;
 }
 
@@ -258,53 +294,15 @@ kcm_status_e kcm_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, const 
 */
 kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, const uint8_t *kcm_cert_data, size_t kcm_cert_data_size)
 {
-    storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palX509Handle_t cert;
 
     SA_PV_LOG_INFO_FUNC_ENTER("cert_data_size =%" PRIu32 "", (uint32_t)kcm_cert_data_size);
 
-    // Check if KCM initialized, if not initialize it
-    if (!g_kcm_initialized) {
-        kcm_status = kcm_init();
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
-    }
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain handle");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->num_of_certificates_in_chain == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm context");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_cert_data == NULL || kcm_cert_data_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_cert_data or kcm_cert_data_size");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->operation_type != STORAGE_CHAIN_OP_TYPE_CREATE), KCM_STATUS_INVALID_PARAMETER, "Invalid operation type");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((chain_context->current_cert_index >= chain_context->num_of_certificates_in_chain), KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, "Invalid certificate index");
-
-    // Parse the X509 and make sure it is of correct structure
-    kcm_status = cs_create_handle_from_der_x509_cert(kcm_cert_data, kcm_cert_data_size, &cert);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to parsing cert");
-
-    if (chain_context->current_cert_index > 0) {
-        // If not first certificate - validate based on params of previous certificate
-        kcm_status = cs_x509_cert_verify_der_signature(cert, chain_context->prev_cert_params.htbs,
-                                                   chain_context->prev_cert_params.htbs_actual_size,
-                                                   chain_context->prev_cert_params.signature,
-                                                   chain_context->prev_cert_params.signature_actual_size);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status == KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED), (kcm_status = KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED), Clean_X509, "Failed verifying child signature");
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed verifying child signature");
-    }
-
-    // Save params only if certificate is not last in chain
-    if(chain_context->current_cert_index < chain_context->num_of_certificates_in_chain - 1) {
-        // Get params needed for validation by the signer
-        // These will be used to validate this certificate in the chain when parsing the next one
-        kcm_status = cs_child_cert_params_get(cert, &chain_context->prev_cert_params);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed to retrieve child cert params");
-    }
 
     //Call internal storage_chain_add_next
     kcm_status = storage_cert_chain_add_next(kcm_chain_handle, kcm_cert_data, kcm_cert_data_size, STORAGE_ITEM_PREFIX_KCM);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed in storage_chain_add_next");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed in storage_chain_add_next");
 
-Clean_X509:
-    cs_close_handle_x509_cert(&cert);
-    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
 
@@ -346,7 +344,6 @@ kcm_status_e kcm_cert_chain_get_next_data(kcm_cert_chain_handle kcm_chain_handle
 
 kcm_status_e kcm_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle)
 {
-
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     //Call internal storage_cert_chain_close
@@ -357,11 +354,11 @@ kcm_status_e kcm_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle)
 }
 
 kcm_status_e kcm_key_pair_generate_and_store(const kcm_crypto_key_scheme_e        key_scheme,
-                                             const uint8_t                        *private_key_name,
-                                             size_t                               private_key_name_len,
-                                             const uint8_t                        *public_key_name,
-                                             size_t                               public_key_name_len,
-                                             bool                                 kcm_item_is_factory,
+                                             const uint8_t                *private_key_name,
+                                             size_t                        private_key_name_len,
+                                             const uint8_t                *public_key_name,
+                                             size_t                        public_key_name_len,
+                                             bool                          kcm_item_is_factory,
                                              const kcm_security_desc_s            kcm_item_info)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -383,7 +380,7 @@ kcm_status_e kcm_key_pair_generate_and_store(const kcm_crypto_key_scheme_e      
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((public_key_name == NULL) && (public_key_name_len != 0)), KCM_STATUS_INVALID_PARAMETER, "public_key_name is NULL, but its size is not 0");
 
     SA_PV_LOG_INFO_FUNC_ENTER("priv_key_name = %.*s priv_key_len = %" PRIu32,
-        (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len);
+                              (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len);
 
     kcm_status = storage_key_pair_generate_and_store(key_scheme, private_key_name, private_key_name_len, public_key_name, public_key_name_len, STORAGE_ITEM_PREFIX_KCM, kcm_item_is_factory);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_KEY_EXIST), KCM_STATUS_KEY_EXIST, "key already exists");
@@ -424,7 +421,7 @@ kcm_status_e kcm_csr_generate(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_act_size == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_act_size");
 
     SA_PV_LOG_INFO_FUNC_ENTER("priv_key_name = %.*s priv_key_len = %" PRIu32", csr_buff_max_size = %" PRIu32,
-        (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len, (uint32_t)csr_buff_max_size);
+                              (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len, (uint32_t)csr_buff_max_size);
 
     kcm_status = storage_key_get_handle(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM, &priv_key_h);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed getting private key handle");
@@ -492,7 +489,7 @@ kcm_status_e kcm_generate_keys_and_csr(kcm_crypto_key_scheme_e     key_scheme,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((csr_buff_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid csr_buff_act_size");
 
     SA_PV_LOG_INFO_FUNC_ENTER("priv_key_name = %.*s priv_key_len = %" PRIu32,
-        (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len);
+                              (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len);
 
     pub_name_exists = ((public_key_name != NULL) && (public_key_name_len != 0));
 
@@ -613,7 +610,7 @@ kcm_status_e kcm_asymmetric_sign(const uint8_t *private_key_name, size_t private
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed during cs_asymmetric_sign");
 
 exit:
-    
+
     if (kcm_handle != 0) {
         close_handle_status = storage_key_close_handle(&kcm_handle);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((close_handle_status != KCM_STATUS_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Failed during storage_close_handle");
@@ -624,7 +621,7 @@ exit:
 }
 
 kcm_status_e kcm_asymmetric_verify(const uint8_t *public_key_name, size_t public_key_name_len, const uint8_t *hash_digest, size_t hash_digest_size, const uint8_t *signature,
-                                    size_t signature_size)
+                                   size_t signature_size)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_key_handle_t kcm_handle;
@@ -658,7 +655,7 @@ kcm_status_e kcm_asymmetric_verify(const uint8_t *public_key_name, size_t public
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed during cs_asymmetric_verify");
 
 exit:
-    
+
     if (kcm_handle != 0) {
         close_handle_status = storage_key_close_handle(&kcm_handle);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((close_handle_status != KCM_STATUS_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Failed during storage_close_handle");
@@ -731,7 +728,7 @@ kcm_status_e kcm_ecdh_key_agreement(const uint8_t *private_key_name, size_t priv
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed during cs_ecdh_key_agreement");
 
 exit:
-        
+
     if (kcm_handle != 0) {
         close_handle_status = storage_key_close_handle(&kcm_handle);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((close_handle_status != KCM_STATUS_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Failed during storage_close_handle");

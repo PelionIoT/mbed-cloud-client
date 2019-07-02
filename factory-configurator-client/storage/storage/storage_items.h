@@ -96,7 +96,7 @@ extern "C" {
 typedef struct kcm_chain_cert_name_info_ {
     uint32_t certificate_index;
     bool is_last_certificate;
-} kcm_chain_cert_name_info_s;
+} kcm_chain_cert_info_s;
 
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
@@ -135,17 +135,17 @@ typedef struct storage_chain_prev_cert_params_ {
 * The chain context used internally only and should not be changed by user.
 */
 typedef struct storage_cert_chain_context_ {
-    uint8_t *chain_name;                      //!< The name of certificate chain.
-    size_t  chain_name_len;                   //!< The size of certificate chain name.
-    size_t num_of_certificates_in_chain;      //!< The number of certificate in the chain.
+    uint8_t chain_name[KCM_MAX_FILENAME_SIZE];              //!< The name of certificate chain.
+    size_t  chain_name_len;                                 //!< The size of certificate chain name.
+    size_t num_of_certificates_in_chain;                    //!< The number of certificate in the chain.
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-    store_esfs_file_ctx_s current_kcm_ctx;     //!< Current KCM operation context.
+    store_esfs_file_ctx_s current_kcm_ctx;                  //!< Current KCM operation context.
 #endif
-    uint32_t current_cert_index;              //!< Current certificate iterator.
-    storage_chain_operation_type_e operation_type;//!< Type of Current operation.
-    bool is_factory;                          //!< Is chain is a factory item, otherwise false.
-    storage_chain_prev_cert_params_s prev_cert_params; //!< Saved params of previous parsed certificate. used only in create operation
-    bool is_meta_data;                        //!< Is this a single certificate or chain with one certificate.
+    uint32_t current_cert_index;                            //!< Current certificate iterator.
+    storage_chain_operation_type_e operation_type;          //!< Type of Current operation.
+    bool is_factory;                                        //!< Is chain is a factory item, otherwise false.
+    storage_chain_prev_cert_params_s prev_cert_params;      //!< Saved params of previous parsed certificate. used only in create operation
+    bool is_meta_data;                                      //!< Is this a single certificate or chain with one certificate.
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     size_t  certificates_info[KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN]; //!< Array of the sizes of the certificates in chain
 #endif
@@ -234,6 +234,13 @@ kcm_status_e storage_reset(void);
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
 kcm_status_e storage_factory_reset(void);
+
+/** Cleans all data (including keys) that was stored in backend storage.
+*
+*   @returns
+*       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+*/
+kcm_status_e storage_specific_reset();
 
 /* === Certificates chain APIs === */
 

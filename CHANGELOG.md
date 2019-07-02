@@ -1,5 +1,17 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 3.3.0 (02.07.2019)
+
+#### Device Management Connect client
+
+* Updated Mbed CoAP to 4.8.0.
+* A fix to accommodate a null terminator space for managing a common name parameter (max 64 characters) in an `X.509` certificate.
+* A fix to clear a stored SSL session when the device rebootstraps. Without clearing, a bootstrap loop may render the device unusable.
+
+#### Factory configurator client
+
+New `kcm_item_get_size_and_data` API - combines `kcm_item_get_data_size` and `kcm_item_get_data` into one synchronous API.
+
 ### Release 3.2.0 (12.06.2019)
 
 #### Device Management Connect client
@@ -51,6 +63,19 @@ Other changes:
 * Added `pal_x509CertCheckExtendedKeyUsage` that checks the usage of certificate against `extended-key-usage` extension.
 * [Linux] When creating threads, use the system provided `PTHREAD_STACK_MIN` as a minimum value. Previously, the application was allowed to define values smaller than the system-defined minimum.
 * Implemented **SSL session resume** feature. This feature is enabled by default. Use the `PAL_USE_SSL_SESSION_RESUME` flag to control it.
+
+### Yocto changes
+
+* Removed the dependency of requiring Mbed CLI to be globally installed. This allows also virtualenv installations of Mbed CLI to work with the provided meta-layers.
+  * Changed the meta-layer to use SSH authentication for Mbed CLI when needed. This is mostly needed when pulling in meta-layers from private repositories.
+  * Changed the `meta-mbed-cloud-client.lib` file to use `https` format instead of `ssh`.
+
+**Delta update related:**
+
+* Modified application makefiles to call the new script for building a `tar` package of `rootfs`.
+* Added the `build-raspberry-update-rootfs-tar.sh` script for building a `tar` package of `rootfs` contents to be used for delta purposes.
+* Edited the local configuration sample and `fstab` to set `rootfs` into "read-only" mode so that delta firmware update can be applied into the device.
+* Edited the Update client `metalayer recipe` to include the `Prepare` script in the image for delta processing.
 
 ### Release 3.1.1 (13.05.2019)
 

@@ -666,7 +666,8 @@ bool ConnectorClient::create_register_object()
     // Endpoint
     if (success) {
         success = false;
-        char device_id[64];
+       // 64 characters for common name + 1 for null terminator
+        char device_id[65];
 
         size_t cert_size = max_size;
         uint8_t certificate[MAX_CERTIFICATE_SIZE];
@@ -1460,6 +1461,10 @@ void ConnectorClient::bootstrap_again()
     ccs_delete_item(g_fcc_lwm2m_server_ca_certificate_name, CCS_CERTIFICATE_ITEM);
     ccs_delete_item(g_fcc_lwm2m_device_certificate_name, CCS_CERTIFICATE_ITEM);
     ccs_delete_item(g_fcc_lwm2m_device_private_key_name, CCS_PRIVATE_KEY_ITEM);
+
+    // delete the old session id
+    static const char* kcm_session_item_name = "sslsession";
+    ccs_delete_item(kcm_session_item_name, CCS_CONFIG_ITEM);
 
     tr_error("ConnectorClient::bootstrap_again in %d seconds", _rebootstrap_time);
 
