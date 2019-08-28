@@ -23,7 +23,7 @@
         },
         "storage-page": {
             "help": "Smallest write unit on storage device. Used for compile time check of download/write buffers.",
-            "value": "512"
+            "value": "8"
         },
         "firmware-header-version": {
             "help": "Version of the firmware metadata header.",

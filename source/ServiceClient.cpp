@@ -569,9 +569,19 @@ void ServiceClient::set_update_authorize_handler(void (*handler)(int32_t request
     UpdateClient::set_update_authorize_handler(handler);
 }
 
+void ServiceClient::set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority))
+{
+    UpdateClient::set_update_authorize_priority_handler(handler);
+}
+
 void ServiceClient::update_authorize(int32_t request)
 {
     UpdateClient::update_authorize(request);
+}
+
+void ServiceClient::update_reject(int32_t request, int32_t reason)
+{
+    UpdateClient::update_reject(request, reason);
 }
 
 void ServiceClient::set_update_progress_handler(void (*handler)(uint32_t progress, uint32_t total))

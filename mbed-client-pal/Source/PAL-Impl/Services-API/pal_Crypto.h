@@ -588,6 +588,25 @@ palStatus_t pal_ECKeyNew(palECKeyHandle_t* key);
  */
 palStatus_t pal_ECKeyFree(palECKeyHandle_t* key);
 
+/*! \brief Initializes a handle to key according to its size
+ *
+ * @param[in] keyHandle: A handle for the key
+ * @param[in] key_size: size of the key.
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size); 
+
+
+/*! \brief frees a a key handle.
+ *
+ * @param[in] keyHandle: A handle for the key
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_freeKeyHandle(palKeyHandle_t *keyHandle); 
+
+
 /*! \brief Parse a DER-encoded private key.
  *
  * @param[in] prvDERKey:	A buffer that holds the DER-encoded private key.
@@ -674,6 +693,28 @@ palStatus_t pal_asymmetricSign(const palECKeyHandle_t privateKeyHanlde, palMDTyp
 \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
 */
 palStatus_t pal_asymmetricVerify(const palECKeyHandle_t publicKeyHanlde, palMDType_t mdType, const unsigned char *hash, size_t hashSize, const unsigned char *signature, size_t signatureSize);
+
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+/*! \brief Write a private key from a key handle
+ *
+ * @param[in] prvKeyHandle:  A handle to the private key.
+ * @param[in] ECKeyHandle:   A handle to EC Key handle.
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_writePrivateKeyWithHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle);
+
+
+/*! \brief Write a public key from a key handle
+ *
+ * @param[in] prvKeyHandle:  A handle to the public key.
+ * @param[in] ECKeyHandle:   A handle to EC Key handle.
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_writePublicKeyWithHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle);
+#endif
 
 /*! \brief DER encode a private key from a key handle.
  *

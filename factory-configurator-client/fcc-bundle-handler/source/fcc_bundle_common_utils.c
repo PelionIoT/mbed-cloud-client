@@ -14,7 +14,6 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 #include "fcc_bundle_handler.h"
-#include "cn-cbor.h"
 #include "pv_error_handling.h"
 #include "fcc_bundle_utils.h"
 #include "fcc_malloc.h"
@@ -23,238 +22,34 @@
 #include "factory_configurator_client.h"
 #include "storage_items.h"
 
-#define  FCC_MAX_SIZE_OF_STRING 512
-
-/** Gets name from cbor struct.
-*
-* @param text_cb[in]          The cbor text structure
-* @param name_out[out]        The out buffer for string data
-* @param name_len_out[out]    The actual size of output buffer
-*
-* @return
-*     true for success, false otherwise.
-*/
-static bool get_data_name(const cn_cbor *text_cb, uint8_t **name_out, size_t *name_len_out)
+fcc_status_e fcc_bundle_process_rbp_buffer(CborValue *tcbor_top_map, const char *map_key_name, const char *rbp_item_name)
 {
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((text_cb == NULL), false, "Cbor pointer is NULL");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((name_out == NULL), false, "Invalid pointer for name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((name_len_out == NULL), false, "Invalid pointer for name_len");
-
-    *name_out = (uint8_t*)fcc_malloc((size_t)(text_cb->length));
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((*name_out == NULL), false, "Failed to allocate buffer for name");
-
-    memcpy(*name_out, text_cb->v.bytes, (size_t)text_cb->length);
-    *name_len_out = (size_t)text_cb->length;
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-
-    return true;
-}
-
-/** Gets data format from cbor struct
-*
-* The function goes over all formats and compares it with format from cbor structure.
-*
-* @param data_cb[in]         The cbor text structure
-* @param data_format[out]    The format of data
-*
-* @return
-*     true for success, false otherwise.
-*/
-static bool get_data_format(const cn_cbor *data_cb, fcc_bundle_data_format_e *data_format)
-{
-
-    int data_format_index;
-    bool res;
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_cb == NULL), false, "data_cb is null");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_format == NULL), false, "data_format is null");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((*data_format != FCC_INVALID_DATA_FORMAT), false, "wrong data format value");
-
-    for (data_format_index = 0; data_format_index < FCC_MAX_DATA_FORMAT - 1; data_format_index++) {
-        res = is_memory_equal(fcc_bundle_data_format_lookup_table[data_format_index].data_format_name,
-                              strlen(fcc_bundle_data_format_lookup_table[data_format_index].data_format_name),
-                              data_cb->v.bytes,
-                              (size_t)(data_cb->length));
-        if (res) {
-            *data_format = fcc_bundle_data_format_lookup_table[data_format_index].data_format_type;
-            return true;
-        }
-    }
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return false;
-}
-
-bool get_data_buffer_from_cbor(const cn_cbor *data_cb, uint8_t **out_data_buffer, size_t *out_size)
-{
-
-    cn_cbor_type cb_type;
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((data_cb == NULL), false, "key_data_cb is null");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((out_size == NULL), false, "Size buffer is null ");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((out_data_buffer == NULL), false, "Data buffer is null");
-    cb_type = data_cb->type;
-
-    switch (cb_type) {
-        case CN_CBOR_TAG:
-            *out_data_buffer = (uint8_t*)data_cb->first_child->v.bytes;
-            *out_size = (size_t)data_cb->first_child->length;
-            break;
-        case CN_CBOR_TEXT:
-        case CN_CBOR_BYTES:
-            *out_data_buffer = (uint8_t*)data_cb->v.bytes;
-            *out_size = (size_t)(data_cb->length);
-            break;
-        case CN_CBOR_UINT:
-            *out_data_buffer = (uint8_t*)(&(data_cb->v.uint));
-            *out_size = (size_t)(data_cb->length);
-            break;
-        case CN_CBOR_INT:
-            *out_data_buffer = (uint8_t*)(&(data_cb->v.sint));
-            *out_size = (size_t)(data_cb->length);
-            break;
-        default:
-            SA_PV_LOG_ERR("Invalid cbor data type (%u)!", data_cb->type);
-            return false;
-    }
-    SA_PV_LOG_TRACE_FUNC_EXIT("out_size=%" PRIu32 "", (uint32_t)*out_size);
-    return true;
-}
-/** Frees all allocated memory of data parameter struct and sets initial values.
-*
-* @param data_param[in/out]    The data parameter structure
-*/
-void fcc_bundle_clean_and_free_data_param(fcc_bundle_data_param_s *data_param)
-{
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    if (data_param->name != NULL) {
-        fcc_free(data_param->name);
-        data_param->name = NULL;
-    }
-
-    if (data_param->private_key_name != NULL) {
-        fcc_free(data_param->private_key_name);
-        data_param->private_key_name = NULL;
-    }
-
-    data_param->array_cn = NULL;
-
-    //FIXME - in case we will support pem, add additional pointer data_der, that will point to allocated
-    // memory and will always released in case not NULL nad data pointer will relate to user buffer allways.
-    /*if (data_param->data_der != NULL) {
-    fcc_stats_free(data_param->data_der);
-    data_param->data_der = NULL;
-    }*/
-
-    memset(data_param, 0, sizeof(fcc_bundle_data_param_s));
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-
-}
-bool fcc_bundle_get_data_param(const cn_cbor *data_param_cb, fcc_bundle_data_param_s *data_param)
-{
-    bool status = false;
-    int data_param_index = 0;
-    cn_cbor *data_param_value_cb;
-    fcc_bundle_data_param_type_e data_param_type;
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    //Prepare key struct
-    fcc_bundle_clean_and_free_data_param(data_param);
-
-    //Go over all key's parameters and extract it to appropriate key struct member
-    for (data_param_index = FCC_BUNDLE_DATA_PARAM_NAME_TYPE; data_param_index < FCC_BUNDLE_DATA_PARAM_MAX_TYPE; data_param_index++) {
-
-        //Get value of parameter
-        data_param_value_cb = cn_cbor_mapget_string(data_param_cb, fcc_bundle_data_param_lookup_table[data_param_index].data_param_name);
-
-        if (data_param_value_cb != NULL) {
-            //Get type of parameter
-            data_param_type = fcc_bundle_data_param_lookup_table[data_param_index].data_param_type;
-
-            switch (data_param_type) {
-                case FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME_TYPE:
-                    status = get_data_name(data_param_value_cb, &(data_param->private_key_name), &(data_param->private_key_name_len));
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to get private key  name");
-                    break;
-
-                case FCC_BUNDLE_DATA_PARAM_NAME_TYPE:
-                    status = get_data_name(data_param_value_cb, &(data_param->name), &(data_param->name_len));
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to get data parameter name");
-                    break;
-
-                case FCC_BUNDLE_DATA_PARAM_SCHEME_TYPE:
-                    status = fcc_bundle_get_key_type(data_param_value_cb, (fcc_bundle_key_type_e*)&(data_param->type));
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to get parameter type");
-                    break;
-
-                case FCC_BUNDLE_DATA_PARAM_FORMAT_TYPE:
-                    status = get_data_format(data_param_value_cb, (fcc_bundle_data_format_e*)&(data_param->format));
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to get key format");
-                    break;
-
-                case FCC_BUNDLE_DATA_PARAM_DATA_TYPE:
-                    status = get_data_buffer_from_cbor(data_param_value_cb, &(data_param->data), &(data_param->data_size));
-                    data_param->data_type = FCC_EXTERNAL_BUFFER_TYPE;
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to get parameter data");
-                    break;
-                case FCC_BUNDLE_DATA_PARAM_ARRAY_TYPE:
-                    data_param->array_cn = data_param_value_cb;
-                    break;
-                case FCC_BUNDLE_DATA_PARAM_ACL_TYPE:
-                    status = get_data_buffer_from_cbor(data_param_value_cb, &(data_param->acl), &data_param->acl_size);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to get acl data");
-                    break;
-                default:
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((true), status = false, error_exit, "Parameter's field name is illegal");
-            }//switch
-        }//if
-    }//for
-
-    //FIXME: should be uncommented if PEM format is supported.
-    /*
-      if (data_param->format == FCC_PEM_DATA_FORMAT) {
-          //status = convert_certificate_from_pem_to_der((uint8_t**)&(data_param->data), &(data_param->data_size));
-          SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, error_exit, "Failed to convert the key from pem to der");
-          //key->data_type = FCC_INTERNAL_BUFFER_TYPE;
-      }
-    */
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return status;
-
-error_exit:
-    fcc_bundle_clean_and_free_data_param(data_param);
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return false;
-}
-
-fcc_status_e fcc_bundle_process_buffer(cn_cbor *cbor_bytes,const char *rbp_item_name, fcc_bundle_data_buffer_type_e buffer_type)
-{
-    uint8_t *buf;
-    size_t buf_size;
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     bool status;
+    CborError tcbor_error = CborNoError;
+    CborValue tcbor_val;
+    const uint8_t *buf;
+    size_t buf_size;
 
-    SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-    status = get_data_buffer_from_cbor(cbor_bytes, &buf, &buf_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((status == false), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Unable to retrieve data from cn_cbor");
-    
-    
-    switch (buffer_type) {
-        case(FCC_BUNDLE_BUFFER_TYPE_ROT):
-            fcc_status = fcc_rot_set(buf, buf_size);
-            break;
-        case(FCC_BUNDLE_BUFFER_TYPE_ENTROPY):
-            fcc_status = fcc_entropy_set(buf, buf_size);
-            break;
-        default:
-            fcc_status = FCC_STATUS_ERROR; // Internal error should not happens. If it does, there is a bug in the code
-            break;
+    tcbor_error = cbor_value_map_find_value(tcbor_top_map, map_key_name, &tcbor_val);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), FCC_STATUS_BUNDLE_ERROR, "Failed to get %s",map_key_name);
+
+    if (!cbor_value_is_valid(&tcbor_val)) {
+        // map_key_name not found in map, skip processing
+        return FCC_STATUS_SUCCESS;
+    }
+
+    status = fcc_bundle_get_byte_string(&tcbor_val, &buf, &buf_size, NULL, 0);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Failed to get rbp buffer");    
+
+    if (strcmp(rbp_item_name, STORAGE_RBP_RANDOM_SEED_NAME) == 0) {
+        fcc_status = fcc_entropy_set(buf, buf_size);
+    } else if (strcmp(rbp_item_name, STORAGE_RBP_ROT_NAME) == 0) {
+        fcc_status = fcc_rot_set(buf, buf_size);
+    } else {
+        return FCC_STATUS_ERROR; // Internal error should not happens. If it does, there is a bug in the code
     }
 
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Unable to store data");
@@ -264,44 +59,9 @@ exit:
         // In case of fcc_store_error_info failure we would still rather return the previous caught error.
         (void)fcc_store_error_info((const uint8_t*)rbp_item_name, strlen(rbp_item_name), fcc_status);
     }
-    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return fcc_status;
 }
-
-fcc_status_e bundle_process_status_field(const cn_cbor *cbor_blob, char *cbor_group_name, size_t cbor_group_name_size, bool *fcc_field_status)
-{
-    uint8_t *buff = NULL;
-    size_t buff_size;
-    uint32_t fcc_field_value;
-    bool status;
-    fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
-
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_blob == NULL), fcc_status = FCC_STATUS_INVALID_PARAMETER, exit, "Invalid param cbor_blob");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_blob->type != CN_CBOR_UINT), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Unexpected CBOR type");
-
-    status = get_data_buffer_from_cbor(cbor_blob, &buff, &buff_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Unable to retrieve data from cn_cbor");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((buff_size != sizeof(fcc_field_value)), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Incorrect buffer size for field value");
-
-    memcpy(&fcc_field_value, buff, buff_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF(((fcc_field_value != 0) && (fcc_field_value != 1)), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit,"Unexpected value, should be either 0 or 1");
-
-    if (fcc_field_value == 1) {
-        *fcc_field_status = true;
-    }
-    else {
-        *fcc_field_status = false;
-    }
-
-exit:
-    if (fcc_status != FCC_STATUS_SUCCESS)
-    {
-        // In case of fcc_store_error_info failure we would still rather return the previous caught error.
-        (void)fcc_store_error_info((const uint8_t*)cbor_group_name, cbor_group_name_size, fcc_status);
-    }
-    return fcc_status;
-}
-
 
 fcc_status_e fcc_bundle_factory_disable( void )
 {
@@ -317,4 +77,188 @@ exit:
         (void)fcc_store_error_info((const uint8_t*)STORAGE_RBP_FACTORY_DONE_NAME, strlen(STORAGE_RBP_FACTORY_DONE_NAME), fcc_status);
     }
     return fcc_status;
+}
+
+bool fcc_bundle_get_text_string(const CborValue *tcbor_val, const char **str, size_t *str_len, const char *err_field_name, size_t err_field_name_len)
+{
+    bool status = true;
+    CborError tcbor_error = CborNoError;
+
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((!cbor_value_is_text_string(tcbor_val)), status = false, exit, "Unexpected CBOR type");
+
+    tcbor_error = cbor_value_get_text_string_chunk(tcbor_val, str, str_len, NULL);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), status = false, exit, "Unexpected CBOR error");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((str == NULL), status = false, exit,"Unexpected value");
+
+exit:
+    if (status == false && err_field_name != NULL)
+    {
+        // In case of fcc_store_error_info failure we would still rather return the previous caught error.
+        (void)fcc_store_error_info((const uint8_t*)err_field_name, err_field_name_len, FCC_STATUS_BUNDLE_ERROR);
+    }
+    return status;
+}
+
+bool fcc_bundle_get_byte_string(const CborValue *tcbor_val, const uint8_t **bytes, size_t *bytes_len, const char *err_field_name, size_t err_field_name_len)
+{
+    bool status = true;
+    CborError tcbor_error = CborNoError;
+
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((!cbor_value_is_byte_string(tcbor_val)), status = false, exit, "Unexpected CBOR type");
+
+    tcbor_error = cbor_value_get_byte_string_chunk(tcbor_val, bytes, bytes_len, NULL);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), status = false, exit, "Unexpected CBOR error");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((bytes == NULL), status = false, exit,"Unexpected value");
+
+exit:
+    if (status == false && err_field_name != NULL)
+    {
+        // In case of fcc_store_error_info failure we would still rather return the previous caught error.
+        (void)fcc_store_error_info((const uint8_t*)err_field_name, err_field_name_len, FCC_STATUS_BUNDLE_ERROR);
+    }
+    return status;
+}
+
+bool fcc_bundle_get_uint64(const CborValue *tcbor_val, uint64_t *value_out, const char *err_field_name, size_t err_field_name_len)
+{
+    bool status = true;
+    CborError tcbor_error = CborNoError;
+
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((!cbor_value_is_unsigned_integer(tcbor_val)), status = false, exit, "Unexpected CBOR type");
+
+    tcbor_error = cbor_value_get_uint64(tcbor_val, value_out);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), status = false, exit, "Unexpected CBOR error");
+
+exit:
+    if (status == false && err_field_name != NULL)
+    {
+        // In case of fcc_store_error_info failure we would still rather return the previous caught error.
+        (void)fcc_store_error_info((const uint8_t*)err_field_name, err_field_name_len, FCC_STATUS_BUNDLE_ERROR);
+    }
+    return status;
+}
+
+bool fcc_bundle_get_bool(const CborValue *tcbor_val, bool *value_out, const char *err_field_name, size_t err_field_name_len)
+{
+    bool status = true;
+    int value = 0;
+    CborError tcbor_error = CborNoError;
+
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((!cbor_value_is_integer(tcbor_val)), status = false, exit, "Unexpected CBOR type");
+
+    tcbor_error = cbor_value_get_int(tcbor_val, &value);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), status = false, exit, "Unexpected CBOR error");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF(((value != 0) && (value != 1)), status = false, exit,"Unexpected bool value, should be either 0 or 1");
+
+    *value_out = (value == 1);
+
+exit:
+    if (status == false && err_field_name != NULL)
+    {
+        // In case of fcc_store_error_info failure we would still rather return the previous caught error.
+        (void)fcc_store_error_info((const uint8_t*)err_field_name, err_field_name_len, FCC_STATUS_BUNDLE_ERROR);
+    }
+    return status;
+}
+
+/** Get pointer to the start of the data. 
+ *  In case of fixed type, get the value to data64_val and set data_ptr to it's address.
+ *  data64_val can be NULL if fixed types not expected. */
+bool fcc_bundle_get_variant(CborValue *tcbor_val, const uint8_t **data_ptr, size_t *data_ptr_size, uint64_t *data64_val, const char *err_field_name, size_t err_field_name_len)
+{
+    bool status = true;
+    CborError tcbor_error = CborNoError;
+    CborType tcbor_type;
+    CborTag tcbor_tag;
+
+    *data_ptr = NULL;
+
+    tcbor_type = cbor_value_get_type(tcbor_val);
+
+    if (tcbor_type == CborTagType) {
+        // Tags
+        tcbor_error = cbor_value_get_tag(tcbor_val, &tcbor_tag);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), status = false, exit, "Unexpected CBOR error");
+        tcbor_error = cbor_value_skip_tag(tcbor_val);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), status = false, exit, "Unexpected CBOR error");
+
+        // check if known and supported tag
+        switch (tcbor_tag)
+        {
+            case CborPositiveBignumTag:
+                // do nothing, continue parsing
+                break;         
+            default:
+                SA_PV_ERR_RECOVERABLE_GOTO_IF((true), status = false, exit, "Unexpected CBOR tag type");
+        }
+        // get type of tat's value
+        tcbor_type = cbor_value_get_type(tcbor_val);
+    }
+
+    switch (tcbor_type)
+    {
+        case CborIntegerType:
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((data64_val == NULL), status = false, exit, "Unexpected CBOR type");
+
+            if (cbor_value_is_unsigned_integer(tcbor_val)) {
+                tcbor_error = cbor_value_get_uint64(tcbor_val, data64_val);
+            } else {
+                tcbor_error = cbor_value_get_int64(tcbor_val, (int64_t*)data64_val);
+            }
+            *data_ptr = (const uint8_t*)data64_val;
+            *data_ptr_size = sizeof(uint64_t);
+            break;
+        case CborByteStringType:
+            tcbor_error = cbor_value_get_byte_string_chunk(tcbor_val, (const uint8_t**)data_ptr, data_ptr_size, NULL);
+            break;
+        case CborTextStringType:
+            tcbor_error = cbor_value_get_text_string_chunk(tcbor_val, (const char**)data_ptr, data_ptr_size, NULL);
+            break;
+        default:
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((true), status = false, exit, "Unexpected CBOR type");
+    }
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), status = false, exit, "Unexpected CBOR error");
+
+exit:
+    if (status == false && err_field_name != NULL)
+    {
+        // In case of fcc_store_error_info failure we would still rather return the previous caught error.
+        (void)fcc_store_error_info((const uint8_t*)err_field_name, err_field_name_len, FCC_STATUS_BUNDLE_ERROR);
+    }
+    return status;
+}
+
+fcc_status_e fcc_bundle_process_maps_in_arr(const CborValue *tcbor_arr_val ,fcc_bundle_process_map_cb process_map_cb, void *extra_cb_info)
+{
+    CborError tcbor_error = CborNoError;
+    CborValue tcbor_val;
+    CborValue tcbor_map_val;
+    fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((!cbor_value_is_array(tcbor_arr_val)), FCC_STATUS_BUNDLE_ERROR, "Unexpected CBOR type");
+
+    // Enter array container
+    tcbor_error = cbor_value_enter_container(tcbor_arr_val, &tcbor_val);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), FCC_STATUS_BUNDLE_ERROR, "Failed parsing array");
+
+    // go over the array elements (maps) and call fcc_bundle_process_map for each map
+    while (!cbor_value_at_end(&tcbor_val)) {
+
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((!cbor_value_is_map(&tcbor_val)), FCC_STATUS_BUNDLE_ERROR, "Unexpected CBOR type");
+
+        // Enter map container
+        tcbor_error = cbor_value_enter_container(&tcbor_val ,&tcbor_map_val);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), FCC_STATUS_BUNDLE_ERROR, "Failed parsing map");
+
+        // call process_map_cb callback
+        fcc_status = process_map_cb(&tcbor_map_val, extra_cb_info);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status, "Failed parsing map");
+        
+        // advance tcbor_val to next element in array
+        tcbor_error = cbor_value_advance(&tcbor_val);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), FCC_STATUS_BUNDLE_ERROR, "Failed parsing array");
+
+    } // end loop element
+
+    return FCC_STATUS_SUCCESS;
 }

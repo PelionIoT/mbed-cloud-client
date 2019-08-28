@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -37,6 +37,28 @@ MbedCloudClient::MbedCloudClient()
  _value_callback(NULL),
  _error_description(NULL)
 {
+}
+
+MbedCloudClient::MbedCloudClient(void(*on_registered_cb)(void),
+                                 void(*on_unregistered_cb)(void),
+                                 void(*on_error_cb)(int)
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+                                 ,void(*on_update_authorize_cb)(int32_t request),
+                                 void(*on_update_progress_cb)(uint32_t progress, uint32_t total)
+#endif
+                                )
+
+:_client(*this),
+ _value_callback(NULL),
+ _error_description(NULL)
+{
+    this->on_registered(on_registered_cb);
+    this->on_unregistered(on_unregistered_cb);
+    this->on_error(on_error_cb);
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+    this->set_update_authorize_handler(on_update_authorize_cb);
+    this->set_update_progress_handler(on_update_progress_cb);
+#endif
 }
 
 MbedCloudClient::~MbedCloudClient()
@@ -218,6 +240,10 @@ void MbedCloudClient::set_update_authorize_handler(void (*handler)(int32_t reque
 {
     _client.set_update_authorize_handler(handler);
 }
+void MbedCloudClient::set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority))
+{
+    _client.set_update_authorize_priority_handler(handler);
+}
 
 void MbedCloudClient::set_update_progress_handler(void (*handler)(uint32_t progress, uint32_t total))
 {
@@ -228,6 +254,12 @@ void MbedCloudClient::update_authorize(int32_t request)
 {
     _client.update_authorize(request);
 }
+
+void MbedCloudClient::update_reject(int32_t request, int32_t reason)
+{
+    _client.update_reject(request, reason);
+}
+
 #endif
 
 const char *MbedCloudClient::error_description() const

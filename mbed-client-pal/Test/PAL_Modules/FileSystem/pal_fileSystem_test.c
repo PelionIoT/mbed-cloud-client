@@ -382,11 +382,19 @@ void SDFormat_2Partition()
 
 TEST(pal_fileSystem, SDFormat)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
 //#if (PAL_NUMBER_OF_PARTITIONS == 2)
     // There should be no reason why would the 2 partition code need to be tested if it is not configured for platform.
     SDFormat_2Partition();
 //#endif
     SDFormat_1Partition();
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 
@@ -427,14 +435,19 @@ void rootDirectoryTests(pal_fsStorageID_t storageId)
     status = pal_fsMkDir(getRootPath); //should fail because already exits and path is absolute
     TEST_ASSERT_EQUAL(PAL_ERR_FS_NAME_ALREADY_EXIST, status);
 
-
 }
 
 
 TEST(pal_fileSystem, rootDirectoryTests)
 {
 
+#if PAL_USE_FILESYSTEM == 1
+
     rootDirectoryTests(PAL_FS_PARTITION_PRIMARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
 
 }
 
@@ -515,8 +528,16 @@ void directoryTests(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, directoryTests)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     directoryTests(PAL_FS_PARTITION_PRIMARY);
     directoryTests(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 /*! \brief /b FilesTests function Tests files commands
@@ -674,8 +695,15 @@ void FilesTests(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, FilesTests)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     FilesTests(PAL_FS_PARTITION_PRIMARY);
     FilesTests(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
 }
 
 /*! \brief /b FilesTestsSeek function Tests \b fseek() , \b fteel() & \b fread() function
@@ -802,10 +830,19 @@ void FilesTestsSeek(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, FilesTestsSeek)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     FilesTestsSeek(PAL_FS_PARTITION_PRIMARY);
 #if (PAL_NUMBER_OF_PARTITIONS == 2)
     FilesTestsSeek(PAL_FS_PARTITION_SECONDARY);
 #endif
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
+
 }
 
 /*! \brief /b FilesPermission function Tests \b fopen() with r
@@ -886,8 +923,16 @@ void FilesPermission_read_only(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, FilesPermission_read_only)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     FilesPermission_read_only(PAL_FS_PARTITION_PRIMARY);
     FilesPermission_read_only(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 
@@ -976,8 +1021,16 @@ void FilesPermission_read_write(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, FilesPermission_read_write)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     FilesPermission_read_write(PAL_FS_PARTITION_PRIMARY);
     FilesPermission_read_write(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 
@@ -1053,8 +1106,17 @@ void FilesPermission_read_write_trunc(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, FilesPermission_read_write_trunc)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     FilesPermission_read_write_trunc(PAL_FS_PARTITION_PRIMARY);
     FilesPermission_read_write_trunc(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
+
 }
 
 
@@ -1123,8 +1185,16 @@ void create_write_and_read_pal_file(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, create_write_and_read_pal_file)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     create_write_and_read_pal_file(PAL_FS_PARTITION_PRIMARY);
     create_write_and_read_pal_file(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 void WriteInTheMiddle(pal_fsStorageID_t storageId)
@@ -1243,8 +1313,16 @@ void WriteInTheMiddle(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, WriteInTheMiddle)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     WriteInTheMiddle(PAL_FS_PARTITION_PRIMARY);
     WriteInTheMiddle(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 
@@ -1321,6 +1399,13 @@ void SequentialWriteAndRead(pal_fsStorageID_t storageId)
 
 TEST(pal_fileSystem, SequentialWriteAndRead)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     SequentialWriteAndRead(PAL_FS_PARTITION_PRIMARY);
     SequentialWriteAndRead(PAL_FS_PARTITION_SECONDARY);
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
 }

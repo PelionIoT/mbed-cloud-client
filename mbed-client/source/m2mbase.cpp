@@ -490,7 +490,7 @@ uint32_t M2MBase::max_age() const
 {
     return _sn_resource->max_age;
 }
-
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 bool M2MBase::handle_observation_attribute(const char *query)
 {
     tr_debug("M2MBase::handle_observation_attribute - under observation(%d)", is_under_observation());
@@ -511,7 +511,7 @@ bool M2MBase::handle_observation_attribute(const char *query)
     }
     return success;
 }
-
+#endif
 bool M2MBase::observation_to_be_sent(const m2m::Vector<uint16_t> &changed_instance_ids,
                                      uint16_t obs_number,
                                      bool send_object)

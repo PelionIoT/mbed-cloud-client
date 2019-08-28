@@ -51,6 +51,8 @@ namespace UpdateClient
         WarningBadKeytable              = WarningBase + ARM_UC_WARNING_BAD_KEYTABLE,
         WarningURINotFound              = WarningBase + ARM_UC_WARNING_URI_NOT_FOUND,
         WarningRollbackProtection       = WarningBase + ARM_UC_WARNING_ROLLBACK_PROTECTION,
+        WarningAuthorizationRejected    = WarningBase + ARM_UC_WARNING_AUTHORIZATION_REJECTED,
+        WarningAuthorizationUnavailable = WarningBase + ARM_UC_WARNING_AUTHORIZATION_UNAVAILABLE,
         WarningUnknown                  = WarningBase + ARM_UC_WARNING_UNKNOWN,
         WarningCertificateInsertion,
         ErrorBase,
@@ -64,6 +66,11 @@ namespace UpdateClient
         RequestInvalid                  = ARM_UCCC_REQUEST_INVALID,
         RequestDownload                 = ARM_UCCC_REQUEST_DOWNLOAD,
         RequestInstall                  = ARM_UCCC_REQUEST_INSTALL
+    };
+
+    enum {
+      RejectReasonUnauthorized          = ARM_UCCC_REJECT_REASON_UNAUTHORIZED,
+      RejectReasonUnavailable           = ARM_UCCC_REJECT_REASON_UNAVAILABLE
     };
 
     /**
@@ -87,10 +94,23 @@ namespace UpdateClient
     void set_update_authorize_handler(void (*handler)(int32_t request));
 
     /**
+     * \brief Registers a callback function for authorizing update requests with priority.
+     * \param handler Callback function.
+     */
+    void set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority));
+
+    /**
      * \brief Authorize request passed to authorization handler.
      * \param request Request being authorized.
      */
     void update_authorize(int32_t request);
+
+    /**
+     * \brief Reject request passed to authorization handler.
+     * \param request Request being rejected.
+     * \param reason Reason for rejecting the request.
+     */
+    void update_reject(int32_t request, int32_t reason);
 
     /**
      * \brief Registers a callback function for monitoring download progress.

@@ -81,6 +81,29 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             TRACE_ARGS("ERR_OUT_OF_MEMORY");
             error_monitor = ARM_UC_UPDATE_RESULT_WRITER_INSUFFICIENT_MEMORY_SPACE;
             break;
+
+        /* Update Authorization */
+        case AUTH_ERR_INSTALL_REJECTED:
+            TRACE_ARGS("AUTH_ERR_INSTALL_REJECTED");
+            error_external = ARM_UC_WARNING_AUTHORIZATION_REJECTED;
+            error_monitor = ARM_UC_UPDATE_RESULT_WRITER_AUTHORIZATON_REJECTED;
+            break;
+        case AUTH_ERR_INSTALL_UNAVAILABLE:
+            TRACE_ARGS("AUTH_ERR_INSTALL_UNAVAILABLE");
+            error_external = ARM_UC_WARNING_AUTHORIZATION_UNAVAILABLE;
+            error_monitor = ARM_UC_UPDATE_RESULT_WRITER_AUTHORIZATON_UNAVAILABLE;
+            break;
+        case AUTH_ERR_DOWNLOAD_REJECTED:
+            TRACE_ARGS("AUTH_ERR_DOWNLOAD_REJECTED");
+            error_external = ARM_UC_WARNING_AUTHORIZATION_REJECTED;
+            error_monitor = ARM_UC_UPDATE_RESULT_FETCHER_AUTHORIZATON_REJECTED;
+            break;
+        case AUTH_ERR_DOWNLOAD_UNAVAILABLE:
+            TRACE_ARGS("AUTH_ERR_DOWNLOAD_UNAVAILABLE");
+            error_external = ARM_UC_WARNING_AUTHORIZATION_UNAVAILABLE;
+            error_monitor = ARM_UC_UPDATE_RESULT_FETCHER_AUTHORIZATON_UNAVAILABLE;
+            break;
+
         /* Certificate Manager */
         case ARM_UC_CM_ERR_NOT_FOUND:
             TRACE_ARGS("ARM_UC_CM_ERR_NOT_FOUND");

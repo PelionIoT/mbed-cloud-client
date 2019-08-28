@@ -97,18 +97,17 @@ static bool update_payload_full = true;
 //   STORAGE_PAGE -size (default 512) but it can be set smaller in app config with:
 //   "update-client.storage-page"                : 128,
 #if defined(TARGET_LIKE_MBED)
-#define DELTAPAAL_WRITE_BUF_SIZE BS_PATCH_COMPILE_TIME_MEMORY_ALLOC/2
-/* Check that DELTAPAAL_WRITE_BUF_SIZE is aligned with the storage page size and at least as big as page size */
-#if ((DELTAPAAL_WRITE_BUF_SIZE % MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE) != 0) || (DELTAPAAL_WRITE_BUF_SIZE < MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE)
-#error DELTAPAAL_WRITE_BUF_SIZE must be divisible by the block page size and at least same size with the page size!
-#endif
-#else
-#define DELTAPAAL_WRITE_BUF_SIZE ARM_UC_BUFFER_SIZE/2
+
+// Check that ARM_UC_DELTAPAAL_WRITE_BUF_SIZE is aligned with the storage page size
+#if ((ARM_UC_DELTAPAAL_WRITE_BUF_SIZE % MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE) != 0 || (ARM_UC_DELTAPAAL_WRITE_BUF_SIZE < MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE))
+#error ARM_UC_DELTAPAAL_WRITE_BUF_SIZE must be divisible by the block page size and at least same size with the page size!
 #endif
 
-static uint8_t buffer_temp_outgoing[DELTAPAAL_WRITE_BUF_SIZE];
+#endif  // TARGET_LIKE_MBED
+
+static uint8_t buffer_temp_outgoing[ARM_UC_DELTAPAAL_WRITE_BUF_SIZE];
 static arm_uc_buffer_t outgoing_new_buffer = {
-    .size_max = DELTAPAAL_WRITE_BUF_SIZE,
+    .size_max = ARM_UC_DELTAPAAL_WRITE_BUF_SIZE,
     .size = 0,
     .ptr = buffer_temp_outgoing
 };
@@ -124,9 +123,9 @@ static arm_uc_buffer_t outgoing_new_buffer = {
 
 /**
   * @brief arm_uc_deltapaal_original_seek - BsPatch callback function to Seek the original file/image
-  * @param stream
-  * @param seek_diff
-  * @return
+  * @param stream pointer to bspatch_stream
+  * @param seek_diff distance to move the file pointer in original image
+  * @return bs_patch_api_return_code_t EBSAPI_OPERATION_DONE_IMMEDIATELY (can't fail)
   */
 static bs_patch_api_return_code_t arm_uc_deltapaal_original_seek(const struct bspatch_stream* stream, int64_t seek_diff)
 {
@@ -140,10 +139,10 @@ static bs_patch_api_return_code_t arm_uc_deltapaal_original_seek(const struct bs
 
 /**
  * @brief arm_uc_deltapaal_original_read - BsPatch callback function to Read data from the original file/image
- * @param stream
- * @param buffer
- * @param length
- * @return
+ * @param stream pointer to bspatch_stream
+ * @param buffer buffer where read data should be stored
+ * @param length amount to read
+ * @return bs_patch_api_return_code_t EBSAPI_OPERATION_DONE_IMMEDIATELY or EBSAPI_OPERATION_DONE_IMMEDIATELY or error code
  */
 static bs_patch_api_return_code_t arm_uc_deltapaal_original_read(const struct bspatch_stream* stream, void* buffer,
                     uint64_t length)
@@ -153,7 +152,6 @@ static bs_patch_api_return_code_t arm_uc_deltapaal_original_read(const struct bs
 //
     int status = -1;
     (void)stream;
-    (void)buffer;
 
     status = arm_uc_deltapaal_original_reader(buffer, length, (uint32_t)arm_uc_pal_deltapaal_bspatch_seek_diff);
 
@@ -171,10 +169,10 @@ static bs_patch_api_return_code_t arm_uc_deltapaal_original_read(const struct bs
 
 /**
  * @brief arm_uc_deltapaal_patch_read - BsPatch callback function to Read Patch/Delta data/payload
- * @param stream
- * @param buffer
- * @param length
- * @return
+ * @param stream pointer to bspatch_stream
+ * @param buffer buffer where read the data to
+ * @param length amount of data to read
+ * @return bs_patch_api_return_code_t EBSAPI_OPERATION_PATCH_READ_WILL_COMPLETE_LATER or EBSAPI_OPERATION_DONE_IMMEDIATELY or error code
  */
 static bs_patch_api_return_code_t arm_uc_deltapaal_patch_read(const struct bspatch_stream* stream, void* buffer,
                       uint64_t length)
@@ -223,10 +221,10 @@ static bs_patch_api_return_code_t arm_uc_deltapaal_patch_read(const struct bspat
 
 /**
  * @brief arm_uc_deltapaal_new_write - BsPatch callback function to Write data into the new image
- * @param stream
- * @param buffer
- * @param length
- * @return
+ * @param stream pointer to bspatch_stream
+ * @param buffer buffer where piece of new image for write request can be found
+ * @param length amount of new image in the buffer
+ * @return bs_patch_api_return_code_t EBSAPI_OPERATION_DONE_IMMEDIATELY ro EBSAPI_OPERATION_NEW_FILE_WRITE_WILL_COMPLETE_LATER or error
  */
 static bs_patch_api_return_code_t arm_uc_deltapaal_new_write(const struct bspatch_stream* stream, void* buffer,
                      uint64_t length)
@@ -298,9 +296,6 @@ static bs_patch_api_return_code_t arm_uc_deltapaal_new_write(const struct bspatc
     return return_code;
 }
 
-
-
-
 /*************************************************************************************
  * Internal delta-paal functions
  */
@@ -332,6 +327,11 @@ static void arm_uc_deltapaal_reset_internals(void)
     outgoing_new_buffer.size = 0;
 }
 
+/**
+ * @brief arm_uc_deltapaal_signal_ucfm_handler
+ * @details Forward event to Upstream / Firmware manager event handler
+ * @param event forwarded event
+ */
 static void arm_uc_deltapaal_signal_ucfm_handler(uintptr_t event)
 {
     if (pal_deltapaal_upstream_event_handler) {
@@ -344,11 +344,11 @@ static void arm_uc_deltapaal_signal_ucfm_handler(uintptr_t event)
 /**
  * @brief arm_uc_deltapaal_internal_event_handler
  * @details Handle events from downstream PAAL-module
- * @param event
+ * @param event this handles only ARM_UC_PAAL_EVENT_WRITE_DONE
  */
 static void arm_uc_deltapaal_internal_event_handler(uintptr_t event)
 {
-    UC_PAAL_TRACE("arm_uc_deltapaal_internal_event_handler");
+    UC_PAAL_TRACE("arm_uc_deltapaal_internal_event_handler %" PRIxPTR, event);
     bs_patch_api_return_code_t bs_result = EBSAPI_ERR_UNEXPECTED_EVENT;
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
     switch (event) {
@@ -392,8 +392,25 @@ static void arm_uc_deltapaal_internal_event_handler(uintptr_t event)
                 bspatch_write_new_buffer_remaining = 0;
             } else if (bspatch_write_new_buffer_remaining>outgoing_new_buffer.size_max)  {
                 outgoing_new_buffer.size = 0;
-                UC_PAAL_TRACE("arm_uc_deltapaal_internal_event_handler - ERROR Too much data still overflowing %" PRIu64, bspatch_write_new_buffer_remaining);
-                arm_uc_deltapaal_signal_ucfm_handler(ARM_UC_PAAL_EVENT_WRITE_ERROR);
+                // this should trigger new full write as we have enough data in bspatch write request buffer already
+                UC_PAAL_TRACE("arm_uc_deltapaal_internal_event_handler - Too much data still new write request needed buffremaining %" PRIu64, bspatch_write_new_buffer_remaining);
+                uint64_t copy_amount = outgoing_new_buffer.size_max;
+                memcpy(outgoing_new_buffer.ptr,
+                        (uint8_t*)(bspatch_write_new_buffer_ptr)+(uint32_t)(bspatch_write_patch_buffer_length-bspatch_write_new_buffer_remaining),
+                        copy_amount);
+
+                outgoing_new_buffer.size += (uint32_t)copy_amount;
+                bspatch_write_new_buffer_remaining -= copy_amount;
+
+                result = paal_storage_implementation->Write(current_slot_id, arm_uc_pal_deltapaal_bspatch_new_offset, &outgoing_new_buffer);
+                if (result.code!=ERR_NONE) {
+                    UC_PAAL_TRACE("arm_uc_deltapaal_buff_still_full_write - ERROR FROM WRITE! result.code: %" PRIu32 , result.code);
+                    arm_uc_deltapaal_signal_ucfm_handler(ARM_UC_PAAL_EVENT_WRITE_ERROR);
+                    break; // no point to continue if writing fails
+                } else {
+                    arm_uc_pal_deltapaal_bspatch_new_offset += outgoing_new_buffer.size;
+                    break;  // we should now wait for write to complete
+                }
             } else if (outgoing_new_buffer.size<outgoing_new_buffer.size_max) {
                 UC_PAAL_TRACE("arm_uc_deltapaal_internal_event_handler - ELSE need to keep outgoing_new_buffer intact for next call");
             } else {
@@ -457,11 +474,11 @@ static void arm_uc_deltapaal_internal_event_handler(uintptr_t event)
 
 /**
  * @brief ARM_UC_DeltaPaal_PALEventHandler
- * @param event
+ * @param event to be posts from callback to event loop
  */
 static void ARM_UC_DeltaPaal_PALEventHandler(uintptr_t event)
 {
-    UC_PAAL_TRACE("ARM_UC_DeltaPaal_PALEventHandler");
+    UC_PAAL_TRACE("ARM_UC_DeltaPaal_PALEventHandler %" PRIxPTR, event);
     /* decouple event handler from callback */
     ARM_UC_PostCallback(&arm_uc_deltapaal_event_handler_callback,
                         arm_uc_deltapaal_internal_event_handler, event);
@@ -470,6 +487,7 @@ static void ARM_UC_DeltaPaal_PALEventHandler(uintptr_t event)
 
 /**
  * @brief ARM_UC_DeltaPaal_AsyncWrite_Handler
+ * @param event ignored
  * @details Asynchronous Write handling for Incoming Delta buffer
  */
 static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
@@ -478,7 +496,7 @@ static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
     bs_patch_api_return_code_t bs_result = EBSAPI_ERR_UNEXPECTED_EVENT;
     (void)event;
 
-    UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler");
+    UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler %" PRIxPTR, event);
     // Possibilities:
     // 1. BsPatch read_patch was not completed
     if (arm_uc_pal_deltapaal_nextEventToPostToBsPatch == EBSAPI_READ_PATCH_DONE) {
@@ -884,6 +902,13 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetFirmwareDetails(
 
 /*****************************************************************************/
 
+/**
+ * @brief ARM_UC_PAL_DeltaPaal_GetActiveDetails Gets Active details
+ * @details Forwards ARM_UC_PAL_DeltaPaal_GetInstallerDetails-call to  paal_storage_implementation
+ *
+ * @param details Pointer to arm_uc_installer_details_t details struct to be populated.
+ * @return Returns ERR_NONE if null details or paal_storage_implementation or return value from paal_storage_implementation->GetInstallerDetails(details);
+ */
 arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetActiveDetails(arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_NONE };
@@ -896,6 +921,13 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetActiveDetails(arm_uc_firmware_details_t *
     return result;
 }
 
+/**
+ * @brief ARM_UC_PAL_DeltaPaal_GetInstallerDetails Get installer details
+ * @details Forwards GetInstallerDetails-call to  paal_storage_implementation
+ *
+ * @param details Pointer to arm_uc_installer_details_t details struct to be populated.
+ * @return Returns ERR_NONE if null details or paal_storage_implementation or return value from paal_storage_implementation->GetInstallerDetails(details);
+ */
 arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetInstallerDetails(arm_uc_installer_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_NONE };

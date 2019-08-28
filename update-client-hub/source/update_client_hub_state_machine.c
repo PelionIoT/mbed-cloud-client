@@ -65,12 +65,21 @@ static arm_uc_buffer_t front_buffer = {
     .ptr = message
 };
 
-static uint8_t message2[BUFFER_SIZE_MAX];
+union {
+    manifest_firmware_info_t fwinfo;
+    uint8_t data[BUFFER_SIZE_MAX];
+} message2;
+
 static arm_uc_buffer_t back_buffer = {
     .size_max = BUFFER_SIZE_MAX,
     .size = 0,
-    .ptr = message2
+    .ptr = message2.data
 };
+
+// Update priority is recieved from Manifest that will be overrun once we get to install request
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+static uint64_t campaign_priority = 0;
+#endif
 
 // version (timestamp) of the current running application
 static arm_uc_firmware_details_t arm_uc_active_details = { 0 };
@@ -85,7 +94,8 @@ static arm_uc_installer_details_t arm_uc_installer_details = { 0 };
 static uint32_t firmware_offset = 0;
 
 // variable to store the firmware config during firmware manager setup
-// Initialisation with an enum silences a compiler warning for ARM ("188-D: enumerated type mixed with another type").
+// Initialization with an enum silences a compiler warning for ARM ("188-D: enumerated type mixed with another type").
+// @Todo this could be removed and us fwinfo struct directly?
 static ARM_UCFM_Setup_t arm_uc_hub_firmware_config = { UCFM_MODE_UNINIT };
 
 // buffer to store the decoded firmware key
@@ -99,16 +109,31 @@ static arm_uc_buffer_t arm_uc_hub_plain_key = {
 
 static arm_uc_mmContext_t manifestManagerContext = { 0 };
 arm_uc_mmContext_t *pManifestManagerContext = &manifestManagerContext;
-static manifest_firmware_info_t fwinfo = { 0 };
 
-// buffer to store a uri struct
-#define URI_STRING_LEN 256
-static uint8_t uri_buffer[URI_STRING_LEN] = {0};
+#if defined(ARM_UC_FEATURE_ROOTLESS_STAGE_1) && (ARM_UC_FEATURE_ROOTLESS_STAGE_1 == 1)
+// allocate dedicated space for fwinfo which stores the whole manifest
+static manifest_firmware_info_t fwinfo_storage;
+static manifest_firmware_info_t *fwinfo = (manifest_firmware_info_t *) &fwinfo_storage;
+#else
+// fwinfo is used in and before ARM_UC_HUB_STATE_CHECK_VERSION
+// back_buffer is used only after ARM_UC_HUB_STATE_CHECK_VERSION
+// hence we can re-use space allocated for the download buffer for fwinfo
+static manifest_firmware_info_t *fwinfo = (manifest_firmware_info_t *) &message2.fwinfo;
+#endif
+// buffer pointing to the manifest storage inside fwinfo, used for manifest insert
+// and rootless stage 1 on linux.
+static arm_uc_buffer_t manifest_buffer = {0};
+// Download size used to store payload size for different cases: Full/delta payloads
+static uint32_t fw_downloadSize = 0;
 
+// buffer to store a URI struct
+// uri is used in and after ARM_UC_HUB_STATE_CHECK_VERSION
+// manifestManagerContext is used before ARM_UC_HUB_STATE_CHECK_VERSION
+// Hence the memory can be shared between these two structs
 static arm_uc_uri_t uri = {
-    .size_max = sizeof(uri_buffer),
+    .size_max = sizeof(arm_uc_mmContext_t),
     .size     = 0,
-    .ptr      = uri_buffer,
+    .ptr      = (uint8_t *) &manifestManagerContext,
     .port     = 0,
     .scheme   = URI_SCHEME_NONE,
     .host     = NULL,
@@ -125,7 +150,7 @@ static bool init_cb_called = false;
 #if ARM_UC_HUB_TRACE_ENABLE
 static void arm_uc_hub_debug_output()
 {
-    printf("Manifest timestamp: %" PRIu64 "\r\n", fwinfo.timestamp);
+    printf("Manifest timestamp: %" PRIu64 "\r\n", fwinfo->timestamp);
 
     if (uri.scheme == URI_SCHEME_HTTP) {
         printf("Firmware URL http://%s:%" PRIu16 "%s\r\n",
@@ -133,37 +158,37 @@ static void arm_uc_hub_debug_output()
     }
 
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
-    printf("Firmware size: %" PRIu32 "\r\n", fwinfo.installedSize);
+    printf("Firmware size: %" PRIu32 "\r\n", fwinfo->installedSize);
 
-    printf("Payload size: %" PRIu32 "\r\n", fwinfo.size);
-    printf("Firmware hash (%" PRIu32 "): ", fwinfo.installedHash.size);
+    printf("Payload size: %" PRIu32 "\r\n", fwinfo->size);
+    printf("Firmware hash (%" PRIu32 "): ", fwinfo->installedHash.size);
 
-    for (unsigned i = 0; i < fwinfo.installedHash.size; i++) {
-        printf("%02" PRIx8, fwinfo.installedHash.ptr[i]);
+    for (unsigned i = 0; i < fwinfo->installedHash.size; i++) {
+        printf("%02" PRIx8, fwinfo->installedHash.ptr[i]);
 #else
-    printf("Firmware size: %" PRIu32 "\r\n", fwinfo.size);
+    printf("Firmware size: %" PRIu32 "\r\n", fwinfo->size);
 #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
     if (arm_uc_hub_firmware_config.is_delta) {
-        printf("Firmware Delta payload size: %" PRIu32 "\r\n", fwinfo.vendorInfo.deltaSize);
+        printf("Firmware Delta payload size: %" PRIu32 "\r\n", fwinfo->vendorInfo.deltaSize);
     }
 #endif
-    printf("Firmware hash (%" PRIu32 "): ", fwinfo.hash.size);
-    for (unsigned i = 0; i < fwinfo.hash.size; i++) {
-        printf("%02" PRIx8, fwinfo.hash.ptr[i]);
+    printf("Firmware hash (%" PRIu32 "): ", fwinfo->hash.size);
+    for (unsigned i = 0; i < fwinfo->hash.size; i++) {
+        printf("%02" PRIx8, fwinfo->hash.ptr[i]);
 #endif //ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST
     }
     printf("\r\n");
 
-    if (fwinfo.cipherMode == ARM_UC_MM_CIPHERMODE_PSK) {
+    if (fwinfo->cipherMode == ARM_UC_MM_CIPHERMODE_PSK) {
         printf("PSK ID: ");
-        for (unsigned i = 0; i < fwinfo.psk.keyID.size; i++) {
-            printf("%02" PRIx8, *(fwinfo.psk.keyID.ptr + i));
+        for (unsigned i = 0; i < fwinfo->psk.keyID.size; i++) {
+            printf("%02" PRIx8, *(fwinfo->psk.keyID.ptr + i));
         }
         printf("\r\n");
 
         printf("cipherKey(16): ");
         for (unsigned i = 0; i < 16; i++) {
-            printf("%02" PRIx8, *(fwinfo.psk.cipherKey.ptr + i));
+            printf("%02" PRIx8, *(fwinfo->psk.cipherKey.ptr + i));
         }
         printf("\r\n");
 
@@ -173,9 +198,9 @@ static void arm_uc_hub_debug_output()
         }
         printf("\r\n");
 
-        printf("fwinfo.initVector\r\n");
+        printf("fwinfo->initVector\r\n");
         for (unsigned i = 0; i < 16; i++) {
-            printf("%02" PRIx8, *(fwinfo.initVector.ptr + i));
+            printf("%02" PRIx8, *(fwinfo->initVector.ptr + i));
         }
         printf("\r\n");
     }
@@ -407,12 +432,21 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_MANIFEST_FETCHED");
 
                 /* Save the manifest for later */
-                memcpy(&fwinfo.manifestBuffer, front_buffer.ptr,
-                       ARM_UC_util_min(sizeof(fwinfo.manifestBuffer), front_buffer.size));
+                memcpy(&fwinfo->manifestBuffer, front_buffer.ptr,
+                       ARM_UC_util_min(sizeof(fwinfo->manifestBuffer), front_buffer.size));
                 /* Save the manifest size for later */
-                fwinfo.manifestSize = front_buffer.size;
-                /* insert the manifest we just fetched into manifest manager */
-                retval = ARM_UC_mmInsert(&pManifestManagerContext, &front_buffer, &back_buffer,  NULL);
+                fwinfo->manifestSize = front_buffer.size;
+                /* prepare the buffer struct for inserting manifest into the manifest manager */
+                manifest_buffer.size_max = ARM_UC_MM_MANIFEST_BUFFER_SIZE;
+                manifest_buffer.size = fwinfo->manifestSize;
+                manifest_buffer.ptr = (uint8_t *) &fwinfo->manifestBuffer;
+
+                /* Insert the manifest we just fetched into manifest manager.
+                 * front_buffer will be used by manifest manager to fetch the
+                 * manifest certificate from storage. manifest_buffer uses storage
+                 * allocated for fwinfo which shares its memory with back_buffer */
+                retval = ARM_UC_mmInsert(&pManifestManagerContext, &manifest_buffer, &front_buffer,  NULL);
+
                 new_state = ARM_UC_HUB_STATE_MANIFEST_AWAIT_INSERT;
                 if (retval.code != MFST_ERR_PENDING) {
                     HANDLE_ERROR(retval, "Manifest manager Insert failed")
@@ -442,7 +476,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 /* get the firmware info out of the manifest we just inserted
                    into the manifest manager
                 */
-                retval = ARM_UC_mmFetchFirmwareInfo(&pManifestManagerContext, &fwinfo, NULL);
+                retval = ARM_UC_mmFetchFirmwareInfo(&pManifestManagerContext, fwinfo, NULL);
                 if (retval.code != MFST_ERR_PENDING) {
                     HANDLE_ERROR(retval, "Manifest manager fetch info failed")
                 }
@@ -453,21 +487,21 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* give up if the format is unsupported */
 #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
-                if (!ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_RAW_BINARY) && !ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
+                if (!ARM_UC_mmCheckFormatUint32(&fwinfo->format, ARM_UC_MM_FORMAT_RAW_BINARY) && !ARM_UC_mmCheckFormatUint32(&fwinfo->format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
 #else
-                if (!ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_RAW_BINARY)) {
+                if (!ARM_UC_mmCheckFormatUint32(&fwinfo->format, ARM_UC_MM_FORMAT_RAW_BINARY)) {
 #endif
 
                     ARM_UC_SET_ERROR(retval, MFST_ERR_FORMAT);
                     HANDLE_ERROR(retval, "Firmware Format unsupported");
                 }
                 /* only continue if timestamp is newer than active version */
-                else if (fwinfo.timestamp > arm_uc_active_details.version) {
+                else if (fwinfo->timestamp > arm_uc_active_details.version) {
                     /* set new state */
                     new_state = ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP;
                 } else {
                     UC_HUB_ERR_MSG("version: %" PRIu64 " <= %" PRIu64,
-                                   fwinfo.timestamp,
+                                   fwinfo->timestamp,
                                    arm_uc_active_details.version);
 
                     /* signal warning through external handler */
@@ -487,18 +521,18 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* store pointer to hash */
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
-                arm_uc_hub_firmware_config.hash = &fwinfo.installedHash;
+                arm_uc_hub_firmware_config.hash = &fwinfo->installedHash;
 #else
-                arm_uc_hub_firmware_config.hash = &fwinfo.hash;
+                arm_uc_hub_firmware_config.hash = &fwinfo->hash;
 #endif
                 /* parse the url string into a arm_uc_uri_t struct */
-                retval = arm_uc_str2uri(fwinfo.uri.ptr, fwinfo.uri.size, &uri);
+                retval = arm_uc_str2uri(fwinfo->uri.ptr, fwinfo->uri.size, &uri);
 
                 /* URI-based errors are propagated to monitor */
                 if (retval.error != ERR_NONE) {
                     /* make sure that the URI string is always 0-terminated */
-                    fwinfo.uri.ptr[fwinfo.uri.size_max - 1] = '\0';
-                    UC_HUB_ERR_MSG("Unable to parse URI string %s", fwinfo.uri.ptr);
+                    fwinfo->uri.ptr[fwinfo->uri.size_max - 1] = '\0';
+                    UC_HUB_ERR_MSG("Unable to parse URI string %s", fwinfo->uri.ptr);
 
                     /* signal warning through external handler */
                     ARM_UC_HUB_ErrorHandler(SOMA_ERR_INVALID_URI,
@@ -511,22 +545,22 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                 // With new manifest fields the payload size is in manifest size-field
-                arm_uc_hub_firmware_config.package_size = fwinfo.installedSize;
+                arm_uc_hub_firmware_config.package_size = fwinfo->installedSize;
 #else
                 /* store firmware size */
-                arm_uc_hub_firmware_config.package_size = fwinfo.size;
+                arm_uc_hub_firmware_config.package_size = fwinfo->size;
 #endif // ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST
 
 #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
 
-                if(ARM_UC_mmCheckFormatUint32(&fwinfo.format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
+                if(ARM_UC_mmCheckFormatUint32(&fwinfo->format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
                     arm_uc_hub_firmware_config.is_delta = 1;
                 } else {
                     arm_uc_hub_firmware_config.is_delta = 0;
                 }
 #endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
                 /* read cryptography mode to determine if firmware is encrypted */
-                switch (fwinfo.cipherMode) {
+                switch (fwinfo->cipherMode) {
                     case ARM_UC_MM_CIPHERMODE_NONE:
                         arm_uc_hub_firmware_config.mode = UCFM_MODE_NONE_SHA_256;
                         break;
@@ -544,11 +578,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                         mbedtls_aes_context ctx;
                         mbedtls_aes_init(&ctx);
                         mbedtls_aes_setkey_dec(&ctx, arm_uc_pre_shared_key, 128);
-                        mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_DECRYPT, fwinfo.psk.cipherKey.ptr, arm_uc_hub_plain_key.ptr);
+                        mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_DECRYPT, fwinfo->psk.cipherKey.ptr, arm_uc_hub_plain_key.ptr);
 
                         arm_uc_hub_firmware_config.mode = UCFM_MODE_AES_CTR_128_SHA_256;
                         arm_uc_hub_firmware_config.key  = &arm_uc_hub_plain_key;
-                        arm_uc_hub_firmware_config.iv   = &fwinfo.initVector;
+                        arm_uc_hub_firmware_config.iv   = &fwinfo->initVector;
                     }
                     break;
 #endif /* ARM_UC_FEATURE_MANIFEST_PSK */
@@ -562,13 +596,13 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 }
 
                 /* check if storage ID has been set */
-                if (fwinfo.strgId.size == 0 || fwinfo.strgId.ptr == NULL) {
+                if (fwinfo->strgId.size == 0 || fwinfo->strgId.ptr == NULL) {
                     /* no storage ID set, use default value 0 */
                     arm_uc_hub_firmware_config.package_id = 0;
                 } else {
                     /* check if storage ID is "default" */
-                    uint32_t location = arm_uc_strnstrn(fwinfo.strgId.ptr,
-                                                        fwinfo.strgId.size,
+                    uint32_t location = arm_uc_strnstrn(fwinfo->strgId.ptr,
+                                                        fwinfo->strgId.size,
                                                         (const uint8_t *) "default",
                                                         7);
 
@@ -578,8 +612,8 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                         /* parse storage ID */
                         bool success = false;
                         arm_uc_hub_firmware_config.package_id =
-                            arm_uc_str2uint32(fwinfo.strgId.ptr,
-                                              fwinfo.strgId.size,
+                            arm_uc_str2uint32(fwinfo->strgId.ptr,
+                                              fwinfo->strgId.size,
                                               &success);
                     }
                 }
@@ -611,10 +645,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION");
-
-                /* Signal control center */
-                ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_DOWNLOAD);
-
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+                campaign_priority = fwinfo->priority;
+                ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_DOWNLOAD, campaign_priority);
+#else
+                ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_DOWNLOAD, 0 /* PRIORITY NOT USED */);
+#endif // defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                 /* Set new state */
                 new_state = ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION;
                 break;
@@ -666,15 +702,15 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 arm_uc_firmware_details_t arm_uc_hub_firmware_details = { 0 };
 
                 /* use manifest timestamp as firmware header version */
-                arm_uc_hub_firmware_details.version = fwinfo.timestamp;
+                arm_uc_hub_firmware_details.version = fwinfo->timestamp;
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
-                arm_uc_hub_firmware_details.size    = fwinfo.installedSize;
+                arm_uc_hub_firmware_details.size    = fwinfo->installedSize;
                 /* copy hash */
                 memcpy(arm_uc_hub_firmware_details.hash,
-                       fwinfo.installedHash.ptr,
+                       fwinfo->installedHash.ptr,
                        ARM_UC_SHA256_SIZE);
 #else
-                arm_uc_hub_firmware_details.size    = fwinfo.size;
+                arm_uc_hub_firmware_details.size    = fwinfo->size;
 #endif
 
 #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
@@ -683,19 +719,19 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                     // New manifest 1.0 with new fields
                     UC_HUB_TRACE("ARM_UC_HUB_STATE_SETUP_FIRMWARE NEW MANIFEST 1.0 FORMAT WITH NEW FIELDS!");
-                    arm_uc_hub_delta_details.delta_payload_size = fwinfo.size;
+                    arm_uc_hub_delta_details.delta_payload_size = fwinfo->size;
 #else
-                    arm_uc_hub_delta_details.delta_payload_size = fwinfo.vendorInfo.deltaSize;
+                    arm_uc_hub_delta_details.delta_payload_size = fwinfo->vendorInfo.deltaSize;
 
                     /* copy hash */
                     memcpy(arm_uc_hub_firmware_details.hash,
-                           fwinfo.hash.ptr,
+                           fwinfo->hash.ptr,
                            ARM_UC_SHA256_SIZE);
 
                 } else {
                     /* copy hash */
                     memcpy(arm_uc_hub_firmware_details.hash,
-                           fwinfo.hash.ptr,
+                           fwinfo->hash.ptr,
                            ARM_UC_SHA256_SIZE);
 #endif
                 }
@@ -746,12 +782,23 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                    An empty firmware is used for erasing a slot.
                    If true, then send next state to monitor service, close storage slot.
                 */
-                if (fwinfo.size == 0) {
+                if (fwinfo->size == 0) {
                     UC_HUB_TRACE("Firmware empty, skip download phase and finalize");
                     UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE");
                     ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE);
                     new_state = ARM_UC_HUB_STATE_FINALIZE_STORAGE;
                 } else {
+                    // Set downloadSize here already because fwinfo struct is sharing memory
+                    // with backbuffer so fwinfo contents are overwritten starting in next state
+                    fw_downloadSize = fwinfo->size;
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+#if !defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)
+                    if (arm_uc_hub_firmware_config.is_delta) {
+                        fw_downloadSize = fwinfo->vendorInfo.deltaSize;
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD USING Delta payload download size: %" PRIu32, fwinfo->vendorInfo.deltaSize);
+                    }
+#endif
+#endif
                     UC_HUB_TRACE("loading %" PRIu32 " byte first fragment at %" PRIu32,
                                  front_buffer.size_max, firmware_offset);
                     /* reset download values */
@@ -770,15 +817,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD");
 
-                uint32_t fw_downloadSize = fwinfo.size;
-#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
-#if !defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)
-                if (arm_uc_hub_firmware_config.is_delta) {
-                    fw_downloadSize = fwinfo.vendorInfo.deltaSize;
-                    UC_HUB_TRACE("ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD USING Delta payload download size: %" PRIu32, fwinfo.vendorInfo.deltaSize);
-                }
-#endif
-#endif
+                // Note: fwinfo is not valid anymore from this stage onwards!
 
                 /* swap the front and back buffers
                    the back buffer contained just downloaded firmware chunk
@@ -867,9 +906,9 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     /* the manifest must be saved in a file, because it will be used later
                     by the second stage of the update client */
                     arm_uc_buffer_t manifest_buffer = {
-                        .size_max = fwinfo.manifestSize,
-                        .size = fwinfo.manifestSize,
-                        .ptr = fwinfo.manifestBuffer
+                        .size_max = fwinfo->manifestSize,
+                        .size = fwinfo->manifestSize,
+                        .ptr = fwinfo->manifestBuffer
                     };
 
                     retval = ARM_UC_PAL_Linux_WriteManifest(arm_uc_hub_firmware_config.package_id,
@@ -877,10 +916,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     HANDLE_ERROR(retval, "Uanble to write manifest to file system");
                 }
 #endif
-
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                 /* Signal control center */
-                ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_INSTALL);
-
+                ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_INSTALL, campaign_priority);
+#else
+                ARM_UC_ControlCenter_GetAuthorization(ARM_UCCC_REQUEST_INSTALL, 0 /* PRIORITY NOT USED */);
+#endif // defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                 /* Set new state */
                 new_state = ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION;
                 break;

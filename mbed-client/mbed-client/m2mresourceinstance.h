@@ -118,13 +118,14 @@ public:
     */
     virtual void set_observation_handler(M2MObservationHandler *handler);
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     /**
      * \brief Parses the received query for a notification
      * attribute.
      * \return True if required attributes are present, else false.
      */
     virtual bool handle_observation_attribute(const char *query);
-
+#endif
 
     /**
      * \brief Returns the instance ID of the object where the resource exists.

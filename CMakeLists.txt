@@ -72,6 +72,7 @@ ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/nanostack-libservice/mbed-client-libse
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/sal-stack-nanostack-eventloop)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/sal-stack-nanostack-eventloop/nanostack-event-loop)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/ns-hal-pal)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/tinycbor/src)
 
 # factory-client
 
@@ -85,7 +86,6 @@ SET(FCC_MODULES
     key-config-manager
     factory-configurator-client
     fcc-bundle-handler
-    secsrv-cbor
     logger
     storage
     utils
@@ -121,7 +121,6 @@ include_directories(${FACTORY_CLIENT_SOURCE_DIR}/mbed-client-esfs/source-pal/api
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/mbed-client-esfs/source-pal/linux)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/crypto-service/crypto-service)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/crypto-service/source/include)
-include_directories(${FACTORY_CLIENT_SOURCE_DIR}/secsrv-cbor/secsrv-cbor)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/fcc-bundle-handler/fcc-bundle-handler)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/fcc-bundle-handler/source/include)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/fcc-output-info-handler/fcc-output-info-handler)
@@ -131,6 +130,18 @@ SET(CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/certifi
 ADD_GLOBALDIR(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment-client)
 include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment-client)
 include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/include)
+
+# Secure Device Access Client
+SET(SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/secure-device-access-client)
+ADD_GLOBALDIR(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/secure-device-access/secure-device-access)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/logger/logger)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/helpers/helpers)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/mem/mem)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/platform/platform)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/sda-bundle-parser/sda-bundle-parser)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/secure-device-access/secure-device-access)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/sda-cose/sda-cose)
+include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/cose-c/cose-c)
 
 # Update client
 
@@ -241,12 +252,12 @@ target_link_libraries(mbedclient nanostacklibservice nanostackeventloop mbedcoap
 CREATE_LIBRARY(mbedCloudClient "${MBED_CLOUD_CLIENT_SRC}" "")
 
 # Create buld dependencies to ensure all the needed parts get build
-add_dependencies(mbedCloudClient pal factory-configurator-client esfs mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client)
+add_dependencies(mbedCloudClient pal factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client)
 
 # Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
 # just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
 # automatically build all the submodules.
-target_link_libraries(mbedCloudClient pal factory-configurator-client esfs mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client)
+target_link_libraries(mbedCloudClient pal factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client)
 
 ADDSUBDIRS()
 

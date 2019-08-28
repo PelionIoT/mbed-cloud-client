@@ -21,6 +21,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Event handler for the Firmware Manager.
  *
@@ -49,4 +53,7 @@ void ARM_UC_HUB_SourceManagerEventHandler(uintptr_t event);
  */
 void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // ARM_UC_HUB_EVENT_HANDLERS_H

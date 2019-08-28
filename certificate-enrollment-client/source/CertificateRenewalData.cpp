@@ -32,11 +32,12 @@ namespace CertificateEnrollmentClient {
     {
         _raw_data_size = raw_data_size;
         cert_name = NULL;
+        memset((void*)&renewal_items_names, 0, sizeof(renewal_items_names));
         csr = NULL;
         csr_size = 0;
         est_data = NULL;
         key_handle = 0;
-        _raw_data = (uint8_t *)malloc(raw_data_size);        
+        _raw_data = (uint8_t *)malloc(raw_data_size);
         memcpy(_raw_data, raw_data, _raw_data_size);
     }
 
@@ -50,7 +51,7 @@ namespace CertificateEnrollmentClient {
         free(csr);
 
         // Release the key handle, this shouldn't fail...
-        kcm_status = cs_ec_key_free(&key_handle);
+        kcm_status = cs_key_pair_free(&key_handle);
         ce_status = ce_error_handler(kcm_status);
 
         if (ce_status != CE_STATUS_SUCCESS) {
@@ -75,7 +76,7 @@ namespace CertificateEnrollmentClient {
 
         ce_tlv_status_e status;
         ce_tlv_element_s element;
-        
+
         cert_name = NULL;
 
         if (ce_tlv_parser_init(_raw_data, _raw_data_size, &element) != CE_TLV_STATUS_SUCCESS) {

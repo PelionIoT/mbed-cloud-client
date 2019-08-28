@@ -72,6 +72,7 @@ static kcm_status_e build_complete_item_name(const uint8_t *item_name,
 {
     size_t prefix_length = 0;
     kcm_status_e kcm_status;
+    size_t total_length = 0;
 
     SA_PV_LOG_TRACE_FUNC_ENTER("name len=%" PRIu32 "", (uint32_t)item_name_len);
 
@@ -84,6 +85,11 @@ static kcm_status_e build_complete_item_name(const uint8_t *item_name,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "storage_check_name_validity failed\n");
 
     prefix_length = strlen(prefix);
+
+    total_length = prefix_length + item_name_len;
+
+    // This Should never happen. This means that the total larger than permitted was used.
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((total_length > STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH), KCM_STATUS_INVALID_PARAMETER, "KCM data name too long");
 
     // Append prefix and name to the buffer
     // Do not put '\0' at the end of the name!
@@ -317,7 +323,7 @@ kcm_status_e storage_item_store_impl(const uint8_t * kcm_item_name,
                                      const uint8_t * kcm_item_data,
                                      size_t kcm_item_data_size)
 {
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH] = { 0 };
     size_t kcm_complete_name_size = 0;
     store_esfs_file_ctx_s ctx;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -351,7 +357,7 @@ kcm_status_e storage_item_get_data_size(
     storage_item_prefix_type_e item_prefix_type,
     size_t * kcm_item_data_size_out)
 {
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH] = { 0 };
     size_t kcm_complete_name_size = 0;
     store_esfs_file_ctx_s ctx;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -398,7 +404,7 @@ kcm_status_e storage_item_get_data(
     size_t kcm_item_data_max_size,
     size_t *kcm_item_data_act_size_out)
 {
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH] = { 0 };
     size_t kcm_complete_name_size;
     store_esfs_file_ctx_s ctx;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -460,7 +466,7 @@ kcm_status_e storage_item_delete(
     kcm_item_type_e kcm_item_type,
     storage_item_prefix_type_e item_prefix_type)
 {
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH] = { 0 };
     size_t kcm_complete_name_size;
     store_esfs_file_ctx_s ctx;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -483,6 +489,11 @@ kcm_status_e storage_item_delete(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_build_complete_working_item_name");
 
     kcm_status = storage_file_delete(&ctx, (uint8_t*)kcm_complete_name, kcm_complete_name_size);
+
+    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
+        //We don't want print log in case the item wasn't found
+        return kcm_status;
+    }
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed deleting kcm data");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -537,7 +548,7 @@ kcm_status_e storage_cert_chain_create(kcm_cert_chain_handle *kcm_chain_handle,
                                        bool kcm_chain_is_factory,
                                        storage_item_prefix_type_e item_prefix_type)
 {
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH] = { 0 };
     size_t kcm_complete_name_size;
     store_esfs_meta_data_list_s kcm_meta_data;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -753,7 +764,7 @@ kcm_status_e storage_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle,
 {
     storage_cert_chain_context_s *chain_context = NULL;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH] = { 0 };
     size_t kcm_complete_name_size;
     size_t meta_data_size;
     uint16_t chain_len_to_read;
@@ -847,7 +858,7 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_status_e first_status_err = KCM_STATUS_SUCCESS;
     size_t kcm_chain_len = 0;
-    char kcm_complete_name[KCM_MAX_FILENAME_SIZE] = { 0 };
+    char kcm_complete_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH] = { 0 };
     size_t kcm_complete_name_size;
     store_esfs_file_ctx_s kcm_ctx;
     kcm_cert_chain_handle kcm_chain_handle;

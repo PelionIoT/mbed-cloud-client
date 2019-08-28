@@ -243,7 +243,6 @@ arm_uc_error_t validateDeltaParameters(arm_uc_buffer_t *buffer)
 {
     const int keyIDs[] = {
         ARM_UC_MM_DER_MFST_PRECUSOR_DIGEST,
-        ARM_UC_MM_DER_MFST_PRIORITY,
         ARM_UC_MM_DER_MFST_FW_INSTALLEDSIZE,
         ARM_UC_MM_DER_MFST_FW_INSTALLEDDIGEST,
     };

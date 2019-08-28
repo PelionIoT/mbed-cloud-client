@@ -225,7 +225,13 @@ void pal_update_xK(int sizeInK)
 
 TEST(pal_update, pal_update_1k)
 {
+
+#if PAL_USE_FILESYSTEM == 1
     pal_update_xK(1*KILOBYTE);
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 
@@ -245,7 +251,13 @@ TEST(pal_update, pal_update_1k)
 
 TEST(pal_update, pal_update_2k)
 {
+
+#if PAL_USE_FILESYSTEM == 1
     pal_update_xK(2*KILOBYTE);
+#else // PAL_USE_FILESYSTEM
+        TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 /*! \brief Writing a 4Kb image and verifying its value.
@@ -264,7 +276,12 @@ TEST(pal_update, pal_update_2k)
 
 TEST(pal_update, pal_update_4k)
 {
+#if PAL_USE_FILESYSTEM == 1
     pal_update_xK(4*KILOBYTE);
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 /*! \brief Writing an 8Kb image and verifying its value.
@@ -283,7 +300,12 @@ TEST(pal_update, pal_update_4k)
 
 TEST(pal_update, pal_update_8k)
 {
+#if PAL_USE_FILESYSTEM == 1
     pal_update_xK(8*KILOBYTE);
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 /*! \brief Writing a 16Kb image and verifying its value.
@@ -302,7 +324,13 @@ TEST(pal_update, pal_update_8k)
 
 TEST(pal_update, pal_update_16k)
 {
+#if PAL_USE_FILESYSTEM == 1
     pal_update_xK(16*KILOBYTE);
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
+
 }
 
 
@@ -323,7 +351,12 @@ TEST(pal_update, pal_update_16k)
 
 TEST(pal_update,pal_update_writeSmallChunk_5b)
 {
+#if PAL_USE_FILESYSTEM == 1
     pal_update_xK(5);
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 
@@ -344,8 +377,12 @@ TEST(pal_update,pal_update_writeSmallChunk_5b)
 
 TEST(pal_update,pal_update_writeUnaligned_1001b)
 {
+#if PAL_USE_FILESYSTEM == 1
     //1039 is a prime number so probably never aligned.
     pal_update_xK(1039);
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
 }
 
 
@@ -456,6 +493,9 @@ PAL_PRIVATE void multiWriteMultiRead(palImageEvents_t state)
 
 TEST(pal_update, pal_update_4k_write_1k_4_times)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
   palStatus_t rc = PAL_SUCCESS;
 
   uint8_t *writeData = (uint8_t*)malloc(4*KILOBYTE);
@@ -502,6 +542,10 @@ TEST(pal_update, pal_update_4k_write_1k_4_times)
   /*Wait until the async test finishes*/
   while (!g_isTestDone)
       pal_osDelay(5); // Make the OS switch context
+      
+#else // PAL_USE_FILESYSTEM
+        TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
 
 }
 
@@ -520,6 +564,9 @@ TEST(pal_update, pal_update_4k_write_1k_4_times)
 */
 TEST(pal_update, pal_update_stressTest)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
     uint8_t it,j;
     PAL_PRINTF("****************************************************\r\n");
     PAL_PRINTF("******* Testing multiple writes sequentially *******\r\n");
@@ -533,6 +580,11 @@ TEST(pal_update, pal_update_stressTest)
 
         }
     }
+    
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
+
 }
 
 
@@ -635,6 +687,9 @@ PAL_PRIVATE void readStateMachine(palImageEvents_t state)
 
 TEST(pal_update, pal_update_Read)
 {
+
+#if PAL_USE_FILESYSTEM == 1
+
       uint32_t sizeIn=1500;
       palStatus_t rc = PAL_SUCCESS;
       PAL_PRINTF("\n-====== PAL_UPDATE_READ TEST %" PRIu32 " b ======- \n",sizeIn);
@@ -679,5 +734,9 @@ TEST(pal_update, pal_update_Read)
       /*Wait until the async test finishes*/
       while (!g_isTestDone)
           pal_osDelay(5); // Make the OS switch context
+
+#else // PAL_USE_FILESYSTEM
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_FILESYSTEM not set");
+#endif // PAL_USE_FILESYSTEM
 
 }

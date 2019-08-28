@@ -185,6 +185,14 @@ arm_uc_error_t ARM_UC_Authorize(arm_uc_request_t request)
 }
 
 /**
+ * @brief Reject request.
+ */
+arm_uc_error_t ARM_UC_Reject(arm_uc_request_t request, arm_uc_reject_reason_t reason)
+{
+    return ARM_UC_ControlCenter_Reject(request, reason);
+}
+
+/**
  * @brief Set callback for receiving download progress.
  * @details User application call for setting callback handler.
  *          The callback function takes the progreess in percent as argument.
@@ -210,6 +218,21 @@ arm_uc_error_t ARM_UC_SetProgressHandler(void (*callback)(uint32_t progress, uin
 arm_uc_error_t ARM_UC_SetAuthorizeHandler(void (*callback)(int32_t))
 {
     return ARM_UC_ControlCenter_SetAuthorityHandler(callback);
+}
+
+/**
+ * @brief Set callback function for authorizing requests with specific priority.
+ * @details User application call for setting callback handler.
+ *          The callback function takes an enum request, an authorization
+ *          function pointer and a priority value. To authorize the given
+ *          request, the caller invokes the authorization function.
+ *
+ * @param callback Function pointer to the authorization function.
+ * @return Error code.
+ */
+arm_uc_error_t ARM_UC_SetAuthorizePriorityHandler(void (*callback)(int32_t request, uint64_t priority))
+{
+    return ARM_UC_ControlCenter_SetPriorityAuthorityHandler(callback);
 }
 
 /**

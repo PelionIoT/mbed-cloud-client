@@ -1664,6 +1664,83 @@ palStatus_t pal_plat_ECKeyFree(palECKeyHandle_t* key)
     return PAL_SUCCESS;
 }
 
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size)
+{
+
+    palStatus_t pal_status = PAL_SUCCESS;
+
+    //allocate palCryptoBuffer_t struct
+    palCryptoBuffer_t* crypto_buffer = (palCryptoBuffer_t*)malloc(sizeof(palCryptoBuffer_t));
+    if (NULL == crypto_buffer)
+    {
+        pal_status = PAL_ERR_NO_MEMORY;
+        goto exit;
+    }
+
+    crypto_buffer->buffer = NULL;
+    crypto_buffer->size = 0;
+
+    //allocate buffer for the key
+    crypto_buffer->buffer = malloc(key_size);
+    if (NULL == crypto_buffer->buffer)
+    {
+        pal_status = PAL_ERR_NO_MEMORY;
+        goto free_and_exit;
+    }
+
+    crypto_buffer->size = (uint32_t)key_size;
+
+    //init key_hanlde with pal_key_buffer address
+    *keyHandle = (palKeyHandle_t)crypto_buffer;
+
+    goto exit;
+
+free_and_exit:
+    pal_plat_freeKeyHandle((palKeyHandle_t*)&crypto_buffer);
+
+exit:
+    return pal_status;
+}
+
+palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle)
+{
+
+    palCryptoBuffer_t* crypto_buffer = (palCryptoBuffer_t*)*keyHandle;
+
+    // free buffer
+    if (crypto_buffer->buffer != NULL) {
+        free(crypto_buffer->buffer);
+    }
+
+    //free struct
+    free(crypto_buffer);
+    *keyHandle = 0;
+
+    return PAL_SUCCESS;
+}
+
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size)
+{
+   *keyHandle = 0; 
+    return PAL_SUCCESS;
+}
+
+
+palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle)
+{
+    *keyHandle = 0; 
+    return PAL_SUCCESS;
+}
+
+#endif
+
+
 //! Check if the given data is a valid PEM format or not by checking the
 //! the header and the footer of the data.
 PAL_PRIVATE bool pal_plat_isPEM(const unsigned char* key, size_t keyLen)
@@ -1866,6 +1943,41 @@ palStatus_t pal_plat_parseECPublicKeyFromHandle(const palKeyHandle_t pubKeyHandl
     status = pal_plat_parseECPublicKeyFromDER(localkey->buffer, (size_t)localkey->size, ECKeyHandle);
     return status;
 }
+
+
+palStatus_t pal_plat_writePrivateKeyWithHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    palStatus_t status = PAL_SUCCESS;
+    size_t actualSize;
+    
+    palCryptoBuffer_t* localkey = (palCryptoBuffer_t*) prvKeyHandle;
+
+    status = pal_plat_writePrivateKeyToDer(ECKeyHandle, localkey->buffer, (size_t)localkey->size, &actualSize);
+    if (status != PAL_SUCCESS) {
+        return status;
+    }
+
+    return status;
+
+}
+
+
+palStatus_t pal_plat_writePublicKeyWithHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle)
+{
+    palStatus_t status = PAL_SUCCESS;
+    size_t actualSize;
+
+    palCryptoBuffer_t* localkey = (palCryptoBuffer_t*) pubKeyHandle;
+
+    status = pal_plat_writePublicKeyToDer(ECKeyHandle, localkey->buffer, (size_t)localkey->size, &actualSize);
+    if (status != PAL_SUCCESS) {
+        return status;
+    }
+
+    return status;
+
+}
+
 #endif//!MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 

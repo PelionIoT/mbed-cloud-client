@@ -396,6 +396,33 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
                 /* Download approved. Download firmware. */
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_SETUP_FIRMWARE);
             }
+            else {
+                UC_HUB_ERR_MSG("Ignoring download authorization granted event, invalid hub state: %d", arm_uc_hub_state);
+            }
+            break;
+
+        case ARM_UCCC_EVENT_REJECT_DOWNLOAD:
+            UC_HUB_TRACE("ARM_UCCC_EVENT_REJECT_DOWNLOAD");
+
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION) {
+                /* Download rejected. Abort update. */
+                ARM_UC_HUB_ErrorHandler(AUTH_ERR_DOWNLOAD_REJECTED, arm_uc_hub_state);
+            }
+            else {
+                UC_HUB_ERR_MSG("Ignoring download authorization rejected event, invalid hub state: %d", arm_uc_hub_state);
+            }
+            break;
+
+        case ARM_UCCC_EVENT_UNAVAILABLE_DOWNLOAD:
+            UC_HUB_TRACE("ARM_UCCC_EVENT_UNAVAILABLE_DOWNLOAD");
+
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_DOWNLOAD_AUTHORIZATION) {
+                /* Download approval unavailable. Abort update. */
+                ARM_UC_HUB_ErrorHandler(AUTH_ERR_DOWNLOAD_UNAVAILABLE, arm_uc_hub_state);
+            }
+            else {
+                UC_HUB_ERR_MSG("Ignoring download authorization unavailable event, invalid hub state: %d", arm_uc_hub_state);
+            }
             break;
 
         case ARM_UCCC_EVENT_AUTHORIZE_INSTALL:
@@ -404,6 +431,33 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION) {
                 /* Installation approved. Set firmware as active image and reboot. */
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
+            }
+            else {
+                UC_HUB_ERR_MSG("Ignoring install authorization granted event, invalid hub state: %d", arm_uc_hub_state);
+            }
+            break;
+
+        case ARM_UCCC_EVENT_REJECT_INSTALL:
+            UC_HUB_TRACE("ARM_UCCC_EVENT_REJECT_INSTALL");
+
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION) {
+                /* Installation rejected. Abort update. */
+                ARM_UC_HUB_ErrorHandler(AUTH_ERR_INSTALL_REJECTED, arm_uc_hub_state);
+            }
+            else {
+                UC_HUB_ERR_MSG("Ignoring install authorization rejected event, invalid hub state: %d", arm_uc_hub_state);
+            }
+            break;
+
+        case ARM_UCCC_EVENT_UNAVAILABLE_INSTALL:
+            UC_HUB_TRACE("ARM_UCCC_EVENT_UNAVAILABLE_INSTALL");
+
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION) {
+                /* Installation approval unavailable. Abort update. */
+                ARM_UC_HUB_ErrorHandler(AUTH_ERR_INSTALL_UNAVAILABLE, arm_uc_hub_state);
+            }
+            else {
+                UC_HUB_ERR_MSG("Ignoring install authorization unavailable event, invalid hub state: %d", arm_uc_hub_state);
             }
             break;
 

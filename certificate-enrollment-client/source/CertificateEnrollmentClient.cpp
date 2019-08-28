@@ -82,7 +82,7 @@ namespace CertificateEnrollmentClient {
     * Zero current_cert pointer, then release the semaphore. Note that when the semaphore is released - new device renewals may be made.
     * Then call renewal_data->finish() and delete renewal_data.
     *
-    * \param renewal_data the data of the certificate to be renewed. 
+    * \param renewal_data the data of the certificate to be renewed.
     *        It is important that this is passed to the function because after releasing the semaphore - the global pointer may be replaced.
     * \param exit_status the status of the renewal process
     */
@@ -158,7 +158,7 @@ namespace CertificateEnrollmentClient {
     * \brief Start the renewal process.
     * Parse the certificate name, generate keys and CSR. Then call the EST client so the new certificate may be retrieved
     *
-    * \param renewal_data the data of the certificate to be renewed 
+    * \param renewal_data the data of the certificate to be renewed
     */
     static void certificate_renewal_start(CertificateRenewalDataBase *renewal_data);
 
@@ -197,7 +197,7 @@ void CertificateEnrollmentClient::call_user_cb_send_response(const uint8_t *tlv,
 void CertificateEnrollmentClient::certificate_renewal_post(void *arg)
 {
     palStatus_t pal_status;
-	ce_status_e status;
+    ce_status_e status;
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
     M2MResource::M2MExecuteParameter *args = (M2MResource::M2MExecuteParameter *)arg;
@@ -219,7 +219,7 @@ void CertificateEnrollmentClient::certificate_renewal_post(void *arg)
             }
 
             call_user_cb_send_response(data, data_size, status);
-			return;
+            return;
         }
 
         // Enqueue the event
@@ -279,7 +279,7 @@ ReleseSemReturn:
         } else {
             status = CE_STATUS_ERROR;
         }
-        
+
     }
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -376,7 +376,7 @@ ce_status_e CertificateEnrollmentClient::init(M2MBaseList& list, const EstClient
 
 #ifdef CERT_ENROLLMENT_EST_MOCK
         PV_UNUSED_PARAM(est_client);
-        g_est_client = new EstClientMock();        
+        g_est_client = new EstClientMock();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_est_client), CE_STATUS_ERROR, "Error creating mock EST");
 #else 
         g_est_client = est_client;
@@ -406,7 +406,7 @@ void CertificateEnrollmentClient::finalize()
 
         // LWM2M objects, instances, and resources are deleted when MbedCloudClient is unregistered and ServiceClient::state_unregister() is called
         // Currently nothing to finalize for CE core module except for KCM. However we do not wish to finalize it it may be used by other resources
-        
+
         // Release our resources
         release_objects();
     }
@@ -449,20 +449,19 @@ void CertificateEnrollmentClient::certificate_renewal_start(CertificateRenewalDa
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ce_status != CE_STATUS_SUCCESS), certificate_renewal_finish(renewal_data, ce_status), "Parse error");
 
     // Create CSR's key handle
-    kcm_status = cs_ec_key_new(&renewal_data->key_handle);
-
+    kcm_status = cs_key_pair_new(&(renewal_data->key_handle), true);
     // translate error to some CE native error
     ce_status = ce_error_handler(kcm_status);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ce_status != CE_STATUS_SUCCESS), certificate_renewal_finish(renewal_data, ce_status), "Failed creating new key handle");
 
     // key handle is initialized in the base constructor
-    ce_status = ce_generate_keys_and_create_csr_from_certificate(renewal_data->cert_name, renewal_data->key_handle, &renewal_data->csr, &renewal_data->csr_size);
+    ce_status = ce_generate_keys_and_create_csr_from_certificate(renewal_data->cert_name, &(renewal_data->renewal_items_names), renewal_data->key_handle, &renewal_data->csr, &renewal_data->csr_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ce_status != CE_STATUS_SUCCESS), certificate_renewal_finish(renewal_data, ce_status), "Keys/CSR generation error");
 
     // Call the EST client
 
     // If lwm2m device certificate - set cert name to NULL and request EST enrollment
-    if (pv_str_equals(g_lwm2m_name, renewal_data->cert_name,(uint32_t)(strlen(g_lwm2m_name) + 1))) {
+    if (pv_str_equals(g_lwm2m_name, renewal_data->cert_name, (uint32_t)(strlen(g_lwm2m_name) + 1))) {
         SA_PV_LOG_INFO("Attempting to renew LwM2M device certificate\n");
         cert_name = NULL;
         cert_name_size = 0;
@@ -511,7 +510,7 @@ void CertificateEnrollmentClient::est_cb(est_enrollment_result_e result,
     ce_status_e status;
     SA_PV_LOG_INFO_FUNC_ENTER("result = %d", result);
 
-    PV_UNUSED_PARAM(context);	
+    PV_UNUSED_PARAM(context);
     if (result != EST_ENROLLMENT_SUCCESS || cert_chain == NULL) {
         return certificate_renewal_finish(current_cert, CE_STATUS_EST_ERROR);
     }
@@ -523,7 +522,7 @@ void CertificateEnrollmentClient::est_cb(est_enrollment_result_e result,
     if (status != CE_STATUS_SUCCESS) { // If event scheduling fails - free the chain context and finish the process
         SA_PV_LOG_INFO("Error scheduling event");
         g_est_client->free_cert_chain_context(current_cert->est_data);
-        
+
         // Make sure we do not keep an invalid pointer
         current_cert->est_data = NULL;
         certificate_renewal_finish(current_cert, status);
@@ -543,7 +542,7 @@ void CertificateEnrollmentClient::est_response_process(CertificateRenewalDataBas
     params.crypto_handle = renewal_data->key_handle;
 
     // Perform a safe renewal
-    ce_status = ce_safe_renewal(renewal_data->cert_name, &params);
+    ce_status = ce_safe_renewal(renewal_data->cert_name, &renewal_data->renewal_items_names, &params);
 
     // Free the est chain. Do not free in the destructor, we'd rather free it as soon as possible
     g_est_client->free_cert_chain_context(renewal_data->est_data);

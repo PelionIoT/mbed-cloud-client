@@ -180,10 +180,23 @@ public:
     void set_update_authorize_handler(void (*handler)(int32_t request));
 
     /**
+     * \brief Registers a callback function for authorizing update requests with priority.
+     * \param handler Callback function.
+     */
+    void set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority));
+
+    /**
      * \brief Authorize request passed to authorization handler.
      * \param request Request being authorized.
      */
     void update_authorize(int32_t request);
+
+    /**
+     * \brief Reject request passed to authorization handler.
+     * \param request Request being rejected.
+     * \param reason Reason for rejecting the request.
+     */
+    void update_reject(int32_t request, int32_t reason);
 
     /**
      * \brief Registers a callback function for monitoring download progress.

@@ -82,7 +82,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=3.3.0";
+const char *MCC_VERSION = "mccv=3.4.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -512,7 +512,7 @@ void M2MNsdlInterface::send_request(DownloadType type,
     // Check the duplicate items
     request_context_s *data = (request_context_s *)ns_list_get_first(&_request_context_list);
     while (data) {
-        if ((strcmp(uri, data->uri_path) == 0) && (offset == data->received_size)) {
+        if ((strcmp(uri, data->uri_path) == 0) && (offset == data->received_size) && (context == data->context)) {
             tr_debug("M2MNsdlInterface::send_request - item already exists");
             // Remove queued message from the resend queue before resuming file download.
             // Otherwise there will be duplicate block transfer with a just different message id's.
@@ -1987,7 +1987,7 @@ void M2MNsdlInterface::send_object_observation(M2MObject *object,
 
         int32_t msgid = sn_nsdl_send_observation_notification(_nsdl_handle, token, token_length, value, length,
                                                               sn_coap_observe_e(obs_number), COAP_MSG_TYPE_CONFIRMABLE,
-                                                              sn_coap_content_format_e(object->coap_content_type()), -1);
+                                                              sn_coap_content_format_e(object->coap_content_type()), -1, object->max_age());
         execute_notification_delivery_status_cb(object, msgid);
 
         memory_free(value);
@@ -2012,7 +2012,7 @@ void M2MNsdlInterface::send_object_instance_observation(M2MObjectInstance *objec
 
         int32_t msgid = sn_nsdl_send_observation_notification(_nsdl_handle, token, token_length, value, length,
                                                                sn_coap_observe_e(obs_number), COAP_MSG_TYPE_CONFIRMABLE,
-                                                               sn_coap_content_format_e(object_instance->coap_content_type()), -1);
+                                                               sn_coap_content_format_e(object_instance->coap_content_type()), -1, object_instance->max_age());
 
         execute_notification_delivery_status_cb(object_instance, msgid);
 
@@ -2048,7 +2048,7 @@ void M2MNsdlInterface::send_resource_observation(M2MResource *resource,
         int32_t msgid = sn_nsdl_send_observation_notification(_nsdl_handle, token, token_length, value, length,
                                                                    sn_coap_observe_e(obs_number),
                                                                    COAP_MSG_TYPE_CONFIRMABLE,
-                                                                   sn_coap_content_format_e(content_type), -1);
+                                                                   sn_coap_content_format_e(content_type), -1, resource->max_age());
         execute_notification_delivery_status_cb(resource, msgid);
 
         memory_free(value);

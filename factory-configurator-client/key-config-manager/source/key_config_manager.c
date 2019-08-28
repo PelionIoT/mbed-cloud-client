@@ -208,6 +208,9 @@ kcm_status_e kcm_item_delete(const uint8_t * kcm_item_name, size_t kcm_item_name
     storage_delete_f delete_func = (storage_delete_f)storage_func_dispatch(STORAGE_FUNC_DELETE, kcm_item_type);
 
     kcm_status = delete_func(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM);
+    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
+        return kcm_status;
+    }
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_delete");
 
     return kcm_status;

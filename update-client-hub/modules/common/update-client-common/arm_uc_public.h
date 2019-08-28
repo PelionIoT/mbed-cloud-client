@@ -58,6 +58,8 @@ enum {
     ARM_UC_WARNING_BAD_KEYTABLE,
     ARM_UC_WARNING_URI_NOT_FOUND,
     ARM_UC_WARNING_ROLLBACK_PROTECTION,
+    ARM_UC_WARNING_AUTHORIZATION_REJECTED,
+    ARM_UC_WARNING_AUTHORIZATION_UNAVAILABLE,
     ARM_UC_WARNING_UNKNOWN,
     ARM_UC_ERROR,
     ARM_UC_ERROR_WRITE_TO_STORAGE,
@@ -75,6 +77,15 @@ typedef enum {
     ARM_UCCC_REQUEST_DOWNLOAD,
     ARM_UCCC_REQUEST_INSTALL,
 } arm_uc_request_t;
+
+/**
+ * Public update authorization reject reasons
+ */
+
+typedef enum {
+    ARM_UCCC_REJECT_REASON_UNAUTHORIZED,
+    ARM_UCCC_REJECT_REASON_UNAVAILABLE,
+} arm_uc_reject_reason_t;
 
 /**
  * New State & Result -enums based on http://www.openmobilealliance.org/tech/profiles/lwm2m/10252.xml

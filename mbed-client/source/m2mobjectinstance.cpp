@@ -13,6 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Note: this macro is needed on armcc to get the the PRI*32 macros
+// from inttypes.h in a C++ code.
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
+#include <inttypes.h>
+
 #include "mbed-client/m2mobjectinstance.h"
 #include "mbed-client/m2mobject.h"
 #include "mbed-client/m2mconstants.h"
@@ -27,6 +34,7 @@
 #include "mbed-trace/mbed_trace.h"
 #include "include/m2mcallbackstorage.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 #define BUFFER_SIZE 10
 #define TRACE_GROUP "mClt"
@@ -152,6 +160,21 @@ M2MResource* M2MObjectInstance::create_dynamic_resource(const lwm2m_parameters_s
         }
     }
     return res;
+}
+
+M2MResource* M2MObjectInstance::create_dynamic_resource(const uint16_t resource_name,
+                                                        const char *resource_type,
+                                                        M2MResourceInstance::ResourceType type,
+                                                        bool observable,
+                                                        bool multiple_instance,
+                                                        bool external_blockwise_store)
+{
+    String resource_name_str;
+    resource_name_str.append_int(resource_name);
+    String resource_type_str;
+    resource_type_str.append(resource_type, strlen(resource_type));
+    return create_dynamic_resource(resource_name_str, resource_type_str,
+        type, observable, multiple_instance, external_blockwise_store);
 }
 
 M2MResource* M2MObjectInstance::create_dynamic_resource(const String &resource_name,
@@ -331,6 +354,13 @@ bool M2MObjectInstance::remove_resource_instance(const String &resource_name,
         }
     }
     return success;
+}
+
+M2MResource* M2MObjectInstance::resource(const uint16_t resource_id) const
+{
+    StringBuffer<6> res_id; // 65535 + \0
+    res_id.append_int(resource_id);
+    return resource(res_id.c_str());
 }
 
 M2MResource* M2MObjectInstance::resource(const String &resource_name) const
@@ -549,12 +579,16 @@ sn_coap_hdr_s* M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
             if (query){
                 tr_info("M2MObjectInstance::handle_put_request() - query %s", query);
                 // if anything was updated, re-initialize the stored notification attributes
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
                 if (!handle_observation_attribute(query)){
                     tr_debug("M2MObjectInstance::handle_put_request() - Invalid query");
                     msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
                 } else {
                     msg_code =COAP_MSG_CODE_RESPONSE_CHANGED;
                 }
+#else
+                msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
+#endif
                 free(query);
             }
         } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {

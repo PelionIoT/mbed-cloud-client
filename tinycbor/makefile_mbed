@@ -1,0 +1,52 @@
+PLATFORM=K64F
+DFLAGS =
+CFLAGS =
+TEST_LIST=tests-runner-tiny_cbor_main
+
+all: tiny_cbor_tests
+
+clean: clean_tiny_cbor_tests
+
+deep_clean: clean_tiny_cbor_tests clean_mbed clean_unity 
+
+MBED_OS_DIR :=  $(TINY_CBOR_TOP)/mbed-os
+UNITY_DIR :=  $(TINY_CBOR_TOP)/e2e-unity
+
+BUILD_CFLAGS := --profile $(MBED_OS_DIR)/tools/profiles/debug.json
+
+BUILD_SRCS_CBOR := \
+	$(TINY_CBOR_TOP)/TESTS/runner/tiny_cbor_runner \
+	$(TINY_CBOR_TOP)/TESTS/runner/tiny_cbor_main \
+	$(TINY_CBOR_TOP)/TESTS/tests
+
+
+tiny_cbor_tests:
+	@echo $(TINYCBOR_TOOLCHAIN)
+	@#mkdir -p $(OUT_DIR)
+	@#cp -rfu $(TINY_CBOR_TOP)/TESTS/runner/tiny_cbor_main/tiny_cbor_test_runner_main.cpp $(OUT_DIR)
+	@mbed test \
+	-t $(TINYCBOR_TOOLCHAIN) \
+	--compile -v \
+	-n $(TEST_LIST) \
+	-m $(PLATFORM) \
+	--source . \
+	--source $(TINY_CBOR_TOP)/TESTS/tests \
+	--source $(TINY_CBOR_TOP)/TESTS/runner/tiny_cbor_runner \
+	--app-config $(TINY_CBOR_TOP)/mbed_app.json \
+	--profile $(TINYCBOR_BUILD_TYPE) \
+	$(DFLAGS) $(CFLAGS) $(BUILD_CFLAGS)
+
+clean_tiny_cbor_tests:
+	@echo [CLN-BUILD] 
+	@rm -rf $(TINY_CBOR_TOP)/BUILD
+
+	
+clean_mbed:
+	@echo [CLN-MBED]
+	@rm -rf $(MBED_OS_DIR)
+	@rm -f $(TINY_CBOR_TOP)/.mbed
+
+clean_unity:
+	@echo [CLN-UNITY]
+	@rm -rf $(UNITY_DIR)
+	

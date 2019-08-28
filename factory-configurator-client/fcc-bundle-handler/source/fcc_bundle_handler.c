@@ -14,7 +14,6 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 #include "fcc_bundle_handler.h"
-#include "cn-cbor.h"
 #include "pv_error_handling.h"
 #include "factory_configurator_client.h"
 #include "fcc_bundle_utils.h"
@@ -25,6 +24,7 @@
 #include "fcc_utils.h"
 #include "fcc_bundle_fields.h"
 #include "storage_items.h"
+#include "tinycbor.h"
 
 /**
 * Defines for cbor layer
@@ -41,313 +41,167 @@
 * Definition of size and value of current protocol scheme version
 */
 #define FCC_SIZE_OF_VERSION_FIELD 5
-const char fcc_bundle_scheme_version[] = "0.0.1";
+const char g_fcc_bundle_scheme_version[] = "0.0.1";
 extern bool g_is_session_finished;
 
-// FIXME: temporary. Will be removed when migration to tinycbor is complete
-void g_csr_buf_free(void);
+/**
+* Definition of max (key,value) in cbor top map
+*/
+#define FCC_MAX_KEYS_IN_MAP 12
 
 /**
-* Types of configuration parameter groups
+* Definition of max response buffer size
 */
-typedef enum {
-    FCC_KEY_GROUP_TYPE,                //!< Key group type
-    FCC_CERTIFICATE_GROUP_TYPE,        //!< Certificate group type
-    FCC_CONFIG_PARAM_GROUP_TYPE,       //!< Configuration parameter group type
-    FCC_CERTIFICATE_CHAIN_GROUP_TYPE,  //!< Certificate chain group type
-    FCC_SCHEME_VERSION_TYPE,           //!< Scheme version group type
-    FCC_ENTROPY_TYPE,                  //!< Entropy group type
-    FCC_ROT_TYPE,                      //!< Root of trust group type
-    FCC_VERIFY_DEVICE_IS_READY_TYPE,   //!< Verify device readiness type
-    FCC_FACTORY_DISABLE_TYPE,          //!< Disable FCC flow type
-    FCC_IS_ALIVE_SESSION_GROUP_TYPE,   //!< Indicates current message status - last message or not
-    FCC_FCU_SESSION_ID_GROUP_TYPE,     //!< Session ID sent by the FCU
-    FCC_CSR_REQUESTS_GROUP_TYPE,       //!< CSR requests type
-    FCC_MAX_CONFIG_PARAM_GROUP_TYPE    //!< Max group type
-} fcc_bundle_param_group_type_e;
-
-/**
-* Group lookup record, correlating group's type and name
-*/
-typedef struct fcc_bundle_group_lookup_record_ {
-    fcc_bundle_param_group_type_e group_type;
-    const char *group_name;
-} fcc_bundle_group_lookup_record_s;
-/**
-* Group lookup table, correlating for each group its type and name.
-* Order is important - it is the order that fcc_bundle_handler() reads the cbor fields.
-* FCC_ENTROPY_TYPE and FCC_ROT_TYPE Must be processed first and second respectively.
-*/
-static const fcc_bundle_group_lookup_record_s fcc_groups_lookup_table[FCC_MAX_CONFIG_PARAM_GROUP_TYPE] = {
-    { FCC_SCHEME_VERSION_TYPE,           FCC_BUNDLE_SCHEME_GROUP_NAME },
-    { FCC_ENTROPY_TYPE,                  FCC_ENTROPY_NAME },
-    { FCC_ROT_TYPE,                      FCC_ROT_NAME },
-    { FCC_IS_ALIVE_SESSION_GROUP_TYPE,   FCC_KEEP_ALIVE_SESSION_GROUP_NAME },
-    { FCC_KEY_GROUP_TYPE,                FCC_KEY_GROUP_NAME },
-    { FCC_CERTIFICATE_GROUP_TYPE,        FCC_CERTIFICATE_GROUP_NAME },
-    { FCC_CONFIG_PARAM_GROUP_TYPE,       FCC_CONFIG_PARAM_GROUP_NAME },
-    { FCC_CERTIFICATE_CHAIN_GROUP_TYPE,  FCC_CERTIFICATE_CHAIN_GROUP_NAME },
-    { FCC_VERIFY_DEVICE_IS_READY_TYPE,   FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME },
-    { FCC_FACTORY_DISABLE_TYPE,          FCC_FACTORY_DISABLE_GROUP_NAME },
-    { FCC_FCU_SESSION_ID_GROUP_TYPE,     FCC_FCU_SESSION_ID_GROUP_TYPE_NAME },
-    { FCC_CSR_REQUESTS_GROUP_TYPE,       FCC_CSR_REQUESTS_GROUP_NAME }
-};
-
-
-
+// FIXME - use better allocation mechanism
+#define MAX_RESPONSE_WITHOUT_CSRS 512
+#define MAX_RESPONSE_WITH_CSRS 512*5
 
 /* Response cbor blob structure
-
-{  "SchemeVersion": "0.0.1",
-   "FCUSessionID": uint32_t,
-   "Csrs": [ {"Name": "__", "Format":"_","Data":"__"},
+{  "Csrs": [ {"Name": "__", "Format":"_","Data":"__"},
              {"Name": "__", "Format":"_","Data":"__"}],
-   "WarningInfo": "string of warnings",
+   "SchemeVersion": "0.0.1",
+   "SID": text string,   
    "ReturnStatus": uint32_t,
-   "InfoMessage": "detailed error string"}
+   "InfoMessage": "detailed error string",
+   "WarningInfo": "string of warnings"}
 */
-/** Prepare a response message
+/** Encode params to response cbor top map
 *
-* The function prepare response buffer according to result of bundle buffer processing.
-* In case of failure, the function prepare buffer with status,scheme version and error logs,
-* in case of success - only the status and scheme version.
-*
-* @param bundle_response_out[in/out]   The pointer to response buffer.
-* @param bundle_response_size_out[out/out]     The size of response buffer.
-* @param fcc_status[in]     The result of bundle buffer processing.
+* The function encode scheme version, session id, result of bundle buffer processing, error and warning strings.
+* Note, CSR responses encoded during bundle process.
 * 
 * @return
 *     true for success, false otherwise.
 */
-static bool prepare_response_message(uint8_t **bundle_response_out, size_t *bundle_response_size_out, fcc_status_e fcc_status, cn_cbor *encoder, const uint8_t *session_id, size_t session_id_len)
+static bool encode_response_params(CborEncoder *tcbor_map_encoder, const char *session_id, size_t session_id_len, fcc_status_e fcc_status)
 {
-    bool status = false;
-    cn_cbor_errback err;
-    cn_cbor *cbor_struct_cb = NULL;
-    int size_of_cbor_buffer = 0;
-    int size_of_out_buffer = 0;
-    uint8_t *out_buffer = NULL;
-    char *error_string_info = NULL;
-    char *warning_string_info = NULL;
+    CborError tcbor_error = CborNoError;
     const char success_message[] = { "The Factory process succeeded\n" };
-    *bundle_response_out = NULL;
+    char *p_info_msg = NULL;
 
-    SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-    // If error has occurred during bundle processing - create a new encoder (all that was encoded is not needed)
-    // If no error occurred - the encoder will already have the scheme version and the FCU session ID inside an open map - therefore, in case of an error, we add them to a new map
-    if (fcc_status != FCC_STATUS_SUCCESS) {
-        // Free the old encoder and create a new one
-        if (encoder) {
-            cn_cbor_free(encoder CBOR_CONTEXT_PARAM);
-        }
-        encoder = cn_cbor_map_create(CBOR_CONTEXT_PARAM_COMMA &err);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((encoder == NULL), false, "Failed to create cbor map");
+    /* FCC_BUNDLE_SCHEME_GROUP_NAME - "SchemeVersion" */
+    tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, FCC_BUNDLE_SCHEME_GROUP_NAME);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
+    /* Value */
+    tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, g_fcc_bundle_scheme_version);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
 
-        /**
-        * Create cbor with scheme version
-        */
-        cbor_struct_cb = NULL;
-        cbor_struct_cb = cn_cbor_text_create((const uint8_t *)fcc_bundle_scheme_version, sizeof(fcc_bundle_scheme_version) CBOR_CONTEXT_PARAM, &err);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_struct_cb == NULL), status = false, exit, "Failed to create scheme_version_cb ");
-
-        //Put the cbor scheme version in cbor map with string key "SchemeVersion"
-        status = cn_cbor_mapput_string(encoder, FCC_BUNDLE_SCHEME_GROUP_NAME, cbor_struct_cb CBOR_CONTEXT_PARAM, &err);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, exit, "Failed to put return status to cbor map");
-
-        //Put the cbor session ID in cbor map with string key "SID"
-        if(session_id != NULL) { 
-            cbor_struct_cb = cn_cbor_text_create(session_id, (int)session_id_len CBOR_CONTEXT_PARAM, &err);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_struct_cb == NULL), status = false, exit, "CBOR error");
-
-            status = cn_cbor_mapput_string(encoder, FCC_FCU_SESSION_ID_GROUP_TYPE_NAME, cbor_struct_cb CBOR_CONTEXT_PARAM, &err);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, exit, "Failed to put return session ID");
-        }
+    /* FCC_FCU_SESSION_ID_GROUP_TYPE_NAME - "SID" */
+    if(session_id != NULL) { 
+        tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, FCC_FCU_SESSION_ID_GROUP_TYPE_NAME);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
+        /* Value */
+        tcbor_error = cbor_encode_text_string(tcbor_map_encoder, session_id, session_id_len);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
     }
 
+    /* FCC_RETURN_STATUS_GROUP_NAME - "ReturnStatus" */
+    tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, FCC_RETURN_STATUS_GROUP_NAME);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
+    /* Value */
+    tcbor_error = cbor_encode_int(tcbor_map_encoder, fcc_status);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
 
-    /**
-    * Create cbor with return status
-    */
-    cbor_struct_cb = cn_cbor_int_create(fcc_status CBOR_CONTEXT_PARAM, &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_struct_cb == NULL), status = false, exit, "Failed to create return_status_cb ");
-
-    //Put the cbor return status in cbor map with string key "ReturnStatus"
-    status = cn_cbor_mapput_string(encoder, FCC_RETURN_STATUS_GROUP_NAME, cbor_struct_cb CBOR_CONTEXT_PARAM, &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, exit, "Failed top put return status to cbor map");
-
-
-    /**
-    * Create cbor with error info
-    */
-    cbor_struct_cb = NULL;
+    /* FCC_ERROR_INFO_GROUP_NAME - "InfoMessage" */
+    tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, FCC_ERROR_INFO_GROUP_NAME);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
+    /* Value */
     if (fcc_status == FCC_STATUS_SUCCESS) {
-        cbor_struct_cb = cn_cbor_text_create((const uint8_t*)success_message, (int)strlen(success_message) CBOR_CONTEXT_PARAM, &err);
+        p_info_msg = (char*)success_message;
     } else {
-        error_string_info = fcc_get_output_error_info();
-        if (error_string_info == NULL) {
-            cbor_struct_cb = cn_cbor_text_create((const uint8_t*)g_fcc_general_status_error_str, (int)strlen(g_fcc_general_status_error_str) CBOR_CONTEXT_PARAM, &err);
-        } else {
-            cbor_struct_cb = cn_cbor_text_create((const uint8_t*)error_string_info, (int)strlen(error_string_info) CBOR_CONTEXT_PARAM, &err);
-       }
+        p_info_msg = fcc_get_output_error_info();
+        if (p_info_msg == NULL) {
+            p_info_msg = (char*)g_fcc_general_status_error_str;
+        }
     }
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_struct_cb == NULL), status = false, exit, "Failed to create cbor_struct_cb ");
+    tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, p_info_msg);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
 
-    //Put the cbor info message in cbor map with string key "infoMessage"
-    status = cn_cbor_mapput_string(encoder, FCC_ERROR_INFO_GROUP_NAME, cbor_struct_cb CBOR_CONTEXT_PARAM, &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, exit, "Failed top put cbor_struct_cb to cbor map");
-
-    /**
-    * Create cbor with warning info
-    */
-    cbor_struct_cb = NULL;
-    status = fcc_get_warning_status();
-    warning_string_info = fcc_get_output_warning_info();
-    SA_PV_ERR_RECOVERABLE_GOTO_IF(status == true && warning_string_info == NULL, status = false, exit, "Failed to get created warnings");
-    if (warning_string_info != NULL) {
-        cbor_struct_cb = cn_cbor_text_create((const uint8_t *)warning_string_info, (int)strlen(warning_string_info) CBOR_CONTEXT_PARAM, &err);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_struct_cb == NULL), status = false, exit, "Failed to create warning_message_cb ");
-
-        //Put the cbor info message in cbor map with string key "WarningInfo"
-        status = cn_cbor_mapput_string(encoder, FCC_WARNING_INFO_GROUP_NAME, cbor_struct_cb CBOR_CONTEXT_PARAM, &err);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), status = false, exit, "Failed top put warning_message_cb to cbor map");
-    } 
-
-    status = true;
-    //Get size of encoded cbor buffer
-    size_of_cbor_buffer = cn_cbor_get_encoded_size(encoder, &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((size_of_cbor_buffer == -1), status = false, exit, "Failed to get cbor buffer size");
-
-    //Allocate out buffer
-    out_buffer = fcc_malloc((size_t)size_of_cbor_buffer);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((out_buffer == NULL), status = false, exit, "Failed to allocate memory for out buffer");
-
-    //Write cbor blob to output buffer
-    size_of_out_buffer = cn_cbor_encoder_write(encoder, out_buffer, size_of_cbor_buffer, &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((size_of_out_buffer == -1), status = false, exit_without_out_buffer, "Failed to  write cbor buffer to output buffer");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((size_of_out_buffer != size_of_cbor_buffer), status = false, exit_without_out_buffer, "Wrong written size for outbut buffer");
-
-    //Update pointer and size of output buffer
-    *bundle_response_out = out_buffer;
-    *bundle_response_size_out = (size_t)size_of_out_buffer;
-    goto exit;
-
-exit_without_out_buffer:
-    fcc_free(out_buffer);
-
-    // Nullify pointer so that the user cannot accidentally double free it.
-    *bundle_response_out = NULL;
-exit:
-    // FIXME: Free the CSRs buffer after the writing to the encoder buffer. Not needed after migration to tinycbor
-    g_csr_buf_free();
-    fcc_free(warning_string_info);
-    if (encoder != NULL) {
-        cn_cbor_free(encoder CBOR_CONTEXT_PARAM);
+    /* FCC_WARNING_INFO_GROUP_NAME - "WarningInfo" */
+    p_info_msg = fcc_get_output_warning_info();
+    if (p_info_msg) {
+        tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, FCC_WARNING_INFO_GROUP_NAME);
+        if (tcbor_error != CborNoError) {
+            goto free_info_msg;
+        }
+        /* Value */
+        tcbor_error = cbor_encode_text_stringz(tcbor_map_encoder, p_info_msg);
+free_info_msg:
+        // free warning string
+        fcc_free(p_info_msg);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "CBOR encode failure");
     }
-    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
-    return status;
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+
+    return true;
 }
-
 
 /** Checks bundle scheme version
 *
-* @param cbor_blob[in]   The pointer to main cbor blob.
-* @param encoder[in]     Pointer to an encoder that points to the beginning of the CBOR response encoder
+* @param tcbor_top_map[in]  The pointer to top cbor map in blob.
 *
-* FIXME: When we migrate to tinycbor encoder should be pointer to the encoder so that after encoding, the encoder will point to the next available spot in the response CBOR
+*  The function search for "SchemeVersion" key in the map and compare it to g_fcc_bundle_scheme_version.
+*      "SchemeVersion" value can be byte or text string.
+*
 * @return
 *     true for success, false otherwise.
 */
-static bool check_scheme_version(cn_cbor *cbor_blob, cn_cbor *encoder)
+static bool check_scheme_version(CborValue *tcbor_top_map)
 {
-    cn_cbor *cbor = NULL;
+    CborError tcbor_error = CborNoError;
+    CborValue tcbor_val;
+    CborType tcbor_type;
     bool status;
-    int result;
+    const char *scheme_version = NULL;
+    size_t        scheme_version_len = 0;
 
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_blob == NULL), false, "Invalid cbor_blob");
+    tcbor_error = cbor_value_map_find_value(tcbor_top_map, FCC_BUNDLE_SCHEME_GROUP_NAME, &tcbor_val);
+    tcbor_type = cbor_value_get_type(&tcbor_val);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError || !(tcbor_type == CborTextStringType || tcbor_type == CborByteStringType)), 
+                                    false, "Failed to get scheme version group");
 
-    cbor = cn_cbor_mapget_string(cbor_blob, FCC_BUNDLE_SCHEME_GROUP_NAME);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor == NULL), false, "Failed to find scheme version group");
+    status = fcc_bundle_get_variant(&tcbor_val, (const uint8_t**)&scheme_version, &scheme_version_len, NULL, NULL, 0);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((!status), status, "Failed to parse scheme version");
 
-    result = is_memory_equal(cbor->v.bytes, (size_t)(cbor->length), fcc_bundle_scheme_version, (size_t)strlen(fcc_bundle_scheme_version));
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((!result), false, "Wrong scheme version");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((scheme_version_len != strlen(g_fcc_bundle_scheme_version)), false, "Wrong scheme version length");
 
-    // append the scheme version key-value into the encoder
-    cbor = cn_cbor_text_create((const uint8_t *)fcc_bundle_scheme_version, sizeof(fcc_bundle_scheme_version) CBOR_CONTEXT_PARAM, NULL);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor == NULL), false, "Failed to create scheme_version_cb ");
-
-    status = cn_cbor_mapput_string(encoder, FCC_BUNDLE_SCHEME_GROUP_NAME, cbor, CBOR_CONTEXT_PARAM_COMMA NULL);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((status == false), status, "CBOR error");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((strncmp(g_fcc_bundle_scheme_version, scheme_version, scheme_version_len) != 0), false, "Wrong scheme version");
 
     return true;
 }
 
-/** Checks the FCU session ID and encodes it into the encoder
-*
-* @param parser[in]             Pointer to cbor containing the FCU session ID (the value of the KV pair where the key is FCC_FCU_SESSION_ID_GROUP_TYPE_NAME).
-* @param encoder[in]            Pointer to an encoder that points to the beginning of the CBOR response encoder.
-* @param session_id[out]        Pointer to a pointer that will point to the session ID in the incoming message.
-* @param session_id_len[out]    The length of the session ID in the incoming message.
-*
-* FIXME: When we migrate to tinycbor encoder should be pointer to the encoder so that after encoding, the encoder will point to the next available spot in the response CBOR
-* @return
-*     true for success, false otherwise.
-*/
-static bool fcc_bundle_process_session_id(cn_cbor *parser, cn_cbor *encoder, const uint8_t **session_id, size_t *session_id_len)
+static bool run_basic_validation(const uint8_t *encoded_blob, size_t encoded_blob_size)
 {
-    cn_cbor *cbor = NULL;
-    bool status;
+    CborParser tcbor_parser;
+    CborValue tcbor_val;
+    CborError tcbor_error = CborNoError;
 
-    // Get the session ID from the message and make sure that it is either a text or bytes string
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((parser->type != CN_CBOR_TEXT), false, "Session ID of wrong type");
+    /* Init CBOR parser with blob message */
+    tcbor_error = cbor_parser_init(encoded_blob, encoded_blob_size, 0, &tcbor_parser, &tcbor_val);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "cbor_parser_init failed (%" PRIu32 ")", (uint32_t)tcbor_error);
 
-    // Output the values for use of the prepare_response_message() function in case of an error during the bundle handling process
-    *session_id = (uint8_t *)parser->v.bytes;
-    *session_id_len = (size_t)parser->length;
+    // run tinycbor basic validation on the cbor message
+    tcbor_error = cbor_value_validate_basic(&tcbor_val);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "cbor basic validation failed (%" PRIu32 ")", (uint32_t)tcbor_error);
 
-    cbor = cn_cbor_text_create(*session_id, (int)*session_id_len CBOR_CONTEXT_PARAM, NULL);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor == NULL), false, "CBOR error");
-	
-    // append the session id key-value into the encoder
-    status = cn_cbor_mapput_string(encoder, FCC_FCU_SESSION_ID_GROUP_TYPE_NAME, cbor, CBOR_CONTEXT_PARAM_COMMA NULL);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((status == false), false, "CBOR error");
-
-    return true;
-}
-
-
-
-/** The function parses group that indicates if current session will be closed after the processing of the message.
-*  The function checks existence and value of the group and sets the result to global variable g_is_alive_sesssion.
-*
-* @param cbor_blob[in]   The pointer to main cbor blob.
-* @return
-*     true for success, false otherwise.
-*/
-static bool parse_keep_alive_session_group(cn_cbor *cbor_blob)
-{
-    cn_cbor *is_alive_message = NULL;
-
-    is_alive_message = cn_cbor_mapget_string(cbor_blob, FCC_KEEP_ALIVE_SESSION_GROUP_NAME);
-    //In case current group wasn't found -  set g_is_not_last_message to false (for backward compatibility)
-    if (is_alive_message == NULL) {
-        g_is_session_finished = true;
-        return true;
-    }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((is_alive_message->type != CN_CBOR_UINT || is_alive_message->v.uint > 1), false, "Wrong is alive session structure");
-
-    // Session is finished if value is 0, and alive if value is 1
-    g_is_session_finished = !(is_alive_message->v.uint);
+    // advance tcbor_val by one element, skipping over containers.
+    // expect it to point at the end of the blob (cbor blob size equal encoded_blob_size)
+    tcbor_error = cbor_value_advance(&tcbor_val);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), false, "cbor basic validation failed (%" PRIu32 ")", (uint32_t)tcbor_error);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_val.ptr != (encoded_blob + encoded_blob_size)), false, "cbor validation failed. unexpected blob size.");
 
     return true;
 }
 
-/* CBOR blob structure
+/* Request CBOR blob structure
 {   "SchemeVersion": "0.0.1",
-    "FCUSessionID": uint32_t,
+    "SID": text string,
     "IsNotLastMessage": 1 or 0,
     "Entropy": [byte array - 48 bytes],
-    "Csrs": [ {"PrivKeyName":"__",
+    "CsrReqs": [ {"PrivKeyName":"__",
                "PubKeyName": "__", -optional
                "Extensions": [
                                {"TrustLevel": uint32_t },
@@ -385,83 +239,93 @@ static bool parse_keep_alive_session_group(cn_cbor *cbor_blob)
     "Verify":1, 
     "Disable":1}
 */
+/* Response CBOR blob structure
+{  "Csrs": [ {"Name": "__", "Format":"_","Data":"__"},
+             {"Name": "__", "Format":"_","Data":"__"}],
+   "SchemeVersion": "0.0.1",
+   "SID": text string,   
+   "ReturnStatus": uint32_t,
+   "InfoMessage": "detailed error string",
+   "WarningInfo": "string of warnings"}
+*/
 fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob_size, uint8_t **bundle_response_out, size_t *bundle_response_size_out)
 {
     bool status = false;
     bool is_fcc_factory_disabled = false;
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
-    cn_cbor *main_list_cb = NULL;
-    cn_cbor *group_value_cb = NULL;
-    cn_cbor *response_cbor = NULL;
-    cn_cbor_errback err;
-    size_t group_index;
-    fcc_bundle_param_group_type_e group_type;
-    size_t num_of_groups_in_message = 0;
-    const uint8_t *session_id = NULL;
+    const char *session_id = NULL;
     size_t session_id_len = 0;
     bool fcc_verify_status = true; // the default value of verify status is true
+    bool fcc_keep_alive_status = false;// the default value of keep alive status is false
     bool fcc_disable_status = false;// the default value of disable status is false
     kcm_status_e kcm_status;
+
+    CborParser tcbor_parser;
+    CborValue tcbor_top_map;
+    CborValue tcbor_val;
+    CborValue tcbor_csr_reqs_val;
+    size_t keys_in_map;
+    const char *key_name;
+    size_t key_name_len;
+
+    CborEncoder tcbor_encoder;
+    CborEncoder tcbor_map_encoder;
+    CborError tcbor_error = CborNoError;
+    uint8_t *response_buf = NULL;
+    size_t response_buf_size = 0;
 
     FCC_SET_START_TIMER(fcc_bundle_timer);
 
     SA_PV_LOG_INFO_FUNC_ENTER("encoded_blob_size = %" PRIu32 "", (uint32_t)encoded_blob_size);
 
-    // Set *bundle_response_out to NULL before fcc_is_factory_disabled call so that in case factory is disabled - return FCC_STATUS_FACTORY_DISABLED_ERROR and nullify *bundle_response_out
-    if (bundle_response_out != NULL) {
-        // Set to NULL so that the user does not accidentally free a non NULL pointer after the function returns.
-        *bundle_response_out = NULL;
-    }
     // Check params
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!fcc_is_initialized()), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((bundle_response_out == NULL), FCC_STATUS_INVALID_PARAMETER, "Invalid bundle_response_out");
-
+    *bundle_response_out = NULL;
     SA_PV_ERR_RECOVERABLE_RETURN_IF((bundle_response_size_out == NULL), FCC_STATUS_INVALID_PARAMETER, "Invalid bundle_response_size_out");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((encoded_blob == NULL), fcc_status = FCC_STATUS_INVALID_PARAMETER, exit, "Invalid encoded_blob");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((encoded_blob_size == 0), fcc_status = FCC_STATUS_INVALID_PARAMETER, exit, "Invalid encoded_blob_size");
+    *bundle_response_size_out = 0;
 
-    /*Initialize fcc_output_info_s structure , in case of error during store process the
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((encoded_blob == NULL), fcc_status = FCC_STATUS_INVALID_PARAMETER, exit_and_response, "Invalid encoded_blob");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((encoded_blob_size == 0), fcc_status = FCC_STATUS_INVALID_PARAMETER, exit_and_response, "Invalid encoded_blob_size");
+
+    // Initialize tcbor_csr_reqs_val type to invalid to indicate non existance of "CsrReqs" key
+    tcbor_csr_reqs_val.type = CborInvalidType;
+
+    /* Initialize fcc_output_info_s structure , in case of error during store process the
     function will exit without fcc_verify_device_configured_4mbed_cloud where we perform additional fcc_clean_output_info_handler*/
     fcc_clean_output_info_handler();
 
-    // Create the CBOR encoder, an empty map
-    response_cbor = cn_cbor_map_create(CBOR_CONTEXT_PARAM_COMMA &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((response_cbor == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, exit, "Failed to instantiate cbor structure");
+    // check blob validity. 
+    status = run_basic_validation(encoded_blob, encoded_blob_size);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "cbor validation failed");
 
-    /* Decode CBOR message
-    Check the size of the CBOR structure */
-    main_list_cb = cn_cbor_decode(encoded_blob, encoded_blob_size CBOR_CONTEXT_PARAM, &err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((main_list_cb == NULL), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "cn_cbor_decode failed (%" PRIu32 ")", (uint32_t)err.err);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((main_list_cb->type != CN_CBOR_MAP), fcc_status = FCC_STATUS_BUNDLE_ERROR, free_cbor_list_and_out, "Wrong CBOR structure type");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((main_list_cb->length <= 0 || main_list_cb->length > FCC_MAX_CONFIG_PARAM_GROUP_TYPE *FCC_CBOR_MAP_LENGTH), fcc_status = FCC_STATUS_BUNDLE_ERROR, free_cbor_list_and_out, "Wrong CBOR structure size");
+    /* Init CBOR parser with blob message */
+    tcbor_error = cbor_parser_init(encoded_blob, encoded_blob_size, 0, &tcbor_parser, &tcbor_top_map);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "cbor_parser_init failed (%" PRIu32 ")", (uint32_t)tcbor_error);
+
+    // check tcbor_top_map point is map
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_value_is_map(&tcbor_top_map) == false), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Wrong CBOR structure type");
+
+    // check num of keys in top map. note: currently, we are not supporting indefinite map
+    tcbor_error = cbor_value_get_map_length(&tcbor_top_map, &keys_in_map);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError || keys_in_map > FCC_MAX_KEYS_IN_MAP), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Wrong CBOR structure size");
 
     /* Check scheme version*/
-    status = check_scheme_version(main_list_cb, response_cbor);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), fcc_status = FCC_STATUS_BUNDLE_INVALID_SCHEME, free_cbor_list_and_out, "check_scheme_version failed");
+    status = check_scheme_version(&tcbor_top_map);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), fcc_status = FCC_STATUS_BUNDLE_INVALID_SCHEME, exit_and_response, "check_scheme_version failed");
 
-    /* Parse and save is message status */
-    status = parse_keep_alive_session_group(main_list_cb);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, free_cbor_list_and_out, "parse_keep_alive_session_group failed");
-
-/*
-     * In order for file functions to work properly, we must first inject the entropy, 
-     * if we have one to inject. If entropy is expected, its existance is required for
-     * every random number generation in the system.
-     * If FCC_ENTROPY_NAME not in bundle (and user did not use the fcc_entropy_set()), 
-     * then device must have TRNG or storage functions will fail.
-     */
-    group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ENTROPY_NAME);
-    if (group_value_cb) {
-        fcc_status = fcc_bundle_process_buffer(group_value_cb, STORAGE_RBP_RANDOM_SEED_NAME, FCC_BUNDLE_BUFFER_TYPE_ENTROPY);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for entropy");
-    }
+    /* In order for file functions to work properly, we must first inject the entropy, 
+    *  if we have one to inject. If entropy is expected, its existance is required for
+    *  every random number generation in the system.
+    *  If FCC_ENTROPY_NAME not in bundle (and user did not use the fcc_entropy_set()), 
+    *  then device must have TRNG or storage functions will fail.
+    */
+    fcc_status = fcc_bundle_process_rbp_buffer(&tcbor_top_map, FCC_ENTROPY_NAME, STORAGE_RBP_RANDOM_SEED_NAME);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_rbp_buffer failed for entropy");
 
     /* If RoT injection is expected (to derive storage key) it also must be done prior to storage calls */
-    group_value_cb = cn_cbor_mapget_string(main_list_cb, FCC_ROT_NAME);
-    if (group_value_cb) {
-        fcc_status = fcc_bundle_process_buffer(group_value_cb, STORAGE_RBP_ROT_NAME, FCC_BUNDLE_BUFFER_TYPE_ROT);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_buffer failed for RoT");
-    }
+    fcc_status = fcc_bundle_process_rbp_buffer(&tcbor_top_map, FCC_ROT_NAME, STORAGE_RBP_ROT_NAME);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_rbp_buffer failed for RoT");
 
     /*
      * At this point we assume that if user expects to inject an entropy - it exists
@@ -474,96 +338,139 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
 
     // Now we may initialize the KCM, including the secure time and the file systen
     kcm_status = kcm_init();
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), free_cbor_list_and_out, "Failed for kcm_init");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), exit_and_response, "Failed for kcm_init");
 
     // Check if factory flow is disabled (if flag in storage), if it is, do not proceed
     // Turn on is_fcc_factory_disabled even if we get an error, so that we know not to prepare a response
     fcc_status = fcc_is_factory_disabled(&is_fcc_factory_disabled);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), is_fcc_factory_disabled = true, free_cbor_list_and_out, "Failed for fcc_is_factory_disabled");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((is_fcc_factory_disabled), fcc_status = FCC_STATUS_FACTORY_DISABLED_ERROR, free_cbor_list_and_out, "FCC is disabled, service not available");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), is_fcc_factory_disabled = true, exit_and_response, "Failed for fcc_is_factory_disabled");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((is_fcc_factory_disabled), fcc_status = FCC_STATUS_FACTORY_DISABLED_ERROR, exit_and_response, "FCC is disabled, service not available");
+    
+    // Enter top map container
+    tcbor_error = cbor_value_enter_container(&tcbor_top_map, &tcbor_val);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Failed during parse of blob");
 
-    //Go over parameter groups
-    for (group_index = 0; group_index < FCC_MAX_CONFIG_PARAM_GROUP_TYPE; group_index++) {
-        //Get content of current group (value of map, when key of map is name of group and value is list of params of current group)
-        SA_PV_LOG_INFO(" fcc_groups_lookup_table[group_index].group_name is %s", fcc_groups_lookup_table[group_index].group_name);
-        group_value_cb = cn_cbor_mapget_string(main_list_cb, fcc_groups_lookup_table[group_index].group_name);
+    // go over top map keys and process key values
+    while (!cbor_value_at_end(&tcbor_val)) {
 
-        if (group_value_cb != NULL) {
-            //Get type of group
-            group_type = fcc_groups_lookup_table[group_index].group_type;
-            num_of_groups_in_message++;
+        // get key name
+        status = fcc_bundle_get_text_string(&tcbor_val, &key_name, &key_name_len, NULL, 0);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Failed during parse of blob");
+        SA_PV_LOG_INFO(" key name %.*s", (int)key_name_len, key_name);
 
-            switch (group_type) {
-                // Scheme version, Entropy, RoT and Keep Alive were handled prior to this switch statement
-                case FCC_SCHEME_VERSION_TYPE:
-                case FCC_ENTROPY_TYPE: // Non volatile entropy for random generator
-                case FCC_ROT_TYPE: // Root of trust for deriving secure storage key
-                case FCC_IS_ALIVE_SESSION_GROUP_TYPE:
-                    break;
-                case FCC_KEY_GROUP_TYPE:
-                    FCC_SET_START_TIMER(fcc_gen_timer);
-                    fcc_status = fcc_bundle_process_keys(group_value_cb);
-                    FCC_END_TIMER("Total keys process", 0 ,fcc_gen_timer);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_keys failed");
-                    break;
-                case FCC_CERTIFICATE_GROUP_TYPE:
-                    FCC_SET_START_TIMER(fcc_gen_timer);
-                    fcc_status = fcc_bundle_process_certificates(group_value_cb);
-                    FCC_END_TIMER("Total certificates process", 0, fcc_gen_timer);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_certificates failed");
-                    break;
-                case FCC_CONFIG_PARAM_GROUP_TYPE:
-                    FCC_SET_START_TIMER(fcc_gen_timer);
-                    fcc_status = fcc_bundle_process_config_params(group_value_cb);
-                    FCC_END_TIMER("Total config params process", 0, fcc_gen_timer);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_config_params failed");
-                    break;
-                case FCC_CERTIFICATE_CHAIN_GROUP_TYPE:
-                    FCC_SET_START_TIMER(fcc_gen_timer);
-                    fcc_status = fcc_bundle_process_certificate_chains(group_value_cb);
-                    FCC_END_TIMER("Total certificate chains process", 0, fcc_gen_timer);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_certificate_chains failed");
-                    break;
-                case FCC_VERIFY_DEVICE_IS_READY_TYPE: //Check if device need to be verified
-                    fcc_status = bundle_process_status_field(group_value_cb, (char*)FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME, strlen((char*)FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME), &fcc_verify_status);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "process_device_verify failed");
-                    break;
-                case FCC_FACTORY_DISABLE_TYPE://Check if device need to be disabled for factory
-                    fcc_status = bundle_process_status_field(group_value_cb, (char*)FCC_FACTORY_DISABLE_GROUP_NAME, strlen((char*)FCC_FACTORY_DISABLE_GROUP_NAME), &fcc_disable_status);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_factory_disable failed");
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_disable_status == true && g_is_session_finished == false), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, free_cbor_list_and_out, "can not disable fcc for intermidiate message");
-                    break;
-                case FCC_FCU_SESSION_ID_GROUP_TYPE:
-                    status = fcc_bundle_process_session_id(group_value_cb, response_cbor, &session_id, &session_id_len);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, free_cbor_list_and_out, "fcc_bundle_process_session_id failed");
-                    break;
-                case FCC_CSR_REQUESTS_GROUP_TYPE:
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((session_id == NULL), fcc_status = FCC_STATUS_BUNDLE_ERROR, free_cbor_list_and_out, "Session ID is required when providing CSR requests");
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_verify_status || fcc_disable_status), fcc_status = FCC_STATUS_BUNDLE_ERROR, free_cbor_list_and_out, "Verify and Disable flags must not exist with CSR requests");
-                    FCC_SET_START_TIMER(fcc_gen_timer);
-                    fcc_status = fcc_bundle_process_csrs(group_value_cb, response_cbor);
-                    FCC_END_TIMER("Total keys and CSR creation process", 0, fcc_gen_timer);
-                    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_bundle_process_csrs failed");
-                    break;
-                default:
-                    fcc_status = FCC_STATUS_BUNDLE_UNSUPPORTED_GROUP;
-                    SA_PV_LOG_ERR("Wrong group type");
-                    goto free_cbor_list_and_out;
-            }
+        // advance tcbor_val to key value
+        tcbor_error = cbor_value_advance(&tcbor_val);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Failed during parse of blob");
+
+        if ((strncmp(FCC_BUNDLE_SCHEME_GROUP_NAME, key_name, key_name_len) == 0) ||
+            (strncmp(FCC_ENTROPY_NAME, key_name, key_name_len) == 0) ||
+            (strncmp(FCC_ROT_NAME, key_name, key_name_len) == 0)) {
+
+            // key was handled before while loop
+
+        } else if (strncmp(FCC_KEY_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            FCC_SET_START_TIMER(fcc_gen_timer);
+            fcc_status = fcc_bundle_process_maps_in_arr(&tcbor_val, fcc_bundle_process_keys_cb, NULL);
+            FCC_END_TIMER("Total keys process", 0 ,fcc_gen_timer);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_keys failed");
+
+        } else if (strncmp(FCC_CERTIFICATE_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            FCC_SET_START_TIMER(fcc_gen_timer);
+            fcc_status = fcc_bundle_process_maps_in_arr(&tcbor_val, fcc_bundle_process_certificates_cb, (void*)false);
+            FCC_END_TIMER("Total certificates process", 0, fcc_gen_timer);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_certificates failed");
+
+        } else if (strncmp(FCC_CERTIFICATE_CHAIN_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            FCC_SET_START_TIMER(fcc_gen_timer);
+            fcc_status = fcc_bundle_process_maps_in_arr(&tcbor_val, fcc_bundle_process_certificates_cb, (void*)true);
+            FCC_END_TIMER("Total certificate chains process", 0, fcc_gen_timer);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_certificate_chains failed");
+
+        } else if (strncmp(FCC_CONFIG_PARAM_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            FCC_SET_START_TIMER(fcc_gen_timer);
+            fcc_status = fcc_bundle_process_maps_in_arr(&tcbor_val, fcc_bundle_process_config_param_cb, NULL);
+            FCC_END_TIMER("Total config params process", 0, fcc_gen_timer);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_config_params failed");
+
+        } else if (strncmp(FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            // Check if device need to be verified
+            status = fcc_bundle_get_bool(&tcbor_val, &fcc_verify_status, FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME, strlen(FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME));
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "fcc_bundle_get_bool failed");
+
+        } else if (strncmp(FCC_FACTORY_DISABLE_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            // Check if device need to be disabled for factory
+            status = fcc_bundle_get_bool(&tcbor_val, &fcc_disable_status, FCC_FACTORY_DISABLE_GROUP_NAME, strlen(FCC_FACTORY_DISABLE_GROUP_NAME));
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "fcc_bundle_get_bool failed");
+
+        } else if (strncmp(FCC_KEEP_ALIVE_SESSION_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            status = fcc_bundle_get_bool(&tcbor_val, &fcc_keep_alive_status, FCC_KEEP_ALIVE_SESSION_GROUP_NAME, strlen(FCC_KEEP_ALIVE_SESSION_GROUP_NAME));
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, exit_and_response, "fcc_bundle_get_bool failed");
+
+        } else if (strncmp(FCC_FCU_SESSION_ID_GROUP_TYPE_NAME, key_name, key_name_len) == 0) {
+
+            //Check if device need to be disabled for factory
+            status = fcc_bundle_get_text_string(&tcbor_val, &session_id, &session_id_len, FCC_FCU_SESSION_ID_GROUP_TYPE_NAME, strlen(FCC_FCU_SESSION_ID_GROUP_TYPE_NAME));
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "fcc_bundle_get_text_string failed");
+
+        } else if (strncmp(FCC_CSR_REQUESTS_GROUP_NAME, key_name, key_name_len) == 0) {
+
+            // CSR requests depend on other keys so
+            //  copy tcbor_val to tcbor_csr_reqs_val for later use.
+            tcbor_csr_reqs_val = tcbor_val;
+            
+        } else {
+            SA_PV_ERR_RECOVERABLE_GOTO_IF(true, fcc_status = FCC_STATUS_BUNDLE_INVALID_GROUP, exit_and_response, "Wrong group type");
         }
+
+        // advance tcbor_val to next key in top map
+        tcbor_error = cbor_value_advance(&tcbor_val);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Failed during parse of blob");
+
+    } // end loop (key,value)
+
+    // set g_is_session_finished to the opossite value of keep alive flag
+    g_is_session_finished = !fcc_keep_alive_status;
+
+    // test illegal request - request to disable while not last blob in session
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_disable_status == true && g_is_session_finished == false), fcc_status = FCC_STATUS_BUNDLE_INVALID_KEEP_ALIVE_SESSION_STATUS, exit_and_response, "can not disable fcc for intermidiate message");
+
+    // Check if there was CSR request waiting to be handled (is tcbor_csr_reqs_val point to valid type)
+    if (cbor_value_is_valid(&tcbor_csr_reqs_val)) {
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((session_id == NULL), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Session ID is required when providing CSR requests");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_verify_status || fcc_disable_status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit_and_response, "Verify and Disable flags must not exist with CSR requests");
+        FCC_SET_START_TIMER(fcc_gen_timer);
+        if (response_buf == NULL) {
+            // If not allocated before, allocate response message buffer to be used by tinycbor encoder
+            // FIXME - use better allocation mechanism
+            response_buf_size = MAX_RESPONSE_WITH_CSRS;
+            response_buf = fcc_malloc(response_buf_size);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((response_buf == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, exit_and_free, "Failed to allocate message response buffer");    
+            // initialize response encoder
+            cbor_encoder_init(&tcbor_encoder, response_buf, response_buf_size, 0);
+            // create the top map response encoder
+            tcbor_error = cbor_encoder_create_map(&tcbor_encoder, &tcbor_map_encoder, CborIndefiniteLength);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), (fcc_status = FCC_STATUS_BUNDLE_RESPONSE_ERROR), exit_and_free, "Failed to prepare out response");
+        }
+        fcc_status = fcc_bundle_process_csr_reqs(&tcbor_csr_reqs_val, &tcbor_map_encoder);
+        FCC_END_TIMER("Total keys and CSR creation process", 0, fcc_gen_timer);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_csrs failed");
     }
 
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((num_of_groups_in_message == 0), fcc_status = FCC_STATUS_INVALID_PARAMETER, free_cbor_list_and_out, "No groups in message");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF(((size_t)(main_list_cb->length/FCC_CBOR_MAP_LENGTH)!= num_of_groups_in_message), fcc_status = FCC_STATUS_BUNDLE_INVALID_GROUP, free_cbor_list_and_out, "One ore more names of groups are invalid");
-
-    // If not keep alive
+    // If session finished
     if (g_is_session_finished) {
         // Note that FCC_STATUS_CA_ERROR is being return only in case where the CA already exists
         // in SOTP, if in the future more error conditions will be attached to FCC_STATUS_CA_ERROR error code
         // then the logic here MUST be change.
         // Only if this is the last message - set the certificate ID
         fcc_status = fcc_trust_ca_cert_id_set();
-        SA_PV_ERR_RECOVERABLE_GOTO_IF(((fcc_status != FCC_STATUS_SUCCESS) && (fcc_status != FCC_STATUS_CA_ERROR)), (fcc_status = fcc_status), free_cbor_list_and_out, "CA store error %u", fcc_status);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF(((fcc_status != FCC_STATUS_SUCCESS) && (fcc_status != FCC_STATUS_CA_ERROR)), (fcc_status = fcc_status), exit_and_response, "CA store error %u", fcc_status);
 
     }
 
@@ -571,33 +478,64 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
         // device VERIFY group does NOT exist in the CBOR message and device is NOT disabled.
         // Perform device verification to keep backward compatibility.
 
-
         FCC_SET_START_TIMER(fcc_gen_timer);
         fcc_status = fcc_verify_device_configured_4mbed_cloud();
         FCC_END_TIMER("Total verify device", 0, fcc_gen_timer);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_verify_device_configured_4mbed_cloud failed");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_verify_device_configured_4mbed_cloud failed");
     }
 
     if (fcc_disable_status == true) {
         fcc_status = fcc_bundle_factory_disable();
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, free_cbor_list_and_out, "fcc_factory_disable failed");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_factory_disable failed");
     }
 
-free_cbor_list_and_out:
-    cn_cbor_free(main_list_cb CBOR_CONTEXT_PARAM);
-exit:
+exit_and_response:
     // If we discovered that factory is disabled (or fcc_is_factory_disabled failed) - do not prepare a response
-    if (is_fcc_factory_disabled == false) {
-        //Prepare bundle response message
-        status = prepare_response_message(bundle_response_out, bundle_response_size_out, fcc_status, response_cbor, session_id, session_id_len);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((status != true), FCC_STATUS_BUNDLE_RESPONSE_ERROR, "Failed to prepare out response");
-        SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
-        FCC_END_TIMER("Total fcc_bundle_handler device", 0, fcc_bundle_timer);
-    } else {
-        // We may have started encoding the response, but gotten an error, if so - free the encoder
-        if (response_cbor) {
-            cn_cbor_free(response_cbor CBOR_CONTEXT_PARAM);
+    if (!is_fcc_factory_disabled) {
+        if (response_buf == NULL) {
+            // If not allocated before, allocate response message buffer to be used by tinycbor encoder
+            // FIXME - use better allocation mechanism
+            response_buf_size = MAX_RESPONSE_WITHOUT_CSRS;
+            response_buf = fcc_malloc(response_buf_size);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((response_buf == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, exit_and_free, "Failed to allocate message response buffer");    
+            // initialize response encoder
+            cbor_encoder_init(&tcbor_encoder, response_buf, response_buf_size, 0);
+            // create the top map response encoder
+            tcbor_error = cbor_encoder_create_map(&tcbor_encoder, &tcbor_map_encoder, CborIndefiniteLength);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), (fcc_status = FCC_STATUS_BUNDLE_RESPONSE_ERROR), exit_and_free, "Failed to prepare out response");
+        } else {
+            // If response_buf was allocated and there was error during message process, drop previously encoded data
+            if (fcc_status != FCC_STATUS_SUCCESS) {
+                // initialize response encoder
+                cbor_encoder_init(&tcbor_encoder, response_buf, response_buf_size, 0);
+                // create the top map response encoder
+                tcbor_error = cbor_encoder_create_map(&tcbor_encoder, &tcbor_map_encoder, CborIndefiniteLength);
+                SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), (fcc_status = FCC_STATUS_BUNDLE_RESPONSE_ERROR), exit_and_free, "Failed to prepare out response");
+            }
         }
+
+        // Encode bundle response params
+        status = encode_response_params(&tcbor_map_encoder, session_id, session_id_len, fcc_status);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((status != true), (fcc_status = FCC_STATUS_BUNDLE_RESPONSE_ERROR), exit_and_free, "Failed to prepare out response");
+
+        // close top map response encoder
+        tcbor_error = cbor_encoder_close_container(&tcbor_encoder, &tcbor_map_encoder);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((tcbor_error != CborNoError), (fcc_status = FCC_STATUS_BUNDLE_RESPONSE_ERROR), exit_and_free, "Failed to prepare out response");
+
+        // set bundle_response_out
+        *bundle_response_out = response_buf;
+
+        // set bundle_response_size_out to actual cbor buffer size
+        *bundle_response_size_out = cbor_encoder_get_buffer_size(&tcbor_encoder, response_buf);
+
+        FCC_END_TIMER("Total fcc_bundle_handler device", 0, fcc_bundle_timer);
     }
+exit_and_free:
+    if (response_buf && *bundle_response_out != response_buf) {
+        // We have start encoding the response but got an error before setting *bundle_response_out, free the response_buf
+        fcc_free(response_buf);
+    }
+
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return fcc_status;
 }

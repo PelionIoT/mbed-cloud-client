@@ -137,6 +137,11 @@ void UpdateClient::set_update_authorize_handler(void (*handler)(int32_t request)
     ARM_UC_SetAuthorizeHandler(handler);
 }
 
+void UpdateClient::set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority))
+{
+    ARM_UC_SetAuthorizePriorityHandler(handler);
+}
+
 void UpdateClient::update_authorize(int32_t request)
 {
     switch (request)
@@ -146,6 +151,22 @@ void UpdateClient::update_authorize(int32_t request)
             break;
         case RequestInstall:
             ARM_UC_Authorize(ARM_UCCC_REQUEST_INSTALL);
+            break;
+        case RequestInvalid:
+        default:
+            break;
+    }
+}
+
+void UpdateClient::update_reject(int32_t request, int32_t reason)
+{
+    switch (request)
+    {
+        case RequestDownload:
+            ARM_UC_Reject(ARM_UCCC_REQUEST_DOWNLOAD, (arm_uc_reject_reason_t)reason);
+            break;
+        case RequestInstall:
+            ARM_UC_Reject(ARM_UCCC_REQUEST_INSTALL, (arm_uc_reject_reason_t)reason);
             break;
         case RequestInvalid:
         default:

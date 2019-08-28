@@ -464,6 +464,7 @@ public:
      */
     uint32_t max_age() const;
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     /**
      * \brief Parses the received query for the notification
      * attribute.
@@ -471,6 +472,7 @@ public:
      * \return True if required attributes are present, else false.
      */
     virtual bool handle_observation_attribute(const char *query);
+#endif
 
     /**
      * \brief Handles GET request for the registered objects.

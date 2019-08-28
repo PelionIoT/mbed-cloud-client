@@ -19,6 +19,8 @@
 
 #include "storage_items.h"
 
+
+
 /** Implementation function of writing a new item to storage
 *
 *    @param[in] kcm_item_name KCM item name.

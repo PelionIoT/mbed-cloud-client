@@ -556,7 +556,7 @@ int8_t sn_nsdl_is_ep_registered(struct nsdl_s *handle)
 int32_t sn_nsdl_send_observation_notification(struct nsdl_s *handle, uint8_t *token_ptr, uint8_t token_len,
    uint8_t *payload_ptr, uint16_t payload_len, sn_coap_observe_e observe, sn_coap_msg_type_e message_type,
    sn_coap_content_format_e content_format,
-   const int32_t message_id)
+   const int32_t message_id, const uint32_t max_age)
 {
     sn_coap_hdr_s   *notification_message_ptr;
     int32_t         return_msg_id = 0;
@@ -591,6 +591,7 @@ int32_t sn_nsdl_send_observation_notification(struct nsdl_s *handle, uint8_t *to
 
     /* Fill observe */
     notification_message_ptr->options_list_ptr->observe = observe;
+    notification_message_ptr->options_list_ptr->max_age = max_age;
 
     /* Fill content format */
     notification_message_ptr->content_format = content_format;

@@ -118,6 +118,26 @@ public:
                                          bool external_blockwise_store = false);
 
     /**
+     * \brief Creates a dynamic resource for a given mbed Client Inteface object. With this,
+     * the client can respond to different queries from the server (GET,PUT etc).
+     * This type of resource is also observable and carries callbacks.
+     * \param resource_name The name of the resource.
+     * \param resource_type The type of the resource as null-terminated string.
+     * \param observable Indicates whether the resource is observable or not.
+     * \param multiple_instance The resource can have
+     *        multiple instances, default is false.
+     * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
+     *        otherwise handled in mbed-client-c.
+     * \return M2MResource The resource for managing other client operations.
+     */
+    M2MResource* create_dynamic_resource(const uint16_t resource_name,
+                                         const char *resource_type,
+                                         M2MResourceInstance::ResourceType type,
+                                         bool observable,
+                                         bool multiple_instance = false,
+                                         bool external_blockwise_store = false);
+
+    /**
      * \brief TODO!
      * \return M2MResource The resource for managing other client operations.
      */
@@ -194,6 +214,8 @@ public:
      * \param name The name of the requested resource.
      * \return Resource reference if found, else NULL.
      */
+    M2MResource* resource(const uint16_t resource_id) const;
+
     M2MResource* resource(const String &name) const;
 
     M2MResource* resource(const char *resource) const;
@@ -319,6 +341,7 @@ private:
     friend class Test_M2MDevice;
     friend class Test_M2MSecurity;
     friend class Test_M2MServer;
+    friend class Test_M2MInterfaceFactory;
     friend class Test_M2MNsdlInterface;
     friend class Test_M2MFirmware;
     friend class Test_M2MTLVSerializer;

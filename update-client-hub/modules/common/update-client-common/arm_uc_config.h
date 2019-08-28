@@ -377,5 +377,23 @@ ARM_UC_FEATURE_SIMPLE_COAP_SOURCE
 #if defined(ARM_UC_FEATURE_ROOTLESS_STAGE_1) && (ARM_UC_FEATURE_ROOTLESS_STAGE_1 == 1) && !defined(TARGET_IS_PC_LINUX)
 #error The rootless update feature can be enabled only for Linux builds.
 #endif
+#if !defined(ARM_UC_DELTAPAAL_WRITE_BUF_SIZE)
+#ifndef SD
+// Use temp definition. This way wont overwrite if SD is defined
+#define SD_TEMP_DEFINE
+#define SD 1
+#endif
+// MBED_CONF_STORAGE_FILESYSTEM_BLOCKDEVICE macro can contain macro SD.
+// If device used SD block device, page size is hard coded as 512
+#if (MBED_CONF_STORAGE_FILESYSTEM_BLOCKDEVICE == 1)
+#define ARM_UC_DELTAPAAL_WRITE_BUF_SIZE 512
+#else
+// ToDo: should this be other than hard coded value
+#define ARM_UC_DELTAPAAL_WRITE_BUF_SIZE 128
+#endif
+#ifdef SD_TEMP_DEFINE
+#undef SD
+#endif
+#endif
 
 #endif // ARM_UPDATE_CONFIG_H

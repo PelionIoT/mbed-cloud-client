@@ -1,12 +1,12 @@
 // ----------------------------------------------------------------------------
 // Copyright 2016-2017 ARM Ltd.
-//  
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//  
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-//  
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,8 +31,10 @@
 #include "pv_macros.h"
 #include "storage_keys.h"
 
+#define FCC_10_YEARS_IN_SECONDS 315360000 // 10*365*24*60*60
 
-#define FCC_10_YEARS_IN_SECONDS 315360000//10*365*24*60*60
+#define URI_AID_PREFIX1 "?aid="
+#define URI_AID_PREFIX2 "&aid="
 
 /**
 * Group lookup table, correlating for each group its type and name
@@ -105,8 +107,6 @@ static fcc_status_e fcc_check_uri_contents(bool use_bootstrap, uint8_t* uri_data
 {
     const char uri_coap_prefix[] = "coap://";
     const char uri_coaps_prefix[] = "coaps://";
-    const char uri_aid_1[] = "?aid=";
-    const char uri_aid_2[] = "&aid=";
     bool has_uri_aid = false;
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     char *uri_string = NULL;
@@ -144,7 +144,7 @@ static fcc_status_e fcc_check_uri_contents(bool use_bootstrap, uint8_t* uri_data
     }
 
     // Check if uri_string contains uri_aid (indicate the uri contains AccountId)
-    if ((strstr(uri_string, uri_aid_1) != NULL) || (strstr(uri_string, uri_aid_2) != NULL)) {
+    if ((strstr(uri_string, URI_AID_PREFIX1) != NULL) || (strstr(uri_string, URI_AID_PREFIX2) != NULL)) {
         has_uri_aid = true;
     }
 
@@ -186,13 +186,11 @@ static fcc_status_e verify_existence_and_set_warning(const uint8_t *parameter_na
                 SA_PV_LOG_ERR("failed to close key handle");
             }
         }
-    }
-    else
-    {
+    } else {
         kcm_status = kcm_item_get_data_size(parameter_name,
-            size_of_parameter_name,
-            parameter_type,
-            &item_size);
+                                            size_of_parameter_name,
+                                            parameter_type,
+                                            &item_size);
     }
 
     if (kcm_status == KCM_STATUS_SUCCESS && is_should_be_present == false) {
@@ -227,7 +225,7 @@ static fcc_status_e verify_certificate_expiration(palX509Handle_t x509_cert, con
     size_t size_of_valid_until_attr = 0;
     uint64_t valid_from_attr = 0;
     uint64_t time = 0;
-    uint64_t diff_time = 60; //seconds. This value used to reduce time adjustment 
+    uint64_t diff_time = 60; //seconds. This value used to reduce time adjustment
     uint64_t valid_until_attr = 0;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
@@ -253,7 +251,7 @@ static fcc_status_e verify_certificate_expiration(palX509Handle_t x509_cert, con
     time = pal_osGetTime();
     if (time == 0) {
         output_info_fcc_status = fcc_store_warning_info((const uint8_t*)certificate_name, size_of_certificate_name, g_fcc_cert_time_validity_warning_str);
-        SA_PV_LOG_ERR("time is (%" PRIuMAX ") ", (uint64_t)time);
+        SA_PV_LOG_WARN("time is (%" PRIuMAX ") ", (uint64_t)time);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_WARNING_CREATE_ERROR, exit, "Failed to create warning");
     } else {
         //Check that the certificate is not expired
@@ -272,7 +270,6 @@ static fcc_status_e verify_certificate_expiration(palX509Handle_t x509_cert, con
             output_info_fcc_status = fcc_store_warning_info((const uint8_t*)certificate_name, size_of_certificate_name, g_fcc_cert_validity_less_10_years_warning_str);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_WARNING_CREATE_ERROR, exit, "Failed to create warning");
         }
-
     }
 exit:
     if (fcc_status != FCC_STATUS_SUCCESS) {
@@ -282,6 +279,7 @@ exit:
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return fcc_status;
 }
+
 /**This function verifies lwm2m certificate ou attribute is equal to aid from server link.
 *
 * @param certificate_data[in]                  buffer of certificate.
@@ -292,47 +290,55 @@ static fcc_status_e compare_ou_with_aid_server(palX509Handle_t x509_cert)
 {
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     uint8_t *ou_attribute_data = NULL;
-    size_t ou_attribute_size = 0;
-    uint8_t *parameter_name = (uint8_t*)g_fcc_lwm2m_server_uri_name;
-    size_t size_of_parameter_name = strlen(g_fcc_lwm2m_server_uri_name);
-    uint8_t *server_uri_buffer = NULL;
-    size_t item_size = 0;
+    size_t ou_attribute_data_size = 0;
+    uint8_t *server_uri_item_name = (uint8_t *) g_fcc_lwm2m_server_uri_name;
+    size_t server_uri_item_name_len = strlen(g_fcc_lwm2m_server_uri_name);
+    uint8_t *server_uri_item_buffer = NULL;
+    size_t server_uri_item_buffer_size = 0;
     char *uri_string = NULL;
-    char *aid_substring = NULL;
-    int aid_substring_size = 0;
+    char *ptr_to_aid_with_prefix = NULL;
+    size_t aid_without_prefix_len = 0;
+    char *ptr_to_aid = NULL;
     int result = 0;
-    int len_of_aid_sub_string = (int)strlen("&aid=");
+    size_t aid_prefix_len = strlen(URI_AID_PREFIX1);
 
-    //Get OU certificate attribute
-    fcc_status = fcc_get_certificate_attribute(x509_cert, CS_OU_ATTRIBUTE_TYPE, &ou_attribute_data, &ou_attribute_size);
+    // Get OU certificate attribute
+    fcc_status = fcc_get_certificate_attribute(x509_cert, CS_OU_ATTRIBUTE_TYPE, &ou_attribute_data, &ou_attribute_data_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF(fcc_status != FCC_STATUS_SUCCESS, fcc_status = fcc_status, "Failed to get size OU attribute");
 
-    //Get aid data
-    fcc_status = fcc_get_kcm_data(parameter_name, size_of_parameter_name, KCM_CONFIG_ITEM, &server_uri_buffer, &item_size);
+    // Get aid data
+    fcc_status = fcc_get_kcm_data(server_uri_item_name,
+                                  server_uri_item_name_len,
+                                  KCM_CONFIG_ITEM,
+                                  &server_uri_item_buffer,
+                                  &server_uri_item_buffer_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to get kcm data server url");
 
-    uri_string = fcc_malloc(item_size + 1);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((uri_string == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, exit, "Failed to get kcm data server url");
+    // The uri config params comes without null termination from FCU
+    // Allocation of buffer with null termination is needed for string manipulation
+    uri_string = fcc_malloc(server_uri_item_buffer_size + 1);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((uri_string == NULL), fcc_status = FCC_STATUS_MEMORY_OUT, exit, "Failed to malloc");
 
-    memcpy(uri_string, server_uri_buffer, item_size);
-    (*(uri_string + item_size)) = '\0';
+    memcpy(uri_string, server_uri_item_buffer, server_uri_item_buffer_size);
+    uri_string[server_uri_item_buffer_size] = '\0';
 
-    aid_substring = strstr(uri_string, "&aid=");
-    if (aid_substring == NULL) {
-        aid_substring = strstr(uri_string, "?aid=");
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((aid_substring == NULL), fcc_status = FCC_STATUS_URI_WRONG_FORMAT, exit, "URI format is wrong");
+    ptr_to_aid_with_prefix = strstr(uri_string, URI_AID_PREFIX1);
+    if (ptr_to_aid_with_prefix == NULL) {
+        ptr_to_aid_with_prefix = strstr(uri_string, URI_AID_PREFIX2);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((ptr_to_aid_with_prefix == NULL), fcc_status = FCC_STATUS_URI_WRONG_FORMAT, exit, "URI format is wrong");
     }
 
-    aid_substring_size = (int)strlen(aid_substring);
-    aid_substring_size = aid_substring_size - len_of_aid_sub_string;
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((aid_substring_size < (int)ou_attribute_size - 1), fcc_status = FCC_STATUS_URI_WRONG_FORMAT, exit, "URI format is wrong");
+    aid_without_prefix_len = strlen(ptr_to_aid_with_prefix) - aid_prefix_len;
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((aid_without_prefix_len < ou_attribute_data_size - 1), fcc_status = FCC_STATUS_URI_WRONG_FORMAT, exit, "URI format is wrong");
 
-    result = memcmp(&(aid_substring[len_of_aid_sub_string]), ou_attribute_data, ou_attribute_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((result != 0), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, "CN of LWM2M different from endpoint name");
+    ptr_to_aid = ptr_to_aid_with_prefix + aid_prefix_len;    
+    
+    result = memcmp(ptr_to_aid, ou_attribute_data, ou_attribute_data_size);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((result != 0), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, "OU of LWM2M different from aid server");
 
 exit:
     fcc_free(ou_attribute_data);
-    fcc_free(server_uri_buffer);
+    fcc_free(server_uri_item_buffer);
     fcc_free(uri_string);
     return fcc_status;
 }
@@ -422,8 +428,7 @@ exit:
     fcc_free(server_uri_buffer);
     //In case kcm or fcc error, record the error with parameter name
     if (kcm_status != KCM_STATUS_SUCCESS || fcc_status != FCC_STATUS_SUCCESS) {
-        if (fcc_status == FCC_STATUS_FIRST_TO_CLAIM_NOT_ALLOWED && parameter_name == (uint8_t*)g_fcc_lwm2m_server_uri_name)
-        {
+        if (fcc_status == FCC_STATUS_FIRST_TO_CLAIM_NOT_ALLOWED && parameter_name == (uint8_t*)g_fcc_lwm2m_server_uri_name) {
             // In case that using lwm2m and first to claim on, change the parameter_name
             parameter_name = (uint8_t*)g_fcc_first_to_claim_parameter_name;
             size_of_parameter_name = strlen(g_fcc_first_to_claim_parameter_name);
@@ -526,7 +531,7 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
         secondary_ca_cert_name_len = strlen(g_fcc_bootstrap_server_ca_certificate_name);
     }
 
-    //Check that ca certificate of current mode is present 
+    //Check that ca certificate of current mode is present
     kcm_status = kcm_item_get_data_size((const uint8_t*)root_ca_cert_name,
                                         root_ca_cert_name_len,
                                         KCM_CERTIFICATE_ITEM,
@@ -540,11 +545,11 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
 
     if (use_bootstrap == true) {
         fcc_status = fcc_get_certificate_attribute_by_name((const uint8_t*)root_ca_cert_name,
-                                                           root_ca_cert_name_len,
-                                                           CS_CERT_ID_ATTR,
-                                                           srv_id_from_cert_buff,
-                                                           sizeof(srv_id_from_cert_buff),
-                                                           &srv_id_from_cert_buff_size);
+                     root_ca_cert_name_len,
+                     CS_CERT_ID_ATTR,
+                     srv_id_from_cert_buff,
+                     sizeof(srv_id_from_cert_buff),
+                     &srv_id_from_cert_buff_size);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to get ca id attribute");
 
         pal_status = storage_rbp_read(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, srv_id_from_storage_buff, sizeof(srv_id_from_storage_buff), &srv_id_from_storage_buff_size);
@@ -622,10 +627,10 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     fcc_status_e output_info_fcc_status = FCC_STATUS_SUCCESS;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     bool is_self_signed = false;
-    uint8_t *parameter_name = NULL;
-    size_t size_of_parameter_name = 0;
-    uint8_t *second_mode_parameter_name = NULL;
-    size_t size_of_second_mode_parameter_name = 0;
+    uint8_t *exist_item_name = NULL;
+    size_t exist_item_name_len = 0;
+    uint8_t *absent_item_name = NULL;
+    size_t absent_item_name_len = 0;
     storage_cert_chain_context_s *cert_chain = NULL;
     kcm_cert_chain_handle chain_handle;
     size_t chain_len = 0;
@@ -639,46 +644,45 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
 
     PV_UNUSED_PARAM(pal_status); // used only in developer flow, remove annoying warning
 
-    //Set device private key names of current and second modes
+    //Set expected existing and absent device private key names according to use_bootstrap mode
     if (use_bootstrap == true) {
-        parameter_name = (uint8_t*)g_fcc_bootstrap_device_private_key_name;
-        size_of_parameter_name = strlen(g_fcc_bootstrap_device_private_key_name);
-        second_mode_parameter_name = (uint8_t*)g_fcc_lwm2m_device_private_key_name;
-        size_of_second_mode_parameter_name = strlen(g_fcc_lwm2m_device_private_key_name);
+        exist_item_name = (uint8_t*)g_fcc_bootstrap_device_private_key_name;
+        exist_item_name_len = strlen(g_fcc_bootstrap_device_private_key_name);
+        absent_item_name = (uint8_t*)g_fcc_lwm2m_device_private_key_name;
+        absent_item_name_len = strlen(g_fcc_lwm2m_device_private_key_name);
     } else {
-        parameter_name = (uint8_t*)g_fcc_lwm2m_device_private_key_name;
-        size_of_parameter_name = strlen(g_fcc_lwm2m_device_private_key_name);
-        second_mode_parameter_name = (uint8_t*)g_fcc_bootstrap_device_private_key_name;
-        size_of_second_mode_parameter_name = strlen(g_fcc_bootstrap_device_private_key_name);
+        exist_item_name = (uint8_t*)g_fcc_lwm2m_device_private_key_name;
+        exist_item_name_len = strlen(g_fcc_lwm2m_device_private_key_name);
+        absent_item_name = (uint8_t*)g_fcc_bootstrap_device_private_key_name;
+        absent_item_name_len = strlen(g_fcc_bootstrap_device_private_key_name);
     }
 
-    kcm_status = storage_key_get_handle(parameter_name, size_of_parameter_name, KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM, &priv_key_h);
+    kcm_status = storage_key_get_handle(exist_item_name, exist_item_name_len, KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM, &priv_key_h);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), store_error_and_exit, "Failed to get private key handle");
 
     //Check that device private key of second mode is not present, if yes - set warning
-    fcc_status = verify_existence_and_set_warning(second_mode_parameter_name, size_of_second_mode_parameter_name, KCM_PRIVATE_KEY_ITEM, false);
+    fcc_status = verify_existence_and_set_warning(absent_item_name, absent_item_name_len, KCM_PRIVATE_KEY_ITEM, false);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed in verify_existence_and_set_warning");
-
-
-    //Set parameter names of device certificate according to mode
+    
+    // Set expected existing and absent device certificate names according to use_bootstrap mode
     if (use_bootstrap == true) {
-        //Set bootstrap root ca certificate name
-        parameter_name = (uint8_t*)g_fcc_bootstrap_device_certificate_name;
-        size_of_parameter_name = strlen(g_fcc_bootstrap_device_certificate_name);
-        second_mode_parameter_name = (uint8_t*)g_fcc_lwm2m_device_certificate_name;
-        size_of_second_mode_parameter_name = strlen(g_fcc_lwm2m_device_certificate_name);
+        //Set bootstrap device certificate name
+        exist_item_name = (uint8_t*)g_fcc_bootstrap_device_certificate_name;
+        exist_item_name_len = strlen(g_fcc_bootstrap_device_certificate_name);
+        absent_item_name = (uint8_t*)g_fcc_lwm2m_device_certificate_name;
+        absent_item_name_len = strlen(g_fcc_lwm2m_device_certificate_name);
     } else {
         //Set lwm2m device certificate name
-        parameter_name = (uint8_t*)g_fcc_lwm2m_device_certificate_name;
-        size_of_parameter_name = strlen(g_fcc_lwm2m_device_certificate_name);
-        second_mode_parameter_name = (uint8_t*)g_fcc_bootstrap_device_certificate_name;
-        size_of_second_mode_parameter_name = strlen(g_fcc_bootstrap_device_certificate_name);
+        exist_item_name = (uint8_t*)g_fcc_lwm2m_device_certificate_name;
+        exist_item_name_len = strlen(g_fcc_lwm2m_device_certificate_name);
+        absent_item_name = (uint8_t*)g_fcc_bootstrap_device_certificate_name;
+        absent_item_name_len = strlen(g_fcc_bootstrap_device_certificate_name);
     }
 
-    // Open device certificate as chain. 
-    kcm_status = kcm_cert_chain_open(&chain_handle, parameter_name, size_of_parameter_name, &chain_len);
+    // Open device certificate as chain.
+    kcm_status = kcm_cert_chain_open(&chain_handle, exist_item_name, exist_item_name_len, &chain_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = fcc_convert_kcm_to_fcc_status(kcm_status), store_error_and_exit, "Failed to get device certificate descriptor");
-    
+
     cert_chain = (storage_cert_chain_context_s *)chain_handle;
 
     //Create device certificate handle
@@ -690,7 +694,7 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_CERTIFICATE_PUBLIC_KEY_CORRELATION_ERROR, close_chain, "Failed to check device certificate public key");
 
     //Check if the certificate of second mode exists, if yes - set warning
-    fcc_status = verify_existence_and_set_warning(second_mode_parameter_name, size_of_second_mode_parameter_name, KCM_CERTIFICATE_ITEM, false);
+    fcc_status = verify_existence_and_set_warning(absent_item_name, absent_item_name_len, KCM_CERTIFICATE_ITEM, false);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_existence_and_set_warning");
 
 #ifndef MBED_CONF_APP_DEVELOPER_MODE
@@ -705,7 +709,7 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to compare_cn_with_endpoint");
 
     //In case LWM2M certificate check it's OU attribute with aid of server link
-    if (strcmp((const char*)parameter_name, g_fcc_lwm2m_device_certificate_name) == 0) {
+    if (strcmp((const char*)exist_item_name, g_fcc_lwm2m_device_certificate_name) == 0) {
         fcc_status = compare_ou_with_aid_server(x509_cert_handle);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to compare_ou_with_aid_server");
     }
@@ -714,7 +718,7 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     kcm_status = cs_is_self_signed_x509_cert(x509_cert_handle, &is_self_signed);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, close_chain, "Failed to check if device certificate is self-signed");
     if (is_self_signed == true) {
-        output_info_fcc_status = fcc_store_warning_info(parameter_name, size_of_parameter_name, g_fcc_self_signed_warning_str);
+        output_info_fcc_status = fcc_store_warning_info(exist_item_name, exist_item_name_len, g_fcc_self_signed_warning_str);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS),
                                       fcc_status = FCC_STATUS_WARNING_CREATE_ERROR,
                                       close_chain,
@@ -723,24 +727,22 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     }
 
     //Verify expiration of first certificate in chain
-    fcc_status = verify_certificate_expiration(x509_cert_handle, parameter_name, size_of_parameter_name);
+    fcc_status = verify_certificate_expiration(x509_cert_handle, exist_item_name, exist_item_name_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_certificate_validity");
 
     // Verify expiration of rest of chain
     while (cert_chain->current_cert_index < cert_chain->num_of_certificates_in_chain) {
-
         // Close handle of first X509 in chain
         cs_close_handle_x509_cert(&x509_cert_handle);
-        
+
         // Acquire a handle to the next X509 in the chain
         fcc_status = get_next_x509_in_chain(chain_handle, &x509_cert_handle);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to get device certificate descriptor");
 
         // Only verify the expiration date of the X509, not the signature (was checked before the store)
-        fcc_status = verify_certificate_expiration(x509_cert_handle, KCM_FILE_BASENAME(cert_chain->chain_name, KCM_FILE_PREFIX_CERTIFICATE), KCM_FILE_BASENAME_LEN(cert_chain->chain_name_len, KCM_FILE_PREFIX_CERTIFICATE));
+        fcc_status = verify_certificate_expiration(x509_cert_handle, exist_item_name, exist_item_name_len);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_certificate_validity");
     }
-
 
 close_chain:
     kcm_cert_chain_close(chain_handle);
@@ -755,7 +757,7 @@ store_error_and_exit:
 
     cs_close_handle_x509_cert(&x509_cert_handle);
     if (fcc_status != FCC_STATUS_SUCCESS) {
-        output_info_fcc_status = fcc_store_error_info(parameter_name, size_of_parameter_name, fcc_status);
+        output_info_fcc_status = fcc_store_error_info(exist_item_name, exist_item_name_len, fcc_status);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((output_info_fcc_status != FCC_STATUS_SUCCESS),
                                         fcc_status = FCC_STATUS_OUTPUT_INFO_ERROR,
                                         "Failed to create output fcc_status error  %d",
@@ -783,7 +785,7 @@ static fcc_status_e verify_firmware_update_certificate(void)
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-    // Open device certificate as chain. 
+    // Open device certificate as chain.
     kcm_status = kcm_cert_chain_open(&chain_handle, parameter_name, size_of_parameter_name, &chain_len);
 
     // If item does not exist or is empty -set warning
@@ -819,7 +821,6 @@ static fcc_status_e verify_firmware_update_certificate(void)
             // Set handle to 0 so that cs_close_handle_x509_cert is not called upon exit
             x509_cert_handle = NULLPTR;
         }
-        
     }
 
 exit:
@@ -869,7 +870,7 @@ static fcc_status_e verify_firmware_uuid(const char *fcc_firmware_id_name)
         if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
             fcc_status = fcc_store_warning_info((const uint8_t*)fcc_firmware_id_name, strlen(fcc_firmware_id_name), g_fcc_item_not_set_warning_str);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS),
-                (fcc_status = FCC_STATUS_WARNING_CREATE_ERROR),
+                                          (fcc_status = FCC_STATUS_WARNING_CREATE_ERROR),
                                           Exit,
                                           "Failed to create output warning %s",
                                           g_fcc_item_not_set_warning_str);
@@ -882,7 +883,7 @@ static fcc_status_e verify_firmware_uuid(const char *fcc_firmware_id_name)
         }
 
     } else {
-        // If item exists assert item is correct size of UUID5 
+        // If item exists assert item is correct size of UUID5
         SA_PV_ERR_RECOVERABLE_GOTO_IF((item_size != FCC_UUID5_SIZE_IN_BYTES), (fcc_status = FCC_STATUS_WRONG_ITEM_DATA_SIZE), Exit, "Class ID of incorrect size - %" PRIu32, (uint32_t)item_size);
     }
 
@@ -1089,7 +1090,6 @@ fcc_status_e fcc_check_device_security_objects(bool use_bootstrap)
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return fcc_status;
 }
-
 
 fcc_status_e fcc_check_firmware_update_integrity(void)
 {

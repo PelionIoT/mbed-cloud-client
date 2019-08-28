@@ -219,8 +219,13 @@ TEST(pal_rot, GetDeviceKeyTest_HMAC_SHA256)
 TEST(pal_rot, GetRoTKeyTest)
 {
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
+#if defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) && (PAL_USE_FILESYSTEM == 1)
+
+/* currently we use PAL_USE_FILESYSTEM to distinguish between writing to internal flash only vs external storage.
+ * If only internal storage is used, this test is not relevant because data is not encrypted even if PAL_SST_CONFIDENTIALITY_FLAG set.
+ * RoT will not be generated and pal_plat_osGetRoT() will fail
+ */
     palStatus_t status = PAL_SUCCESS;
     size_t keyLenBytes = 16;
     uint8_t timesToDerive = 4;
@@ -259,8 +264,8 @@ TEST(pal_rot, GetRoTKeyTest)
     } //for
 
 
-#else // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is not set ");
+#else // defined (MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) && (PAL_USE_FILESYSTEM == 1)
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT  or PAL_USE_FILESYSTEM is not equal to 1");
 #endif
 
 }

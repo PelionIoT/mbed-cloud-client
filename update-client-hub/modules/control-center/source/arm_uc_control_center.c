@@ -24,10 +24,12 @@
 /* event handler */
 static void (*arm_uccc_event_handler)(uintptr_t) = NULL;
 static arm_uc_callback_t arm_uccc_authorize_callback = { 0 };
+static arm_uc_callback_t arm_uccc_reject_callback = { 0 };
 static arm_uc_callback_t arm_uccc_monitor_callback = { 0 };
 
 /* authorization callback */
 static void (*arm_uc_authority_callback)(int32_t) = NULL;
+static void (*arm_uc_authority_priority_callback)(int32_t request, uint64_t priority) = NULL;
 static bool arm_uc_download_token_armed = false;
 static bool arm_uc_install_token_armed = false;
 
@@ -123,12 +125,31 @@ arm_uc_error_t ARM_UC_ControlCenter_SetAuthorityHandler(void (*callback)(int32_t
 }
 
 /**
- * @brief Request authorization from Control Center.
+ * @brief Set callback function for authorizing requests with specific priority.
+ * @details The callback function takes an enum request, an authorization
+ *          function pointer and a priority value. To authorize the given
+ *          request, the caller invokes the authorization function.
  *
- * @param type Request type.
+ * @param callback Function pointer to the authorization function.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request)
+arm_uc_error_t ARM_UC_ControlCenter_SetPriorityAuthorityHandler(void (*callback)(int32_t request, uint64_t priority))
+{
+    UC_CONT_TRACE("ARM_UC_ControlCenter_SetPriorityAuthorityHandler: %p", callback);
+
+    arm_uc_authority_priority_callback = callback;
+
+    return (arm_uc_error_t) { ERR_NONE };
+}
+
+/**
+ * @brief Request authorization from Control Center.
+ *
+ * @param request Request type.
+ * @param priority Update priority.
+ * @return Error code.
+ */
+arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request, uint64_t priority)
 {
     UC_CONT_TRACE("ARM_UC_ControlCenter_GetAuthorization: %d", (int) request);
 
@@ -139,7 +160,10 @@ arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request)
             /* Arm callback token */
             arm_uc_download_token_armed = true;
 
-            if (arm_uc_authority_callback) {
+            if (arm_uc_authority_priority_callback) {
+                arm_uc_authority_priority_callback(ARM_UCCC_REQUEST_DOWNLOAD, priority);
+            } else if (arm_uc_authority_callback) {
+                /* Fallback to non-priority callback */
                 arm_uc_authority_callback(ARM_UCCC_REQUEST_DOWNLOAD);
             } else {
                 ARM_UC_ControlCenter_Authorize(ARM_UCCC_REQUEST_DOWNLOAD);
@@ -151,7 +175,10 @@ arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request)
             /* Arm callback token */
             arm_uc_install_token_armed = true;
 
-            if (arm_uc_authority_callback) {
+            if (arm_uc_authority_priority_callback) {
+                arm_uc_authority_priority_callback(ARM_UCCC_REQUEST_INSTALL, priority);
+            } else if (arm_uc_authority_callback) {
+                /* Fallback to non-priority callback */
                 arm_uc_authority_callback(ARM_UCCC_REQUEST_INSTALL);
             } else {
                 ARM_UC_ControlCenter_Authorize(ARM_UCCC_REQUEST_INSTALL);
@@ -202,6 +229,64 @@ arm_uc_error_t ARM_UC_ControlCenter_Authorize(arm_uc_request_t request)
             break;
 
         default:
+            break;
+    }
+
+    return result;
+}
+
+/**
+ * @brief Reject request.
+ *
+ * @param request Request type. Must match the type in callback function.
+ * @param reason Reason for rejecting the request.
+ */
+arm_uc_error_t ARM_UC_ControlCenter_Reject(arm_uc_request_t request, arm_uc_reject_reason_t reason)
+{
+    UC_CONT_TRACE("ARM_UC_ControlCenter_Reject: %d", (int) request);
+
+    arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
+    arm_uc_control_center_event_t arm_uccc_event;
+
+    switch (request) {
+        case ARM_UCCC_REQUEST_DOWNLOAD:
+            if (arm_uccc_event_handler && arm_uc_download_token_armed) {
+                arm_uc_download_token_armed = false;
+
+                if (reason == ARM_UCCC_REJECT_REASON_UNAUTHORIZED) {
+                    arm_uccc_event = ARM_UCCC_EVENT_REJECT_DOWNLOAD;
+                } else if (reason == ARM_UCCC_REJECT_REASON_UNAVAILABLE) {
+                    arm_uccc_event = ARM_UCCC_EVENT_UNAVAILABLE_DOWNLOAD;
+                }
+
+                ARM_UC_PostCallback(&arm_uccc_reject_callback,
+                                    arm_uccc_event_handler,
+                                    arm_uccc_event);
+
+                result.code = ERR_NONE;
+            }
+            break;
+
+        case ARM_UCCC_REQUEST_INSTALL:
+            if (arm_uccc_event_handler && arm_uc_install_token_armed) {
+                arm_uc_install_token_armed = false;
+
+                if (reason == ARM_UCCC_REJECT_REASON_UNAUTHORIZED) {
+                    arm_uccc_event = ARM_UCCC_EVENT_REJECT_INSTALL;
+                } else if (reason == ARM_UCCC_REJECT_REASON_UNAVAILABLE) {
+                    arm_uccc_event = ARM_UCCC_EVENT_UNAVAILABLE_INSTALL;
+                }
+
+                ARM_UC_PostCallback(&arm_uccc_reject_callback,
+                                    arm_uccc_event_handler,
+                                    arm_uccc_event);
+
+                result.code = ERR_NONE;
+            }
+            break;
+
+        default:
+            UC_CONT_ERR_MSG("ARM_UC_ControlCenter_Reject: Invalid request: %d", (int) request);
             break;
     }
 

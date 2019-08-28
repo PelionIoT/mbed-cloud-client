@@ -209,12 +209,14 @@ public:
     */
     virtual void set_observation_handler(M2MObservationHandler *handler);
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     /**
      * \brief Parses the received query for a notification
      * attribute.
      * \return True if required attributes are present, else false.
      */
     virtual bool handle_observation_attribute(const char *query);
+#endif
 
     /**
      * \brief Adds the observation level for the object.
@@ -299,6 +301,7 @@ friend class Test_M2MDevice;
 friend class Test_M2MSecurity;
 friend class Test_M2MServer;
 friend class Test_M2MNsdlInterface;
+friend class Test_M2MInterfaceFactory;
 friend class Test_M2MFirmware;
 friend class Test_M2MTLVSerializer;
 friend class Test_M2MTLVDeserializer;

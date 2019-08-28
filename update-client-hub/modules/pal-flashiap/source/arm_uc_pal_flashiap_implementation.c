@@ -87,6 +87,13 @@ static void arm_uc_pal_flashiap_signal_internal(uint32_t event)
     }
 }
 
+static uint8_t _metadata[ARM_UC_PAL_HEADER_SIZE] = { 0 };
+static arm_uc_buffer_t metadata_buffer = {
+        .size_max = sizeof(_metadata),
+        .size = 0,
+        .ptr = _metadata
+};
+
 /**
  * @brief Align address up/down to sector boundary
  *
@@ -315,25 +322,9 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Prepare(uint32_t slot_id,
 
     /* generate header blob */
     if (result.error == ERR_NONE) {
-        result  = arm_uc_create_internal_header_v2(details, buffer);
+        result  = arm_uc_create_internal_header_v2(details, &metadata_buffer);
         if (result.error != ERR_NONE) {
             UC_PAAL_ERR_MSG("arm_uc_create_internal_header_v2 failed");
-        }
-    }
-
-    /* write header blob */
-    if (result.error == ERR_NONE) {
-        uint32_t hdr_size = arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE);
-        UC_PAAL_TRACE("program: %" PRIX32 " %" PRIX32,
-                      slot_addr, hdr_size);
-
-        /* write header */
-        int32_t status = arm_uc_flashiap_program((const uint8_t *) buffer->ptr,
-                                                 slot_addr,
-                                                 hdr_size);
-        if (status != ARM_UC_FLASHIAP_SUCCESS) {
-            /* set return code */
-            result.code = ERR_INVALID_PARAMETER;
         }
     }
 
@@ -511,11 +502,38 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Read(uint32_t slot_id,
 arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
 {
     arm_uc_error_t result = { .code = ERR_NONE };
+    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
 
-    UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_Activate");
+    uint32_t hdr_size =
+            arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE);
 
-    arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
 
+    /* find slot start address */
+    result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id, &slot_addr, &slot_size);
+
+    /* write header blob */
+    if (result.error == ERR_NONE) {
+        UC_PAAL_TRACE("program: %" PRIX32 " %" PRIX32, slot_addr, hdr_size);
+
+        /* write header */
+        int32_t status = arm_uc_flashiap_program((const uint8_t *) metadata_buffer.ptr,
+                                                 slot_addr,
+                                                 hdr_size);
+        if (status != ARM_UC_FLASHIAP_SUCCESS) {
+            UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed failed");
+            result.error = FIRM_ERR_ACTIVATE;
+        }
+    } else {
+        /* set return code */
+        result.code = ERR_INVALID_PARAMETER;
+    }
+
+    /* write header blob */
+    if (result.error == ERR_NONE) {
+        UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_Activate");
+        arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
+    }
     return result;
 }
 

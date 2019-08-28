@@ -73,6 +73,13 @@ static uint32_t pal_blockdevice_page_size = 0;
 static uint32_t pal_blockdevice_sector_size = 0;
 static uint32_t pal_blockdevice_hdr_size = 0;
 
+static uint8_t _metadata[ARM_UC_EXTERNAL_HEADER_SIZE_V2] = { 0 };
+static arm_uc_buffer_t metadata_buffer = {
+        .size_max = sizeof(_metadata),
+        .size = 0,
+        .ptr = _metadata
+};
+
 static void pal_blockdevice_signal_internal(uint32_t event)
 {
     if (pal_blockdevice_event_handler) {
@@ -246,7 +253,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
 
         /* encode firmware details in buffer */
         arm_uc_error_t header_status = arm_uc_create_external_header_v2(details,
-                                                                        buffer);
+                                                                        &metadata_buffer);
         if (header_status.error == ERR_NONE) {
             /* find the size needed to erase. Header is stored contiguous with firmware */
             uint32_t erase_size = pal_blockdevice_round_up_to_sector(pal_blockdevice_hdr_size + \
@@ -271,23 +278,14 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
             }
 
             if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
-                /* write header */
-                status = arm_uc_blockdevice_program(buffer->ptr,
-                                                    slot_addr,
-                                                    pal_blockdevice_hdr_size);
 
-                if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
-                    /* set return code */
-                    result.code = ERR_NONE;
+                result.code = ERR_NONE;
 
-                    /* store firmware size in global */
-                    pal_blockdevice_firmware_size = details->size;
+                /* store firmware size in global */
+                pal_blockdevice_firmware_size = details->size;
 
-                    /* signal done */
-                    pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_PREPARE_DONE);
-                } else {
-                    UC_PAAL_ERR_MSG("arm_uc_blockdevice_program failed");
-                }
+                /* signal done */
+                pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_PREPARE_DONE);
             } else {
                 UC_PAAL_ERR_MSG("arm_uc_blockdevice_erase failed");
             }
@@ -481,10 +479,25 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Activate(uint32_t slot_id)
 {
     arm_uc_error_t result = { .code = ERR_NONE };
 
-    UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Activate");
+    /* find address of slot */
+    uint32_t slot_addr = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
+    result = pal_blockdevice_get_slot_addr_size(slot_id, &slot_addr, &slot_size);
 
-    pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
+    if (result.error == ERR_NONE) {
+        /* write header */
+        int status = arm_uc_blockdevice_program(
+                metadata_buffer.ptr, slot_addr, pal_blockdevice_hdr_size);
+        if (status != ARM_UC_BLOCKDEVICE_SUCCESS) {
+            UC_PAAL_ERR_MSG("arm_uc_blockdevice_program failed");
+            result.error = FIRM_ERR_ACTIVATE;
+        }
+    }
 
+    if (result.error == ERR_NONE) {
+        UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Activate");
+        pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
+    }
     return result;
 }
 

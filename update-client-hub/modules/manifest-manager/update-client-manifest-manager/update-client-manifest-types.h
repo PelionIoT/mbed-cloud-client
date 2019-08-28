@@ -118,6 +118,8 @@ typedef uint32_t arm_uc_image_size_t;
 typedef uint64_t arm_uc_image_size_t;
 #endif
 
+#define ARM_UC_MM_MANIFEST_BUFFER_SIZE 640
+
 /**
  * @brief   Firmware Information
  * @details Contains the details about the firmware image referenced by the manifest
@@ -165,7 +167,7 @@ struct manifest_firmware_info_t {
         } certKT;
     };
     uint32_t manifestSize;
-    uint8_t  manifestBuffer[640];
+    uint8_t  manifestBuffer[ARM_UC_MM_MANIFEST_BUFFER_SIZE];
 };
 typedef struct manifest_firmware_info_t manifest_firmware_info_t;
 

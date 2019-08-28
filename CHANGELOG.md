@@ -1,12 +1,56 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 3.4.0 (28.08.2019)
+
+#### Device Management Connect client
+
+* Added the `max-age` option to be part of the notification message construction. This fixes the issue that the resource cache was not being updated due to value changes from notification messages.
+* Added a Secure Device Access (SDA) client library.
+* A new feature flag that enables SDA - `MBED_CLOUD_CLIENT_ENABLE_SDA` (disabled by default).
+* A new feature flag, `MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS`, controls the usage of LwM2M Write attributes for LwM2M resources. Disabling this feature will allow you to save RAM used by observation parameters per resource. Disabled by setting the flag to 0.
+* New API for managing update priority and rejecting optional firmware updates.
+  - Added `set_update_authorize_priority_handler()`.
+  - Added `update_reject()`.
+  - New error enums for update authorization rejection, `UpdateWarningAuthorizationRejected`, `UpdateWarningAuthorizationUnavailable`.
+* Support for certificate renewal with Platform Security Architecture (PSA).
+* Extended `MbedCloudClient()` constructor to allow callback registration to client.
+* A new API for creating `M2MResource` directly without first creating `M2MObject` and `M2MObjectInstance`.
+* Bug fix: Requests sent from Device Management Client using the same URI and method were determined duplicates even if the context parameter was different.
+
+#### Factory configurator client
+
+* Replaced CBOR implementation library with tinycbor.
+* Bug fix: Working with a file name length of `KCM_MAX_FILENAME_SIZE` in KCM APIs resulted in a `KCM_STATUS_FILE_NAME_TOO_LONG` error.
+
+#### Secure Device Access client
+
+* Initial Secure Device Access (SDA) release.
+* SDA implements the ACE-OAuth standard, which specifies a framework for authenticating and authorizing in constrained IoT environments.
+* The [full SDA documentation](../device-management/secure-device-access.html) is available on our documentation site.
+
+#### Device Management Update client
+
+* New update authorization API:
+  * Deprecated `ARM_UC_SetAuthorizeHandler()` in favor of `ARM_UC_SetAuthorizePriorityHandler()`.
+  * Added `ARM_UC_Reject()` to the application authorization callback to deliver the rejection reason to the service.
+  * Added a priority field to the manifest.
+  * Propagated update priority from the manifest to the application authorization callback.
+* Writing of the update candidate metadata is postponed to a later phase. The metadata is written when the download has completed and the client application has authorized the installation.
+
+#### Platform Adaptation Layer (PAL)
+
+* [Linux] Read the source entropy from the target machine system environment if available; otherwise, use the user default source entropy file path.
+  * Read the entropy file name from the system environment entry `ENTROPYSOURCE=<path-to-entropy-file-name>`.
+* [TLS] Fixed potential double free issue in `pal_initTLS()`.
+* [Tests] Do not try to execute filesystem tests if there is no filesystem.
+
 ### Release 3.3.0 (02.07.2019)
 
 #### Device Management Connect client
 
 * Updated Mbed CoAP to 4.8.0.
 * A fix to accommodate a null terminator space for managing a common name parameter (max 64 characters) in an `X.509` certificate.
-* A fix to clear a stored SSL session when the device rebootstraps. Without clearing, a bootstrap loop may render the device unusable.
+* Fix to clear stored SSL session when the device re-bootstraps otherwise the device is going into eternal re-bootstrap loop thus bricking up the device.
 
 #### Factory configurator client
 

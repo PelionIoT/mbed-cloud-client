@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-#include "pal_types.h"
-
 /*! \file pal_errors.h
  *  \brief PAL errors.
  *   This file contains enumeration for PAL errors. These errors are returned to the service layer.

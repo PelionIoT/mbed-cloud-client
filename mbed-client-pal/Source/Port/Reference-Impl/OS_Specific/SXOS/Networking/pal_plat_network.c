@@ -39,8 +39,7 @@ typedef struct palLwipSocketNetConnInfo {
 PAL_PRIVATE palLwipNetConnInfo_t palInternalSocketInfo[MEMP_NUM_NETCONN] = {0};
 
 
-// number taken from LWIP documentaiton reccomendations (http://www.ece.ualberta.ca/~cmpe401/docs/lwip.pdf)
-#define PAL_MAX_SEND_BUFFER_SIZE 1000
+#define PAL_MAX_SEND_BUFFER_SIZE 1200
 
 PAL_PRIVATE void* s_pal_networkInterfacesSupported[PAL_MAX_SUPORTED_NET_INTERFACES] = { 0 };
 PAL_PRIVATE  uint32_t s_pal_numberOFInterfaces = 0;
@@ -445,8 +444,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
     }
     conn = ((palLwipNetConnInfo_t*)socket)->connection;
 
-    // netconn documentaiton (http://www.ece.ualberta.ca/~cmpe401/docs/lwip.pdf) says buffers over the size of the MTU should nto be sent. since this isn not always known 1000bytes is a good heuristic
-
+    // netconn documentation (http://www.ece.ualberta.ca/~cmpe401/docs/lwip.pdf) says buffers over the size of the MTU should not be sent.
     if (length > PAL_MAX_SEND_BUFFER_SIZE)
     {
         result = PAL_ERR_SOCKET_SEND_BUFFER_TOO_BIG;
