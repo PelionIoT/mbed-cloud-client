@@ -90,6 +90,7 @@ extern "C" {
 
     /**
     * Retrieves the KCM item data size from secure storage.
+    * In PSA mode (MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is on), ::KCM_PRIVATE_KEY_ITEM type is not supported.   
     *
     *    @param[in]  kcm_item_name          KCM item name.
     *    @param[in]  kcm_item_name_len      KCM item name length.
@@ -108,6 +109,7 @@ extern "C" {
 
     /**
     * Retrieves KCM item data from secure storage.
+    * In PSA mode (MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is on), ::KCM_PRIVATE_KEY_ITEM type is not supported.
     *
     *    @param[in]  kcm_item_name              KCM item name.
     *    @param[in]  kcm_item_name_len          KCM item name length.
@@ -132,6 +134,7 @@ extern "C" {
     * Retrieves KCM item data and its size from secure storage.
     * The buffer for the data is allocated internally and the caller is responsible to free it.
     * If kcm_status_e` error returned, no need to free the buffer
+    * In PSA mode (MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is on), ::KCM_PRIVATE_KEY_ITEM type is not supported.
     *
     *    @param[in]  kcm_item_name              KCM item name.
     *    @param[in]  kcm_item_name_len          KCM item name length.
@@ -455,8 +458,6 @@ extern "C" {
                                                          const uint8_t *kcm_priv_key_name,
                                                          size_t         kcm_priv_key_name_len);
 
-
-    /* The following APIs currently do not support PSA. In the next release, they will also support PSA. */
 
     /** Calculates asymmetric signature on hash digest using associated private key.
     *

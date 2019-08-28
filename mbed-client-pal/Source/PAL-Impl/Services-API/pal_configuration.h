@@ -249,6 +249,16 @@
  * File system configuration
  */
 
+
+/*! \brief Determines if filesystem is used by the underlying platform
+ *
+ * 1 - fileSystem is used
+ * 0 - filesystem is not used
+ */
+#ifndef PAL_USE_FILESYSTEM
+    #define PAL_USE_FILESYSTEM 1
+#endif
+
 /*! \brief The number of file system partitions
  *
  * 1 - There is a single partition in which the ARM client applications create and remove files (but not format it). This is the default. \n

@@ -344,7 +344,8 @@ extern int32_t sn_nsdl_send_observation_notification(struct nsdl_s *handle, uint
         sn_coap_observe_e observe,
         sn_coap_msg_type_e message_type,
         sn_coap_content_format_e content_format,
-        const int32_t message_id);
+        const int32_t message_id,
+        const uint32_t max_age);
 
 /**
  * \fn extern uint32_t sn_nsdl_get_version(void)

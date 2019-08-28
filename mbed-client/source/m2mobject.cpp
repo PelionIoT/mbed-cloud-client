@@ -326,10 +326,14 @@ sn_coap_hdr_s* M2MObject::handle_put_request(nsdl_s *nsdl,
             if (query){
                 tr_info("M2MObject::handle_put_request() - query %s", query);
                 // if anything was updated, re-initialize the stored notification attributes
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
                 if (!handle_observation_attribute(query)){
                     tr_debug("M2MObject::handle_put_request() - Invalid query");
                     msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
                 }
+#else
+                msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
+#endif
                 free(query);
             }
         } else {

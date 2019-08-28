@@ -126,6 +126,17 @@ void ARM_UC_HUB_AddErrorCallback(void (*callback)(int32_t error));
 arm_uc_error_t ARM_UC_Authorize(arm_uc_request_t request);
 
 /**
+ * @brief Reject request.
+ * @details Function is called when the user application rejects
+ *          requests from the Update Client.
+ *
+ * @param request Requests are passed through the callback function.
+ * @param reason Reason for rejecting the request.
+ * @return Error code.
+ */
+arm_uc_error_t ARM_UC_Reject(arm_uc_request_t request, arm_uc_reject_reason_t reason);
+
+/**
  * @brief Set callback for receiving download progress.
  * @details User application call for setting callback handler.
  *          The callback function takes the progreess in percent as argument.
@@ -136,7 +147,7 @@ arm_uc_error_t ARM_UC_Authorize(arm_uc_request_t request);
 arm_uc_error_t ARM_UC_SetProgressHandler(void (*callback)(uint32_t progress, uint32_t total));
 
 /**
- * @brief Set callback function for authorizing requests.
+ * @brief Set callback function for authorizing requests without specific priority.
  * @details User application call for setting callback handler.
  *          The callback function takes an enum request and an authorization
  *          function pointer. To authorize the given request, the caller
@@ -145,7 +156,19 @@ arm_uc_error_t ARM_UC_SetProgressHandler(void (*callback)(uint32_t progress, uin
  * @param callback Function pointer to the authorization function.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_SetAuthorizeHandler(void (*callback)(int32_t));
+arm_uc_error_t ARM_UC_SetAuthorizeHandler(void (*callback)(int32_t)) __attribute__((deprecated("Use ARM_UC_SetAuthorizePriorityHandler instead")));
+
+/**
+ * @brief Set callback function for authorizing requests with specific priority.
+ * @details User application call for setting callback handler.
+ *          The callback function takes an enum request, an authorization
+ *          function pointer and a priority value. To authorize the given
+ *          request, the caller invokes the authorization function.
+ *
+ * @param callback Function pointer to the authorization function.
+ * @return Error code.
+ */
+arm_uc_error_t ARM_UC_SetAuthorizePriorityHandler(void (*callback)(int32_t request, uint64_t priority));
 
 /**
  * @brief Override update authorization handler.

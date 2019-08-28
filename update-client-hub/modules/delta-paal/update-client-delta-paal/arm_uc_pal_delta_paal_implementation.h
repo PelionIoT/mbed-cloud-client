@@ -159,8 +159,22 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetFirmwareDetails(
 
 /*****************************************************************************/
 
+/**
+ * @brief ARM_UC_PAL_DeltaPaal_GetActiveDetails Gets Active details
+ * @details Forwards ARM_UC_PAL_DeltaPaal_GetInstallerDetails-call to  paal_storage_implementation
+ *
+ * @param details Pointer to arm_uc_installer_details_t details struct to be populated.
+ * @return Returns ERR_NONE if null details or paal_storage_implementation or return value from paal_storage_implementation->GetInstallerDetails(details);
+ */
 arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetActiveDetails(arm_uc_firmware_details_t *details);
 
+/**
+ * @brief ARM_UC_PAL_DeltaPaal_GetInstallerDetails Get installer details
+ * @details Forwards GetInstallerDetails-call to  paal_storage_implementation
+ *
+ * @param details Pointer to arm_uc_installer_details_t details struct to be populated.
+ * @return Returns ERR_NONE if null details or paal_storage_implementation or return value from paal_storage_implementation->GetInstallerDetails(details);
+ */
 arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetInstallerDetails(arm_uc_installer_details_t *details);
 
 

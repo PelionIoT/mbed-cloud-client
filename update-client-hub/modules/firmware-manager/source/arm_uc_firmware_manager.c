@@ -27,6 +27,7 @@
 static ARM_UCFM_SignalEvent_t ucfm_handler = NULL;
 
 static ARM_UCFM_Setup_t *package_configuration = NULL;
+static arm_uc_hash_t package_hash;
 static uint32_t package_offset = 0;
 static bool ready_to_receive = false;
 
@@ -183,13 +184,13 @@ static void arm_uc_internal_process_hash(void)
             ARM_UC_cryptoHashFinish(&mdHandle, &hash_buffer);
 
             /* size check before memcmp call */
-            if (hash_buffer.size == package_configuration->hash->size) {
+            if (hash_buffer.size == ARM_UC_SHA256_SIZE) {
                 int diff = memcmp(hash_buffer.ptr,
-                                  package_configuration->hash->ptr,
-                                  package_configuration->hash->size);
+                                  package_hash,
+                                  ARM_UC_SHA256_SIZE);
 
 #if UCFM_DEBUG_OUTPUT
-                debug_output_validation(package_configuration->hash,
+                debug_output_validation(package_hash,
                                         &hash_buffer);
 #endif
 
@@ -205,6 +206,8 @@ static void arm_uc_internal_process_hash(void)
 
                     error_event = UCFM_EVENT_FINALIZE_INVALID_HASH_ERROR;
                 }
+                // clear local hash
+                memset(package_hash, 0, ARM_UC_SHA256_SIZE);
             }
         }
 
@@ -389,6 +392,9 @@ static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t *configuration,
     /* Initialise the internal state */
     if (result.error == ERR_NONE) {
         package_configuration = configuration;
+        // Make copy of hash because the fwInfo in hub shares memory
+        // with backbuffer and is overwritten in Finalize-phase
+        memcpy(package_hash, configuration->hash->ptr, ARM_UC_SHA256_SIZE);
         package_offset = 0;
         ready_to_receive = true;
     } else {

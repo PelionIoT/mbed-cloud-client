@@ -102,6 +102,7 @@ void M2MResourceInstance::set_observation_handler(M2MObservationHandler *handler
     parent_resource.set_observation_handler(handler);
 }
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 bool M2MResourceInstance::handle_observation_attribute(const char *query)
 {
     tr_debug("M2MResourceInstance::handle_observation_attribute - is_under_observation(%d)", is_under_observation());
@@ -125,6 +126,7 @@ bool M2MResourceInstance::handle_observation_attribute(const char *query)
     }
     return success;
 }
+#endif
 
 uint16_t M2MResourceInstance::object_instance_id() const
 {

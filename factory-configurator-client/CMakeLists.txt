@@ -11,12 +11,8 @@ SET(MODULES
 	utils
 	mbed-trace-helper
 	fcc-output-info-handler
+	fcc-bundle-handler
 )
-
-# add fcc-bundle-handler only if secsrv-cbor repo exist
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/secsrv-cbor)
-      list (APPEND MODULES fcc-bundle-handler)
-endif()
 
 # includes
 FOREACH(module ${MODULES})
@@ -97,12 +93,12 @@ target_link_libraries(key-config-manager crypto-service fccstorage)
 CREATE_LIBRARY(factory-configurator-client "${factory-configurator-client}" "")
 
 # Create buld dependencies to ensure all the needed parts get build
-add_dependencies(factory-configurator-client fccstorage key-config-manager pal)
+add_dependencies(factory-configurator-client fccstorage key-config-manager pal tinycbor)
 
 # Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
 # just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
 # automatically build all the submodules.
-target_link_libraries(factory-configurator-client fccstorage key-config-manager fccstorage pal)
+target_link_libraries(factory-configurator-client fccstorage key-config-manager fccstorage pal tinycbor)
 
 
 ADDSUBDIRS()

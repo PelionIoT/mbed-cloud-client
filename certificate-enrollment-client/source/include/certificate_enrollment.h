@@ -33,7 +33,6 @@ typedef struct ce_renewal_params_ {
     struct cert_chain_context_s *cert_data;// Not owner
     cs_key_handle_t crypto_handle;//This should include pointer to private key/private  and public key object optional - Not owner 
 } ce_renewal_params_s;
-    
 
 ce_status_e ce_init(void);
 
@@ -48,13 +47,13 @@ ce_status_e ce_init(void);
 ce_status_e ce_error_handler(kcm_status_e kcm_status);
 
 /** Generates key pair and a CSR from a given certificate name.
-* Calling to cs_ec_key_new(..) prior calling this function is mandatory in order to achieve the handle to the key object in store.
-* Calling to cs_ec_key_free(..) prior calling this function is mandatory in order to evacuate the handle resources.
+* Calling to cs_key_pair_new(..) prior calling this function is mandatory in order to achieve the handle to the key object in store.
+* Calling to cs_key_pair_free(..) prior calling this function is mandatory in order to evacuate the handle resources.
 * Please refer cs_der_keys_and_csr.h for specific API details.
 *
 * @param certifcate_name[in] Certificate name to search in store, the certificate
 *                            name must be NULL terminated string
-* @param key_h[in] A handle to a key object that obtained by calling to cs_ec_key_new(..)
+* @param key_h[in] A handle to a key object that obtained by calling to cs_key_pair_new(..)
 * @param csr_out[out] A pointer to a newly allocated buffer that accommodate the CSR.
 *                     It is the user responsibility to evacuate this buffer.
 * @param csr_size_out[out] The size in bytes of the newly created CSR
@@ -62,7 +61,7 @@ ce_status_e ce_error_handler(kcm_status_e kcm_status);
 *       CE_STATUS_SUCCESS in case of success or one of the `::ce_status_e` errors otherwise.
 */
 ce_status_e ce_generate_keys_and_create_csr_from_certificate(
-    const char *certificate_name, const cs_key_handle_t key_h,
+    const char *certificate_name, cs_renewal_names_s *renewal_items_names, const cs_key_handle_t key_h,
     uint8_t **csr_out, size_t *csr_size_out);
 
 /*! The API updates certificate/certificate chain and correlated key/key pair.
@@ -74,7 +73,7 @@ ce_status_e ce_generate_keys_and_create_csr_from_certificate(
 *    @returns
 *        CE_STATUS_SUCCESS in case of success or one of the `::ce_status_e` errors otherwise.
 */
-ce_status_e ce_safe_renewal(const char *item_name, ce_renewal_params_s *renewal_data);
+ce_status_e ce_safe_renewal(const char *item_name, cs_renewal_names_s *renewal_items_names, ce_renewal_params_s *renewal_data);
 
 /*! The API called during kcm_init() in case of error during renewal_certificate API.
 * The functions checks status of the renewal process, restores original data and deletes redundant files.

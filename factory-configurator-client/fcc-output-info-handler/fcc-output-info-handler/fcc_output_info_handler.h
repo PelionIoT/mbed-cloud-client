@@ -53,7 +53,7 @@ bool is_fcc_initialized(void);
 * @return
 *     true for success, false otherwise.
 */
-fcc_status_e fcc_bundle_store_error_info(const uint8_t *failed_item_name, size_t failed_item_name_size, kcm_status_e kcm_status);
+fcc_status_e fcc_bundle_store_kcm_error_info(const uint8_t *failed_item_name, size_t failed_item_name_size, kcm_status_e kcm_status);
 
 /**  The function stores the name of failed item and fcc error string in global variables
 *The error returned by fcc_verify_device_configured_4mbed_cloud API.

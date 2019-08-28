@@ -39,7 +39,7 @@ namespace CertificateEnrollmentClient {
     public:
         CertificateRenewalDataBase(const uint8_t *raw_data, size_t raw_data_size);
         virtual ~CertificateRenewalDataBase();
-        
+
         /*
          * Gets a TLV (Type-Length-Value) buffer to parse, each element in the TLV buffer is being treated and executed
          * according to the given ce_tlv_type_e that is defined in ce_tlv.h file.
@@ -50,7 +50,7 @@ namespace CertificateEnrollmentClient {
          * We distinguish if an element is required or optional by toggling the type's field MSB (Most Significant Bit).
          * If the type's field MSB is set to '0' - this element marked as 'required'
          * If the type's field MSB is set to '1' - this element marked as 'optional'
-         * 
+         *
          * The function iterates through the TLV buffer and enforces the following rules for each element:
          * (1) if element's type is unsupported and the type is marked as 'optional' - element is being skipped
          * (2) if element's type is unsupported and the type is marked as 'required' - CE_STATUS_BAD_INPUT_FROM_SERVER error will be returned
@@ -61,7 +61,7 @@ namespace CertificateEnrollmentClient {
          *
          * The TLV buffer MUST be coherent in memory.
          * The TLV buffer is not forced to be word aligned.
-         * 
+         *
          * @return CE_STATUS_SUCCESS if parsing succeeded or one of the faulty errors in ce_status.h
          */
         virtual ce_status_e parse() = 0;
@@ -76,6 +76,8 @@ namespace CertificateEnrollmentClient {
 
         // Certificate name - NULL terminated. Should not be freed, should point to the name inside _raw_data 
         const char *cert_name;
+
+        cs_renewal_names_s renewal_items_names;
 
         // The certificate chain received from the EST service. Released in the destructor.
         cert_chain_context_s *est_data;
@@ -131,14 +133,14 @@ namespace CertificateEnrollmentClient {
 
         /*
         * Call the user callback with status. The initiator is CE_INITIATOR_DEVICE.
-        * Then set the resource to the status value and set a delayed response to the server. 
+        * Then set the resource to the status value and set a delayed response to the server.
         *
         * \param status The status that will be specified when the user callback is called, and sent to the server.
         */
         virtual void finish(ce_status_e status);
     };
 
-    
+
 }
 
 #endif // __CERTIFICATE_RENEWAL_DATA_H__

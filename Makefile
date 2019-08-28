@@ -101,6 +101,9 @@ LOCAL_ADD_INCLUDE += \
 LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/certificate-enrollment-client/certificate-enrollment-client
 
+# Tinycbor
+LOCAL_ADD_INCLUDE += ${LOCAL_NAME}/tinycbor/src
+
 # Compile the sub-modules, except when the "service" must be used as a library.
 # list all the modules that need to be compiled prior to using this module
 LOCAL_MODULE_DEPENDS += ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-client-pal
@@ -116,11 +119,12 @@ LOCAL_EXPORT_FLAG += "NS_EXCLUDE_HIGHRES_TIMER=1"
 LOCAL_EXPORT_FLAG += "MBED_CONF_NANOSTACK_EVENTLOOP_USE_PLATFORM_TICK_TIMER"
 LOCAL_EXPORT_FLAG += "NS_EVENTLOOP_USE_TICK_TIMER"
 
-
-
 # Disable code using STL as it not available on SDK
 LOCAL_EXPORT_FLAG += "MBED_CLOUD_CLIENT_STL_API=0"
 LOCAL_EXPORT_FLAG += "MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION=0"
+
+# Disable code using ldexp as it not available on SDK
+LOCAL_EXPORT_FLAG += "CBOR_NO_FLOATING_POINT"
 
 # Update client
 LOCAL_EXPORT_FLAG += "ATOMIC_QUEUE_USE_PAL=1"
@@ -180,6 +184,9 @@ C_SRC += ${wildcard update-client-hub/modules/pal-filesystem/source/*.c}
 # Todo: the CE might need to be separated also
 C_SRC += ${wildcard certificate-enrollment-client/source/*.c}
 C++_SRC += ${wildcard certificate-enrollment-client/source/*.cpp}
+
+# Tinycbor
+C_SRC += ${wildcard tinycbor/src/*.c}
 
 # mbed-trace and its dependency. This might deserver a separate lib, but the mbed-trace 
 # already has a makefile and mixing this system with generic make takes a bit more work 

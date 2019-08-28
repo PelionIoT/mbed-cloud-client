@@ -23,7 +23,7 @@
 #include "key_config_manager.h"
 #include "factory_configurator_client.h"
 #include "fcc_defs.h"
-#include "pal_types.h"
+#include "pal.h"
 
 #ifdef __cplusplus
 extern "C" {

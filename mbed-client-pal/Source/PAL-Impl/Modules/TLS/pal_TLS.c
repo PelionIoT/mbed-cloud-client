@@ -136,6 +136,7 @@ finish:
     if (PAL_SUCCESS != status)
     {
         free(palTLSCtx);
+        *palTLSHandle = NULLPTR;
     }
     return status;
 }

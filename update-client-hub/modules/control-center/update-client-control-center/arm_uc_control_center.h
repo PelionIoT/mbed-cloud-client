@@ -29,10 +29,17 @@
 
 typedef enum {
     ARM_UCCC_EVENT_AUTHORIZE_DOWNLOAD,
+    ARM_UCCC_EVENT_REJECT_DOWNLOAD,
+    ARM_UCCC_EVENT_UNAVAILABLE_DOWNLOAD,
     ARM_UCCC_EVENT_AUTHORIZE_INSTALL,
+    ARM_UCCC_EVENT_REJECT_INSTALL,
+    ARM_UCCC_EVENT_UNAVAILABLE_INSTALL,
     ARM_UCCC_EVENT_MONITOR_SEND_DONE,
-} arm_uc_contro_center_event_t;
+} arm_uc_control_center_event_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * @brief Initialize Control Center.
  *
@@ -61,7 +68,7 @@ arm_uc_error_t ARM_UC_ControlCenter_AddMonitor(const ARM_UPDATE_MONITOR *monitor
 arm_uc_error_t ARM_UC_ControlCenter_SetProgressHandler(void (*callback)(uint32_t progress, uint32_t total));
 
 /**
- * @brief Set callback function for authorizing requests.
+ * @brief Set callback function for authorizing requests without specific priority.
  * @details User application call for setting callback handler.
  *          The callback function takes an enum request and an authorization
  *          function pointer. To authorize the given request, the caller
@@ -70,16 +77,28 @@ arm_uc_error_t ARM_UC_ControlCenter_SetProgressHandler(void (*callback)(uint32_t
  * @param callback Function pointer to the authorization function.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_SetAuthorityHandler(void (*callback)(int32_t));
+arm_uc_error_t ARM_UC_ControlCenter_SetAuthorityHandler(void (*callback)(int32_t)) __attribute__((deprecated("Use ARM_UC_ControlCenter_SetPriorityAuthorityHandler instead")));
+
+/**
+ * @brief Set callback function for authorizing requests with specific priority.
+ * @details User application call for setting callback handler.
+ *          The callback function takes an enum request, an authorization
+ *          function pointer and a priority value. To authorize the given
+ *          request, the caller invokes the authorization function.
+ *
+ * @param callback Function pointer to the authorization function.
+ * @return Error code.
+ */
+arm_uc_error_t ARM_UC_ControlCenter_SetPriorityAuthorityHandler(void (*callback)(int32_t request, uint64_t priority));
 
 /**
  * @brief Request authorization from Control Center.
  * @details Update Client call for asking user application for permission.
  *
- * @param type Request type.
+ * @param request Request type.
  * @return Error code.
  */
-arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request);
+arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request, uint64_t priority);
 
 /**
  * @brief Authorize request.
@@ -88,6 +107,15 @@ arm_uc_error_t ARM_UC_ControlCenter_GetAuthorization(arm_uc_request_t request);
  * @param request Request type. Must match the type in callback function.
  */
 arm_uc_error_t ARM_UC_ControlCenter_Authorize(arm_uc_request_t request);
+
+/**
+ * @brief Reject request.
+ * @details User application call for rejecting request.
+ *
+ * @param request Request type. Must match the type in callback function.
+ * @param reason Reason for rejecting the request.
+ */
+arm_uc_error_t ARM_UC_ControlCenter_Reject(arm_uc_request_t request, arm_uc_reject_reason_t reason);
 
 /**
  * @brief Override update authorization handler.
@@ -171,5 +199,9 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportBootloaderHash(arm_uc_buffer_t *hash);
  * @return Error code.
  */
 arm_uc_error_t ARM_UC_ControlCenter_ReportOEMBootloaderHash(arm_uc_buffer_t *hash);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // __ARM_UPDATE_CONTROL_CENTER_H__

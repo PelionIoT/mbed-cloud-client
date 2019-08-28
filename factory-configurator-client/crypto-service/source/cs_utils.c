@@ -129,26 +129,3 @@ kcm_status_e cs_check_cert_with_priv_handle(palX509Handle_t x509_cert, kcm_key_h
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
-
-// FIXME - Currently, for CEC only. Can be removed once CEC support PSA.
-kcm_status_e cs_check_cert_with_priv_data(palX509Handle_t x509_cert, const uint8_t *private_key_data, size_t size_of_private_key_data)
-{
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t out_sign[KCM_ECDSA_SECP256R1_MAX_SIGNATURE_DER_SIZE_IN_BYTES] = { 0 }; // DER format expected
-    size_t size_of_sign = sizeof(out_sign);
-    size_t act_size_of_sign = 0;
-    const uint8_t hash_digest[] =
-    { 0x34, 0x70, 0xCD, 0x54, 0x7B, 0x0A, 0x11, 0x5F, 0xE0, 0x5C, 0xEB, 0xBC, 0x07, 0xBA, 0x91, 0x88,
-        0x27, 0x20, 0x25, 0x6B, 0xB2, 0x7A, 0x66, 0x89, 0x1A, 0x4B, 0xB7, 0x17, 0x11, 0x04, 0x86, 0x6F };
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    kcm_status = cs_ecdsa_sign(private_key_data, size_of_private_key_data, hash_digest, sizeof(hash_digest), out_sign, size_of_sign, &act_size_of_sign);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_ecdsa_sign failed");
-
-    kcm_status = cs_x509_cert_verify_der_signature(x509_cert, hash_digest, sizeof(hash_digest), out_sign, act_size_of_sign);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_x509_cert_verify_signature failed");
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return kcm_status;
-}

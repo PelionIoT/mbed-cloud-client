@@ -451,7 +451,22 @@ palStatus_t pal_plat_ECKeyNew(palECKeyHandle_t* key);
  */
 palStatus_t pal_plat_ECKeyFree(palECKeyHandle_t* key);
 
+/*! \brief Initializes a handle to key according to its size
+ *
+ * @param[in] keyHandle: A handle for the key
+ * @param[in] key_size: size of the key.
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size);
 
+/*! \brief frees a a key handle.
+ *
+ * @param[in] keyHandle: A handle for the key
+ *
+ \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle);
 
 
 /*!	\brief Parse a DER encoded private key.

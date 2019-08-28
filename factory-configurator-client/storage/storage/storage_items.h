@@ -67,9 +67,8 @@ extern "C" {
 #define KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0      KCM_RENEWAL_FILE_PREFIX_CERTIFICATE
 #define KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_X      "bCt1_" // must be same length as KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0
 #define KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_X_OFFSET 3
-
+#define STORAGE_TYPE_PREFIX_MAX_LENGTH  0
 #else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-
 /**
 * KCM file prefixes defines
 */
@@ -92,13 +91,27 @@ extern "C" {
 #define STORAGE_BACKUP_ACRONYM "b"
 #define STORAGE_WORKING  STORAGE_PELION_PREFIX STORAGE_WORKING_ACRONYM// "pelion_w"
 #define STORAGE_BACKUP STORAGE_PELION_PREFIX STORAGE_BACKUP_ACRONYM // "pelion_b"
-
+#define STORAGE_TYPE_PREFIX_MAX_LENGTH 8 //sizeof STORAGE_BACKUP //8 STORAGE_WORKING
 typedef struct kcm_chain_cert_name_info_ {
     uint32_t certificate_index;
     bool is_last_certificate;
 } kcm_chain_cert_info_s;
 
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+
+//Max size of storage item prefix
+#define STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH 16
+#define STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH  STORAGE_TYPE_PREFIX_MAX_LENGTH + STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH + KCM_MAX_FILENAME_SIZE
+//The complete storage item name composed from :
+//    1. STORAGE_TYPE_PREFIX_MAX_LENGTH -
+//     for esfs configuration : STORAGE_TYPE_PREFIX_MAX_LENGTH = 0
+//     for EXTERNAL_SST configuration: STORAGE_TYPE_PREFIX_MAX_LENGTH=STORAGE_WORKING = 8 = strlen"pelion_w"
+//    2. STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH - 
+//        item type prefix refers to KCM item prefixes of both types (KCM and CE) and certificate chain naming = 16
+//    3. KCM_MAX_FILENAME_SIZE = 100
+//  Total complete max name size is 124 for external sst and 116 for esfs.
+
+
 
 
 /**
@@ -135,7 +148,7 @@ typedef struct storage_chain_prev_cert_params_ {
 * The chain context used internally only and should not be changed by user.
 */
 typedef struct storage_cert_chain_context_ {
-    uint8_t chain_name[KCM_MAX_FILENAME_SIZE];              //!< The name of certificate chain.
+    uint8_t chain_name[STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH];//!< The name of certificate chain.
     size_t  chain_name_len;                                 //!< The size of certificate chain name.
     size_t num_of_certificates_in_chain;                    //!< The number of certificate in the chain.
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
@@ -150,12 +163,6 @@ typedef struct storage_cert_chain_context_ {
     size_t  certificates_info[KCM_MAX_NUMBER_OF_CERTITICATES_IN_CHAIN]; //!< Array of the sizes of the certificates in chain
 #endif
 } storage_cert_chain_context_s;
-
-
-// Make sure that pointer_to_complete_name points to a type of size 1 (char or uint8_t) so that arithmetic works correctly
-#define KCM_FILE_BASENAME(pointer_to_complete_name, prefix_define) (pointer_to_complete_name + sizeof(prefix_define) - 1)
-// Complete name is the prefix+name (without '/0')
-#define KCM_FILE_BASENAME_LEN(complete_name_size, prefix_define) (complete_name_size - (sizeof(prefix_define) - 1))
 
 //Protected data names
 #define MAX_SOTP_BUFFER_SIZE    FCC_ENTROPY_SIZE

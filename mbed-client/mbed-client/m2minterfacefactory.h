@@ -41,6 +41,7 @@ private:
     // Prevents the use of a copy constructor by accident.
     M2MInterfaceFactory( const M2MInterfaceFactory& /*other*/ );
 
+
 public:
 
     /**
@@ -111,6 +112,29 @@ public:
      */
     static M2MObject *create_object(const String &name);
 
+    /**
+     * \brief Creates a M2M resource and places it to the given object list.
+     * \param m2m_obj_list Object list where the newly created resource is added.
+     * \param object_id The OMALwM2M object identifier.
+     * \param object_instance_id The OMALwM2M object instance identifier.
+     * \param resource_id The OMALwM2M resource identifier.
+     * \param resource_type The OMALwM2M resource type.
+     * \param allowed Defines possible REST operations to the requested resource.
+     * \param multiple_instance The resource can have
+     *        multiple instances, default is false.
+     * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
+     *        otherwise handled in mbed-client-c.
+     * \return Returns pointer to the created M2MResource, or a NULL on failure.
+     */
+    static M2MResource *create_resource(M2MObjectList &m2m_obj_list,
+                                        const uint16_t object_id,
+                                        const uint16_t object_instance_id,
+                                        const uint16_t resource_id,
+                                        const M2MResourceInstance::ResourceType resource_type,
+                                        const M2MBase::Operation allowed,
+                                        bool multiple_instance = false,
+                                        bool external_blockwise_store = false);
+
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     /**
      * \brief Creates a endpoint object for the mbed Client Inteface. With this, the
@@ -122,6 +146,45 @@ public:
      */
     static M2MEndpoint* create_endpoint(const String &name);
 #endif
+
+private:
+    /**
+     * \brief Checks given m2m_object_list for requested M2MObject and creates it if necessary.
+     * \param object_list The object list.
+     * \param object_id The OMALwM2M object identifier.
+     * \param object_created This boolean flag is set to true if an object was
+     * created and false if existing object was found.
+     * \return Returns pointer to the requested M2MObject, or a NULL on failure.
+     */
+    static M2MObject* find_or_create_object(M2MObjectList &object_list,
+                                            const uint16_t object_id,
+                                            bool &object_created);
+
+    /**
+     * \brief Checks the given M2MObject for requested M2MObjectInstance and creates it if necessary.
+     * \param object The M2MObject.
+     * \param object_instance_id The OMALwM2M object instance identifier.
+     * \param object_instance_created This boolean flag is set to true if an object
+     * instance was created and false if existing object instance was found.
+     * \return Returns pointer to the requested M2MObjectInstance, or a NULL on failure.
+     */
+    static M2MObjectInstance* find_or_create_object_instance(M2MObject &object,
+                                                             const uint16_t object_instance_id,
+                                                             bool &object_instance_created);
+
+    /**
+     * \brief Checks the given M2MObjectInstance for requested M2MResource and creates it if necessary.
+     * \param object_instance The M2MObjectInstance.
+     * \param resource_id The OMAL2M2M resource identifier.
+     * \param resource_type The OMALwM2M resource type.
+     * \param observable Flag describing if the created resource should be observable.
+     * \return Returns pointer to the M2MResource, or a NULL on failure.
+     */
+    static M2MResource* find_or_create_resource(M2MObjectInstance &object_instance,
+                                                const uint16_t resource_id,
+                                                const M2MResourceInstance::ResourceType resource_type,
+                                                bool multiple_instance,
+                                                bool external_blockwise_store);
 
     friend class Test_M2MInterfaceFactory;
 };

@@ -42,15 +42,25 @@ extern "C" {
     */
     bool ce_set_item_names(const char *item_name, char **private_key_name_out, char **public_key_name_out, char **certificate_name_out);
 
+    /*! The API stores new keys.
+    *
+    *    @param[in] renewal_items_names       pointer to items namse structure
+    *    @param[in] crypto_handle             crypto handle of the new keys.
+    *
+    *    @returns
+    *        true/false
+    */
+    kcm_status_e ce_store_new_keys(cs_renewal_names_s *renewal_items_names, cs_key_handle_t crypto_handle);
+
     /*! The API creates a copy of renewal items.
     *
-    *    @param[in] item_name                item name string.
+    *    @param[in] renewal_items_name       pointer to items names structure.
     *    @param[in] is_public_key            flag that indicates if public key exists in the storage.
     *
     *    @returns
     *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e ce_create_backup_items(const char *item_name, bool is_public_key);
+    kcm_status_e ce_create_backup_items(cs_renewal_names_s *renewal_items_name);
 
     /*! The API restores backup items and moves it to original source, if the operation succeeded, the backup items deleted.
     *    @param[in] item_name                item name string.
@@ -60,14 +70,30 @@ extern "C" {
     */
     kcm_status_e ce_restore_backup_items(const char *item_name);
 
-    /*! The API deletes set of items (key pair and certificate/certificate chain) according to given name and source type.
-    *    @param[in] item_name                item name string.
-    *    @param[in] source_data_type         type of data type to verify (backup or original)
-    *    @param[in] is_public_key            flag that indicates if public key exists in the storage.
+    /*! The API checks existance of the private key.
+    *    @param[in] priv_key_name            the name of the private key.
+    *    @param[in] priv_key_name_len        the private key name length.
     *    @returns
     *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e ce_clean_items(const char *item_name, storage_item_prefix_type_e data_source_type, bool is_public_key);
+    kcm_status_e ce_private_key_existence(const uint8_t *priv_key_name, size_t priv_key_name_len, storage_item_prefix_type_e item_prefix_type);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    /*! The API destroys old active id after renewal process was completed successfully and removes backup items.
+    *    @param[in] renewal_items_names        Pointer to renewal items names
+    *    @returns
+    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e ce_destroy_old_active_and_remove_backup_entries(cs_renewal_names_s *renewal_items_names);
+#endif
+
+    /*! The API deletes set of items (key pair and certificate/certificate chain) according to given name and source type.
+    *    @param[in] renewal_items_name       item names structure.
+    *    @param[in] source_data_type         type of data type to verify (backup or original)
+    *    @returns
+    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e ce_clean_items(cs_renewal_names_s *renewal_items_name, storage_item_prefix_type_e data_source_type);
 
     /*! The API creates renewal status file with item_name data.
     *    @param[in] item_name                item name string.

@@ -38,6 +38,9 @@ LOCAL_ADD_INCLUDE += \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/certificate-enrollment-client/source/include \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/certificate-enrollment-client/certificate-enrollment-client
 
+# Tinycbor
+LOCAL_ADD_INCLUDE += ${MBED_CLOUD_SERVICE}/mbed-cloud-client/tinycbor/src
+
 # FCC
 LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/crypto-service/source/include \
@@ -53,16 +56,10 @@ LOCAL_ADD_INCLUDE += \
                     ${LOCAL_NAME}/mbed-client-esfs/source/include \
                     ${LOCAL_NAME}/utils/utils \
                     ${LOCAL_NAME}/storage/storage \
-                    ${LOCAL_NAME}/storage/source/include \
-                    ${LOCAL_NAME}/secsrv-cbor/secsrv-cbor \
-
+                    ${LOCAL_NAME}/storage/source/include
 
 # this should already come via inheritance, but let's be clear
 LOCAL_EXPORT_FLAG += __SXOS__
-
-# This is needed to disable (unused?) references to functions which are not available on sdk,
-# namely ldexp(), isgreater() and isless().
-LOCAL_EXPORT_FLAG += "CBOR_NO_FLOAT"
 
 # Generate the revision (version) file automatically during the make process.
 AUTO_GEN_REVISION_HEADER := no
@@ -88,7 +85,6 @@ C_SRC += ${wildcard mbed-client-esfs/source/*.c}
 C_SRC += ${wildcard mbed-client-esfs/source/sotp/*.c}
 C_SRC += ${wildcard mbed-trace-helper/source/*.c}
 C_SRC += ${wildcard utils/source/*.c}
-C_SRC += ${wildcard secsrv-cbor/source/*.c}
 C_SRC += ${wildcard storage/source/*.c}
 
 

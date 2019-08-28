@@ -21,244 +21,46 @@
 #include <inttypes.h>
 #include "fcc_status.h"
 #include "key_config_manager.h"
-#include "cn-cbor.h"
+#include "tinycbor.h"
 #include "fcc_bundle_fields.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define FCC_CBOR_MAP_LENGTH 2
 #define CSR_MAX_NUMBER_OF_CSRS 5
 
-    /**
-* Types of key parameters
-*/
-typedef enum {
-    FCC_BUNDLE_DATA_PARAM_NAME_TYPE,
-    FCC_BUNDLE_DATA_PARAM_SCHEME_TYPE,
-    FCC_BUNDLE_DATA_PARAM_FORMAT_TYPE,
-    FCC_BUNDLE_DATA_PARAM_DATA_TYPE,
-    FCC_BUNDLE_DATA_PARAM_ACL_TYPE,
-    FCC_BUNDLE_DATA_PARAM_ARRAY_TYPE,
-    FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME_TYPE,
-    FCC_BUNDLE_DATA_PARAM_MAX_TYPE
-} fcc_bundle_data_param_type_e;
+typedef fcc_status_e (*fcc_bundle_process_map_cb)(CborValue *tcbor_map_val, void *extra_cb_info);
 
-/**
-* Key lookup record, correlating key's param type and name
-*/
-typedef struct fcc_bundle_data_param_lookup_record_ {
-    fcc_bundle_data_param_type_e data_param_type;
-    const char *data_param_name;
-} fcc_bundle_data_param_lookup_record_s;
+fcc_status_e fcc_bundle_process_maps_in_arr(const CborValue *tcbor_arr_val, fcc_bundle_process_map_cb process_map_cb, void *extra_cb_info);
 
-/**
-* Key lookup table, correlating for each key its param type and param name
-*/
-static const fcc_bundle_data_param_lookup_record_s fcc_bundle_data_param_lookup_table[FCC_BUNDLE_DATA_PARAM_MAX_TYPE] = {
-    { FCC_BUNDLE_DATA_PARAM_NAME_TYPE,          FCC_BUNDLE_DATA_PARAMETER_NAME },
-    { FCC_BUNDLE_DATA_PARAM_SCHEME_TYPE,        FCC_BUNDLE_DATA_PARAMETER_SCHEME },
-    { FCC_BUNDLE_DATA_PARAM_FORMAT_TYPE,        FCC_BUNDLE_DATA_PARAMETER_FORMAT },
-    { FCC_BUNDLE_DATA_PARAM_DATA_TYPE,          FCC_BUNDLE_DATA_PARAMETER_DATA },
-    { FCC_BUNDLE_DATA_PARAM_ACL_TYPE,           FCC_BUNDLE_DATA_PARAMETER_ACL },
-    { FCC_BUNDLE_DATA_PARAM_ARRAY_TYPE,         FCC_BUNDLE_DATA_PARAMETER_ARRAY },
-    { FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME_TYPE, FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME }
-};
+fcc_status_e fcc_bundle_process_certificates_cb(CborValue *tcbor_val, void *extra_info);
 
-/**
-* Source type of buffer
-*/
-typedef enum {
-    FCC_EXTERNAL_BUFFER_TYPE,
-    FCC_INTERNAL_BUFFER_TYPE,
-    FCC_MAX_BUFFER_TYPE
-} fcc_bundle_buffer_type_e;
+fcc_status_e fcc_bundle_process_keys_cb(CborValue *tcbor_val, void *extra_info);
 
-/**
-* Data formats supported by FC
-*/
-typedef enum {
-    FCC_INVALID_DATA_FORMAT,
-    FCC_DER_DATA_FORMAT,
-    FCC_PEM_DATA_FORMAT,
-    FCC_MAX_DATA_FORMAT
-} fcc_bundle_data_format_e;
+fcc_status_e fcc_bundle_process_config_param_cb(CborValue *tcbor_val, void *extra_info);
 
-/**
-* Group lookup record, correlating group's type and name
-*/
-typedef struct fcc_bundle_data_format_lookup_record_ {
-    fcc_bundle_data_format_e data_format_type;
-    const char *data_format_name;
-} fcc_bundle_data_format_lookup_record_s;
+fcc_status_e fcc_bundle_process_csr_reqs(const CborValue *tcbor_csr_reqs_val, CborEncoder *tcbor_top_map_encoder);
 
-/**
-* Group lookup table, correlating for each group its type and name
-*/
-static const fcc_bundle_data_format_lookup_record_s fcc_bundle_data_format_lookup_table[FCC_MAX_DATA_FORMAT] = {
-    { FCC_DER_DATA_FORMAT,          FCC_BUNDLE_DER_DATA_FORMAT_NAME },
-    { FCC_PEM_DATA_FORMAT,          FCC_BUNDLE_PEM_DATA_FORMAT_NAME },
-};
+/** Get pointer to the start of string value in the cbor blob and its length
+ *  Note, valid until blob memory is freed */
+bool fcc_bundle_get_text_string(const CborValue *tcbor_val, const char **str, size_t *str_len, const char *err_field_name, size_t err_field_name_len);
 
-/**
-* Key types supported by FC
-*/
-typedef enum {
-    FCC_INVALID_KEY_TYPE,
-    FCC_ECC_PRIVATE_KEY_TYPE,//do not change this type's place.FCC_ECC_PRIVATE_KEY_TYPE should be at first place.
-    FCC_ECC_PUBLIC_KEY_TYPE,
-    FCC_RSA_PRIVATE_KEY_TYPE,
-    FCC_RSA_PUBLIC_KEY_TYPE,
-    FCC_SYM_KEY_TYPE,
-    FCC_MAX_KEY_TYPE
-} fcc_bundle_key_type_e;
+/** Get pointer to the start of string value in the cbor blob and its length
+ *  Note, valid until blob memory is freed */
+bool fcc_bundle_get_byte_string(const CborValue *tcbor_val, const uint8_t **bytes, size_t *bytes_len, const char *err_field_name, size_t err_field_name_len);
 
-typedef struct fcc_bundle_data_param_ {
-    uint8_t                          *name;
-    size_t                           name_len;
-    fcc_bundle_data_format_e         format;
-    fcc_bundle_key_type_e            type;
-    uint8_t                          *data;
-    size_t                           data_size;
-    uint8_t                          *data_der;
-    size_t                           data_der_size;
-    fcc_bundle_buffer_type_e         data_type;
-    uint8_t                          *acl;
-    size_t                           acl_size;
-    cn_cbor                          *array_cn;
-    uint8_t                           *private_key_name;
-    size_t                           private_key_name_len;
-} fcc_bundle_data_param_s;
+bool fcc_bundle_get_uint64(const CborValue *tcbor_val, uint64_t *value_out, const char *err_field_name, size_t err_field_name_len);
 
-typedef enum {
-    FCC_BUNDLE_BUFFER_TYPE_ENTROPY,
-    FCC_BUNDLE_BUFFER_TYPE_ROT
-} fcc_bundle_data_buffer_type_e;
+bool fcc_bundle_get_bool(const CborValue *tcbor_val, bool *value_out, const char *err_field_name, size_t err_field_name_len);
 
-/** Frees all allocated memory of data parameter struct and sets initial values.
-*
-* @param data_param[in/out]    The data parameter structure
-*/
-void fcc_bundle_clean_and_free_data_param(fcc_bundle_data_param_s *data_param);
+/** Get pointer to the start of the data. 
+ *  In case of fixed type, get the value to data64_val and set data_ptr to it's address */
+bool fcc_bundle_get_variant(CborValue *tcbor_val, const uint8_t **data_ptr, size_t *data_ptr_size, uint64_t *data64_val, const char *err_field_name, size_t err_field_name_len);
 
-/** Gets data buffer from cbor struct.
-*
-* @param data_cb[in]          The cbor text structure
-* @param out_data_buffer[out] The out buffer for string data
-* @param out_size[out]        The actual size of output buffer
-*
-* @return
-*     true for success, false otherwise.
-*/
-bool get_data_buffer_from_cbor(const cn_cbor *data_cb, uint8_t **out_data_buffer, size_t *out_size);
+fcc_status_e fcc_bundle_process_rbp_buffer(CborValue *tcbor_top_map, const char *map_key_name, const char *rbp_item_name);
 
-/** Processes  keys list.
-* The function extracts data parameters for each key and stores its according to it type.
-*
-* @param keys_list_cb[in]   The cbor structure with keys list.
-*
-* @return
-*     fcc_status_e status.
-*/
-fcc_status_e fcc_bundle_process_keys(const cn_cbor *keys_list_cb);
-
-/** Processes  certificate list.
-* The function extracts data parameters for each certificate and stores it.
-*
-* @param certs_list_cb[in]   The cbor structure with certificate list.
-*
-* @return
-*      fcc_status_e status.
-*/
-fcc_status_e fcc_bundle_process_certificates(const cn_cbor *certs_list_cb);
-/** Processes  certificate chain list.
-* The function extracts data parameters for each certificate chain and stores it.
-*
-* @param certs_list_cb[in]   The cbor structure with certificate chain list.
-*
-* @return
-*      fcc_status_e status.
-*/
-fcc_status_e fcc_bundle_process_certificate_chains(const cn_cbor *cert_chains_list_cb);
-
-/** Processes  configuration parameters list.
-* The function extracts data parameters for each config param and stores it.
-*
-* @param config_params_list_cb[in]   The cbor structure with config param list.
-*
-* @return
-*      fcc_status_e status.
-*/
-fcc_status_e fcc_bundle_process_config_params(const cn_cbor *config_params_list_cb);
-
-/** Gets data parameters.
-*
-* The function goes over all existing parameters (name,type,format,data,acl and etc) and
-* tries to find correlating parameter in cbor structure and saves it to data parameter structure.
-*
-* @param data_param_cb[in]   The cbor structure with relevant data parameters.
-* @param data_param[out]     The data parameter structure
-*
-* @return
-*     true for success, false otherwise.
-*/
-bool fcc_bundle_get_data_param(const cn_cbor *data_param_list_cb, fcc_bundle_data_param_s *data_param);
-
-/**  Gets type of key form cbor structure
-*
-* The function goes over all key types and compares it with type inside cbor structure.
-*
-* @param key_type_cb[in]   The cbor structure with key type data.
-* @param key_type[out]     The key type
-*
-* @return
-*     true for success, false otherwise.
-*/
-bool fcc_bundle_get_key_type(const cn_cbor *key_type_cb, fcc_bundle_key_type_e *key_type);
-
-/** Writes buffer to SOTP
-*
-* @param cbor_bytes[in]     The pointer to a cn_cbor object of type CN_CBOR_BYTES.
-* @param rbp_item_name[in]  Item name to be stored.
-* @param buffer_type        Buffer type. different types are stored in a different way.
-* @return
-*     true for success, false otherwise.
-*/
-
-fcc_status_e fcc_bundle_process_buffer(cn_cbor *cbor_bytes, const char *rbp_item_name, fcc_bundle_data_buffer_type_e buffer_type);
-
-/** Gets the status groups value
-*
-* - if value is '0' - set status to false
-* - if value is '1' - set status to true
-*
-* @param cbor_blob[in]             The pointer to main CBOR blob.
-* @param cbor_group_name[in]       CBOT group name.
-* @param cbor_group_name_size[in]  CBOR group name size .
-* @param fcc_field_status[out]     Status of the field.
-*
-* @return
-*     One of FCC_STATUS_* error codes
-*/
-fcc_status_e bundle_process_status_field(const cn_cbor *cbor_blob, char *cbor_group_name, size_t cbor_group_name_size, bool *fcc_field_status);
-
-/** The function sets factory disable flag to sotp.
-*
-* @return
-*     One of FCC_STATUS_* error codes
-*/
-fcc_status_e fcc_bundle_factory_disable(void);
-
-/** Process the the CSR requests from the incoming message, generate the keys (and store them) and CSRs, and append the CSRs to the encoder in the proper format.
-* 
-*
-* @param csrs_list_cb[in]   The pointer to a cn_cbor object of type CN_CBOR_ARRAY which is an array of CSR request maps.
-* @param response_encoder[in/out]    encoder that points to the response map.
-* @return
-*     One of FCC_STATUS_* error codes
-*/
-fcc_status_e fcc_bundle_process_csrs(const cn_cbor *csrs_list_cb, cn_cbor *response_encoder);
+fcc_status_e fcc_bundle_factory_disable( void );
 
 #ifdef __cplusplus
 }

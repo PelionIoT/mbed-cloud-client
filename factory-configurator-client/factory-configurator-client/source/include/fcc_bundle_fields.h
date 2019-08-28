@@ -33,12 +33,22 @@ extern "C" {
 * Names of key parameters
 */
 #define FCC_BUNDLE_DATA_PARAMETER_NAME                  "Name"
-#define FCC_BUNDLE_DATA_PARAMETER_SCHEME                "Type"
+#define FCC_BUNDLE_DATA_PARAMETER_TYPE                  "Type"
 #define FCC_BUNDLE_DATA_PARAMETER_FORMAT                "Format"
 #define FCC_BUNDLE_DATA_PARAMETER_DATA                  "Data"
 #define FCC_BUNDLE_DATA_PARAMETER_ACL                   "ACL"
 #define FCC_BUNDLE_DATA_PARAMETER_ARRAY                 "DataArray"
 #define FCC_BUNDLE_DATA_PARAMETER_PRIVATE_KEY_NAME      "PrKN"
+
+/**
+* Names of key types
+*/
+#define FCC_ECC_PRIVATE_KEY_TYPE_NAME  "ECCPrivate"
+#define FCC_ECC_PUBLIC_KEY_TYPE_NAME   "ECCPublic"
+#define FCC_RSA_PRIVATE_KEY_TYPE_NAME  "RSAPrivate"
+#define FCC_RSA_PUBLIC_KEY_TYPE_NAME   "RSAPublic"
+#define FCC_SYMMETRIC_KEY_TYPE_NAME    "Symmetric"
+
 /**
 * Names of data formats
 */

@@ -29,6 +29,10 @@ set(PAL_RTOS_SRCS
     ${PAL_PORT_SOURCE_DIR}/Board_Specific/TARGET_${MBED_CLOUD_CLIENT_DEVICE}/pal_plat_${MBED_CLOUD_CLIENT_DEVICE}.c
     ${PAL_PORT_SOURCE_DIR}/RTOS/pal_plat_rtos.c
 )
+if (${OS_BRAND} MATCHES "Linux")
+    set(PAL_RTOS_SRCS ${PAL_RTOS_SRCS} ${PAL_PORT_SOURCE_DIR}/Board_Specific/pal_plat_linux_common.c)
+endif() 
+
 set(PAL_FILESYSTEM_SRCS
     ${PAL_MODULES_SOURCE_DIR}/Storage/FileSystem/pal_fileSystem.c
     ${PAL_PORT_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem.c

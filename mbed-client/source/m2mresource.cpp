@@ -233,7 +233,7 @@ void M2MResource::set_observation_handler(M2MObservationHandler *handler)
     // XXX: need to set the flag too
     parent_object_instance.set_observation_handler(handler);
 }
-
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 bool M2MResource::handle_observation_attribute(const char *query)
 {
     tr_debug("M2MResource::handle_observation_attribute - is_under_observation(%d)", is_under_observation());
@@ -270,7 +270,7 @@ bool M2MResource::handle_observation_attribute(const char *query)
     }
     return success;
 }
-
+#endif
 void M2MResource::add_observation_level(M2MBase::Observation observation_level)
 {
     M2MBase::add_observation_level(observation_level);
@@ -417,10 +417,14 @@ sn_coap_hdr_s* M2MResource::handle_put_request(nsdl_s *nsdl,
                     msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
                     tr_info("M2MResource::handle_put_request() - query %s", query);
                     // if anything was updated, re-initialize the stored notification attributes
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
                     if (!handle_observation_attribute(query)){
                         tr_debug("M2MResource::handle_put_request() - Invalid query");
                         msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
                     }
+#else
+                    msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
+#endif
                     free(query);
                 }
             } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {

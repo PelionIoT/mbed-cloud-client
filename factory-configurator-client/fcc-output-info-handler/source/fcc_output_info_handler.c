@@ -533,7 +533,7 @@ exit_with_error:
     return fcc_status;
 }
 
-fcc_status_e fcc_bundle_store_error_info(const uint8_t *failed_item_name, size_t failed_item_name_size, kcm_status_e kcm_status)
+fcc_status_e fcc_bundle_store_kcm_error_info(const uint8_t *failed_item_name, size_t failed_item_name_size, kcm_status_e kcm_status)
 {
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     char *error_string_info = NULL;
@@ -541,8 +541,13 @@ fcc_status_e fcc_bundle_store_error_info(const uint8_t *failed_item_name, size_t
     SA_PV_LOG_INFO_FUNC_ENTER("kcm_status is %d", kcm_status);
 
     //Check parameters (failed_item_name can be NULL)
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_PARAMETER, "The fcc_bundle_store_error_info should not be called with success status");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS), fcc_status = FCC_STATUS_INVALID_PARAMETER, "The fcc_bundle_store_kcm_error_info should not be called with success status");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((failed_item_name != NULL && failed_item_name_size == 0), fcc_status = FCC_STATUS_INVALID_PARAMETER, "Wrong failed item name parameters");
+
+    if (g_output_info.error_string_info != NULL) {
+        // skip overwrite previously stored error
+        return FCC_STATUS_SUCCESS;
+    }
 
     //Get kcm error string
     error_string_info = fcc_get_kcm_error_string(kcm_status);
@@ -566,15 +571,18 @@ fcc_status_e fcc_store_error_info(const uint8_t *failed_item_name, size_t failed
     SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_status == FCC_STATUS_SUCCESS), FCC_STATUS_INVALID_PARAMETER, "The fcc_store_error_info should not be called with success status");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((failed_item_name != NULL && failed_item_name_size == 0), FCC_STATUS_INVALID_PARAMETER, "Wrong failed item name parameters");
 
+    if (g_output_info.error_string_info != NULL) {
+        // skip overwrite previously stored error
+        return FCC_STATUS_SUCCESS;
+    }
+
     //Get fcc error string
     error_string_info = fcc_get_fcc_error_string(fcc_status);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((error_string_info == NULL), FCC_STATUS_ERROR, "Failed to get fcc error string");
 
-    if (g_output_info.error_string_info == NULL) {
-        //Store fcc error string with item name
-        fcc_result = fcc_set_output_string_info(error_string_info, failed_item_name, failed_item_name_size, &(g_output_info.error_string_info));
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_result != FCC_STATUS_SUCCESS), FCC_STATUS_ERROR, "Failed to set error string info ");
-    }
+    //Store fcc error string with item name
+    fcc_result = fcc_set_output_string_info(error_string_info, failed_item_name, failed_item_name_size, &(g_output_info.error_string_info));
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_result != FCC_STATUS_SUCCESS), FCC_STATUS_ERROR, "Failed to set error string info ");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return fcc_result;

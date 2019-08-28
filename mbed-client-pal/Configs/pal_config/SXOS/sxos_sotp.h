@@ -32,4 +32,9 @@
 // Define security sector address for ROT key
 #define ROT_MEM_ADDR  0x00001000
 
+// Define max fragment length to be 1024 (2)
+#ifndef PAL_MAX_FRAG_LEN
+#define PAL_MAX_FRAG_LEN 2
+#endif
+
 #endif // !__SXOS_SOTP_H__

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -162,6 +162,8 @@ public:
         UpdateWarningBadKeytable                = UpdateClient::WarningBadKeytable,
         UpdateWarningURINotFound                = UpdateClient::WarningURINotFound,
         UpdateWarningRollbackProtection         = UpdateClient::WarningRollbackProtection,
+        UpdateWarningAuthorizationRejected      = UpdateClient::WarningAuthorizationRejected,
+        UpdateWarningAuthorizationUnavailable   = UpdateClient::WarningAuthorizationUnavailable,
         UpdateWarningUnknown                    = UpdateClient::WarningUnknown,
         UpdateCertificateInsertion              = UpdateClient::WarningCertificateInsertion,
         UpdateErrorUserActionRequired           = UpdateClient::ErrorBase,
@@ -192,6 +194,27 @@ public:
      * \brief Constructor
      */
     MbedCloudClient();
+
+    /**
+     * \brief Constructor with callback registration
+     * \param on_registered_cb Callback function that Cloud Client calls when the client has registered
+     * successfully to the Cloud.
+     * \param on_unregistered_cb Callback function that Cloud Client calls when the client has unregistered
+     * successfully from the Cloud.
+     * \param on_error_cb Callback function that Cloud Client calls when there is an error occuring in the
+     * client functionality.
+     * \param on_update_authorize_cb Callback function that Update Client calls to authorize firmware download or
+     * an firmware update.
+     * \param on_update_progress_cb Callback function that Update Client calls to report download progress.
+     */
+    MbedCloudClient(void(*on_registered_cb)(void),
+                    void(*on_unregistered_cb)(void),
+                    void(*on_error_cb)(int)
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+                    ,void(*update_authorize_cb)(int32_t request) = NULL,
+                    void(*update_progress_cb)(uint32_t progress, uint32_t total) = NULL
+#endif
+                   );
 
     /**
      * \brief Destructor
@@ -389,10 +412,23 @@ public:
     void set_update_authorize_handler(void (*handler)(int32_t request));
 
     /**
+     * \brief Registers a callback function for authorizing update requests with priority.
+     * \param handler Callback function.
+     */
+    void set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority));
+
+    /**
      * \brief Authorize request passed to authorization handler.
      * \param request Request being authorized.
      */
     void update_authorize(int32_t request);
+
+    /**
+     * \brief Reject request passed to authorization handler.
+     * \param request Request being rejected.
+     * \param reason Reason for rejecting the request.
+     */
+    void update_reject(int32_t request, int32_t reason);
 
     /**
      * \brief Registers a callback function for monitoring download progress.

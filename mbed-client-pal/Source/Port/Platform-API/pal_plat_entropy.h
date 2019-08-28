@@ -54,6 +54,23 @@ extern "C" {
  */
 palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBytes);
 
+/** \brief Read entropy from non-volatile memory.
+*
+* The function firstly reads the file name associated with `ENTROPYSOURCE` variable if exist in the target system environment,
+* if not, it will explicitly take the `entropyFileName` given by the caller.
+*
+* @param entropyFileName - the default file name to read the entropy from in case system environment ENTROPYSOURCE is absent.
+* @param randomBufOut - pointer to buffer which the entropy source will be written to.
+* @param bufSizeBytes - size of `randomBufOut` in bytes.
+* @param actualRandomSizeBytesOut - the actual size in bytes written to `randomBufOut`.
+*
+* @return PAL_SUCCESS - if operation is successful.
+* @return PAL_ERR_RTOS_TRNG_FAILED - the entropy source is empty.
+* @return PAL_ERR_FS_NO_FILE - The entropy source does not exist.
+* @return PAL_ERR_RTOS_TRNG_PARTIAL_DATA - `bufSizeBytes` too small or too big.
+*/
+palStatus_t pal_plat_osEntropyRead(const char *entropyFileName, uint8_t *randomBufOut, size_t bufSizeBytes, size_t *actualRandomSizeBytesOut);
+
 #ifdef __cplusplus
 }
 #endif

@@ -20,7 +20,9 @@
 #include <stdint.h>
 #include "mbed-client/m2mconfig.h"
 #include "mbed-client/m2mbase.h"
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 #include "mbed-client/m2mtimerobserver.h"
+#endif
 #include "mbed-client/m2mresourceinstance.h"
 #include "mbed-client/m2mvector.h"
 #include "mbed-client/m2mtimer.h"
@@ -30,6 +32,7 @@ class M2MReportObserver;
 class M2MTimer;
 class M2MResourceInstance;
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 typedef union current_value_u {
     float   float_value;
     int64_t int_value;
@@ -49,12 +52,15 @@ typedef union low_step_u {
     float   float_value;
     int64_t int_value;
 } low_step_t;
-
+#endif
 /**
  *  @brief M2MReportHandler.
  *  This class is handles all the observation related operations.
  */
-class M2MReportHandler: public M2MTimerObserver
+class M2MReportHandler
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
+        : public M2MTimerObserver
+#endif
 {
 private:
     // Prevents the use of assignment operator by accident.
@@ -109,6 +115,7 @@ public:
      */
     void set_notification_trigger(uint16_t obj_instance_id = 0);
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     /**
      * @brief Parses the received query for notification
      * attribute.
@@ -120,16 +127,19 @@ public:
     bool parse_notification_attribute(const char *query,
                                               M2MBase::BaseType type,
                                               M2MResourceInstance::ResourceType resource_type = M2MResourceInstance::OPAQUE);
+#endif
 
     /**
     * @brief Set back to default values.
     */
     void set_default_values();
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     /**
      * @brief Return write attribute flags.
      */
     uint8_t attribute_flags() const;
+#endif
 
     /**
      * \brief Sets the observation token value.
@@ -227,16 +237,20 @@ public:
      */
     bool blockwise_notify() const;
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 protected : // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type =
                                M2MTimerObserver::Notdefined);
+#endif
 
 private:
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     bool set_notification_attribute(const char* option,
             M2MBase::BaseType type,
             M2MResourceInstance::ResourceType resource_type);
+#endif
 
     /**
     * @brief Reports a sample that satisfies the reporting criteria.
@@ -246,6 +260,7 @@ private:
     */
     void report(bool in_queue = false);
 
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     /**
     * @brief Manage timers for pmin and pmax.
     */
@@ -272,6 +287,7 @@ private:
      * @return True if current value match with GT or LT values.
      */
     bool check_gt_lt_params() const;
+#endif
 
     /**
      * \brief Allocate size amount of memory, copy size bytes into it
@@ -289,31 +305,40 @@ private:
     M2MReportObserver           &_observer;
     bool                        _is_under_observation : 1;
     M2MBase::Observation        _observation_level : 3;
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     uint8_t                     _attribute_state;
+#endif
     unsigned                    _token_length : 8;
     M2MBase::DataType           _resource_type : 3;
     bool                        _notify : 1;
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     bool                        _pmin_exceeded : 1;
     bool                        _pmax_exceeded : 1;
+#endif
     unsigned                    _observation_number : 24;
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     M2MTimer                    _pmin_timer;
-    M2MTimer                    _pmax_timer;
-    uint8_t                     *_token;
+    M2MTimer                    _pmax_timer;    
     int32_t                     _pmax;
     int32_t                     _pmin;
-    current_value_t             _current_value;
     high_step_t                 _high_step;
     low_step_t                  _low_step;
     last_value_t                _last_value;
     float                       _gt;
     float                       _lt;
     float                       _st;
+#endif
+    uint8_t                     *_token;
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
+    current_value_t             _current_value;
+#endif
     m2m::Vector<uint16_t>       _changed_instance_ids;
     bool                        _notification_send_in_progress : 1;
     bool                        _notification_in_queue : 1;
     bool                        _blockwise_notify : 1;
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     bool                        _pmin_quiet_period : 1;
-
+#endif
 friend class Test_M2MReportHandler;
 
 };
