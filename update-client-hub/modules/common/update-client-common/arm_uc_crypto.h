@@ -41,7 +41,7 @@ typedef struct arm_uc_cipherHandle_t {
 
 #elif defined(ARM_UC_FEATURE_CRYPTO_MBEDTLS) && (ARM_UC_FEATURE_CRYPTO_MBEDTLS == 1) // ARM_UC_FEATURE_CRYPTO_PAL
 
-#include "mbedtls/md_internal.h"
+#include "mbedtls/md.h"
 #include "mbedtls/sha256.h"
 #include "mbedtls/aes.h"
 #if ARM_UC_FEATURE_MANIFEST_PUBKEY

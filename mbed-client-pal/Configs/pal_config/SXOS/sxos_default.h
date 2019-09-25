@@ -17,6 +17,7 @@
 // ----------------------------------------------------------------------------
 
 #ifndef PAL_SXOS_CONFIGURATION_H_
+#define PAL_SXOS_CONFIGURATION_H_
 /*! \brief This file sets configuration for PAL porting on SXOS.
     \note All configurations that are configured in this file overwrite their defaults values
     \note Default Values can be found at Sources/PAL-impl/Services-API/pal_configuration.h
@@ -93,28 +94,34 @@
     #define PAL_INTERNAL_FLASH_SECTION_2_SIZE       0x1000
 #endif
 
-#ifndef PAL_USE_INTERNAL_FLASH
-    #define PAL_USE_INTERNAL_FLASH  1
-#endif
-
-#ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
-    #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
-#endif
-
 #ifndef PAL_SIMULATOR_FS_RM_INSTEAD_OF_FORMAT
     #define PAL_SIMULATOR_FS_RM_INSTEAD_OF_FORMAT 1
 #endif
 
 #ifndef PAL_USE_HW_ROT
-    #define PAL_USE_HW_ROT     1
+    #define PAL_USE_HW_ROT 1
 #endif
 
 #ifndef PAL_USE_HW_RTC
-    #define PAL_USE_HW_RTC    0
+    #define PAL_USE_HW_RTC 1
+#endif
+
+#ifndef PAL_USE_HW_TRNG
+    #define PAL_USE_HW_TRNG 0
+#endif
+
+#ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
+	// This also implies PAL_USE_INTERNAL_FLASH 1
+    #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
 #endif
 
 #ifndef PAL_USE_SECURE_TIME
-    #define PAL_USE_SECURE_TIME 0
+    #define PAL_USE_SECURE_TIME 1
+#endif
+
+// Define max fragment length to be 1024 (2)
+#ifndef PAL_MAX_FRAG_LEN
+    #define PAL_MAX_FRAG_LEN 2
 #endif
 
 /* To relax some pal_init/pal_destroy tests when running unit tests from testapp.

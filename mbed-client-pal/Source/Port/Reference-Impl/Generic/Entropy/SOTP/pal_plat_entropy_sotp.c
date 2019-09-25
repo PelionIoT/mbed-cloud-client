@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) 
+#if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #include "pal.h"
 #include "sotp.h"
 #include "pal_plat_entropy.h"

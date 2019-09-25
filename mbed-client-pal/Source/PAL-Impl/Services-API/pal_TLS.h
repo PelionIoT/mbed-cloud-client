@@ -72,6 +72,8 @@ typedef palTLSBuffer_t palPrivateKey_t;
  */
 typedef int(*palEntropySource_f)(void *data, unsigned char *output, size_t len, size_t *olen);
 
+typedef void(*palSocketCallback_f)(void*);
+
 /***************************************************/
 /**** PAL DTLS Client APIs *************************/
 /***************************************************/
@@ -289,5 +291,16 @@ palStatus_t pal_sslDebugging(uint8_t turnOn);
 void pal_enableSslSessionStoring(palTLSConfHandle_t palTLSConf, bool enable);
 
 #endif // PAL_USE_SSL_SESSION_RESUME
+
+/*! \brief Set the socket callback function pointer for the DTLS handshake retransmission.
+ *  DTLS only, no effect on TLS.
+ *
+ * @param[in] palTLSConf: The DTLS configuration context.
+ * @param[in] socket_callback: Callback function to be called by the user of PAL TLS API.
+ * @param[in] argument: Argument which will be passed along with the callback function.
+ *
+ * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
+ */
+void pal_setDTLSSocketCallback(palTLSConfHandle_t palTLSConf, palSocketCallback_f callback, void *argument);
 
 #endif // _PAL_DTLS_H_

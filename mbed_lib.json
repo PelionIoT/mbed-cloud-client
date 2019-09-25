@@ -34,6 +34,7 @@
         }
     },
     "macros" : [
-        "ARM_UC_PROFILE_MBED_CLOUD_CLIENT=1"
+        "ARM_UC_PROFILE_MBED_CLOUD_CLIENT=1",
+        "SN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT=1"
     ]
 }

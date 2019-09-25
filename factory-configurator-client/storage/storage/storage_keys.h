@@ -57,27 +57,28 @@ kcm_status_e storage_key_get_handle(
 // Change to get const pointer to key_handle so struct is not passed by value?
 kcm_status_e storage_key_close_handle(kcm_key_handle_t *key_handle);
 
-/** Generates a key pair according to the given key scheme.
+/** Generates a key pair according to the EC_SECP256R1 key scheme.
 *   The key pair is generated and stored in PSA.
 *   The key pair may be used later by calling to _kcm_item_get_handle() with the same supplied name.
 *
-*    @param key_scheme The cryptographic scheme.
 *    @param[in] private_key_name The private key name that will be refer to the generated keypair in PSA.
 *    @param[in] private_key_name_len The private key name length.
 *    @param[in] key_source_type The private key source type as defined in `::kcm_data_source_type_e.
 *    @param[in] is_factory True if the KCM item is a factory item, false otherwise.
-*
+*    @param[in] kcm_item_info Additional item data.
+*                             if NULL: the private/public keys will be generated and stored in the default key resident set in pre-build.
+*                             if `kcm_item_policy_s`: the private/public keys will be generated and stored in the selected resident defined in `::kcm_item_policy_s`.
 *    @returns
 *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
 */
 kcm_status_e storage_key_pair_generate_and_store(
-    const kcm_crypto_key_scheme_e     key_scheme,
     const uint8_t                     *private_key_name,
     size_t                            private_key_name_len,
     const uint8_t                     *public_key_name,
     size_t                            public_key_name_len,
     storage_item_prefix_type_e        item_prefix_type,
-    bool                              is_factory);
+    bool                              is_factory,
+    const kcm_security_desc_s         kcm_item_info);
 
 /** Resets storage to a factory state.
 *
@@ -110,18 +111,18 @@ kcm_status_e storage_generate_ce_keys(
     kcm_key_handle_t                  *private_key_handle,
     kcm_key_handle_t                  *public_key_handle);
 
-/** Copies the content of an existing key entry to destination entry using a destination name prefix.
+/** Copies the content of an existing item entry to destination entry using a destination name prefix.
 *
-*    @param[in] key_name KCM item name.
-*    @param[in] key_name_len KCM item name length.
-*    @param[in] key_type KCM item type as defined in `::kcm_item_type_e`
+*    @param[in] kcm_item_name KCM item name.
+*    @param[in] kcm_item_name_len KCM item name length.
+*    @param[in] kcm_item_type KCM item type as defined in `::kcm_item_type_e`
 *    @param[in] source_item_prefix_type existing key item_prefix_type KCM item prefix type as defined in `::storage_item_prefix_type_e`
 *    @param[in] destination_item_prefix_type new key item_prefix_type KCM item prefix type as defined in `::storage_item_prefix_type_e`
 *
 *    @returns
 *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
 */
-kcm_status_e storage_key_copy(
+kcm_status_e storage_item_copy(
     const uint8_t *kcm_item_name,
     size_t kcm_item_name_len,
     kcm_item_type_e kcm_item_type,
@@ -145,25 +146,6 @@ kcm_status_e storage_entry_remove(
     kcm_item_type_e kcm_item_type,
     storage_item_prefix_type_e item_prefix_type);
 
-/** Updates key id field  of existing entry according to ksa key id type.
-*
-*    @param[in] kcm_item_name KCM key name.
-*    @param[in] kcm_item_name_len KCM  ey length.
-*    @param[in] kcm_item_type KCM item type as defined in `::kcm_item_type_e`
-*    @param[in] item_prefix_type KCM item prefix type as defined in `::storage_item_prefix_type_e`
-*    @param[in] ksa_id_type KSA id type as defined in `::ksa_id_type_e`
-*    @param[in] id_value A value of ksa id to update the entry.
-*    @returns
-*        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_update_key_id(
-    const uint8_t *kcm_item_name,
-    size_t kcm_item_name_len,
-    kcm_item_type_e kcm_item_type,
-    storage_item_prefix_type_e item_prefix_type,
-    ksa_id_type_e key_id_type,
-    psa_key_id_t id_value);
-
 /** Stores a new generated CE key using the existing name of the renewed key.
 *
 *    @param[in] key_name KCM item name.
@@ -183,10 +165,11 @@ kcm_status_e storage_key_activate_ce(
 /** Destroys active id of backup keys and removes the key
 *
 *    @param[in] private_key_name KCM private key name.
-*    @param[in] private_key_name_len KCM private key length.
+*    @param[in] private_key_name_len KCM private key name length.
 *    @param[in] public_key_name KCM public key name.
-*    @param[in] public_key_name_len KCM public key length.
-*
+*    @param[in] public_key_name_len KCM public key name length.
+*    @param[in] cert_name KCM cert name.
+*    @param[in] cert_name_len KCM cert name length.
 *    @returns
 *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
 */
@@ -194,24 +177,9 @@ kcm_status_e storage_destory_old_active_and_remove_backup_entries(
     const uint8_t                     *private_key_name,
     size_t                            private_key_name_len,
     const uint8_t                     *public_key_name,
-    size_t                            public_key_name_len);
+    size_t                            public_key_name_len,
+    const uint8_t                     *cert_name,
+    size_t                            cert_name_len);
 
-/** Destroys key id of existing key according to ksa id type.
-*
-*    @param[in] kcm_item_name KCM key name.
-*    @param[in] kcm_item_name_len KCM key length.
-*    @param[in] kcm_item_type KCM item type as defined in `::kcm_item_type_e`
-*    @param[in] ksa_id_type KSA id type as defined in `::ksa_id_type_e`
-*    @param[in] item_prefix_type KCM item prefix type as defined in `::storage_item_prefix_type_e`
-*
-*    @returns
-*        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_key_id_destroy(
-    const uint8_t *kcm_item_name,
-    size_t kcm_item_name_len,
-    kcm_item_type_e kcm_item_type,
-    ksa_id_type_e ksa_id_type,
-    storage_item_prefix_type_e item_prefix_type);
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #endif // __STORAGE_KEYS_H__

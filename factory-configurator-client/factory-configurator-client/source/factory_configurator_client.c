@@ -84,11 +84,11 @@ fcc_status_e fcc_init(void)
         // No need for second initialization
         return FCC_STATUS_SUCCESS;
     }
-    
+
     pal_status = pal_init();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_INIT_SOTP_FAILED), FCC_STATUS_STORE_ERROR, "Failed initializing internal storage (%" PRIu32 ")", pal_status);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), FCC_STATUS_ERROR, "Failed initializing PAL (%" PRIu32 ")", pal_status);
-    
+
     //Initialize output info handler
     fcc_init_output_info_handler();
 
@@ -170,7 +170,7 @@ bool fcc_is_session_finished(void)
 
 fcc_status_e fcc_verify_device_configured_4mbed_cloud(void)
 {
-    fcc_status_e  fcc_status =  FCC_STATUS_SUCCESS;
+    fcc_status_e  fcc_status = FCC_STATUS_SUCCESS;
     bool use_bootstrap = false;
     bool success = false;
 
@@ -221,9 +221,9 @@ fcc_status_e fcc_entropy_set(const uint8_t *buf, size_t buf_size)
     SA_PV_LOG_INFO_FUNC_ENTER("buf_size = %" PRIu32, (uint32_t)buf_size);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_is_fcc_initialized), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(buf_size != FCC_ENTROPY_SIZE, FCC_STATUS_INVALID_PARAMETER, "Size of entropy provided is %" PRIu32 ", Should be %" PRIu32 , (uint32_t)buf_size, (uint32_t)FCC_ENTROPY_SIZE);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(buf_size != FCC_ENTROPY_SIZE, FCC_STATUS_INVALID_PARAMETER, "Size of entropy provided is %" PRIu32 ", Should be %" PRIu32, (uint32_t)buf_size, (uint32_t)FCC_ENTROPY_SIZE);
 
-    pal_status = pal_osEntropyInject(buf, buf_size); 
+    pal_status = pal_osEntropyInject(buf, buf_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), fcc_convert_pal_to_fcc_status(pal_status), "Failed to set entropy, pal status =%" PRId32, pal_status);
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -235,14 +235,14 @@ fcc_status_e fcc_rot_set(const uint8_t *buf, size_t buf_size)
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
 
-    SA_PV_LOG_INFO_FUNC_ENTER("buf_size = %" PRIu32 , (uint32_t)buf_size);
+    SA_PV_LOG_INFO_FUNC_ENTER("buf_size = %" PRIu32, (uint32_t)buf_size);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!g_is_fcc_initialized), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((buf == NULL || buf_size != FCC_ROT_SIZE), FCC_STATUS_INVALID_PARAMETER, "Invalid params");
 
     pal_status = pal_osSetRoT((uint8_t*)buf, buf_size);
 
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_ITEM_EXIST), fcc_status  = FCC_STATUS_ROT_ERROR, "RoT already exist in storage");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_ITEM_EXIST), fcc_status = FCC_STATUS_ROT_ERROR, "RoT already exist in storage");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_INVALID_ARGUMENT), fcc_status = FCC_STATUS_INVALID_PARAMETER, "Failed to set RoT");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), fcc_status = FCC_STATUS_ROT_ERROR, "Failed to set RoT");
 
@@ -333,25 +333,25 @@ fcc_status_e fcc_trust_ca_cert_id_set(void)
     if (use_bootstrap == true) {
         fcc_status = fcc_get_certificate_attribute_by_name((const uint8_t*)g_fcc_bootstrap_server_ca_certificate_name,
             (size_t)(strlen(g_fcc_bootstrap_server_ca_certificate_name)),
-            CS_CERT_ID_ATTR,
-            attribute_data,
-            sizeof(attribute_data),
-            &size_of_attribute_data);
+                                                           CS_CERT_ID_ATTR,
+                                                           attribute_data,
+                                                           sizeof(attribute_data),
+                                                           &size_of_attribute_data);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to get ca id");
- 
+
         pal_status = storage_rbp_write(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, attribute_data, size_of_attribute_data, true);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status == PAL_ERR_ITEM_EXIST), (fcc_status = FCC_STATUS_CA_ERROR), exit, "CA already exist in storage");
         SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status == PAL_ERR_INVALID_ARGUMENT), fcc_status = FCC_STATUS_INVALID_PARAMETER, exit, "Failed to set ca id");
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), fcc_status = fcc_convert_pal_to_fcc_status(pal_status), exit, "Failed to setca id");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), fcc_status = fcc_convert_pal_to_fcc_status(pal_status), exit, "Failed to set ca id");
     }
 
 exit:
     if (fcc_status != FCC_STATUS_SUCCESS) {
         output_info_fcc_status = fcc_store_error_info((const uint8_t*)g_fcc_bootstrap_server_ca_certificate_name, strlen(g_fcc_bootstrap_server_ca_certificate_name), fcc_status);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((output_info_fcc_status != FCC_STATUS_SUCCESS),
-            fcc_status = FCC_STATUS_OUTPUT_INFO_ERROR,
-            "Failed to set ca identifier error  %d",
-            fcc_status);
+                                        fcc_status = FCC_STATUS_OUTPUT_INFO_ERROR,
+                                        "Failed to set ca identifier error  %d",
+                                        fcc_status);
     }
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();

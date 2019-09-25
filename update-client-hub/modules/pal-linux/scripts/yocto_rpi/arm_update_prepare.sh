@@ -124,7 +124,7 @@ fi
 cd /
 # Temp fix to avoid difference to original image:
 chmod 755 /sys /proc
-if ! tar --exclude='run/*' --exclude='var/lib' --exclude='var/volatile' --exclude='lost+found' --exclude='dev/*' --exclude='proc/*' --exclude='sys/*' --exclude='boot/*' --sort=name --format=ustar --mtime="2019-01-01 00:00Z" --owner=0 --group=0 --numeric-owner --one-file-system -cvpf /mnt/root/original_image.bin *;then
+if ! tar --anchored --exclude='etc/machine-id' --exclude='tmp/*' --exclude='run/*' --exclude='var/lib' --exclude='var/volatile' --exclude='var/cache/*' --exclude='lost+found' --exclude='dev/*' --exclude='proc/*' --exclude='sys/*' --exclude='boot/*' --sort=name --format=ustar --mtime="2019-01-01 00:00Z" --owner=0 --group=0 --numeric-owner --one-file-system -cvpf /mnt/root/original_image.bin *;then
     echo "prepare original tar failed for the delta!"
     exit 6
 fi

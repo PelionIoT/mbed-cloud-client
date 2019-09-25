@@ -22,7 +22,7 @@
 
 #include "arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_CRYPTO_MBEDTLS) && (ARM_UC_FEATURE_CRYPTO_MBEDTLS == 1)
-#include "mbedtls/md_internal.h"
+#include "mbedtls/md.h"
 
 arm_uc_error_t ARM_UC_cryptoHMACSHA256(arm_uc_buffer_t *key,
                                        arm_uc_buffer_t *input,

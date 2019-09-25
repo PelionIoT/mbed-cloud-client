@@ -746,7 +746,7 @@ private:
     bool                                    _nsdl_execution_timer_running;
     bool                                    _notification_send_ongoing;
     bool                                    _registered;
-    bool                                    _bootstrap_finish_ack_received;
+    bool                                    _waiting_for_bs_finish_ack;
     M2MTimer                                _download_retry_timer;
     uint64_t                                _download_retry_time;
 

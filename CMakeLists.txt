@@ -23,6 +23,8 @@ add_definitions(-DARM_UC_FEATURE_PAL_FILESYSTEM=1)
 # enable duplicate detection by default, count is the same as resend queue size
 add_definitions(-DMBED_CONF_MBED_CLIENT_SN_COAP_DUPLICATION_MAX_MSGS_COUNT=4)
 
+add_definitions(-DSN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT=1)
+
 project(mbedCloudClient)
 
 # mbed-cloud-client
@@ -221,8 +223,8 @@ message("MbedCloudClient sources = \n ${MBED_CLOUD_CLIENT_SRC}")
 add_library(nshalpal STATIC "${NS_HAL_PAL_SRC}")
 
 # ns-hal-pal uses PAL API's, so create dependency on them
-add_dependencies(nshalpal pal)
-target_link_libraries(nshalpal pal)
+add_dependencies(nshalpal palRTOS)
+target_link_libraries(nshalpal palRTOS)
 
 # nanostack-libservice is depending only of ns-hal (via platform_critical_*()), which is fulfilled
 # by ns-hal-pal.
@@ -252,12 +254,12 @@ target_link_libraries(mbedclient nanostacklibservice nanostackeventloop mbedcoap
 CREATE_LIBRARY(mbedCloudClient "${MBED_CLOUD_CLIENT_SRC}" "")
 
 # Create buld dependencies to ensure all the needed parts get build
-add_dependencies(mbedCloudClient pal factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client)
+add_dependencies(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client pal)
 
 # Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
 # just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
 # automatically build all the submodules.
-target_link_libraries(mbedCloudClient pal factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client)
+target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client pal)
 
 ADDSUBDIRS()
 

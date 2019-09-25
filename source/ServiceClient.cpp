@@ -505,6 +505,14 @@ M2MDevice* ServiceClient::device_object_from_storage()
             res->set_auto_observable(true);
         }
     }
+    String binding_mode;
+    M2MInterface::BindingMode mode = _connector_client.transport_mode();
+    if (mode == M2MInterface::UDP || mode == M2MInterface::TCP) {
+        binding_mode = (char*)BINDING_MODE_UDP;
+    } else if (mode == M2MInterface::UDP_QUEUE || mode == M2MInterface::TCP_QUEUE) {
+        binding_mode = (char*)BINDING_MODE_UDP_QUEUE;
+    }
+    device_object->set_resource_value(M2MDevice::SupportedBindingMode, binding_mode);
 
     return device_object;
 }

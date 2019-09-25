@@ -152,6 +152,17 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             error_monitor = ARM_UC_UPDATE_RESULT_MANIFEST_INSUFFICIENT_STORAGE_SPACE;
             break;
 
+        case FIRM_ERR_PROCESSOR_PARSE_ERROR:
+            TRACE_ARGS("FIRM_ERR_PROCESSOR_PARSE_ERROR");
+            error_external = ARM_UC_UPDATE_RESULT_PROCESSOR_PARSE_ERROR;
+            error_monitor = ARM_UC_UPDATE_RESULT_PROCESSOR_PARSE_ERROR;
+            break;
+        case FIRM_ERR_INSUFFICIENT_MEMORY_SPACE:
+            TRACE_ARGS("FIRM_ERR_PROCESSOR_PARSE_ERROR");
+            error_external = ARM_UC_UPDATE_RESULT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE;
+            error_monitor = ARM_UC_UPDATE_RESULT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE;
+            break;
+
         /* Manifest Manager */
         case MFST_ERR_NULL_PTR:
             TRACE_ARGS("MFST_ERR_NULL_PTR");

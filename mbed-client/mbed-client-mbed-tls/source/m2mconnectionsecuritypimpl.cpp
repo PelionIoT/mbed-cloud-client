@@ -251,7 +251,7 @@ int M2MConnectionSecurityPimpl::start_handshake()
 
     ret = pal_handShake(_ssl, _conf);
 
-    if (ret == PAL_ERR_TLS_WANT_READ || ret == PAL_ERR_TLS_WANT_WRITE || ret == PAL_ERR_TIMEOUT_EXPIRED){
+    if (ret == PAL_ERR_TLS_WANT_READ || ret == PAL_ERR_TLS_WANT_WRITE){
         return M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ;
     }
     else if (ret == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
@@ -373,4 +373,16 @@ void M2MConnectionSecurityPimpl::set_socket(palSocket_t socket, palSocketAddress
     else{
         _tls_socket.transportationMode = PAL_DTLS_MODE;
     }
+}
+
+int M2MConnectionSecurityPimpl::set_dtls_socket_callback(void(*foo)(void*), void *argument)
+{
+    int ret = M2MConnectionHandler::ERROR_GENERIC;
+
+    if (M2MConnectionSecurityPimpl::INIT_DONE != _init_done){
+        tr_error("M2MConnectionSecurityPimpl::read - init not done!");
+        return ret;
+    }
+    pal_setDTLSSocketCallback(_conf, (palSocketCallback_f)foo, argument);
+    return M2MConnectionHandler::ERROR_NONE;
 }

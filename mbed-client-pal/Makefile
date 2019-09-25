@@ -24,6 +24,7 @@ LOCAL_ADD_INCLUDE += \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-trace \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-trace/mbed-trace \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/nanostack-libservice/mbed-client-libservice \
+                    ${MBED_CLOUD_SERVICE}/mbed-cloud-client/sal-stack-nanostack-eventloop/nanostack-event-loop \
                     platform/service/net/mbedtls/src/mbedtls/include/mbedtls \
 
 # FCC (==ESFS&SOTP)
@@ -89,7 +90,7 @@ C_SRC += ${wildcard Source/Port/Reference-Impl/OS_Specific/SXOS/Storage/FileSyst
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Time/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/DRBG/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/DRBG/SOTP/*.c}
-C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Entropy/*.c}
+C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Entropy/SOTP/*.c}
 
 # flash emulation layer
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Storage/Flash/FlashOverFilesystem/*.c}

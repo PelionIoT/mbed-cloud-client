@@ -26,18 +26,6 @@
 #include "pv_macros.h"
 
 
-/* declare storage APIs here, so they can be used in the implementations below.
- * we can explicitly call those storage APIs and not the dispatcher since we are in non-psa mode only
- */
-kcm_status_e storage_item_get_data(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, storage_item_prefix_type_e item_prefix_type, uint8_t *kcm_item_data_out,
-                                   size_t kcm_item_data_max_size, size_t *kcm_item_data_act_size_out);
-
-kcm_status_e storage_item_get_data_size(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, storage_item_prefix_type_e item_prefix_type, size_t *kcm_item_data_size_out);
-
-kcm_status_e storage_item_store(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, bool kcm_item_is_factory, storage_item_prefix_type_e item_prefix_type, const uint8_t *kcm_item_data,
-                                size_t kcm_item_data_size, const kcm_security_desc_s kcm_item_info);
-
-kcm_status_e storage_item_delete(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, storage_item_prefix_type_e item_prefix_type);
 
 
 kcm_status_e storage_key_get_handle(
@@ -113,13 +101,13 @@ kcm_status_e storage_key_close_handle(kcm_key_handle_t *key_handle)
 }
 
 kcm_status_e storage_key_pair_generate_and_store(
-    const kcm_crypto_key_scheme_e     key_scheme,
     const uint8_t                     *private_key_name,
     size_t                            private_key_name_len,
     const uint8_t                     *public_key_name,
     size_t                            public_key_name_len,
     storage_item_prefix_type_e        item_prefix_type,
-    bool                              is_factory)
+    bool                              is_factory,
+    const kcm_security_desc_s         kcm_item_info)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_status_e kcm_del_status;
@@ -129,6 +117,8 @@ kcm_status_e storage_key_pair_generate_and_store(
     bool write_public_key = false;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_info != NULL), KCM_STATUS_INVALID_PARAMETER, "Expected NULL for kcm_item_info");
 
     //Check if current private exists in the storage
     kcm_status = storage_item_get_data_size(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM,
@@ -153,7 +143,7 @@ kcm_status_e storage_key_pair_generate_and_store(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to create key context");
 
     //generate key pair
-    kcm_status = cs_key_pair_generate(key_scheme, cs_key_h);
+    kcm_status = cs_key_pair_generate(KCM_SCHEME_EC_SECP256R1, cs_key_h);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, free_and_exit, "failed to generate key pair");
 
     //store private key

@@ -1489,35 +1489,29 @@ palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes
 #else
 palStatus_t pal_plat_mdHmacSha256(const unsigned char *key, size_t keyLenInBytes, const unsigned char *input, size_t inputLenInBytes, unsigned char *output, size_t* outputLenInBytes)
 {
-    psa_status_t status = PSA_SUCCESS;
     palStatus_t palStatus = PAL_SUCCESS;
+    psa_status_t status = PSA_SUCCESS;
     psa_key_handle_t keyHandle = 0;
+    psa_key_attributes_t psa_key_attr = PSA_KEY_ATTRIBUTES_INIT;
     psa_mac_operation_t operation = { 0 };
-    psa_key_policy_t policy = {0};
     size_t outLen = 0;
 
-    // Create volatile key handle
-    status = psa_allocate_key(&keyHandle);
-    if (PSA_SUCCESS != status)
-    {
-        return PAL_ERR_CRYPTO_ALLOC_FAILED;
-    }
+    // set key type
+    psa_set_key_type(&psa_key_attr, PSA_KEY_TYPE_HMAC);
+    // set key usage
+    psa_set_key_usage_flags(&psa_key_attr, PSA_KEY_USAGE_SIGN);
+    // set key algorithm
+    psa_set_key_algorithm(&psa_key_attr, PSA_ALG_HMAC(PSA_ALG_SHA_256));
 
-    // Set key policy to creat HMACs based on SHA256
-    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_SIGN ,PSA_ALG_HMAC(PSA_ALG_SHA_256));
-    status = psa_set_key_policy(keyHandle, &policy);
-    if (PSA_SUCCESS != status) {
-        palStatus = PAL_ERR_GENERIC_FAILURE; 
-        goto finish;
-    }
-
-    // Import the key to the PSA handle
-    status = psa_import_key(keyHandle, PSA_KEY_TYPE_HMAC, key, keyLenInBytes);
+    // Import the key to PSA
+    status = psa_import_key(&psa_key_attr, key, keyLenInBytes, &keyHandle);
     if (PSA_SUCCESS != status)
     {
         palStatus = PAL_ERR_GENERIC_FAILURE;
         goto finish;
     }
+
+    /* FIXME - replace psa_mac_xxx calls below with one call to psa_mac_compute when it will be supported IOTCRYPT-881 */
 
     // Setup MAC sign process
     status = psa_mac_sign_setup(&operation, keyHandle, PSA_ALG_HMAC(PSA_ALG_SHA_256));
@@ -1554,7 +1548,6 @@ finish:
         // Nothing we can do if error occurs, so disregard the return value
         (void)psa_destroy_key(keyHandle);
     }
-
     return palStatus;
 }
 
@@ -2286,8 +2279,6 @@ palStatus_t pal_plat_ECDHKeyAgreement(
     mbedtls_ecp_keypair* pubPeerKeyPair = NULL;
     uint8_t raw_public_key[PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE] = { 0 };
     size_t act_raw_public_key_size = 0;
-    psa_crypto_generator_t generator = PSA_CRYPTO_GENERATOR_INIT;
-    size_t generator_size = 0;
     //Set PSA handle
     psa_key_handle_t *privatKeyPSAHandle =(psa_key_handle_t*)((mbedtls_pk_context*)((palECKey_t*)privateKeyHandle)->pk_ctx);
 
@@ -2313,33 +2304,18 @@ palStatus_t pal_plat_ECDHKeyAgreement(
         goto finish;
     }
 
-    //Calculate key agreement
-    psa_status = psa_key_agreement(&generator, (psa_key_handle_t)*privatKeyPSAHandle, raw_public_key, act_raw_public_key_size, PSA_ALG_ECDH(PSA_ALG_SELECT_RAW));
+    // create raw shared secret
+    psa_status = psa_raw_key_agreement(PSA_ALG_ECDH, (psa_key_handle_t)*privatKeyPSAHandle,
+                                        raw_public_key, act_raw_public_key_size,
+                                        rawSharedSecretOut, rawSharedSecretMaxSize, rawSharedSecretActSizeOut);
     if (psa_status != PSA_SUCCESS) {
         status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
         goto finish;
     }
-
-    //Get generator capacity
-    psa_status = psa_get_generator_capacity(&generator, &generator_size);
-    if (psa_status != PSA_SUCCESS || generator_size != PAL_SECP256R1_RAW_KEY_AGREEMENT_SIZE || rawSharedSecretMaxSize < generator_size) {
-        status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
-        goto finish;
-    }
-
-    //Get generator data
-    psa_status = psa_generator_read(&generator, rawSharedSecretOut, generator_size);
-    if (psa_status != PSA_SUCCESS) {
-        status = PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
-        goto finish;
-    }
-    //Update the output data
-    *rawSharedSecretActSizeOut = generator_size;
 
 finish:
     //Release allocated resources
     (void)pal_plat_ECKeyFree(&peerPublicKeyHandle);
-    (void)psa_generator_abort(&generator);
     return status;
 }
 

@@ -27,13 +27,6 @@
 #define MBED_CLIENT_TIMER_TASKLET_INIT_EVENT 0 // Tasklet init occurs always when generating a tasklet
 #define MBED_CLIENT_TIMER_EVENT 10
 
-// This is set to _status on constructor, which forces the lazy second phase initialization
-// to happen once in initialize_tasklet(). Whole scheme is there to avoid overhead or
-// unwanted serialization on event OS scheduler mutex, as the whole tasklet needs to be initialized
-// just once for the whole lifecycle of cloud client.
-#define STATUS_INIT_NOT_DONE_YET 3
-
-
 int8_t M2MTimerPimpl::_tasklet_id = -1;
 
 extern "C" void tasklet_func(arm_event_s *event)
@@ -69,10 +62,18 @@ M2MTimerPimpl::M2MTimerPimpl(M2MTimerObserver& observer)
   _still_left(0),
   _timer_event(NULL),
   _type(M2MTimerObserver::Notdefined),
-  _status(STATUS_INIT_NOT_DONE_YET),
+  _status(0),
   _dtls_type(false),
   _single_shot(true)
 {
+    eventOS_scheduler_mutex_wait();
+
+    if (_tasklet_id < 0) {
+        _tasklet_id = eventOS_event_handler_create(tasklet_func, MBED_CLIENT_TIMER_TASKLET_INIT_EVENT);
+        assert(_tasklet_id >= 0);
+    }
+
+    eventOS_scheduler_mutex_release();
 }
 
 M2MTimerPimpl::~M2MTimerPimpl()
@@ -84,31 +85,10 @@ M2MTimerPimpl::~M2MTimerPimpl()
     // so the tasklet is lost forever.
 }
 
-void M2MTimerPimpl::initialize_tasklet()
-{
-    // A micro-optimization to avoid operations on mutex on every time the timer is started.
-    // After all, the tasklet needs to be created just once for the lifecyle of whole client.
-    if (_status == STATUS_INIT_NOT_DONE_YET) {
-
-        eventOS_scheduler_mutex_wait();
-
-        if (_tasklet_id < 0) {
-            _tasklet_id = eventOS_event_handler_create(tasklet_func, MBED_CLIENT_TIMER_TASKLET_INIT_EVENT);
-            assert(_tasklet_id >= 0);
-        }
-
-        _status = 0;
-
-        eventOS_scheduler_mutex_release();
-    }
-}
-
 void M2MTimerPimpl::start_timer(uint64_t interval,
                                 M2MTimerObserver::Type type,
                                 bool single_shot)
 {
-    initialize_tasklet();
-
     _dtls_type = false;
     _intermediate_interval = 0;
     _total_interval = 0;
@@ -122,8 +102,6 @@ void M2MTimerPimpl::start_timer(uint64_t interval,
 
 void M2MTimerPimpl::start_dtls_timer(uint64_t intermediate_interval, uint64_t total_interval, M2MTimerObserver::Type type)
 {
-    initialize_tasklet();
-
     _dtls_type = true;
     _intermediate_interval = intermediate_interval;
     _total_interval = total_interval;
@@ -172,6 +150,8 @@ void M2MTimerPimpl::request_event_in(int32_t delay_ms)
 
     // The timer request may fail only if the system is out of pre-allocated
     // timers and it can not allocate more.
+    // If application requires large number of timers, the
+    // MBED_CLIENT_EVENT_LOOP_SIZE needs to be at least 1 KiB.
     assert(_timer_event != NULL);
 }
 

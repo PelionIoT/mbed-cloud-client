@@ -35,7 +35,8 @@
 MbedCloudClient::MbedCloudClient()
 :_client(*this),
  _value_callback(NULL),
- _error_description(NULL)
+ _error_description(NULL),
+ _init_done(false)
 {
 }
 
@@ -50,7 +51,8 @@ MbedCloudClient::MbedCloudClient(void(*on_registered_cb)(void),
 
 :_client(*this),
  _value_callback(NULL),
- _error_description(NULL)
+ _error_description(NULL),
+ _init_done(false)
 {
     this->on_registered(on_registered_cb);
     this->on_unregistered(on_unregistered_cb);
@@ -117,6 +119,15 @@ void MbedCloudClient::set_update_callback(MbedCloudClientCallback *callback)
     _value_callback = callback;
 }
 
+bool MbedCloudClient::init()
+{
+    if (!_init_done) {
+        _init_done = _client.connector_client().setup();
+    }
+
+    return _init_done;
+}
+
 bool MbedCloudClient::setup(void* iface)
 {
     tr_debug("MbedCloudClient setup()");
@@ -130,14 +141,20 @@ bool MbedCloudClient::setup(void* iface)
     }
 #endif
 
-    // finish the ServiceClient's initialization and M2MInterface
-    bool success = _client.connector_client().setup();
+    bool success = true;
+
+    // If init() is not called
+    if (!_init_done) {
+        // finish the ServiceClient's initialization and M2MInterface
+        success = _client.connector_client().setup();
+    }
 
     if (success) {
         // set the network interface to M2MInterface
         _client.connector_client().m2m_interface()->set_platform_network_handler(iface);
         _client.initialize_and_register(_object_list);
     }
+
     return success;
 }
 

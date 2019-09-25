@@ -16,19 +16,21 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) || defined (MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 
 #include "pal.h"
 #include "pal_plat_entropy.h"
 #include "crypto.h"
 #include "config.h" // Include mbedtls config file explicitly for MBEDTLS_ENTROPY_NV_SEED flag
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 /*
  * Declaration of the function that seeds the DRBG. It is implemented in pal_plat_drbg_w_entropy_sources.c
  * This is not part of the pal_plat_drbg.h interface and therefore we declare it here manually
  */
 
 palStatus_t pal_plat_DRBGSeed();
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #ifdef MBEDTLS_ENTROPY_NV_SEED
 //Error Translation from PSA module to PAL
@@ -103,6 +105,8 @@ palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBy
         entropyExists = true;
     }
 
+    // In PSA, DRBGSeed done in psa_crypto_init()
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     /*
      * If status == PAL_ERR_ENTROPY_EXISTS, entropy is somehow already injected, yet the DRBG may not be seeded
      * This may happen if an injected device runs a new factory flow. We will return a PAL_ERR_ENTROPY_EXISTS
@@ -117,6 +121,7 @@ palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBy
     // possible (already in the factory, were this API is invoked, as pal_plat_osRandomBuffer_blocking() may not be invoked
     // in the factory)
     status = pal_plat_DRBGSeed();
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 Exit:
     if (entropyExists) {
         return PAL_ERR_ENTROPY_EXISTS;

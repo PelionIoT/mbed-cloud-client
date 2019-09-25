@@ -60,7 +60,7 @@ M2MServer::M2MServer()
                                                         M2MResourceInstance::STRING,
                                                         true);
         if(res) {
-            res->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
+            res->set_operation(M2MBase::GET_ALLOWED);
         }
         res = _server_instance->create_dynamic_resource(SERVER_REGISTRATION_UPDATE,
                                                         OMA_RESOURCE_TYPE,

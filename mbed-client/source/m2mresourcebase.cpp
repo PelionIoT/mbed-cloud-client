@@ -701,6 +701,22 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
 #ifndef DISABLE_BLOCK_MESSAGE
                 if (block_message()) {
                     block_message()->set_message_info(received_coap_header);
+                    if (received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED ||
+                        received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING) {
+
+                        // Callback should contain only the last received block data instead of the whole package payload.
+                        uint8_t temp = (received_coap_header->options_list_ptr->block1 & 0x07);
+                        uint16_t block_size = 1u << (temp + 4);
+
+                        uint32_t block_count = received_coap_header->payload_len / block_size;
+                        uint32_t last_block_payload = received_coap_header->payload_len - (block_count * block_size);
+                        if (!last_block_payload) {
+                            block_message()->set_payload(received_coap_header->payload_ptr, received_coap_header->payload_len, (block_count -1) * block_size);
+                        } else {
+                            block_message()->set_payload(received_coap_header->payload_ptr, received_coap_header->payload_len, (block_count * block_size));
+                        }
+                    }
+
                     if (block_message()->is_block_message()) {
                         incoming_block_message_callback* incoming_block_message_cb = (incoming_block_message_callback*)M2MCallbackStorage::get_callback(*this,
                                                                                 M2MCallbackAssociation::M2MResourceInstanceIncomingBlockMessageCallback);

@@ -695,6 +695,18 @@ kcm_status_e cs_generate_keys_and_create_csr_from_certificate(const uint8_t *cer
     SA_PV_ERR_RECOVERABLE_GOTO_IF((KCM_STATUS_SUCCESS != kcm_status), (kcm_status = kcm_status), exit, "Failed to generate csr from certificate");
 
 exit:
+    // on error, remove keys and set_entry_id to zero
+#if 0 // FIXME, IOTFT-1866 - add new stortage api that call to new ksa api that implement the that clean
+    if (KCM_STATUS_SUCCESS != kcm_status) {
+        if (ec_key_ctx->generated_priv_key_handle != PSA_CRYPTO_INVALID_KEY_HANDLE) {
+            
+        }
+        if (ec_key_ctx->generated_pub_key_handle != PSA_CRYPTO_INVALID_KEY_HANDLE) {
+            
+        }
+    }
+#endif
+
     //Free key handle
     if (pal_ec_key_handle != NULLPTR) {
         pal_status = pal_ECKeyFree(&pal_ec_key_handle);

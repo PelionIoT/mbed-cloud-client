@@ -32,8 +32,6 @@
 
 #ifdef PAL_USER_DEFINED_CONFIGURATION
     #include PAL_USER_DEFINED_CONFIGURATION
-#else
-    #include "sotp_fs.h"
 #endif
 
 /*! \file pal_configuration.h
@@ -48,18 +46,15 @@
 *       5. The configuration for the root of trust.
 */
 
-
-
 /* If you need any board-specific configuration, please include this define
 */
 #ifdef PAL_BOARD_SPECIFIC_CONFIG
     #include PAL_BOARD_SPECIFIC_CONFIG
 #endif
 
-
 /* Lets the user choose the platform configuration file.
     \note If the user does not specify a platform configuration file,
-    \note PAL uses a default configuration set that can be found at \c Configs/pal_config folder
+    \note PAL uses a default configuration set that can be found at Configs/pal_config folder
   */
 
 #ifdef PAL_PLATFORM_DEFINED_CONFIGURATION
@@ -76,7 +71,45 @@
     #error "Please specify the platform PAL_PLATFORM_DEFINED_CONFIGURATION"
 #endif
 
+/**
+ * \def PAL_USE_HW_ROT
+ * Use hardware Root-of-trust.
+ */
+#ifndef PAL_USE_HW_ROT
+    #define PAL_USE_HW_ROT     1
+#endif
 
+/**
+ * \def PAL_USE_HW_RTC
+ * Use hardware RTC.
+ */
+#ifndef PAL_USE_HW_RTC
+    #define PAL_USE_HW_RTC    1
+#endif
+
+/**
+ * \def PAL_USE_HW_TRNG
+ * Use hardware TRNG. Disable for platforms which do not support TRNG.
+ */
+#ifndef PAL_USE_HW_TRNG
+    #define PAL_USE_HW_TRNG    1
+#endif
+
+/**
+ * \def PAL_USE_SECURE_TIME
+ * Enables client-side verification for certificate time.
+ */
+#ifndef PAL_USE_SECURE_TIME
+    #define PAL_USE_SECURE_TIME    1
+#endif
+
+#ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
+	#define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 0
+#endif
+
+#ifndef PAL_USE_INTERNAL_FLASH
+	#define PAL_USE_INTERNAL_FLASH 0
+#endif
 
 /*
  * Network configuration
@@ -110,7 +143,6 @@
 #define PAL_NET_DNS_IPV4_ONLY    2    //!< if PAL_NET_DNS_IP_SUPPORT is set to PAL_NET_DNS_IPV4_ONLY pal_getAddressInfo will return the first available IPV4 address
 #define PAL_NET_DNS_IPV6_ONLY    4    //!< if PAL_NET_DNS_IP_SUPPORT is set to PAL_NET_DNS_IPV6_ONLY pal_getAddressInfo will return the first available IPV6 address
 
-
 #ifndef PAL_NET_DNS_IP_SUPPORT
 #if PAL_SUPPORT_IP_V6 == true && PAL_SUPPORT_IP_V4 == true
     #define PAL_NET_DNS_IP_SUPPORT  0 //!< sets the type of IP addresses returned by  pal_getAddressInfo
@@ -119,7 +151,6 @@
 #else
     #define PAL_NET_DNS_IP_SUPPORT  2 //!< sets the type of IP addresses returned by  pal_getAddressInfo
 #endif
-
 #endif
 
 //! The maximum number of interfaces that can be supported at a time.
@@ -131,7 +162,6 @@
 #ifndef PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE
     #define PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE (1024 * 2)
 #endif
-
 
 //! If you want PAL to not perform a rollback/cleanup when main PAL init fails, please set this flag to `false`
 #ifndef PAL_CLEANUP_ON_INIT_FAILURE
@@ -177,9 +207,15 @@
     #define PAL_MAX_ALLOWED_CIPHER_SUITES 1
 #endif
 
-//! This value is in milliseconds. 1000 = 1 second.
+//! This value is in milliseconds.
+
+/*
+ * /def PAL_DTLS_PEER_MIN_TIMEOUT
+ * /brief Define the DTLS peer minimum timeout value.
+ */
+
 #ifndef PAL_DTLS_PEER_MIN_TIMEOUT
-    #define PAL_DTLS_PEER_MIN_TIMEOUT 1000
+    #define PAL_DTLS_PEER_MIN_TIMEOUT 10000
 #endif
 
 //! The debug threshold for TLS API.
@@ -191,7 +227,6 @@
 #ifndef PAL_CERT_ID_SIZE
     #define PAL_CERT_ID_SIZE 33
 #endif
-
 
 #ifndef PAL_ENABLE_PSK
     #define PAL_ENABLE_PSK 0
@@ -218,10 +253,6 @@
     #ifndef PAL_TLS_CIPHER_SUITE
         #define PAL_TLS_CIPHER_SUITE PAL_TLS_PSK_WITH_AES_128_CCM_8_SUITE
     #endif
-#endif
-
-#ifndef PAL_CMAC_SUPPORT
-    #define PAL_CMAC_SUPPORT true
 #endif
 
 //! Enable the CMAC functionality \note This flag lets the bootloader be compiled without CMAC.
@@ -312,34 +343,8 @@
     #define PAL_UPDATE_FIRMWARE_DIR PAL_UPDATE_FIRMWARE_MOUNT_POINT "/firmware"
 #endif
 
-//! If flash existed set to 1 else 0, the flash is used for non-volatile backup
-#ifndef PAL_USE_INTERNAL_FLASH
-    #define PAL_USE_INTERNAL_FLASH  0
-#endif
-
 #ifndef PAL_INT_FLASH_NUM_SECTIONS
     #define PAL_INT_FLASH_NUM_SECTIONS 0
-#endif
-
-#ifndef PAL_USE_HW_ROT
-    #define PAL_USE_HW_ROT     1
-#endif
-
-#ifndef PAL_USE_HW_RTC
-    #define PAL_USE_HW_RTC    1
-#endif
-
-#ifndef PAL_USE_HW_TRNG
-    #define PAL_USE_HW_TRNG    1
-#endif
-
-//! The number of valid priorities limits the maximum number of concurrent running threads.
-#ifndef PAL_MAX_NUMBER_OF_THREADS
-    #if PAL_USE_HW_TRNG
-        #define PAL_MAX_NUMBER_OF_THREADS 9
-    #else
-        #define PAL_MAX_NUMBER_OF_THREADS 8
-    #endif
 #endif
 
 #if PAL_USE_HW_TRNG
@@ -351,10 +356,6 @@
     #ifndef PAL_NOISE_TRNG_THREAD_STACK_SIZE
         #define PAL_NOISE_TRNG_THREAD_STACK_SIZE 1536 // 1.5K
     #endif
-#endif
-
-#ifndef PAL_USE_SECURE_TIME
-    #define PAL_USE_SECURE_TIME 1
 #endif
 
 #ifndef PAL_DEVICE_KEY_DERIVATION_BACKWARD_COMPATIBILITY_CALC
@@ -484,8 +485,6 @@
 #if ((PAL_ENABLE_PSK == 0) && (PAL_ENABLE_X509 == 0))
     #error "Please select one option: PSK or X509"
 #endif
-
-
 
 #if ((PAL_ENABLE_PSK == 1) && (PAL_USE_SECURE_TIME == 1))
     #error "PSK feature cannot be configured when using secure time"

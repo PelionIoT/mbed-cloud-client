@@ -90,12 +90,6 @@ public:
 private:
 
     /**
-     * Second phase of initialization, which will create the tasklet upon first call to
-     * to any of the M2MTimerPimpl instances a start_timer() or start_dtls_timer().
-     */
-    void initialize_tasklet();
-
-    /**
      * @brief Start long period timer
      */
     void start_still_left_timer();

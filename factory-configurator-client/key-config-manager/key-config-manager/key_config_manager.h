@@ -69,8 +69,7 @@ extern "C" {
     *    @param[in] kcm_item_is_factory True if the KCM item is a factory item; otherwise, false.
     *    @param[in] kcm_item_data       KCM item data buffer. Can be NULL if `kcm_item_data_size` is 0.
     *    @param[in] kcm_item_data_size  KCM item data buffer size in bytes. Can be 0 if you want to store an empty file.
-    *    @param[in] kcm_item_info       Optional item info. Currently, this parameter is used only for PSA configuration. The parameter points to
-    *                                   the initialized PSA key policy structure, which has the information about the key usage and algorithm.
+    *    @param[in] kcm_item_info       Security descriptor, caller must set this to NULL.
     *    @returns
     *        ::KCM_STATUS_SUCCESS            in case of success.
     *        ::KCM_STATUS_FILE_EXIST         when trying to store an item that already exists.
@@ -153,7 +152,6 @@ extern "C" {
                                             uint8_t ** kcm_item_data_out,
                                             size_t * kcm_item_data_size_out);
 
-
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     /* === Key and Configuration Manager with Platform Secure Architecture (PSA) support uses PSA key IDs from 0x1 up to 0x2800 === */
@@ -191,7 +189,43 @@ extern "C" {
     *        ::KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e kcm_item_close_handle(kcm_key_handle_t *key_handle);
-#endif
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+
+    /** Return an initial value of an item extra info.
+    * Caller must set item extra info relevant members before calling any other KCM API otherwise default will be used (default: KCM_LOCATION_PSA).
+    */
+#define KCM_ITEM_EXTRA_INFO_INIT {KCM_LOCATION_PSA, KCM_LOCATION_PSA}
+    static inline kcm_item_extra_info_s kcm_item_extra_info_init(void)
+    {
+        const kcm_item_extra_info_s extra_info = KCM_ITEM_EXTRA_INFO_INIT;
+        return (extra_info);
+    }
+
+    /**
+    * Gets the location of a certain item.
+    * The location is the actual storage meduim as defined by ::kcm_item_location_e
+    *
+    *    @param[in]  kcm_item_name     KCM item name.
+    *    @param[in]  kcm_item_name_len KCM item name length.
+    *    @param[in]  kcm_item_type     KCM item type as defined in `::kcm_item_type_e`.
+    *                                  Only ::KCM_PRIVATE_KEY_ITEM and ::KCM_PUBLIC_KEY_ITEM are valid.
+    *                                  Other types result in a ::KCM_STATUS_INVALID_PARAMETER error.
+    *    @param[out] item_location_out A pointer to the location on which the item resides.
+    *                                  This out variable will be set to the corresponding storage location as defined in `::kcm_item_location_e`
+    *
+    *    @returns
+    *        ::KCM_STATUS_SUCCESS            in case of success.
+    *        ::KCM_STATUS_ITEM_NOT_FOUND     if the item isn't found in the PSA storage.
+    *        One of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e kcm_item_get_location(const uint8_t *item_name,
+                                       size_t item_name_len,
+                                       kcm_item_type_e kcm_item_type,
+                                       kcm_item_location_e *item_location_out);
+
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     /* === Key, certificate, and configuration delete === */
 
@@ -367,6 +401,10 @@ extern "C" {
     *                                      Must be 0, if `::public_key_name` is not provided.
     *      @param[in] kcm_item_is_factory  True if the KCM item is a factory item; otherwise, it is false.
     *      @param[in] kcm_item_info        Additional item data.
+    *                                      if Non-PSA: this parameter must be set to NULL
+    *                                      if PSA:
+    *                                      (1) if NULL: the private/public keys will be generated and stored in the default key resident set in pre-build time.
+    *                                      (2) if `kcm_item_extra_info_s`: the private/public keys will be generated and stored in the selected resident defined in `::kcm_item_extra_info_s`.
     *
     *      @returns
     *         ::KCM_STATUS_SUCCESS in the event of success.
@@ -420,6 +458,10 @@ extern "C" {
     *     @param[in]  csr_buff_max_size    The size of the supplied CSR buffer.
     *     @param[out] csr_buff_act_size    The actual size of the filled CSR buffer.
     *     @param[in]  kcm_item_info        Additional item data.
+    *                                      if Non-PSA: this parameter must be set to NULL
+    *                                      if PSA:
+    *                                      (1) if NULL: the private/public keys will be generated and stored in the default key resident set in pre-build.
+    *                                      (2) if `kcm_item_extra_info_s`: the private/public keys will be generated and stored in the selected resident defined in `::kcm_item_extra_info_s`.
     *
     *     @returns
     *         ::KCM_STATUS_SUCCESS in case of success.
@@ -536,7 +578,11 @@ extern "C" {
     */
     kcm_status_e kcm_generate_random(uint8_t *buffer, size_t buffer_size);
 
-    /*  Computes a shared secret using the elliptic curve Diffie Hellman algorithm.
+    /* Computes a shared secret using the elliptic curve Diffie Hellman algorithm.
+    *
+    * A few limitations that should be considered:
+    * (1) If Secure Element exist, this function enable only a single key usage ALG_ECDSA(ALG_SHA_256).
+    * (2) If PSA and Secure Element does not exist, this function enable multiple key usage except LPC55S69_NS and CY8CKIT_062_WIFI_BT_PSA targets.
     *
     *    @param[in] private_key_name                            The private key name to fetch from storage.
     *    @param[in] private_key_name_len                        The length of the private key name.

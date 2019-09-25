@@ -119,6 +119,14 @@ public:
      */
     void set_socket(palSocket_t socket, palSocketAddress_t *address);
 
+    /**
+     * \brief Set dtls socket callback function pointer.
+     * \param socket Callback function pointer.
+     * \param argument Argument to be passed back to function.
+     * \return Indicates whether the call is successful or not.
+     */
+    int set_dtls_socket_callback(void(*foo)(void*), void *argument);
+
 private:
 
     int start_handshake();

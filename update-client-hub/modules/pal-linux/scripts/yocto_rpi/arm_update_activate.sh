@@ -117,6 +117,10 @@ if ! tar xvf $FIRMWARE -C /mnt/root; then
 fi
 echo "Extracted firmware successfully!"
 
+#Create mount points if they do not exist
+mkdir -p /mnt/root/var/volatile
+mkdir -p /mnt/root/var/lib
+
 umount /mnt/root
 
 if ! mkdir -p /mnt/flags ; then

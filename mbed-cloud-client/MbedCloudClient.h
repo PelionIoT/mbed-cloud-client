@@ -54,19 +54,19 @@ class SimpleM2MResourceBase;
 
 /**
  * \brief MbedCloudClientCallback
- * A callback class for informing updated object and resource value from the
- * LWM2M server to the user of the MbedCloudClient class. The user MUST instantiate the
- * class derived out of this and pass the object to MbedCloudClient::set_update_callback().
+ * A callback class for informing updated Object and Resource value from the
+ * LwM2M server to the user of the `MbedCloudClient` class. The user must instantiate the
+ * class derived out of this and pass the Object to `MbedCloudClient::set_update_callback()`.
  */
 class MbedCloudClientCallback {
 
 public:
 
     /**
-    * \brief A callback indicating that the value of the resource object is updated
-    *  by the LWM2M Cloud server.
-    * \param base The object whose value is updated.
-    * \param type The type of the object.
+    * \brief A callback indicating that the value of the Resource Object is updated
+    *  by the LwM2M Device Management server.
+    * \param base The Object whose value is updated.
+    * \param type The type of the Object.
     */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type) = 0;
 };
@@ -77,9 +77,9 @@ public:
  *  \brief MbedCloudClient.
  *  This class provides an interface for handling all the client interface operations
  *  including device provisioning, identity setup, device resource management defined in the OMA
- *  LWM2M specifications, and update firmware.
- *  Device resource management includes Bootstrapping, Client Registration, Device Management &
- *  Service Enablement and Information Reporting.
+ *  LwM2M specifications, and update firmware.
+ *  Device Resource management includes bootstrapping, client registration, device management &
+ *  service enablement and information reporting.
  */
 
 class MbedCloudClient : public ServiceClientCallback {
@@ -181,7 +181,7 @@ public:
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     /**
-     * \brief Enum defining authorization requests from the Update client.
+     * \brief Enum defining authorization requests from Update Client.
      */
     enum {
         UpdateRequestInvalid                    = UpdateClient::RequestInvalid,
@@ -196,12 +196,12 @@ public:
     MbedCloudClient();
 
     /**
-     * \brief Constructor with callback registration
-     * \param on_registered_cb Callback function that Cloud Client calls when the client has registered
-     * successfully to the Cloud.
-     * \param on_unregistered_cb Callback function that Cloud Client calls when the client has unregistered
-     * successfully from the Cloud.
-     * \param on_error_cb Callback function that Cloud Client calls when there is an error occuring in the
+     * \brief Constructor with callback registration.
+     * \param on_registered_cb Callback function that Device Management Client calls when the client has registered
+     * successfully to Device Management.
+     * \param on_unregistered_cb Callback function that Device Management Client calls when the client has unregistered
+     * successfully from Device Management.
+     * \param on_error_cb Callback function that Device Management Client calls when there is an error occuring in the
      * client functionality.
      * \param on_update_authorize_cb Callback function that Update Client calls to authorize firmware download or
      * an firmware update.
@@ -222,179 +222,200 @@ public:
     virtual ~MbedCloudClient();
 
     /**
-     * \brief Adds a list of objects that the application wants to register to the
-     * LWM2M server. This function MUST be called before calling the setup()
-     * API. Otherwise, the application gets the error ConnectInvalidParameters, when
-     * calling setup().
-     * \param object_list Objects that contain information about the
-     * client attempting to register to the LWM2M server.
+     * \brief Add a list of Objects that the application wants to register to the
+     * LwM2M server. This function must be called before calling the `setup()`
+     * API. Otherwise, the application gets error `ConnectInvalidParameters`, when
+     * calling `setup()`.
+     * \param object_list Objects that contain information about Device Management Client
+     * attempting to register to the LwM2M server.
      */
     void add_objects(const M2MObjectList& object_list);
 
     /**
-     * \brief Adds a list of M2MBase interface implementing objects that the application wants
-     * to register to the LWM2M server. This function MUST be called before calling the setup()
-     * API. Otherwise, the application gets the error ConnectInvalidParameters, when
-     * calling setup().
-     * \param base_list Object implementing the M2MBase interface that contain information about the
-     * client attempting to register to the LWM2M server.
+     * \brief Add a list of M2MBase interface implementing objects that the application wants
+     * to register to the LwM2M server. This function must be called before calling the `setup()`
+     * API. Otherwise, the application gets error `ConnectInvalidParameters`, when
+     * calling `setup()`.
+     * \param base_list Object implementing the M2MBase interface that contain information about Device Management
+     * Client attempting to register to the LwM2M server.
      */
     void add_objects(const M2MBaseList& base_list);
 
     void remove_object(M2MBase *object);
+
     /**
-     * \brief Sets the callback function that is called when there is
-     * any new update on any Object/ObjectInstance/Resource from the LWM2M server,
-     * typically on receiving PUT commands on the registered objects.
-     * \param callback Passes the class object that implements the callback
-     * function to handle the incoming PUT request on a given object.
+     * \brief Set the callback function that is called when there is
+     * a new update on any Object/ObjectInstance/Resource from the LwM2M server,
+     * typically on receiving `PUT` commands on the registered Objects.
+     * \param callback Passes the class Object that implements the callback
+     * function to handle the incoming `PUT` request on a given Object.
      */
     void set_update_callback(MbedCloudClientCallback *callback);
 
     /**
-     * \brief Initiates the Cloud Client set up on the Cloud service. This
-     * function manages device provisioning (first time usage), bootstrapping
-     * (first time usage) and registering the client application to the Cloud
-     * service.
-     * \param iface A handler to the network interface on mbedOS, can be NULL on
-     * other platforms.
+     * \brief Initialize the Device Management Client library.
+     *
+     * If you have not called `init()` API separately, `setup()` will call it internally.
+     *
+     * You can use this API to ensure two-phased memory allocation
+     * for initialization of Device Management Client.
+     * This is important in a constrained environment
+     * where the network stack or some other component may consume run-time
+     * memory before the application calls the `setup()` API.
+     * \return True on success or false in case of failure.
+     * False means your application is running low on memory and all APIs,
+     * except `setup()`, will fail with undefined behaviour.
+     */
+    bool init();
+
+    /**
+     * \brief Initiate bootstrapping (first time usage) and register the Device Management
+     * Client application to the service.
+     *
+     * If you have not called `init()` API separately, `setup()` will call it internally
+     *
+     * \param iface A handler to the network interface.
+     * \return True on success or false in case of failure.
+     * False means your application is running low on memory and all APIs will fail with undefined behaviour.
+     * An application using Device Management Client must be able to recover from the failure and retry the initialization of
+     * Device Management Client by calling this API or `init()` at later stage.
      */
     bool setup(void* iface);
 
     /**
-     * \brief Sets the callback function that is called when the client is registered
-     * successfully to the Cloud. This is used for a statically defined function.
-     * \param fn A function pointer to the function that is called when the client
+     * \brief Set the callback function that is called when Device Management Client is registered
+     * successfully to Device Management. This is used for a statically defined function.
+     * \param fn Function pointer to the function that is called when Device Management Client
      * is registered.
      */
     void on_registered(void(*fn)(void));
 
     /**
-    * \brief Sets the callback function that is called when the client is registered
-    * successfully to the Cloud. This is an overloaded function for a class function.
-    * \param object A function pointer to the function that is called when the client
+    * \brief Set the callback function that is called when Device Management Client is registered
+    * successfully to Device Management. This is an overloaded function for a class function.
+    * \param object Function pointer to the function that is called when Device Management Client
     * is registered.
     */
     template<typename T>
     void on_registered(T *object, void (T::*member)(void));
 
     /**
-     * \brief Sets the callback function that is called when there is any error
+     * \brief Set the callback function that is called when there is any error
      * occuring in the client functionality. The error code can be mapped from the
-     * MbedCloudClient::Error enum. This is used for a statically defined function.
-     * \param fn A function pointer to the function that is called when there
-     * is any error in the client.
+     * `MbedCloudClient::Error` enum. This is used for a statically defined function.
+     * \param fn Function pointer to the function that is called when there
+     * is an error in Device Management Client.
      */
     void on_error(void(*fn)(int));
 
     /**
-     * \brief Sets the callback function that is called when there is an error
+     * \brief Set the callback function that is called when there is an error
      * occuring in the client functionality. The error code can be mapped from
-     * MbedCloudClient::Error enum. This is an overloaded function for a class function.
-     * \param object A function pointer to the function that is called when there
-     * is an error in the client.
+     * `MbedCloudClient::Error` enum. This is an overloaded function for a class function.
+     * \param object Function pointer to the function that is called when there
+     * is an error in Device Management Client.
      */
     template<typename T>
     void on_error(T *object, void (T::*member)(int));
 
     /**
-     * \brief Sets the callback function that is called when the client is unregistered
-     * successfully from the Cloud. This is used for a statically defined function.
-     * \param fn A function pointer to the function that is called when the client
+     * \brief Set the callback function that is called when Device Management Client is unregistered
+     * successfully from Device Management. This is used for a statically defined function.
+     * \param fn Function pointer to the function that is called when Device Management Client
      * is unregistered.
      */
     void on_unregistered(void(*fn)(void));
 
     /**
-    * \brief Sets the callback function that is called when the client is unregistered
-    * successfully from the Cloud. This is an overloaded function for a class function.
-    * \param object A function pointer to the function that is called when the client
+    * \brief Set the callback function that is called when Device Management Client is unregistered
+    * successfully from Device Management. This is an overloaded function for a class function.
+    * \param object Function pointer to the function that is called when Device Management Client
     * is unregistered.
     */
     template<typename T>
     void on_unregistered(T *object, void (T::*member)(void));
 
     /**
-     * \brief Sets the callback function that is called when the client registration
-     * is updated successfully to the Cloud. This is used for a statically defined function.
-     * \param fn A function pointer to the function that is called when the client
+     * \brief Set the callback function that is called when Device Management Client registration
+     * is updated successfully to Device Management. This is used for a statically defined function.
+     * \param fn Function pointer to the function that is called when Device Management Client
      * registration is updated.
      */
     void on_registration_updated(void(*fn)(void));
 
     /**
-     * \brief Sets the callback function that is called when the client registration
-     * is updated successfully to the Cloud. This is an overloaded function for a class
+     * \brief Set the callback function that is called when Device Management Client registration
+     * is updated successfully to Device Management. This is an overloaded function for a class
      * function.
-     * \param object A function pointer to the function that is called when the client
+     * \param object Function pointer to the function that is called when Device Management Client
      * registration is updated.
      */
     template<typename T>
         void on_registration_updated(T *object, void (T::*member)(void));
 
     /**
-    * \brief Sends a registration update message to the Cloud when the client is registered
-    * successfully to the Cloud and there is no internal connection error.
-    * If the client is not connected and there is some other internal network
-    * transaction ongoing, this function triggers an error MbedCloudClient::ConnectNotAllowed.
+    * \brief Send a registration update message to Device Management when Device Management Client is registered  
+    * successfully and there is no internal connection error.
+    * If Device Management Client is not connected and there is some other internal network
+    * transaction ongoing, this function triggers an error `MbedCloudClient::ConnectNotAllowed`.
     * \deprecated
     */
     void keep_alive() m2m_deprecated;
 
     /**
-    * \brief Sends a registration update message to the Cloud when the client is registered
-    * successfully to the Cloud and there is no internal connection error.
-    * If the client is not connected and there is some other internal network
-    * transaction ongoing, this function triggers an error MbedCloudClient::ConnectNotAllowed.
+    * \brief Send a registration update message to Device Management when Device Management Client is registered
+    * successfully and there is no internal connection error.
+    * If Device Management Client is not connected and there is some other internal network
+    * transaction ongoing, this function triggers an error `MbedCloudClient::ConnectNotAllowed`.
     */
     void register_update();
 
     /**
-    * \brief Closes the connection towards Cloud and unregisters the client.
-    * This function triggers the on_unregistered() callback if set by the application.
+    * \brief Close the connection towards Device Management and unregister Device Management Client.
+    * This function triggers the `on_unregistered()` callback if set by the application.
     */
     void close();
 
     /**
-     * \brief Returns pointer to the ConnectorClientEndpointInfo object.
-     * \return ConnectorClientEndpointInfo pointer.
+     * \brief Return pointer to the `ConnectorClientEndpointInfo` object.
+     * \return `ConnectorClientEndpointInfo` pointer.
      */
     const ConnectorClientEndpointInfo *endpoint_info() const;
 
     /**
-     * \brief Sets the function that is called for indicating that the client
+     * \brief Set the function that is called for indicating that Device Management Client
      * is going to sleep when the binding mode is selected with queue mode.
-     * \param callback A function pointer that is called when the client
+     * \param callback Function pointer that is called when Device Management Client
      * goes to sleep.
      */
     void set_queue_sleep_handler(callback_handler handler);
 
     /**
-     * \brief Sets the function callback that is called by client to
+     * \brief Set the function callback that is called by Device Management Client to
      * fetch a random number from an application to ensure strong entropy.
-     * \param random_callback A function pointer that is called by client
+     * \param random_callback Function pointer that is called by Device Management Client
      * while performing a secure handshake.
-     * The function signature should be uint32_t (*random_number_callback)(void);
+     * The function signature should be `uint32_t (*random_number_callback)(void);`.
      */
     void set_random_number_callback(random_number_cb callback);
 
     /**
-     * \brief Sets the function callback that is called by client to
+     * \brief Set the function callback that is called by Device Management Client to
      * provide an entropy source from an application to ensure strong entropy.
-     * \param entropy_callback A function pointer that is called by mbed Client
+     * \param entropy_callback Function pointer that is called by Device Management Client
      * while performing a secure handshake.
-     * Function signature, if using mbed-client-mbedtls, should be
-     * int (*mbedtls_entropy_f_source_ptr)(void *data, unsigned char *output,
-     *                                     size_t len, size_t *olen);
+     * Function signature, if using `mbed-client-mbedtls`, should be
+     * `int (*mbedtls_entropy_f_source_ptr)(void *data, unsigned char *output,
+     *                                     size_t len, size_t *olen);`.
      */
     void set_entropy_callback(entropy_cb callback);
 
 #if MBED_CLOUD_CLIENT_STL_API
     /**
-     * \brief Set resource value in the Device Object
+     * \brief Set resource value in the Device Object.
      *
      * \note This API and functionality using STL is being phased out, as it is wasting resources by
-     * duplicating data and harming portability by requiring a STL implementation to exist.
+     * duplicating data and harming portability by requiring an STL implementation.
      *
      * \param resource Device enum to have value set.
      * \param value String object.
@@ -406,13 +427,13 @@ public:
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     /**
-     * \brief Registers a callback function for authorizing firmware downloads and reboots.
+     * \brief Register a callback function for authorizing firmware downloads and reboots.
      * \param handler Callback function.
      */
     void set_update_authorize_handler(void (*handler)(int32_t request));
 
     /**
-     * \brief Registers a callback function for authorizing update requests with priority.
+     * \brief Register a callback function for authorizing update requests with priority.
      * \param handler Callback function.
      */
     void set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority));
@@ -431,26 +452,26 @@ public:
     void update_reject(int32_t request, int32_t reason);
 
     /**
-     * \brief Registers a callback function for monitoring download progress.
+     * \brief Register a callback function for monitoring download progress.
      * \param handler Callback function.
      */
     void set_update_progress_handler(void (*handler)(uint32_t progress, uint32_t total));
 #endif
 
     /**
-     * @brief Return error description for the latest error code
-     * @return Error description string
+     * @brief Return error description for the latest error code.
+     * @return Error description string.
      */
     const char *error_description() const;
 
     /**
-     * @brief Sends the CoAP GET request to the server.
-     * API must be called again with the updated offset to complete the whole transfer.
+     * @brief Send the CoAP `GET` request to the server.
+     * The API must be called again with the updated offset to complete the whole transfer.
      * @type Download type.
-     * @uri Uri path to the data.
+     * @uri URI path to the data.
      * @offset Data offset.
-     * @get_data_cb Callback which is triggered once there is data available.
-     * @get_data_error_cb Callback which is trigged in case of any error.
+     * @get_data_cb Callback triggered once there is data available.
+     * @get_data_error_cb Callback trigged in case of an error.
     */
     void send_get_request(DownloadType type,
                           const char *uri,
@@ -464,44 +485,44 @@ public:
     * \brief Initiate a renewal for a specific certificate.
     * The process will generate new keys in order to create a CSR. The CSR is then sent to the EST service to retrieve the renewed certificate.
     * The new certificate is then safely stored in the device, along with its corresponding private key.
-    * Note: The certificate to be renewed *must* already exist in the device.
+    * \note The certificate to be renewed must already exist in the device.
     * \param cert_name A null terminated C string indicating the name of the certificate to be renewed.
     * \return CE_STATUS_SUCCESS if the asynchronous operation has started successfully. In this case, user callback will be executed at the end of the operation, indicating completion status.
-    *         If any other ce_status_e:: status is returned - operation encountered some error prior to the start of the asynchronous stage and user callback will NOT be executed.
+    *         If any other `ce_status_e::` status is returned - operation encountered an error before the start of the asynchronous stage and user callback will not be executed.
     */
     ce_status_e certificate_renew(const char *cert_name);
 
     /**
-    * \brief Sets the callback function that is called when the certificate renewal process has completed.
+    * \brief Set the callback function that is called when the certificate renewal process has completed.
     * Must be called before any certificate renewal operation.
-    * \param user_cb A function pointer to the user callback. If `user_cb` is NULL - no callback is called when the process has completed.
+    * \param user_cb Function pointer to the user callback. If `user_cb` is NULL - no callback is called when the process has completed.
     */
     void on_certificate_renewal(cert_renewal_cb_f user_cb);
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     /**
-     * @brief Returns the pointer to the inner object list.
-     * The list is not allowed to be modified and is owned by the client instance.
+     * @brief Return the pointer to the inner object list.
+     * You are not allowed to modify the list. It is owned by the Device Management Client instance.
      * @return The inner object list pointer.
      */
     const M2MBaseList *get_object_list() const;
 #endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION
 
     /**
-     * \brief Pauses client's timed functionality and closes network connection
-     * to the Cloud. After successful call the operation is continued
-     * by calling resume().
+     * \brief Pause Device Management Client's timed functionality and close network connection
+     * to Device Management. After a successful call, you can continue the operation
+     * by calling `resume()`.
      *
-     * \note This operation does not unregister client from the Cloud.
-     * Closes the socket and removes interface from the interface list.
+     * \note This operation does not unregister Device Management Client from Device Management.
+     * It closes the socket and removes the interface from the interface list.
      */
     void pause();
 
     /**
-     * \brief Resumes client's timed functionality and network connection
-     * to the Cloud. Updates registration. Can be only called after
-     * a successful call to pause().
+     * \brief Resume Device Management Client's timed functionality and network connection
+     * to Device Management. Updates registration. Can be only called after
+     * a successful call to `pause()`.
      *
      * \param iface A handler to the network interface.
      */
@@ -515,7 +536,7 @@ public:
      * \param cert_name_length Length of certificate name.
      * \param csr Buffer containing the certificate signing request.
      * \param csr_length Length of CSR buffer.
-     * \param result_cb Callback function that will be called when enrollment finishes.
+     * \param result_cb Callback function that will be called when the enrollment has completed.
      * \param context Optional pointer to a user context.
      */
     est_status_e est_request_enrollment(const char *cert_name,
@@ -526,7 +547,7 @@ public:
                                         void *context) const;
 
     /**
-     * \brief Free a certificate chain context structure passed to a est_enrollment_result_cb
+     * \brief Free a certificate chain context structure passed to `est_enrollment_result_cb`
      * callback function.
      *
      * \param context Certificate chain context to free.
@@ -537,35 +558,34 @@ public:
 protected: // from ServiceClientCallback
 
     /**
-    * \brief Indicates that the setup or close operation is complete
+    * \brief Indicate that the setup or close operation is complete
     * with success or failure.
     * \param status Indicates success or failure in terms of status code.
     */
     virtual void complete(ServiceClientCallbackStatus status);
 
     /**
-    * \brief Indicates an error condition from the underlying clients like
-    * identity, connector or update client.
-    * \param error Indicates an error code translated to MbedCloudClient::Error.
-    * \param reason, Indicates human readable text for error description.
+    * \brief Indicates an error condition from Device Management Client.
+    * \param error Indicates an error code translated to `MbedCloudClient::Error`.
+    * \param reason Indicates human readable text for error description.
     */
     virtual void error(int error, const char *reason);
 
     /**
-    * \brief A callback indicating that the value of the resource object is updated
-    *  by the LWM2M Cloud server.
-    * \param base The object whose value is updated.
-    * \param type The type of the object.
+    * \brief A callback indicating that the value of the Resource Object is updated
+    *  by the LwM2M Device Management server.
+    * \param base The Object whose value is updated.
+    * \param type The type of the Object.
     */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type);
 
 private:
 
     /**
-    * \brief Registers the update callback functions for SimpleM2MResourceBase
+    * \brief Register the update callback functions for `SimpleM2MResourceBase`
     * objects.
-    * \param route The URI path of the registered resource such as "/Test/0/res/".
-    * \param resource Object of the SimpleM2MResourceBase.
+    * \param route The URI path of the registered Resource such as `/Test/0/res/`.
+    * \param resource Object of the `SimpleM2MResourceBase`.
     */
 #if MBED_CLOUD_CLIENT_STL_API
     void register_update_callback(string route, SimpleM2MResourceBase* resource) m2m_deprecated;
@@ -581,10 +601,11 @@ private:
     FP0<void>                                       _on_registration_updated;
     FP1<void,int>                                   _on_error;
     const char                                      *_error_description;
+    bool                                            _init_done;
 
 #if MBED_CLOUD_CLIENT_STL_API
     // This API and functionality is being phased out, as it is wasting resources by
-    // duplicating data and harming portability by requiring a STL implementation to exist.
+    // duplicating data and harming portability by requiring an STL implementation.
     map<string, M2MObject*>                         _objects;
     map<string, M2MResource*>                       _resources;
     map<string, SimpleM2MResourceBase*>             _update_values;

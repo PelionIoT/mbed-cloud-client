@@ -554,6 +554,12 @@ private: // state machine state functions
      */
     void set_error_description(const char *description);
 
+    /**
+     * Helper method for creating random initial reconnection time interval.
+     */
+     void create_random_initial_reconnection_time();
+
+
     enum ReconnectionState{
         None,
         WithUpdate,
@@ -593,7 +599,7 @@ private:
     char                        _error_description[MAX_ALLOWED_ERROR_STRING_LENGTH];
 #endif
 
-    uint8_t                     _initial_reconnection_time;
+    uint16_t                     _initial_reconnection_time;
     uint64_t                    _reconnection_time;
 
     friend class Test_M2MInterfaceImpl;
