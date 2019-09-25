@@ -201,6 +201,14 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             ARM_UC_HUB_ErrorHandler(FIRM_ERR_FIRMWARE_TOO_LARGE, arm_uc_hub_state);
             break;
 
+        case UCFM_EVENT_PROCESSOR_PARSE_ERROR:
+            UC_HUB_TRACE("UCFM_EVENT_PROCESSOR_PARSE_ERROR");
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_PROCESSOR_PARSE_ERROR, arm_uc_hub_state);
+            break;
+        case UCFM_EVENT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE:
+            UC_HUB_TRACE("UCFM_EVENT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE");
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_INSUFFICIENT_MEMORY_SPACE, arm_uc_hub_state);
+            break;
         case UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR:
             UC_HUB_TRACE("UCFM_EVENT_GET_FIRMWARE_DETAILS_ERROR");
             break;

@@ -53,6 +53,14 @@ public:
     void set_message_info(sn_coap_hdr_s *coap_header);
 
     /**
+     * \brief Store the payload data from a CoAP message.
+     * \param *payload Payload to be stored.
+     * \param payload_len Length of the payload.
+     * \param offset Offset where to copy the data.
+     */
+    void set_payload(const uint8_t *payload, const uint16_t payload_len, const uint16_t offset);
+
+    /**
      * \brief Clear values.
      */
     void clear_values();

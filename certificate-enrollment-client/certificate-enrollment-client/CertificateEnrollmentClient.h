@@ -23,7 +23,7 @@
 class EstClient;
 
 namespace CertificateEnrollmentClient {
-    
+
     /**
     * \brief Create the Certificate renewal LWM2M object, instance and resource and push the object to the list
     * Also save the pointers to the object and resource, register the event handler, and create the renewal_mutex

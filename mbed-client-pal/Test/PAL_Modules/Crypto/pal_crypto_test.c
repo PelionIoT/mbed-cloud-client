@@ -1377,15 +1377,9 @@ TEST(pal_crypto, ECSig_RawToDER)
 * | #  |    Step                                                                                                            |   Expected                   |
 * |----|--------------------------------------------------------------------------------------------------------------------|------------------------------|
 * PSA ONLY INITIALIZAITON
-* | 1  | Allocate PSA volatile key for private key using `psa_allocate_key`.                                                | PAL_SUCCESS                  | 
-* | 2  | Set policy using `psa_key_policy_set_usage` and `psa_set_key_policy`.                                              | PAL_SUCCESS                  |
-* | 3  | Import the private key using `psa_import_key`.                                                                     | PAL_SUCCESS                  |
-* | 4  | Allocate PSA volatile key for public key using `psa_allocate_key`.                                                 | PAL_SUCCESS                  |
-* | 5  | Set policy using `psa_key_policy_set_usage` and `psa_set_key_policy`.                                              | PAL_SUCCESS                  |
-* | 6  | Import the public key using `psa_import_key`.                                                                      | PAL_SUCCESS                  |
-* | 7  | Allocate PSA volatile key for wrong public key using `psa_allocate_key`.                                           | PAL_SUCCESS                  |
-* | 8  | Set policy using `psa_key_policy_set_usage` and `psa_set_key_policy`.                                              | PAL_SUCCESS                  |
-* | 9  | Import the wrong public key using `psa_import_key`.                                                                | PAL_SUCCESS                  |
+* | 1  | Import the private key using `psa_import_key`.                                                                     | PAL_SUCCESS                  |
+* | 2  | Import the public key using `psa_import_key`.                                                                      | PAL_SUCCESS                  |
+* | 3  | Import the wrong public key using `psa_import_key`.                                                                | PAL_SUCCESS                  |
 * TEST FLOW
 * | 1  | Initialize a new EC key using `pal_ECKeyNew`.                                                                      | PAL_SUCCESS                  |
 * | 2  | Parse private key data using `pal_parseECPrivateKeyFromHandle`.                                                    | PAL_SUCCESS                  |
@@ -1406,7 +1400,6 @@ TEST(pal_crypto, ECSig_RawToDER)
 */
 TEST(pal_crypto, ECKey_SignVerify)
 {
-
     palStatus_t result;
     palECKeyHandle_t key_handle = NULLPTR;
     palECKeyHandle_t wrong_pub_key_handle = NULLPTR;
@@ -1444,7 +1437,7 @@ TEST(pal_crypto, ECKey_SignVerify)
 #else
 
     psa_status_t psa_status = PSA_SUCCESS;
-    psa_key_policy_t policy = PSA_KEY_POLICY_INIT;
+    psa_key_attributes_t psa_key_attr = PSA_KEY_ATTRIBUTES_INIT;
     uint8_t* rawPrvKeyData = (uint8_t*)parse_ec_key_data[2].raw_key;
     size_t rawPrvKeySize = parse_ec_key_data[2].raw_key_length;
     uint8_t* rawPubKeyData = (uint8_t*)parse_ec_key_data[3].raw_key;
@@ -1453,46 +1446,40 @@ TEST(pal_crypto, ECKey_SignVerify)
     unsigned char rawPubKeyDataWrong[65] = {0x4, 0x6C, 0x44, 0xEE, 0x60, 0x46, 0x3E, 0x14, 0x52, 0xD0, 0x7E, 0xB1, 0xD5, 0xE6, 0xC0, 0x1C,
     0xCB, 0xD3, 0x20, 0x7E, 0xCB, 0x1F, 0xB0, 0x75, 0x3C, 0xCA, 0xFF, 0xD4, 0x8A, 0xC2, 0xB8, 0xE0, 0xFD, 0xD, 0xC2, 0x41, 0xC7, 0x52,
     0xC7, 0xE, 0x3B, 0x53, 0x25, 0xC1, 0x7E, 0x38, 0xA0, 0x49, 0x56, 0x34, 0x27, 0x4E, 0xDD, 0x4C, 0xA8, 0x5A, 0x2A, 0xFA, 0xCA, 0x66,
-    0x77, 0x8B, 0xD8, 0x8D, 0x3E,};
+    0x77, 0x8B, 0xD8, 0x8D, 0x3E};
 
     /*1*/
-    psa_status = psa_allocate_key((psa_key_handle_t*)&prvDERKey);
+    // set private key attributes
+    psa_set_key_type(&psa_key_attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_CURVE_SECP256R1));
+    psa_set_key_usage_flags(&psa_key_attr, PSA_KEY_USAGE_SIGN | PSA_KEY_USAGE_VERIFY);
+    psa_set_key_algorithm(&psa_key_attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    // import key
+    psa_status = psa_import_key(&psa_key_attr, rawPrvKeyData, rawPrvKeySize, (psa_key_handle_t*)&prvDERKey);
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+    // reset psa_key_attr to free resources the structure may contain
+    psa_reset_key_attributes(&psa_key_attr);
 
     /*2*/
-    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_SIGN | PSA_KEY_USAGE_VERIFY, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
-    psa_status = psa_set_key_policy((psa_key_handle_t)prvDERKey, &policy);
+    // set public key attributes
+    psa_set_key_type(&psa_key_attr, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_CURVE_SECP256R1));
+    psa_set_key_usage_flags(&psa_key_attr, PSA_KEY_USAGE_VERIFY);
+    psa_set_key_algorithm(&psa_key_attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    // import key
+    psa_status = psa_import_key(&psa_key_attr, rawPubKeyData, rawPubKeySize, (psa_key_handle_t*)&pubDERKey);
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+    // reset psa_key_attr to free resources the structure may contain
+    psa_reset_key_attributes(&psa_key_attr);
 
     /*3*/
-    psa_status = psa_import_key((psa_key_handle_t)prvDERKey, PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_SECP256R1), rawPrvKeyData, rawPrvKeySize);
+    // set public key attributes
+    psa_set_key_type(&psa_key_attr, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_CURVE_SECP256R1));
+    psa_set_key_usage_flags(&psa_key_attr, PSA_KEY_USAGE_VERIFY);
+    psa_set_key_algorithm(&psa_key_attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    // import key
+    psa_status = psa_import_key(&psa_key_attr, rawPubKeyDataWrong, sizeof(rawPubKeyDataWrong), (psa_key_handle_t*)&pubDERKeyWrong);
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    /*4*/
-    psa_status = psa_allocate_key((psa_key_handle_t*)&pubDERKey);
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    /*5*/
-    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_VERIFY, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
-    psa_status = psa_set_key_policy((psa_key_handle_t)pubDERKey, &policy);
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    /*6*/
-    psa_status = psa_import_key((psa_key_handle_t)pubDERKey, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_CURVE_SECP256R1), rawPubKeyData, rawPubKeySize);
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    /*7*/
-    psa_status = psa_allocate_key((psa_key_handle_t*)&pubDERKeyWrong);
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    /*8*/
-    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_VERIFY, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
-    psa_status = psa_set_key_policy((psa_key_handle_t)pubDERKeyWrong, &policy);
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    /*9*/
-    psa_status = psa_import_key((psa_key_handle_t)pubDERKeyWrong, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_CURVE_SECP256R1), rawPubKeyDataWrong, sizeof(rawPubKeyDataWrong));
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+    // reset psa_key_attr to free resources the structure may contain
+    psa_reset_key_attributes(&psa_key_attr);
 
 #endif
 
@@ -1560,9 +1547,7 @@ TEST(pal_crypto, ECKey_SignVerify)
     psa_status = psa_close_key((psa_key_handle_t)pubDERKeyWrong);
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
 #endif
-
 }
-
 
 
 /**
@@ -1572,6 +1557,10 @@ TEST(pal_crypto, ECKey_SignVerify)
 *
 * | #  |    Step                                                                                                            |   Expected                   |
 * |----|--------------------------------------------------------------------------------------------------------------------|------------------------------|
+* PSA ONLY INITIALIZAITON
+* | 1  | Import the our private key using `psa_import_key`.                                                                 | PAL_SUCCESS                  |
+* | 2  | Import the their private key using `psa_import_key`.                                                               | PAL_SUCCESS                  |
+* TEST FLOW
 * | 1  | Initialize a new EC key using `pal_ECKeyNew` for our private key.                                                  | PAL_SUCCESS                  |
 * | 2  | Parse our private key data using `pal_parseECPrivateKeyFromHandle`.                                                | PAL_SUCCESS                  |
 * | 3  | Compute our shared secret using `pal_ECDHKeyAgreement`.                                                            | PAL_SUCCESS                  |
@@ -1627,38 +1616,37 @@ TEST(pal_crypto, ECKey_Agreement)
 #else
 
     psa_status_t psa_status = PSA_SUCCESS;
+    psa_key_attributes_t psa_key_attr = PSA_KEY_ATTRIBUTES_INIT;
     psa_key_handle_t ourPrvKeyPsaHandle = 0;
     psa_key_handle_t theirPrvKeyPsaHandle = 0;
-    psa_key_policy_t policy ;
     unsigned char rawKeyDataOur[32] = { 0x16, 0xec, 0xed, 0x76, 0x21, 0xe4, 0x67, 0x06, 0x81, 0x6b, 0xfd, 0x93, 0x54, 0x67, 0xdb, 0x2a, 0x23, 0x03, 0x49, 0x38, 0xb0, 0xe2, 0x3d, 0xfa, 0x0b, 0x22, 0xb8, 0x07, 0xaf, 0xab, 0x43, 0xa4 };
     unsigned char rawKeyDataTheir[32] = { 0xbd, 0x42, 0xd6, 0x36, 0x31, 0x2d, 0xf3, 0x2b, 0x31, 0xeb, 0xe6, 0xe3, 0xc8, 0x63, 0x61, 0xa8, 0x45, 0x92, 0x2c, 0x70, 0xab, 0x02, 0xc7, 0x45, 0xa7, 0xba, 0x7f, 0x39, 0xd3, 0xfd, 0xf0, 0x07 };
 
-    //Allocate our private key
-    psa_status = psa_allocate_key(&ourPrvKeyPsaHandle);
+    // import our private key
+    // set private key attributes
+    psa_set_key_type(&psa_key_attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_CURVE_SECP256R1));
+    psa_set_key_usage_flags(&psa_key_attr, PSA_KEY_USAGE_DERIVE);
+    psa_set_key_algorithm(&psa_key_attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    psa_set_key_enrollment_algorithm(&psa_key_attr, PSA_ALG_ECDH);
+    // import key
+    psa_status = psa_import_key(&psa_key_attr, rawKeyDataOur, sizeof(rawKeyDataOur), (psa_key_handle_t*)&ourPrvKeyPsaHandle);
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    //Set usage and algorithm
-    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_DERIVE, PSA_ALG_ECDH(PSA_ALG_SELECT_RAW));
-    psa_status = psa_set_key_policy(ourPrvKeyPsaHandle, &policy);
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    //Import the key
-    psa_status = psa_import_key(ourPrvKeyPsaHandle, PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_SECP256R1), rawKeyDataOur, sizeof(rawKeyDataOur));
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+    // reset psa_key_attr to free resources the structure may contain
+    psa_reset_key_attributes(&psa_key_attr);
 
     ourPrvPalKey = (palKeyHandle_t)ourPrvKeyPsaHandle;
 
-    //Allocate our their key
-    psa_status = psa_allocate_key(&theirPrvKeyPsaHandle);
+    // import their private key
+    // set private key attributes
+    psa_set_key_type(&psa_key_attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_CURVE_SECP256R1));
+    psa_set_key_usage_flags(&psa_key_attr, PSA_KEY_USAGE_DERIVE);
+    psa_set_key_algorithm(&psa_key_attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    psa_set_key_enrollment_algorithm(&psa_key_attr, PSA_ALG_ECDH);
+    // import key
+    psa_status = psa_import_key(&psa_key_attr, rawKeyDataTheir, sizeof(rawKeyDataTheir), (psa_key_handle_t*)&theirPrvKeyPsaHandle);
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-    //Set usage and algorithm
-    psa_key_policy_set_usage(&policy, PSA_KEY_USAGE_DERIVE, PSA_ALG_ECDH(PSA_ALG_SELECT_RAW));
-    psa_status = psa_set_key_policy(theirPrvKeyPsaHandle, &policy);
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
-    //Import the key
-    psa_status = psa_import_key(theirPrvKeyPsaHandle, PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_SECP256R1), rawKeyDataTheir, sizeof(rawKeyDataTheir));
-    TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
+    // reset psa_key_attr to free resources the structure may contain
+    psa_reset_key_attributes(&psa_key_attr);
 
     theirPrvPalKey = (palKeyHandle_t)theirPrvKeyPsaHandle;
 
@@ -1717,7 +1705,5 @@ TEST(pal_crypto, ECKey_Agreement)
 
     psa_status = psa_close_key(ourPrvKeyPsaHandle);
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
-
 #endif
-
 }

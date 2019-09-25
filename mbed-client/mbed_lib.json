@@ -4,7 +4,7 @@
         "event-loop-size": 1024,
         "reconnection-count": 3,
         "reconnection-interval": 5,
-        "tcp-keepalive-interval": 90,
+        "tcp-keepalive-interval": 540,
         "disable-bootstrap-feature": null,
         "coap-disable-obs-feature":null,
         "dtls_peer_max_timeout": null,

@@ -44,6 +44,8 @@
 
 #define RESOLVE_SEC_MODE(mode)  ((mode == M2MInterface::TCP || mode == M2MInterface::TCP_QUEUE) ? M2MConnectionSecurity::TLS : M2MConnectionSecurity::DTLS)
 
+#define REGISTRATION_FLOW_TIMEOUT_MSECS (30 * 60 * 1000)
+
 M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver& observer,
                                    const String &ep_name,
                                    const String &ep_type,
@@ -76,15 +78,11 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver& observer,
   _security_connection( new M2MConnectionSecurity( RESOLVE_SEC_MODE(mode) )),
   _connection_handler(*this, _security_connection, mode, stack),
   _nsdl_interface(*this, _connection_handler),
-  _security(NULL)
+  _security(NULL),
+  _initial_reconnection_time(0),
+  _reconnection_time(0)
 {
     tr_debug("M2MInterfaceImpl::M2MInterfaceImpl() -IN");
-    //TODO:Increase the range from 1 to 100 seconds
-    randLIB_seed_random();
-    // Range is from 2 to 10
-    _initial_reconnection_time = randLIB_get_random_in_range(2, 10);
-    tr_info("M2MInterfaceImpl::M2MInterfaceImpl() initial random time %d\n", _initial_reconnection_time);
-    _reconnection_time = _initial_reconnection_time;
 
 #ifndef DISABLE_ERROR_DESCRIPTION
     memset(_error_description, 0, sizeof(_error_description));
@@ -479,6 +477,7 @@ void M2MInterfaceImpl::bootstrap_error(const char *reason)
 
     _retry_timer_expired = false;
     _retry_timer.stop_timer();
+    create_random_initial_reconnection_time();
     _retry_timer.start_timer(_reconnection_time * 1000,
                               M2MTimerObserver::RetryTimer);
     tr_info("M2MInterfaceImpl::bootstrap_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
@@ -598,6 +597,7 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
         _reconnecting = true;
         _connection_handler.stop_listening();
         _retry_timer_expired = false;
+        create_random_initial_reconnection_time();
         _retry_timer.start_timer(_reconnection_time * 1000,
                                  M2MTimerObserver::RetryTimer);
 
@@ -766,8 +766,7 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
                         if(!_server_ip_address.empty()) {
                             error = M2MInterface::ErrorNone;
                             _retry_timer.stop_timer();
-                            _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                                     M2MTimerObserver::BootstrapFlowTimer);
+                            _retry_timer.start_timer(REGISTRATION_FLOW_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
 
                             _connection_handler.resolve_server_address(_server_ip_address,
                                                                         _server_port,
@@ -789,8 +788,7 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
         _connection_handler.bind_connection(_listen_port);
 
         _retry_timer.stop_timer();
-        _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                 M2MTimerObserver::BootstrapFlowTimer);
+        _retry_timer.start_timer(REGISTRATION_FLOW_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
 
         tr_info("M2MInterfaceImpl::state_bootstrap (reconnect) - IP address %s, Port %d", _server_ip_address.c_str(), _server_port);
         _connection_handler.resolve_server_address(_server_ip_address,
@@ -1476,5 +1474,15 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
         }
     } else {
         tr_info("M2MInterfaceImpl::network_interface_status_change - disconnected");
+    }
+}
+
+void M2MInterfaceImpl::create_random_initial_reconnection_time()
+{
+    if(_initial_reconnection_time == 0) {
+        randLIB_seed_random();
+        _initial_reconnection_time = randLIB_get_random_in_range(10, 100);
+        tr_info("M2MInterfaceImpl::create_random_initial_reconnection_time() initial random time %d\n", _initial_reconnection_time);
+        _reconnection_time = _initial_reconnection_time;
     }
 }

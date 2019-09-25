@@ -40,14 +40,11 @@ extern "C" {
         KCM_LAST_ITEM                  //!< KCM not defined item type.
     } kcm_item_type_e;
 
-
-
     /** supported message digests */
     typedef enum {
         KCM_MD_NONE = 0x0,
         KCM_MD_SHA256 = 0x1               //!< KCM SHA256 message digest.
     } kcm_md_type_e;
-
 
     /** X.509 v3 Key Usage Extension bit-mask options */    
     typedef enum {
@@ -57,7 +54,6 @@ extern "C" {
         KCM_CSR_KU_KEY_CERT_SIGN = 0x4,     //!< Certificate signing key usage extension bit.
         KCM_CSR_KU_KEY_AGREEMENT = 0x8      //!< Key agreement key usage extension bit.
     } kcm_csr_key_usage_e;
-
 
     /** X.509 v3 Extended Key Usage Extension bit-mask options */
     typedef enum {
@@ -111,6 +107,32 @@ extern "C" {
         uint32_t key_usage;
         uint32_t ext_key_usage;
     } kcm_csr_params_s;
+
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+
+    /**
+    * Item residency
+    */
+    typedef enum {
+        KCM_LOCATION_PSA = 1,             //!< PSA default store as set at pre-build time
+        KCM_LOCATION_SECURE_ELEMENT = 2,  //!< Secure Element store
+    } kcm_item_location_e;
+
+    /** The item extra info structure. 
+    * 
+    * Before using it, the application must initialize
+    * it by calling to kcm_item_extra_info_init() or by setting the structure to all-bits-zero.
+    *
+    * @param priv_key_location The location of the private key selected from `::kcm_item_location_e`.
+    * @param pub_key_location The location of the public key selected from `::kcm_item_location_e`.
+    */
+    typedef struct kcm_item_extra_info {
+        kcm_item_location_e priv_key_location;
+        kcm_item_location_e pub_key_location;
+    } kcm_item_extra_info_s;
+
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
     /**
     * Maximum KCM file name length.

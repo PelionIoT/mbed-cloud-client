@@ -25,7 +25,7 @@ TEST_GROUP_RUNNER(pal_tls)
     RUN_TEST_CASE(pal_tls, tlsInitTLS);
     RUN_TEST_CASE(pal_tls, tlsPrivateAndPublicKeys);
     RUN_TEST_CASE(pal_tls, tlsCACertandPSK);
-    RUN_TEST_CASE(pal_tls, tlsHandshakeUDPTimeOut);
+    //RUN_TEST_CASE(pal_tls, tlsHandshakeUDPTimeOut);
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP);
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_FutureLWM2M); //Far future LWM2M - should update the time in SOTP
     RUN_TEST_CASE(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate); // Near future LWM2M - No SOTP time update

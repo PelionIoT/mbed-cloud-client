@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2019 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -239,6 +239,14 @@ private:
     static const char* resource_name(DeviceResource resource);
 
     static bool check_value_range(DeviceResource resource, const int64_t value);
+
+    // handlers for the Device object execute resources
+    static void post_response_status_handler(const M2MBase& base,
+                                      const M2MBase::MessageDeliveryStatus status,
+                                      const M2MBase::MessageType type,
+                                      void* me);
+    void reboot_execute_handler(void*);
+    void factory_reset_execute_handler(void*);
 
 private :
 

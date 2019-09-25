@@ -740,66 +740,34 @@ int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet_ptr, uint16_t
     }
     sn_nsdl_print_coap_data(coap_packet_ptr, false);
 
+#if SN_COAP_DUPLICATION_MAX_MSGS_COUNT
+    if (coap_packet_ptr->msg_type == COAP_MSG_TYPE_ACKNOWLEDGEMENT &&
+        coap_packet_ptr->coap_status == COAP_STATUS_PARSER_DUPLICATED_MSG) {
+        tr_info("sn_nsdl_process_coap - received duplicate ACK, ignore");
+        sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
+        return SN_NSDL_SUCCESS;
+    }
+#endif
+
 #if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
     // Pass block to application if external_memory_block is set
-    if((coap_packet_ptr->options_list_ptr &&
-        coap_packet_ptr->options_list_ptr->block1 != -1) &&
-        (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING ||
+    if(coap_packet_ptr->options_list_ptr &&
+       coap_packet_ptr->options_list_ptr->block1 != -1 &&
+       (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING ||
         coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED)) {
-        // Block 1 handling
-        /* Get resource */
         char* path = handle->sn_nsdl_alloc(coap_packet_ptr->uri_path_len + 1);
         if (!path) {
             return SN_NSDL_FAILURE;
         }
-
         memcpy(path,
                 coap_packet_ptr->uri_path_ptr,
                 coap_packet_ptr->uri_path_len);
         path[coap_packet_ptr->uri_path_len] = '\0';
 
-
         resource = sn_nsdl_get_resource(handle, path);
         handle->sn_nsdl_free(path);
-
-        if (coap_packet_ptr->options_list_ptr) {
-            if(resource &&
-               resource->static_resource_parameters->external_memory_block &&
-               coap_packet_ptr->options_list_ptr->block1) {
-
-                uint32_t block_number = coap_packet_ptr->options_list_ptr->block1 >> 4;
-                if (block_number) {
-                    remove_previous_block_data(handle, src_ptr, block_number);
-                }
-
-                // Whole message received --> pass only the last block data to application
-                if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED) {
-                    // Get the block size
-                    uint8_t temp = (coap_packet_ptr->options_list_ptr->block1 & 0x07);
-                    uint16_t block_size = 1u << (temp + 4);
-
-                    uint32_t new_payload_len = coap_packet_ptr->payload_len - block_size;
-                    uint8_t *temp_ptr =  handle->grs->coap->sn_coap_protocol_malloc(new_payload_len);
-                    if (temp_ptr) {
-                        // Skip the second last block data since it's still stored in mbed-coap list!
-                        memcpy(temp_ptr, coap_packet_ptr->payload_ptr + block_size, new_payload_len);
-                        handle->grs->coap->sn_coap_protocol_free(coap_packet_ptr->payload_ptr);
-                        coap_packet_ptr->payload_ptr = NULL;
-
-                        coap_packet_ptr->payload_ptr = handle->grs->coap->sn_coap_protocol_malloc(new_payload_len);
-                        if (coap_packet_ptr->payload_ptr) {
-                            memcpy(coap_packet_ptr->payload_ptr, temp_ptr, new_payload_len);
-                            coap_packet_ptr->payload_len = new_payload_len;
-                        }
-
-                        handle->grs->coap->sn_coap_protocol_free(temp_ptr);
-                    }
-                }
-            } else {
-                resource = NULL;
-            }
-        } else {
-            resource = NULL;
+        if(resource && resource->static_resource_parameters->external_memory_block) {
+            return sn_grs_process_coap(handle, coap_packet_ptr, src_ptr);
         }
     }
 #endif
@@ -834,8 +802,7 @@ int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet_ptr, uint16_t
     /* Check, if coap itself sends response, or block receiving is ongoing... */
     if (coap_packet_ptr->coap_status != COAP_STATUS_OK &&
         coap_packet_ptr->coap_status != COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED &&
-        coap_packet_ptr &&
-        !resource) {
+        coap_packet_ptr) {
         sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
         return SN_NSDL_SUCCESS;
     }
@@ -2673,4 +2640,14 @@ int32_t sn_nsdl_send_coap_ping(struct nsdl_s *handle)
     }
 
     return return_msg_id;
+}
+
+extern void sn_nsdl_remove_coap_block(struct nsdl_s *handle, sn_nsdl_addr_s *source_address, uint16_t payload_length, void *payload)
+{
+    /* Check parameters */
+    if (handle == NULL) {
+        return;
+    }
+
+    sn_coap_protocol_block_remove(handle->grs->coap, source_address, payload_length, payload);
 }

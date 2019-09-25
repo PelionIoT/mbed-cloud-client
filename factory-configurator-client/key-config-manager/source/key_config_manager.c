@@ -15,7 +15,6 @@
 // ----------------------------------------------------------------------------
 #include <stdbool.h>
 #include "key_config_manager.h"
-#include "storage_dispatcher.h"
 #include "pv_error_handling.h"
 #include "cs_der_certs.h"
 #include "cs_der_keys_and_csrs.h"
@@ -24,7 +23,8 @@
 #include "cs_utils.h"
 #include "pv_macros.h"
 #include "key_slot_allocator.h"
-
+#include "storage_items.h"
+#include "storage_keys.h"
 
 bool g_kcm_initialized = false;
 
@@ -67,6 +67,7 @@ kcm_status_e kcm_finalize(void)
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
+
     if (g_kcm_initialized) {
 
         kcm_status = storage_finalize();
@@ -95,7 +96,6 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
                             const kcm_security_desc_s kcm_item_info)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    storage_store_f store_func = (storage_store_f)storage_func_dispatch(STORAGE_FUNC_STORE, kcm_item_type);
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
@@ -106,6 +106,7 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
     }
 
     // Validate function parameters
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_info != NULL), KCM_STATUS_INVALID_PARAMETER, "Passing additional info is not supported, kcm_item_info must be set to NULL");
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((kcm_item_data == NULL) && (kcm_item_data_size > 0)), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data NULL and kcm_item_data_size greater than 0");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type != KCM_CONFIG_ITEM && kcm_item_data_size == 0), KCM_STATUS_ITEM_IS_EMPTY, "The data of current item is empty!");
 
@@ -131,7 +132,7 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
             SA_PV_ERR_RECOVERABLE_RETURN_IF((true), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     }
 
-    kcm_status = store_func(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, STORAGE_ITEM_PREFIX_KCM, kcm_item_data, kcm_item_data_size, kcm_item_info);
+    kcm_status = storage_item_store(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, STORAGE_ITEM_PREFIX_KCM, kcm_item_data, kcm_item_data_size, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_write");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -141,9 +142,15 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
 kcm_status_e kcm_item_get_data_size(const uint8_t *kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, size_t *kcm_item_data_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    storage_get_data_size_f get_data_size_func = (storage_get_data_size_f)storage_func_dispatch(STORAGE_FUNC_GET_SIZE, kcm_item_type);
 
-    kcm_status = get_data_size_func(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM, kcm_item_data_size_out);
+
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
+    kcm_status = storage_item_get_data_size(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM, kcm_item_data_size_out);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
@@ -155,9 +162,14 @@ kcm_status_e kcm_item_get_data_size(const uint8_t *kcm_item_name, size_t kcm_ite
 kcm_status_e kcm_item_get_data(const uint8_t * kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, uint8_t * kcm_item_data_out, size_t kcm_item_data_max_size, size_t * kcm_item_data_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    storage_get_data_f get_data_func = (storage_get_data_f)storage_func_dispatch(STORAGE_FUNC_GET, kcm_item_type);
 
-    kcm_status =  get_data_func(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
+    kcm_status =  storage_item_get_data(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM, kcm_item_data_out, kcm_item_data_max_size, kcm_item_data_act_size_out);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
@@ -172,6 +184,12 @@ kcm_status_e kcm_item_get_size_and_data(const uint8_t * kcm_item_name, size_t kc
     size_t kcm_item_data_act_size;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
+
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     // Validate function parameter
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data_out is NULL");
@@ -205,9 +223,14 @@ free_and_exit:
 kcm_status_e kcm_item_delete(const uint8_t * kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    storage_delete_f delete_func = (storage_delete_f)storage_func_dispatch(STORAGE_FUNC_DELETE, kcm_item_type);
 
-    kcm_status = delete_func(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM);
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
+    kcm_status = storage_item_delete(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
@@ -222,6 +245,12 @@ kcm_status_e kcm_item_get_handle(const uint8_t *kcm_item_name, size_t kcm_item_n
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
     kcm_status = storage_key_get_handle((const uint8_t *)kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM, key_handle_out);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
@@ -235,12 +264,39 @@ kcm_status_e kcm_item_close_handle(kcm_key_handle_t *key_handle)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
     kcm_status = storage_key_close_handle(key_handle);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_close_handle");
 
     return kcm_status;
 }
-#endif
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+kcm_status_e kcm_item_get_location(const uint8_t *item_name, size_t item_name_len, kcm_item_type_e kcm_item_type, kcm_item_location_e *item_location_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
+    // Only asymmetric keys allowed
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type != KCM_PRIVATE_KEY_ITEM) && (kcm_item_type != KCM_PUBLIC_KEY_ITEM), KCM_STATUS_INVALID_PARAMETER, "Only key types allowed");
+
+    kcm_status = storage_item_get_location((const uint8_t *)item_name, item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM, item_location_out);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed getting item location");
+
+    return kcm_status;
+}
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 kcm_status_e kcm_factory_reset(void)
 {
@@ -266,6 +322,12 @@ kcm_status_e kcm_cert_chain_create(kcm_cert_chain_handle *kcm_chain_handle, cons
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
+
     //Call internal storage_cert_chain_create
     kcm_status = storage_cert_chain_create(kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, kcm_chain_len, kcm_chain_is_factory, STORAGE_ITEM_PREFIX_KCM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_cert_chain_create");
@@ -276,6 +338,12 @@ kcm_status_e kcm_cert_chain_create(kcm_cert_chain_handle *kcm_chain_handle, cons
 kcm_status_e kcm_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle, const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, size_t *kcm_chain_len_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     //Call internal storage_cert_chain_open
     kcm_status = storage_cert_chain_open(kcm_chain_handle, kcm_chain_name, kcm_chain_name_len, STORAGE_ITEM_PREFIX_KCM, kcm_chain_len_out);
@@ -301,6 +369,11 @@ kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, con
 
     SA_PV_LOG_INFO_FUNC_ENTER("cert_data_size =%" PRIu32 "", (uint32_t)kcm_cert_data_size);
 
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     //Call internal storage_chain_add_next
     kcm_status = storage_cert_chain_add_next(kcm_chain_handle, kcm_cert_data, kcm_cert_data_size, STORAGE_ITEM_PREFIX_KCM);
@@ -313,6 +386,12 @@ kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, con
 kcm_status_e kcm_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     //Call internal storage_cert_chain_delete
     kcm_status = storage_cert_chain_delete(kcm_chain_name, kcm_chain_name_len, STORAGE_ITEM_PREFIX_KCM);
@@ -356,13 +435,13 @@ kcm_status_e kcm_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle)
     return kcm_status;
 }
 
-kcm_status_e kcm_key_pair_generate_and_store(const kcm_crypto_key_scheme_e        key_scheme,
-                                             const uint8_t                *private_key_name,
+kcm_status_e kcm_key_pair_generate_and_store(const kcm_crypto_key_scheme_e key_scheme,
+                                             const uint8_t                 *private_key_name,
                                              size_t                        private_key_name_len,
-                                             const uint8_t                *public_key_name,
+                                             const uint8_t                 *public_key_name,
                                              size_t                        public_key_name_len,
                                              bool                          kcm_item_is_factory,
-                                             const kcm_security_desc_s            kcm_item_info)
+                                             const kcm_security_desc_s     kcm_item_info)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
@@ -371,9 +450,6 @@ kcm_status_e kcm_key_pair_generate_and_store(const kcm_crypto_key_scheme_e      
         kcm_status = kcm_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
     }
-
-    //temporary check that kcm_item_info is NULL
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_info != NULL), KCM_STATUS_INVALID_PARAMETER, "kcm_item_info is not NULL!");
 
     //check input params
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_scheme != KCM_SCHEME_EC_SECP256R1), KCM_STATUS_INVALID_PARAMETER, "Invalid key_scheme");
@@ -385,7 +461,7 @@ kcm_status_e kcm_key_pair_generate_and_store(const kcm_crypto_key_scheme_e      
     SA_PV_LOG_INFO_FUNC_ENTER("priv_key_name = %.*s priv_key_len = %" PRIu32,
                               (int)private_key_name_len, (char*)private_key_name, (uint32_t)private_key_name_len);
 
-    kcm_status = storage_key_pair_generate_and_store(key_scheme, private_key_name, private_key_name_len, public_key_name, public_key_name_len, STORAGE_ITEM_PREFIX_KCM, kcm_item_is_factory);
+    kcm_status = storage_key_pair_generate_and_store(private_key_name, private_key_name_len, public_key_name, public_key_name_len, STORAGE_ITEM_PREFIX_KCM, kcm_item_is_factory, kcm_item_info);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_KEY_EXIST), KCM_STATUS_KEY_EXIST, "key already exists");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to check key existence");
 
@@ -475,9 +551,6 @@ kcm_status_e kcm_generate_keys_and_csr(kcm_crypto_key_scheme_e     key_scheme,
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
     }
 
-    //temporary check that kcm_params is NULL
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_info != NULL), KCM_STATUS_INVALID_PARAMETER, "kcm_item_info is not NULL!");
-
     //check input params
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_scheme != KCM_SCHEME_EC_SECP256R1), KCM_STATUS_INVALID_PARAMETER, "Invalid key_scheme");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name");
@@ -496,7 +569,7 @@ kcm_status_e kcm_generate_keys_and_csr(kcm_crypto_key_scheme_e     key_scheme,
 
     pub_name_exists = ((public_key_name != NULL) && (public_key_name_len != 0));
 
-    kcm_status = kcm_key_pair_generate_and_store(key_scheme, private_key_name, private_key_name_len, public_key_name, public_key_name_len, kcm_item_is_factory, NULL);
+    kcm_status = kcm_key_pair_generate_and_store(key_scheme, private_key_name, private_key_name_len, public_key_name, public_key_name_len, kcm_item_is_factory, kcm_item_info);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), "failed to generate/storing keypair");
 
     kcm_status = kcm_csr_generate(private_key_name, private_key_name_len, csr_params, csr_buff_out, csr_buff_max_size, csr_buff_act_size_out);

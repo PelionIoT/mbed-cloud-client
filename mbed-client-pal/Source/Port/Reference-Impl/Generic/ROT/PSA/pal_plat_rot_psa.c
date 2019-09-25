@@ -16,15 +16,22 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#ifndef PAL_HEADER_SOTP_FS
-#define PAL_HEADER_SOTP_FS
+/* for PSA Linux ROT  is not yet supported */
 
+#if defined  MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT 
+#include "pal.h"
 
-#define PAL_USE_HW_ROT 1
-#define PAL_USE_HW_RTC 0
-#define PAL_USE_HW_TRNG 1
-#define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
-#define PAL_USE_SECURE_TIME 1
+#if (PAL_USE_HW_ROT == 0)
 
+palStatus_t pal_plat_osGetRoT(uint8_t * key, size_t keyLenBytes)
+{
+    return PAL_ERR_ITEM_NOT_EXIST;
+}
 
-#endif //PAL_HEADER_SOTP_FS
+palStatus_t pal_plat_osSetRoT(uint8_t * key, size_t keyLenBytes)
+{
+    return PAL_ERR_ITEM_NOT_EXIST;
+}
+
+#endif // (PAL_USE_HW_ROT == 0)
+#endif // defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

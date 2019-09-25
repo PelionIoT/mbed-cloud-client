@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -215,6 +215,14 @@ public:
    void bootstrap_again();
 #endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
+
+   /**
+   * \brief Returns the binding mode selected by the client
+   * through the configuration.
+   * \return Binding mode of the client.
+   */
+   M2MInterface::BindingMode transport_mode();
+
 public:
     // implementation of M2MInterfaceObserver:
 
@@ -412,13 +420,6 @@ private:
     ccs_status_e clear_first_to_claim();
 
     /**
-    * \brief Returns the binding mode selected by the client
-    * through the configuration.
-    * \return Binding mode of the client.
-    */
-    static M2MInterface::BindingMode transport_mode();
-
-    /**
     * \brief Initializes the security object and callbacks.
     *
     */
@@ -436,9 +437,10 @@ private:
     ConnectorClientEndpointInfo         _endpoint_info;
     M2MBaseList                         *_client_objs;
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-    M2MTimer                            _rebootstrap_timer;
+    M2MTimer                            *_rebootstrap_timer;
     uint16_t                            _rebootstrap_time;
     uint16_t                            _bootstrap_security_instance;
+    bool                                _rebootstrap_time_initialized;
 #endif
     uint16_t                            _lwm2m_security_instance;
     void                                *_certificate_chain_handle;

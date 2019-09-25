@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#if !defined  MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "pal.h"
 #include "pal_plat_rot.h"
 
@@ -96,4 +96,4 @@ palStatus_t pal_plat_osSetRoT(uint8_t * key, size_t keyLenBytes)
 
 }
 #endif // (PAL_USE_HW_ROT == 0)
-#endif //#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#endif //#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT

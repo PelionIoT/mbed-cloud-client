@@ -688,6 +688,18 @@ extern int8_t sn_nsdl_clear_coap_sent_blockwise_messages(struct nsdl_s *handle);
 extern int8_t sn_nsdl_clear_coap_received_blockwise_messages(struct nsdl_s *handle);
 
 /**
+ * \fn void sn_nsdl_remove_coap_block(struct nsdl_s *handle, sn_nsdl_addr_s *source_address, uint16_t payload_length, void *payload);
+ *
+ * \brief Remove received blockwise message from the linked list.
+ *
+ * \param *handle Pointer to library handle
+ * \param *source_address Addres from where the block has been received.
+ * \param payload_length Length of the removed payload.
+ * \param *payload Payload to be removed.
+ */
+extern void sn_nsdl_remove_coap_block(struct nsdl_s *handle, sn_nsdl_addr_s *source_address, uint16_t payload_length, void *payload);
+
+/**
  * \fn int8_t sn_nsdl_remove_msg_from_retransmission(struct nsdl_s *handle)
  *
  * \brief Clears item from the resend queue.

@@ -1,36 +1,40 @@
-/*******************************************************************************
- * Copyright 2016-2019 ARM Ltd.
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *******************************************************************************/
+// ----------------------------------------------------------------------------
+// Copyright 2016-2019 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ----------------------------------------------------------------------------
 
 #ifndef PAL_DEFAULT_LINUX_CONFIGURATION_H_
-
+#define PAL_DEFAULT_LINUX_CONFIGURATION_H_
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    #include "trusted_storage/inc/config.h"
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #ifndef PAL_BOARD_SPECIFIC_CONFIG
+    // TARGET_X86_X64 is designed mainly for quick development and will use limited security features for storage.
     #if defined(TARGET_X86_X64)
-        #include "x86_x64_default.h"
+        #ifndef PAL_SIMULATOR_TEST_ENABLE
+            #define PAL_SIMULATOR_TEST_ENABLE 1
+        #endif
     #endif
 #endif
-
 
 #ifndef PAL_NUMBER_OF_PARTITIONS
     #define PAL_NUMBER_OF_PARTITIONS 1
 #endif
-
-
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT //for ESFS
 #ifndef PAL_FS_MOUNT_POINT_PRIMARY
     #if (PAL_NUMBER_OF_PARTITIONS == 2)
         #define PAL_FS_MOUNT_POINT_PRIMARY    "./pal_pri"                                                       //!< User should change this for the his working folder
@@ -46,13 +50,21 @@
         #define PAL_FS_MOUNT_POINT_SECONDARY    "./pal"                                                    //!< User should change this for the his working folder
     #endif
 #endif
+#else  //support for Linux PSA
+#ifndef PAL_FS_MOUNT_POINT_PRIMARY
+    #define PAL_FS_MOUNT_POINT_PRIMARY    PSA_STORAGE_FILE_C_STORAGE_PREFIX
+#endif
+#ifndef PAL_FS_MOUNT_POINT_SECONDARY
+    #define PAL_FS_MOUNT_POINT_SECONDARY  PSA_STORAGE_FILE_C_STORAGE_PREFIX
+#endif
+#endif
 
 #ifndef PAL_NET_MAX_IF_NAME_LENGTH
-    #define PAL_NET_MAX_IF_NAME_LENGTH   16  //15 + '\0'
+    #define PAL_NET_MAX_IF_NAME_LENGTH   	16  //15 + '\0'
 #endif
 
 #ifndef PAL_NET_TEST_MAX_ASYNC_SOCKETS
-    #define PAL_NET_TEST_MAX_ASYNC_SOCKETS 5
+    #define PAL_NET_TEST_MAX_ASYNC_SOCKETS 	5
 #endif
 
 // 16KB does not seem to be enough, some tests are failing with it
@@ -65,7 +77,7 @@
 #endif
 
 #ifndef PAL_FORMAT_CMD_MAX_LENGTH
-    #define PAL_FORMAT_CMD_MAX_LENGTH 256
+    #define PAL_FORMAT_CMD_MAX_LENGTH 	256
 #endif
 
 #ifndef PAL_DEVICE_NAME_MAX_LENGTH
@@ -115,20 +127,35 @@
     #define PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE (1024 * 32)
 #endif
 
-#ifndef PAL_USE_HW_TRNG
-    #define PAL_USE_HW_TRNG    1
-#endif // PAL_USE_HW_TRNG
-
-#if PAL_USE_HW_TRNG
-    //! Stack size for TRNG noise collecting thread
-    #ifndef PAL_NOISE_TRNG_THREAD_STACK_SIZE
-        #define PAL_NOISE_TRNG_THREAD_STACK_SIZE (1024 * 32)
-    #endif
+//! Stack size for TRNG noise collecting thread
+#ifndef PAL_NOISE_TRNG_THREAD_STACK_SIZE
+    #define PAL_NOISE_TRNG_THREAD_STACK_SIZE (1024 * 32)
 #endif
 
 #ifndef PAL_TIMER_SIGNAL
     // Signal number for timer completition signal, a RT signal is needed to get signal queueing
     #define PAL_TIMER_SIGNAL (SIGRTMIN+0)
+#endif
+
+#ifndef PAL_USE_HW_ROT
+    #define PAL_USE_HW_ROT 0
+#endif
+
+#ifndef PAL_USE_HW_RTC
+    #define PAL_USE_HW_RTC 0
+#endif
+
+#ifndef PAL_USE_HW_TRNG
+    #define PAL_USE_HW_TRNG 1
+#endif
+
+#ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
+	// This also implies PAL_USE_INTERNAL_FLASH 1
+    #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
+#endif
+
+#ifndef PAL_USE_SECURE_TIME
+    #define PAL_USE_SECURE_TIME 1
 #endif
 
 // Sanity check for defined stack sizes

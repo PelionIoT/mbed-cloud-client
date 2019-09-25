@@ -314,6 +314,15 @@ palStatus_t pal_plat_setTimeCB(palTLSHandle_t* palTLSHandle, palTimerCtx_t timer
  */
 palStatus_t pal_plat_SetLoggingCb(palTLSConfHandle_t palTLSConf, palLogFunc_f palLogFunction, void *logContext);
 
+/*!	\brief Set the socket callback.
+ *
+ * @param[in] palTLSHandle: The TLS context.
+ * @param[in] callback: The socket handler callback.
+ * @param[in] argument: Argument which will be passed along with the callback function.
+ *
+ */
+void pal_plat_SetDTLSSocketCallback(palTLSConfHandle_t palTLSConf, palSocketCallback_f cb, void *argument);
+
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
 
 /*! \brief Get the ssl session buffer.

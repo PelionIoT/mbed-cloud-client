@@ -36,10 +36,6 @@
 
 #define TRACE_GROUP "mClt"
 
-#ifndef MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY
-#define MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY 30
-#endif
-
 #if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
 #error "For async PAL DNS only API v2 or greater is supported on Mbed."
 #endif
@@ -58,6 +54,7 @@ int8_t M2MConnectionHandlerPimpl::_tasklet_id = -1;
 extern "C" void eventloop_event_handler(arm_event_s *event)
 {
     tr_debug("M2MConnectionHandlerPimpl::eventloop_event_handler %d", event->event_type);
+
     if (event->event_type != M2MConnectionHandlerPimpl::ESocketIdle) {
         if(!event->data_ptr) {
             tr_error("M2MConnectionHandlerPimpl::eventloop_event_handler event->data_ptr=NULL !!!!");
@@ -71,6 +68,8 @@ extern "C" void eventloop_event_handler(arm_event_s *event)
 // event handler that forwards the event according to its type and/or connection state
 void M2MConnectionHandlerPimpl::event_handler(arm_event_s *event)
 {
+    event->event_data = false;
+
     switch (event->event_type) {
 
         // Event from socket callback method
@@ -82,10 +81,6 @@ void M2MConnectionHandlerPimpl::event_handler(arm_event_s *event)
             break;
 
         case M2MConnectionHandlerPimpl::ESocketCallback:
-        case M2MConnectionHandlerPimpl::ESocketTimerCallback:
-
-            // this will enable sending more events during this event processing, but that is less evil than missing one
-            _suppressable_event_in_flight = false;
 
             if (_socket_state == M2MConnectionHandlerPimpl::ESocketStateHandshaking) {
                 receive_handshake_handler();
@@ -147,28 +142,7 @@ extern "C" void socket_event_handler(void* arg)
         return;
     }
 
-    instance->send_socket_event(M2MConnectionHandlerPimpl::ESocketCallback);
-}
-
-void M2MConnectionHandlerPimpl::send_socket_event(SocketEvent event_type)
-{
-    // the socket callback events can safely be suppressed, the receiving end must tolerate that
-    if (event_type == ESocketCallback) {
-        // only the socket connected state supports retries somehow
-        if (_suppressable_event_in_flight == false) {
-            _suppressable_event_in_flight = true;
-        } else {
-            // XXX: DO NOT ADD FOLLOWING LINE TO OFFICIAL GIT, THIS WILL KILL SOME NETWORK STACKS
-            // IF EVENT IS SENT FROM A INTERRUPT CONTEXT
-            // tr_debug("** SKIPPING event");
-            return;
-        }
-    }
-
-    if (!send_event(event_type)) {
-        // TODO: give a proper error based on state instead of this
-        _observer.socket_error(M2MConnectionHandler::SOCKET_READ_ERROR, true);
-    }
+    instance->send_event(M2MConnectionHandlerPimpl::ESocketCallback);
 }
 
 M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base, M2MConnectionObserver &observer,
@@ -191,8 +165,6 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
   _handler_async_DNS(0),
 #endif
  _socket_state(ESocketStateDisconnected),
- _handshake_retry(0),
- _suppressable_event_in_flight(false),
  _secure_connection(false)
 {
 #ifndef PAL_NET_TCP_AND_TLS_SUPPORT
@@ -217,6 +189,9 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
         M2MConnectionHandlerPimpl::_tasklet_id = eventOS_event_handler_create(&eventloop_event_handler, ESocketIdle);
     }
     eventOS_scheduler_mutex_release();
+
+    initialize_event(&_event);
+    initialize_event(&_socket_callback_event);
 }
 
 M2MConnectionHandlerPimpl::~M2MConnectionHandlerPimpl()
@@ -241,19 +216,22 @@ bool M2MConnectionHandlerPimpl::bind_connection(const uint16_t listen_port)
     return true;
 }
 
-bool M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
+void M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
 {
-    arm_event_s event = {0};
-
-    event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
-    event.sender = 0;
-    event.event_type = event_type;
-    event.data_ptr = this;
-    event.event_data = 0;
-    event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
-    return !eventOS_event_send(&event);
+    if (event_type == M2MConnectionHandlerPimpl::ESocketCallback) {
+        if (!_socket_callback_event.data.event_data) {
+            _socket_callback_event.data.event_data = true;
+            _socket_callback_event.data.event_type = event_type;
+            eventOS_event_send_user_allocated(&_socket_callback_event);
+        }
+    } else {
+        if (!_event.data.event_data) {
+            _event.data.event_data = true;
+            _event.data.event_type = event_type;
+            eventOS_event_send_user_allocated(&_event);
+        }
+    }
 }
-
 
 // This callback is used from PAL pal_getAddressInfoAsync,
 #if (PAL_DNS_API_VERSION == 2)
@@ -264,13 +242,9 @@ extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address
 
     if (PAL_SUCCESS != status) {
         tr_error("M2MConnectionHandlerPimpl::address_resolver callback failed with %" PRIx32, status);
-        if (!(instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsError))) {
-            tr_error("M2MConnectionHandlerPimpl::address_resolver callback, error event alloc fail.");
-        }
+        instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsError);
     } else {
-        if (!(instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsResolved))) {
-            tr_error("M2MConnectionHandlerPimpl::address_resolver callback, resolved event alloc fail.");
-        }
+        instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsResolved);
     }
 }
 #endif
@@ -296,18 +270,13 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
     status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t*)&_socket_address, &_socket_address_len);
     if (PAL_SUCCESS != status) {
         tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with %" PRIx32, status);
-        if (!send_event(ESocketDnsError)) {
-            tr_error("M2MConnectionHandlerPimpl::address_resolver, error event alloc fail.");
-        }
+        send_event(ESocketDnsError);
     } else {
-        if (!send_event(ESocketDnsResolved)) {
-            tr_error("M2MConnectionHandlerPimpl::address_resolver, resolved event alloc fail.");
-        }
-        else {
-            ret = true;
-        }
+        send_event(ESocketDnsResolved);
+        ret = true;
     }
 #endif
+
     return ret;
 }
 
@@ -486,9 +455,12 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                         _security_impl->reset();
                         int ret_code = _security_impl->init(_security, security_instance_id);
                         if (ret_code == M2MConnectionHandler::ERROR_NONE) {
+                            ret_code = _security_impl->set_dtls_socket_callback(&socket_event_handler, this);
+                        }
+                        if (ret_code == M2MConnectionHandler::ERROR_NONE) {
                             // Initiate handshake. Perhaps there could be a separate event type for this?
                             _socket_state = ESocketStateHandshaking;
-                            send_socket_event(ESocketCallback);
+                            send_event(ESocketCallback);
                         } else {
                             tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - init failed");
                             close_socket();
@@ -567,15 +539,7 @@ bool M2MConnectionHandlerPimpl::send_data(uint8_t *data,
     ns_list_add_to_end(&_linked_list_send_data, out_data);
     release_mutex();
 
-    if (!send_event(ESocketSend)) {
-        // Event push failed, free the buffer
-        claim_mutex();
-        ns_list_remove(&_linked_list_send_data, out_data);
-        release_mutex();
-        free(out_data->data);
-        free(out_data);
-        return false;
-    }
+    send_event(ESocketSend);
 
     return true;
 }
@@ -660,7 +624,6 @@ void M2MConnectionHandlerPimpl::send_socket_data()
             _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY, true);
         } else if (bytes_sent == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
             tr_error("M2MConnectionHandlerPimpl::send_socket_data() - memory allocation failed!");
-            _handshake_retry = 0;
             _observer.socket_error(M2MConnectionHandler::MEMORY_ALLOCATION_FAILED, false);
         } else {
             tr_error("M2MConnectionHandlerPimpl::send_socket_data() - SOCKET_SEND_ERROR");
@@ -670,6 +633,7 @@ void M2MConnectionHandlerPimpl::send_socket_data()
     } else {
         _observer.data_sent();
     }
+
 }
 
 bool M2MConnectionHandlerPimpl::start_listening_for_data()
@@ -681,7 +645,7 @@ void M2MConnectionHandlerPimpl::stop_listening()
 {
     // Do not call close_socket() directly here.
     // This can be called from multiple locations.
-    send_socket_event(ESocketClose);
+    send_event(ESocketClose);
 }
 
 void M2MConnectionHandlerPimpl::handle_connection_error(int error)
@@ -716,53 +680,30 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
 
     if (return_value == M2MConnectionHandler::ERROR_NONE) {
 
-        _handshake_retry = 0;
         _socket_state = ESocketStateSecureConnection;
         _observer.address_ready(_address,
                                 _server_type,
                                 _server_port);
 
     } else if (return_value == M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY) {
-        _handshake_retry = 0;
+
         _observer.socket_error(M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY, true);
         close_socket();
 
     } else if (return_value == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
 
         tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - memory allocation failed");
-        _handshake_retry = 0;
         _observer.socket_error(M2MConnectionHandler::MEMORY_ALLOCATION_FAILED, false);
         close_socket();
 
     } else if (return_value != M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ) {
 
         tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - SSL_HANDSHAKE_ERROR");
-        _handshake_retry = 0;
         _observer.socket_error(M2MConnectionHandler::SSL_HANDSHAKE_ERROR, true);
         close_socket();
 
     } else {
-        // Comes here only if error is M2MConnectionHandler::ERROR_GENERIC or M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ
-        if (_handshake_retry++ > MBED_CONF_MBED_CLIENT_TLS_MAX_RETRY) {
-
-            tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - Max TLS retry fail");
-
-            _handshake_retry = 0;
-            _observer.socket_error(M2MConnectionHandler::SOCKET_ABORT, true);
-            close_socket();
-
-        }
-
-        eventOS_event_timer_cancel(ESocketTimerCallback, M2MConnectionHandlerPimpl::_tasklet_id);
-
-        // There is required to set event.data_ptr for eventloop_event_handler.
-        arm_event_s event = {0};
-        event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
-        event.event_id = ESocketTimerCallback;
-        event.event_type = ESocketTimerCallback;
-        event.data_ptr = this;
-        event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
-        eventOS_event_timer_request_in(&event, eventOS_event_timer_ms_to_ticks(1000));
+        tr_debug("M2MConnectionHandlerPimpl::receive_handshake_handler() - waiting next event");
     }
 }
 
@@ -930,7 +871,7 @@ bool M2MConnectionHandlerPimpl::is_tcp_connection() const
 
 void M2MConnectionHandlerPimpl::close_socket()
 {
-    _suppressable_event_in_flight = false;
+    _event.data.event_data = false;
 
     if (_socket) {
         // At least on mbed-os the pal_close() will perform callbacks even during it
@@ -994,16 +935,25 @@ void M2MConnectionHandlerPimpl::unregister_network_handler()
 
 void M2MConnectionHandlerPimpl::interface_event(palNetworkStatus_t status)
 {
-    arm_event_s event = {0};
-    event.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
-    event.data_ptr = this;
-    event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
+    if (!_event.data.event_data) {
+        _event.data.event_data = true;
+        if (status == PAL_NETWORK_STATUS_CONNECTED) {
+            _event.data.event_type = M2MConnectionHandlerPimpl::EInterfaceConnected;
+        } else {
+            _event.data.event_type = M2MConnectionHandlerPimpl::EInterfaceDisconnected;
+        }
 
-    if (status == PAL_NETWORK_STATUS_CONNECTED) {
-        event.event_type = M2MConnectionHandlerPimpl::EInterfaceConnected;
-    } else {
-        event.event_type = M2MConnectionHandlerPimpl::EInterfaceDisconnected;
+        eventOS_event_send_user_allocated(&_event);
     }
+}
 
-    eventOS_event_send(&event);
+void M2MConnectionHandlerPimpl::initialize_event(arm_event_storage_t *event)
+{
+    event->data.data_ptr = this;
+    event->data.event_data = 0;
+    event->data.event_id = 0;
+    event->data.sender = 0;
+    event->data.event_type = 0;
+    event->data.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
+    event->data.receiver = M2MConnectionHandlerPimpl::_tasklet_id;
 }

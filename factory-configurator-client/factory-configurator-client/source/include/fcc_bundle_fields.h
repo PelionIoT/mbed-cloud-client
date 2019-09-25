@@ -120,11 +120,6 @@ extern "C" {
 #define FCC_CSRREQ_INBOUND_PRIVATE_KEY_NAME "PrKN"
 
 /**
-* Name of public key name field, within CSR Requests group
-*/
-#define FCC_CSRREQ_INBOUND_PUBLIC_KEY_NAME "PbKN"
-
-/**
 * Name of Extensions field, within CSR Requests group
 */
 #define FCC_CSRREQ_INBOUND_EXTENSIONS_NAME "Ext"
@@ -139,6 +134,10 @@ extern "C" {
 */
 #define FCC_CSRREQ_INBOUND_MESSAGEDIGEST_NAME "MD"
 
+/**
+* Name of Storage Medium field, within CSR Requests group
+*/
+#define FCC_CSRREQ_INBOUND_STORAGE_MEDIUM_NAME "SM"
 
 /**********************************************************************/
 /* Inbound Message: fields within Extensions map within CsrReqs Group */
@@ -158,6 +157,30 @@ extern "C" {
 * Name of Extended Key Usage field within Extensions
 */
 #define FCC_CSRREQ_INBOUND_EXTENSION_EXTENDEDKEYUSAGE_NAME "EKU"
+
+/**********************************************************************/
+/* Inbound Message: fields within Storage Medium map within CsrReqs Group */
+/**********************************************************************/
+
+/**
+* Name of the Generated Private Key within Storage Medium
+*/
+#define FCC_CSRREQ_INBOUND_STORAGE_MEDIUM_PRIVATE_KEY_NAME "Prv"
+
+/**
+* Name of the Generated Public Key within Storage Medium
+*/
+#define FCC_CSRREQ_INBOUND_STORAGE_MEDIUM_PUBLIC_KEY_NAME "Pub"
+
+/**
+* Name of "Secure Element" Storage Medium
+*/
+#define FCC_CSRREQ_INBOUND_SM_SECURE_ELEMENT_NAME "SE"
+
+/**
+* Name of "Device" Storage Medium which represents the PSA store
+*/
+#define FCC_CSRREQ_INBOUND_SM_DEVICE_NAME "Device"
 
 /****************************************/
 /* Outbound Message Main CBOR Map Groups */

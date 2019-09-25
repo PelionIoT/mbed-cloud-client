@@ -48,14 +48,13 @@ public:
         ESocketSend          = 0x08,
         ESocketDnsResolved   = 0x10,
         ESocketDnsError      = 0x20,
-        ESocketClose         = 0x40,
-        ESocketTimerCallback = 0x80
+        ESocketClose         = 0x40
     };
 
     // NOTE! Check that these values does not overlap with the SocketEvent values
     enum InterfaceStatusEvent {
-        EInterfaceConnected     = 0x81,
-        EInterfaceDisconnected  = 0x82
+        EInterfaceConnected     = 0x41,
+        EInterfaceDisconnected  = 0x42
     };
 
     /**
@@ -155,11 +154,6 @@ public:
     void send_socket_data();
 
     /**
-    * @brief This function is used for generating socket events.
-    */
-    void send_socket_event(SocketEvent event_type);
-
-    /**
     * @brief Does DNS resolving. Return true if DNS has been resolved
     * or triggered though DNS thread.
     */
@@ -227,12 +221,17 @@ private:
     */
     void close_socket();
 
+    /**
+    * @brief Init event structure.
+    */
+    void initialize_event(arm_event_storage_t *event);
+
 public:
 
     /**
      * @brief Internal helper for sending an event.
      */
-    bool send_event(SocketEvent event_type);
+    void send_event(SocketEvent event_type);
 
     void interface_event(palNetworkStatus_t status);
 
@@ -321,19 +320,14 @@ private:
     // asynchronous events and callbacks. Note: the state may be accessed from
     // event sender and receiver threads.
     SocketState                                 _socket_state;
-    uint8_t                                     _handshake_retry;
-
-    /**
-     * This is a flag which is set before sending a socket callback event
-     * and cleared when the event handler side is started. It is meant to get rid of
-     * event storm which happens whenever one socket transfers data and spurious
-     * events are sent to all the other sockets.
-     */
-    volatile bool                               _suppressable_event_in_flight;
 
     send_data_list_t                            _linked_list_send_data;
 
     bool                                        _secure_connection;
+
+    arm_event_storage_t                         _event;
+
+    arm_event_storage_t                         _socket_callback_event;
 
 friend class Test_M2MConnectionHandlerPimpl;
 friend class Test_M2MConnectionHandlerPimpl_mbed;

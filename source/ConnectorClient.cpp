@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -275,7 +275,7 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
   _interface(NULL), _security(NULL),
   _endpoint_info(M2MSecurity::Certificate), _client_objs(NULL),
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-  _rebootstrap_timer(*this), _bootstrap_security_instance(1),
+  _rebootstrap_timer(NULL), _bootstrap_security_instance(1), _rebootstrap_time_initialized(false),
 #endif
   _lwm2m_security_instance(0), _certificate_chain_handle(NULL)
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
@@ -284,9 +284,6 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
 
 {
     assert(_callback != NULL);
-#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-    _rebootstrap_time = randLIB_get_random_in_range(1, 10);
-#endif
 }
 
 
@@ -296,6 +293,7 @@ ConnectorClient::~ConnectorClient()
     M2MDevice::delete_instance();
     M2MSecurity::delete_instance();
     delete _interface;
+    delete _rebootstrap_timer;
 }
 
 bool ConnectorClient::setup()
@@ -306,6 +304,9 @@ bool ConnectorClient::setup()
         // The ns_hal_init() needs to be called by someone before create_interface(),
         // as it will also initialize the tasklet.
         ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
+        if (!_rebootstrap_timer) {
+            _rebootstrap_timer = new M2MTimer(*this);
+        }
 
         // Create the lwm2m server security object we need always
         M2MSecurity *security = M2MInterfaceFactory::create_security(M2MSecurity::M2MServer);
@@ -350,7 +351,9 @@ void ConnectorClient::start_bootstrap()
 
     init_security_object();
     // Stop rebootstrap timer if it was running
-    _rebootstrap_timer.stop_timer();
+    if (_rebootstrap_timer) {
+        _rebootstrap_timer->stop_timer();
+    }
 
     if (create_bootstrap_object()) {
         _interface->update_endpoint(_endpoint_info.endpoint_name);
@@ -968,9 +971,6 @@ void ConnectorClient::state_registration_success()
                              (size_t)_endpoint_info.internal_endpoint_name.size(),
                              CCS_CONFIG_ITEM);
     }
-#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-    _rebootstrap_time = randLIB_get_random_in_range(1, 10);
-#endif
     _callback->registration_process_result(State_Registration_Success);
 }
 
@@ -1456,6 +1456,12 @@ void ConnectorClient::set_certificate_chain_handle(void *cert_handle)
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 void ConnectorClient::bootstrap_again()
 {
+    if (!_rebootstrap_time_initialized) {
+        randLIB_seed_random();
+        _rebootstrap_time = randLIB_get_random_in_range(1, 10);
+        _rebootstrap_time_initialized = true;
+    }
+
     // delete the old connector credentials
     ccs_delete_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM);
     ccs_delete_item(g_fcc_lwm2m_server_ca_certificate_name, CCS_CERTIFICATE_ITEM);
@@ -1468,7 +1474,10 @@ void ConnectorClient::bootstrap_again()
 
     tr_error("ConnectorClient::bootstrap_again in %d seconds", _rebootstrap_time);
 
-    _rebootstrap_timer.start_timer(_rebootstrap_time * 1000, M2MTimerObserver::BootstrapFlowTimer, true);
+    if (_rebootstrap_timer) {
+        _rebootstrap_timer->start_timer(_rebootstrap_time * 1000, M2MTimerObserver::BootstrapFlowTimer, true);
+    }
+
     _rebootstrap_time *= 2;
     if (_rebootstrap_time > MAX_REBOOTSTRAP_TIMEOUT) {
         _rebootstrap_time = MAX_REBOOTSTRAP_TIMEOUT;

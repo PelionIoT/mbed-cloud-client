@@ -22,7 +22,6 @@
 #include "pv_macros.h"
 #include "fcc_defs.h"
 #include "ce_internal.h"
-#include "storage_dispatcher.h"
 
 extern const char g_renewal_status_file[];
 
@@ -236,12 +235,9 @@ void ce_check_and_restore_backup_status(void)
     size_t renewal_item_data_len = 0;
     size_t act_renewal_item_data_len = 0;
     uint8_t renewal_item_name[CE_MAX_SIZE_OF_KCM_ITEM_NAME] = { 0 };
-    storage_get_data_size_f get_data_size_func = (storage_get_data_size_f)storage_func_dispatch(STORAGE_FUNC_GET_SIZE, KCM_CONFIG_ITEM);
-    storage_get_data_f get_data_func = (storage_get_data_f)storage_func_dispatch(STORAGE_FUNC_GET, KCM_CONFIG_ITEM);
-    storage_delete_f delete_func = (storage_delete_f)storage_func_dispatch(STORAGE_FUNC_DELETE, KCM_CONFIG_ITEM);
 
     //Get renewal status file size
-    kcm_status = get_data_size_func((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, STORAGE_ITEM_PREFIX_CE, &renewal_item_data_len);
+    kcm_status = storage_item_get_data_size((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, STORAGE_ITEM_PREFIX_CE, &renewal_item_data_len);
 
     //If renewal status file is not found or failed to get data size -> exit , no data to restore
     if (kcm_status != KCM_STATUS_SUCCESS) {
@@ -256,7 +252,7 @@ void ce_check_and_restore_backup_status(void)
     }
 
     //Read renewal status data
-    kcm_status = get_data_func((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, STORAGE_ITEM_PREFIX_CE, renewal_item_name, renewal_item_data_len, &act_renewal_item_data_len);
+    kcm_status = storage_item_get_data((const uint8_t *)g_renewal_status_file, strlen(g_renewal_status_file), KCM_CONFIG_ITEM, STORAGE_ITEM_PREFIX_CE, renewal_item_name, renewal_item_data_len, &act_renewal_item_data_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS || act_renewal_item_data_len != renewal_item_data_len), kcm_status = kcm_status, exit, "Failed to read renewal status data");
 
     //Set null terminator
@@ -267,10 +263,9 @@ void ce_check_and_restore_backup_status(void)
     kcm_status = ce_restore_backup_items((const char *)renewal_item_name);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status = kcm_status, exit, "Failed to restore backup items");
 
-
 exit:
     //Delete renewal status file
-    kcm_status = delete_func((const uint8_t *)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, STORAGE_ITEM_PREFIX_CE);
+    kcm_status = storage_item_delete((const uint8_t *)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, STORAGE_ITEM_PREFIX_CE);
     if (kcm_status != KCM_STATUS_SUCCESS) {
         SA_PV_LOG_ERR("Failed to delete renewal status");//Add error print, as this case is exceptional
     }

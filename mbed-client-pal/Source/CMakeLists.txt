@@ -84,12 +84,16 @@ set (PAL_TIME_SRCS ${PAL_TIME_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Time/pal_plat
 set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/External/pal_plat_rot_hw.c)
 # Add the platform independent ROT implementation, which gets used if the PAL_USE_HW_ROT==0
 set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/SOTP/pal_plat_rot_sotp.c)
+# Add the platform independent ROT implementation for PSA, which gets used if the PAL_USE_HW_ROT==0
+set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/PSA/pal_plat_rot_psa.c)
 
 # Add the platform independent DRBG implementation
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/SOTP/pal_plat_drbg_sotp.c)
 
-# Add the platform independent entropy implementation
-set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy/pal_plat_entropy_sotp.c)
+# Add the platform independent entropy implementation for SOTP
+set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy/SOTP/pal_plat_entropy_sotp.c)
+# Add the platform independent entropy implementation for PSA
+set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy/PSA/pal_plat_entropy_psa.c)
 
 # Add the platform independent flash-over-filesystem implementation, which gets used if 
 # PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM==1

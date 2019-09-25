@@ -1,5 +1,32 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.0.0 (25.09.2019)
+
+#### Device Management Client
+
+* Added a new API `init()` to `MbedCloudClient` class. You can use this optional API for two-phased memory allocation when initializing the client. It allows the example application to resolve out-of-memory issues during the initialization of the client library.
+* Removed a redundant switch in `M2MFirmware` class `get_resource` function.
+* Updated Mbed CoAP to 5.1.1.
+* Fixed the Resource `/1/0/7` to return the correct binding mode when trying to `GET` the value of the Resource using a REST API call.
+* Increased the Device Management Client initial reconnection delay to have range of 10 to 100 seconds.
+* Increased the `MBED_CLIENT_TCP_KEEPALIVE_INTERVAL` to nine minutes.
+* Implemented DTLS timer handling for handshake.
+* When Device Management Client is compiled with the *PSA* configuration, it uses PSA-protected storage APIs instead of:
+  * KVStore in Mbed OS.
+  * ESFS/SOTP for non-Mbed OS platforms.
+
+  <span class="notes">**Note:** Both storage types above are still used in the *non-PSA* variant of Device Management Client.</span>
+
+#### Factory configurator client
+
+* Support for UNISOC SXOS SDK v8p2.1 for UIS8908A NB-IoT board.
+
+#### Platform Adaptation Layer (PAL)
+
+* Improved support and proper timer logic for UDP/DTLS.
+* PSA Crypto API v1.0b3 support.
+* Support for UNISOC SXOS SDK v8p2.1 for UIS8908A NB-IoT board.
+
 ### Release 3.4.0 (28.08.2019)
 
 #### Device Management Connect client

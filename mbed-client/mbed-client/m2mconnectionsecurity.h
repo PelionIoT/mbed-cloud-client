@@ -132,6 +132,14 @@ public:
      */
     void set_socket(void *socket, void *address);
 
+    /**
+     * \brief Set socket information for this secure connection.
+     * \param socket Socket used with this TLS session.
+     * \param address Pointer to the address of the server.
+     * \return Indicates whether the data is read successfully or not.
+     */
+    int set_dtls_socket_callback(void(*foo)(void*), void *argument);
+
 private:
 
     M2MConnectionSecurityPimpl* _private_impl;

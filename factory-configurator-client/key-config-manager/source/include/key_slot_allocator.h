@@ -27,6 +27,29 @@
 #include "psa/crypto_extra.h"
 #include "psa/crypto_types.h"
 
+/* KSA items type enumeration. Each one has its own KSA table
+*/
+typedef enum {
+    KSA_KEY_ITEM,
+    KSA_CERTIFICATE_ITEM,
+    KSA_CONFIG_ITEM,
+    KSA_RBP_ITEM,
+    KSA_LAST_ITEM
+} ksa_item_type_e;
+
+/* KSA items location type.
+*/
+typedef enum {
+    KSA_NON_PSA_TYPE_LOCATION,
+    KSA_PSA_TYPE_LOCATION,
+    KSA_SECURE_ELEMENT_TYPE_LOCATION,
+    KSA_MAX_TYPE_LOCATION,
+} ksa_type_location_e;
+
+
+
+//Max value of PSA id in KSA
+#define KSA_MAX_PSA_ID_VALUE   0x2800
 
 /** ksa table version current version number
 */
@@ -35,6 +58,8 @@
 /** The initial individual keys allow to store in KSA
 */
 #define KSA_INITIAL_TABLE_ENTRIES 10
+
+
 
 
 /* 0 is not a valid handle under any circumstance. This
@@ -60,13 +85,8 @@ extern "C" {
 
 
 
-    /** Translates PSA to KCM error codes.
-    *
-    * @psa_status[IN] A PSA error code as defined in crypto.h
-    *
-    * @returns one of the `::kcm_status_e` errors.
-    */
-    kcm_status_e psa_to_kcm_error(psa_status_t psa_status);
+/*===========================Generatl Purpose APIs===========================================*/
+
 
     /** Loads and initializes the Key Slot Allocator table
     *
@@ -78,17 +98,13 @@ extern "C" {
     */
     kcm_status_e ksa_init(void);
 
+
     /** Release the volatile KSA table and finalize PSA Crypto resource.
     *
     * @returns ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e ksa_fini(void);
 
-    /**
-    *   Clear the volatile KSA tables (active and backup)
-    *   Use this API to clear the tables if the storage is wiped, without using a KCM API (i.e fcc_storage_delete())
-    */
-    void clear_volatile_ksa_tables(void);
 
     /** Reset Key Slot Allocator to factory initial state by restoring all factory items
     * from backend store.
@@ -97,88 +113,137 @@ extern "C" {
     */
     kcm_status_e ksa_factory_reset(void);
 
-    /** Imports the key to PSA slot.
-    *
-    * If the given key name already exist in store, the function will return KCM_STATUS_KEY_EXIST status.
-    *
-    * @key_name[IN] The complete key name in binary representation
-    * @key_name_size[IN] The complete key name size in bytes
-    * @kcm_key_type[IN] KCM key type as defined in `::kcm_item_type_e`
-    * @key[IN] The key data, if NULL, generate key pair with key_name
-    * @key_size[IN] The key data size , can be 0 if key is NULL
-    * @is_factory[IN] set to "true" if this item is factory, "false" otherwise
-    * @kcm_item_info[IN] Additional key data
-    *
-    * @returns ::KCM_STATUS_SUCCESS if the given key name occupied a new key slot or one of the `::kcm_status_e` errors in case of an error.
-    * @        ::KCM_STATUS_KEY_EXIST if the given key name already exist.
-    */
-    kcm_status_e ksa_store_key_to_psa(const uint8_t *key_name,
-                                      size_t key_name_size,
-                                      kcm_item_type_e kcm_key_type,
-                                      const uint8_t *key,
-                                      size_t key_size,
-                                      kcm_crypto_key_scheme_e curve_name,
-                                      bool is_factory,
-                                      const kcm_security_desc_s kcm_item_info);
 
-    /** Exports public key from PSA slot.
-    *
-    * If the given key name not exists in store, the function will return KCM_STATUS_ITEM_NOT_FOUND status.
-    *
-    * @key_name[IN] The complete key name in binary representation
-    * @key_name_size[IN] The complete key name size in bytes
-    * @kcm_key_type[IN] KCM key type as defined in `::kcm_item_type_e`
-    * @key_data_out[IN/OUT] key_data_out output buffer for exported key bytes
-    * @key_data_max_size[IN] key_data_max_size The size of key_data_out
-    * @key_data_act_size_out[OUT] key_data_act_size_out Actual bytes written to key_data_out
-    *
-    * @returns ::KCM_STATUS_SUCCESS if the given key name occupied a new key slot or one of the `::kcm_status_e` errors in case of an error.
-    * @        ::KCM_STATUS_KEY_EXIST if the given key name already exist.
-    */
-    kcm_status_e ksa_export_key_from_psa(const uint8_t *key_name,
-                                         size_t key_name_size,
-                                         kcm_item_type_e kcm_key_type,
-                                         uint8_t *key_data_out,
-                                         size_t key_data_max_size,
-                                         size_t *key_data_act_size_out);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
-    /** Unlinks and destroys an occupied key slot.
-    *  If the key is not factory key - destroys the active id of the entry and cleans the entry
-    *  If the key is factory key - zeros the active id without destroying it and keeps the entry for future use and factory reset.
+    /** Gets the location of a certain item.
+    *
+    * If the given item does not exist in store, the function will return KCM_STATUS_ITEM_NOT_FOUND status.
+    *
+    * @item_name[IN] The complete item name in binary representation
+    * @item_name_size[IN] The complete item name size in bytes
+    * @kcm_item_type[IN] Item type as defined in `::kcm_item_type_e` and `storage_item_type_e`
+    * @item_location_out[OUT] The item location will be set to the corresponding storage location as defined in `::kcm_item_location_e`
+    *
+    * @returns ::KCM_STATUS_SUCCESS if the item exist in store and the `item_location_out` parameter was set `::kcm_status_e` errors in case of an error.
+    * @        ::KCM_STATUS_ITEM_NOT_FOUND if the given item name was not found in store.
+    */
+    kcm_status_e ksa_get_item_location(const uint8_t *item_name, size_t item_name_size, uint32_t item_type, kcm_item_location_e *item_location_out);
+
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+
+
+
+/** Stores item in PSA
+ *
+ * If the given key name already exist in store, the function will return KCM_STATUS_KEY_EXIST status.
+ *
+ * @item_name[IN] The complete item name in binary representation
+ * @item_name_length[IN] The complete item name size in bytes
+ * @storage_flags[IN] Storage flags passed to PSA store
+ * @item_type[IN] Item type as defined in `::kcm_item_type_e` and `storage_item_type_e`
+ * @item_data[IN] The item data, if private key is passed with NULL, generate key pair with key_name
+ * @item_data_size[IN] The item data size , can be 0 if key is NULL
+ * @ksa_item_location[IN] The location that the item should be stored to. Can be PSA or Secure Element
+ * @kcm_item_is_factory[IN] Set to "true" if this item is factory, "false" otherwise
+ *
+ * @returns ::KCM_STATUS_SUCCESS if the given key name occupied a new key slot or one of the `::kcm_status_e` errors in case of an error.
+ * @        ::KCM_STATUS_KEY_EXIST if the given key name already exist.
+ */
+kcm_status_e ksa_item_store(const uint8_t *item_name,
+                            size_t item_name_length,
+                            uint32_t storage_flags,
+                            uint32_t item_type,
+                            const uint8_t *item_data,
+                            size_t item_data_size,
+                            ksa_type_location_e  ksa_item_location,
+                            bool kcm_item_is_factory);
+
+
+/** Reads data size from the PSA storage.
+ *
+ * If the given item name not exists in store, the function will return KCM_STATUS_ITEM_NOT_FOUND status.
+ *
+ * @item_name[IN] The complete item name in binary representation
+ * @item_name_length [IN] The complete item name size in bytes
+ * @item_type[IN] Item type as defined in `::kcm_item_type_e`and `storage_item_type_e`
+ * @item_data_out[IN/OUT] Item_data_out output size of items
+ *
+ * @returns ::KCM_STATUS_SUCCESS if the given key name occupied a new key slot or one of the `::kcm_status_e` errors in case of an error.
+ * @        ::KCM_STATUS_KEY_EXIST if the given key name already exist.
+ */
+kcm_status_e ksa_item_get_data_size(const uint8_t *item_name,
+                                    size_t item_name_length,
+                                    uint32_t item_type,
+                                    size_t *item_data_size_out);
+
+
+/** Reads data item from the PSA storage.
+*
+*    @param[in] item_name Item name.
+*    @param[in] item_name_length Item name length.
+*    @item_type[IN] Item type as defined in `::kcm_item_type_e`and `storage_item_type_e`
+*    @param[in/out] Item_data_out item data output buffer. Can be NULL if `item_data_max_size` is 0.
+*    @param[in] kcm_item_data_max_size The maximum size of the KCM item data output buffer in bytes.
+*    @param[out] item_data_act_size_out Actual item data output buffer size in bytes.
+*
+*    @returns
+*       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+*/
+kcm_status_e ksa_item_get_data(const uint8_t *item_name,
+                               size_t item_name_length,
+                               uint32_t item_type,
+                               uint8_t *item_data_out,
+                               size_t item_data_max_size,
+                               size_t *item_data_act_size_out);
+
+
+/** Deletes data item from the PSA storage.
+*
+*    @param[in] item_name Item name.
+*    @param[in] item_name_length Item name length.
+*    @param[in] item_type Item type as defined in `::kcm_item_type_e` and  `storage_item_type_e`
+*
+*    @returns
+*       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+*/
+kcm_status_e ksa_item_delete(const uint8_t *item_name,
+                             size_t item_name_length,
+                             uint32_t item_type);
+
+
+/** Resets the PSA storage to an empty state.
+*
+*   @returns
+*       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+*/
+kcm_status_e ksa_reset(void);
+
+
+/** Checks if item exists in PSA storage
+*
+*    @param[in] item_name Item name.
+*    @param[in] item_name_length Item name length.
+*    @param[in] item_type Item type as defined in `::kcm_item_type_e` and  `storage_item_type_e`
+*    @returns
+*       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+*/
+kcm_status_e ksa_item_check_existence(const uint8_t *item_name,
+                                      size_t item_name_length,
+                                      uint32_t item_type);
+
+
+
+    /** Returns a key handle if exists according to its name
     *
     * @key_name[IN] The key name in binary representation
     * @key_name_size[IN] The key name size in bytes
-    *
-    * @returns ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-    */
-    kcm_status_e ksa_destroy_key(const uint8_t *key_name, size_t key_name_size);
-
-    /** Checks if the given key name is already exists and returns the key id.
-    *
-    * @key_name[IN] The key name in binary representation
-    * @key_name_size[IN] The key name size in bytes
-    * @is_key_exists_out[OUT] "true" if the key name was found, "false" otherwise.
-    *                   This out parameter is valid only if the status is KCM_STATUS_SUCCESS.
-    * @key_id_out[OUT] The key handle referred to the given key name, otherwise this out parameter value is undefined.
-    *                      This out parameter is valid only if the status is KCM_STATUS_SUCCESS and is_key_exit is "true".
-    *                      In any other case this out parameter value is undefined.
-    *
-    * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
-    *          The user CAN refer the address pointed by "is_key_exist" ONLY if the returned status was KCM_STATUS_SUCCESS
-    *          If the returned value is NOT KCM_STATUS_SUCCES then the address pointed by "is_key_exist" is undefined.
-    */
-    kcm_status_e ksa_is_key_exists(const uint8_t *key_name, size_t key_name_size, bool *is_key_exists_out, psa_key_id_t *key_id_out);
-
-    /** Returns a key handle if exists
-    *
-    * @key_id[IN] The key identifier
     * @key_handle_out[OUT] The key handle referred to the given key name, otherwise this out parameter value is undefined.
-    *                      This out parameter is valid only if the status is KCM_STATUS_SUCCESS and is_key_exit is "true".
-    *                      In any other case this out parameter value is undefined.
+    *                      This out parameter is valid only if the status is KCM_STATUS_SUCCESS. In any other case this out parameter value is undefined.
     *
     * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e ksa_key_get_handle(psa_key_id_t key_id, psa_key_handle_t *key_handle_out);
+    kcm_status_e ksa_key_get_handle(const uint8_t *key_name, size_t key_name_size, psa_key_handle_t *key_handle_out);
 
     /** Closes a key handle
     *
@@ -189,16 +254,8 @@ extern "C" {
 
     kcm_status_e ksa_key_close_handle(psa_key_handle_t key_handle);
 
-    /** Retrieves ksa key id according to key name
-    *
-    * @key_name[IN] The name of the key
-    * @key_name_size[IN] The size of the key name
-    * @ksa_id_type[IN] Type of ksa psa id
-    * @psa_key_id[OUT] Value of ksa psa id
-    *
-    * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
-    */
-    kcm_status_e ksa_get_key_id(const uint8_t *key_name, size_t key_name_size, ksa_id_type_e ksa_id_type, psa_key_id_t *psa_key_id);
+
+/*======================Certificate Renewal related APIs===========================================*/
 
 
     /** Generates certificate enrollment keys based on existing keys according to passed key names.
@@ -220,16 +277,17 @@ extern "C" {
         psa_key_handle_t                  *psa_priv_key_handle,
         psa_key_handle_t                   *psa_pub_key_handle);
 
-    /** Creates a copy of existing ksa key using a new name. The API doesn't create a new key in PSA storage.
+    /** Creates a copy of existing ksa item using a new name.
     *
-    * @key_name[IN] The name of the existing key
-    * @key_name_size[IN] The size of the exisitng key name
-    * @key_name[IN] The name of the new key
-    * @key_name_size[IN] The size of the new key name
+    * @item_name[IN] The name of the existing item
+    * @item_name_size[IN] The size of the exisitng item name
+    * @uint32_t item_type[IN] item type to copy
+    * @new_item_name[IN] The name of the new item
+    * @new_item_name_size[IN] The size of the new item name
     *
     * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e ksa_copy_key(const uint8_t *existing_key_name, size_t existing_key_name_size, const uint8_t *new_key_name, size_t new_key_name_size);
+    kcm_status_e ksa_copy_item(const uint8_t *existing_item_name, size_t existing_item_name_size, uint32_t item_type, const uint8_t *new_item_name, size_t new_item_name_size);
 
     /** Removes the entry from ksa table without destroy PSA operation.
     *
@@ -237,7 +295,7 @@ extern "C" {
     * @private_key_name_len[IN] The size of the private key name
     * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e  ksa_remove_entry(const uint8_t *key_name, size_t key_name_size);
+    kcm_status_e  ksa_remove_entry(const uint8_t *key_name, size_t key_name_size, uint32_t item_type);
 
     /** Activates renewal key. The API sets renewal id value to active id of the key and initializes renewal id field.
     *
@@ -250,31 +308,13 @@ extern "C" {
     /** Deletes old non-factory active id and removes backup entry.
     *   If the active id is factory id, the function only removes the backup entry.
     *
-    * @private_key_name[IN] The name of the private key
-    * @private_key_name_len[IN] The size of the private key name
+    * @item_name[IN] The name of the item
+    * @item_name_size[IN] The size of the item
+    * @item_type [IN] The item type
+    * 
     * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
     */
-    kcm_status_e ksa_destroy_old_active_and_remove_backup_entry(const uint8_t *key_name, size_t key_name_size);
-
-    /** Updates existing key's ksa id according to its type and value..
-    *
-    * @private_key_name[IN] The name of the private key
-    * @private_key_name_len[IN] The size of the private key name
-    * @key_id_type[IN] The type of the ksa id
-    * @id_value[IN] The value of the id to update.
-    * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
-    */
-    kcm_status_e ksa_update_key_id(const uint8_t *key_name, size_t key_name_size, ksa_id_type_e key_id_type, psa_key_id_t id_value);
-
-    /** Destroys and zeros the filed of the current entry according to ksa id type.
-    *
-    * @private_key_name[IN] The name of the private key
-    * @private_key_name_len[IN] The size of the private key name
-    * @ksa_id_type[IN] The ksa id type
-    * @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
-    */
-    kcm_status_e ksa_destroy_key_id(const uint8_t *key_name, size_t key_name_size, ksa_id_type_e ksa_id_type);
-
+    kcm_status_e ksa_destroy_old_active_and_remove_backup_entry(const uint8_t *item_name, size_t item_name_size, uint32_t item_type);
 
 #ifdef __cplusplus
 }

@@ -57,7 +57,6 @@ void M2MBlockMessage::set_message_info(sn_coap_hdr_s *coap_header)
         if (M2MBlockMessage::ErrorNone == _error_code) {
             // Is last block
             if (coap_header->options_list_ptr->block1 != -1) {
-//                if (!(*(coap_header->options_list_ptr->block1_ptr + (coap_header->options_list_ptr->block1_len - 1)) & 0x08)) {
                 if (!((coap_header->options_list_ptr->block1) & 0x08)) {
                     _is_last_block = true;
                 } else {
@@ -66,34 +65,6 @@ void M2MBlockMessage::set_message_info(sn_coap_hdr_s *coap_header)
             }
 
             _block_number = coap_header->options_list_ptr->block1 >> 4;
-            // Block number
-//            if (coap_header->options_list_ptr->block1_len == 3) {
-//                _block_number = *(coap_header->options_list_ptr->block1_ptr) << 12;
-//                _block_number |= *(coap_header->options_list_ptr->block1_ptr + 1) << 4;
-//                _block_number |= (*(coap_header->options_list_ptr->block1_ptr + 2)) >> 4;
-//            }
-
-//            else if (coap_header->options_list_ptr->block1_len == 2) {
-//                _block_number = *(coap_header->options_list_ptr->block1_ptr) << 4;
-//                _block_number |= (*(coap_header->options_list_ptr->block1_ptr + 1)) >> 4;
-//            }
-//            else if (coap_header->options_list_ptr->block1_len == 1) {
-//                _block_number = (*coap_header->options_list_ptr->block1_ptr) >> 4;
-//            }
-//            else {
-//                _block_number = 0;
-//            }
-
-            // Payload
-            free(_block_data_ptr);
-            _block_data_ptr = NULL;
-            _block_data_len = coap_header->payload_len;
-            if(_block_data_len > 0) {
-                _block_data_ptr = (uint8_t *)malloc(_block_data_len);
-                if (_block_data_ptr) {
-                    memcpy(_block_data_ptr, coap_header->payload_ptr, _block_data_len);
-                }
-            }
         }
     }
 }
@@ -142,4 +113,18 @@ uint32_t M2MBlockMessage::block_data_len() const
 M2MBlockMessage::Error M2MBlockMessage::error_code() const
 {
     return _error_code;
+}
+
+void M2MBlockMessage::set_payload(const uint8_t *payload, const uint16_t payload_len, const uint16_t offset)
+{
+    // Payload
+    free(_block_data_ptr);
+    _block_data_ptr = NULL;
+    _block_data_len = payload_len - offset;
+    if(_block_data_len > 0) {
+        _block_data_ptr = (uint8_t *)malloc(_block_data_len);
+        if (_block_data_ptr) {
+            memcpy(_block_data_ptr, payload + offset, _block_data_len);
+        }
+    }
 }

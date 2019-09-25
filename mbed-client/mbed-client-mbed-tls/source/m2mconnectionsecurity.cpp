@@ -62,3 +62,8 @@ void M2MConnectionSecurity::set_socket(void *socket, void *address)
 {
     _private_impl->set_socket((palSocket_t) socket, (palSocketAddress_t*) address);
 }
+
+int M2MConnectionSecurity::set_dtls_socket_callback(void(*foo)(void*), void *argument)
+{
+    return _private_impl->set_dtls_socket_callback(foo, argument);
+}

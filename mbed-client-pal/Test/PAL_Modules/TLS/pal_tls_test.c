@@ -25,6 +25,8 @@
 #include "sotp.h"
 #endif
 
+#include "ns_hal_init.h"
+
 #if !PAL_USE_HW_TRNG
 #include "pal_plat_entropy.h"
 #endif
@@ -146,6 +148,7 @@ TEST_SETUP(pal_tls)
     uint64_t currentTime = 1546497053; // Thu, 03 Jan 2019 06:30:53 +0000
 
     //init pal
+    ns_hal_init(NULL, 1024, NULL, NULL);
     status = pal_init();
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -207,7 +210,6 @@ TEST_TEAR_DOWN(pal_tls)
 #else
     sotp_reset();
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-
     pal_destroy();
 }
 

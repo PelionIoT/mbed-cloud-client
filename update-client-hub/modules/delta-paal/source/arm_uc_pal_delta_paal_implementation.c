@@ -112,6 +112,10 @@ static arm_uc_buffer_t outgoing_new_buffer = {
     .ptr = buffer_temp_outgoing
 };
 
+static void arm_uc_deltapaal_map_patch_event_to_error_and_signal_error_handler(bs_patch_api_return_code_t patch_return_value);
+
+static int32_t arm_uc_deltapaal_map_patch_event_to_error(bs_patch_api_return_code_t patch_return_value);
+
 /*
  * Global @TODO:
  *
@@ -453,7 +457,8 @@ static void arm_uc_deltapaal_internal_event_handler(uintptr_t event)
 
                 } else if (bs_result<0) {
                     UC_PAAL_TRACE("arm_uc_deltapaal_internal_event_handler Returning with error: %d", bs_result);
-                    arm_uc_deltapaal_signal_ucfm_handler(ARM_UC_PAAL_EVENT_WRITE_ERROR);
+                    ARM_BS_Free(&delta_paal_bs_patch);
+                    arm_uc_deltapaal_map_patch_event_to_error_and_signal_error_handler(bs_result);
                 }
                 // @todo: else here?
             } else {
@@ -470,6 +475,51 @@ static void arm_uc_deltapaal_internal_event_handler(uintptr_t event)
             arm_uc_deltapaal_signal_ucfm_handler(event);
             break;
     }
+}
+
+static void arm_uc_deltapaal_map_patch_event_to_error_and_signal_error_handler(bs_patch_api_return_code_t patch_return_value)
+{
+
+    if(patch_return_value >= 0)
+    {
+        return; // this is not error nothing to do here
+    }else
+    {
+        uintptr_t event = arm_uc_deltapaal_map_patch_event_to_error(patch_return_value);
+        arm_uc_deltapaal_signal_ucfm_handler(event);
+    }
+}
+
+
+static int32_t arm_uc_deltapaal_map_patch_event_to_error(bs_patch_api_return_code_t patch_return_value)
+{
+    int32_t event = ARM_UC_PAAL_EVENT_WRITE_ERROR;
+    switch (patch_return_value) {
+        case EBSAPI_ERR_INVALID_STATE:
+            event = ARM_UC_PAAL_EVENT_INITIALIZE_ERROR;
+            break;
+        case EBSAPI_ERR_UNEXPECTED_EVENT:
+            break;
+        case EBSAPI_ERR_ALREADY_INIT:
+            break;
+        case EBSAPI_ERR_OUT_OF_MEMORY:
+            event = ARM_UC_PAAL_EVENT_PROCESSOR_INSUFFICIENT_MEMORY_SPACE;
+            break;
+        case EBSAPI_ERR_PARAMETERS:
+            break;
+        case EBSAPI_ERR_FILE_IO:
+            event = ARM_UC_PAAL_EVENT_READ_ERROR;
+            // or
+            // ARM_UC_PAAL_EVENT_WRITE_ERROR
+            break;
+        case EBSAPI_ERR_CORRUPTED_PATCH:
+            event = ARM_UC_PAAL_EVENT_PROCESSOR_PARSE_ERROR;
+            break;
+        default:
+            UC_PAAL_TRACE("arm_uc_deltapaal_map_patch_event_to_error unknown error %d", patch_return_value);
+            break;
+    }
+    return event;
 }
 
 /**
@@ -566,7 +616,9 @@ static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
             else if (bs_result < 0) {
                 UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler Trigger ProcessPatchEvent returned with error: %d => return INVALID_STATE error.", bs_result);
                 result.code = ERR_INVALID_STATE;
-                ARM_UC_DeltaPaal_PALEventHandler(ARM_UC_PAAL_EVENT_WRITE_ERROR);
+                uintptr_t event = arm_uc_deltapaal_map_patch_event_to_error(bs_result);
+                ARM_BS_Free(&delta_paal_bs_patch);
+                ARM_UC_DeltaPaal_PALEventHandler(event);
                 return;
             }
         } while ((arm_uc_pal_deltapaal_incoming_buf_ref->size-arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset)>0);

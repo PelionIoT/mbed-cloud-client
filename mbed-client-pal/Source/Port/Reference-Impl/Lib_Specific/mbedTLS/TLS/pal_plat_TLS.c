@@ -24,6 +24,9 @@
 #include "stdio.h"
 #endif
 
+#include "eventOS_scheduler.h"
+#include "eventOS_event_timer.h"
+
 
 #include <stdlib.h>
 #include <string.h>
@@ -50,7 +53,7 @@ typedef mbedtls_ssl_context platTlsContext;
 typedef mbedtls_ssl_config platTlsConfigurationContext;
 
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
-/** Following items need to be stored from mbedtls_ssl_session info structure
+/** Following items need to be stored from mbedtlsssl_session info structure
     to do the ssl session resumption.*/
 //int ciphersuite;            /*!< chosen ciphersuite */
 //size_t id_len;              /*!< session id length  */
@@ -64,11 +67,19 @@ static const int ssl_session_size = 92;
 PAL_PRIVATE mbedtls_entropy_context *g_entropy = NULL;
 PAL_PRIVATE bool g_entropyInitiated = false;
 
+PAL_PRIVATE void eventloop_event_handler(arm_event_s *event);
+#define PalTimerEvent 100
+
+PAL_PRIVATE int8_t g_eventloop_id = -1;
+PAL_PRIVATE int8_t create_eventloop();
+
 typedef struct palTimingDelayContext
 {
     uint64_t                              start_ticks;
-    uint32_t                              int_ms;
-    uint32_t                              fin_ms;
+    int                                   timer_event_id;
+    bool                                  timer_expired;
+    void*                                 callback_argument;
+    palSocketCallback_f                   socket_cb;
 } palTimingDelayContext_t;
 
 
@@ -489,13 +500,27 @@ palStatus_t pal_plat_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palT
     mbedtls_ssl_init(&localTLSHandle->tlsCtx);
     localConfigCtx->tlsContext = localTLSHandle;
     localTLSHandle->tlsInit = true;
+    memset(&localConfigCtx->timerCtx, 0 , sizeof(palTimingDelayContext_t));
     mbedtls_ssl_set_timer_cb(&localTLSHandle->tlsCtx, &localConfigCtx->timerCtx, palTimingSetDelay, palTimingGetDelay);
     *palTLSHandle = (palTLSHandle_t)localTLSHandle;
+
+    localConfigCtx->timerCtx.timer_event_id = create_eventloop();
 
 finish:
     return status;
 }
 
+int8_t create_eventloop()
+{
+    if(g_eventloop_id == -1)
+    {
+        eventOS_scheduler_mutex_wait();
+        g_eventloop_id = eventOS_event_handler_create(&eventloop_event_handler, 0);
+        assert(g_eventloop_id >= 0);
+        eventOS_scheduler_mutex_release();
+    }
+    return g_eventloop_id;
+}
 
 palStatus_t pal_plat_freeTLS(palTLSHandle_t* palTLSHandle)
 {
@@ -997,40 +1022,55 @@ palStatus_t pal_plat_SetLoggingCb(palTLSConfHandle_t palTLSConf, palLogFunc_f pa
     return PAL_SUCCESS;
 }
 
-PAL_PRIVATE uint64_t palTimingGetTimer(uint64_t *start_ticks, int reset)
+void pal_plat_SetDTLSSocketCallback(palTLSConfHandle_t palTLSHandle, palSocketCallback_f cb, void *argument)
 {
-    uint64_t delta_ms;
-    uint64_t ticks = pal_osKernelSysTick();
-
-    if (reset)
-    {
-        *start_ticks = ticks;
-        delta_ms = 0;
-    }
-    else
-    {
-        delta_ms = pal_osKernelSysMilliSecTick(ticks - *start_ticks);
-    }
-
-    return delta_ms;
+    palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSHandle;
+    localConfigCtx->timerCtx.socket_cb = cb;
+    localConfigCtx->timerCtx.callback_argument = argument;
 }
 
+void eventloop_event_handler(arm_event_s *event)
+{
+    if (event->event_type == PalTimerEvent) {
+        if(!event->data_ptr) {
+            assert(event->data_ptr);
+        }
+        palTimingDelayContext_t* ctx = event->data_ptr;
+        ctx->timer_expired = true;
+        if(ctx->socket_cb) {
+            PAL_LOG_DBG("eventloop_event_handler -->");
+            ctx->socket_cb(ctx->callback_argument);
+        }
+    }
+}
 
 /*
  * Set delays to watch
  */
 PAL_PRIVATE void palTimingSetDelay( void *data, uint32_t intMs, uint32_t finMs )
 {
-
     palTimingDelayContext_t *ctx = data;
 
-    ctx->int_ms = intMs;
-    ctx->fin_ms = finMs;
-
-    if( finMs != 0 )
-    {
-        (void) palTimingGetTimer( &ctx->start_ticks, 1 );
+    if (ctx->timer_event_id) {
+       eventOS_event_timer_cancel(PalTimerEvent, ctx->timer_event_id);
+       ctx->timer_expired = false;
     }
+
+    if (finMs == 0) {
+       return;
+    }
+
+
+    ctx->start_ticks = pal_osKernelSysTick() + intMs;
+
+    arm_event_s event = {0};
+    event.receiver = ctx->timer_event_id;
+    event.event_id = PalTimerEvent;
+    event.event_type = PalTimerEvent;
+    event.data_ptr = ctx;
+    event.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
+    eventOS_event_timer_request_in(&event, eventOS_event_timer_ms_to_ticks(finMs));
+    PAL_LOG_DBG("palTimingSetDelay start Timer finMs %d",finMs);
 }
 
 /*
@@ -1040,29 +1080,16 @@ PAL_PRIVATE int palTimingGetDelay( void *data )
 {
     int result = 0;
     palTimingDelayContext_t *ctx = data;
-    uint64_t elapsed_ms;
 
-    if( ctx->fin_ms == 0 )
-    {
+    /* See documentation of "typedef int mbedtls_ssl_get_timer_t( void * ctx );" from ssl.h */
+
+    if (ctx->timer_event_id == 0) {
         result = -1;
-        goto finish;
-    }
-
-    elapsed_ms = palTimingGetTimer( &ctx->start_ticks, 0 );
-
-    if( elapsed_ms >= ctx->fin_ms )
-    {
+    } else if (ctx->timer_expired) {
         result = 2;
-        goto finish;
-    }
-
-    if( elapsed_ms >= ctx->int_ms )
-    {
+    } else if (ctx->start_ticks < pal_osKernelSysTick()) {
         result = 1;
-        goto finish;
     }
-
-finish:
     return result;
 }
 

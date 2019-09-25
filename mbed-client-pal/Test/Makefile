@@ -27,6 +27,7 @@ LOCAL_ADD_INCLUDE += \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-trace \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/mbed-trace/mbed-trace \
                     ${MBED_CLOUD_SERVICE}/mbed-cloud-client/nanostack-libservice/mbed-client-libservice \
+                    ${MBED_CLOUD_SERVICE}/mbed-cloud-client/ns-hal-pal \
                     platform/service/net/mbedtls/src/mbedtls/include/mbedtls \
 
 # FCC (==ESFS&SOTP)

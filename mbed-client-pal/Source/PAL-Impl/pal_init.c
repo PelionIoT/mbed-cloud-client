@@ -100,7 +100,7 @@ palStatus_t pal_init(void)
 
                         else
                         {
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#if !defined  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
                             DEBUG_PRINT("SOTP init\r\n");
 
                             sotpStatus = sotp_init();
