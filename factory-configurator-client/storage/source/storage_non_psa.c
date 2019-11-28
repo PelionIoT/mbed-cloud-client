@@ -17,15 +17,119 @@
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-#include "storage_keys.h"
-#include "storage_items.h"
+#include "storage_kcm.h"
 #include "storage_internal.h"
 #include "kcm_defs.h"
 #include "pv_error_handling.h"
 #include "fcc_malloc.h"
 #include "pv_macros.h"
 
+/*The function copies certificate chain or single certificate from source  to destination (inside storage)*/
+static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item_name_len, storage_item_prefix_type_e source_item_prefix_type, storage_item_prefix_type_e destination_item_prefix_type)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    uint8_t *item_data = NULL;
+    size_t item_data_len = 0;
+    kcm_cert_chain_handle kcm_source_chain_handle;
+    kcm_cert_chain_handle kcm_destination_chain_handle;
+    size_t kcm_chain_len_out = 0;
+    size_t  kcm_actual_cert_data_size = 0;
+    int cert_index = 0;
 
+    //Open chain 
+    kcm_status = storage_cert_chain_open(&kcm_source_chain_handle, item_name, item_name_len, source_item_prefix_type, &kcm_chain_len_out);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to open chain");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_chain_len_out == 0), kcm_status = KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, exit, "Invalid kcm_chain_len_out");
+    SA_PV_LOG_TRACE_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)item_name_len, (char*)item_name, (uint32_t)item_name_len);
+
+    //Current item is a single certificate 
+    if (storage_is_cert_chain(kcm_source_chain_handle) == false && kcm_chain_len_out == 1) {
+        //Read the item from source 
+        kcm_status = storage_item_get_size_and_data(item_name, item_name_len, KCM_CERTIFICATE_ITEM, source_item_prefix_type, &item_data, &item_data_len);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to get item data");
+
+        //Save the item as backup item
+        kcm_status = storage_item_store(item_name, item_name_len, KCM_CERTIFICATE_ITEM, false, destination_item_prefix_type, item_data, item_data_len, NULL);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
+    } else {
+        //Current item is certificate chain
+        for (cert_index = 1; cert_index <= (int)kcm_chain_len_out; cert_index++) {
+            //Create destination chain for start
+            if (cert_index == 1) {
+                kcm_status = storage_cert_chain_create(&kcm_destination_chain_handle, item_name, item_name_len, kcm_chain_len_out, false, destination_item_prefix_type);
+                SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to create destination chain");
+            }
+            //Get next certificate data size from source chain
+            kcm_status = storage_cert_chain_get_next_size(kcm_source_chain_handle, source_item_prefix_type, &item_data_len);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to _kcm_cert_chain_get_next_sizen");
+
+            //Allocate memory and get  certificate data from source chain
+            item_data = fcc_malloc(item_data_len);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((item_data == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit_and_close, "Failed to allocate buffer for kcm data");
+
+            //Get next certificate data
+            kcm_status = storage_cert_chain_get_next_data(kcm_source_chain_handle, item_data, item_data_len, source_item_prefix_type, &kcm_actual_cert_data_size);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to get certificate kcm data");
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_actual_cert_data_size != item_data_len), kcm_status = kcm_status, exit_and_close, "Wrong certificate data size");
+
+            //Add the data to destination chain
+            kcm_status = storage_cert_chain_add_next(kcm_destination_chain_handle, item_data, item_data_len, destination_item_prefix_type);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to add data to chain");
+
+            //free allocated buffer
+            fcc_free(item_data);
+            item_data = NULL;
+        }
+        //Close destination chain
+exit_and_close:
+        kcm_status = storage_cert_chain_close(kcm_destination_chain_handle, destination_item_prefix_type);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to close destination chain");
+
+    }
+
+exit:
+    if (item_data != NULL) {
+        fcc_free(item_data);
+    }
+    //close source chain
+    kcm_status = storage_cert_chain_close(kcm_source_chain_handle, source_item_prefix_type);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to close source chain");
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    return kcm_status;
+
+}
+
+
+
+kcm_status_e storage_get_prefix_from_type(kcm_item_type_e kcm_item_type, storage_item_prefix_type_e item_prefix_type, const char** prefix)
+{
+    kcm_status_e status = KCM_STATUS_SUCCESS;
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid item_source_type");
+
+    switch (kcm_item_type) {
+        case KCM_PRIVATE_KEY_ITEM:
+            (item_prefix_type == STORAGE_ITEM_PREFIX_KCM) ? (*prefix = KCM_FILE_PREFIX_PRIVATE_KEY) : (*prefix = KCM_RENEWAL_FILE_PREFIX_PRIVATE_KEY);
+            break;
+        case KCM_PUBLIC_KEY_ITEM:
+            (item_prefix_type == STORAGE_ITEM_PREFIX_KCM) ? (*prefix = KCM_FILE_PREFIX_PUBLIC_KEY) : (*prefix = KCM_RENEWAL_FILE_PREFIX_PUBLIC_KEY);
+            break;
+        case KCM_SYMMETRIC_KEY_ITEM:
+            (item_prefix_type == STORAGE_ITEM_PREFIX_KCM) ? (*prefix = KCM_FILE_PREFIX_SYMMETRIC_KEY) : (*prefix = KCM_RENEWAL_FILE_PREFIX_SYMMETRIC_KEY);
+            break;
+        case KCM_CERTIFICATE_ITEM:
+            (item_prefix_type == STORAGE_ITEM_PREFIX_KCM) ? (*prefix = KCM_FILE_PREFIX_CERTIFICATE) : (*prefix = KCM_RENEWAL_FILE_PREFIX_CERTIFICATE);
+            break;
+        case KCM_CONFIG_ITEM:
+            (item_prefix_type == STORAGE_ITEM_PREFIX_KCM) ? (*prefix = KCM_FILE_PREFIX_CONFIG_PARAM) : (*prefix = KCM_RENEWAL_FILE_PREFIX_CONFIG_PARAM);
+            break;
+        default:
+            status = KCM_STATUS_INVALID_PARAMETER;
+            break;
+    }
+    return status;
+}
 
 
 kcm_status_e storage_key_get_handle(
@@ -175,60 +279,66 @@ free_and_exit:
     return kcm_status;
 }
 
-kcm_status_e storage_init(void)
+
+kcm_status_e storage_ce_item_copy(
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len,
+    kcm_item_type_e kcm_item_type,
+    storage_item_prefix_type_e source_item_prefix_type,
+    storage_item_prefix_type_e destination_item_prefix_type)
 {
-    kcm_status_e kcm_status;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    uint8_t *item_data = NULL;
+    size_t item_data_len = 0;
 
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+    SA_PV_LOG_TRACE_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
+    //Read the data
+    if (kcm_item_type == KCM_CERTIFICATE_ITEM) {
+        //copy certificate chain 
+        kcm_status = copy_certificate_chain(kcm_item_name, kcm_item_name_len, source_item_prefix_type, destination_item_prefix_type);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to copy chain");
+    } else {
 
-    kcm_status = storage_specific_init();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed initializing storage specific backend (kcm_status %d)", kcm_status);
+        //Read the item from source
+        kcm_status = storage_item_get_size_and_data(kcm_item_name, kcm_item_name_len, kcm_item_type, source_item_prefix_type, &item_data, &item_data_len);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get item data");
 
+        //Save the item as backup item
+        kcm_status = storage_item_store(kcm_item_name, kcm_item_name_len, kcm_item_type, false, destination_item_prefix_type, item_data, item_data_len, NULL);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
+    }
+
+exit:
+    if (item_data != NULL) {
+        fcc_free(item_data);
+    }
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    return kcm_status;
+
+}
+
+
+kcm_status_e storage_ce_clean_item(
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len,
+    kcm_item_type_e kcm_item_type,
+    storage_item_prefix_type_e item_prefix_type,
+    bool clean_active_item_only)
+{
+
+    PV_UNUSED_PARAM(clean_active_item_only);
+
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    kcm_status = storage_item_delete(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type);
+    if ((kcm_item_type == KCM_CERTIFICATE_ITEM) && (kcm_status == KCM_STATUS_ITEM_NOT_FOUND)) {//We need to check certificate chain with the same name
+        kcm_status = storage_cert_chain_delete((const uint8_t*)kcm_item_name, kcm_item_name_len, item_prefix_type);
+    }
 
     return kcm_status;
 }
 
-kcm_status_e storage_finalize(void)
-{
-    kcm_status_e kcm_status;
 
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    kcm_status = storage_specific_finalize();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed finalizing storage specific backend (kcm_status %d)", kcm_status);
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-
-    return kcm_status;
-}
-
-kcm_status_e storage_reset_to_factory_state(void)
-{
-    kcm_status_e kcm_status;
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    kcm_status = storage_factory_reset();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed perform factory reset");
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return kcm_status;
-}
-
-kcm_status_e storage_reset(void)
-{
-    kcm_status_e kcm_status;
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    kcm_status = storage_specific_reset();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for storage specific reset");
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-
-    return kcm_status;
-}
 
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 

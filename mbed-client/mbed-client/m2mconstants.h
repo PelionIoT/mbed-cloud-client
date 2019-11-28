@@ -58,7 +58,6 @@ const uint16_t CONFIG_BOOLEAN_ITEM_SIZE = 4;
 #define GT  "gt"
 #define LT  "lt"
 #define ST_SIZE  "st"
-#define STP  "stp"
 #define CANCEL  "cancel"
 
 // Different query parameters

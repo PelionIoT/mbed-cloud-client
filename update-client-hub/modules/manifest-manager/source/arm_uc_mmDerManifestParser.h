@@ -20,7 +20,7 @@
 #define ARM_UC_MM_DERPARSE_H
 
 #include "update-client-common/arm_uc_types.h"
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
 #include <stdint.h>
 #ifdef __cplusplus
 extern "C" {

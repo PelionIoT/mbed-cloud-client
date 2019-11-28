@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,8 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "update-client-control-center/arm_uc_certificate.h"
 #include "update-client-common/arm_uc_config.h"
+#include "update-client-control-center/arm_uc_certificate.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
 
@@ -97,3 +99,4 @@ arm_uc_error_t ARM_UC_certificateFetch(arm_uc_buffer_t *certificate,
 }
 
 #endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */
+#endif // ARM_UC_ENABLE 1

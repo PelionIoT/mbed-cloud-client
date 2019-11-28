@@ -121,8 +121,6 @@ void M2MReportHandler::set_value_float(float value)
 
     if (_current_value.float_value != _last_value.float_value) {
         send_value();
-        _high_step.float_value = _last_value.float_value + _st;
-        _low_step.float_value = _last_value.float_value - _st;
     }
 #else
     send_value();
@@ -137,8 +135,6 @@ void M2MReportHandler::set_value_int(int64_t value)
 
     if (_current_value.int_value != _last_value.int_value) {
         send_value();
-        _high_step.int_value = _last_value.int_value + _st;
-        _low_step.int_value = _last_value.int_value - _st;
     }
 #else
     send_value();
@@ -289,7 +285,6 @@ bool M2MReportHandler::set_notification_attribute(const char* option,
                                                   M2MBase::BaseType type,
                                                   M2MResourceInstance::ResourceType resource_type)
 {
-    tr_debug("M2MReportHandler::set_notification_attribute()");
     bool success = false;
     const int max_size = 20;
     char attribute[max_size];
@@ -315,29 +310,29 @@ bool M2MReportHandler::set_notification_attribute(const char* option,
            _pmin = atoi(value);
             success = true;
             _attribute_state |= M2MReportHandler::Pmin;
-            tr_info("M2MReportHandler::set_notification_attribute %s to %" PRId32, attribute, _pmin);
+            tr_info("observation_attributes %s %" PRId32, attribute, _pmin);
         }
         else if(strcmp(attribute, PMAX) == 0) {
             _pmax = atoi(value);
             success = true;
             _attribute_state |= M2MReportHandler::Pmax;
-            tr_info("M2MReportHandler::set_notification_attribute %s to %" PRId32, attribute, _pmax);
+            tr_info("observation_attributes %s %" PRId32, attribute, _pmax);
         }
         else if(strcmp(attribute, GT) == 0 &&
                 (M2MBase::Resource == type)){
             success = true;
             _gt = atof(value);
             _attribute_state |= M2MReportHandler::Gt;
-            tr_info("M2MReportHandler::set_notification_attribute %s to %f", attribute, _gt);
+            tr_info("observation_attributes %s %f", attribute, _gt);
         }
         else if(strcmp(attribute, LT) == 0 &&
                 (M2MBase::Resource == type)){
             success = true;
             _lt = atof(value);
             _attribute_state |= M2MReportHandler::Lt;
-            tr_info("M2MReportHandler::set_notification_attribute %s to %f", attribute, _lt);
+            tr_info("observation_attributes %s %f", attribute, _lt);
         }
-        else if((strcmp(attribute, ST_SIZE) == 0 || (strcmp(attribute, STP) == 0))
+        else if((strcmp(attribute, ST_SIZE) == 0)
                 && (M2MBase::Resource == type)){
             success = true;
             _st = atof(value);
@@ -350,7 +345,7 @@ bool M2MReportHandler::set_notification_attribute(const char* option,
             }
 
             _attribute_state |= M2MReportHandler::St;
-            tr_info("M2MReportHandler::set_notification_attribute %s to %f", attribute, _st);
+            tr_info("observation_attributes %s %f", attribute, _st);
         } else {
             tr_error("M2MReportHandler::set_notification_attribute - unknown write attribute!");
             success = false;
@@ -759,6 +754,14 @@ void M2MReportHandler::send_value()
     set_notification_in_queue(true);
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     if (check_threshold_values()) {
+        if (_resource_type == M2MBase::FLOAT) {
+            _high_step.float_value = _current_value.float_value + _st;
+            _low_step.float_value = _current_value.float_value - _st;
+        }
+        if (_resource_type == M2MBase::INTEGER) {
+            _high_step.int_value = _current_value.int_value + _st;
+            _low_step.int_value = _current_value.int_value - _st;
+        }
         schedule_report();
     } else {
         tr_debug("M2MReportHandler::send_value - value not in range");

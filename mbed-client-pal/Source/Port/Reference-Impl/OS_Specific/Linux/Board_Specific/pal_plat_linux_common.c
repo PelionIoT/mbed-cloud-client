@@ -59,7 +59,7 @@ palStatus_t pal_plat_osEntropyRead(const char *entropyFileName, uint8_t *randomB
     // Random generation can be really slow, entropy collection on a freshly booted device
     // can take up to 10-20 minutes! Installing RNG-tools can speed things up.
 
-    PAL_LOG_INFO("Generating random from %s, this can take a long time!", entropySourceFileName);
+    printf("Generating random from %s, this can take a long time!\n", entropySourceFileName);
 
     fp = fopen(entropySourceFileName, "r");
     if (NULL != fp) {

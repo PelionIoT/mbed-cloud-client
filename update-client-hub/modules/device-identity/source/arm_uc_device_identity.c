@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,8 +16,11 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "pal4life-device-identity/pal_device_identity.h"
 #include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
+#include "pal4life-device-identity/pal_device_identity.h"
 
 #if defined(ARM_UC_FEATURE_IDENTITY_KCM) && (ARM_UC_FEATURE_IDENTITY_KCM == 1)
 extern const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_kcm;
@@ -156,3 +159,4 @@ arm_uc_error_t pal_deviceIdentityCheck(const arm_uc_buffer_t *vendor_guid,
 
     return result;
 }
+#endif // ARM_UC_ENABLE 1

@@ -19,7 +19,7 @@
 #include "unity_fixture.h"
 #include "pal.h"
 #include "pal_tls_utils.h"
-#include "storage_items.h"
+#include "storage_kcm.h"
 #include "test_runners.h"
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"

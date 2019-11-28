@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2018 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined (ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include "update-lwm2m-mbed-apis.h"
 
@@ -47,3 +51,4 @@ const ARM_UPDATE_SOURCE ARM_UCS_LWM2M_SOURCE = {
     .GetFirmwareFragment    = ARM_UCS_LWM2M_SOURCE_GetFirmwareFragment,
     .GetKeytableURL         = ARM_UCS_LWM2M_SOURCE_GetKeytableURL
 };
+#endif

@@ -20,7 +20,7 @@
 #include "update-client-common/arm_uc_error.h"
 #include <string.h>
 
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_CRYPTO_MBEDTLS) && (ARM_UC_FEATURE_CRYPTO_MBEDTLS == 1)
 #include "mbedtls/md.h"
 

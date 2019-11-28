@@ -20,7 +20,7 @@
 
 // do not require storage unless this modules is configured to use it
 #if PAL_USE_SECURE_TIME
-#include "storage_items.h"
+#include "storage_kcm.h"
 #endif
 
 #if (PAL_USE_SSL_SESSION_RESUME == 1)

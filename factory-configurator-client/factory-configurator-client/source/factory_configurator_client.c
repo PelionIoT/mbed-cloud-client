@@ -18,7 +18,7 @@
 #include "key_config_manager.h"
 #include "pv_error_handling.h"
 #include "fcc_verification.h"
-#include "storage_items.h"
+#include "storage_kcm.h"
 #include "fcc_defs.h"
 #include "fcc_malloc.h"
 #include "common_utils.h"

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 // Note: this macro is needed on armcc to get the the PRI*32 macros
 // from inttypes.h in a C++ code.
 #ifndef __STDC_FORMAT_MACROS
@@ -23,12 +27,10 @@
 
 #include "update-client-lwm2m/DeviceMetadataResource.h"
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
-#include "update-client-common/arm_uc_config.h"
 #include "update-client-common/arm_uc_types.h"
 #include "pal4life-device-identity/pal_device_identity.h"
+
 #include <inttypes.h>
-
-
 #include <stdio.h>
 
 #define ARM_UCS_LWM2M_INTERNAL_ERROR (-1)
@@ -310,3 +312,5 @@ void DeviceMetadataResource::Uninitialize()
     delete deviceMetadataObject;
     deviceMetadataObject = NULL;
 }
+
+#endif // ARM_UC_ENABLE

@@ -80,25 +80,19 @@ typedef struct arm_uc_mm_validate_signature_context {
         enum arm_uc_mm_psk_sig_state psk_state;
     };
     void (* applicationEventHandler)(uintptr_t);
-    union {
 #if defined(ARM_UC_FEATURE_MANIFEST_PUBKEY) && (ARM_UC_FEATURE_MANIFEST_PUBKEY == 1)
-        struct {
-            arm_uc_buffer_t  fingerprint;
-            arm_uc_buffer_t  certList;
-            arm_uc_buffer_t  cert;
-        };
+    arm_uc_buffer_t  fingerprint;
+    arm_uc_buffer_t  certList;
+    arm_uc_buffer_t  cert;
 #endif /* ARM_UC_FEATURE_MANIFEST_PUBKEY */
 #if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
-        struct {
-            arm_uc_buffer_t  PSKid;
-            int              keyTableVersion;
-            arm_uc_buffer_t  keyTableRef;
-            arm_uc_buffer_t  keyTableIV;
-            arm_uc_buffer_t  PSK;
-            arm_uc_buffer_t  cipherText;
-        };
+    arm_uc_buffer_t  PSKid;
+    int              keyTableVersion;
+    arm_uc_buffer_t  keyTableRef;
+    arm_uc_buffer_t  keyTableIV;
+    arm_uc_buffer_t  PSK;
+    arm_uc_buffer_t  cipherText;
 #endif /* ARM_UC_FEATURE_MANIFEST_PSK */
-    };
     arm_uc_buffer_t *manifest;
     arm_uc_error_t   storedError;
     uint32_t         sigIndex;

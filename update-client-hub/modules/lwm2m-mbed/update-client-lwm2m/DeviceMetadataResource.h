@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,6 +19,7 @@
 #ifndef __ARM_UCS_DEVICE_METADATA_RESOURCE_H__
 #define __ARM_UCS_DEVICE_METADATA_RESOURCE_H__
 
+#include "update-client-common/arm_uc_config.h"
 #include "update-client-common/arm_uc_types.h"
 
 #include "mbed-client/m2minterfacefactory.h"

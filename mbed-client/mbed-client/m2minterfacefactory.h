@@ -101,7 +101,7 @@ public:
      * such as Client Registration, Device Management and Information Reporting.
      * \return M2MFirmware An object for managing other client operations.
      */
-    static M2MFirmware *create_firmware();
+    static M2MFirmware *create_firmware() m2m_deprecated;
 
     /**
      * \brief Creates a generic object for the mbed Client Inteface. With this, the

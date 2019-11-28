@@ -20,7 +20,7 @@
 #include "general_utils.h"
 #include "fcc_utils.h"
 #include "factory_configurator_client.h"
-#include "storage_items.h"
+#include "storage_kcm.h"
 
 fcc_status_e fcc_bundle_process_rbp_buffer(CborValue *tcbor_top_map, const char *map_key_name, const char *rbp_item_name)
 {

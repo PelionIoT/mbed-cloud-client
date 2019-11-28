@@ -16,7 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) && (ARM_UC_FEATURE_PAL_BLOCKDEVICE == 1)
 
 #define __STDC_FORMAT_MACROS
@@ -551,3 +554,4 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
 }
 
 #endif // #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE)
+#endif // #if ARM_UC_ENABLE

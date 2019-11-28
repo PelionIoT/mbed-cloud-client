@@ -17,7 +17,7 @@
 // ----------------------------------------------------------------------------
 
 #include "arm_uc_mmDerManifestParser.h"
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
 
 #include <stdio.h>
 

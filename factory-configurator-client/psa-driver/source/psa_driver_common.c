@@ -19,7 +19,6 @@
 #include "psa_driver.h"
 #include "pv_log.h"
 
-
 kcm_status_e psa_drv_translate_to_kcm_error(psa_status_t psa_status)
 {
     kcm_status_e kcm_status;
@@ -52,7 +51,6 @@ kcm_status_e psa_drv_translate_to_kcm_error(psa_status_t psa_status)
     }
     return kcm_status;
 }
-
 
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 

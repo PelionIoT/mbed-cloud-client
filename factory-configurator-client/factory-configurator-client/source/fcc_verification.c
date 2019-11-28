@@ -29,7 +29,7 @@
 #include "common_utils.h"
 #include "fcc_utils.h"
 #include "pv_macros.h"
-#include "storage_keys.h"
+#include "storage_kcm.h"
 
 #define FCC_10_YEARS_IN_SECONDS 315360000 // 10*365*24*60*60
 

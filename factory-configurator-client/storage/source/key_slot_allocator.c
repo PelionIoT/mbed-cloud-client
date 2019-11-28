@@ -15,15 +15,19 @@
 // ----------------------------------------------------------------------------
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #include "fcc_malloc.h"
+#include "fcc_defs.h"
 #include "kcm_defs.h"
 #include "key_slot_allocator.h"
 #include "pv_error_handling.h"
 #include "pv_macros.h"
 #include "psa_driver.h"
 #include "psa_driver_dispatcher.h"
-#include "storage_internal.h"
+#include "storage_kcm.h"
 #include "key_slot_allocator_internal.h"
-
+#include "psa_driver_se_atmel.h"
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
+#include "atecc608a_se.h"
+#endif
 
 /** The Key-Slot-Allocator table hard-coded PSA TS(trusted storage) id value
 */
@@ -42,7 +46,6 @@ typedef enum {
 
 //KSA table version number
 #define KSA_TABLE_VERSION  0x01
-//KSA location mask
 
 
 /* TBD: few point to remember for future implementation
@@ -52,10 +55,6 @@ typedef enum {
 * 3  KSA_MAX_TABLE_ENTRIES should be derived from KCM
 */
 
-#if KSA_INVALID_SLOT_NUMBER != 0
-#error KSA_INVALID_SLOT_NUMBER must be defined as ZERO, e.g.: #define KSA_INVALID_SLOT_NUMBER (0)
-#endif
-
 #if KSA_INITIAL_TABLE_ENTRIES == 0
 #error KSA_INITIAL_TABLE_ENTRIES must be at least 1 or greater, e.g: #define KSA_INITIAL_TABLE_ENTRIES (5)
 #endif
@@ -64,9 +63,6 @@ typedef enum {
 */
 #define KSA_BUFFER_FILE_NAME ( "ksa-buffer" ) 
 
-/* size of item_name hash in bytes
-*/
-#define KSA_ITEM_NAME_HASH_SIZE_IN_BYTES  32
 
 /** Item entry self describing object
 Examples of item entries:
@@ -90,11 +86,11 @@ Examples of item entries:
 * A single ksa table entry
 */
 typedef struct _ksa_item_entry {
-    uint8_t   item_name_hash[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES];   // the hash of item name to map against the psa id
-    uint16_t  active_item_id;    // Active item ID - the actual item's ID that should be used for psa operations. Can be 0, if the item is factory and was deleted from storage. 
-    uint16_t  factory_item_id;   // Factory item ID - the factory item' ID, can be different from active ID. 0 - if the item is non factory item. 
-    uint16_t  renewal_item_id;   // Renewal item ID  - updated during renewal certificate process by ID of device generated items
-    uint8_t   item_extra_info;  // Item info - 2 LSB indicate item location:
+    uint8_t  item_name[KSA_ITEM_NAME_SIZE];   // the complete ksa name (hash of item name to map against the psa id + metadata)
+    uint16_t active_item_id;    // Active item ID - the actual item's ID that should be used for psa operations. Can be 0, if the item is factory and was deleted from storage. 
+    uint16_t factory_item_id;   // Factory item ID - the factory item' ID, can be different from active ID. 0 - if the item is non factory item. 
+    uint16_t renewal_item_id;   // Renewal item ID  - updated during renewal certificate process by ID of device generated items
+    uint8_t  item_extra_info;  // Item info - 2 LSB indicate item location:
                                 /* 00 - non psa
                                    01- psa
                                    02 - secure element
@@ -110,10 +106,10 @@ typedef struct _ksa_item_entry {
 * contains metadata for ksa_buffer and managed by ksa module
 */
 typedef struct ksa_descriptor {
-    uint16_t ksa_table_uid;          // KSA table uid in PSA TS
-    ksa_item_entry_s* ksa_start_entry;        //start of KSA table
+    uint16_t ksa_table_uid;                     // KSA table uid in PSA TS
+    ksa_item_entry_s *ksa_start_entry;          // start of KSA table
     ksa_item_entry_s *ksa_last_occupied_entry;  // pointer to last slot that contains at least single valid psa_id (active, factory or renewal)
-    uint32_t ksa_num_of_table_entries;     // ksa buffer size 
+    uint32_t ksa_num_of_table_entries;          // KSA buffer size 
 } ksa_descriptor_s;
 
 //descriptor for KSA tables 
@@ -125,35 +121,29 @@ static ksa_descriptor_s  g_ksa_desc[KSA_LAST_ITEM] = { {0} };
 */
 static bool g_ksa_initialized = false;
 
-
-/*
-* calculate sha256 of item name
+/**
+* Reset entry by setting the relevant fields to their default values (non zero values)
 */
-static kcm_status_e calculate_item_name_hash(const uint8_t *item_name, size_t item_name_size, uint8_t* item_name_hash)
+static void reset_table_entry(ksa_item_entry_s *entry)
 {
-    palStatus_t pal_status;
+    memset(entry, 0, sizeof(*entry));
 
-    //calculate sha256 of item_name
-    pal_status = pal_sha256(item_name, item_name_size, item_name_hash);
-    if (pal_status != PAL_SUCCESS) {
-        return KCM_STATUS_ERROR;
-    }
-    return KCM_STATUS_SUCCESS;
+    entry->active_item_id = PSA_INVALID_SLOT_ID;
+    entry->factory_item_id = PSA_INVALID_SLOT_ID;
+    entry->renewal_item_id = PSA_INVALID_SLOT_ID;
 }
 
-
-static kcm_status_e get_ksa_item_entry(const uint8_t* item_name_hash, ksa_item_type_e item_type, ksa_item_entry_s **ksa_item_entry_out, bool *is_new_entry, bool perform_realloc)
+static kcm_status_e get_ksa_item_entry(const uint8_t* item_name, ksa_item_type_e item_type, ksa_item_entry_s **ksa_item_entry_out, bool *is_new_entry)
 {
     uint32_t current_table_index = (uint32_t)item_type;
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    uint32_t num_of_entries = g_ksa_desc[current_table_index].ksa_num_of_table_entries;
     ksa_item_entry_s* ksa_entry = (ksa_item_entry_s*)(g_ksa_desc[current_table_index].ksa_start_entry);
-    uint8_t zero_buffer[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES] = { 0 };
+    uint8_t zero_buffer[KSA_ITEM_NAME_SIZE] = { 0 };
     *is_new_entry = true;
 
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
     //Check if current item was already saved as factory and its active version was deleted ==> use the existing entry.
-    for (uint32_t ksa_entry_index = 0; ksa_entry_index < num_of_entries; ksa_entry_index++, ksa_entry++) {
+    for (uint32_t ksa_entry_index = 0; ksa_entry_index < g_ksa_desc[current_table_index].ksa_num_of_table_entries; ksa_entry_index++, ksa_entry++) {
 
         /*first, check for empty slot. KSA table design guarantees that there are no occupied slots after an empty one
         -------------------------------------------------
@@ -161,13 +151,13 @@ static kcm_status_e get_ksa_item_entry(const uint8_t* item_name_hash, ksa_item_t
         --------------------------------------------------
         | 0000          |    0   |       0    |    0     |
         ------------------------------------------------- */
-        if (memcmp(ksa_entry->item_name_hash, zero_buffer, KSA_ITEM_NAME_HASH_SIZE_IN_BYTES) == 0) {
+        if (memcmp(ksa_entry->item_name, zero_buffer, KSA_ITEM_NAME_SIZE) == 0) {
             *ksa_item_entry_out = ksa_entry;
             return KCM_STATUS_SUCCESS;
         }
 
-        //Check if the same item_name_hash already exists in the table in ase we search an entry for specific item name and not just an empty entry
-        if (memcmp(ksa_entry->item_name_hash, item_name_hash, KSA_ITEM_NAME_HASH_SIZE_IN_BYTES) == 0) {
+        //Check if the same item_name already exists in the table in ase we search an entry for specific item name and not just an empty entry
+        if (memcmp(ksa_entry->item_name, item_name, KSA_ITEM_NAME_SIZE) == 0) {
 
             /* if active item is present, item already exist in KSA table.
             ---------------------------------------------
@@ -175,7 +165,7 @@ static kcm_status_e get_ksa_item_entry(const uint8_t* item_name_hash, ksa_item_t
             ---------------------------------------------
             | 123           |    2   |       0    |    0     |
             --------------------------------------------- */
-            if (ksa_entry->active_item_id != KSA_INVALID_SLOT_NUMBER) {
+            if (ksa_entry->active_item_id != PSA_INVALID_SLOT_ID) {
                 *ksa_item_entry_out = ksa_entry; // item already exists! Nothing to do
                 *is_new_entry = false;
                 return KCM_STATUS_FILE_EXIST;
@@ -188,7 +178,7 @@ static kcm_status_e get_ksa_item_entry(const uint8_t* item_name_hash, ksa_item_t
             ---------------------------------------------
             | 123           |    0   |       3    |    0     |
             --------------------------------------------- */
-            if ((ksa_entry->active_item_id == KSA_INVALID_SLOT_NUMBER) && (ksa_entry->factory_item_id != KSA_INVALID_SLOT_NUMBER)) {
+            if ((ksa_entry->active_item_id == PSA_INVALID_SLOT_ID) && (ksa_entry->factory_item_id != PSA_INVALID_SLOT_ID)) {
                 *ksa_item_entry_out = ksa_entry;
                 *is_new_entry = false; // no new entry used (using the same entry where factory id resides)
                 return KCM_STATUS_SUCCESS;
@@ -196,54 +186,80 @@ static kcm_status_e get_ksa_item_entry(const uint8_t* item_name_hash, ksa_item_t
         }
     }
 
-    if (perform_realloc == true) {
-        SA_PV_LOG_INFO("The existing KSA table is too small, reallocating bigger table");
-
-        uint32_t new_ksa_table_size = num_of_entries * 2;
-        g_ksa_desc[current_table_index].ksa_start_entry = realloc(g_ksa_desc[current_table_index].ksa_start_entry, (sizeof(ksa_item_entry_s) * new_ksa_table_size));
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((g_ksa_desc[current_table_index].ksa_start_entry == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed to reallocate ksa_buffer");
-
-        // set the new allocated buffer to zero
-        memset((void*)(g_ksa_desc[current_table_index].ksa_start_entry + num_of_entries), 0x0, sizeof(ksa_item_entry_s) *num_of_entries);
-
-        //set the ksa_last_occupied_entry pointer to the last slot of the old table
-        g_ksa_desc[current_table_index].ksa_last_occupied_entry = (ksa_item_entry_s*)(g_ksa_desc[current_table_index].ksa_start_entry + num_of_entries - 1);
-
-        //the next empty slot is the first one of the additional slots in the new table
-        *ksa_item_entry_out = (ksa_item_entry_s*)(g_ksa_desc[current_table_index].ksa_start_entry + num_of_entries);
-
-        //update the size of the new table
-        g_ksa_desc[current_table_index].ksa_num_of_table_entries = new_ksa_table_size;
-    }
-
+    /* We get here if item_name is not found in the table and there are no more entries to search */
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return KCM_STATUS_SUCCESS;
 }
 
 
-/* Returns KCM_STATUS_FILE_EXIST if ACTIVE entry is available for a given item_name and returns a pointer to the entry
+/* Returns KCM_STATUS_FILE_EXIST if ACTIVE id is available for a given item_name and returns a pointer to the entry
  *
  */
-static kcm_status_e get_ksa_existing_entry(const uint8_t *item_name, size_t item_name_size, ksa_item_type_e item_type, ksa_item_entry_s **table_entry)
+static kcm_status_e get_active_entry_of_existing_item(const uint8_t *item_name, ksa_item_type_e item_type, ksa_item_entry_s **table_entry)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    char item_name_hash[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES];
     bool is_new_entry = false;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((table_entry == NULL), KCM_STATUS_INVALID_PARAMETER, "table_entry is NULL");
-    SA_PV_LOG_TRACE_FUNC_ENTER("item_name = %s len = %" PRIu32 " item_type = %" PRIu32"", (char*)item_name, (uint32_t)item_name_size, (uint32_t)item_type);
 
-    //calculate item name hash
-    kcm_status = calculate_item_name_hash(item_name, item_name_size, (uint8_t*)item_name_hash);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to calulate item name hash (%d)", kcm_status);
+    SA_PV_LOG_BYTE_BUFF_TRACE("item_name: ", item_name, KSA_ITEM_NAME_SIZE);
 
-    //Get an entry of the existing item
-    kcm_status = get_ksa_item_entry((const uint8_t*)item_name_hash, item_type, table_entry, &is_new_entry, false);
+    //Get active entry of existing item
+    kcm_status = get_ksa_item_entry((const uint8_t*)item_name, item_type, table_entry, &is_new_entry);
     SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_FILE_EXIST), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, "Failed to get_ksa_item_entry");
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return KCM_STATUS_SUCCESS;
+}
+
+
+/* Returns KCM_STATUS_FILE_EXIST if active entry is already occupied for a given item_name and returns a pointer to the entry
+ * Reallocates bigger table in case all entries are used.
+ */
+static kcm_status_e get_active_entry_for_new_item(const uint8_t *item_name, ksa_item_type_e item_type, bool *is_new_entry, ksa_item_entry_s **table_entry)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    uint32_t num_of_entries = g_ksa_desc[item_type].ksa_num_of_table_entries;
+    uint32_t new_ksa_table_size = num_of_entries * 2;
+    ksa_item_entry_s* temp_start_entry = NULL;
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((table_entry == NULL), KCM_STATUS_INVALID_PARAMETER, "table_entry is NULL");
+
+    SA_PV_LOG_BYTE_BUFF_TRACE("item_name: ", item_name, KSA_ITEM_NAME_SIZE);
+
+    //Get entry for new item
+    kcm_status = get_ksa_item_entry((const uint8_t*)item_name, item_type, table_entry, is_new_entry);
+
+    if ((kcm_status == KCM_STATUS_SUCCESS) && (*table_entry == NULL)) {  //no active entry for new item was found in the existing table, allocate larger table
+
+        ksa_item_entry_s *appended_entries_start = NULL;
+
+        SA_PV_LOG_INFO("The existing KSA table is too small, reallocating bigger table");
+
+        temp_start_entry = realloc(g_ksa_desc[item_type].ksa_start_entry, (sizeof(ksa_item_entry_s) * new_ksa_table_size));
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((temp_start_entry == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed to reallocate ksa_buffer");
+
+        g_ksa_desc[item_type].ksa_start_entry = temp_start_entry;
+        appended_entries_start = g_ksa_desc[item_type].ksa_start_entry + num_of_entries;
+
+        // set the invalid value slot ID for each relevant field
+        for (uint32_t entry_idx = 0; entry_idx < num_of_entries; entry_idx++) {
+            reset_table_entry(&appended_entries_start[entry_idx]);
+        }
+
+        //set the ksa_last_occupied_entry pointer to the last slot of the old table
+        g_ksa_desc[item_type].ksa_last_occupied_entry = (ksa_item_entry_s*)(g_ksa_desc[item_type].ksa_start_entry + num_of_entries - 1);
+
+        //the next empty slot is the first one of the additional slots in the new table
+        *table_entry = appended_entries_start;
+
+        //update the size of the new table
+        g_ksa_desc[item_type].ksa_num_of_table_entries = new_ksa_table_size;
+    }
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    return kcm_status;
 }
 
 
@@ -259,12 +275,12 @@ static kcm_status_e get_ksa_existing_entry(const uint8_t *item_name, size_t item
 static kcm_status_e store_table(ksa_descriptor_s *table_descriptor)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Save the new table
-    kcm_status = psa_drv_ps_set_data_direct(table_descriptor->ksa_table_uid,
-        (const void*)table_descriptor->ksa_start_entry,
-                                            (size_t)(table_descriptor->ksa_num_of_table_entries * sizeof(ksa_item_entry_s)), PSA_PS_CONFIDENTIALITY_FLAG);
+    kcm_status = psa_drv_ps_set_data_direct(table_descriptor->ksa_table_uid, (const void*)table_descriptor->ksa_start_entry,
+        (size_t)(table_descriptor->ksa_num_of_table_entries * sizeof(ksa_item_entry_s)), PSA_PS_CONFIDENTIALITY_FLAG);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to set a new table");
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
@@ -274,7 +290,6 @@ static kcm_status_e store_table(ksa_descriptor_s *table_descriptor)
 
 static void destroy_ksa_tables()
 {
-
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     for (int table_index = KSA_KEY_ITEM; table_index < KSA_LAST_ITEM; table_index++) {
@@ -285,7 +300,7 @@ static void destroy_ksa_tables()
             g_ksa_desc[table_index].ksa_start_entry = NULL;
         }
 
-        /*invalidate  ksa descriptor of the table*/
+        /*invalidate ksa descriptor of the table*/
         memset(&g_ksa_desc[table_index], 0x0, sizeof(ksa_descriptor_s));
     }
 
@@ -295,11 +310,11 @@ static void destroy_ksa_tables()
 
 static kcm_status_e set_entry_id(ksa_item_entry_s *item_entry, ksa_id_type_e item_id_type, uint16_t id_value)
 {
-
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_entry == NULL), KCM_STATUS_INVALID_PARAMETER, "table_entry is NULL");
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_entry == NULL), KCM_STATUS_INVALID_PARAMETER, "table_entry is NULL");
 
     //Set the value to id field
     switch (item_id_type) {
@@ -325,12 +340,12 @@ static kcm_status_e set_entry_id(ksa_item_entry_s *item_entry, ksa_id_type_e ite
 }
 
 
-static void  ksa_copy_entry(const uint8_t* item_name_hash, const ksa_item_entry_s *source_entry, ksa_item_entry_s *destination_entry)
+static void  ksa_copy_entry(const uint8_t* item_name, const ksa_item_entry_s *source_entry, ksa_item_entry_s *destination_entry)
 {
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Set the destination item name field
-    memcpy(destination_entry->item_name_hash, item_name_hash, KSA_ITEM_NAME_HASH_SIZE_IN_BYTES);
+    memcpy(destination_entry->item_name, item_name, KSA_ITEM_NAME_SIZE);
 
     //Copy the rest of the information
     destination_entry->active_item_id = source_entry->active_item_id;
@@ -338,9 +353,7 @@ static void  ksa_copy_entry(const uint8_t* item_name_hash, const ksa_item_entry_
     destination_entry->renewal_item_id = source_entry->renewal_item_id;
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-
 }
-
 
 /*
 * copies last occupied entry in KSA table to freed entry in order to avoid
@@ -349,14 +362,12 @@ static void  ksa_copy_entry(const uint8_t* item_name_hash, const ksa_item_entry_
 //TBD: for power failure protection, might need to check the whole table
 static void squeeze_item_entries(ksa_item_entry_s *item_entry, ksa_item_type_e ksa_item_type)
 {
-
     ksa_item_entry_s* last_occupied_entry = g_ksa_desc[ksa_item_type].ksa_last_occupied_entry;
 
     //copy ksa_item_entry_s parameters of ksa_last_occupied_entry to the destroyed entry.
     if (item_entry != last_occupied_entry) {
         memcpy(item_entry, last_occupied_entry, sizeof(ksa_item_entry_s));
-        memset(last_occupied_entry, 0, sizeof(ksa_item_entry_s));
-
+        reset_table_entry(last_occupied_entry);
     }
 
     /*update ksa_last_occupied_entry*/
@@ -379,12 +390,12 @@ static ksa_item_entry_s* find_last_occuppied_slot(ksa_item_entry_s *table_start_
 {
     ksa_item_entry_s* last_occupied_slot;
     ksa_item_entry_s* current_table_entry = table_start_entry;
-    uint8_t zero_buffer[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES] = { 0 };
+    uint8_t zero_buffer[KSA_ITEM_NAME_SIZE] = { 0 };
 
     last_occupied_slot = NULL;
     //TBD: consider go over the entire table to check if there are any fragmentations. Needed for power failure protection 
     for (uint32_t ksa_entry_index = 0; ksa_entry_index < num_of_entries; ksa_entry_index++, current_table_entry++) {
-        if (memcmp(current_table_entry->item_name_hash, zero_buffer, KSA_ITEM_NAME_HASH_SIZE_IN_BYTES) != 0) {
+        if (memcmp(current_table_entry->item_name, zero_buffer, KSA_ITEM_NAME_SIZE) != 0) {
             last_occupied_slot = current_table_entry;
         }
     }
@@ -392,16 +403,36 @@ static ksa_item_entry_s* find_last_occuppied_slot(ksa_item_entry_s *table_start_
 }
 
 
-static kcm_status_e store_item_to_entry(ksa_item_entry_s *item_entry, ksa_item_type_e ksa_item_type, bool is_new_entry, const uint8_t *item_name_hash, const uint16_t  psa_item_id, bool is_factory, ksa_type_location_e item_location)
+static kcm_status_e destroy_all_ce_keys()
+{
+    ksa_item_entry_s *table_entry = (ksa_item_entry_s*)g_ksa_desc[KSA_KEY_ITEM].ksa_start_entry;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    while (table_entry <= g_ksa_desc[KSA_KEY_ITEM].ksa_last_occupied_entry) {
+        if (table_entry->renewal_item_id != 0) {
+            // Destroy the CE key. 
+            psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, KSA_KEY_ITEM, (ksa_type_location_e)(table_entry->item_extra_info & KSA_LOCATION_MASK));
+            //Call delete function
+            kcm_status = delete_data(table_entry->renewal_item_id);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_INVALID_PARAMETER), kcm_status, "Failed to destroy key id");
+            //zero the entry
+            set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+        }
+        table_entry++;
+    }
+    return KCM_STATUS_SUCCESS;
+}
+
+static kcm_status_e store_item_to_entry(ksa_item_entry_s *item_entry, ksa_item_type_e ksa_item_type, bool is_new_entry, const uint8_t *item_name, const uint16_t  psa_item_id, bool is_factory, ksa_type_location_e item_location)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     //1. store item-name hash in the slot
-    memcpy(item_entry->item_name_hash, item_name_hash, KSA_ITEM_NAME_HASH_SIZE_IN_BYTES);
+    memcpy(item_entry->item_name, item_name, KSA_ITEM_NAME_SIZE);
 
     if (is_factory == true) {
         //If factory id of this entry is valid : this factory item is should be destroyed and its id should be overwritten in the table
-        if (item_entry->factory_item_id != KSA_INVALID_SLOT_NUMBER) {
+        if (item_entry->factory_item_id != PSA_INVALID_SLOT_ID) {
 
             /* Example for current case:
             The item_1 was deleted from active item, but still saved in the table as factory item associated with PSA ID 3
@@ -419,12 +450,16 @@ static kcm_status_e store_item_to_entry(ksa_item_entry_s *item_entry, ksa_item_t
             // 2. Destroy the old factory item id
             // Use dispatcher to determinate "delete" function
             psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, ksa_item_type, item_location);
-            //Call delete function
-            kcm_status = delete_data(item_entry->factory_item_id);
 
-            //In case of error - we don't need to wipe out any data, in this case the same name was already present in the entry
-            // and the rest of the data like factory_id and active_id still wasn't updated
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying PSA item ");
+            // TBD: Currently, there is no meaning for deleting items from Atmel's Secure Element, however, this may change for other secure elements.
+            if (delete_data != NULL) {
+                //Call delete function
+                kcm_status = delete_data(item_entry->factory_item_id);
+
+                //In case of error - we don't need to wipe out any data, in this case the same name was already present in the entry
+                // and the rest of the data like factory_id and active_id still wasn't updated
+                SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying PSA item ");
+            }
         }
         //3. Update factory id to new value
         item_entry->factory_item_id = psa_item_id;
@@ -441,19 +476,17 @@ static kcm_status_e store_item_to_entry(ksa_item_entry_s *item_entry, ksa_item_t
     return KCM_STATUS_SUCCESS;
 }
 
-
-static kcm_status_e remove_item_from_entry(ksa_item_entry_s *ksa_item_entry, ksa_item_type_e ksa_type)
+static kcm_status_e deactivate_entry(ksa_item_entry_s *ksa_item_entry, ksa_item_type_e ksa_type)
 {
     //invalidate active_item_id entry
-    ksa_item_entry->active_item_id = KSA_INVALID_SLOT_NUMBER;
+    ksa_item_entry->active_item_id = PSA_INVALID_SLOT_ID;
 
-    if (ksa_item_entry->factory_item_id == KSA_INVALID_SLOT_NUMBER) {
+    if (ksa_item_entry->factory_item_id == PSA_INVALID_SLOT_ID) {
         //remove the whole entry if this is non-factory item
         squeeze_item_entries(ksa_item_entry, ksa_type);
     }
     return KCM_STATUS_SUCCESS;
 }
-
 
 static kcm_status_e init_ksa_tables()
 {
@@ -497,8 +530,12 @@ static kcm_status_e init_ksa_tables()
 
                 //Allocate memory of initial size for the start pointer of the table
                 g_ksa_desc[table_index].ksa_start_entry = malloc(sizeof(ksa_item_entry_s) * KSA_INITIAL_TABLE_ENTRIES);
-                //init the allocated memory
-                memset(g_ksa_desc[table_index].ksa_start_entry, 0x0, sizeof(ksa_item_entry_s) * KSA_INITIAL_TABLE_ENTRIES);
+                SA_PV_ERR_RECOVERABLE_GOTO_IF((g_ksa_desc[table_index].ksa_start_entry == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit, "Failed allocating table entries");
+
+                // set the invalid value slot ID for each relevant field
+                for (int entry_idx = 0; entry_idx < KSA_INITIAL_TABLE_ENTRIES; entry_idx++) {
+                    reset_table_entry(&g_ksa_desc[table_index].ksa_start_entry[entry_idx]);
+                }
 
                 //Set the table
                 kcm_status = psa_drv_ps_set_data_direct(g_ksa_desc[table_index].ksa_table_uid, g_ksa_desc[table_index].ksa_start_entry, sizeof(ksa_item_entry_s) * KSA_INITIAL_TABLE_ENTRIES, PSA_PS_CONFIDENTIALITY_FLAG);
@@ -515,6 +552,7 @@ static kcm_status_e init_ksa_tables()
 
                 //Allocate a memory to read the table according to it's size in the storage
                 g_ksa_desc[table_index].ksa_start_entry = malloc(data_size);
+                SA_PV_ERR_RECOVERABLE_GOTO_IF((g_ksa_desc[table_index].ksa_start_entry == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit, "Failed allocating table entries");
 
                 //get the table data
                 kcm_status = psa_drv_ps_get_data(g_ksa_desc[table_index].ksa_table_uid, g_ksa_desc[table_index].ksa_start_entry, data_size, &actual_data_size);
@@ -525,6 +563,12 @@ static kcm_status_e init_ksa_tables()
 
                 //update pointer to last occupied entry
                 g_ksa_desc[table_index].ksa_last_occupied_entry = find_last_occuppied_slot(g_ksa_desc[table_index].ksa_start_entry, g_ksa_desc[table_index].ksa_num_of_table_entries);
+
+
+                //destroy remaining keys in ce slots if exist
+                if (table_index == KSA_KEY_ITEM) {
+                    destroy_all_ce_keys();
+                }
             }
         } else {//Table is loaded - nothing to do
             SA_PV_LOG_TRACE("KSA table at id 0x%x is already loaded", g_ksa_desc[table_index].ksa_table_uid);
@@ -582,7 +626,7 @@ static kcm_status_e set_psa_driver_flags(uint32_t item_type, uint32_t storage_fl
 }
 
 
-/*==============================================main flow KSA implementation =========================================*/
+/*============================================== main flow KSA implementation =========================================*/
 
 kcm_status_e ksa_init(void)
 {
@@ -597,7 +641,7 @@ kcm_status_e ksa_init(void)
 
     // Init PSA crypto
     kcm_status = psa_drv_crypto_init();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, "Failed initializing PSA Crypto driver (%" PRIu32 ")", (uint32_t)kcm_status);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed initializing PSA Crypto driver (%" PRIu32 ")", (uint32_t)kcm_status);
 
     //Init ksa version file
     version_value = KSA_TABLE_VERSION;
@@ -633,7 +677,7 @@ kcm_status_e ksa_fini(void)
     // clear and release KSA volatile tables
     destroy_ksa_tables();
 
-    // Call crypto driver finilize - now it is safe to release PSA crypto which releases all volatile item slots
+    // Call crypto driver finailize - now it is safe to release PSA crypto which releases all volatile key slots
     psa_drv_crypto_fini();
 
     // mark as uninitialized
@@ -646,7 +690,6 @@ kcm_status_e ksa_fini(void)
 
 
 kcm_status_e ksa_item_store(const uint8_t *item_name,
-                            size_t item_name_length,
                             uint32_t storage_flags,
                             uint32_t item_type,
                             const uint8_t *item_data,
@@ -655,11 +698,10 @@ kcm_status_e ksa_item_store(const uint8_t *item_name,
                             bool kcm_item_is_factory)
 {
     kcm_status_e kcm_status;
-    uint16_t psa_item_id = 0;
-    ksa_item_entry_s *empty_ksa_item_entry = NULL;
+    uint16_t psa_item_id = PSA_INVALID_SLOT_ID;
+    ksa_item_entry_s *ksa_item_entry = NULL;
     bool need_to_generate = false;
     bool is_new_entry = true;
-    char item_name_hash[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES];
     uint32_t ps_flags = 0;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
 
@@ -667,7 +709,6 @@ kcm_status_e ksa_item_store(const uint8_t *item_name,
     need_to_generate = (item_data == NULL) && (item_type == (kcm_item_type_e)KCM_PRIVATE_KEY_ITEM);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No item name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_length == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy item name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((ksa_item_type != KSA_CONFIG_ITEM && ksa_item_type != KSA_RBP_ITEM && need_to_generate == false) && (item_data == NULL)),
                                     KCM_STATUS_INVALID_PARAMETER, "Wrong item pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((ksa_item_type != KSA_CONFIG_ITEM  && ksa_item_type != KSA_RBP_ITEM && need_to_generate == false) && (item_data_size == 0)),
@@ -683,12 +724,8 @@ kcm_status_e ksa_item_store(const uint8_t *item_name,
     kcm_status = set_psa_driver_flags(item_type, storage_flags, &ps_flags);
     SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to set ps flags");
 
-    //calculate item name hash
-    kcm_status = calculate_item_name_hash(item_name, item_name_length, (uint8_t*)item_name_hash);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to calulate item name hash (%d)", kcm_status);
-
     //Get an entry of the existing item
-    kcm_status = get_ksa_item_entry((const uint8_t*)item_name_hash, ksa_item_type, &empty_ksa_item_entry, &is_new_entry, true);
+    kcm_status = get_active_entry_for_new_item((const uint8_t*)item_name, ksa_item_type, &is_new_entry, &ksa_item_entry);
     SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_FILE_EXIST && ksa_item_type != KSA_RBP_ITEM), kcm_status, "Item already exist in KSA store");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS) && ksa_item_type != KSA_RBP_ITEM, kcm_status, "Failed getting KSA free slot (%d)", kcm_status);
 
@@ -696,7 +733,7 @@ kcm_status_e ksa_item_store(const uint8_t *item_name,
     if ((ksa_item_type == KSA_RBP_ITEM) && (kcm_status == KCM_STATUS_FILE_EXIST)) {
 
         //store the item directy to PSA PS
-        kcm_status = psa_drv_ps_set_data_direct(empty_ksa_item_entry->active_item_id, item_data, item_data_size, ps_flags);
+        kcm_status = psa_drv_ps_set_data_direct(ksa_item_entry->active_item_id, item_data, item_data_size, ps_flags);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store RBP item");
         //nothing to do anymore, return
         goto exit;
@@ -710,7 +747,7 @@ kcm_status_e ksa_item_store(const uint8_t *item_name,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store the item");
 
     // occupy entry in the the table (although it might be a factory item as well) 
-    kcm_status = store_item_to_entry(empty_ksa_item_entry, ksa_item_type, is_new_entry, (uint8_t*)item_name_hash, psa_item_id, kcm_item_is_factory, ksa_item_location);
+    kcm_status = store_item_to_entry(ksa_item_entry, ksa_item_type, is_new_entry, (uint8_t*)item_name, psa_item_id, kcm_item_is_factory, ksa_item_location);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update the table entry");
 
     //store the table of the item
@@ -723,22 +760,17 @@ exit:
     return kcm_status;
 }
 
-
 kcm_status_e ksa_item_get_data_size(const uint8_t *item_name,
-                                    size_t item_name_length,
                                     uint32_t item_type,
                                     size_t *item_data_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_entry_s *table_item_entry = NULL;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
-    // char item_name_hash[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES];
-    // bool is_new_entry = false;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_length == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name_length");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_data_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_data_size_out pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_type == KCM_PRIVATE_KEY_ITEM || ksa_item_type == KSA_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Invalid item type");
 
@@ -747,7 +779,7 @@ kcm_status_e ksa_item_get_data_size(const uint8_t *item_name,
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KSA initialization failed (%d)", kcm_status);
     }
 
-    kcm_status = get_ksa_existing_entry(item_name, item_name_length, ksa_item_type, &table_item_entry);
+    kcm_status = get_active_entry_of_existing_item(item_name, ksa_item_type, &table_item_entry);
     SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_ITEM_NOT_FOUND), kcm_status = kcm_status, "Failed to get item entry");
 
     //Use dispatcher to determinate read data function
@@ -761,9 +793,7 @@ kcm_status_e ksa_item_get_data_size(const uint8_t *item_name,
     return kcm_status;
 }
 
-
 kcm_status_e ksa_item_get_data(const uint8_t *item_name,
-                               size_t item_name_length,
                                uint32_t item_type,
                                uint8_t *item_data_out,
                                size_t item_data_max_size,
@@ -772,13 +802,10 @@ kcm_status_e ksa_item_get_data(const uint8_t *item_name,
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_entry_s *table_item_entry = NULL;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
-    // char item_name_hash[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES];
-     //bool is_new_entry = false;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_length == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name_length");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ksa_item_type != KSA_CONFIG_ITEM && item_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_data_out pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ksa_item_type != KSA_CONFIG_ITEM && item_data_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid item_data_max_size");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_data_act_size_out pointer");
@@ -789,7 +816,7 @@ kcm_status_e ksa_item_get_data(const uint8_t *item_name,
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KSA initialization failed (%d)", kcm_status);
     }
 
-    kcm_status = get_ksa_existing_entry(item_name, item_name_length, ksa_item_type, &table_item_entry);
+    kcm_status = get_active_entry_of_existing_item(item_name, ksa_item_type, &table_item_entry);
     SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_ITEM_NOT_FOUND), kcm_status = kcm_status, "Failed to get item entry");
 
     //Use dispatcher to determinate read data function
@@ -805,7 +832,6 @@ kcm_status_e ksa_item_get_data(const uint8_t *item_name,
 
 
 kcm_status_e ksa_item_delete(const uint8_t *item_name,
-                             size_t item_name_length,
                              uint32_t item_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -815,16 +841,22 @@ kcm_status_e ksa_item_delete(const uint8_t *item_name,
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_length == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name_length");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ksa_item_type >= KSA_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Wrong item type");
+
+
 
     if (!g_ksa_initialized) {
         kcm_status = ksa_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KSA initialization failed (%d)", kcm_status);
     }
 
-    kcm_status = get_ksa_existing_entry(item_name, item_name_length, ksa_item_type, &ksa_item_entry);
+    kcm_status = get_active_entry_of_existing_item(item_name, ksa_item_type, &ksa_item_entry);
     SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_ITEM_NOT_FOUND), kcm_status = kcm_status, "Failed to get item entry");
+
+    // Use dispatcher to determinate "delete" function
+    psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, ksa_item_type,
+        (ksa_type_location_e)(ksa_item_entry->item_extra_info & KSA_LOCATION_MASK));
+
 
     /*We proceed only if active items are valid!*/
 
@@ -840,16 +872,20 @@ kcm_status_e ksa_item_delete(const uint8_t *item_name,
         | 425           |   5    |     7      |   0      |           | 425          |   0    |     7      |   0      |
         -------------------------------------------------           --------------------------------------------------*/
         //Destroy the item
-        // Use dispatcher to determinate "delete" function
-        psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, ksa_item_type,
-            (ksa_type_location_e)(ksa_item_entry->item_extra_info & KSA_LOCATION_MASK));
+
         //Call delete function
         kcm_status = delete_data(ksa_item_entry->active_item_id);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying PSA item ");
     }
 
+    //delete CE item if exits, as not relevant anymore
+    if (ksa_item_entry->renewal_item_id != PSA_INVALID_SLOT_ID) {
+        kcm_status = delete_data(ksa_item_entry->renewal_item_id);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying CE item ");
+    }
+
     //remove item from  ksa entry
-    kcm_status = remove_item_from_entry(ksa_item_entry, ksa_item_type);
+    kcm_status = deactivate_entry(ksa_item_entry, ksa_item_type);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed removing PSA item from entry");
 
     //Store updated volatile table
@@ -907,20 +943,20 @@ kcm_status_e ksa_reset(void)
         //Check all the entries and destroy all slots
         for (int entry_index = 0; table_entry <= last_occupied_entry; entry_index++, table_entry++) {
 
-            if (table_entry->active_item_id != KSA_INVALID_SLOT_NUMBER && table_entry->active_item_id == table_entry->factory_item_id) { //Active and factory with the same value
+            if (table_entry->active_item_id != PSA_INVALID_SLOT_ID && table_entry->active_item_id == table_entry->factory_item_id) { //Active and factory with the same value
                 delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, table_index, (ksa_type_location_e)(table_entry->item_extra_info & (uint8_t)KSA_LOCATION_MASK));
                 //Call delete function
                 kcm_status = delete_data(table_entry->active_item_id);
                 SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying active and factory id ");
 
             } else {//Active and factory with different values
-                if (table_entry->active_item_id != KSA_INVALID_SLOT_NUMBER) {//Delete active
+                if (table_entry->active_item_id != PSA_INVALID_SLOT_ID) {//Delete active
                     delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, table_index, (ksa_type_location_e)(table_entry->item_extra_info & (uint8_t)KSA_LOCATION_MASK));
                     //Call delete function
                     kcm_status = delete_data(table_entry->active_item_id);
                     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying active id ");
                 }
-                if (table_entry->factory_item_id != KSA_INVALID_SLOT_NUMBER) {//Delete factory
+                if (table_entry->factory_item_id != PSA_INVALID_SLOT_ID) {//Delete factory
                     delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, table_index, (ksa_type_location_e)(table_entry->item_extra_info & (uint8_t)KSA_LOCATION_MASK));
                     //Call delete function
                     kcm_status = delete_data(table_entry->factory_item_id);
@@ -928,15 +964,15 @@ kcm_status_e ksa_reset(void)
                 }
             }
 
-            if (table_entry->renewal_item_id != KSA_INVALID_SLOT_NUMBER) {//Destroy ce id
+            if (table_entry->renewal_item_id != PSA_INVALID_SLOT_ID) {//Destroy ce id
                 delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, table_index, (ksa_type_location_e)(table_entry->item_extra_info & (uint8_t)KSA_LOCATION_MASK));
                 //Call delete function
                 kcm_status = delete_data(table_entry->renewal_item_id);
                 SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying renewal id");
             }
-            memset(table_entry, 0, sizeof(ksa_item_entry_s));//init the entry
+            reset_table_entry(table_entry);
         }
-        memset(g_ksa_desc[table_index].ksa_start_entry, 0, sizeof(ksa_item_entry_s)* g_ksa_desc[table_index].ksa_num_of_table_entries); //init the table
+        memset(g_ksa_desc[table_index].ksa_start_entry, 0, sizeof(ksa_item_entry_s) * g_ksa_desc[table_index].ksa_num_of_table_entries); //init the table
     }
 
     //Delete all reserved data
@@ -977,10 +1013,15 @@ kcm_status_e ksa_factory_reset(void)
         //pointer to the beginning of table entries
         ksa_item_entry_s *table_entry = (ksa_item_entry_s*)g_ksa_desc[table_index].ksa_start_entry;
 
+
         //check if active item is located in the table
         while (table_entry <= g_ksa_desc[table_index].ksa_last_occupied_entry) {
 
-            if ((table_entry->active_item_id != KSA_INVALID_SLOT_NUMBER) && (table_entry->active_item_id != table_entry->factory_item_id)) {
+            // Use dispatcher to determinate "delete" function
+            psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, table_index,
+                (ksa_type_location_e)(table_entry->item_extra_info & KSA_LOCATION_MASK));
+
+            if ((table_entry->active_item_id != PSA_INVALID_SLOT_ID) && (table_entry->active_item_id != table_entry->factory_item_id)) {
                 //The item is factory-> we keep the item name and the factory id in the table
                 //If active id is different then factory -> destroy the active
 
@@ -992,9 +1033,7 @@ kcm_status_e ksa_factory_reset(void)
                 | 425           |   5    |     7      |   0      |           | 425          |   0    |     7      |   0      |
                 -------------------------------------------------           --------------------------------------------------*/
                 //Destroy the item
-                // Use dispatcher to determinate "delete" function
-                psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, table_index,
-                    (ksa_type_location_e)(table_entry->item_extra_info & KSA_LOCATION_MASK));
+
                 //Call delete function
                 kcm_status = delete_data(table_entry->active_item_id);
                 SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying PSA item ");
@@ -1004,8 +1043,17 @@ kcm_status_e ksa_factory_reset(void)
             //actual factory item reset  - copy factory entry to active entry (also if they have the same value)
             table_entry->active_item_id = table_entry->factory_item_id;
 
+            //delete CE item if exits, as not relevant anymore
+            if (table_entry->renewal_item_id != PSA_INVALID_SLOT_ID) {
+                kcm_status = delete_data(table_entry->renewal_item_id);
+                SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying CE item ");
+            
+                //zero the entry
+                set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+            }
+
             //squeeze the entry, if it became empty after factory reset - e.g both active and factory entries are 0
-            if (table_entry->factory_item_id == KSA_INVALID_SLOT_NUMBER) {
+            if (table_entry->factory_item_id == PSA_INVALID_SLOT_ID) {
                 squeeze_item_entries(table_entry, table_index);
 
                 //after squeeze, there are new values in this entry, we need to make factory reset for it in the next iteration, so
@@ -1028,28 +1076,24 @@ kcm_status_e ksa_factory_reset(void)
 
 
 kcm_status_e ksa_item_check_existence(const uint8_t *item_name,
-                                      size_t item_name_length,
                                       uint32_t item_type)
 {
     ksa_item_entry_s* table_entry;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No item name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_length == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy item name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ksa_item_type >= KSA_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Wrong item type");
 
-    return get_ksa_existing_entry(item_name, item_name_length, ksa_item_type, &table_entry);
+    return get_active_entry_of_existing_item(item_name, ksa_item_type, &table_entry);
 }
 
 
-kcm_status_e ksa_key_get_handle(const uint8_t *key_name, size_t key_name_size, psa_key_handle_t *key_handle_out)
+kcm_status_e ksa_key_get_handle(const uint8_t *key_name, psa_key_handle_t *key_handle_out)
 {
-
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    ksa_item_entry_s* table_entry;
+    ksa_item_entry_s* table_entry = NULL;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No key name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name_size == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy key name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_handle_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid key_handle_out");
 
     if (!g_ksa_initialized) {
@@ -1057,29 +1101,45 @@ kcm_status_e ksa_key_get_handle(const uint8_t *key_name, size_t key_name_size, p
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KSA initialization failed (%d)", kcm_status);
     }
 
-    kcm_status = get_ksa_existing_entry(key_name, key_name_size, KSA_KEY_ITEM, &table_entry);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "Failed to get key handle (%d)", kcm_status);
+    kcm_status = get_active_entry_of_existing_item(key_name, KSA_KEY_ITEM, &table_entry);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get key handle (%d)", kcm_status);
 
-    return psa_drv_crypto_get_handle(table_entry->active_item_id, key_handle_out);
+    ksa_type_location_e key_location = (ksa_type_location_e)(table_entry->item_extra_info & (uint8_t)KSA_LOCATION_MASK);
+    psa_drv_get_handle_f get_handle_func = (psa_drv_get_handle_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_GET_HANDLE, KSA_KEY_ITEM, key_location);
+
+    return get_handle_func(table_entry->active_item_id, key_handle_out);
 }
 
 
 kcm_status_e ksa_key_close_handle(psa_key_handle_t key_handle)
 {
-
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    /** here is the point where we distinguish the key location by referring the key handle value, if:
+    *  (1) Atmel SE: can only be zero (no other valid option)
+    *  (2) PS/PSA: any value in range but non zero.
+    */
+
+    ksa_type_location_e ksa_item_location = KSA_PSA_TYPE_LOCATION; // defaulted to PSA
+
+    if ((PSA_DRV_ATCA_BASE_ADDRESS_GET(key_handle) == PSA_DRV_ATCA_BASE_ADDRESS)) {
+        ksa_item_location = KSA_SECURE_ELEMENT_TYPE_LOCATION;
+    }
+
+    psa_drv_close_handle_f close_handle_func = (psa_drv_close_handle_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_CLOSE_HANDLE, KSA_KEY_ITEM, ksa_item_location);
+
     if (!g_ksa_initialized) {
         kcm_status = ksa_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KSA initialization failed (%d)", kcm_status);
     }
 
-    return psa_drv_crypto_close_handle(key_handle);
+    return close_handle_func(key_handle);
 }
 
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
-kcm_status_e ksa_get_item_location(const uint8_t *item_name, size_t item_name_size, uint32_t item_type, kcm_item_location_e *item_location_out)
+kcm_status_e ksa_get_item_location(const uint8_t *item_name, uint32_t item_type, kcm_item_location_e *item_location_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_entry_s *table_key_entry = NULL;
@@ -1093,7 +1153,7 @@ kcm_status_e ksa_get_item_location(const uint8_t *item_name, size_t item_name_si
     }
 
     // TBD: call the relevant PSA function to fetch the key location, meanwhile set the default.
-    kcm_status = get_ksa_existing_entry(item_name, item_name_size, ksa_item_type, &table_key_entry);
+    kcm_status = get_active_entry_of_existing_item(item_name, ksa_item_type, &table_key_entry);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during get_existing_entry (%d)", kcm_status);
     //      PSA will validate key existence in store
     *item_location_out = (kcm_item_location_e)(table_key_entry->item_extra_info & KSA_LOCATION_MASK);
@@ -1103,51 +1163,109 @@ kcm_status_e ksa_get_item_location(const uint8_t *item_name, size_t item_name_si
     return KCM_STATUS_SUCCESS;
 }
 
-#endif
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
+
+kcm_status_e ksa_load_key_to_entry_from_se(const uint8_t *key_name, const uint16_t key_id, bool is_factory)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    bool is_new_entry = NULL;
+    ksa_item_entry_s *ksa_key_entry = NULL;
+	psa_key_attributes_t private_key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+	psa_status_t psa_status = PSA_SUCCESS;
+
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No key name was given");
+
+    if (!g_ksa_initialized) {
+        kcm_status = ksa_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KSA initialization failed (%d)", kcm_status);
+    }
+
+    // Get free entry from the table
+    kcm_status = get_active_entry_for_new_item((uint8_t*)key_name, KSA_KEY_ITEM, &is_new_entry, &ksa_key_entry);
+
+    // The device private key is not being injected neither by factory flow nor by direct KCM store API hence,
+    // if the device key is already exist it is quite safe to assume it was already been loaded from secure element.
+    if (kcm_status == KCM_STATUS_FILE_EXIST) {
+        // just verify that its origin is secure element
+        kcm_item_location_e private_key_location = (kcm_item_location_e)(ksa_key_entry->item_extra_info & (uint8_t)KSA_LOCATION_MASK);
+        if (private_key_location != KCM_LOCATION_SECURE_ELEMENT) {
+            // key exist but not in secure element, that shouldn't happen
+            return KCM_STATUS_ERROR;
+        }
+        return KCM_STATUS_SUCCESS;
+    } else {
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed getting KSA free slot (%d)", kcm_status);
+    }
+
+    psa_set_key_slot_number(&private_key_attributes, PSA_DRV_ATCA_DEVICE_PRV_KEY_SLOT_ID); // TODO - the value of eache SE item should be paseed by storage_psa_atmel
+    psa_set_key_id(&private_key_attributes, PSA_DRV_ATCA_DEVICE_PRV_KEY_SLOT_ID + 0xff); //0xff - temporary key id, TODO : should be change to use our id logic.
+    psa_set_key_lifetime(&private_key_attributes, PSA_ATECC608A_LIFETIME); //0xf0 -  atecc driver lifetime - TODO : the value should be passed from storage_psa_atmel
+    psa_set_key_algorithm(&private_key_attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    psa_set_key_bits(&private_key_attributes, PSA_BYTES_TO_BITS(32));
+    psa_set_key_usage_flags(&private_key_attributes, PSA_KEY_USAGE_SIGN);
+    psa_set_key_type(&private_key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_CURVE_SECP256R1));
+    psa_status = mbedtls_psa_register_se_key(&private_key_attributes);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), kcm_status = KCM_STATUS_ERROR, "Failed to register the key, psa_status is %d",psa_status);
+
+    // occupy entry in the the table (although it might be a factory item as well) 
+    kcm_status = store_item_to_entry(ksa_key_entry, KSA_KEY_ITEM, true, (uint8_t*)key_name, PSA_DRV_ATCA_DEVICE_PRV_KEY_SLOT_ID + 0xff, is_factory, (uint8_t)(KSA_SECURE_ELEMENT_TYPE_LOCATION));
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update the table entry");
+
+    //store table
+    kcm_status = store_table(&g_ksa_desc[KSA_KEY_ITEM]);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store KSA  table to persistent memory");
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+
+    return kcm_status;
+}
+
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
+#endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
 
 /* =======================================CE implementation =========================================== */
 
 kcm_status_e ksa_generate_ce_keys(
     const uint8_t                     *private_key_name,
-    size_t                            private_key_name_len,
     const uint8_t                     *public_key_name,
-    size_t                            public_key_name_len,
     psa_key_handle_t                  *psa_priv_key_handle,
-    psa_key_handle_t                   *psa_pub_key_handle)
+    psa_key_handle_t                  *psa_pub_key_handle)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_entry_s *priv_key_entry = NULL;
     ksa_item_entry_s *pub_key_entry = NULL;
-    uint16_t prv_ksa_id = PSA_INVALID_ID_NUMBER;
-    uint16_t pub_ksa_id = PSA_INVALID_ID_NUMBER;
+
+    uint16_t prv_ksa_id; // keep with no default
+    uint16_t pub_ksa_id = PSA_INVALID_SLOT_ID;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((private_key_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_name_len");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((public_key_name != NULL && public_key_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid public_key_name_len");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_priv_key_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid private_key_handle");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((public_key_name != NULL && psa_pub_key_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid public_key_handle");
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Get the entry of the private key
-    kcm_status = get_ksa_existing_entry(private_key_name, private_key_name_len, KSA_KEY_ITEM, &priv_key_entry);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed private get_ksa_existing_entry");
+    kcm_status = get_active_entry_of_existing_item(private_key_name, KSA_KEY_ITEM, &priv_key_entry);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed private get_active_entry_of_existing_item");
     prv_ksa_id = priv_key_entry->active_item_id;
 
     if (public_key_name != NULL) {
         //Get the entry of the public key
-        kcm_status = get_ksa_existing_entry(public_key_name, public_key_name_len, KSA_KEY_ITEM, &pub_key_entry);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed public get_ksa_existing_entry");
+        kcm_status = get_active_entry_of_existing_item(public_key_name, KSA_KEY_ITEM, &pub_key_entry);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed public get_active_entry_of_existing_item");
         pub_ksa_id = pub_key_entry->active_item_id;
     }
 
     kcm_status = psa_drv_crypto_generate_keys_from_existing_ids(prv_ksa_id, pub_ksa_id, &prv_ksa_id, &pub_ksa_id, psa_priv_key_handle, psa_pub_key_handle);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to generate keys");
-    
+
     kcm_status = set_entry_id(priv_key_entry, KSA_CE_PSA_ID_TYPE, prv_ksa_id);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to set_entry_id");
 
     if (public_key_name != NULL) {
+
         kcm_status = set_entry_id(pub_key_entry, KSA_CE_PSA_ID_TYPE, pub_ksa_id);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to set_entry_id");
     }
@@ -1159,12 +1277,12 @@ exit:
         //In case of error we need to close and destroy allocated key handles
         if (psa_priv_key_handle != 0) {
             psa_destroy_key(*psa_priv_key_handle);
-            set_entry_id(priv_key_entry, KSA_CE_PSA_ID_TYPE, 0);
+            set_entry_id(priv_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
             *psa_priv_key_handle = 0;
         }
         if (psa_pub_key_handle != 0) {
             psa_destroy_key(*psa_pub_key_handle);
-            set_entry_id(pub_key_entry, KSA_CE_PSA_ID_TYPE, 0);
+            set_entry_id(pub_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
             *psa_pub_key_handle = 0;
         }
     }
@@ -1172,123 +1290,133 @@ exit:
     return kcm_status;
 }
 
-kcm_status_e  ksa_remove_entry(const uint8_t *item_name, size_t item_name_size, uint32_t item_type)
+
+kcm_status_e ksa_destroy_ce_key(const uint8_t *item_name, uint32_t item_type)
+{
+
+    ksa_item_entry_s *ksa_key_entry = NULL;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
+
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    //Get the entry of the key
+    kcm_status = get_active_entry_of_existing_item(item_name, ksa_item_type, &ksa_key_entry);
+    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
+        //We don't want print log in case the item wasn't found
+        return kcm_status;
+    }
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_active_entry_of_existing_item");
+
+    /* After ksa_destroy_key_id
+     --------------------------------------------------                -----------------------------------------------
+     | key name hash | Act ID | Factory ID | Renew ID |                | key name hash| Act ID | Factory ID | Renew ID |
+     -------------------------------------------------                -----------------------------------------------
+     | ce_key1_hash |   1    |     1      |   3       | destroy(3)==>  | ce_key1_hash|   1    |     1      |     0     |
+     -------------------------------------------------             -  -------------------------------------------------*/
+     // Destroy the CE key. 
+     // KCM_STATUS_INVALID_PARAMETER status can be received if the id is 0. This happens in testing, but shouldn't happen in real life scenario.
+     //Anyway, this should not halt the process of restoration 
+    psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, KSA_KEY_ITEM, (ksa_type_location_e)(ksa_key_entry->item_extra_info & KSA_LOCATION_MASK));
+    //Call delete function
+    kcm_status = delete_data(ksa_key_entry->renewal_item_id);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_INVALID_PARAMETER), kcm_status, "Failed to destroy key id");
+
+    //Clean the current id field
+    kcm_status = set_entry_id(ksa_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update active id");
+
+    kcm_status = store_table(&g_ksa_desc[item_type]);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store KSA table to persistent store");
+	
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    return KCM_STATUS_SUCCESS;
+
+}
+
+
+kcm_status_e  ksa_remove_entry(const uint8_t *item_name, uint32_t item_type, bool remove_active_only)
 {
     ksa_item_entry_s *table_entry = NULL;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No item name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_size == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy item name");
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Get the entry of the item
-    kcm_status = get_ksa_existing_entry(item_name, item_name_size, ksa_item_type, &table_entry);
+    kcm_status = get_active_entry_of_existing_item(item_name, ksa_item_type, &table_entry);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_ksa_existing_entry");
 
+    //if only active id should be removed, no need to clean factory id .
+    if (remove_active_only == false) {
+    	reset_table_entry(table_entry);
+    }
     //Clean the entry and squeeze the table
-    memset(table_entry, 0, sizeof(ksa_item_entry_s));
-    kcm_status = remove_item_from_entry(table_entry, ksa_item_type);
+    kcm_status = deactivate_entry(table_entry, ksa_item_type);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to remove entry");
 
     kcm_status = store_table(&g_ksa_desc[item_type]);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store KSA table to persistent store");
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
 
 
-kcm_status_e ksa_copy_item(const uint8_t *existing_item_name, size_t existing_item_name_size, uint32_t item_type, const uint8_t *new_item_name, size_t new_item_name_size)
+kcm_status_e ksa_copy_item(const uint8_t *existing_item_name, uint32_t item_type, const uint8_t *new_item_name)
 {
     ksa_item_entry_s *ksa_source_key_entry = NULL;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    char destination_item_name_hash[KSA_ITEM_NAME_HASH_SIZE_IN_BYTES];
-    ksa_item_entry_s *ksa_destination_key_entry = NULL;
+    ksa_item_entry_s *ksa_new_key_entry = NULL;
     bool is_new_entry = false;
-    char* ce_prv_key_prefix;
-    char* ce_pub_key_prefix;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-    //calculate destination key name hash
-    kcm_status = calculate_item_name_hash(new_item_name, new_item_name_size, (uint8_t*)destination_item_name_hash);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to calulate key name hash (%d)", kcm_status);
-
     //Get the entry of the key
-    kcm_status = get_ksa_existing_entry(existing_item_name, existing_item_name_size, ksa_item_type, &ksa_source_key_entry);
+    kcm_status = get_active_entry_of_existing_item(existing_item_name, ksa_item_type, &ksa_source_key_entry);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         //We don't want print log in case the item wasn't found
         return kcm_status;
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_ksa_existing_entry");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_active_entry_of_existing_item");
 
-    //If source_item_prefix type is CE - we need to clean CE id field in duplicate items and destroy the id in PSA 
-    // before we copy the dupliated item to the original one.
-
-    //get the prefix of CE private key
-    kcm_status = storage_get_prefix_from_type(KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_CE, (const char**)&ce_prv_key_prefix);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_item_name_get_prefix");
-
-    //get the prefix of CE public key
-    kcm_status = storage_get_prefix_from_type(KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_CE, (const char**)&ce_pub_key_prefix);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_item_name_get_prefix");
-
-
-    //check if existing_key_name has CE prefix
-    if (strstr((char*)existing_item_name, ce_prv_key_prefix) != NULL || strstr((char*)existing_item_name, ce_pub_key_prefix) != NULL) {
-
-        /* After ksa_destroy_key_id
-        --------------------------------------------------                -----------------------------------------------
-        | key name hash | Act ID | Factory ID | Renew ID |                | key name hash| Act ID | Factory ID | Renew ID |
-        -------------------------------------------------                -----------------------------------------------
-        | ce_key1_hash |   1    |     1      |   3       | destroy(3)==>  | ce_key1_hash|   1    |     1      |     0     |
-        -------------------------------------------------             -  -------------------------------------------------*/
-
-        // Destroy the CE key. 
-        // KCM_STATUS_INVALID_PARAMETER status can be received if the id is 0. This happens in testing, but shouldn't happen in real life scenario.
-        //Anyway, this should not halt the process of restoration 
-        psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, KSA_KEY_ITEM, (ksa_type_location_e)(ksa_source_key_entry->item_extra_info & KSA_LOCATION_MASK));
-        //Call delete function
-        kcm_status = delete_data(ksa_source_key_entry->renewal_item_id);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_INVALID_PARAMETER), kcm_status, "Failed to destroy key id");
-
-        //Clean the current id field
-        kcm_status = set_entry_id(ksa_source_key_entry, KSA_CE_PSA_ID_TYPE, 0);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update active id");
-    }
-
-    kcm_status = get_ksa_item_entry((const uint8_t*)destination_item_name_hash, ksa_item_type, &ksa_destination_key_entry, &is_new_entry, true);
+    kcm_status = get_active_entry_for_new_item((const uint8_t*)new_item_name, ksa_item_type, &is_new_entry, &ksa_new_key_entry);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_FILE_EXIST), kcm_status, "Failed to get a new entry");
 
-    ksa_copy_entry((const uint8_t*)destination_item_name_hash, (const ksa_item_entry_s*)ksa_source_key_entry, ksa_destination_key_entry);
-    if (ksa_destination_key_entry > ksa_source_key_entry) {
-        g_ksa_desc[ksa_item_type].ksa_last_occupied_entry = ksa_destination_key_entry;
+    ksa_copy_entry((const uint8_t*)new_item_name, (const ksa_item_entry_s*)ksa_source_key_entry, ksa_new_key_entry);
+    if (ksa_new_key_entry > ksa_source_key_entry) {
+        g_ksa_desc[ksa_item_type].ksa_last_occupied_entry = ksa_new_key_entry;
     }
+
+    kcm_status = store_table(&g_ksa_desc[ksa_item_type]);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store KSA table to persistent store");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return KCM_STATUS_SUCCESS;
 }
 
-kcm_status_e ksa_activate_ce_key(const uint8_t *key_name, size_t key_name_size)
+kcm_status_e ksa_activate_ce_key(const uint8_t *key_name)
 {
     ksa_item_entry_s *table_entry = NULL;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No key name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name_size == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy key name");
+
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Get the entry of the key
-    kcm_status = get_ksa_existing_entry(key_name, key_name_size, KSA_KEY_ITEM, &table_entry);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_ksa_existing_entry");
+    kcm_status = get_active_entry_of_existing_item(key_name, KSA_KEY_ITEM, &table_entry);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_active_entry_of_existing_item");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((table_entry->renewal_item_id == 0), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, "Renewal ID is not valid");
 
     //Update active id of the entry with value of renewal id
     kcm_status = set_entry_id(table_entry, KSA_ACTIVE_PSA_ID_TYPE, table_entry->renewal_item_id);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update active id");
 
-    //Zero renewal id 
-    kcm_status = set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, 0);
+    // default renewal id 
+    kcm_status = set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to zero renewal id");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -1296,19 +1424,18 @@ kcm_status_e ksa_activate_ce_key(const uint8_t *key_name, size_t key_name_size)
 }
 
 
-kcm_status_e ksa_destroy_old_active_and_remove_backup_entry(const uint8_t *item_name, size_t item_name_size, uint32_t item_type)
+kcm_status_e ksa_destroy_old_active_and_remove_backup_entry(const uint8_t *item_name, uint32_t item_type)
 {
     ksa_item_entry_s *table_entry = NULL;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No key name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_size == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy key name");
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Get the entry of the key
-    kcm_status = get_ksa_existing_entry(item_name, item_name_size, ksa_item_type, &table_entry);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_ksa_existing_entry");
+    kcm_status = get_active_entry_of_existing_item(item_name, ksa_item_type, &table_entry);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_active_entry_of_existing_item");
 
     //Destroy old active ID only if the ID is not factory 
     if (table_entry->active_item_id != table_entry->factory_item_id) {
@@ -1334,23 +1461,23 @@ kcm_status_e ksa_destroy_old_active_and_remove_backup_entry(const uint8_t *item_
 
 /*================================Test Functions=====================================================*/
 
-kcm_status_e ksa_get_key_id(const uint8_t *item_name, size_t item_name_size, uint32_t table_index, ksa_id_type_e ksa_id_type, uint16_t *item_id)
+kcm_status_e ksa_get_key_id(const uint8_t *key_name, uint32_t table_index, ksa_id_type_e ksa_id_type, uint16_t *item_id)
 {
     ksa_item_entry_s *table_entry = NULL;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_type_e ksa_item_type = get_ksa_type(table_index);
 
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No item name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name_size == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy item name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No item name was given");
+
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Get the entry of the item
-    kcm_status = get_ksa_existing_entry(item_name, item_name_size, ksa_item_type, &table_entry);
+    kcm_status = get_active_entry_of_existing_item(key_name, ksa_item_type, &table_entry);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         //We don't want print log in case the item wasn't found
         return kcm_status;
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_ksa_existing_entry");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_active_entry_of_existing_item");
 
     switch (ksa_id_type) {
         case KSA_ACTIVE_PSA_ID_TYPE:
@@ -1371,18 +1498,17 @@ kcm_status_e ksa_get_key_id(const uint8_t *item_name, size_t item_name_size, uin
 }
 
 
-kcm_status_e ksa_update_key_id(const uint8_t *key_name, size_t key_name_size, ksa_id_type_e key_id_type, uint16_t id_value)
+kcm_status_e ksa_update_key_id(const uint8_t *key_name, ksa_id_type_e key_id_type, uint16_t id_value)
 {
     ksa_item_entry_s *table_entry = NULL;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name == NULL), KCM_STATUS_INVALID_PARAMETER, "No key name was given");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_name_size == 0), KCM_STATUS_INVALID_PARAMETER, "Got emtpy key name");
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Get the entry of the key
-    kcm_status = get_ksa_existing_entry(key_name, key_name_size, KSA_KEY_ITEM, &table_entry);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_ksa_existing_entry");
+    kcm_status = get_active_entry_of_existing_item(key_name, KSA_KEY_ITEM, &table_entry);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_active_entry_of_existing_item");
 
     //Update active id of the entry with value of renewal id
     kcm_status = set_entry_id(table_entry, key_id_type, id_value);
@@ -1392,6 +1518,5 @@ kcm_status_e ksa_update_key_id(const uint8_t *key_name, size_t key_name_size, ks
     return kcm_status;
 }
 
-/*==================================KSA internal APIs==========================================*/
-
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+

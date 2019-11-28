@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,9 +16,12 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "update-client-common/arm_uc_crypto.h"
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 #if defined(ARM_UC_FEATURE_CERT_STORE_KCM) && (ARM_UC_FEATURE_CERT_STORE_KCM == 1)
 
+#include "update-client-common/arm_uc_crypto.h"
 #include "update-client-control-center/arm_uc_certificate.h"
 #include "update-client-common/arm_uc_config.h"
 #include "update-client-metadata-header/arm_uc_buffer_utilities.h"
@@ -180,3 +183,4 @@ const struct arm_uc_certificate_api arm_uc_certificate_kcm_api = {
 };
 
 #endif /* ARM_UC_FEATURE_CERT_STORE_KCM */
+#endif // ARM_UC_ENABLE

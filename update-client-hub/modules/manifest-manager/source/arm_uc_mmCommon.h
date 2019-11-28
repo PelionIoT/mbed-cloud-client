@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,6 +18,10 @@
 
 #ifndef MANIFEST_MANAGER_COMMON_H
 #define MANIFEST_MANAGER_COMMON_H
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include "update-client-manifest-manager/update-client-manifest-types.h"
 #include "update-client-common/arm_uc_trace.h"
@@ -66,6 +70,8 @@ static inline uint32_t htobe(uint32_t x)
     return x;
 #endif
 }
+#endif
+
 #endif
 
 #endif //MANIFEST_MANAGER_COMMON_H

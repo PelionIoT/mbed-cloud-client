@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,6 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 // Note: this macro is needed on armcc to get the the PRI*32 macros
 // from inttypes.h in a C++ code.
 #ifndef __STDC_FORMAT_MACROS
@@ -23,7 +27,6 @@
 #endif
 
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
-#include "update-client-common/arm_uc_config.h"
 
 #include "update-client-common/arm_uc_common.h"
 #if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
@@ -573,3 +576,5 @@ void FirmwareUpdateResource::Uninitialize(void)
     resourceVersion = NULL;
 
 }
+
+#endif // ARM_UC_ENABLE

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -17,6 +17,9 @@
 // ----------------------------------------------------------------------------
 
 #include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 #include "update-client-common/arm_uc_scheduler.h"
 #include "update-client-common/arm_uc_trace.h"
 #include "update-client-common/arm_uc_error.h"
@@ -469,3 +472,5 @@ void ARM_UC_DrainCallbackQueue(void)
 {
     while(ARM_UC_ProcessElement(false));
 }
+
+#endif // ARM_UC_ENABLE

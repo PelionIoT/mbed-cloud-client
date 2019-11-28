@@ -37,8 +37,8 @@ static kcm_status_e psa_drv_ps_get_free_id(uint16_t* ksa_id_out)
 {
     psa_status_t psa_status;
     struct psa_storage_info_t item_info;
-    uint16_t id_index = PSA_INVALID_ID_NUMBER;
-    uint16_t temp_id = PSA_INVALID_ID_NUMBER;
+    uint16_t id_index = PSA_INVALID_SLOT_ID;
+    uint16_t temp_id = PSA_INVALID_SLOT_ID;
     bool is_free_id_found = false;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
@@ -62,7 +62,7 @@ PSA_PS_MIN_ID_VALUE                free_id                  PSA_PS_MAX_ID_VALUE
             temp_id = (uint16_t)(PSA_PS_MIN_ID_VALUE + id_index) % (PSA_PS_MAX_ID_VALUE + 1);
         }
 
-        if (temp_id != PSA_INVALID_ID_NUMBER) {
+        if (temp_id != PSA_INVALID_SLOT_ID) {
             psa_status = psa_ps_get_info((psa_storage_uid_t)temp_id, &item_info);
             if (psa_status == PSA_ERROR_DOES_NOT_EXIST) {
                 is_free_id_found = true;

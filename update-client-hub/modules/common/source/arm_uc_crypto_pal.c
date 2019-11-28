@@ -43,7 +43,7 @@ arm_uc_error_t ARM_UC_cryptoHashSetup(arm_uc_mdHandle_t *hDigest, arm_uc_mdType_
     return result;
 }
 
-arm_uc_error_t ARM_UC_cryptoHashUpdate(arm_uc_mdHandle_t *hDigest, arm_uc_buffer_t *input)
+arm_uc_error_t ARM_UC_cryptoHashUpdate(arm_uc_mdHandle_t *hDigest, const arm_uc_buffer_t *input)
 {
     arm_uc_error_t result = (arm_uc_error_t) { ARM_UC_CU_ERR_INVALID_PARAMETER };
     if (hDigest && input) {

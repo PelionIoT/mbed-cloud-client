@@ -198,6 +198,8 @@ private:
     palStatus_t _wait_for_socket_event();
     // Callback that is invoked when some network event occurrs socket_obj is a pointer to a valid FtcdCommSocket object
     static void _socket_event_ready_cb(void *socket_obj);
+    // Closes client socket
+    void _close_client_socket(void);
 };
 
 

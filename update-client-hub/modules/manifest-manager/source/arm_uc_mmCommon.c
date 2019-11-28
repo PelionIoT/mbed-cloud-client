@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,8 +16,11 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "update-client-manifest-manager/update-client-manifest-manager-context.h"
+#include "update-client-common/arm_uc_config.h"
 
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
+#include "update-client-manifest-manager/update-client-manifest-manager-context.h"
 #include "arm_uc_mmCommon.h"
 #include "arm_uc_mmConfig.h"
 #include "update-client-manifest-manager/update-client-manifest-types.h"
@@ -27,3 +30,5 @@
 // Initialisation with an enum silences a compiler warning for ARM ("188-D: enumerated type mixed with another type").
 arm_uc_mmPersistentContext_t arm_uc_mmPersistentContext = { ARM_UC_MM_STATE_INVALID };
 const size_t arm_uc_mmDynamicContextSize = sizeof(arm_uc_mmContext_t);
+
+#endif

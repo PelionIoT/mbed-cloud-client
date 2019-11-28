@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2017-2018 ARM Ltd.
+// Copyright 2017-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,6 +18,10 @@
 
 #ifndef ARM_UC_PAL_BLOCKDEVICE_IMPLEMENTATION_H
 #define ARM_UC_PAL_BLOCKDEVICE_IMPLEMENTATION_H
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include "update-client-paal/arm_uc_paal_update_api.h"
 
@@ -143,4 +147,5 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
 }
 #endif
 
+#endif
 #endif /* ARM_UC_PAL_BLOCKDEVICE_H */

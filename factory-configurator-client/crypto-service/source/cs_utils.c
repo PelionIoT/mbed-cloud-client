@@ -129,3 +129,4 @@ kcm_status_e cs_check_cert_with_priv_handle(palX509Handle_t x509_cert, kcm_key_h
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
+

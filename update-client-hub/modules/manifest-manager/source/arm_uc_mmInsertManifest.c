@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include "arm_uc_mmCryptoUtils.h"
 #include "arm_uc_mmCommon.h"
@@ -699,3 +703,5 @@ arm_uc_error_t ARM_UC_mmInsertFSM(uint32_t event)
                         err.error, ARM_UC_err2Str(err));
     return err;
 }
+
+#endif

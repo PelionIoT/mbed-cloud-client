@@ -45,13 +45,13 @@ extern "C" {
  *    the SDA app (which uses Secure Device Access Proxy APIs) to request access
  *    to the IoT device from Device Management. If you have permission, Device Management
  *    sends an access token, which must be presented to the IoT device with the
- *    requested actions. For this activity, you must be connected to the Device
+ *    requested actions. For this, you must be connected to the Device
  *    Management.
  * 2. When the Secure Device Access app on the proxy device presents the access
  *    token and a set of actions to the Secure Device Access client app on the
- *    IOT device, the client app verifies the validity of the access token and,
- *    if the token is accepted, performs the requested actions.  Note: neither
- *    the proxy nor the IoT device has be online for this as long as they can
+ *    IoT device, the client app verifies the validity of the access token and,
+ *    if the token is accepted, performs the requested actions. **Note:** Neither
+ *    the proxy nor the IoT device need to be online for this as long as they can
  *    connect to each other.
  *
  * The proxy interacts with the client using a platform-agnostic protocol;
@@ -61,42 +61,6 @@ extern "C" {
  * The applications on the IoT device and proxy device communicate using the
  * Secure Device Access APIs to proxy parse and handle the Secure Device access
  * messages.
- *
- * To utilize Secure Device Access, client applications on the device should
- * have the following overall structure:
- *
- * 1. Initialize Secure Device Access - sda_init().
- * 2. Read a message from the transport medium.
- * 3. Process the message from the transport medium - sda_operation_process().
- *    The API returns the result status and provides a prepared response message as output.
- *    The API verifies the message. If the message type is process operation,
- *    the API calls the user callback, which the user passes to sda_operation_process() as a parameter, and passes
- *    the operation handle with the verified and parsed payload and user context to the callback. User context is an optional parameter passed by the user and can be NULL.
- *    The user callback must:
- *         a. Use sda_command_type_get(), sda_scope_get_next(), sda_func_call_name_get(),
- *              sda_func_call_numeric_parameter_get(), and
- *              sda_func_call_data_parameter_get() to determine the requested command
- *              and whether it is permitted. See below for additional details about this part
- *              of the flow.
- *         b. If the command is permitted, execute it.
- * 4. Send the response message over the transport medium to the proxy, even if the sda_operation_process fails with an error.
- * 5. Finalize Secure Device Access - sda_finalize().
- *
-
- *
- * Your application callback will have its own commands, as this is entirely specific to
- * your application and IoT device. To determine what the requested command is
- * and whether it is permitted:
- * 1. Use sda_command_type_get() to determine the command type. Only
- *    function call commands (SDA_OPERATION_FUNC_CALL) are currently supported.
- * 2. Use sda_func_call_name_get() to get the function name.
- * 3. Depending on the function, use sda_func_call_numeric_parameter_get() and
- *    sda_func_call_data_parameter_get() to get the various function call
- *    parameters.
- * 4. Use sda_scope_get_next() to get the list of scopes permitted by the access
- *    token.
- * 5. Verify that the list of scopes matches the requested command.
- * 6. Perform the command (in an application-specific manner) only if verification is successful.
  *
  */
 
@@ -114,47 +78,47 @@ typedef enum {
     SDA_OPERATION_LWM2M = 2     // Not supported.
 } sda_command_type_e;
 
-//! Minimum buffer size requested for response buffer for sda_operation_process().
+//! Minimum buffer size requested for response buffer for `sda_operation_process()`.
 #define SDA_RESPONSE_HEADER_SIZE 24
 
 /** Initializes the secure device access module.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success, or one of the `::sda_status_e`
- *       errors otherwise.
+ *       ::SDA_STATUS_SUCCESS in success. Otherwise, one of the `::sda_status_e`
+ *       errors.
  */
 sda_status_e sda_init(void);
 
 /** Finalizes the secure device access module.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success, or one of the `::sda_status_e`
- *       errors otherwise.
+ *       `::SDA_STATUS_SUCCESS` in success. Otherwise one of the `::sda_status_e`
+ *       errors.
  */
 sda_status_e sda_finalize(void);
 
 /** Processes a single input message, performs all needed message verifications,
  * and fills the context with relevant data for the following call of the user application callback.
  * After message verification, the API calls the user callback and passes the operation handle and user context.
- * This function must only be called after `::sda_init()` is called.
+ * This function must only be called after `::sda_init()` has been called.
  *
  * The input message is parsed in-place.
  * As output, the function fills the response message, which includes the operation type and status, and specific message information.
  *
- * @param message[in]       - Message to process.
- * @param message_size[in]  - Message size.
- * @param callback[in]      - Pointer to the user callback.
- * @param callback_context[in]      - Pointer to the context to call the user callback with - optional, can be NULL.
- * @param response_buffer_out[out]  - Pointer to the response message buffer allocated by the user.
- * @param response_buffer_out_max_size[in] - Maximum size allocated for the response message buffer.
- *                                           Must be at least `::SDA_RESPONSE_HEADER_SIZE` +
- *                                           the size of the application data that may be sent via the sda_response_data_set() function.
- * @param response_message_actual_size_out[out] - Actual size of the response message. If the response message wasn't created, the actual size is 0.
+ * @param message[in] Message to process.
+ * @param message_size[in] Message size.
+ * @param callback[in] Pointer to the user callback.
+ * @param callback_context[in] Pointer to the context to call the user callback with - optional, can be NULL.
+ * @param response_buffer_out[out] Pointer to the response message buffer allocated by the user.
+ * @param response_buffer_out_max_size[in] Maximum size allocated for the response message buffer. Must be at least 
+ * `::SDA_RESPONSE_HEADER_SIZE` + the size of the application data that may be sent through the `sda_response_data_set()` function.
+ * @param response_message_actual_size_out[out] Actual size of the response message. If the response message wasn't created, 
+ * the actual size is 0.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success.
- *       ::SDA_STATUS_NOT_INITIALIZED if the SDA module wasn't initialized.
- *        One of the `::sda_status_e` errors otherwise.
+ *       `::SDA_STATUS_SUCCESS` in success.
+ *       `::SDA_STATUS_NOT_INITIALIZED` if the SDA module wasn't initialized.
+ *        Otherwise, one of the `::sda_status_e` errors.
  */
 sda_status_e sda_operation_process(const uint8_t *message,
                                    size_t message_size,
@@ -165,21 +129,21 @@ sda_status_e sda_operation_process(const uint8_t *message,
                                    size_t *response_message_actual_size_out);
 
 /** Sets application-specific data to be sent to the proxy.
-* The API copies the user buffer directly to the response buffer that the user provides to the sda_operation_process() API.
-* The function must be called from the context of the user callback that the user provides to the sda_operation_process() API.
-* This function must only be called after the `::sda_init()` function is called.
+* The API copies the user buffer directly to the response buffer that the user provides to the `sda_operation_process()` API.
+* The function must be called from the context of the user callback that the user provides to the `sda_operation_process()` API.
+* This function must only be called after the `::sda_init()` function has been called.
 *
 * Currently, calling this function twice in the context of a user callback results in undefined behavior.
 
-* @param handle[in]  - The handle is received as the input argument to the user callback.
-* @param buffer[in]  - Pointer to the application-specific data to be copied to the response_buffer_out that the user provides to the sda_operation_process() API.
-* @param buffer_size[in]  - Size of buffer in bytes. The maximum size is response_buffer_out_max_size, which the user provides to the sda_operation_process() API, minus `::SDA_RESPONSE_HEADER_SIZE`.
+* @param handle[in] The handle is received as the input argument to the user callback.
+* @param buffer[in] Pointer to the application-specific data to be copied to the `response_buffer_out` that the user provides to the `sda_operation_process()` API.
+* @param buffer_size[in] Size of buffer in bytes. The maximum size is `response_buffer_out_max_size` that the user provides to the `sda_operation_process()` API, minus `::SDA_RESPONSE_HEADER_SIZE`.
 *
 * @return
-*       ::SDA_STATUS_SUCCESS in case of success.
-*       ::SDA_STATUS_INSUFFICIENT_RESPONSE_BUFFER_SIZE_ERROR if the response buffer size that the user provides to sda_operation_process() is insufficient.
-*       ::SDA_STATUS_NOT_INITIALIZED if the SDA module wasn't initialized.
-*        One of the `::sda_status_e` errors otherwise.
+*       `::SDA_STATUS_SUCCESS` in success.
+*       `::SDA_STATUS_INSUFFICIENT_RESPONSE_BUFFER_SIZE_ERROR` if the response buffer size that the user provides to `sda_operation_process()` is insufficient.
+*       `::SDA_STATUS_NOT_INITIALIZED` if the SDA module wasn't initialized.
+*        Otherwise, one of the `::sda_status_e` errors.
 */
 sda_status_e sda_response_data_set(sda_operation_ctx_h handle, uint8_t *buffer,
                                    size_t buffer_size);
@@ -193,34 +157,31 @@ sda_status_e sda_response_data_set(sda_operation_ctx_h handle, uint8_t *buffer,
  * also returned.
  * The output scope pointer points inside the message buffer; therefore, the pointer should
  * not be released manually.
- * This function must only be called after `::sda_init()` is called.
- * This function must only be called after '::sda_operation_process()' is called.
+ * This function must only be called after `::sda_init()` and '::sda_operation_process()' have been called.
  *
- * @param handle[in]  - Initialized context handle.
- * @param scope[out]  - Pointer to the scope of current command.
- * @param scope_size_out[out]  - Size of retrieved scope.
+ * @param handle[in] Initialized context handle.
+ * @param scope[out] Pointer to the scope of current command.
+ * @param scope_size_out[out] Size of retrieved scope.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success.
- *       ::SDA_STATUS_NOT_INITIALIZED if the SDA module wasn't initialized.
- *        One of the `::sda_status_e` errors otherwise.
+ *       `::SDA_STATUS_SUCCESS` in case of success.
+ *       `::SDA_STATUS_NOT_INITIALIZED` if the SDA module wasn't initialized.
+ *        Otherwise, one of the `::sda_status_e` errors.
  */
 sda_status_e sda_scope_get_next(sda_operation_ctx_h handle, const uint8_t **scope_out,
                                 size_t *scope_size_out);
 
 /** Retrieves the command type of the currently processed message.
  *
- * This function must only be called after `::sda_init()` is called.
- * This function must only be called after `::sda_operation_process()` is
- * called.
+ * This function must only be called after `::sda_init()` and `::sda_operation_process()` have been called.
  *
- * @param handle[in]  - Initialized context handle.
- * @param command_type[out]  - Pointer to type out parameter.
+ * @param handle[in] Initialized context handle.
+ * @param command_type[out] Pointer to type out parameter.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success.
- *       ::SDA_STATUS_NOT_INITIALIZED if the SDA module wasn't initialized.
- *        One of the `::sda_status_e` errors otherwise.
+ *       `::SDA_STATUS_SUCCESS` in success.
+ *       `::SDA_STATUS_NOT_INITIALIZED` if the SDA module wasn't initialized.
+ *        Otherwise, one of the `::sda_status_e` errors.
  */
 sda_status_e sda_command_type_get(sda_operation_ctx_h handle, sda_command_type_e *command_type);
 
@@ -230,18 +191,16 @@ sda_status_e sda_command_type_get(sda_operation_ctx_h handle, sda_command_type_e
  * is also returned.
  * The output function name pointer points inside the message buffer; therefore, the pointer
  * should not be released manually.
- * This function must only be called after `::sda_init()` is called.
- * This function must only be called after `::sda_operation_process()` is
- * called.
+ * This function must only be called after `::sda_init()` and `::sda_operation_process()` have been called.
  *
- * @param handle[in]  - Initialized context handle.
- * @param func_call_name_out[out]  - Pointer to current function call name.
- * @param func_call_name_size_out[out]  - Size of current function call name.
+ * @param handle[in] Initialized context handle.
+ * @param func_call_name_out[out] Pointer to current function call name.
+ * @param func_call_name_size_out[out] Size of current function call name.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success.
- *       ::SDA_STATUS_NOT_INITIALIZED if the SDA module wasn't initialized.
- *        One of the `::sda_status_e` errors otherwise.
+ *       `::SDA_STATUS_SUCCESS` in success.
+ *       `::SDA_STATUS_NOT_INITIALIZED` if the SDA module wasn't initialized.
+ *        Otherwise, one of the `::sda_status_e` errors.
  */
 sda_status_e sda_func_call_name_get(sda_operation_ctx_h handle, const uint8_t **func_call_name_out,
                                     size_t *func_call_name_size_out);
@@ -249,18 +208,16 @@ sda_status_e sda_func_call_name_get(sda_operation_ctx_h handle, const uint8_t **
 /** Retrieves numeric parameter of function call command.
  *
  * If the requested parameter is not numeric, an error is returned.
- * This function must only be called after `::sda_init()` is called.
- * This function must only be called after `::sda_operation_process()` is
- * called.
+ * This function must only be called after `::sda_init()` and `::sda_operation_process()` have been called.
  *
- * @param handle[in]  - Initialized context handle.
- * @param index[in]  - Index of needed parameter (zero based).
- * @param num_param_out[out]  - Output parameter value.
+ * @param handle[in] Initialized context handle.
+ * @param index[in] Index of needed parameter (zero based).
+ * @param num_param_out[out] Output parameter value.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success.
- *       ::SDA_STATUS_NOT_INITIALIZED if the SDA module wasn't initialized.
- *        One of the `::sda_status_e` errors otherwise.
+ *       `::SDA_STATUS_SUCCESS` in success.
+ *       `::SDA_STATUS_NOT_INITIALIZED` if the SDA module wasn't initialized.
+ *        Otherwise, one of the `::sda_status_e` errors.
  */
 sda_status_e sda_func_call_numeric_parameter_get(sda_operation_ctx_h handle, uint32_t index,
         int64_t *num_param_out);
@@ -271,17 +228,15 @@ sda_status_e sda_func_call_numeric_parameter_get(sda_operation_ctx_h handle, uin
  * also returned.
  * The output data pointer points inside the message buffer; therefore, the pointer
  * should not be released manually.
- * This function must only be called after `::sda_init()` is called.
- * This function must only be called after `::sda_operation_process()` is
- * called.
+ * This function must only be called after `::sda_init()` and `::sda_operation_process()` have been called.
  *
- * @param handle[in]  - Initialized context handle.
- * @param index[in]  - Index of needed parameter (zero based).
- * @param data_param_out[out]  - Pointer to data parameter value.
- * @param data_param_size_out[out]  - Pointer to data parameter size.
+ * @param handle[in] Initialized context handle.
+ * @param index[in] Index of needed parameter (zero based).
+ * @param data_param_out[out] Pointer to data parameter value.
+ * @param data_param_size_out[out] Pointer to data parameter size.
  *
  * @return
- *       ::SDA_STATUS_SUCCESS in case of success, or one of the `::sda_status_e` errors otherwise.
+ *       `::SDA_STATUS_SUCCESS` in success. Otherwise, one of the `::sda_status_e` errors.
  */
 sda_status_e sda_func_call_data_parameter_get(sda_operation_ctx_h handle, uint32_t index,
         const uint8_t **data_param_out,

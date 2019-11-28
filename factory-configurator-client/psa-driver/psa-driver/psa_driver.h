@@ -46,12 +46,11 @@
 //List of reserved ids:
 #define PSA_PS_LAST_USED_CRYPTO_ID          PSA_PS_MIN_RESERVED_VALUE
 
-
-/* invalid id number value */
-#define PSA_INVALID_ID_NUMBER          0
-
 /* invalid key handle value */
 #define PSA_CRYPTO_INVALID_KEY_HANDLE         0
+
+// invalid slot number value (keep UINT16 size)
+#define PSA_INVALID_SLOT_ID 0xFFFF
 
 
 /******** PSA PS related flags*****/
@@ -118,6 +117,7 @@
 
 
 /******** PSA Crypto related declaration*****/
+
 /**
 * Initiates the PSA crypto module.
 *
@@ -158,6 +158,34 @@ kcm_status_e psa_drv_crypto_generate_keys_from_existing_ids(const uint16_t exist
 */
 kcm_status_e psa_drv_crypto_export_data(const uint16_t ksa_id, void* data, size_t data_size, size_t* actual_data_size);
 
+/* Returns PSA invalid slot number.
+* 0 is not a valid handle under any circumstance. This
+* implementation provides slots number 1 to N where N is the
+* number of available slots.
+* Defined in psa_crypto.h
+*/
+
+uint16_t psa_drv_crypto_get_invalid_slot_value(void);
+
+/** Returns a key handle if exists
+*
+* @key_id[IN] The key identifier
+* @key_handle_out[OUT] The key handle referred to the given key name, otherwise this out parameter value is undefined.
+*                      This out parameter is valid only if the status is KCM_STATUS_SUCCESS.
+*                      In any other case this out parameter value is undefined.
+*
+* @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
+*/
+kcm_status_e psa_drv_crypto_get_handle(uint16_t key_id, psa_key_handle_t *key_handle_out);
+
+/** Closes a key handle
+*
+* @key_handle[IN] The key handle
+*
+* @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
+*/
+kcm_status_e psa_drv_crypto_close_handle(psa_key_handle_t key_handle);
+
 /**
 * Finalizes the Crypto module.
 *
@@ -167,6 +195,7 @@ kcm_status_e psa_drv_crypto_export_data(const uint16_t ksa_id, void* data, size_
 void psa_drv_crypto_fini();
 
 
+/******** PS related declaration*****/
 
 /**
 * Gets a data from PS module according to its KSA PS id.
@@ -216,8 +245,8 @@ kcm_status_e psa_drv_ps_init_reserved_data(const uint16_t ksa_id, const void *da
 */
 kcm_status_e psa_drv_ps_set_data_direct(const uint16_t ksa_id, const void *data, size_t data_size, uint32_t extra_flags);
 
+/******** Common declaration for PSA crypto and PS *********/
 
-/******** Common declaration*********/
 /**
 *  Translates PSA errors returned by PSA crypto and PS modules to KCM error.
 *
@@ -226,27 +255,6 @@ kcm_status_e psa_drv_ps_set_data_direct(const uint16_t ksa_id, const void *data,
 *       KCM_STATUS_SUCCESS in case of PSA_SUCCESS, or one of the `::kcm_status_e` errors otherwise.
 */
 kcm_status_e psa_drv_translate_to_kcm_error(psa_status_t psa_status);
-
-/** Returns a key handle if exists
-*
-* @key_id[IN] The key identifier
-* @key_handle_out[OUT] The key handle referred to the given key name, otherwise this out parameter value is undefined.
-*                      This out parameter is valid only if the status is KCM_STATUS_SUCCESS.
-*                      In any other case this out parameter value is undefined.
-*
-* @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e psa_drv_crypto_get_handle(uint16_t key_id, psa_key_handle_t *key_handle_out);
-
-/** Closes a key handle
-*
-* @key_handle[IN] The key handle
-*
-* @returns KCM_STATUS_SUCCESS if no error occured or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e psa_drv_crypto_close_handle(psa_key_handle_t key_handle);
-
-
 
 #ifdef __cplusplus
 }

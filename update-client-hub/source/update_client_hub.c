@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include "update-client-hub/update_client_hub.h"
 
@@ -510,3 +514,5 @@ bool ARM_UC_IsValidResult(arm_uc_update_result_t an_update_result)
     if (!is_valid) UC_ERROR_ERR_MSG("Invalid UC HUB reported state");
     return is_valid;
 }
+
+#endif // ARM_UC_ENABLE

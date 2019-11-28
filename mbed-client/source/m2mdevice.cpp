@@ -20,8 +20,6 @@
 #include "mbed-client/m2mobjectinstance.h"
 #include "mbed-client/m2mresource.h"
 #include "mbed-trace/mbed_trace.h"
-#include "mbed-client/m2mdevice_handlers.h"
-#include "mbed-client/mbed_client_weak.h"
 
 #define BUFFER_SIZE 21
 #define TRACE_GROUP "mClt"
@@ -66,9 +64,6 @@ M2MDevice::M2MDevice(char *path)
         if(res) {
             res->set_operation(M2MBase::POST_ALLOWED);
             res->set_register_uri(true);
-            res->set_execute_function(execute_callback(this, &M2MDevice::reboot_execute_handler));
-            res->set_delayed_response(true);
-            res->set_message_delivery_status_cb(M2MDevice::post_response_status_handler, this);
         }
 
         M2MResourceInstance* instance = _device_instance->create_dynamic_resource_instance(DEVICE_ERROR_CODE,
@@ -282,10 +277,12 @@ M2MResource* M2MDevice::create_resource(DeviceResource resource)
             if(res) {
                 res->set_operation(M2MBase::POST_ALLOWED);
                 res->set_register_uri(true);
-                if(FactoryReset == resource) {
-                    res->set_execute_function(execute_callback(this, &M2MDevice::factory_reset_execute_handler));
+
+                if (FactoryReset == resource) {
+                    // enforce explicit delayed response
+                    // application should explicitly send response on the beginning of execute
+                    // callback due to potentially long-running factory reset logic
                     res->set_delayed_response(true);
-                    res->set_message_delivery_status_cb(M2MDevice::post_response_status_handler, this);
                 }
             }
         }
@@ -571,47 +568,4 @@ bool M2MDevice::check_value_range(DeviceResource resource, int64_t value)
         break;
     }
     return success;
-}
-
-void M2MDevice::post_response_status_handler(const M2MBase& base,
-                              const M2MBase::MessageDeliveryStatus status,
-                              const M2MBase::MessageType type,
-                              void* me) {
-    switch(status) {
-            case M2MBase::MESSAGE_STATUS_DELIVERED:
-            case M2MBase::MESSAGE_STATUS_SEND_FAILED: {
-                M2MDevice* dev = (M2MDevice*)me;
-                if (&base == dev->_device_instance->resource(resource_name(Reboot))) {
-                    m2mdevice_reboot_execute();
-                }
-                else if(&base == dev->_device_instance->resource(resource_name(FactoryReset))) {
-                    m2mdevice_factory_reset_execute();
-                }
-                break;
-            }
-            default:
-                break;
-        }
-}
-
-void M2MDevice::reboot_execute_handler(void* arguments) {
-    // Cannot actually handle reboot yet as that will leave
-    // server hanging, waiting for response.
-    _device_instance->resource(resource_name(Reboot))->send_delayed_post_response();
-}
-
-void M2MDevice::factory_reset_execute_handler(void* arguments) {
-    // Cannot actually handle reboot yet as that will leave
-    // server hanging, waiting for response.
-    _device_instance->resource(resource_name(FactoryReset))->send_delayed_post_response();
-}
-
-
-// provide empty default implementations for callbacks here
-MBED_CLIENT_WEAK_FUNCTION void m2mdevice_reboot_execute() {
-
-}
-
-MBED_CLIENT_WEAK_FUNCTION void m2mdevice_factory_reset_execute() {
-
 }

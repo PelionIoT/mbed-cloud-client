@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 
 #include "update-client-firmware-manager/arm_uc_firmware_manager.h"
 #include "update-client-common/arm_uc_common.h"
@@ -97,20 +102,20 @@ static void debug_output_decryption(const uint8_t *encrypted,
     printf("\r\n");
 }
 
-static void debug_output_validation(arm_uc_buffer_t *hash,
-                                    arm_uc_buffer_t *output_buffer)
+static void debug_print_hash(const char* message, const uint8_t* ptr, const uint32_t size)
 {
     printf("\r\n");
-    printf("expected hash  : ");
-    for (size_t index = 0; index < hash->size; index++) {
-        printf("%02X", hash->ptr[index]);
+    printf("%s ", message);
+    for (size_t index = 0; index < size; index++) {
+        printf("%02X", ptr[index]);
     }
-    printf("\r\n");
+}
 
-    printf("calculated hash: ");
-    for (size_t index = 0; index < output_buffer->size; index++) {
-        printf("%02X", output_buffer->ptr[index]);
-    }
+static void debug_output_validation(arm_uc_hash_t *hash,
+                                    arm_uc_buffer_t *output_buffer)
+{
+    debug_print_hash("expected hash  :", (uint8_t*)hash, ARM_UC_SHA256_SIZE);
+    debug_print_hash("calculated hash:", output_buffer->ptr, output_buffer->size);
     printf("\r\n");
     printf("\r\n");
 }
@@ -404,6 +409,13 @@ static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t *configuration,
             arm_uc_signal_ucfm_handler(UCFM_EVENT_PREPARE_ERROR);
         }
     }
+#if UCFM_DEBUG_OUTPUT
+    /* Initialize hash to calculate downloaded fragments hash */
+    if (result.error == ERR_NONE) {
+        arm_uc_mdType_t mdtype = ARM_UC_CU_SHA256;
+        result = ARM_UC_cryptoHashSetup(&mdHandle, mdtype);
+    }
+#endif
 
     return result;
 }
@@ -459,7 +471,10 @@ static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t *fragment)
                 fragment_offset += length_update;
             }
         }
-
+#if UCFM_DEBUG_OUTPUT
+        /* calculate hash on the fly for debugging purpose */
+        ARM_UC_cryptoHashUpdate(&mdHandle, fragment);
+#endif
         /* store fragment using PAL */
         result = ARM_UCP_Write(package_configuration->package_id,
                                package_offset,
@@ -502,6 +517,20 @@ static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t *front, arm_uc_buffer_t 
 
         /* disable module until next setup call is received */
         ready_to_receive = false;
+
+#if UCFM_DEBUG_OUTPUT
+        /* finalize hash calculation */
+        uint8_t hash_output_ptr[2 * UCFM_MAX_BLOCK_SIZE];
+        arm_uc_buffer_t hash_buffer = {
+            .size_max = sizeof(hash_output_ptr),
+            .size = 0,
+            .ptr = hash_output_ptr
+        };
+
+        ARM_UC_cryptoHashFinish(&mdHandle, &hash_buffer);
+
+        debug_print_hash("downloaded hash:", hash_buffer.ptr, hash_buffer.size);
+#endif
     }
 
     return result;
@@ -570,3 +599,5 @@ ARM_UC_FIRMWARE_MANAGER_t ARM_UC_FirmwareManager = {
     .GetFirmwareDetails       = ARM_UCFM_GetFirmwareDetails,
     .GetInstallerDetails      = ARM_UCFM_GetInstallerDetails
 };
+
+#endif

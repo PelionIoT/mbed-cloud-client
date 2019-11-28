@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,10 +16,13 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 #include "update-client-source-manager/arm_uc_source_manager.h"
 
 #include "update-client-common/arm_uc_common.h"
-#include "update-client-common/arm_uc_config.h"
 #include "update-client-source/arm_uc_source.h"
 
 #if defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
@@ -755,3 +758,4 @@ ARM_UC_SOURCE_MANAGER_t ARM_UC_SourceManager = {
     .GetFirmwareFragment = ARM_UCSM_GetFirmwareFragment,
     .GetKeytable         = ARM_UCSM_GetKeytable
 };
+#endif // ARM_UC_ENABLE

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -22,6 +22,17 @@
 #ifdef MBED_CLOUD_CLIENT_USER_CONFIG_FILE
 #include MBED_CLOUD_CLIENT_USER_CONFIG_FILE
 #endif
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+// ARM_UC_ENABLE is an internal flag used by update client.
+#define ARM_UC_ENABLE 1
+#else
+#define ARM_UC_ENABLE 0
+#define ARM_UC_FEATURE_DELTA_PAAL 0
+#endif
+
+// Rest is only defined when update client is enabled
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #ifndef MAX_SOURCES
 #define MAX_SOURCES 10
@@ -73,6 +84,15 @@ ARM_UC_FEATURE_SIMPLE_COAP_SOURCE
 #endif
 #endif
 
+#ifdef TARGET_LIKE_MBED
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+// Delta-PAAL directly accesses this macro. If Mbed CLI did not find the bootloader image, this macro will not be generated.
+#ifndef APPLICATION_ADDR
+#error "Missing APPLICATION_ADDR definition. Check configuration for bootloader binary."
+#endif
+#endif
+#endif
+
 #define MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP 1
 #define MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_HTTP 2
 
@@ -94,7 +114,7 @@ ARM_UC_FEATURE_SIMPLE_COAP_SOURCE
 #define ARM_UC_FEATURE_FW_SOURCE_HTTP 1
 #endif
 
-// Override to use local source	
+// Override to use local source
 #if defined(TEST_USING_LOCAL_SOURCES) && TEST_USING_LOCAL_SOURCES == 1
 #define ARM_UC_FEATURE_FW_SOURCE_LOCAL_FILE 1
 #define ARM_UC_FEATURE_FW_SOURCE_COAP 0
@@ -396,4 +416,5 @@ ARM_UC_FEATURE_SIMPLE_COAP_SOURCE
 #endif
 #endif
 
+#endif // ARM_UC_ENABLE
 #endif // ARM_UPDATE_CONFIG_H

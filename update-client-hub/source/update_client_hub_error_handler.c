@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include <stdio.h>
 
@@ -420,3 +424,5 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
         arm_uc_error_callback_handler(error_external);
     }
 }
+
+#endif // ARM_UC_ENABLE

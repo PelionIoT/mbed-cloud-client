@@ -248,8 +248,8 @@ add_dependencies(mbedcoap nanostacklibservice mbedTrace mbedclientrandlib)
 target_link_libraries(mbedcoap nanostacklibservice mbedTrace mbedclientrandlib)
 
 add_library(mbedclient STATIC "${MBED_CLIENT_SRC}")
-add_dependencies(mbedclient nanostacklibservice nanostackeventloop mbedcoap mbedTrace)
-target_link_libraries(mbedclient nanostacklibservice nanostackeventloop mbedcoap mbedTrace)
+add_dependencies(mbedclient palTLS nanostacklibservice nanostackeventloop mbedcoap mbedTrace)
+target_link_libraries(mbedclient palTLS nanostacklibservice nanostackeventloop mbedcoap mbedTrace)
 
 CREATE_LIBRARY(mbedCloudClient "${MBED_CLOUD_CLIENT_SRC}" "")
 

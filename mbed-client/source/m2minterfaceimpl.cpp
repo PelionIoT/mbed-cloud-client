@@ -482,8 +482,12 @@ void M2MInterfaceImpl::bootstrap_error(const char *reason)
                               M2MTimerObserver::RetryTimer);
     tr_info("M2MInterfaceImpl::bootstrap_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
     _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
+    // The timeout is randomized to + 10% and -10% range from reconnection value
+    _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
+
     if(_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
-        _reconnection_time = MAX_RECONNECT_TIMEOUT;
+        // The max timeout is randomized to + 10% and -10% range from maximum value
+        _reconnection_time = randLIB_randomise_base(MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
     }
 }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -604,8 +608,12 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
         tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
 
         _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
+        // The timeout is randomized to + 10% and -10% range from reconnection value
+        _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
+
         if (_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
-            _reconnection_time = MAX_RECONNECT_TIMEOUT;
+            // The max timeout is randomized to + 10% and -10% range from maximum value
+            _reconnection_time = randLIB_randomise_base(MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
         }
 #ifndef DISABLE_ERROR_DESCRIPTION
         snprintf(_error_description, sizeof(_error_description), ERROR_REASON_9, error_code_des);
@@ -1462,15 +1470,15 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
     if (status == M2MConnectionObserver::NetworkInterfaceConnected) {
         tr_info("M2MInterfaceImpl::network_interface_status_change - connected");
         if (_reconnecting) {
-            _retry_timer.stop_timer();
-            if (_bootstrapped) {
-                internal_event(STATE_REGISTER);
+            uint16_t rand_time = randLIB_get_random_in_range(0, 200);
+            // Check if the ongoing timer value is greater than the random range then
+            // start a smaller random time. (Multiplication factor is because reconn timer
+            // is multiplied immediately after its started so taking it into account)
+            if(_reconnection_time > rand_time * 2) {
+                _retry_timer.stop_timer();
+                _retry_timer.start_timer( rand_time * 1000,
+                                         M2MTimerObserver::RetryTimer);
             }
-#ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-            else {
-                internal_event(STATE_BOOTSTRAP);
-            }
-#endif
         }
     } else {
         tr_info("M2MInterfaceImpl::network_interface_status_change - disconnected");
@@ -1482,7 +1490,10 @@ void M2MInterfaceImpl::create_random_initial_reconnection_time()
     if(_initial_reconnection_time == 0) {
         randLIB_seed_random();
         _initial_reconnection_time = randLIB_get_random_in_range(10, 100);
+        // The initial timeout is randomized to + 10% and -10% range from original random value
+        _initial_reconnection_time = randLIB_randomise_base(_initial_reconnection_time, 0x7333, 0x8CCD);
         tr_info("M2MInterfaceImpl::create_random_initial_reconnection_time() initial random time %d\n", _initial_reconnection_time);
         _reconnection_time = _initial_reconnection_time;
+
     }
 }

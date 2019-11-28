@@ -16,7 +16,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
 #if defined(TARGET_IS_PC_LINUX)
 #define _FILE_OFFSET_BITS  64

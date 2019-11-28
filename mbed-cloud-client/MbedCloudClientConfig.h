@@ -59,11 +59,11 @@
 /**
 * \def MBED_CLOUD_CLIENT_LIFETIME
 *
-* \brief This is optional MACRO. You can define it like this: #define MBED_CLOUD_CLIENT_LIFETIME 3600.
+* \brief This is optional MACRO. You can define it like this: #define MBED_CLOUD_CLIENT_LIFETIME 86400.
 * This value denotes time in seconds.
 */
 #ifndef MBED_CLOUD_CLIENT_LIFETIME
-#define MBED_CLOUD_CLIENT_LIFETIME                  3600
+#define MBED_CLOUD_CLIENT_LIFETIME                  86400
 #endif
 
 /**

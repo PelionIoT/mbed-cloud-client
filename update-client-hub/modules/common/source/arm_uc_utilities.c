@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,9 +16,12 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 #include "update-client-common/arm_uc_utilities.h"
 #include "update-client-common/arm_uc_error.h"
-#include "update-client-common/arm_uc_config.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -440,3 +443,5 @@ size_t arm_uc_calculate_full_uri_length(const arm_uc_uri_t *uri)
             strlen(uri->path) +
             scheme_length);
 }
+
+#endif // ARM_UC_ENABLE

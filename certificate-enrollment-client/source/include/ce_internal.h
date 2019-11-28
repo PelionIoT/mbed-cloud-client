@@ -24,7 +24,7 @@
 #include "kcm_defs.h"
 #include "est_defs.h"
 #include "ce_status.h"
-#include "storage_items.h"
+#include "storage_kcm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,6 +85,14 @@ extern "C" {
     *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
     */
     kcm_status_e ce_destroy_old_active_and_remove_backup_entries(cs_renewal_names_s *renewal_items_names);
+
+    /*! The API destroys renewal keys if renewal process was interrupted following item correlation check failure.
+    *    @param[in] renewal_items_names Pointer to renewal items names
+    *    @param[in] data_source_type Storage item prefix type
+    *    @returns
+    *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+    */
+    kcm_status_e ce_destroy_ce_keys(cs_renewal_names_s *renewal_items_name, storage_item_prefix_type_e data_source_type);
 #endif
 
     /*! The API deletes set of items (key pair and certificate/certificate chain) according to given name and source type.

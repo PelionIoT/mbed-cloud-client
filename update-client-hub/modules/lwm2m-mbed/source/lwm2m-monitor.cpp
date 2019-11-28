@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #include "update-lwm2m-mbed-apis.h"
 #include "update-client-lwm2m/lwm2m-monitor.h"
@@ -189,3 +193,4 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SetOEMBootloaderHash(arm_uc_buffer_t *hash)
     return result;
 }
 
+#endif

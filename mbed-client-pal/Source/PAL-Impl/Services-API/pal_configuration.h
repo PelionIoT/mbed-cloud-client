@@ -509,4 +509,13 @@
     #define PAL_USE_SSL_SESSION_RESUME 1
 #endif
 
+// Sanity check for using static memory buffer with mbedtls.
+#ifdef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+
+#if !defined(PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS)
+    #error "When using PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS, you must also define the size for the static memory buffer with PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS."
+#endif
+
+#endif // #ifdef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+
 #endif //_PAL_COFIGURATION_H
