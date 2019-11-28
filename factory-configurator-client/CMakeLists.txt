@@ -23,15 +23,17 @@ ENDFOREACH()
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/crypto/source/include)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/crypto-service/source/include)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source)
-ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source/include)
-ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source/sotp)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/factory-configurator-client/source/include)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/logger/source/include)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/fcc-bundle-handler/source/include)
 
-# esfs
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source-pal/api)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source-pal/linux)
+# esfs, sotp
+if(NOT LINK_WITH_TRUSTED_STORAGE)
+	ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source/include)
+	ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source/sotp)
+	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source-pal/api)
+	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/mbed-client-esfs/source-pal/linux)
+endif()
 
 SET(SOURCE_LIST "")
 
@@ -49,42 +51,35 @@ message("*********************************************************************")
 message("factory-configurator-client = [[${factory-configurator-client}]]")
 message("*********************************************************************")
 
-#psa-driver library
+# fccstorage library
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/storage/storage)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/storage/source/include)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/include)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/psa-driver)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source)
 
-
-FILE(GLOB PSA_DRIVER_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source/psa_driver_common.c"
+FILE(GLOB FCC_STORAGE_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_pal_sst.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_pelion_sst.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_common.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_psa.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_non_psa.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/key_slot_allocator.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source/psa_driver_common.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source/psa_driver_crypto.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source/psa_driver_dispatcher.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source/psa_driver_ps.c"
 )
 
-add_library(psa-driver STATIC "${PSA_DRIVER_SRC}")
-if(LINK_WITH_TRUSTED_STORAGE)
-    add_dependencies(psa-driver trusted_storage)
-    target_link_libraries(psa-driver trusted_storage)
-endif()
-
-# fccstorage library
-ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/storage/storage)
-ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/storage/source/include)
-ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/include)
-
-FILE(GLOB FCC_STORAGE_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_items_pal_sst.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_items_pelion_sst.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/key_slot_allocator.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_common.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_psa.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_non_psa.c"
-)
-
-# fccstorage is depending sotp and esfs.
 add_library(fccstorage STATIC "${FCC_STORAGE_SRC}")
-add_dependencies(fccstorage psa-driver esfs sotp)
-target_link_libraries(fccstorage psa-driver esfs sotp)
-
+if(LINK_WITH_TRUSTED_STORAGE)
+    add_dependencies(fccstorage trusted_storage)
+    target_link_libraries(fccstorage trusted_storage)
+else()
+	add_dependencies(fccstorage esfs sotp)
+	target_link_libraries(fccstorage esfs sotp)
+endif()
+	
 # crypto service library
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/crypto-service/crypto-service)
 FILE(GLOB CRYPTO_SERVICE_SRC

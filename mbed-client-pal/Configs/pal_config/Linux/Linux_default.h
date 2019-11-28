@@ -175,4 +175,13 @@
 #warning "PAL_NOISE_TRNG_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
 #endif
 
+// Define this to use static memory buffer for mbedtls, instead of standard mbedtls memory system (default is using heap).
+//#undef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+
+// If PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS is defined, you must also define the size of the static memory buffer for mbedtls
+//#undef PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS
+
+// if PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS is defined, you can also define the section name where the static buffer will be placed. Leave undefined for default.
+//#undef PAL_STATIC_MEMBUF_SECTION_NAME
+
 #endif /* PAL_DEFAULT_LINUX_CONFIGURATION_H_ */

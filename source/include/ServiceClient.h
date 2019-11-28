@@ -292,6 +292,13 @@ protected :
 private:
     M2MDevice* device_object_from_storage();
 
+    static void post_response_status_handler(const M2MBase& base,
+                                             const M2MBase::MessageDeliveryStatus status,
+                                             const M2MBase::MessageType type,
+                                             void* me);
+    void reboot_execute_handler(void*);
+    void m2mdevice_reboot_execute();
+
     /* lookup table for printing hexadecimal values */
     static const uint8_t hex_table[16];
 

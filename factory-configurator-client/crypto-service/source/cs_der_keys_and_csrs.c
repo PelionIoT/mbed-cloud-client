@@ -22,7 +22,7 @@
 #include "pk.h"
 #include "fcc_malloc.h"
 #include "key_slot_allocator.h"
-#include "storage_keys.h"
+#include "storage_kcm.h"
 #include "pv_macros.h"
 
 /*! Frees key handle.
@@ -651,6 +651,12 @@ kcm_status_e cs_generate_keys_and_create_csr_from_certificate(const uint8_t *cer
     palStatus_t pal_status = PAL_SUCCESS;
     palECKeyHandle_t pal_ec_key_handle = NULLPTR;
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // Get the key context from the handle
+    cs_key_pair_context_s * ec_key_ctx = (cs_key_pair_context_s *)(key_handle);
+    uint8_t *cs_pub_key_name = NULL;
+    size_t cs_pub_key_name_len = 0;
+#endif 
 
     // Create new key handle
     pal_status = pal_ECKeyNew(&pal_ec_key_handle);
@@ -663,27 +669,20 @@ kcm_status_e cs_generate_keys_and_create_csr_from_certificate(const uint8_t *cer
     // Call to internal key_pair_generate
     kcm_status = key_pair_generate(pal_ec_key_handle, KCM_SCHEME_EC_SECP256R1, key_handle);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((KCM_STATUS_SUCCESS != kcm_status), (kcm_status = kcm_status), exit, "Failed to generate keys");
-
 #else
-    cs_key_pair_context_s *ec_key_ctx = NULL;
-    uint8_t *cs_pub_key_name = NULL;
-    size_t cs_pub_key_name_len = 0;
-
-    // Get the key context from the handle
-    ec_key_ctx = (cs_key_pair_context_s *)(key_handle);
 
     if (renewal_items_names->cs_pub_key_name != NULL) {
         cs_pub_key_name =(uint8_t*)renewal_items_names->cs_pub_key_name;
         cs_pub_key_name_len = (size_t)strlen(renewal_items_names->cs_pub_key_name);
     }
     //Generate new keys based on existing keys for certificate enrollment
-    kcm_status = storage_generate_ce_keys((const uint8_t*)renewal_items_names->cs_priv_key_name,
+    kcm_status = storage_ce_generate_keys((const uint8_t*)renewal_items_names->cs_priv_key_name,
         (size_t)strlen(renewal_items_names->cs_priv_key_name),
         (const uint8_t*)cs_pub_key_name,
         cs_pub_key_name_len,
         &ec_key_ctx->generated_priv_key_handle,
         &ec_key_ctx->generated_pub_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((KCM_STATUS_SUCCESS != kcm_status), (kcm_status = kcm_status), exit, "Failed in storage_generate_ce_keys");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((KCM_STATUS_SUCCESS != kcm_status), (kcm_status = kcm_status), exit, "Failed in storage_ce_generate_keys");
 
     //Get EC handle from generated private key kcm handle
     pal_status = pal_parseECPrivateKeyFromHandle(ec_key_ctx->generated_priv_key_handle, pal_ec_key_handle);
@@ -695,14 +694,19 @@ kcm_status_e cs_generate_keys_and_create_csr_from_certificate(const uint8_t *cer
     SA_PV_ERR_RECOVERABLE_GOTO_IF((KCM_STATUS_SUCCESS != kcm_status), (kcm_status = kcm_status), exit, "Failed to generate csr from certificate");
 
 exit:
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     // on error, remove keys and set_entry_id to zero
-#if 0 // FIXME, IOTFT-1866 - add new stortage api that call to new ksa api that implement the that clean
     if (KCM_STATUS_SUCCESS != kcm_status) {
-        if (ec_key_ctx->generated_priv_key_handle != PSA_CRYPTO_INVALID_KEY_HANDLE) {
-            
+        kcm_status_e kcm_internal_status; //this status is returned in case storage_ce_destroy_ce_key fails, otherwise original error kcm_status is returned 
+    
+        if (ec_key_ctx->generated_priv_key_handle != 0) {
+            kcm_internal_status = storage_ce_destroy_ce_key((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen(renewal_items_names->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((KCM_STATUS_SUCCESS != kcm_internal_status), kcm_internal_status, "Failed to remove CE private key");
         }
-        if (ec_key_ctx->generated_pub_key_handle != PSA_CRYPTO_INVALID_KEY_HANDLE) {
-            
+        if (ec_key_ctx->generated_pub_key_handle != 0) {
+            kcm_internal_status = storage_ce_destroy_ce_key((const uint8_t*)renewal_items_names->cs_pub_key_name, strlen(renewal_items_names->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((KCM_STATUS_SUCCESS != kcm_internal_status), kcm_internal_status, "Failed to remove CE public key");
         }
     }
 #endif

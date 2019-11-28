@@ -23,8 +23,7 @@
 #include "cs_utils.h"
 #include "pv_macros.h"
 #include "key_slot_allocator.h"
-#include "storage_items.h"
-#include "storage_keys.h"
+#include "storage_kcm.h"
 
 bool g_kcm_initialized = false;
 
@@ -181,7 +180,6 @@ kcm_status_e kcm_item_get_data(const uint8_t * kcm_item_name, size_t kcm_item_na
 kcm_status_e kcm_item_get_size_and_data(const uint8_t * kcm_item_name, size_t kcm_item_name_len, kcm_item_type_e kcm_item_type, uint8_t ** kcm_item_data_out, size_t * kcm_item_data_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    size_t kcm_item_data_act_size;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
@@ -191,32 +189,14 @@ kcm_status_e kcm_item_get_size_and_data(const uint8_t * kcm_item_name, size_t kc
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
     }
 
-    // Validate function parameter
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data_out is NULL");
-    *kcm_item_data_out = NULL;
-
-    // read the data size
-    kcm_status = kcm_item_get_data_size(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_data_size_out);
+    kcm_status = storage_item_get_size_and_data(kcm_item_name, kcm_item_name_len, kcm_item_type, STORAGE_ITEM_PREFIX_KCM, kcm_item_data_out, kcm_item_data_size_out);
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         return kcm_status;
     }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get data size");
-
-    //allocate buffer for kcm data
-    *kcm_item_data_out = malloc(*kcm_item_data_size_out);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((*kcm_item_data_out == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed to allocate memory for kcm data buffer");
-
-    //read data to the buffer
-    kcm_status =  kcm_item_get_data(kcm_item_name, kcm_item_name_len, kcm_item_type, *kcm_item_data_out, *kcm_item_data_size_out, &kcm_item_data_act_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_item_data_act_size != *kcm_item_data_size_out), kcm_status = KCM_STATUS_ERROR, free_and_exit,"Inconsistent data size");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, free_and_exit, "Failed during storage_data_read");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get item size and data");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 
-    return KCM_STATUS_SUCCESS;
-
-free_and_exit:
-    free(*kcm_item_data_out);
     return kcm_status;
 }
 
@@ -310,7 +290,7 @@ kcm_status_e kcm_factory_reset(void)
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), status, "KCM initialization failed\n");
     }
 
-    status = storage_reset_to_factory_state();
+    status = storage_factory_reset();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), status, "Failed perform factory reset");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -378,6 +358,8 @@ kcm_status_e kcm_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle, con
     //Call internal storage_chain_add_next
     kcm_status = storage_cert_chain_add_next(kcm_chain_handle, kcm_cert_data, kcm_cert_data_size, STORAGE_ITEM_PREFIX_KCM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed in storage_chain_add_next");
+
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 
     return kcm_status;
 }

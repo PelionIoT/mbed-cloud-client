@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include "pv_error_handling.h"
 #include "pv_macros.h"
-#include "storage_items.h"
+#include "storage_kcm.h"
 #include "esfs.h"
 #include "fcc_malloc.h"
 #include "sotp.h"
@@ -192,7 +192,7 @@ static bool is_file_accessible(const store_esfs_file_ctx_s *ctx)
     return true;
 }
 
-kcm_status_e storage_specific_init()
+kcm_status_e storage_init()
 {
     esfs_result_e esfs_status;
 
@@ -206,7 +206,7 @@ kcm_status_e storage_specific_init()
     return KCM_STATUS_SUCCESS;
 }
 
-kcm_status_e storage_specific_finalize()
+kcm_status_e storage_finalize()
 {
     esfs_result_e esfs_status;
 
@@ -220,7 +220,7 @@ kcm_status_e storage_specific_finalize()
     return KCM_STATUS_SUCCESS;
 }
 
-kcm_status_e storage_specific_reset()
+kcm_status_e storage_reset()
 {
     esfs_result_e esfs_status;
     sotp_result_e sotp_status;
@@ -534,7 +534,7 @@ void storage_cert_chain_prefix_update(uint8_t *complete_file_name, uint32_t inde
 }
 
 
-void chain_delete(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type)
+void storage_chain_delete(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type)
 {
 
     do {
@@ -959,7 +959,7 @@ kcm_status_e storage_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle, st
     if (chain_context->operation_type == STORAGE_CHAIN_OP_TYPE_CREATE &&
         chain_context->current_cert_index < chain_context->num_of_certificates_in_chain) {
         // user added less certificates than num_of_certificates_in_chain, delete all and return error
-        chain_delete(chain_context, STORAGE_ITEM_PREFIX_KCM);
+        storage_chain_delete(chain_context, STORAGE_ITEM_PREFIX_KCM);
         SA_PV_ERR_RECOVERABLE_GOTO_IF(true, (kcm_status = KCM_STATUS_CLOSE_INCOMPLETE_CHAIN), Exit, "Closing incomplete kcm chain");
     }
 

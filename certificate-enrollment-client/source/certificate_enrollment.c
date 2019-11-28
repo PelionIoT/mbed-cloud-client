@@ -164,7 +164,7 @@ ce_status_e ce_safe_renewal(const char *item_name, cs_renewal_names_s *renewal_i
 
     //Verify items correlation
     kcm_status = cs_verify_items_correlation(renewal_data->crypto_handle, renewal_data->cert_data->certs->cert, renewal_data->cert_data->certs->cert_length);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), CE_STATUS_RENEWAL_ITEM_VALIDATION_ERROR, "failed to validate renewal items");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), ce_status = CE_STATUS_RENEWAL_ITEM_VALIDATION_ERROR, exit_and_delete_ce_keys, "failed to validate renewal items");
 
     //Create backup items
     kcm_status = ce_create_backup_items(renewal_items_names);
@@ -220,6 +220,19 @@ exit_and_delete_renewal_data:
 
     //Clean backup items
     ce_clean_items(renewal_items_names, STORAGE_ITEM_PREFIX_CE);
+
+
+exit_and_delete_ce_keys:
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    /* in PSA in case of item validation failure we need to destroy generated ce keys 
+     * because unlike in non-PSA mode they are stored internallyin  its and ksa ce entry is created
+     */
+    if (ce_status == CE_STATUS_RENEWAL_ITEM_VALIDATION_ERROR) {
+        SA_PV_LOG_ERR("removing CE keys following validation error");
+        ce_destroy_ce_keys(renewal_items_names, STORAGE_ITEM_PREFIX_KCM);
+    }
+#endif
 
     return ce_status;
 }

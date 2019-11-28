@@ -229,7 +229,7 @@ bool FtcdCommSocket::init()
                 }
             }
 
-            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "\n Factory Client IP Address and Port :  %s", ip_and_port_string);
+            mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "\n Client IP Address and Port :  %s", ip_and_port_string);
             //open and listen to socket
             if (_listen()) {
                 return true;
@@ -294,6 +294,15 @@ palStatus_t FtcdCommSocket::_accept(palSocket_t socket, palSocketAddress_t* addr
     return result;
 }
 
+
+void FtcdCommSocket::_close_client_socket(void)
+{
+    if (_client_socket != NULL) {
+        pal_close(&_client_socket);
+        _client_socket = NULL;
+    }
+}
+
 // no_open_connection, connection_open, connection_open_timeout
 ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint32_t *message_size_out)
 {
@@ -307,6 +316,10 @@ ftcd_comm_status_e FtcdCommSocket::wait_for_message(uint8_t **message_out, uint3
         reiterate = false;
 
         if (_connection_state == SOCKET_WAIT_FOR_CONNECTION) {
+            //Before getting a new client socket close the old one
+            if (_client_socket != NULL) {
+                _close_client_socket();
+            }
             // wait to accept connection
             result = _accept(_server_socket, &address, &addrlen, &_client_socket);
             if (result == PAL_ERR_SOCKET_WOULD_BLOCK) {
@@ -542,7 +555,7 @@ bool FtcdCommSocket::_listen(void)
         return false;
     }
 
-    mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, "Factory Client is waiting for incoming connection...");
+    mbed_tracef(TRACE_LEVEL_CMD, TRACE_GROUP, " Client is waiting for incoming connection...");
 
     return true;
 }

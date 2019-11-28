@@ -20,10 +20,7 @@
 #include "pv_macros.h"
 #include "ce_internal.h"
 #include "est_defs.h"
-#include "storage_items.h"
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-#include "storage_keys.h"
-#endif
+#include "storage_kcm.h"
 
 const char g_lwm2m_name[] = "LWM2M";
 const char g_renewal_status_file[] = "renewal_status";
@@ -31,209 +28,7 @@ const char g_renewal_status_file[] = "renewal_status";
 extern const char g_fcc_lwm2m_device_certificate_name[];
 extern const char g_fcc_lwm2m_device_private_key_name[];
 
-/* The function reads item from storage according to its kcm  and source type,
-the function allocated buffer for the item*/
-kcm_status_e ce_get_kcm_data(const uint8_t *parameter_name,
-                             size_t size_of_parameter_name,
-                             kcm_item_type_e kcm_type,
-                             storage_item_prefix_type_e item_prefix_type,
-                             uint8_t **kcm_data,
-                             size_t *kcm_data_size)
-{
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((parameter_name == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Wrong parameter_name pointer");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((size_of_parameter_name == 0), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Wrong parameter_name size.");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((*kcm_data != NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Wrong *kcm_data pointer, should be NULL");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_data_size == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Wrong kcm_data_size pointer.");
-
-    //Get size of kcm data
-    kcm_status = storage_item_get_data_size(parameter_name,
-                                            size_of_parameter_name,
-                                            kcm_type,
-                                            item_prefix_type,
-                                            kcm_data_size);
-    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
-        return kcm_status;
-    }
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get kcm data size");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((*kcm_data_size == 0), kcm_status = KCM_STATUS_ITEM_IS_EMPTY, "KCM item is empty");
-
-    //Allocate memory and get device certificate data
-    *kcm_data = fcc_malloc(*kcm_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((*kcm_data == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, "Failed to allocate buffer for kcm data");
-
-    kcm_status = storage_item_get_data(parameter_name, size_of_parameter_name, kcm_type, item_prefix_type, *kcm_data, *kcm_data_size, kcm_data_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to get device certificate data");
-
-exit:
-    if (kcm_status != KCM_STATUS_SUCCESS) {
-        fcc_free(*kcm_data);
-        *kcm_data = NULL;
-    }
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return kcm_status;
-}
-
-
-
-/*The function copies certificate chain or single certificate from source  to destination (inside storage)*/
-
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item_name_len, storage_item_prefix_type_e source_item_prefix_type, storage_item_prefix_type_e destination_item_prefix_type)
-{
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t *item_data = NULL;
-    size_t item_data_len = 0;
-    kcm_cert_chain_handle kcm_source_chain_handle;
-    kcm_cert_chain_handle kcm_destination_chain_handle;
-    size_t kcm_chain_len_out = 0;
-    size_t  kcm_actual_cert_data_size = 0;
-    int cert_index = 0;
-
-    //Open chain 
-    kcm_status = storage_cert_chain_open(&kcm_source_chain_handle, item_name, item_name_len, source_item_prefix_type, &kcm_chain_len_out);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to open chain");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_chain_len_out == 0), kcm_status = KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN, exit, "Invalid kcm_chain_len_out");
-    SA_PV_LOG_TRACE_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)item_name_len, (char*)item_name, (uint32_t)item_name_len);
-
-    //Current item is a single certificate 
-    if (storage_is_cert_chain(kcm_source_chain_handle) == false && kcm_chain_len_out == 1) {
-        //Read the item from source 
-        kcm_status = ce_get_kcm_data(item_name, item_name_len, KCM_CERTIFICATE_ITEM, source_item_prefix_type, &item_data, &item_data_len);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to get item data");
-
-        //Save the item as backup item
-        kcm_status = storage_item_store(item_name, item_name_len, KCM_CERTIFICATE_ITEM, false, destination_item_prefix_type, item_data, item_data_len, NULL);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
-    } else {
-        //Current item is certificate chain
-        for (cert_index = 1; cert_index <= (int)kcm_chain_len_out; cert_index++) {
-            //Create destination chain for start
-            if (cert_index == 1) {
-                kcm_status = storage_cert_chain_create(&kcm_destination_chain_handle, item_name, item_name_len, kcm_chain_len_out, false, destination_item_prefix_type);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to create destination chain");
-            }
-            //Get next certificate data size from source chain
-            kcm_status = storage_cert_chain_get_next_size(kcm_source_chain_handle, source_item_prefix_type, &item_data_len);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to _kcm_cert_chain_get_next_sizen");
-
-            //Allocate memory and get  certificate data from source chain
-            item_data = fcc_malloc(item_data_len);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((item_data == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit_and_close, "Failed to allocate buffer for kcm data");
-
-            //Get next certificate data
-            kcm_status = storage_cert_chain_get_next_data(kcm_source_chain_handle, item_data, item_data_len, source_item_prefix_type, &kcm_actual_cert_data_size);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to get certificate kcm data");
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_actual_cert_data_size != item_data_len), kcm_status = kcm_status, exit_and_close, "Wrong certificate data size");
-
-            //Add the data to destination chain
-            kcm_status = storage_cert_chain_add_next(kcm_destination_chain_handle, item_data, item_data_len, destination_item_prefix_type);
-            SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to add data to chain");
-
-            //free allocated buffer
-            fcc_free(item_data);
-            item_data = NULL;
-        }
-        //Close destination chain
-exit_and_close:
-        kcm_status = storage_cert_chain_close(kcm_destination_chain_handle, destination_item_prefix_type);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to close destination chain");
-
-    }
-
-exit:
-    if (item_data != NULL) {
-        fcc_free(item_data);
-    }
-    //close source chain
-    kcm_status = storage_cert_chain_close(kcm_source_chain_handle, source_item_prefix_type);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to close source chain");
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return kcm_status;
-
-}
-
-static kcm_status_e copy_kcm_item(const uint8_t *item_name,
-                                  size_t item_name_len,
-                                  kcm_item_type_e kcm_type,
-                                  storage_item_prefix_type_e source_item_prefix_type,
-                                  storage_item_prefix_type_e destination_item_prefix_type)
-{
-
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t *item_data = NULL;
-    size_t item_data_len = 0;
-
-    SA_PV_LOG_TRACE_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)item_name_len, (char*)item_name, (uint32_t)item_name_len);
-    //Read the data
-    if (kcm_type == KCM_CERTIFICATE_ITEM) {
-        //copy certificate chain 
-        kcm_status = copy_certificate_chain(item_name, item_name_len, source_item_prefix_type, destination_item_prefix_type);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to copy chain");
-    } else {
-
-        //Read the item from source
-        kcm_status = ce_get_kcm_data(item_name, item_name_len, kcm_type, source_item_prefix_type, &item_data, &item_data_len);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get item data");
-
-        //Save the item as backup item
-        kcm_status = storage_item_store(item_name, item_name_len, kcm_type, false, destination_item_prefix_type, item_data, item_data_len, NULL);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
-    }
-
-exit:
-    if (item_data != NULL) {
-        fcc_free(item_data);
-    }
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return kcm_status;
-}
-#else
-
-static kcm_status_e copy_kcm_item(const uint8_t *item_name,
-                                  size_t item_name_len,
-                                  kcm_item_type_e kcm_type,
-                                  storage_item_prefix_type_e source_item_prefix_type,
-                                  storage_item_prefix_type_e destination_item_prefix_type)
-{
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    SA_PV_LOG_TRACE_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)item_name_len, (char*)item_name, (uint32_t)item_name_len);
-
-    /*
-   Example : copy CE key to original , original is always present!!
-                    old status                                                       new status
-    --------------------------------------------------           -----------------------------------------------
-    | key name hash | Act ID | Factory ID | Renew ID |           | key name hash| Act ID | Factory ID | Renew ID |
-    ---------------------------------------------                ---------------------------------------------
-    | kcm_key1_hash |   3    |     1      |   0      |           | kcm_key1_hash|   1    |     1      |   0      |
-    -------------------------------------------------     ==>    --------------------------------------------------
-    | ce_key1_hash  |   1    |     1      |   3      |           |  ce_key1_hash|   1    |     1      |   0      |
-    -------------------------------------------------           --------------------------------------------------
-
-    Example: copy KCM key to CE : backup is new!!
-    //Creates CE key
-           old status                                                       new status
-    --------------------------------------------------           -----------------------------------------------
-    | key name hash | Act ID | Factory ID | Renew ID |           | key name hash| Act ID | Factory ID | Renew ID |
-    ---------------------------------------------        =====>    ---------------------------------------------
-    | kcm_key1_hash |   1    |     1      |   3      |          | kcm_key1_hash |   1    |     1      |   3      |
-    -------------------------------------------------            -------------------------------------------------
-                                                                | ce_key1_hash  |   1    |     1      |   3      |
-                                                                  ------------------------------------------------
-    */
-    //Copy key : copy the content of the source entry fields to destination entry.
-    kcm_status = storage_item_copy(item_name, item_name_len, kcm_type, source_item_prefix_type, destination_item_prefix_type);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to copy item data");
-
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return kcm_status;
-}
-#endif
 static kcm_status_e check_items_existence(cs_renewal_names_s *renewal_items_name, storage_item_prefix_type_e item_prefix_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -265,6 +60,8 @@ static kcm_status_e check_items_existence(cs_renewal_names_s *renewal_items_name
     return kcm_status;
 
 }
+
+
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 kcm_status_e ce_store_new_keys(cs_renewal_names_s *renewal_items_names, cs_key_handle_t crypto_handle)
 {
@@ -278,12 +75,12 @@ kcm_status_e ce_store_new_keys(cs_renewal_names_s *renewal_items_names, cs_key_h
     ec_key_ctx = (cs_key_pair_context_s*)crypto_handle;
 
     //Store the private key to KCM as original item
-    kcm_status = kcm_item_store((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen(renewal_items_names->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, false, ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->size, NULL);
+    kcm_status = storage_item_store((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen(renewal_items_names->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, false, STORAGE_ITEM_PREFIX_KCM, ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->size, NULL);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Falid to store new private key");
 
     if (renewal_items_names->cs_pub_key_name != NULL) {
         //Store the public key to KCM as original item
-        kcm_status = kcm_item_store((const uint8_t*)renewal_items_names->cs_pub_key_name, strlen(renewal_items_names->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, false, ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->size, NULL);
+        kcm_status = storage_item_store((const uint8_t*)renewal_items_names->cs_pub_key_name, strlen(renewal_items_names->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, false, STORAGE_ITEM_PREFIX_KCM, ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->size, NULL);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Falid to store new public key");
     }
 
@@ -309,12 +106,12 @@ kcm_status_e ce_store_new_keys(cs_renewal_names_s *renewal_items_names, cs_key_h
     | kcm_key1_hash |   1    |     1      |   3      |           | kcm_key1_hash|   3    |     1      |   0      |
     -------------------------------------------------           --------------------------------------------------
     */
-    kcm_status = storage_key_activate_ce((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen(renewal_items_names->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM);
+    kcm_status = storage_ce_key_activate((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen(renewal_items_names->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Falid to store new private key");
 
     if (renewal_items_names->cs_pub_key_name != NULL) {
         //Activate public CE key: set CE id value of the original key to ACTIVE id field and zero CE id field
-        kcm_status = storage_key_activate_ce((const uint8_t*)renewal_items_names->cs_pub_key_name, strlen(renewal_items_names->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM);
+        kcm_status = storage_ce_key_activate((const uint8_t*)renewal_items_names->cs_pub_key_name, strlen(renewal_items_names->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Falid to store new public key");
 
     }
@@ -324,6 +121,8 @@ kcm_status_e ce_store_new_keys(cs_renewal_names_s *renewal_items_names, cs_key_h
 }
 
 #endif
+
+
 bool ce_set_item_names(const char *item_name, char **private_key_name_out, char **public_key_name_out, char **certificate_name_out)
 {
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), false, "Invalid item_name");
@@ -375,6 +174,8 @@ kcm_status_e ce_private_key_existence(const uint8_t *priv_key_name, size_t priv_
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
+
+
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 //This API called only when all new items were successfully updated
 kcm_status_e ce_destroy_old_active_and_remove_backup_entries(cs_renewal_names_s *renewal_items_names)
@@ -419,14 +220,38 @@ kcm_status_e ce_destroy_old_active_and_remove_backup_entries(cs_renewal_names_s 
     -------------------------------------------------                                               ------------------------------------------------
     */
     //destroy old active id (if non - factory id)  and remove backup entry
-    kcm_status = storage_destory_old_active_and_remove_backup_entries((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen((char*)renewal_items_names->cs_priv_key_name),
+    kcm_status = storage_ce_destory_old_active_and_remove_backup_entries((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen((char*)renewal_items_names->cs_priv_key_name),
         (const uint8_t*)public_key_name_pointer, public_key_name_len, (const uint8_t*)cert_name_ptr, cert_name_length);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "failed to get destory and clean backup keys");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
+
+
+kcm_status_e ce_destroy_ce_keys(cs_renewal_names_s *renewal_items_name, storage_item_prefix_type_e data_source_type) {
+
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+
+    kcm_status = storage_ce_destroy_ce_key ((const uint8_t*)renewal_items_name->cs_priv_key_name, strlen(renewal_items_name->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, data_source_type);
+    if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
+        SA_PV_LOG_ERR("Failed to remove ce private key");
+    }
+
+    if (renewal_items_name->cs_pub_key_name != NULL) {
+
+        kcm_status = storage_ce_destroy_ce_key ((const uint8_t*)renewal_items_name->cs_pub_key_name, strlen(renewal_items_name->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, data_source_type);
+        if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
+            SA_PV_LOG_ERR("Failed to remove ce public key");
+        }
+    }
+    return kcm_status;
+}
+
+
 #endif
+
+
 /*! The API deletes set of items (key pair and certificate/certificate chain) according to given name and source type.
 *   For PSA configuration : if the keys are original type (KCM item prefix), the keys entries will not be deleted as the need to stay in ksa table
 *   and modified with updated keys later.
@@ -447,27 +272,14 @@ kcm_status_e ce_clean_items(cs_renewal_names_s *renewal_items_name, storage_item
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid data_source_type");
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
-
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    //Try to delete private key
-    kcm_status = storage_item_delete((const uint8_t*)renewal_items_name->cs_priv_key_name, strlen((char*)renewal_items_name->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, item_prefix_type);
-#else
-
-    //Remove only if the key is CE storage key, in case of KCM storage key do nothing
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     if (item_prefix_type != STORAGE_ITEM_PREFIX_KCM) {
+#endif
 
-        /*storage_entry_remove API only deletes the entry without any PSA operations
-                              old status                                                                          new status
-        --------------------------------------------------                                            -----------------------------------------------
-        | key name hash | Act ID | Factory ID | Renew ID |                                            | key name hash| Act ID | Factory ID | Renew ID |
-        -------------------------------------------------                                             -----------------------------------------------
-        | ce_key1_hash  |   1    |     2      |   3      | =>remove the entry (no PSA operations!!)=> |              |        |           |           |
-        -------------------------------------------------                                             ------------------------------------------------
-        */
+        kcm_status = storage_ce_clean_item((const uint8_t*)renewal_items_name->cs_priv_key_name, strlen((char*)renewal_items_name->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, item_prefix_type, false);
 
-        kcm_status = storage_entry_remove((const uint8_t*)renewal_items_name->cs_priv_key_name, strlen((char*)renewal_items_name->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, item_prefix_type);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     }
-
 #endif
     if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
         num_of_failures++;
@@ -475,39 +287,30 @@ kcm_status_e ce_clean_items(cs_renewal_names_s *renewal_items_name, storage_item
     }
 
     if (renewal_items_name->cs_pub_key_name != NULL) {
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-        //Try to delete public key
-        kcm_status = storage_item_delete((const uint8_t*)renewal_items_name->cs_pub_key_name, strlen((char*)renewal_items_name->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, item_prefix_type);
-#else
-        //Remove only if the key is CE storage key, in case of KCM storage key do nothing
-        if (item_prefix_type != STORAGE_ITEM_PREFIX_KCM) {
-            /*storage_entry_remove API only deletes the entry without any PSA operations
 
-                              old status                                                                       new status
-            --------------------------------------------------                                            -----------------------------------------------
-            | key name hash | Act ID | Factory ID | Renew ID |                                            | key name hash| Act ID | Factory ID | Renew ID |
-            -------------------------------------------------                                             -----------------------------------------------
-            | ce_key1_hash  |   1    |     2      |   3      | =>remove the entry (no PSA operations!!)=> |              |        |           |           |
-            -------------------------------------------------                                             ------------------------------------------------
-            */
-            kcm_status = storage_entry_remove((const uint8_t*)renewal_items_name->cs_pub_key_name, strlen((char*)renewal_items_name->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, item_prefix_type);
-        }
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+       if (item_prefix_type != STORAGE_ITEM_PREFIX_KCM) {
 #endif
+
+            kcm_status = storage_ce_clean_item((const uint8_t*)renewal_items_name->cs_pub_key_name, strlen((char*)renewal_items_name->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, item_prefix_type, false);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+       }
+#endif
+
         if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
             num_of_failures++;
             SA_PV_LOG_ERR("Failed to delete public key");
         }
     }
 
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    //Try to delete certificate/certificate chain
-    kcm_status = storage_item_delete((const uint8_t*)renewal_items_name->cs_cert_name, strlen((char*)renewal_items_name->cs_cert_name), KCM_CERTIFICATE_ITEM, item_prefix_type);
-    if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {//We need to check certificate chain with the same name
-        kcm_status = storage_cert_chain_delete((const uint8_t*)renewal_items_name->cs_cert_name, strlen((char*)renewal_items_name->cs_cert_name), item_prefix_type);
-    }
-#else
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     if (item_prefix_type != STORAGE_ITEM_PREFIX_KCM) {
-        kcm_status = storage_entry_remove((const uint8_t*)renewal_items_name->cs_cert_name, strlen((char*)renewal_items_name->cs_cert_name), KCM_CERTIFICATE_ITEM, item_prefix_type);
+#endif
+
+        kcm_status = storage_ce_clean_item((const uint8_t*)renewal_items_name->cs_cert_name, strlen((char*)renewal_items_name->cs_cert_name), KCM_CERTIFICATE_ITEM, item_prefix_type, false);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     }
 #endif
 
@@ -524,6 +327,9 @@ kcm_status_e ce_clean_items(cs_renewal_names_s *renewal_items_name, storage_item
     return KCM_STATUS_SUCCESS;
 
 }
+
+
+
 /*! The API creates a copy of renewal items.
 *
 *    @param[in] item_name                pointer to item name.
@@ -533,7 +339,6 @@ kcm_status_e ce_clean_items(cs_renewal_names_s *renewal_items_name, storage_item
 *    @returns
 *        CE_STATUS_SUCCESS in case of success or one of the `::ce_status_e` errors otherwise.
 */
-
 kcm_status_e ce_create_backup_items(cs_renewal_names_s *renewal_items_name)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -542,18 +347,18 @@ kcm_status_e ce_create_backup_items(cs_renewal_names_s *renewal_items_name)
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
     //Backup private key
-    kcm_status = copy_kcm_item((const uint8_t*)renewal_items_name->cs_priv_key_name, strlen((char*)renewal_items_name->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM, STORAGE_ITEM_PREFIX_CE);
+    kcm_status = storage_ce_item_copy((const uint8_t*)renewal_items_name->cs_priv_key_name, strlen((char*)renewal_items_name->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM, STORAGE_ITEM_PREFIX_CE);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Falid to backup private key");
 
     //Check if public key exists
     if (renewal_items_name->cs_pub_key_name != NULL) {
         //Backup private key
-        kcm_status = copy_kcm_item((const uint8_t*)renewal_items_name->cs_pub_key_name, strlen((char*)renewal_items_name->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM, STORAGE_ITEM_PREFIX_CE);
+        kcm_status = storage_ce_item_copy((const uint8_t*)renewal_items_name->cs_pub_key_name, strlen((char*)renewal_items_name->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_KCM, STORAGE_ITEM_PREFIX_CE);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Falid to backup public key");
     }
 
     //Backup certificate/certificate chain
-    kcm_status = copy_kcm_item((const uint8_t*)renewal_items_name->cs_cert_name, strlen((char*)renewal_items_name->cs_cert_name), KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_KCM, STORAGE_ITEM_PREFIX_CE);
+    kcm_status = storage_ce_item_copy((const uint8_t*)renewal_items_name->cs_cert_name, strlen((char*)renewal_items_name->cs_cert_name), KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_KCM, STORAGE_ITEM_PREFIX_CE);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Falid to backup certificate");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -565,6 +370,7 @@ exit:
     ce_clean_items(renewal_items_name, STORAGE_ITEM_PREFIX_CE);
     return kcm_status;
 }
+
 
 /*! The API restores backup items and moves it to original source, if the operation succeeded, the backup items deleted.
 *    @param[in] item_name                pointer to item name.
@@ -600,17 +406,35 @@ kcm_status_e ce_restore_backup_items(const char *item_name)
 
     //Restore backup items by copying backup items to original source
     //Copy the backup private key to the original private key
-    kcm_status = copy_kcm_item((const uint8_t *)renewal_items_name.cs_priv_key_name, strlen((char*)renewal_items_name.cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_CE, STORAGE_ITEM_PREFIX_KCM);
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    // We need to destroy CE generated private key since we are reverting to original items.
+    // We do it before copying the backup keys to the original ones, so the CE key won't be copied
+    kcm_status = storage_ce_destroy_ce_key ((const uint8_t*)renewal_items_name.cs_priv_key_name, strlen((char*)renewal_items_name.cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_CE);
+    if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
+         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to remove ce private key");
+    }
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+    kcm_status = storage_ce_item_copy((const uint8_t *)renewal_items_name.cs_priv_key_name, strlen((char*)renewal_items_name.cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, STORAGE_ITEM_PREFIX_CE, STORAGE_ITEM_PREFIX_KCM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to copy backup private key to original source");
 
     if (renewal_items_name.cs_pub_key_name != NULL) {
         //Copy the backup public key to the original private key
-        kcm_status = copy_kcm_item((const uint8_t *)renewal_items_name.cs_pub_key_name, strlen((char*)renewal_items_name.cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_CE, STORAGE_ITEM_PREFIX_KCM);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+        // We need to destroy CE generated private key since we are reverting to original items.
+        // We do it before copying the backup keys to the original ones, so the CE key won't be copied
+        kcm_status = storage_ce_destroy_ce_key ((const uint8_t*)renewal_items_name.cs_pub_key_name, strlen((char*)renewal_items_name.cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_CE);
+        if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
+            SA_PV_LOG_ERR("Failed to remove ce public key");
+        }
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+        kcm_status = storage_ce_item_copy((const uint8_t *)renewal_items_name.cs_pub_key_name, strlen((char*)renewal_items_name.cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, STORAGE_ITEM_PREFIX_CE, STORAGE_ITEM_PREFIX_KCM);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to copy backup public key to original source");
     }
 
     //Copy the backup certificate/certificate chain to the original  certificate/certificate chain
-    kcm_status = copy_kcm_item((const uint8_t *)renewal_items_name.cs_cert_name, strlen((char*)renewal_items_name.cs_cert_name), KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_CE, STORAGE_ITEM_PREFIX_KCM);
+    kcm_status = storage_ce_item_copy((const uint8_t *)renewal_items_name.cs_cert_name, strlen((char*)renewal_items_name.cs_cert_name), KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_CE, STORAGE_ITEM_PREFIX_KCM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to copy backup certificate to original source");
 
     //Clean backup items after it was restored
@@ -621,6 +445,7 @@ kcm_status_e ce_restore_backup_items(const char *item_name)
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
+
 
 kcm_status_e ce_create_renewal_status(const char *item_name)
 {
@@ -636,6 +461,7 @@ kcm_status_e ce_create_renewal_status(const char *item_name)
 
     return KCM_STATUS_SUCCESS;
 }
+
 
 kcm_status_e ce_delete_renewal_status(void)
 {
@@ -677,13 +503,11 @@ kcm_status_e ce_store_new_certificate(const char *certificate_name, struct cert_
     certificate_size = current_certs->cert_length;
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    /* We don't remove KCM old certificate entry in ce_clear_items flow (same behavior as for keys) and this is because we always
-     * want to keep KCM entry valid for factory flow even if we created backup items.
-     * Still, we still need to remove the entry just before storing the new certificate (backup entry still exist).
+    /* Clean only the active certificate value  in KSA table just before storing the new certificate. We would always like to keep the factory certificate. Backup entry still keeps the original active value.
      * There still  might  be a small issue, since in case of power failure, after we removed the old KCM entry and before we stored a new certificate to KCM entry,we won't be able to restore the original certificate,
-     * but it is less signficant than if we would've removed the KCM entry in ce_clear_items flow
+     * but it is less signficant than if we would've removed the active value in ce_clear_items flow
     */
-    kcm_status = storage_entry_remove((const uint8_t*)certificate_name, strlen(certificate_name), KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_KCM);
+    kcm_status = storage_ce_clean_item((const uint8_t*)certificate_name, strlen(certificate_name), KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_KCM, true);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to remove old cert entry");
 #endif
 

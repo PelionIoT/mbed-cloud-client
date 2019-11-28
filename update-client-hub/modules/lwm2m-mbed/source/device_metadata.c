@@ -16,7 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "lwm2m-source.h"
+#include "update-client-common/arm_uc_config.h"
+#include "update-client-lwm2m/lwm2m-source.h"
 
 #ifdef LWM2M_SOURCE_USE_C_API
 
@@ -156,4 +157,3 @@ void device_metadata_destroy(registry_t *registry)
 }
 
 #endif //LWM2M_SOURCE_USE_C_API
-

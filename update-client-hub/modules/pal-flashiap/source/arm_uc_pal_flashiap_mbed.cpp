@@ -16,7 +16,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_PAL_FLASHIAP) && (ARM_UC_FEATURE_PAL_FLASHIAP == 1)
 #if defined(TARGET_LIKE_MBED)
 

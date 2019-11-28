@@ -514,6 +514,14 @@ M2MDevice* ServiceClient::device_object_from_storage()
     }
     device_object->set_resource_value(M2MDevice::SupportedBindingMode, binding_mode);
 
+    // Add handler for reboot
+    res = instance->resource(DEVICE_REBOOT);
+    if (res) {
+        res->set_execute_function(execute_callback(this, &ServiceClient::reboot_execute_handler));
+        res->set_delayed_response(true);
+        res->set_message_delivery_status_cb(post_response_status_handler, this);
+    }
+
     return device_object;
 }
 
@@ -569,6 +577,37 @@ bool ServiceClient::set_device_resource_value(M2MDevice::DeviceResource resource
     }
 
     return retval;
+}
+
+void ServiceClient::post_response_status_handler(const M2MBase& base,
+                                                 const M2MBase::MessageDeliveryStatus status,
+                                                 const M2MBase::MessageType type,
+                                                 void* me)
+{
+    switch(status) {
+        case M2MBase::MESSAGE_STATUS_DELIVERED: // intentional fall-through
+        case M2MBase::MESSAGE_STATUS_SEND_FAILED: {
+            M2MDevice* dev = M2MInterfaceFactory::create_device();
+            if (&base == dev->object_instance(0)->resource(DEVICE_REBOOT)) {
+                ((ServiceClient*)me)->m2mdevice_reboot_execute();
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void ServiceClient::reboot_execute_handler(void*)
+{
+    // Don't perform reboot yet, as server will not get response. Instead, send response and wait
+    // for acknowledgement before rebooting.
+    M2MInterfaceFactory::create_device()->object_instance(0)->resource(DEVICE_REBOOT)->send_delayed_post_response();
+}
+
+void ServiceClient::m2mdevice_reboot_execute()
+{
+    pal_osReboot();
 }
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE

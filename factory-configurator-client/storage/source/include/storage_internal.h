@@ -17,8 +17,24 @@
 #ifndef __STORAGE_INTERNAL_H__
 #define __STORAGE_INTERNAL_H__
 
-#include "storage_items.h"
+#include "storage_kcm.h"
 
+//The complete storage item name composed from :
+//    1. STORAGE_TYPE_PREFIX_MAX_LENGTH -
+//     for esfs configuration : STORAGE_TYPE_PREFIX_MAX_LENGTH = 0
+//     for EXTERNAL_SST configuration: STORAGE_TYPE_PREFIX_MAX_LENGTH=STORAGE_WORKING = 8 = strlen"pelion_w"
+//    2. STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH - 
+//        item type prefix refers to KCM item prefixes of both types (KCM and CE) and certificate chain naming = 16
+//    3. KCM_MAX_FILENAME_SIZE = 100
+//  Total complete max name size is 124 for external sst and 116 for esfs.
+
+//Max size of storage item prefix
+#define STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH 16
+#define STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH  STORAGE_TYPE_PREFIX_MAX_LENGTH + STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH + KCM_MAX_FILENAME_SIZE
+
+
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT //ESFS and SST
 
 /**
 * KCM file prefixes defines
@@ -27,7 +43,7 @@
 #define KCM_FILE_PREFIX_PUBLIC_KEY        "PubKey_"
 #define KCM_FILE_PREFIX_SYMMETRIC_KEY     "SymKey_"
 #define KCM_FILE_PREFIX_CONFIG_PARAM      "CfgParam_"
-
+   
 /**
 * KCM file prefixes defines for backup items
 */
@@ -36,8 +52,10 @@
 #define KCM_RENEWAL_FILE_PREFIX_SYMMETRIC_KEY     "bSmKey_"
 #define KCM_RENEWAL_FILE_PREFIX_CONFIG_PARAM      "mCfgParm_"
 
+#endif //ESFS and SST
 
-#if !defined  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+#if !defined  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT //ESFS only 
 
 #define KCM_FILE_PREFIX_CERTIFICATE       "Cert_"
 #define KCM_FILE_PREFIX_CERT_CHAIN_0      KCM_FILE_PREFIX_CERTIFICATE
@@ -48,7 +66,12 @@
 #define KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_X      "bCt1_" // must be same length as KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_0
 #define KCM_RENEWAL_FILE_PREFIX_CERT_CHAIN_X_OFFSET 3
 #define STORAGE_TYPE_PREFIX_MAX_LENGTH  0
-#else //PSA
+
+#endif //ESFS only 
+
+
+#if defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT  && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT //SST only
+
 /**
 * KCM file prefixes defines
 */
@@ -62,7 +85,6 @@
 #define KCM_RENEWAL_FILE_PREFIX_CONFIG_PARAM      "mCfgParm_"
 #define KCM_RENEWAL_FILE_PREFIX_FIRST_CHAIN_CERTIFICATE       "bCta__"
 
-#define STORAGE_FACTORY_RESET_IN_PROGRESS_ITEM   "FR_ON"
 //The complete name of kcm items will be build from pelion prefix and working or backup(for factory) acronyms : "pelion_w" or "pelion_b" for factory kcm items.
 //Pelion prefix
 #define STORAGE_PELION_PREFIX "pelion_"
@@ -72,25 +94,86 @@
 #define STORAGE_WORKING  STORAGE_PELION_PREFIX STORAGE_WORKING_ACRONYM// "pelion_w"
 #define STORAGE_BACKUP STORAGE_PELION_PREFIX STORAGE_BACKUP_ACRONYM // "pelion_b"
 #define STORAGE_TYPE_PREFIX_MAX_LENGTH 8 //sizeof STORAGE_BACKUP //8 STORAGE_WORKING
+#endif //SST only
+
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT //PSA only
+
+/*======= storage metadata defines ======== */ 
+
+
+/* size of complete item name
+*/
+#define STORAGE_COMPLETE_ITEM_NAME_SIZE KSA_ITEM_NAME_SIZE
+
+/* size of item_name hash in bytes
+*/
+#define STORAGE_ITEM_NAME_HASH_SIZE  32
+
+/* size of metadata byte
+*/
+#define STORAGE_ITEM_METADATA_SIZE   STORAGE_COMPLETE_ITEM_NAME_SIZE - STORAGE_ITEM_NAME_HASH_SIZE 
+
+
+/* metadata key values
+*/
+#define STORAGE_METADATA_KEY_OFFSET                        0   //key bits offset in metadata byte
+#define STORAGE_METADATA_KEY_MASK                         (0x3 << STORAGE_METADATA_KEY_OFFSET) //key bits mask in metadata byte
+#define STORAGE_METADATA_PRIVATE_KEY_VAL                   0  //private key value in metadata
+#define STORAGE_METADATA_PUBLIC_KEY_VAL                    1  //public key value in metadata
+#define STORAGE_METADATA_SYMMETRIC_KEY_VAL                 2  //symmetric key value in metadata
+
+/* metadata duplicate items values
+*/
+#define STORAGE_METADATA_DUPLICATE_ITEM_OFFSET             6   //duplicate item bits offset in metadata byte
+#define STORAGE_METADATA_DUPLICATE_ITEM_MASK               (0x1 << STORAGE_METADATA_DUPLICATE_ITEM_OFFSET) //duplicate item mask in metadata byte
+#define STORAGE_METADATA_DUPLICATE_ITEM_VAL                1 //duplicate item value
+
+
+/* metadata certificates and certificate chains
+*/
+#define STORAGE_METADATA_CERTIIFCATE_CHAIN_INDEX_OFFSET         2 //certificate chain index offset in metadata byte
+#define STORAGE_METADATA_CERTIIFCATE_CHAIN_INDEX_MASK           (0xF << STORAGE_METADATA_CERTIIFCATE_CHAIN_INDEX_OFFSET) //certificates index offset in metadata byte
+#define STORAGE_METADATA_CERTIIFCATE_CHAIN_LAST_OFFSET          0 //last certificate chain value offset in metadata byte
+#define STORAGE_METADATA_CERTIIFCATE_CHAIN_LAST_MASK            (0x3 << STORAGE_METADATA_CERTIIFCATE_CHAIN_LAST_OFFSET) //last certificate chain mask in metadata byte
+#define STORAGE_METADATA_CERTIIFCATE_CHAIN_LAST_VAL             1 //last certificate chain value in metadata byte
+#define STORAGE_METADATA_SINGLE_CERTIFICATE_VAL                 1 //single certificate value in metadata bytes
+
+//sets a value at a given offset and mask to data
+#define STORAGE_SET_METADATA_VAL(data, offset, mask, val) {\
+    if (val > mask) { \
+        SA_PV_LOG_WARN("Warning: Set operation might overwrite unintended bits!"); \
+    } \
+    data |= ((val) << (offset)); \
+} \
+
+//set metadata for keys
+#define STORAGE_SET_KEY_METADATA_VAL(data, val)                     STORAGE_SET_METADATA_VAL(data, STORAGE_METADATA_KEY_OFFSET, STORAGE_METADATA_KEY_MASK, val)
+//set certificate index in certificate chains
+#define STORAGE_SET_CERTIFICATE_CHAIN_INDEX_METADATA_VAL(data, val) STORAGE_SET_METADATA_VAL(data, STORAGE_METADATA_CERTIIFCATE_CHAIN_INDEX_OFFSET, STORAGE_METADATA_CERTIIFCATE_CHAIN_INDEX_MASK, val)
+//set last certificate in certificate chain
+#define STORAGE_SET_CERTIFICATE_CHAIN_LAST_VAL(data, val)           STORAGE_SET_METADATA_VAL(data, STORAGE_METADATA_CERTIIFCATE_CHAIN_LAST_OFFSET, STORAGE_METADATA_CERTIIFCATE_CHAIN_LAST_MASK, val)
+//set duplicate item bit
+#define STORAGE_SET_DUPLICATE_ITEM_METADATA_VAL(data, val)          STORAGE_SET_METADATA_VAL(data, STORAGE_METADATA_DUPLICATE_ITEM_OFFSET, STORAGE_METADATA_DUPLICATE_ITEM_MASK, val)
+
+
+//gets a value at a given offest and mask from metadata
+#define STORAGE_GET_METADATA_VAL(data, offset, mask) (((data) & (mask)) >> (offset))
+
+#define STORAGE_TYPE_PREFIX_MAX_LENGTH 0
+
+#endif
+
+
+#if defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT || defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT //SST + PSA
 
 typedef struct kcm_chain_cert_name_info_ {
     uint32_t certificate_index;
     bool is_last_certificate;
 } kcm_chain_cert_info_s;
 
-#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-
-//Max size of storage item prefix
-#define STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH 16
-#define STORAGE_MAX_COMPLETE_ITEM_NAME_LENGTH  STORAGE_TYPE_PREFIX_MAX_LENGTH + STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH + KCM_MAX_FILENAME_SIZE
-//The complete storage item name composed from :
-//    1. STORAGE_TYPE_PREFIX_MAX_LENGTH -
-//     for esfs configuration : STORAGE_TYPE_PREFIX_MAX_LENGTH = 0
-//     for EXTERNAL_SST configuration: STORAGE_TYPE_PREFIX_MAX_LENGTH=STORAGE_WORKING = 8 = strlen"pelion_w"
-//    2. STORAGE_ITEM_TYPE_PREFIX_MAX_LENGTH - 
-//        item type prefix refers to KCM item prefixes of both types (KCM and CE) and certificate chain naming = 16
-//    3. KCM_MAX_FILENAME_SIZE = 100
-//  Total complete max name size is 124 for external sst and 116 for esfs.
+#define STORAGE_FACTORY_RESET_IN_PROGRESS_ITEM   "FR_ON"
+#endif //defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT || defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 /**
 * Chain operations
@@ -156,6 +239,7 @@ kcm_status_e storage_item_store_impl(const uint8_t * kcm_item_name,
 kcm_status_e storage_get_prefix_from_type(kcm_item_type_e kcm_item_type, storage_item_prefix_type_e item_prefix_type, const char** prefix);
 
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 /**
  * @param[in] kcm_item_type                 KCM item type as defined in `::kcm_item_type_e`
  * @param[in] item_prefix_type              KCM item prefix type (KCM or CE) as defined in `::storage_item_prefix_type_e`
@@ -179,6 +263,26 @@ kcm_status_e storage_build_complete_working_item_name(
     char *kcm_complete_name_out,
     size_t *kcm_complete_name_size_out,
     void *chain_cert_info);
+
+#else // PSA
+
+/**
+ * @param[in] kcm_item_name                 KCM item name.
+ * @param[in] kcm_item_name_len             KCM item name length. Must be at most KCM_MAX_FILENAME_SIZE bytes
+ * @param[in] item_type                     Item type as defined in `::kcm_item_type_e` and storage_item_type_e
+ * @param[in] item_prefix_type              KCM item prefix type (KCM or CE) as defined in `::storage_item_prefix_type_e`
+ * @param[in] cert_name_info                KCM certificate name info.
+ * @param[out] item_name_out                Storage item name. 
+ */
+kcm_status_e storage_build_item_name(const uint8_t *kcm_item_name,
+                                            size_t kcm_item_name_len,
+                                            uint32_t item_type, 
+                                            storage_item_prefix_type_e item_prefix_type, 
+                                            kcm_chain_cert_info_s* cert_name_info, 
+                                            uint8_t* storage_item_name_out);
+
+#endif
+
 
 /**
  * The function checks KCM item name length. Should be less than ::KCM_MAX_FILENAME_SIZE bytes (including "\0")
@@ -212,14 +316,6 @@ kcm_status_e storage_cert_chain_add_next_impl(kcm_cert_chain_handle kcm_chain_ha
                                               size_t kcm_cert_data_size,
                                               storage_item_prefix_type_e item_prefix_type);
 
-/** Initializes the specific storage backend so that it can be used.
-*   Must be called once after boot.
-*   Existing data in storage would not compromised.
-*
-*   @returns
-*       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
-*/
-kcm_status_e storage_specific_init(void);
 
 /** Finalize the specific storage backend.
 *   Must be called once to close all storage resources.
@@ -241,7 +337,7 @@ kcm_status_e storage_specific_finalize(void);
  *   @returns
  *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e set_certificates_info(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type);
+kcm_status_e storage_set_certs_and_chain_size(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type);
 
 
 /** Delete certificate chain
@@ -249,22 +345,10 @@ kcm_status_e set_certificates_info(storage_cert_chain_context_s *chain_context, 
  * @param[in] chain_context                 certificate chain context.
  * @param[in] item_prefix_type              Storage item prefix type.
 */
-void chain_delete(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type);
+void storage_chain_delete(storage_cert_chain_context_s *chain_context, storage_item_prefix_type_e item_prefix_type);
 
 
-kcm_status_e pal_to_kcm_error_translation(palStatus_t pal_status);
-
-kcm_status_e build_complete_backup_item_name(
-    kcm_item_type_e kcm_item_type,
-    storage_item_prefix_type_e item_prefix_type,
-    const uint8_t *kcm_item_name,
-    size_t kcm_item_name_len,
-    char *kcm_complete_name_out,
-    void *cert_name_info);
-
-
-kcm_status_e check_certificate_existance(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, storage_item_prefix_type_e item_prefix_type);
-
+kcm_status_e storage_check_certificate_existance(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, storage_item_prefix_type_e item_prefix_type);
 
 
 #endif //__STORAGE_INTERNAL_H__

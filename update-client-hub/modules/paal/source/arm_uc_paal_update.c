@@ -22,7 +22,7 @@
 
 #include "update-client-paal/arm_uc_paal_update.h"
 #include "update-client-paal/arm_uc_paal_update_api.h"
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
 #define TRACE_GROUP  "UCPI"
 
 static const ARM_UC_PAAL_UPDATE *paal_update_implementation = NULL;

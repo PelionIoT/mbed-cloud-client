@@ -57,7 +57,7 @@ static kcm_status_e import_key_by_atrr( const void* raw_data, size_t raw_data_si
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     // initialize out params to invalid values
-    *ksa_id = PSA_INVALID_ID_NUMBER;
+    *ksa_id = PSA_INVALID_SLOT_ID;
     *psa_key_handle = PSA_CRYPTO_INVALID_KEY_HANDLE;
 
     // get last used id
@@ -109,12 +109,12 @@ static kcm_status_e import_key_by_atrr( const void* raw_data, size_t raw_data_si
     }
 
     // set error if no free id found
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((*ksa_id == PSA_INVALID_ID_NUMBER), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit, "Failed to find free id");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((*ksa_id == PSA_INVALID_SLOT_ID), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit, "Failed to find free id");
 exit:
     // on error, destroy created key and reset out params
     if (kcm_status != KCM_STATUS_SUCCESS && *psa_key_handle != PSA_CRYPTO_INVALID_KEY_HANDLE) {
         psa_destroy_key(*psa_key_handle);
-        *ksa_id = PSA_INVALID_ID_NUMBER;
+        *ksa_id = PSA_INVALID_SLOT_ID;
         *psa_key_handle = PSA_CRYPTO_INVALID_KEY_HANDLE;
     }
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
@@ -298,11 +298,11 @@ kcm_status_e psa_drv_crypto_generate_keys_from_existing_ids(const uint16_t exist
 
     // Check parameters
     SA_PV_ERR_RECOVERABLE_RETURN_IF((exist_prv_ksa_id < PSA_CRYPTO_MIN_ID_VALUE) || (exist_prv_ksa_id > PSA_CRYPTO_MAX_ID_VALUE), KCM_STATUS_INVALID_PARAMETER, "exist_prv_ksa_id invalid range %d", exist_prv_ksa_id);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((exist_pub_ksa_id != PSA_INVALID_ID_NUMBER) && ((exist_pub_ksa_id < PSA_CRYPTO_MIN_ID_VALUE) || (exist_pub_ksa_id > PSA_CRYPTO_MAX_ID_VALUE)), KCM_STATUS_INVALID_PARAMETER, "exist_pub_ksa_id invalid range %d", exist_pub_ksa_id);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((exist_pub_ksa_id != PSA_INVALID_SLOT_ID) && ((exist_pub_ksa_id < PSA_CRYPTO_MIN_ID_VALUE) || (exist_pub_ksa_id > PSA_CRYPTO_MAX_ID_VALUE)), KCM_STATUS_INVALID_PARAMETER, "exist_pub_ksa_id invalid range %d", exist_pub_ksa_id);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((new_prv_ksa_id == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid new_prv_ksa_id pointer");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((exist_pub_ksa_id != PSA_INVALID_ID_NUMBER) && (new_pub_ksa_id == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid new_pub_ksa_id pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((exist_pub_ksa_id != PSA_INVALID_SLOT_ID) && (new_pub_ksa_id == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid new_pub_ksa_id pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((new_prv_psa_key_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid new_prv_psa_key_handle pointer");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((exist_pub_ksa_id != PSA_INVALID_ID_NUMBER) && (new_pub_psa_key_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid new_pub_psa_key_handle pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((exist_pub_ksa_id != PSA_INVALID_SLOT_ID) && (new_pub_psa_key_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid new_pub_psa_key_handle pointer");
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
@@ -323,7 +323,7 @@ kcm_status_e psa_drv_crypto_generate_keys_from_existing_ids(const uint16_t exist
     kcm_status = import_key_by_atrr(NULL, 0, &psa_key_attr, new_prv_ksa_id, new_prv_psa_key_handle);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to generate new private key");
 
-    if (exist_pub_ksa_id != PSA_INVALID_ID_NUMBER) {
+    if (exist_pub_ksa_id != PSA_INVALID_SLOT_ID) {
         // export also public key
 
         // reset psa_key_attr to free resources the structure may contain
@@ -386,12 +386,12 @@ kcm_status_e psa_drv_crypto_get_handle(uint16_t key_id, psa_key_handle_t *key_ha
     psa_status_t psa_status = PSA_SUCCESS;
 
     //TODO: check correct range one we move to KSA table for all items
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_id == PSA_INVALID_ID_NUMBER || key_id > KSA_MAX_PSA_ID_VALUE), KCM_STATUS_INVALID_PARAMETER, "Invalid key id ");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_id == PSA_INVALID_SLOT_ID || key_id > KSA_MAX_PSA_ID_VALUE), KCM_STATUS_INVALID_PARAMETER, "Invalid key id ");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_handle_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Wrong key handle pointer");
 
     //Open key handle
     psa_status = psa_open_key(key_id, key_handle_out);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_handle_out == NULL), psa_drv_translate_to_kcm_error(psa_status), "Failed to open the key with  ");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed to open the key with  ");
 
     return KCM_STATUS_SUCCESS;
 }
@@ -406,4 +406,5 @@ kcm_status_e psa_drv_crypto_close_handle(psa_key_handle_t key_handle)
 
     return KCM_STATUS_SUCCESS;
 }
+
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT

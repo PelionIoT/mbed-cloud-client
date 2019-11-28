@@ -23,7 +23,7 @@
 #include "fcc_time_profiling.h"
 #include "fcc_utils.h"
 #include "fcc_bundle_fields.h"
-#include "storage_items.h"
+#include "storage_kcm.h"
 #include "tinycbor.h"
 
 /**

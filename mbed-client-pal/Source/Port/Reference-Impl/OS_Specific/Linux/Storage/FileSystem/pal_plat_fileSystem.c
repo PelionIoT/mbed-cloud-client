@@ -23,6 +23,9 @@
 #include <string.h>
 #include <dirent.h>
 #include <stdlib.h>
+#include <fcntl.h>
+
+
 
 //PAL Includes
 #include "pal.h"
@@ -33,7 +36,23 @@
 
 #define PAL_FS_COPY_BUFFER_SIZE 256                                                            //!< Size of the chunk to copy files
 
-PAL_PRIVATE const char* g_platOpenModeConvert[] = {"0", "r", "r+", "w+x", "w+"};                    //!< platform convert table for \b fopen() modes
+typedef struct platOpenModeConvert
+{
+    const int flags;
+    const char* mode;
+}platOpenModeConvert_t;
+
+
+PAL_PRIVATE const platOpenModeConvert_t g_platOpenModeConvert[] = 
+{
+    {0                           , "0"   },
+    {O_RDONLY                    , "r"   },  // Open file for reading. The stream is positioned at the beginning of the file (file must exist), same as "r".\n
+    {O_RDWR                      , "r+"  },  // Open for reading and writing. The stream is positioned at the beginning of the file (file must exist), same as "r+ ".\n
+    {O_RDWR | O_CREAT | O_EXCL   , "w+x" },  // Open for reading and writing exclusively. If the file already exists, `fopen()` fails. The stream is positioned at the beginning of the file. same as "w+x"\n
+    {O_RDWR | O_CREAT | O_TRUNC  , "w+"  },  // Open for reading and writing exclusively. If the file already exists, truncate file. The stream is positioned at the beginning of the file. same as "w+"\n
+};    //!< platform convert table for \b fopen() modes
+
+
 PAL_PRIVATE const int g_platSeekWhenceConvert[] = {0, SEEK_SET, SEEK_CUR, SEEK_END};                //!< platform convert table for \b fseek() relative position modes
 
 
@@ -121,8 +140,15 @@ palStatus_t pal_plat_fsRmdir(const char *pathName)
 palStatus_t pal_plat_fsFopen(const char *pathName, pal_fsFileMode_t mode, palFileDescriptor_t *fd)
 {
     palStatus_t ret = PAL_SUCCESS;
+    int fDesc;
 
-    *fd = (palFileDescriptor_t)fopen(pathName, g_platOpenModeConvert[mode]);
+    fDesc = open(pathName, g_platOpenModeConvert[mode].flags | O_SYNC, 0666); //same permissions as for fopen()
+    if (fDesc < 0)
+    {
+        return pal_plat_errorTranslation(errno);
+    } 
+
+    *fd = (palFileDescriptor_t)fdopen(fDesc, g_platOpenModeConvert[mode].mode);
     if ((*fd) == NULLPTR)
     {
         ret = pal_plat_errorTranslation(errno);
@@ -336,7 +362,7 @@ PAL_PRIVATE palStatus_t pal_plat_fsCpFile(const char *pathNameSrc,  char *pathNa
 
     //Add file name to path
     pal_plat_addFileNameToPath(pathNameSrc, fileName, buffer_name, sizeof(buffer_name));
-    src_fd = (palFileDescriptor_t)fopen(buffer_name, g_platOpenModeConvert[PAL_FS_FLAG_READONLY]);
+    src_fd = (palFileDescriptor_t)fopen(buffer_name, g_platOpenModeConvert[PAL_FS_FLAG_READONLY].mode);
     if (src_fd == 0)
     {
         ret = pal_plat_errorTranslation(errno);
@@ -345,7 +371,7 @@ PAL_PRIVATE palStatus_t pal_plat_fsCpFile(const char *pathNameSrc,  char *pathNa
     {
         //Add file name to path
         pal_plat_addFileNameToPath(pathNameDest, fileName, buffer_name, sizeof(buffer_name));
-        dst_fd = (palFileDescriptor_t)fopen(buffer_name, g_platOpenModeConvert[PAL_FS_FLAG_READWRITETRUNC]);
+        dst_fd = (palFileDescriptor_t)fopen(buffer_name, g_platOpenModeConvert[PAL_FS_FLAG_READWRITETRUNC].mode);
         if (dst_fd == 0)
         {
             ret = pal_plat_errorTranslation(errno);

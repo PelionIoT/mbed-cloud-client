@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,6 +18,10 @@
 
 #ifndef __ARM_UCS_LWM2M_SOURCE_H__
 #define __ARM_UCS_LWM2M_SOURCE_H__
+
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 #if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1) && !defined(MBED_CONF_MBED_CLIENT_ENABLE_CPP_API)
 #define LWM2M_SOURCE_USE_C_API
@@ -56,5 +60,7 @@ bool ARM_UCS_LWM2M_SOURCE_manifast_received(const uint8_t *buffer, uint16_t leng
 #endif
 
 extern const ARM_UPDATE_SOURCE ARM_UCS_LWM2M_SOURCE;
+
+#endif
 
 #endif // __ARM_UCS_LWM2M_SOURCE_H__

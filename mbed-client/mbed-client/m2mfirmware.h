@@ -99,7 +99,7 @@ public:
     /**
      * \brief Deletes a M2MFirmware instance.
      */
-    static void delete_instance();
+    static void delete_instance() m2m_deprecated;
 
     /**
      * \brief Creates a new resource for a given resource enum.
@@ -108,7 +108,7 @@ public:
      * \param value The value to be set on the resource, in string format.
      * \return M2MResource if created successfully, else NULL.
      */
-    M2MResource* create_resource(FirmwareResource resource, const String &value);
+    M2MResource* create_resource(FirmwareResource resource, const String &value) m2m_deprecated;
 
     /**
      * \brief Creates a new resource for a given resource enum.
@@ -117,7 +117,7 @@ public:
      * \param value The value to be set on the resource, in integer format.
      * \return M2MResource if created successfully, else NULL.
      */
-    M2MResource* create_resource(FirmwareResource resource, int64_t value);
+    M2MResource* create_resource(FirmwareResource resource, int64_t value) m2m_deprecated;
 
     /**
      * \brief Deletes a resource with a given resource enum.
@@ -125,7 +125,7 @@ public:
      * \param resource The name of the resource to be deleted.
      * \return True if deleted, else false.
      */
-    bool delete_resource(FirmwareResource resource);
+    bool delete_resource(FirmwareResource resource) m2m_deprecated;
 
     /**
      * \brief Sets a value of a given resource enum.
@@ -135,7 +135,7 @@ public:
      * \return True if successfully set, else false.
      */
     bool set_resource_value(FirmwareResource resource,
-                            const String &value);
+                            const String &value) m2m_deprecated;
 
     /**
      * \brief Sets a value of a given resource enum.
@@ -145,7 +145,7 @@ public:
      * \return True if successfully set, else false.
      */
     bool set_resource_value(FirmwareResource resource,
-                            int64_t value);
+                            int64_t value) m2m_deprecated;
 
     /**
      * \brief Sets a value of a given resource enum.
@@ -157,7 +157,7 @@ public:
      */
     bool set_resource_value(FirmwareResource resource,
                             const uint8_t *value,
-                            const uint32_t length);
+                            const uint32_t length) m2m_deprecated;
 
     /**
      * \brief Returns a value of a given resource enum, in string format.
@@ -165,7 +165,7 @@ public:
      * 'PackageUri', 'PackageName','PackageVersion'.
      * \return The value associated with that resource, if the key is not valid it returns NULL.
      */
-    String resource_value_string(FirmwareResource resource) const;
+    String resource_value_string(FirmwareResource resource) const m2m_deprecated;
 
     /**
      * \brief Returns a value of a given resource key name, in integer format.
@@ -173,7 +173,7 @@ public:
      * 'State','UpdateSupportedObjects','UpdateResult'.
      * \return The value associated with that resource. If the resource is not valid -1 is returned.
      */
-    int64_t resource_value_int(FirmwareResource resource) const;
+    int64_t resource_value_int(FirmwareResource resource) const m2m_deprecated;
 
     /**
      * \brief Populates the data buffer and returns the size of the buffer.
@@ -186,20 +186,20 @@ public:
      * \return The size of the buffer populated.
      */
     uint32_t resource_value_buffer(FirmwareResource resource,
-                                   uint8_t *&data) const;
+                                   uint8_t *&data) const m2m_deprecated;
 
     /**
      * \brief Returns whether a resource instance with a given resource enum exists or not.
      * \param resource The resource enum.
      * \return True if at least one instance exists, else false.
      */
-    bool is_resource_present(FirmwareResource resource) const;
+    bool is_resource_present(FirmwareResource resource) const m2m_deprecated;
 
     /**
      * \brief Returns the number of resources for a whole firmware object.
      * \return Total number of resources belonging to the firmware object.
      */
-    uint16_t total_resource_count() const;
+    uint16_t total_resource_count() const m2m_deprecated;
 
     /**
      * \brief Returns the number of resources for a given resource enum.
@@ -208,7 +208,7 @@ public:
      * mandatory resources. Can be 0 as well if no instances exist for an
      * optional resource.
      */
-    uint16_t per_resource_count(FirmwareResource resource) const;
+    uint16_t per_resource_count(FirmwareResource resource) const m2m_deprecated;
 
     /**
      * \brief Set update resource execute callback function. This is called when update resource
@@ -289,7 +289,7 @@ protected:
 
     friend class Test_M2MFirmware;
     friend class Test_M2MInterfaceFactory;
-};
+} m2m_deprecated;
 
 
 #endif // M2MFIRMWARE_H

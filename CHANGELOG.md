@@ -1,5 +1,24 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.1.0 (28.11.2019)
+
+* Deprecated `M2MFirmware` class.
+* Fixed handling of the write attribute `step`. Previously, it did not store the value-change history correctly.
+* Fixed compilation issues caused by disabled update features. Previously, update-related configuration was mandatory even if the feature itself was disabled.
+* Removed support for the obsolete and undocumented write attribute `STP`. It was an alias for documented attribute `ST`.
+* [Linux] Added missing internal sub-component dependencies to `CMakeLists.txt`.
+* Added randomization to reconnection timer calculations.
+* Increased the library default `MBED_CLOUD_CLIENT_LIFETIME` to 86400 seconds.
+
+### Platform Adaptation Layer (PAL)
+
+* Shortened one long filepath to mitigate compilation issues in Windows platforms due to too long file path.
+* [Linux] Added `O_SYNC` flag for `pal_plat_fsOpen()` to ensure critical certificate data is written out without delays.
+* TLS: Added an option to run Mbed TLS allocations in a static buffer.
+* DTLS: Cancel DTLS timer event when cleaning up the TLS context.
+  * In some cases, a DTLS timer event can remain in the running state even if the whole TLS context is destroyed.
+  * This can happen, for example, when the client goes into a reconnect loop or when switching from bootstrap flow to LwM2M registration.
+
 ### Release 4.0.0 (25.09.2019)
 
 #### Device Management Client

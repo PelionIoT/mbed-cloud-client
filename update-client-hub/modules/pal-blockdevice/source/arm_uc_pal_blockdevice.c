@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2017-2018 ARM Ltd.
+// Copyright 2017-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,7 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "arm_uc_config.h"
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) && (ARM_UC_FEATURE_PAL_BLOCKDEVICE == 1)
 
 #include "update-client-paal/arm_uc_paal_update_api.h"
@@ -79,5 +82,5 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP_BLOCKDEVICE = {
     .GetFirmwareDetails         = ARM_UC_PAL_BlockDevice_GetFirmwareDetails,
     .GetInstallerDetails        = ARM_UC_PAL_FlashIAP_GetInstallerDetails
 };
-
 #endif // #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE)
+#endif // ARM_UC_ENABLE

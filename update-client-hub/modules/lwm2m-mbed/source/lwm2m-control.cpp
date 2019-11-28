@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,10 +16,13 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
 #include "update-client-lwm2m/lwm2m-control.h"
 #include "update-client-lwm2m/lwm2m-source.h"
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
-#include "update-client-common/arm_uc_config.h"
 
 /**
  * @brief Set callback function for externally triggering an update.
@@ -50,3 +53,4 @@ arm_uc_error_t ARM_UC_CONTROL_SetM2MInterface(M2MInterface *interface)
     return ARM_UCS_LWM2M_SOURCE_SetM2MInterface(interface);
 }
 #endif //ARM_UC_FEATURE_FW_SOURCE_COAP
+#endif

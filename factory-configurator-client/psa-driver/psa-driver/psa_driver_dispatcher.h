@@ -25,38 +25,37 @@ extern "C" {
 #include <stdbool.h>
 #include <inttypes.h>
 #include "kcm_status.h"
-#include "kcm_defs.h"
 #include "psa/crypto.h"
 #include "psa/crypto_extra.h"
 #include "psa/crypto_types.h"
-#include "key_config_manager.h"
-#include "storage_items.h"
-#include "storage_keys.h"
+#include "key_slot_allocator.h"
 
     typedef enum {
         PSA_DRV_FUNC_READ = 0,
         PSA_DRV_FUNC_READ_SIZE = 1,
         PSA_DRV_FUNC_WRITE = 2,
         PSA_DRV_FUNC_DELETE = 3,
+        PSA_DRV_FUNC_GET_HANDLE = 4,
+        PSA_DRV_FUNC_CLOSE_HANDLE = 5,
         PSA_DRV_FUNC_LAST
     }psa_drv_func_e;
-
+    
     typedef enum {
         PSA_DRV_TYPE_CRYPTO = 0,
         PSA_DRV_TYPE_PS = 1,
+        PSA_DRV_TYPE_SECURE_ELEMENT = 2,
         PSA_DRV_TYPE_LAST
     }psa_drv_element_type_e;
 
-
     void *psa_drv_func_dispatch_operation(psa_drv_func_e caller, ksa_item_type_e item_type, ksa_type_location_e item_location);
-
-
     
     // Prototypes of the 4 storage functions
-    typedef kcm_status_e(*psa_drv_store_f)( const void* data, size_t data_size, uint32_t extra_flags, uint16_t *ksa_id);
+    typedef kcm_status_e(*psa_drv_store_f)(const void* data, size_t data_size, uint32_t extra_flags, uint16_t *ksa_id);
     typedef kcm_status_e(*psa_drv_get_data_f)(const uint16_t ksa_id, const void* data_buffer_size, size_t data_length, size_t* actual_data_size);
     typedef kcm_status_e(*psa_drv_get_data_size_f)(const uint16_t ksa_id, size_t* actual_data_size);
     typedef kcm_status_e(*psa_drv_delete_f)(const uint16_t ksa_id);
+    typedef kcm_status_e(*psa_drv_get_handle_f)(const uint16_t key_id, psa_key_handle_t *key_handle_out);
+    typedef kcm_status_e(*psa_drv_close_handle_f)(const psa_key_handle_t key_handle_out);
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2019 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,12 +16,16 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
+
+
 #include "arm_uc_mmCryptoUtils.h"
 #include "arm_uc_mmCommon.h"
 #include "arm_uc_mmConfig.h"
 #include "arm_uc_mmDerManifestParser.h"
 #include "update-client-common/arm_uc_crypto.h"
-#include "update-client-common/arm_uc_config.h"
 #include "update-client-metadata-header/arm_uc_buffer_utilities.h"
 #include "update-client-control-center/arm_uc_certificate.h"
 #include "update-client-control-center/arm_uc_pre_shared_key.h"
@@ -899,3 +903,4 @@ arm_uc_error_t ARM_UC_mmVerifySignaturePSK(arm_uc_mm_validate_signature_context_
     return err;
 }
 #endif /* ARM_UC_FEATURE_MANIFEST_PSK */
+#endif // ARM_UC_ENABLE 1

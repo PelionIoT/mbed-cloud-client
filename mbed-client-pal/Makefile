@@ -93,7 +93,7 @@ C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/DRBG/SOTP/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Entropy/SOTP/*.c}
 
 # flash emulation layer
-C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Storage/Flash/FlashOverFilesystem/*.c}
+C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/Storage/Flash/*.c}
 
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/ROT/SOTP/*.c}
 C_SRC += ${wildcard Source/Port/Reference-Impl/Generic/ROT/External/*.c}

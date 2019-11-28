@@ -17,6 +17,21 @@
             "help": "Enable/disable server socket features(accept(), listen())",
             "macro_name": "PAL_NET_SERVER_SOCKET_API",
             "value": 1
+        },
+        "mbedtls-use-static-membuf": {
+            "help": "Enable to instruct mbedtls to use static memory buffer instead of heap. Requires MBEDTLS_MEMORY_BUFFER_ALLOC_C and MBEDTLS_PLATFORM_MEMORY to be defined also.",
+            "macro_name": "PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS",
+            "value": null
+        },
+        "mbedtls-static-membuf-size": {
+            "help": "Static memory buffer size for mbedtls. Enable mbedtls-use-static-membuf too.",
+            "macro_name": "PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS",
+            "value": 14000
+        },
+        "mbedtls-static-membuf-section": {
+            "help": "If mbedtls-use-static-membuf is enabled, this configuration item can be used to define the memory section name where the static buffer should be placed into. Can be left to null value for default.",
+            "macro_name": "PAL_STATIC_MEMBUF_SECTION_NAME",
+            "value": null
         }
     },
     "target_overrides": {
@@ -25,5 +40,3 @@
         }
     }
 }
-
-

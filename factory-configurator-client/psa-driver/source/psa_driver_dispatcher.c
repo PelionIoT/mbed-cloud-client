@@ -15,12 +15,14 @@
 // ----------------------------------------------------------------------------
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include <assert.h>
 #include "key_slot_allocator.h"
 #include "psa_driver_dispatcher.h"
 #include "psa_driver.h"
+#include "psa_driver_se_atmel.h"
 #include "kcm_defs.h"
 #include "pv_macros.h"
-
+#include "pv_log.h"
 
 //functions declarations 
 /**
@@ -78,27 +80,37 @@ kcm_status_e psa_drv_ps_remove(const uint16_t ksa_id);
 kcm_status_e psa_drv_ps_set(void* data, size_t data_size, uint32_t extra_flags, uint16_t *ksa_id);
 
 // PSA driver operations function table
+
+
+// Note that the third column is mapped to PSA Crypto callbacks instead of Atmel's secure element
 static void *g_psa_drv_operation_functions[PSA_DRV_FUNC_LAST][PSA_DRV_TYPE_LAST] = {
-    { (void *)psa_drv_crypto_export_data,              (void *)psa_drv_ps_get_data },
-    { (void *)psa_drv_crypto_export_data_size,         (void *)psa_drv_ps_get_data_size },
-    { (void *)psa_drv_crypto_import,                   (void *)psa_drv_ps_set },
-    { (void *)psa_drv_crypto_destroy,                  (void *)psa_drv_ps_remove }
+    { (void *)psa_drv_crypto_export_data,              (void *)psa_drv_ps_get_data       },
+    { (void *)psa_drv_crypto_export_data_size,         (void *)psa_drv_ps_get_data_size  },
+    { (void *)psa_drv_crypto_import,                   (void *)psa_drv_ps_set            },
+    { (void *)psa_drv_crypto_destroy,                  (void *)psa_drv_ps_remove         },
+    { (void *)psa_drv_crypto_get_handle,               NULL                              },
+    { (void *)psa_drv_crypto_close_handle,             NULL                              }
 };
 
 void *psa_drv_func_dispatch_operation(psa_drv_func_e caller, ksa_item_type_e item_type, ksa_type_location_e item_location)
 {
     uint32_t function_index = 0;
-
-
-    if (item_type == KSA_KEY_ITEM && item_location != KSA_SECURE_ELEMENT_TYPE_LOCATION) {//PSA CRYPTO non secure element key
-        function_index = PSA_DRV_TYPE_CRYPTO;
-    } else {
-        if (item_location == KSA_SECURE_ELEMENT_TYPE_LOCATION) { //Secure element item
-            //TODO: When SE will be integrated redirect it to SE driver
+        
+    switch (item_location) {
+        case KSA_NON_PSA_TYPE_LOCATION:
+        case KSA_PSA_TYPE_LOCATION:
+            if (item_type == KSA_KEY_ITEM) {
+                function_index = PSA_DRV_TYPE_CRYPTO;
+            } else { // other "items"
+                function_index = PSA_DRV_TYPE_PS;
+            }
+            break;
+        case KSA_SECURE_ELEMENT_TYPE_LOCATION:
             function_index = PSA_DRV_TYPE_CRYPTO;
-        } else { //PSA PS item
-            function_index = PSA_DRV_TYPE_PS;
-        }
+            break;
+        default:
+            SA_PV_LOG_ERR("Invalid item location (%u)", item_location);
+            assert(true);
     }
 
     return g_psa_drv_operation_functions[caller][function_index];
