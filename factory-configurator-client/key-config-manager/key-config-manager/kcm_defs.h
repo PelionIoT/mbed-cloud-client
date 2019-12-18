@@ -46,7 +46,7 @@ extern "C" {
         KCM_MD_SHA256 = 0x1               //!< KCM SHA256 message digest.
     } kcm_md_type_e;
 
-    /** X.509 v3 Key Usage Extension bit-mask options */    
+    /** X.509 v3 Key Usage Extension bit-mask options */
     typedef enum {
         KCM_CSR_KU_NONE = 0x0,
         KCM_CSR_KU_DIGITAL_SIGNATURE = 0x1, //!< Digital signature key usage extension bit.
@@ -112,17 +112,17 @@ extern "C" {
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
     /**
-    * Item residency
+    * Item residency.
     */
     typedef enum {
-        KCM_LOCATION_PSA = 1,             //!< PSA default store as set at pre-build time
-        KCM_LOCATION_SECURE_ELEMENT = 2,  //!< Secure Element store
+        KCM_LOCATION_PSA = 1,             //!< PSA default store as set pre-build.
+        KCM_LOCATION_SECURE_ELEMENT = 2,  //!< Secure element store.
     } kcm_item_location_e;
 
-    /** The item extra info structure. 
-    * 
-    * Before using it, the application must initialize
-    * it by calling to kcm_item_extra_info_init() or by setting the structure to all-bits-zero.
+    /** The item extra info structure.
+    *
+    * Before using the structure, the application must initialize
+    * it by calling `kcm_item_extra_info_init()`.
     *
     * @param priv_key_location The location of the private key selected from `::kcm_item_location_e`.
     * @param pub_key_location The location of the public key selected from `::kcm_item_location_e`.

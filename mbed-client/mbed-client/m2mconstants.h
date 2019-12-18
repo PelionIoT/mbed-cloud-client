@@ -35,6 +35,7 @@ const uint16_t REDUCE_LIFETIME = 900;
 const float REDUCTION_FACTOR = 0.75f;
 const uint16_t MAX_CERTIFICATE_SIZE = 1024;
 const uint16_t CONFIG_BOOLEAN_ITEM_SIZE = 4;
+const uint32_t HANDSHAKE_TIMEOUT_MSECS = (30 * 60 * 1000);
 
 // XXX:
 //                               <name></><inst-id></><res-name>

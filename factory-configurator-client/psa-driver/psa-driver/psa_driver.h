@@ -25,9 +25,12 @@
 
 /*PSA key MIN and MAX IDs for psa crypto */
 /*Current range 0x1 to 0x2800*/
-#define  PSA_CRYPTO_MIN_ID_VALUE             0x1
-#define  PSA_CRYPTO_NUM_OF_ID_ENTRIES        0x2800
-#define  PSA_CRYPTO_MAX_ID_VALUE             PSA_CRYPTO_MIN_ID_VALUE + PSA_CRYPTO_NUM_OF_ID_ENTRIES - 1 //0x2800
+/* From 1 to  (0x2700 -1) - ranged used for non Secure Element items*/
+/* From 0x2700 to 0x2800 - range used fro Secure Element items*/
+#define  PSA_CRYPTO_MIN_ID_VALUE                        0x1        //psa crypto ids start value
+#define  PSA_CRYPTO_NUM_OF_ID_ENTRIES_FOR_NON_SE_ITEMS  0x2700 -1 //psa crypto ids for non Secure Element items
+#define  PSA_CRYPTO_SE_IDS_MIN_VALUE                    0x2700    //psa crypto ids start for Secure Element items
+#define  PSA_CRYPTO_MAX_ID_VALUE                        0x2800    //0x2800
 
 
 /*PSA key MIN and MAX IDs for psa protected storage*/
@@ -112,9 +115,28 @@
 /**
 * PSA Crypto item location mask
 */
-#define PSA_CRYPTO_LOCATION_MASK_FLAG 0x00000000F
+#define PSA_CRYPTO_LOCATION_MASK_FLAG 0x0000000F
 
 
+//Additional info flags defined by bits : 8-11
+/*
+* PSA Crypto generation  flag
+*/
+#define PSA_CRYPTO_GENERATION_FLAG  (1 << 8)
+
+#define PSA_CRYPTO_GENERATION_MASK_FLAG 0x00000F00
+
+
+//SE Slot number defined by bits : 12-19
+/*
+* PSA Crypto  lifetime flag
+*/
+#define PSA_CRYPTO_SLOT_FLAG_OFFSET   16
+
+#define PSA_CRYPTO_SLOT_MASK_FLAG 0xFFFF0000
+
+//Max value of SE PSA slot value
+#define PSA_CRYPTO_MAX_SLOT_VALUE 0xFFFF
 
 /******** PSA Crypto related declaration*****/
 
@@ -157,15 +179,6 @@ kcm_status_e psa_drv_crypto_generate_keys_from_existing_ids(const uint16_t exist
 *       KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
 */
 kcm_status_e psa_drv_crypto_export_data(const uint16_t ksa_id, void* data, size_t data_size, size_t* actual_data_size);
-
-/* Returns PSA invalid slot number.
-* 0 is not a valid handle under any circumstance. This
-* implementation provides slots number 1 to N where N is the
-* number of available slots.
-* Defined in psa_crypto.h
-*/
-
-uint16_t psa_drv_crypto_get_invalid_slot_value(void);
 
 /** Returns a key handle if exists
 *
@@ -255,6 +268,28 @@ kcm_status_e psa_drv_ps_set_data_direct(const uint16_t ksa_id, const void *data,
 *       KCM_STATUS_SUCCESS in case of PSA_SUCCESS, or one of the `::kcm_status_e` errors otherwise.
 */
 kcm_status_e psa_drv_translate_to_kcm_error(psa_status_t psa_status);
+
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT)
+/**
+*  Gets slot of the private key ba PSA key id.
+*
+*    @param[in] psa_prv_key_id  KSA id number of the required private key.
+*    @param[out] se_prv_key_id  a pointer to SE private key slot.
+*    @returns
+*       KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
+*/
+kcm_status_e psa_drv_crypto_se_private_key_get_slot(const uint16_t psa_prv_key_id, uint64_t *se_prv_key_id);
+/**
+*  Registers SE item.
+*
+*    @param[in] extra_flags  Additional iems flags
+*    @param[in] slot_number Slot number of the item to register
+*    @param[out] ksa_id ksa id of registration
+*    @returns
+*       KCM_STATUS_SUCCESS in case of success, or one of the `::kcm_status_e` errors otherwise.
+*/
+kcm_status_e psa_drv_crypto_register(uint32_t extra_flags, uint64_t slot_number, uint16_t *ksa_id);
+#endif
 
 #ifdef __cplusplus
 }

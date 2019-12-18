@@ -13,23 +13,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#ifndef __PSA_DRIVER_SE_H__
+#define __PSA_DRIVER_SE_H__
+
+
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
+#include "atecc608a_se.h"
+#define PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE        PSA_ATECC608A_LIFETIME
+#endif
 
-#ifndef __STORAGE_SE_ATMEL_H__
-#define __STORAGE_SE_ATMEL_H__
 
-#include "psa_driver_se_atmel.h"
-#include "kcm_status.h"
 
-/* === Definitions and Prototypes === */
-#define STORAGE_ATCA_SIGNER_CHAIN_DEPTH          2
-
-/* === APIs === */
-/** Initializes Atmel Secure Element peripheral and loads pre-provisioned items.
-*
-* @returns ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_psa_se_atmel_init(void);
-
-#endif //__STORAGE_SE_ATMEL_H__
-#endif //#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
+#endif// __PSA_DRIVER_SE_H__
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT

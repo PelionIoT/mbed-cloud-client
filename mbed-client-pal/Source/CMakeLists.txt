@@ -36,6 +36,7 @@ endif()
 set(PAL_FILESYSTEM_SRCS
     ${PAL_MODULES_SOURCE_DIR}/Storage/FileSystem/pal_fileSystem.c
     ${PAL_PORT_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem.c
+    ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem_FsOverRam.c
 )
 
 set(PAL_NETWORKING_SRCS

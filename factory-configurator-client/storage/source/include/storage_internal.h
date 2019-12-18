@@ -115,6 +115,24 @@
 #define STORAGE_ITEM_METADATA_SIZE   STORAGE_COMPLETE_ITEM_NAME_SIZE - STORAGE_ITEM_NAME_HASH_SIZE 
 
 
+/*
+========================================================metadata bitmap=========================================================================
+
+================================================================================================================================================
+| bits:                  |    15 - 7    |            6             |          5  -  2             |                   1 -  0                   |
+================================================================================================================================================
+| values for keys:       | reserved     | 0 - original item value  |    reserved                  |  0 - private key                           |
+|                        |              | 1 - duplicate item value |                              |  1 - public key                            |
+|                        |              |                          |                              |  2 - symmetric key                         |
+|--------------------------------------------------------------------------------------------------------------------------------------------  |
+| values for certs:      | reserved     | 0 - original item value  |   certificate chain index    |  0 - intermidiate certificate in chain     |
+|                        |              | 1 - duplicate item value |   (0x1 - 0xFFFF)             |  1 - last certificate in chain             |
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+***single certificate has "certificate chain index" of 1 and is "last certificate in chain" (bit 0 value set to 1)***
+
+*/
+
 /* metadata key values
 */
 #define STORAGE_METADATA_KEY_OFFSET                        0   //key bits offset in metadata byte
@@ -161,6 +179,11 @@
 #define STORAGE_GET_METADATA_VAL(data, offset, mask) (((data) & (mask)) >> (offset))
 
 #define STORAGE_TYPE_PREFIX_MAX_LENGTH 0
+
+#define STORAGE_PSA_WRITE_ONCE_BIT                  (0x1 << 0)
+#define STORAGE_PSA_CONFIDENTIALITY_BIT             (0x1 << 1)
+#define STORAGE_PSA_REPLAY_PROTECTION_BIT           (0x1 << 2)
+
 
 #endif
 
@@ -215,7 +238,9 @@ typedef struct storage_cert_chain_context_ {
 *    @param[in] item_prefix_type KCM item prefix type (KCM or CE) as defined in `::storage_item_prefix_type_e`
 *    @param[in] kcm_item_data KCM item data buffer. Can be NULL if `kcm_item_data_size` is 0.
 *    @param[in] kcm_item_data_size KCM item data buffer size in bytes. Can be 0 if you wish to
-*     store an empty file.
+*                                  store an empty file.
+*    @param[in] is_delete_allowed True if the item is allowed to be deleted, otherwise false.
+*
 *  @returns
 *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
 */
@@ -226,7 +251,8 @@ kcm_status_e storage_item_store_impl(const uint8_t * kcm_item_name,
                                      bool kcm_item_is_encrypted,
                                      storage_item_prefix_type_e item_prefix_type,
                                      const uint8_t * kcm_item_data,
-                                     size_t kcm_item_data_size);
+                                     size_t kcm_item_data_size,
+                                     bool is_delete_allowed);
 
 /**
 *   The function returns prefix, according to kcm type and data source type
@@ -302,8 +328,8 @@ kcm_status_e storage_check_name_validity(
  *    @param[in] kcm_chain_handle                 certificate chain handle.
  *    @param[in] kcm_cert_data                    pointer to certificate data in DER format.
  *    @param[in] kcm_cert_data_size               size of certificate data buffer.
- *    @param[in] item_prefix_type                 KCM item prefix type (KCM or CE) as defined in
- * `::storage_item_prefix_type_e`
+ *    @param[in] item_prefix_type                 KCM item prefix type (KCM or CE) as defined in `::storage_item_prefix_type_e`
+ *    @param[in] is_delete_allowed                True if the item is allowed to be deleted, otherwise false.
  *
  *    @returns
  *        KCM_STATUS_SUCCESS in case of success.
@@ -314,7 +340,8 @@ kcm_status_e storage_check_name_validity(
 kcm_status_e storage_cert_chain_add_next_impl(kcm_cert_chain_handle kcm_chain_handle,
                                               const uint8_t *kcm_cert_data,
                                               size_t kcm_cert_data_size,
-                                              storage_item_prefix_type_e item_prefix_type);
+                                              storage_item_prefix_type_e item_prefix_type,
+                                              bool is_delete_allowed);
 
 
 /** Finalize the specific storage backend.

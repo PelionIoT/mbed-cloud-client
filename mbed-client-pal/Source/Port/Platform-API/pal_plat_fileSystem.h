@@ -167,7 +167,7 @@ palStatus_t pal_plat_fsFwrite(palFileDescriptor_t *fd, const void *buffer, size_
  * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
  *
  */
-palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffset_t whence);
+palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t whence);
 
 
 
@@ -180,7 +180,7 @@ palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffs
  * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
  *
  */
-palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, int32_t * pos);
+palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, off_t * pos);
 
 
 
@@ -249,15 +249,6 @@ const char* pal_plat_fsGetDefaultRootFolder(pal_fsStorageID_t dataID);
  */
 size_t pal_plat_fsSizeCheck(const char *stringToChk);
 
-
-
-/*! \brief This function sets up the mount point.
- *
- * \return PAL_SUCCESS upon a successful operation.
- * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
- *
- */
-palStatus_t pal_plat_fsMountSystem(void);
 
 
 /*! \brief This function formats the chosen SD partition.

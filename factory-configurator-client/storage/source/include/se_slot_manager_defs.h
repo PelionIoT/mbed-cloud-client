@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2019 ARM Ltd.
+// Copyright 2016-2017 ARM Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,23 +13,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
 
-#ifndef __STORAGE_SE_ATMEL_H__
-#define __STORAGE_SE_ATMEL_H__
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#ifndef __SE_SLOT_MANAGER_DEFS_H__
+#define __SE_SLOT_MANAGER_DEFS_H__
 
-#include "psa_driver_se_atmel.h"
-#include "kcm_status.h"
+#include "kcm_defs.h"
 
-/* === Definitions and Prototypes === */
-#define STORAGE_ATCA_SIGNER_CHAIN_DEPTH          2
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* === APIs === */
-/** Initializes Atmel Secure Element peripheral and loads pre-provisioned items.
-*
-* @returns ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
-*/
-kcm_status_e storage_psa_se_atmel_init(void);
+    /* Structure that represents SE pre provisioned data*/
+    typedef struct sem_preprovisioned_item_data_ {
+        kcm_item_type_e  kcm_item_type;
+        const char *kcm_item_name;
+        uint16_t se_slot_num;
+    } sem_preprovisioned_item_data_s;
 
-#endif //__STORAGE_SE_ATMEL_H__
-#endif //#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif //__SE_SLOT_MANAGER_DEFS_H__
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT

@@ -75,12 +75,14 @@ kcm_status_e ce_store_new_keys(cs_renewal_names_s *renewal_items_names, cs_key_h
     ec_key_ctx = (cs_key_pair_context_s*)crypto_handle;
 
     //Store the private key to KCM as original item
-    kcm_status = storage_item_store((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen(renewal_items_names->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, false, STORAGE_ITEM_PREFIX_KCM, ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->size, NULL);
+    kcm_status = storage_item_store((const uint8_t*)renewal_items_names->cs_priv_key_name, strlen(renewal_items_names->cs_priv_key_name), KCM_PRIVATE_KEY_ITEM, false, STORAGE_ITEM_PREFIX_KCM, 
+        ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_priv_key_handle)->size, true);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Falid to store new private key");
 
     if (renewal_items_names->cs_pub_key_name != NULL) {
         //Store the public key to KCM as original item
-        kcm_status = storage_item_store((const uint8_t*)renewal_items_names->cs_pub_key_name, strlen(renewal_items_names->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, false, STORAGE_ITEM_PREFIX_KCM, ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->size, NULL);
+        kcm_status = storage_item_store((const uint8_t*)renewal_items_names->cs_pub_key_name, strlen(renewal_items_names->cs_pub_key_name), KCM_PUBLIC_KEY_ITEM, false, STORAGE_ITEM_PREFIX_KCM, 
+            ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->buffer, ((palCryptoBuffer_t*)ec_key_ctx->generated_pub_key_handle)->size, true);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Falid to store new public key");
     }
 
@@ -454,7 +456,8 @@ kcm_status_e ce_create_renewal_status(const char *item_name)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
     SA_PV_LOG_INFO_FUNC_ENTER("item name =  %s", item_name);
 
-    kcm_status = storage_item_store((const uint8_t*)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, false, STORAGE_ITEM_PREFIX_CE, (const uint8_t*)item_name, (size_t)strlen(item_name), NULL);
+    kcm_status = storage_item_store((const uint8_t*)g_renewal_status_file, (size_t)strlen(g_renewal_status_file), KCM_CONFIG_ITEM, false, 
+        STORAGE_ITEM_PREFIX_CE, (const uint8_t*)item_name, (size_t)strlen(item_name), true);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to create renewal status");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -513,7 +516,8 @@ kcm_status_e ce_store_new_certificate(const char *certificate_name, struct cert_
 
     if (chain_data->chain_length == 1) {
         //Save single certificate
-        kcm_status = storage_item_store((const uint8_t*)certificate_name, (size_t)strlen(certificate_name), KCM_CERTIFICATE_ITEM, false, STORAGE_ITEM_PREFIX_KCM, certificate, certificate_size, NULL);
+        kcm_status = storage_item_store((const uint8_t*)certificate_name, (size_t)strlen(certificate_name), KCM_CERTIFICATE_ITEM, false, 
+            STORAGE_ITEM_PREFIX_KCM, certificate, certificate_size, true);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store new certificate");
 
         return kcm_status;
@@ -525,7 +529,7 @@ kcm_status_e ce_store_new_certificate(const char *certificate_name, struct cert_
         for (cert_index = 0; cert_index < chain_data->chain_length; cert_index++) {
             SA_PV_ERR_RECOVERABLE_GOTO_IF((certificate_size == 0 || certificate == NULL), kcm_status = KCM_STATUS_INVALID_PARAMETER, exit, "Invalid certificate data at index %" PRIu32 "", cert_index);
 
-            kcm_status = storage_cert_chain_add_next(kcm_chain_handle, certificate, certificate_size, STORAGE_ITEM_PREFIX_KCM);
+            kcm_status = storage_cert_chain_add_next(kcm_chain_handle, certificate, certificate_size, STORAGE_ITEM_PREFIX_KCM, true);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to store certificate at index %" PRIu32 "", cert_index);
 
             //Get next certificate

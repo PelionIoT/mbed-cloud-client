@@ -322,6 +322,7 @@ char* fcc_get_kcm_error_string(kcm_status_e kcm_status)
         case KCM_CRYPTO_STATUS_INVALID_OID:
         case KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT:
         case KCM_STATUS_RBP_ERROR:
+        case KCM_STATUS_INVALID_EXPECTED_LOCATION:
             kcm_error_string = (char*)g_fcc_general_status_error_str;
             break;
         case KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR:

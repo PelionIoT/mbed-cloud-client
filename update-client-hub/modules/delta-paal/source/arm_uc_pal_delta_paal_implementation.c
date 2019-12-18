@@ -38,6 +38,10 @@
 #define FILE_MAGIC "PELION/BSDIFF001"
 #define FILE_MAGIC_LEN (sizeof(FILE_MAGIC) - 1)
 
+#ifndef MIN
+#define MIN(x,y) (((x)<(y)) ? (x) : (y))
+#endif
+
 static const ARM_UC_PAAL_UPDATE *paal_storage_implementation = NULL;
 
 // Upstream / Firmware manager event handler
@@ -540,6 +544,7 @@ static void ARM_UC_DeltaPaal_PALEventHandler(uintptr_t event)
  * @param event ignored
  * @details Asynchronous Write handling for Incoming Delta buffer
  */
+
 static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
@@ -556,22 +561,25 @@ static void ARM_UC_DeltaPaal_AsyncWrite_Handler(uintptr_t event)
         // copy from incoming to bspatch read buffer ptr
         // 1. copy what we can fit into bspatch read_patch buffer and put rest into our local buffer
 
-        // if there was Patch reading in process - copy from incoming buf first - this should always be less than the needed amount
-        if (bspatch_read_patch_buffer_remaining>0 &&
-                bspatch_read_patch_buffer_remaining<=arm_uc_pal_deltapaal_incoming_buf_ref->size) {
+        // if there was Patch reading in process - copy from incoming buf first -
+        if (bspatch_read_patch_buffer_remaining>0 ) {
             uint32_t patch_buf_offset = bspatch_read_patch_buffer_length - bspatch_read_patch_buffer_remaining;
+            int copySize = MIN(bspatch_read_patch_buffer_remaining, arm_uc_pal_deltapaal_incoming_buf_ref->size);
             memcpy((uint8_t*)(bspatch_read_patch_buffer_ptr)+(patch_buf_offset),
                    arm_uc_pal_deltapaal_incoming_buf_ref->ptr,
-                   bspatch_read_patch_buffer_remaining);
+                   copySize);
+
             UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler Copied left overs from incoming buffer, size: %" PRIu64 ,bspatch_read_patch_buffer_remaining);
             UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset %" PRIu32 ,arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset);
-            arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset += (uint32_t)bspatch_read_patch_buffer_remaining;
-            bspatch_read_patch_buffer_remaining = 0;
+            arm_uc_pal_deltapaal_incoming_hub_buf_ref_offset += (uint32_t)copySize;
+            bspatch_read_patch_buffer_remaining -= copySize;
             result.code = ERR_NONE;
-
-        } else {
-            // @todo: Assuming the bspatch read_patch always requires less read into patch less than our incoming buffer size
-            UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler ERROR incoming buf did not have enough to complete read for remaining of: %" PRIu64 , bspatch_read_patch_buffer_remaining);
+            if(bspatch_read_patch_buffer_remaining > 0)
+            {
+                ARM_UC_DeltaPaal_PALEventHandler(ARM_UC_PAAL_EVENT_WRITE_DONE);
+                UC_PAAL_TRACE("ARM_UC_DeltaPaal_AsyncWrite_Handler NORMAL incoming buf did not have enough to complete read for remaining of: %" PRIu64 , bspatch_read_patch_buffer_remaining);
+                return;
+            }
         }
 
 

@@ -1,6 +1,24 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.2.0 (18.12.2019)
+
+#### Device Management Client
+
+* Fixed the handling of small blockwise sizes in delta update.
+* Updated Mbed CoAP to 5.1.2.
+* Notification tokens are cleared before a full registration.
+  * Fixed an error that occurred in certain situations where subscriptions are lost and never come back until reboot.
+
+### Platform Adaptation Layer (PAL)
+
+* Added a developer feature to enable testing client in non-persistent RAM storage.
+  * To enable the feature, define `PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM 1`.
+* Fixed PAL filesystem API to allow access to files larger than 2 GB.
+* [Mbed OS] Added compatibility workaround for the DNS `Getaddrinfo` returning more than one address in future Mbed OS release.
+
 ### Release 4.1.0 (28.11.2019)
+
+#### Device Management Client
 
 * Deprecated `M2MFirmware` class.
 * Fixed handling of the write attribute `step`. Previously, it did not store the value-change history correctly.

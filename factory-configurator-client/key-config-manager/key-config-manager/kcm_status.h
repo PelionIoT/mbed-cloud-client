@@ -38,7 +38,7 @@ typedef enum {
     KCM_STATUS_META_DATA_SIZE_ERROR,                          //!< The meta data found but the size is different then expected.
     KCM_STATUS_FILE_EXIST,                                    //!< Trying to store an item that is already in the storage.
     KCM_STATUS_KEY_EXIST,                                     //!< Trying to generate a key for a CSR, but the requesested output key name already exists in the storage.
-    KCM_STATUS_NOT_PERMITTED,                                 //!< Trying to access an item without proper permissions.
+    KCM_STATUS_NOT_PERMITTED,                                 //!< Trying to access an item without proper permissions, or trying to perform a not allowed action on an item. 
     KCM_STATUS_STORAGE_ERROR,                                 //!< File error occurred.
     KCM_STATUS_ITEM_IS_EMPTY,                                 //!< The data of current item is empty.
     KCM_STATUS_INVALID_FILE_VERSION,                          //!< Invalid file version, the file can not be read
@@ -52,6 +52,7 @@ typedef enum {
     KCM_STATUS_INVALID_NUM_OF_CERT_IN_CHAIN,                  //!< Operation failed due to invalid number of certificates.
     KCM_STATUS_CERTIFICATE_CHAIN_VERIFICATION_FAILED,         //!< At least one of the certificates fails to verify its predecessor.
     KCM_STATUS_FILE_NAME_TOO_LONG,                            //!< Provided a file name that is longer than permitted. 
+    KCM_STATUS_INVALID_EXPECTED_LOCATION,                     //!< Location of the item is not as expected.    
     KCM_CRYPTO_STATUS_UNSUPPORTED_HASH_MODE,                  //!< Operation was called with unsupported hash mode.
     KCM_CRYPTO_STATUS_PARSING_DER_PRIVATE_KEY,                //!< Operation failed to parse private der key.
     KCM_CRYPTO_STATUS_PARSING_DER_PUBLIC_KEY,                 //!< Operation failed to parse public der key.

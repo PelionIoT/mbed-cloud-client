@@ -343,7 +343,7 @@ palStatus_t pal_fsFwrite(palFileDescriptor_t *fd, const void * buffer,
 
  \endcode
  */
-palStatus_t pal_fsFseek(palFileDescriptor_t *fd, int32_t offset,
+palStatus_t pal_fsFseek(palFileDescriptor_t *fd, off_t offset,
         pal_fsOffset_t whence);
 
 /*! \brief This function gets the current read/write pointer of a file.
@@ -355,7 +355,7 @@ palStatus_t pal_fsFseek(palFileDescriptor_t *fd, int32_t offset,
  * \return PAL_FILE_SYSTEM_ERROR For error code description, see \c palError_t.
  *
  */
-palStatus_t pal_fsFtell(palFileDescriptor_t *fd, int32_t *pos);
+palStatus_t pal_fsFtell(palFileDescriptor_t *fd, off_t *pos);
 
 /*! \brief This function deletes a \e single file from the file system.
  *

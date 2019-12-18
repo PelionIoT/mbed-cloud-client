@@ -368,7 +368,8 @@ static fcc_status_e compare_cn_with_endpoint(palX509Handle_t x509_cert)
     //Get endpoint name size
     fcc_status = fcc_get_kcm_data((const uint8_t*)g_fcc_endpoint_parameter_name, strlen(g_fcc_endpoint_parameter_name), KCM_CONFIG_ITEM, &endpoint_name_data, &endpoint_name_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit, "Failed to get endpoint name");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((size_of_cn_attr != endpoint_name_size), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, "Wrong size of CN");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((size_of_cn_attr != endpoint_name_size), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, 
+                                   "Wrong size of CN (size_of_cn_attr = %" PRIu32 ", endpoint_name_size = %" PRIu32 ")", (uint32_t)size_of_cn_attr, (uint32_t)endpoint_name_size);
 
     result = memcmp(endpoint_name_data, cn_attribute_data, size_of_cn_attr);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((result != 0), fcc_status = FCC_STATUS_INVALID_LWM2M_CN_ATTR, exit, "CN of the certificate is different from endpoint name");

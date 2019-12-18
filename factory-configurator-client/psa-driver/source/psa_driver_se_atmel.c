@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
 
 #include "pal.h"
@@ -35,7 +36,7 @@
 #include "tng22_cert_def_2_device.h"
 
 #include "psa/crypto.h"
-#include "atecc608a_se.h"
+#include "psa_driver_se.h"
 
 
 /** Translates Atmel's Secure Element error returned to KCM error.
@@ -206,23 +207,32 @@ static ATCAIfaceCfg atca_iface_config = {
     .rx_retries = 20,
 };
 
-kcm_status_e psa_drv_atca_init(void)
+kcm_status_e psa_drv_atca_register(void)
 {
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-	psa_status_t psa_status = PSA_SUCCESS;
- 
+    psa_status_t psa_status = PSA_SUCCESS;
 
-    ATCA_STATUS atca_status = atcab_init(&atca_iface_config);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((atca_status != ATCA_SUCCESS), translate_atca_to_kcm_error(atca_status), "Failed initializing Atmel's Secure Element peripheral (%" PRIu32 ")", (uint32_t)atca_status);
-	
-	
-	psa_status = psa_register_se_driver(PSA_ATECC608A_LIFETIME, &atecc608a_drv_info);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != psa_status), translate_atca_to_kcm_error(atca_status), "Failed psa_register_se_driver (%" PRIu32 ")", (uint32_t)psa_status);
+    //Register atmel driver
+    psa_status = psa_register_se_driver(PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE, &atecc608a_drv_info);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != psa_status), psa_drv_translate_to_kcm_error(psa_status), "Failed psa_register_se_driver (%" PRIu32 ")", (uint32_t)psa_status);
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 
     return KCM_STATUS_SUCCESS;
 }
+
+kcm_status_e psa_drv_atca_init(void)
+{
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    ATCA_STATUS atca_status = atcab_init(&atca_iface_config);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((atca_status != ATCA_SUCCESS), translate_atca_to_kcm_error(atca_status), "Failed initializing Atmel's Secure Element peripheral (%" PRIu32 ")", (uint32_t)atca_status);
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+
+    return KCM_STATUS_SUCCESS;;
+}
+
 
 void psa_drv_atca_release(void)
 {
@@ -236,4 +246,5 @@ void psa_drv_atca_release(void)
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 }
 
+#endif //#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 #endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT

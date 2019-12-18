@@ -319,7 +319,7 @@ esfs_result_e esfs_read_meta_data(esfs_file_t *file_handle, uint32_t index, esfs
  *
  *
  */
-esfs_result_e esfs_seek(esfs_file_t *file_handle, int32_t offset, esfs_seek_origin_e whence, uint32_t *position);
+esfs_result_e esfs_seek(esfs_file_t *file_handle, off_t offset, esfs_seek_origin_e whence, size_t *position);
 
 /**
  * @brief Removes the file from the file system.

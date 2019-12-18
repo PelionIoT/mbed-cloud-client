@@ -44,8 +44,6 @@
 
 #define RESOLVE_SEC_MODE(mode)  ((mode == M2MInterface::TCP || mode == M2MInterface::TCP_QUEUE) ? M2MConnectionSecurity::TLS : M2MConnectionSecurity::DTLS)
 
-#define REGISTRATION_FLOW_TIMEOUT_MSECS (30 * 60 * 1000)
-
 M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver& observer,
                                    const String &ep_name,
                                    const String &ep_type,
@@ -773,8 +771,13 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
                         // return error to the application and go to Idle state.
                         if(!_server_ip_address.empty()) {
                             error = M2MInterface::ErrorNone;
-                            _retry_timer.stop_timer();
-                            _retry_timer.start_timer(REGISTRATION_FLOW_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
+
+                            // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+                            // This timer is stopped when handshake is completed (address resolved).
+                            if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+                                _retry_timer.stop_timer();
+                                _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
+                            }
 
                             _connection_handler.resolve_server_address(_server_ip_address,
                                                                         _server_port,
@@ -795,8 +798,12 @@ void M2MInterfaceImpl::state_bootstrap(EventData *data)
         _listen_port = 0;
         _connection_handler.bind_connection(_listen_port);
 
-        _retry_timer.stop_timer();
-        _retry_timer.start_timer(REGISTRATION_FLOW_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
+        // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+        // This timer is stopped when handshake is completed (address resolved).
+        if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+            _retry_timer.stop_timer();
+            _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
+        }
 
         tr_info("M2MInterfaceImpl::state_bootstrap (reconnect) - IP address %s, Port %d", _server_ip_address.c_str(), _server_port);
         _connection_handler.resolve_server_address(_server_ip_address,
@@ -827,6 +834,11 @@ void M2MInterfaceImpl::state_bootstrap_address_resolved( EventData *data)
         address.addr_ptr = (uint8_t*)event->_address->_address;
         address.addr_len = event->_address->_length;
         _connection_handler.start_listening_for_data();
+
+        // Add backoff timer for the bootsrap flow.
+        // Server has no any reconnection logic so it might be possible that whole BS flow get stuck.
+        _retry_timer.stop_timer();
+        _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::BootstrapFlowTimer);
 
         if(_nsdl_interface.create_bootstrap_resource(&address)) {
            internal_event(STATE_BOOTSTRAP_RESOURCE_CREATED);
@@ -883,10 +895,12 @@ void M2MInterfaceImpl::state_register(EventData *data)
 
                             tr_info("M2MInterfaceImpl::state_register - IP address %s, Port %d", _server_ip_address.c_str(), _server_port);
                             if(!_server_ip_address.empty()) {
-                                // Connection related errors are coming through callback
-                                _retry_timer.stop_timer();
-                                _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                                         M2MTimerObserver::RegistrationFlowTimer);
+                                // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+                                // This timer is stopped when handshake is completed (address resolved).
+                                if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+                                    _retry_timer.stop_timer();
+                                    _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::RegistrationFlowTimer);
+                                }
 
                                 error = M2MInterface::ErrorNone;
                                 _connection_handler.resolve_server_address(_server_ip_address,_server_port,
@@ -913,9 +927,12 @@ void M2MInterfaceImpl::state_register(EventData *data)
         }
         _connection_handler.bind_connection(_listen_port);
 
-        _retry_timer.stop_timer();
-        _retry_timer.start_timer(MBED_CLIENT_RECONNECTION_COUNT * MBED_CLIENT_RECONNECTION_INTERVAL * 8 * 1000,
-                                 M2MTimerObserver::RegistrationFlowTimer);
+        // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
+        // This timer is stopped when handshake is completed (address resolved).
+        if (_binding_mode == TCP || _binding_mode == TCP_QUEUE) {
+            _retry_timer.stop_timer();
+            _retry_timer.start_timer(HANDSHAKE_TIMEOUT_MSECS, M2MTimerObserver::RegistrationFlowTimer);
+        }
 
         tr_info("M2MInterfaceImpl::state_register (reconnect) - IP address %s, Port %d", _server_ip_address.c_str(), _server_port);
         _connection_handler.resolve_server_address(_server_ip_address,_server_port,
@@ -965,6 +982,9 @@ void M2MInterfaceImpl::state_register_address_resolved( EventData *data)
         _connection_handler.start_listening_for_data();
         _nsdl_interface.set_server_address((uint8_t*)event->_address->_address,event->_address->_length,
                                            event->_port, address_type);
+
+        _retry_timer.stop_timer();
+
         switch (_reconnection_state) {
             case M2MInterfaceImpl::None:
                 if (!_nsdl_interface.send_register_message()) {
@@ -987,6 +1007,7 @@ void M2MInterfaceImpl::state_register_address_resolved( EventData *data)
 void M2MInterfaceImpl::state_registered( EventData */*data*/)
 {
     tr_info("M2MInterfaceImpl::state_registered");
+
     _retry_timer.stop_timer();
 
     _reconnection_time = _initial_reconnection_time;
