@@ -82,7 +82,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.1.0";
+const char *MCC_VERSION = "mccv=4.2.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -500,16 +500,19 @@ bool M2MNsdlInterface::send_register_message()
 {
     tr_info("M2MNsdlInterface::send_register_message()");
     bool success = false;
+
+    // Clear the observation tokens
+    send_next_notification(true);
+
     if (_server_address) {
         success = parse_and_send_uri_query_parameters();
     }
+
     // If URI parsing fails or there is no parameters, try again without parameters
     if (!success) {
-        // Clear the observation tokens
-        send_next_notification(true);
-
         success = sn_nsdl_register_endpoint(_nsdl_handle,_endpoint, NULL) != 0;
     }
+
     return success;
 }
 
@@ -3153,7 +3156,9 @@ void M2MNsdlInterface::handle_register_update_response(const sn_coap_hdr_s *coap
             // till we get CoAP level response for the request
             _observer.registration_error(M2MInterface::NetworkError, true);
         } else {
-            // Do a full registration
+            // Clear observation tokens and do a full registration
+            send_next_notification(true);
+
             bool msg_sent = false;
             if (_server_address) {
                 msg_sent = parse_and_send_uri_query_parameters();

@@ -94,8 +94,8 @@ extern "C" {
  *    @param[in] kcm_item_is_factory True if the KCM item is a factory item, otherwise false.
  *    @param[in] item_prefix_type KCM item prefix type (KCM or CE) as defined in `::storage_item_prefix_type_e`
  *    @param[in] kcm_item_data KCM item data buffer. Can be NULL if `kcm_item_data_size` is 0.
- *    @param[in] kcm_item_data_size KCM item data buffer size in bytes. Can be 0 if you wish to
- *     store an empty file.
+ *    @param[in] kcm_item_data_size KCM item data buffer size in bytes. Can be 0 if you wish to store an empty file.
+ *    @param[in] is_delete_allowed True if the item is allowed to be deleted, otherwise false.
  *
  *  @returns
  *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
@@ -107,7 +107,7 @@ extern "C" {
                                     storage_item_prefix_type_e item_prefix_type,
                                     const uint8_t *kcm_item_data,
                                     size_t kcm_item_data_size,
-                                    const kcm_security_desc_s kcm_item_info);
+                                    bool is_delete_allowed);
 
     /** Reads data item from the storage.
      *
@@ -308,8 +308,8 @@ extern "C" {
      *    @param[in] kcm_chain_handle                 certificate chain handle.
      *    @param[in] kcm_cert_data                    pointer to certificate data in DER format.
      *    @param[in] kcm_cert_data_size               size of certificate data buffer.
-     *    @param[in] item_prefix_type                 KCM item prefix type (KCM or CE) as defined in
-     * `::storage_item_prefix_type_e`
+     *    @param[in] item_prefix_type                 KCM item prefix type (KCM or CE) as defined in `::storage_item_prefix_type_e`
+     *    @param[in] is_delete_allowed                True if the item is allowed to be deleted, otherwise false.
      *
      *    @returns
      *        KCM_STATUS_SUCCESS in case of success.
@@ -320,7 +320,8 @@ extern "C" {
     kcm_status_e storage_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle,
                                              const uint8_t *kcm_cert_data,
                                              size_t kcm_cert_data_size,
-                                             storage_item_prefix_type_e item_prefix_type);
+                                             storage_item_prefix_type_e item_prefix_type,
+                                             bool is_delete_allowed);
 
     /** The API returns size of the next certificate in the chain, the certificate chain name created according to data
      * source type(original or backup). This API should be called prior to ::kcm_cert_chain_get_next_data. This operation
@@ -450,6 +451,22 @@ extern "C" {
                                            storage_item_prefix_type_e kcm_item_prefix_type,
                                            kcm_item_location_e *kcm_item_location_out);
 
+    /**
+     * Gets the slot number of the private key.
+     *
+     *    @param[in]  prv_key_name          KCM private key name.
+     *    @param[in]  prv_key_name_len      KCM private key name length in bytes.
+     *    @param[out] se_prv_key_slot       output SE slot number of the key.
+     *                                      Use output value only if function returns KCM_STATUS_SUCCESS.
+     *
+     *    @returns
+     *        ::KCM_STATUS_SUCCESS            in case of success.
+     *        One of the `::kcm_status_e` errors otherwise.
+     */
+    kcm_status_e storage_se_private_key_get_slot(const uint8_t *prv_key_name,
+                                                 size_t prv_key_name_len,
+                                                 uint64_t *se_prv_key_slot);
+
 #endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
     /**
@@ -493,9 +510,9 @@ extern "C" {
      *    @param[in] key_source_type The private key source type as defined in `::kcm_data_source_type_e.
      *    @param[in] is_factory True if the KCM item is a factory item, false otherwise.
      *    @param[in] kcm_item_info Additional item data.
-     *                             if NULL: the private/public keys will be generated and stored in the default key resident
-     * set in pre-build. if `kcm_item_policy_s`: the private/public keys will be generated and stored in the selected
-     * resident defined in `::kcm_item_policy_s`.
+     *                             If NULL, the private and public keys are generated and stored in the default key resident, which is set pre-build.
+     *                             If `kcm_item_policy_s`, the private and public keys are generated and stored in the selected resident defined in `::kcm_item_policy_s`.
+     *
      *    @returns
      *        KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
      */

@@ -23,36 +23,6 @@
 #include "kcm_status.h"
 #include "psa/crypto.h"
 
-/******** Atmel's defines *****/
-
-/** Represents Atmel's secure element base address space.
-*
-* PSA handles for Atmel's hardware are (currently) meaningless as there is no
-* PSA implementation yet, hence this base address can cope with handles returned from PSA
-* since their value ranged from 1 to 32 and would not collide with this one.
-*
-* The address space represented by halfword:
-* (1) The MS byte is always FF
-* (2) The LS byte is the key ID
-*/
-#define PSA_DRV_ATCA_BASE_ADDRESS        0xFF00
-
-/** Gets Atmel's secure element base address.
-*/
-#define PSA_DRV_ATCA_BASE_ADDRESS_GET(addr) ((addr) & (PSA_DRV_ATCA_BASE_ADDRESS))
-
-/** Creates address for a specific slot ID.
-*
-* Currently we have only one key ID which is the device private key.
-*/
-#define PSA_DRV_ATCA_SLOT_ADDRESS(slot_id) (PSA_DRV_ATCA_BASE_ADDRESS | (slot_id))
-
-/** The slot value which represents the device private key in Atmel's secure element.
-* Any reference to the device private key must be made via this value.
-*/
-#define PSA_DRV_ATCA_DEVICE_PRV_KEY_SLOT_ID 0x0
-
-
 /******** Atmel's Secure Element related declaration *****/
 
 /** Return the maximum possible certificate size in bytes for a
@@ -133,6 +103,9 @@ kcm_status_e psa_drv_atca_get_cn(const uint8_t *cert, size_t cert_size, uint8_t 
 * pre-defined hardware specific setup
 */
 kcm_status_e psa_drv_atca_init(void);
+/** Registers ATMEL driver to PSA
+*/
+kcm_status_e psa_drv_atca_register(void);
 
 /** Release Atmel's secure element resources.
 */

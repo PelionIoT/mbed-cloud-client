@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+
+#if ((!defined(PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM)) || (PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM == 0)) 
+
 #include <errno.h> //This should be added before mbed.h otherwise ARMCC compilation fails with conflicting error codes.
 #include "mbed.h"
 
@@ -220,7 +223,7 @@ palStatus_t pal_plat_fsFwrite(palFileDescriptor_t *fd, const void *buffer, size_
 }
 
 
-palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffset_t whence)
+palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t whence)
 {
     palStatus_t ret = PAL_SUCCESS;
     if (fseek((FILE *)*fd, offset, g_platSeekWhenceConvert[whence]))
@@ -231,7 +234,7 @@ palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffs
 }
 
 
-palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, int32_t * pos)
+palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, off_t * pos)
 {
     palStatus_t ret = PAL_SUCCESS;
     long retPos = 0;
@@ -611,3 +614,4 @@ palStatus_t pal_plat_fsFormat(pal_fsStorageID_t dataID)
     return status;
 }
 
+#endif

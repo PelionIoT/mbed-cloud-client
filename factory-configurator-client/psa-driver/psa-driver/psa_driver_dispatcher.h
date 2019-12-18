@@ -35,8 +35,6 @@ extern "C" {
         PSA_DRV_FUNC_READ_SIZE = 1,
         PSA_DRV_FUNC_WRITE = 2,
         PSA_DRV_FUNC_DELETE = 3,
-        PSA_DRV_FUNC_GET_HANDLE = 4,
-        PSA_DRV_FUNC_CLOSE_HANDLE = 5,
         PSA_DRV_FUNC_LAST
     }psa_drv_func_e;
     
@@ -47,6 +45,9 @@ extern "C" {
         PSA_DRV_TYPE_LAST
     }psa_drv_element_type_e;
 
+
+    /*Gets PSA driver type*/
+    kcm_status_e psa_drv_get_psa_drv_type(ksa_item_type_e item_type, ksa_type_location_e item_location, psa_drv_element_type_e *drv_type);
     void *psa_drv_func_dispatch_operation(psa_drv_func_e caller, ksa_item_type_e item_type, ksa_type_location_e item_location);
     
     // Prototypes of the 4 storage functions
@@ -54,8 +55,6 @@ extern "C" {
     typedef kcm_status_e(*psa_drv_get_data_f)(const uint16_t ksa_id, const void* data_buffer_size, size_t data_length, size_t* actual_data_size);
     typedef kcm_status_e(*psa_drv_get_data_size_f)(const uint16_t ksa_id, size_t* actual_data_size);
     typedef kcm_status_e(*psa_drv_delete_f)(const uint16_t ksa_id);
-    typedef kcm_status_e(*psa_drv_get_handle_f)(const uint16_t key_id, psa_key_handle_t *key_handle_out);
-    typedef kcm_status_e(*psa_drv_close_handle_f)(const psa_key_handle_t key_handle_out);
 
 #ifdef __cplusplus
 }

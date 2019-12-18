@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+
+#if ((!defined(PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM)) || (PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM == 0)) 
+
 #include "pal.h"
 #include "pal_plat_fileSystem.h"
 #include "pal_plat_rtos.h"
@@ -286,11 +289,11 @@ palStatus_t pal_plat_fsFwrite(palFileDescriptor_t *fd, const void *buffer, size_
 }
 
 
-palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffset_t whence)
+palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t whence)
 {
     palStatus_t ret = PAL_SUCCESS;
     FRESULT status = FR_OK;
-    uint32_t  fatFSOffset = 0;
+    size_t  fatFSOffset = 0;
 
     if (CHK_FD_VALIDITY(*fd))
     {//Bad File Descriptor
@@ -351,7 +354,7 @@ palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffs
 }
 
 
-palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, int32_t * pos)
+palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, off_t * pos)
 {
     palStatus_t ret = PAL_SUCCESS;
 
@@ -722,3 +725,5 @@ palStatus_t pal_plat_fsFormat(pal_fsStorageID_t dataID)
     }
     return result;
 }
+
+#endif

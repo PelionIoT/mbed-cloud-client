@@ -1130,7 +1130,7 @@ void pal_plat_getAddressInfoAsync_callback(void *data, nsapi_error_t result, Soc
     palStatus_t status = PAL_SUCCESS;
     pal_asyncAddressInfo_t* info = (pal_asyncAddressInfo_t*)(data);
 
-    if (result == NSAPI_ERROR_OK) {
+    if (result >= NSAPI_ERROR_OK) {
         status = socketAddressToPalSockAddr(*address, info->address);
     }
     else { // error happened

@@ -28,10 +28,11 @@
 static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item_name_len, storage_item_prefix_type_e source_item_prefix_type, storage_item_prefix_type_e destination_item_prefix_type)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    kcm_status_e close_status = KCM_STATUS_SUCCESS;
     uint8_t *item_data = NULL;
     size_t item_data_len = 0;
-    kcm_cert_chain_handle kcm_source_chain_handle;
-    kcm_cert_chain_handle kcm_destination_chain_handle;
+    kcm_cert_chain_handle kcm_source_chain_handle = NULL;
+    kcm_cert_chain_handle kcm_destination_chain_handle = NULL;
     size_t kcm_chain_len_out = 0;
     size_t  kcm_actual_cert_data_size = 0;
     int cert_index = 0;
@@ -44,12 +45,17 @@ static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item
 
     //Current item is a single certificate 
     if (storage_is_cert_chain(kcm_source_chain_handle) == false && kcm_chain_len_out == 1) {
+        // close source chain handle. in single, not needed anymore
+        kcm_status = storage_cert_chain_close(kcm_source_chain_handle, source_item_prefix_type);
+        kcm_source_chain_handle = NULL;
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to close source chain");
+
         //Read the item from source 
         kcm_status = storage_item_get_size_and_data(item_name, item_name_len, KCM_CERTIFICATE_ITEM, source_item_prefix_type, &item_data, &item_data_len);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to get item data");
 
         //Save the item as backup item
-        kcm_status = storage_item_store(item_name, item_name_len, KCM_CERTIFICATE_ITEM, false, destination_item_prefix_type, item_data, item_data_len, NULL);
+        kcm_status = storage_item_store(item_name, item_name_len, KCM_CERTIFICATE_ITEM, false, destination_item_prefix_type, item_data, item_data_len, true);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
     } else {
         //Current item is certificate chain
@@ -73,7 +79,7 @@ static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_actual_cert_data_size != item_data_len), kcm_status = kcm_status, exit_and_close, "Wrong certificate data size");
 
             //Add the data to destination chain
-            kcm_status = storage_cert_chain_add_next(kcm_destination_chain_handle, item_data, item_data_len, destination_item_prefix_type);
+            kcm_status = storage_cert_chain_add_next(kcm_destination_chain_handle, item_data, item_data_len, destination_item_prefix_type, true);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit_and_close, "Failed to add data to chain");
 
             //free allocated buffer
@@ -82,9 +88,9 @@ static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item
         }
         //Close destination chain
 exit_and_close:
-        kcm_status = storage_cert_chain_close(kcm_destination_chain_handle, destination_item_prefix_type);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to close destination chain");
-
+        close_status = storage_cert_chain_close(kcm_destination_chain_handle, destination_item_prefix_type);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status == KCM_STATUS_SUCCESS) && (close_status != KCM_STATUS_SUCCESS),
+            kcm_status = close_status, exit, "Failed to close destination chain");
     }
 
 exit:
@@ -92,8 +98,9 @@ exit:
         fcc_free(item_data);
     }
     //close source chain
-    kcm_status = storage_cert_chain_close(kcm_source_chain_handle, source_item_prefix_type);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to close source chain");
+    close_status = storage_cert_chain_close(kcm_source_chain_handle, source_item_prefix_type);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_SUCCESS) && (close_status != KCM_STATUS_SUCCESS),
+        close_status, "Failed to close source chain");
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return kcm_status;
@@ -177,7 +184,7 @@ kcm_status_e storage_key_get_handle(
     goto exit;
 
 free_and_exit:
-    storage_key_close_handle((kcm_key_handle_t*)&key_h_out);
+    storage_key_close_handle((kcm_key_handle_t*)&pal_key_handle);
 
 exit:
     return kcm_status;
@@ -254,13 +261,13 @@ kcm_status_e storage_key_pair_generate_and_store(
     cs_key_pair_context_s* cs_key_ctx = (cs_key_pair_context_s*)cs_key_h;
 
     kcm_status = storage_item_store(private_key_name, private_key_name_len, KCM_PRIVATE_KEY_ITEM, is_factory, item_prefix_type, ((palCryptoBuffer_t*)(cs_key_ctx->generated_priv_key_handle))->buffer,
-        ((palCryptoBuffer_t*)(cs_key_ctx->generated_priv_key_handle))->size, NULL);
+        ((palCryptoBuffer_t*)(cs_key_ctx->generated_priv_key_handle))->size, true);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, free_and_exit, "failed to store private key");
 
     //store public key if exists
     if (public_key_name != NULL) {
         kcm_status = storage_item_store(public_key_name, public_key_name_len, KCM_PUBLIC_KEY_ITEM, is_factory, item_prefix_type, ((palCryptoBuffer_t*)(cs_key_ctx->generated_pub_key_handle))->buffer,
-            ((palCryptoBuffer_t*)(cs_key_ctx->generated_pub_key_handle))->size, NULL);
+            ((palCryptoBuffer_t*)(cs_key_ctx->generated_pub_key_handle))->size, true);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), delete_priv_and_exit, "failed to store public key");
     }
 
@@ -304,7 +311,7 @@ kcm_status_e storage_ce_item_copy(
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get item data");
 
         //Save the item as backup item
-        kcm_status = storage_item_store(kcm_item_name, kcm_item_name_len, kcm_item_type, false, destination_item_prefix_type, item_data, item_data_len, NULL);
+        kcm_status = storage_item_store(kcm_item_name, kcm_item_name_len, kcm_item_type, false, destination_item_prefix_type, item_data, item_data_len, true);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to copy item data");
     }
 

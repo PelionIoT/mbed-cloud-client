@@ -57,6 +57,7 @@ ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/storage/source/include)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/key-config-manager/source/include)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/psa-driver)
 ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source)
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/psa-driver/source/include)
 
 FILE(GLOB FCC_STORAGE_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/storage/source/storage_pal_sst.c"

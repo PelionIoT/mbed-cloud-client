@@ -736,9 +736,9 @@ void FilesTestsSeek(pal_fsStorageID_t storageId)
 {
     palStatus_t status = PAL_SUCCESS;
     char buffer[TEST_BUFFER_SIZE];
-    int i = 0;
+    off_t i = 0;
     size_t numOfBytes;
-    int32_t pos = 0;
+    off_t pos = 0;
     char read_buf = 1;
     size_t prePos = 0;
 /*#1*/

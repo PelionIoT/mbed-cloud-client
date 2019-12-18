@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
 
 #include "pv_error_handling.h"
@@ -39,8 +39,9 @@ static kcm_status_e store_device_cert_cn(const uint8_t *device_cert, size_t devi
     kcm_status = psa_drv_atca_get_cn(device_cert, device_cert_size, &device_cn, &device_cn_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for ksa_load_external_key");
 
-    // store the device certificate CN as a config param
-    kcm_status = storage_item_store((const uint8_t *)g_fcc_endpoint_parameter_name, strlen(g_fcc_endpoint_parameter_name), KCM_CONFIG_ITEM, true, STORAGE_ITEM_PREFIX_KCM, device_cn, device_cn_size, NULL);
+    // store the device certificate CN as a config param that is not allowed for deleting
+    kcm_status = storage_item_store((const uint8_t *)g_fcc_endpoint_parameter_name, strlen(g_fcc_endpoint_parameter_name), 
+        KCM_CONFIG_ITEM, true, STORAGE_ITEM_PREFIX_KCM, device_cn, device_cn_size, false);
 
     fcc_free(device_cn); // caller must evacuate this buffer
 
@@ -51,32 +52,13 @@ static kcm_status_e store_device_cert_cn(const uint8_t *device_cert, size_t devi
     return kcm_status;
 }
 
-kcm_status_e storage_psa_se_atmel_load_device_private_key(void)
-{
-    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t privkey_kcm_name[STORAGE_COMPLETE_ITEM_NAME_SIZE] = { 0 };
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    // build device private key name
-    kcm_status = storage_build_item_name(
-        (uint8_t *)g_fcc_bootstrap_device_private_key_name,
-        strlen(g_fcc_bootstrap_device_private_key_name),
-        KCM_PRIVATE_KEY_ITEM,
-        STORAGE_ITEM_PREFIX_KCM,
-        NULL, privkey_kcm_name);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build device private key complete name");
-
-    // add the device private key 
-    kcm_status = ksa_load_key_to_entry_from_se((uint8_t *)privkey_kcm_name ,STORAGE_ATCA_DEVICE_PRIVATE_KEY_SLOT_ID, true);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for ksa_load_external_key");
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-
-    return kcm_status;
-}
-
-kcm_status_e storage_psa_se_atmel_create_device_cert_chain(void)
+/** Reads the 'signer' and 'device' X509 certificates from Atmel's secure element
+* and constructs a chain in form of 'signer' -> 'device'.
+* This chain is needed to authenticate and identify the physical device during bootstrap TLS handshake.
+*
+* @returns ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
+*/
+static kcm_status_e create_device_cert_chain(void)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS, close_chain_status = KCM_STATUS_SUCCESS;
     kcm_cert_chain_handle cert_chain_h = NULL;
@@ -94,17 +76,20 @@ kcm_status_e storage_psa_se_atmel_create_device_cert_chain(void)
     }
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed for storage_cert_chain_create");
 
+    kcm_status = psa_drv_atca_init();
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed initializing Atmel's Secure Element peripheral (%" PRIu32 ")", (uint32_t)kcm_status);
+
     // query device cert size
     kcm_status = psa_drv_atca_get_max_device_cert_size(&device_cert_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for psa_drv_atca_get_max_device_cert_size");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, Exit, "Failed for psa_drv_atca_get_max_device_cert_size");
 
     // query signer cert size
     kcm_status = psa_drv_atca_get_max_signer_cert_size(&signer_cert_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for psa_drv_atca_get_max_signer_cert_size");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, Exit, "Failed for psa_drv_atca_get_max_signer_cert_size");
 
     // allocate buffer to hold the device and signer certificates
     certs_buffer = fcc_malloc(device_cert_size + signer_cert_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((certs_buffer == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating certificates buffer");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((certs_buffer == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, Exit, "Failed allocating certificates buffer");
 
     // read the device certificate
     kcm_status = psa_drv_atca_read_device_cert(certs_buffer, &device_cert_size);
@@ -118,18 +103,20 @@ kcm_status_e storage_psa_se_atmel_create_device_cert_chain(void)
     kcm_status = psa_drv_atca_read_signer_cert(&(certs_buffer[device_cert_size]), &signer_cert_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed for psa_drv_atca_read_signer_cert");
 
-    // Store the device and signer certificate as KCM chain
+    // Store the device and signer certificate as KCM chain that is not allowed for deleting
 
     // start with the leaf
-    kcm_status = storage_cert_chain_add_next(cert_chain_h, &(certs_buffer[0]), device_cert_size, STORAGE_ITEM_PREFIX_KCM);
+    kcm_status = storage_cert_chain_add_next(cert_chain_h, &(certs_buffer[0]), device_cert_size, STORAGE_ITEM_PREFIX_KCM, false);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed to add Atmel's device certificate");
 
-    kcm_status = storage_cert_chain_add_next(cert_chain_h, &(certs_buffer[device_cert_size]), signer_cert_size, STORAGE_ITEM_PREFIX_KCM);
+    kcm_status = storage_cert_chain_add_next(cert_chain_h, &(certs_buffer[device_cert_size]), signer_cert_size, STORAGE_ITEM_PREFIX_KCM, false);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed to add Atmel's signer certificate");
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     
 Exit:
+
+    psa_drv_atca_release();
     fcc_free(certs_buffer);
 
     close_chain_status = storage_cert_chain_close(cert_chain_h, STORAGE_ITEM_PREFIX_KCM);
@@ -144,16 +131,16 @@ Exit:
 
 kcm_status_e storage_psa_se_atmel_init(void)
 {
-    // Init Atmel's secure element
-    kcm_status_e kcm_status = psa_drv_atca_init();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to initialize Atmel's secure element (%" PRIu32 ")", (uint32_t)kcm_status);
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    return KCM_STATUS_SUCCESS;
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    kcm_status = create_device_cert_chain();
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for create_device_cert_chain (%" PRIu32 ")", (uint32_t)kcm_status);
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+
+    return kcm_status;
 }
-
-void storage_psa_se_atmel_release(void)
-{
-    psa_drv_atca_release();
-}
-
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT

@@ -57,6 +57,7 @@ fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
         case KCM_STATUS_CORRUPTED_CHAIN_FILE:
         case KCM_STATUS_FILE_NAME_INVALID:
         case KCM_STATUS_FILE_NAME_TOO_LONG:
+        case KCM_STATUS_INVALID_EXPECTED_LOCATION:
             fcc_status = FCC_STATUS_KCM_STORAGE_ERROR;
             break;
         case KCM_STATUS_SELF_GENERATED_CERTIFICATE_VERIFICATION_ERROR:

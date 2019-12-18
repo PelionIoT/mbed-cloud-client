@@ -40,11 +40,19 @@ kcm_status_e storage_check_name_validity(const uint8_t *kcm_item_name, size_t kc
     size_t i;
     int ascii_val;
 
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL),
+                                    KCM_STATUS_INVALID_PARAMETER,
+                                    "kcm_item_name must be not NULL");
+
     // Check name length
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name_len > KCM_MAX_FILENAME_SIZE),
                                     KCM_STATUS_FILE_NAME_TOO_LONG,
                                     "kcm_item_name_len must be %d or less",
                                     KCM_MAX_FILENAME_SIZE);
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name_len == 0),
+                                    KCM_STATUS_INVALID_PARAMETER,
+                                    "kcm_item_name_len must be not 0");
 
     // Iterate all the characters and make sure all belong to {'A'-'Z' , 'a'-'z' , '0'-'9' , '.' , '-' , '_' }
     // Regular expression match: "^[a-zA-Z0-9_.-]*$"
@@ -67,7 +75,7 @@ kcm_status_e storage_item_store(const uint8_t * kcm_item_name,
                                 storage_item_prefix_type_e item_prefix_type,
                                 const uint8_t * kcm_item_data,
                                 size_t kcm_item_data_size,
-                                const kcm_security_desc_s kcm_item_info)
+                                bool is_delete_allowed)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     bool kcm_item_is_encrypted = true;
@@ -75,13 +83,12 @@ kcm_status_e storage_item_store(const uint8_t * kcm_item_name,
     // Validate function parameters
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name_len");
-    SA_PV_LOG_INFO_FUNC_ENTER("item name =  %.*s len=%" PRIu32 ", data size=%" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len, (uint32_t)kcm_item_data_size);
+    SA_PV_LOG_INFO_FUNC_ENTER("item name = %.*s len=%" PRIu32 ", data size=%" PRIu32 " is_delete_allowed=%u", 
+        (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len, (uint32_t)kcm_item_data_size, is_delete_allowed);
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((kcm_item_data == NULL) && (kcm_item_data_size > 0)), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data NULL and kcm_item_data_size greater than 0");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type != KCM_CONFIG_ITEM && kcm_item_data_size == 0), KCM_STATUS_ITEM_IS_EMPTY, "The data of current item is empty!");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type == STORAGE_ITEM_PREFIX_CE && kcm_item_is_factory == true), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_is_factory parameter");
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_info != NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_info");
-
 
     // Check if KCM initialized, if not initialize it
     if (!g_kcm_initialized) {
@@ -106,8 +113,10 @@ kcm_status_e storage_item_store(const uint8_t * kcm_item_name,
             SA_PV_ERR_RECOVERABLE_RETURN_IF((true), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     }
 
-    kcm_status = storage_item_store_impl(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, kcm_item_is_encrypted, item_prefix_type, kcm_item_data, kcm_item_data_size);
+    kcm_status = storage_item_store_impl(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, kcm_item_is_encrypted, item_prefix_type, kcm_item_data, kcm_item_data_size, is_delete_allowed);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "storage_data_write_impl failed\n");
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 
     return kcm_status;
 }
@@ -159,7 +168,8 @@ exit:
 kcm_status_e storage_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle,
                                          const uint8_t *kcm_cert_data,
                                          size_t kcm_cert_data_size,
-                                         storage_item_prefix_type_e item_prefix_type)
+                                         storage_item_prefix_type_e item_prefix_type,
+                                         bool is_delete_allowed)
 {
     storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -206,7 +216,8 @@ kcm_status_e storage_cert_chain_add_next(kcm_cert_chain_handle kcm_chain_handle,
     kcm_status = storage_cert_chain_add_next_impl(kcm_chain_handle,
                                                   kcm_cert_data,
                                                   kcm_cert_data_size,
-                                                  item_prefix_type);
+                                                  item_prefix_type,
+                                                  is_delete_allowed);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Clean_X509, "Failed in storage_chain_add_next");
 
 Clean_X509:
@@ -245,7 +256,7 @@ kcm_status_e storage_cert_chain_create(
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name len");
-    SA_PV_LOG_INFO_FUNC_ENTER("chain name =  %.*s, chain len = %" PRIu32 ", is_factory = %" PRIu32 "",
+    SA_PV_LOG_INFO_FUNC_ENTER("chain name = %.*s, chain len = %" PRIu32 ", is_factory = %" PRIu32 "",
         (int)kcm_chain_name_len, kcm_chain_name, (uint32_t)kcm_chain_len, (uint32_t)kcm_chain_is_factory);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid handle");
     *kcm_chain_handle = NULL;
@@ -300,7 +311,7 @@ kcm_status_e storage_cert_chain_open(kcm_cert_chain_handle *kcm_chain_handle,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_name_len == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid chain name len");
-    SA_PV_LOG_INFO_FUNC_ENTER("chain name =  %.*s", (int)kcm_chain_name_len, kcm_chain_name);
+    SA_PV_LOG_INFO_FUNC_ENTER("chain name = %.*s", (int)kcm_chain_name_len, kcm_chain_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_handle == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid handle");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_chain_len_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid chain len out");
 
