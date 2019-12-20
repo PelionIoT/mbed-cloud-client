@@ -375,7 +375,7 @@ static esfs_result_e esfs_cmac_read(esfs_file_t *file_handle, void *pbuf, size_t
 static esfs_result_e esfs_cmac_skip_to(esfs_file_t *file_handle, int32_t to)
 {
     // Get current position
-    off_t current_pos;
+    int32_t current_pos;
     palStatus_t res = pal_fsFtell(&file_handle->file, &current_pos);
     if (res != PAL_SUCCESS)
     {
@@ -428,7 +428,7 @@ static esfs_result_e esfs_cmac_finish(esfs_file_t *file_handle, unsigned char *p
 // pcmac       - [IN]   A pointer to a buffer containing the cmac that will be compared. It must be at least ESFS_CMAC_SIZE_IN_BYTES.
 // position    - [IN]   The absolute position from the start of the file to which we restore the file position.
 // Return     : ESFS_SUCCESS on success. Error code otherwise.
-static esfs_result_e esfs_cmac_check_and_restore(esfs_file_t *file_handle, unsigned char *pcmac, off_t position)
+static esfs_result_e esfs_cmac_check_and_restore(esfs_file_t *file_handle, unsigned char *pcmac, int32_t position)
 {
     // Read the signature from the file
     unsigned char file_cmac[ESFS_CMAC_SIZE_IN_BYTES];
@@ -506,7 +506,7 @@ static esfs_result_e esfs_calc_file_pos_for_aes(esfs_file_t *file_handle, size_t
     *position = 0;
 
     // Get current position inside the file
-    pal_status = pal_fsFtell( &(file_handle->file), (off_t *)position );
+    pal_status = pal_fsFtell( &(file_handle->file), (int32_t *)position );
 
     if(pal_status != PAL_SUCCESS)
     {
@@ -1169,12 +1169,12 @@ errorExit:
 // Helper function
 // Restores current position unless it fails.
 // On failure the position is undefined.
-static palStatus_t esfs_get_physical_file_size(palFileDescriptor_t* fd, size_t *file_size)
+static palStatus_t esfs_get_physical_file_size(palFileDescriptor_t* fd, int32_t *file_size)
 {
     palStatus_t res;
 
     // Get current position
-    off_t current_pos;
+    int32_t current_pos;
     res = pal_fsFtell(fd, &current_pos);
     if (res != PAL_SUCCESS)
     {
@@ -1341,7 +1341,7 @@ static esfs_result_e esfs_create_internal( const uint8_t *name,
 {
     esfs_result_e result = ESFS_ERROR;
 
-    off_t position = 0;
+    int32_t position = 0;
     size_t i;
     uint16_t file_created = 0;
     uint16_t cmac_created = 0;
@@ -1919,7 +1919,7 @@ esfs_result_e esfs_open(const uint8_t *name, size_t name_length, uint16_t *esfs_
     file_handle->current_read_pos = 0;
 
     // Get current position
-    off_t current_pos;
+    int32_t current_pos;
     res = pal_fsFtell(&file_handle->file, &current_pos);
     if (res != PAL_SUCCESS)
     {
@@ -2064,7 +2064,7 @@ esfs_result_e esfs_read(esfs_file_t *file_handle, void *buffer, size_t bytes_to_
         goto errorExit;
     }
     // Save file position
-    off_t position;
+    int32_t position;
     res = pal_fsFtell(&file_handle->file, &position);
     if(res != PAL_SUCCESS)
     {
@@ -2144,7 +2144,7 @@ errorExit:
     return result;
 }
 
-esfs_result_e esfs_seek(esfs_file_t *file_handle, off_t offset, esfs_seek_origin_e whence, size_t *position)
+esfs_result_e esfs_seek(esfs_file_t *file_handle, int32_t offset, esfs_seek_origin_e whence, uint32_t *position)
 {
     esfs_result_e result = ESFS_ERROR;
 	palStatus_t res = PAL_SUCCESS;
@@ -2212,7 +2212,7 @@ esfs_result_e esfs_seek(esfs_file_t *file_handle, off_t offset, esfs_seek_origin
     // Get current position if position is not NULL
     if(position)
     {
-        res = pal_fsFtell(&file_handle->file, (off_t *)position);
+        res = pal_fsFtell(&file_handle->file, (int32_t *)position);
         if(res != PAL_SUCCESS)
         {
             tr_err("esfs_seek() - pal_fsFtell() failed with pal status 0x%x", (unsigned int)res);
@@ -2478,7 +2478,7 @@ esfs_result_e esfs_read_meta_data(esfs_file_t *file_handle, uint32_t index, esfs
         goto errorExit;
     }
     // Get current file position
-    off_t current_pos;
+    int32_t current_pos;
     res = pal_fsFtell(&file_handle->file, &current_pos);
     if(res != PAL_SUCCESS)
     {

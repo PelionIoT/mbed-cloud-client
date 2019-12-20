@@ -133,7 +133,7 @@ palStatus_t pal_fsFwrite(palFileDescriptor_t *fd, const void * buffer, size_t nu
 }
 
 
-palStatus_t pal_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t whence)
+palStatus_t pal_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffset_t whence)
 {
     palStatus_t ret = PAL_SUCCESS;
     PAL_VALIDATE_CONDITION_WITH_ERROR((*fd == 0), PAL_ERR_FS_BAD_FD)
@@ -144,7 +144,7 @@ palStatus_t pal_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t wh
 }
 
 
-palStatus_t pal_fsFtell(palFileDescriptor_t *fd, off_t *pos)
+palStatus_t pal_fsFtell(palFileDescriptor_t *fd, int32_t *pos)
 {
     palStatus_t ret = PAL_SUCCESS;
     PAL_VALIDATE_CONDITION_WITH_ERROR((*fd == 0), PAL_ERR_FS_BAD_FD)

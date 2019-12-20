@@ -223,7 +223,7 @@ palStatus_t pal_plat_fsFwrite(palFileDescriptor_t *fd, const void *buffer, size_
 }
 
 
-palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t whence)
+palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffset_t whence)
 {
     palStatus_t ret = PAL_SUCCESS;
     if (fseek((FILE *)*fd, offset, g_platSeekWhenceConvert[whence]))
@@ -234,7 +234,7 @@ palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset
 }
 
 
-palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, off_t * pos)
+palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, int32_t * pos)
 {
     palStatus_t ret = PAL_SUCCESS;
     long retPos = 0;

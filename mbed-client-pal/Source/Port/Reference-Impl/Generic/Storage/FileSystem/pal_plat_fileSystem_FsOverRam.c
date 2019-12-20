@@ -379,7 +379,7 @@ palStatus_t pal_plat_fsFwrite(palFileDescriptor_t *fd, const void *buffer, size_
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t whence)
+palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffset_t whence)
 {    
     if (fd == NULL || *fd == PAL_FS_INVALID_FILE_DESC) {
         return PAL_ERR_FS_INVALID_ARGUMENT;
@@ -421,7 +421,7 @@ palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, off_t * pos)
+palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, int32_t * pos)
 {
     /* Init out param */
     *pos = -1;

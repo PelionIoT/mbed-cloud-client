@@ -1,5 +1,9 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.2.1 (20.12.2019)
+
+Reverted a bug fix for PAL and FCC support for files larger than 2 GB. This fixes a regression in 4.2.0 release for embedded Linux platforms where enabling tracing causes a hard fault in the application.
+
 ### Release 4.2.0 (18.12.2019)
 
 #### Device Management Client
