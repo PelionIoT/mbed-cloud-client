@@ -265,16 +265,14 @@ kcm_status_e storage_check_certificate_existance(const uint8_t *kcm_chain_name, 
 
     //If single certificate with the chain name is exists in the data base - return an error
     kcm_status = ksa_item_check_existence((const uint8_t*)storage_item_name, KCM_CERTIFICATE_ITEM);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status = KCM_STATUS_FILE_EXIST, 
-        "Item %.*s already exists as single certificate", (int)kcm_chain_name_len, kcm_chain_name);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status = KCM_STATUS_FILE_EXIST, "Data with the same name already exists");
 
     //Build complete name of first certificate name in the chain
     kcm_status = storage_build_item_name(kcm_chain_name, kcm_chain_name_len, KCM_CERTIFICATE_ITEM, item_prefix_type, &cert_name_info, storage_item_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build data name");
 
     kcm_status = ksa_item_check_existence((const uint8_t*)storage_item_name, KCM_CERTIFICATE_ITEM);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status = KCM_STATUS_FILE_EXIST, 
-        "Item %.*s already exists as cert chain", (int)kcm_chain_name_len, kcm_chain_name);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status = KCM_STATUS_FILE_EXIST, "Data with the same name already exists");
 
     return kcm_status;
 }
@@ -380,13 +378,6 @@ kcm_status_e storage_item_store_impl(
     uint32_t storage_flags = 0;
 
     SA_PV_LOG_INFO_FUNC_ENTER("kcm_item_name_len =%" PRIu32 " kcm_item_data_size =%" PRIu32 "", (uint32_t)kcm_item_name_len, (uint32_t)kcm_item_data_size);
-
-    if (kcm_item_type == KCM_CERTIFICATE_ITEM) {
-        // special check for certificate items: check if certificate chain or single certificate with the same name already exists
-        kcm_status = storage_check_certificate_existance(kcm_item_name, kcm_item_name_len, item_prefix_type);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_FILE_EXIST), kcm_status, "Certificate item already exists!");
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "Falied to check certificate existence");
-    }
 
     kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type, NULL, storage_item_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build item name");

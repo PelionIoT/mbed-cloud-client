@@ -167,7 +167,7 @@ palStatus_t pal_plat_fsFwrite(palFileDescriptor_t *fd, const void *buffer, size_
  * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
  *
  */
-palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset_t whence);
+palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, int32_t offset, pal_fsOffset_t whence);
 
 
 
@@ -180,7 +180,7 @@ palStatus_t pal_plat_fsFseek(palFileDescriptor_t *fd, off_t offset, pal_fsOffset
  * \return PAL_FILE_SYSTEM_ERROR - see the error code description \c palError_t.
  *
  */
-palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, off_t * pos);
+palStatus_t pal_plat_fsFtell(palFileDescriptor_t *fd, int32_t * pos);
 
 
 

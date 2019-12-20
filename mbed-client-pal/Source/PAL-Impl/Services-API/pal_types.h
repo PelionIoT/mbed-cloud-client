@@ -36,12 +36,6 @@ extern "C" {
 #endif
 #include <stdlib.h>
 
-#if defined(__ARMCC_VERSION) || defined ( __ICCARM__ ) || defined ( __SXOS__ )
-    typedef signed long off_t;
-#else
-    #include <sys/types.h>
-#endif
-
 /*! \file pal_types.h
 *  \brief PAL types.
 *   This file contains PAL generic types.
