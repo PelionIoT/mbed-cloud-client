@@ -206,9 +206,9 @@ STATIC palStatus_t calc_empty_space(uint8_t area, uint32_t *offset)
     uint32_t i, j;
     palStatus_t ret;
 
-    *offset = flash_area_params[area].size;
+    *offset = (uint32_t)flash_area_params[area].size;
     for (i = 0; i < flash_area_params[area].size / sizeof(buf); i++) {
-        *offset -= sizeof(buf);
+        *offset -= (uint32_t)sizeof(buf);
         ret = sotp_flash_read_area(area, *offset, sizeof(buf), buf);
         if (ret != PAL_SUCCESS)
             return ret;
@@ -254,14 +254,14 @@ STATIC sotp_result_e read_record(uint8_t area, uint32_t offset, uint16_t buf_len
 
     pal_ret = sotp_flash_read_area(area, offset, sizeof(header), (uint32_t *) &header);
     if (pal_ret != PAL_SUCCESS) {
-        PR_ERR("read_record: sotp_flash_read_area failed with ret 0x%lx\n", pal_ret);
+        PR_ERR("read_record: sotp_flash_read_area failed with ret 0x%x\n", pal_ret);
         return SOTP_READ_ERROR;
     }
 
     crc = crc32(crc, sizeof(header) - sizeof(header.mac), (uint8_t *) &header);
 
     *actual_len_bytes = 0;
-    *type = header.type_and_flags & ~HEADER_FLAG_MASK;
+    *type = (uint16_t)(header.type_and_flags & ~HEADER_FLAG_MASK);
     *flags = header.type_and_flags & HEADER_FLAG_MASK;
 
     if ((*type >= SOTP_MAX_TYPES) && (*type != SOTP_MASTER_RECORD_TYPE)) {
@@ -270,7 +270,7 @@ STATIC sotp_result_e read_record(uint8_t area, uint32_t offset, uint16_t buf_len
     }
 
     data_len = header.length;
-    offset += sizeof(header);
+    offset += (uint32_t)sizeof(header);
 
     // In case of validate only enabled, we use our internal buffer for data reading,
     // instead of the user one. This allows us to use a smaller buffer, on which CRC
@@ -282,7 +282,7 @@ STATIC sotp_result_e read_record(uint8_t area, uint32_t offset, uint16_t buf_len
     else {
         if (data_len > buf_len_bytes) {
             offset += data_len;
-            *actual_len_bytes = data_len;
+            *actual_len_bytes = (uint16_t)data_len;
             *next_offset = pad_addr(offset, min_prog_size);
             return SOTP_BUFF_TOO_SMALL;
         }
@@ -293,7 +293,7 @@ STATIC sotp_result_e read_record(uint8_t area, uint32_t offset, uint16_t buf_len
         chunk_len = PAL_MIN(data_len, buf_len_bytes);
         pal_ret = sotp_flash_read_area(area, offset, chunk_len, buf_ptr);
         if (pal_ret != PAL_SUCCESS) {
-            PR_ERR("read_record: sotp_flash_read_area failed with ret 0x%lx\n", pal_ret);
+            PR_ERR("read_record: sotp_flash_read_area failed with ret 0x%x\n", pal_ret);
             return SOTP_READ_ERROR;
         }
         crc = crc32(crc, chunk_len, (uint8_t *) buf_ptr);
@@ -332,7 +332,7 @@ STATIC sotp_result_e write_record(uint8_t area, uint32_t offset, uint16_t type, 
     SOTP_LOG_APPEND("write_record area:%d offs:%d len:%d type:%d. ", area, offset, data_len, type);
 
     header.type_and_flags = type | flags;
-    header.length = data_len;
+    header.length = (uint16_t)data_len;
     header.mac = 0; // Satisfy compiler
     crc = crc32(crc, sizeof(header) - sizeof(header.mac), (uint8_t *) &header);
     if (data_len)
@@ -352,7 +352,7 @@ STATIC sotp_result_e write_record(uint8_t area, uint32_t offset, uint16_t type, 
         memcpy(page_buf, &header, min_prog_size);
         if (data_len) {
             // The amount of data to copy is page_size - sizeof(header) (to fill page) but no more than the data length
-            copy_size = PAL_MIN(data_len, min_prog_size - sizeof(header));
+            copy_size = (uint32_t)PAL_MIN(data_len, min_prog_size - sizeof(header));
             memcpy(prog_buf + sizeof(header), data_buf, copy_size);
 
             // Update the number of data bytes to write after the header page
@@ -450,7 +450,7 @@ STATIC sotp_result_e copy_record(uint8_t from_area, uint32_t from_offset, uint32
     }
 
     header = (record_header_t *)read_buf;
-    record_size = sizeof(*header) + header->length;
+    record_size = (uint32_t)(sizeof(*header) + header->length);
 
 
     SOTP_LOG_APPEND("type %d. ", header->type_and_flags);
@@ -483,7 +483,7 @@ STATIC sotp_result_e copy_record(uint8_t from_area, uint32_t from_offset, uint32
         }
         // Cast of prog_buf from uint8_t* to uint32_t is OK because prog_buf points to
         // either page_buf or int_buf (both 4 byte aligned)
-        pal_ret = sotp_flash_write_area(1 - from_area, to_offset, chunk_size + start_size, (uint32_t *)prog_buf);
+        pal_ret = sotp_flash_write_area((uint8_t)(1 - from_area), to_offset, chunk_size + start_size, (uint32_t *)prog_buf);
         if (pal_ret != PAL_SUCCESS) {
             return SOTP_WRITE_ERROR;
         }
@@ -518,13 +518,13 @@ sotp_result_e sotp_garbage_collection(uint16_t type, uint16_t buf_len_bytes, con
     // otherwise we may either write it twice (if already included), or lose it in case we decide
     // to skip it at garbage collection phase (and the system crashes).
     if (type != SOTP_NO_TYPE) {
-        ret = write_record(1 - active_area, new_area_offset, type, 0, buf_len_bytes, buf, &next_offset);
+        ret = write_record((uint8_t)(1 - active_area), new_area_offset, type, 0, buf_len_bytes, buf, &next_offset);
         if (ret != SOTP_SUCCESS) {
             PR_ERR("sotp_garbage_collection: write_record failed with ret 0x%x\n", ret);
             SOTP_LOG_FINALIZE();
             return ret;
         }
-        offset_by_type[type] = new_area_offset | (1-active_area) << (sizeof(offset_by_type[type])*8 - 1);
+        offset_by_type[type] = new_area_offset | (uint32_t)((1-active_area) << (sizeof(offset_by_type[type])*8 - 1));
         new_area_offset = next_offset;
     }
 
@@ -533,7 +533,7 @@ sotp_result_e sotp_garbage_collection(uint16_t type, uint16_t buf_len_bytes, con
     for (type = 0; type < SOTP_MAX_TYPES; type++) {
         curr_offset = offset_by_type[type];
         curr_area = (uint8_t) (curr_offset >> (sizeof(curr_offset)*8 - 1));
-        curr_offset &= ~(1UL << (sizeof(curr_offset)*8 - 1));
+        curr_offset &= (uint32_t)(~(1UL << (sizeof(curr_offset)*8 - 1)));
         if ((!curr_offset) || (curr_area != active_area))
             continue;
         ret = copy_record(curr_area, curr_offset, new_area_offset, &next_offset);
@@ -542,13 +542,13 @@ sotp_result_e sotp_garbage_collection(uint16_t type, uint16_t buf_len_bytes, con
             SOTP_LOG_FINALIZE();
             return ret;
         }
-        offset_by_type[type] = new_area_offset | (1-curr_area) << (sizeof(offset_by_type[type])*8 - 1);
+        offset_by_type[type] = new_area_offset | (uint32_t)((1-curr_area) << (sizeof(offset_by_type[type])*8 - 1));
         new_area_offset = next_offset;
     }
 
     // Now write master record, with version incremented by 1.
     active_area_version++;
-    ret = write_master_record(1 - active_area, active_area_version, &next_offset);
+    ret = write_master_record((uint8_t)(1 - active_area), active_area_version, &next_offset);
     if (ret != SOTP_SUCCESS) {
         PR_ERR("sotp_garbage_collection: write_master_record failed with ret 0x%x\n", ret);
         SOTP_LOG_FINALIZE();
@@ -558,10 +558,10 @@ sotp_result_e sotp_garbage_collection(uint16_t type, uint16_t buf_len_bytes, con
     free_space_offset = new_area_offset;
 
     // Only now we can switch to the new active area
-    active_area = 1 - active_area;
+    active_area = (uint8_t)(1 - active_area);
 
     // The older area doesn't concern us now. Erase it now.
-    if (sotp_flash_erase_area(1 - active_area) != PAL_SUCCESS) {
+    if (sotp_flash_erase_area((uint8_t)(1 - active_area)) != PAL_SUCCESS) {
         ret = SOTP_WRITE_ERROR;
     }
 
@@ -628,7 +628,7 @@ STATIC sotp_result_e sotp_do_get(uint8_t type, uint16_t buf_len_bytes, uint32_t 
         }
 
         area = (uint8_t) (record_offset >> (sizeof(record_offset)*8 - 1));
-        record_offset &= ~(1UL << (sizeof(record_offset)*8 - 1));
+        record_offset &= (uint32_t)(~(1UL << (sizeof(record_offset)*8 - 1)));
 
         ret = read_record(area, record_offset, buf_len_bytes, buf,
                           actual_len_bytes, validate_only, &valid,
@@ -726,12 +726,12 @@ STATIC sotp_result_e sotp_do_set(uint32_t type, uint16_t buf_len_bytes, const ui
     }
 
     save_active_area = active_area;
-    record_size = pad_addr(sizeof(record_header_t) + buf_len_bytes, min_prog_size);
+    record_size = pad_addr((uint32_t)(sizeof(record_header_t) + buf_len_bytes), min_prog_size);
     // Parallel operation of writers is allowed due to this atomic operation. This operation
     // produces an offset on which each writer can work separately, without being interrupted
     // by the other writer. The only mutual resource here is free_space_offset - which
     // gets the correct value because of this atomic increment.
-    new_free_space = safe_increment((int32_t *) &free_space_offset, record_size);
+    new_free_space = (uint32_t)safe_increment((int32_t *) &free_space_offset, (int32_t)record_size);
     record_offset = new_free_space - record_size;
 
     // If we cross the area limit, we need to invoke GC. However, we should consider all the cases
@@ -775,7 +775,7 @@ STATIC sotp_result_e sotp_do_set(uint32_t type, uint16_t buf_len_bytes, const ui
                     return SOTP_OS_ERROR;
                 }
             }
-            new_free_space = safe_increment((int32_t *) &free_space_offset, record_size);
+            new_free_space = (uint32_t)safe_increment((int32_t *) &free_space_offset, (int32_t)record_size);
             record_offset = new_free_space - free_space_offset;
         }
     }
@@ -795,7 +795,7 @@ STATIC sotp_result_e sotp_do_set(uint32_t type, uint16_t buf_len_bytes, const ui
     if (flags & DELETE_ITEM_FLAG)
         offset_by_type[type] = 0;
     else
-        offset_by_type[type] = record_offset | (active_area << (sizeof(offset_by_type[type])*8 - 1));
+        offset_by_type[type] = record_offset | (uint32_t)(active_area << (sizeof(offset_by_type[type])*8 - 1));
 
     if (sotp_sh_lock_shared_release(write_lock) != SOTP_SHL_SUCCESS) {
         PR_ERR("sotp_set: sotp_sh_lock_shared_release failed\n");
@@ -963,7 +963,7 @@ sotp_result_e sotp_init(void)
         else
             active_area = 1;
         active_area_version = versions[active_area];
-        pal_ret = sotp_flash_erase_area(1 - active_area);
+        pal_ret = sotp_flash_erase_area((uint8_t)(1 - active_area));
         if (pal_ret != PAL_SUCCESS) {
             PR_ERR("sotp_init: sotp_flash_erase_area failed with err code 0x%lx\n",
                     (unsigned long) pal_ret);
@@ -990,7 +990,7 @@ sotp_result_e sotp_init(void)
         if (flags & DELETE_ITEM_FLAG)
             offset_by_type[type] = 0;
         else
-            offset_by_type[type] = free_space_offset | (active_area << (sizeof(offset_by_type[type])*8 - 1));
+            offset_by_type[type] = free_space_offset | (uint32_t)(active_area << (sizeof(offset_by_type[type])*8 - 1));
         free_space_offset = next_offset;
     }
 

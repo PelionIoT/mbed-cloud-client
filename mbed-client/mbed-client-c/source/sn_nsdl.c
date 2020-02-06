@@ -55,7 +55,7 @@
 #endif
 
 /* Defines */
-#define TRACE_GROUP "mClt"
+#define TRACE_GROUP "COAP"
 #define RESOURCE_DIR_LEN                2
 #define EP_NAME_PARAMETERS_LEN          3
 #define ET_PARAMETER_LEN                3

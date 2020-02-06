@@ -37,11 +37,12 @@
 #define WELLKNOWN_PATH                  (".well-known/core")
 
 /* Local static function prototypes */
-static int8_t                       sn_grs_resource_info_free(struct grs_s *handle, sn_nsdl_dynamic_resource_parameters_s *resource_ptr);
+static int8_t sn_grs_resource_info_free(struct grs_s *handle, sn_nsdl_dynamic_resource_parameters_s *resource_ptr);
 static char *sn_grs_convert_uri(uint16_t *uri_len, const char *uri_ptr);
-static int8_t                       sn_grs_core_request(struct nsdl_s *handle, sn_nsdl_addr_s *src_addr_ptr, sn_coap_hdr_s *coap_packet_ptr);
-static uint8_t                      coap_tx_callback(uint8_t *, uint16_t, sn_nsdl_addr_s *, void *);
-static int8_t                       coap_rx_callback(sn_coap_hdr_s *coap_ptr, sn_nsdl_addr_s *address_ptr, void *param);
+static int8_t sn_grs_core_request(struct nsdl_s *handle, sn_nsdl_addr_s *src_addr_ptr, sn_coap_hdr_s *coap_packet_ptr);
+static uint8_t coap_tx_callback(uint8_t *, uint16_t, sn_nsdl_addr_s *, void *);
+static int8_t coap_rx_callback(sn_coap_hdr_s *coap_ptr, sn_nsdl_addr_s *address_ptr, void *param);
+static void sn_grs_free_coap_packet(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coap_packet_ptr, sn_nsdl_addr_s *src_addr_ptr);
 
 /* Extern function prototypes */
 extern int8_t                       sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *message_ptr, uint8_t updating_registeration);
@@ -300,10 +301,7 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
                     if (resource_temp_ptr->sn_grs_dyn_res_callback != NULL) {
                         resource_temp_ptr->sn_grs_dyn_res_callback(nsdl_handle, coap_packet_ptr, src_addr_ptr, SN_NSDL_PROTOCOL_COAP);
                     } else {
-                        if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED && coap_packet_ptr->payload_ptr) {
-                            handle->sn_grs_free(coap_packet_ptr->payload_ptr);
-                            coap_packet_ptr->payload_ptr = 0;
-                        }
+                        sn_grs_free_coap_packet(nsdl_handle, coap_packet_ptr, src_addr_ptr);
                         sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, coap_packet_ptr);
                     }
 
@@ -341,12 +339,7 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
         else {
             if (coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_POST) {
                 handle->sn_grs_rx_callback(nsdl_handle, coap_packet_ptr, src_addr_ptr);
-
-                if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED && coap_packet_ptr->payload_ptr) {
-                    handle->sn_grs_free(coap_packet_ptr->payload_ptr);
-                    coap_packet_ptr->payload_ptr = 0;
-                }
-
+                sn_grs_free_coap_packet(nsdl_handle, coap_packet_ptr, src_addr_ptr);
                 sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, coap_packet_ptr);
                 return SN_NSDL_SUCCESS;
             } else {
@@ -363,10 +356,7 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
         /* Allocate resopnse message  */
         response_message_hdr_ptr = sn_coap_parser_alloc_message(handle->coap);
         if (!response_message_hdr_ptr) {
-            if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED && coap_packet_ptr->payload_ptr) {
-                handle->sn_grs_free(coap_packet_ptr->payload_ptr);
-                coap_packet_ptr->payload_ptr = 0;
-            }
+            sn_grs_free_coap_packet(nsdl_handle, coap_packet_ptr, src_addr_ptr);
             sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, coap_packet_ptr);
             return SN_NSDL_FAILURE;
         }
@@ -392,12 +382,7 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
             response_message_hdr_ptr->token_ptr = handle->sn_grs_alloc(response_message_hdr_ptr->token_len);
             if (!response_message_hdr_ptr->token_ptr) {
                 sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, response_message_hdr_ptr);
-
-                if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED && coap_packet_ptr->payload_ptr) {
-                    handle->sn_grs_free(coap_packet_ptr->payload_ptr);
-                    coap_packet_ptr->payload_ptr = 0;
-                }
-
+                sn_grs_free_coap_packet(nsdl_handle, coap_packet_ptr, src_addr_ptr);
                 sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, coap_packet_ptr);
                 return SN_NSDL_FAILURE;
             }
@@ -418,12 +403,7 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
 
                 if (!response_message_hdr_ptr->payload_ptr) {
                     sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, response_message_hdr_ptr);
-
-                    if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED && coap_packet_ptr->payload_ptr) {
-                        handle->sn_grs_free(coap_packet_ptr->payload_ptr);
-                        coap_packet_ptr->payload_ptr = 0;
-                    }
-
+                    sn_grs_free_coap_packet(nsdl_handle, coap_packet_ptr, src_addr_ptr);
                     sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, coap_packet_ptr);
                     return SN_NSDL_FAILURE;
                 }
@@ -448,11 +428,9 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
         }
         sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, response_message_hdr_ptr);
     }
-
-    /* Free parsed CoAP message */
+    /* Free block wise message payload. In other messages, payload allocated in stack */
     if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED && coap_packet_ptr->payload_ptr) {
-        handle->sn_grs_free(coap_packet_ptr->payload_ptr);
-        coap_packet_ptr->payload_ptr = 0;
+        sn_grs_free_coap_packet(nsdl_handle, coap_packet_ptr, src_addr_ptr);
     }
     sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, coap_packet_ptr);
 
@@ -732,4 +710,25 @@ void sn_grs_mark_resources_as_registered(struct nsdl_s *handle)
         }
         temp_resource = sn_grs_get_next_resource(handle->grs, temp_resource);
     }
+}
+
+void sn_grs_free_coap_packet(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coap_packet_ptr, sn_nsdl_addr_s *src_addr_ptr)
+{
+#if SN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT
+    if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED) {
+        sn_nsdl_remove_coap_block(
+                nsdl_handle,
+                src_addr_ptr,
+                coap_packet_ptr->payload_len,
+                coap_packet_ptr->payload_ptr);
+    } else if (coap_packet_ptr->payload_ptr) {
+        nsdl_handle->grs->sn_grs_free(coap_packet_ptr->payload_ptr);
+        coap_packet_ptr->payload_ptr = 0;
+    }
+#else
+    if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED && coap_packet_ptr->payload_ptr) {
+        nsdl_handle->grs->sn_grs_free(coap_packet_ptr->payload_ptr);
+        coap_packet_ptr->payload_ptr = 0;
+    }
+#endif
 }

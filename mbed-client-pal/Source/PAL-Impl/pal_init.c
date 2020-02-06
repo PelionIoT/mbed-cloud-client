@@ -21,7 +21,9 @@
 #include "pal_plat_Crypto.h"
 #include "pal_plat_drbg.h"
 #include "pal_macros.h"
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
+#endif
 
 #define TRACE_GROUP "PAL"
 
@@ -53,7 +55,6 @@ palStatus_t pal_init(void)
 {
 
     palStatus_t status = PAL_SUCCESS;
-    sotp_result_e sotpStatus = SOTP_SUCCESS;
     int32_t currentInitValue;
     //  get the return value of g_palIntialized+1 to save it locally
     currentInitValue = pal_osAtomicIncrement(&g_palIntialized,1);
@@ -101,15 +102,16 @@ palStatus_t pal_init(void)
                         else
                         {
 #if !defined  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+                            sotp_result_e sotpStatus = SOTP_SUCCESS;
                             DEBUG_PRINT("SOTP init\r\n");
 
                             sotpStatus = sotp_init();
-#endif
                             if (SOTP_SUCCESS != sotpStatus)
                             {
                                 DEBUG_PRINT("init of SOTP module has failed with status %" PRIx32 "\r\n", (int32_t)sotpStatus);
                                 status = PAL_ERR_INIT_SOTP_FAILED;
                             }
+#endif
                             if (PAL_SUCCESS == status)
                             {
                                 status = pal_plat_DRBGInit();

@@ -47,13 +47,13 @@ esfs_result_e esfs_EncodeBase64(const void* buffer, uint32_t bufferSize, char* s
                 *writePtr++ = IntToBase64Char(*readPtr >> 2);                 // take upper 6 bits
                 break;
             case 6:
-                tempVal = *readPtr++ << 4;
+                tempVal = (uint8_t)(*readPtr++ << 4);
                 if (readPtr < bufferEnd)
                     tempVal |= *readPtr >> 4;
                 *writePtr++ = IntToBase64Char(tempVal);
                 break;
             case 4:
-                tempVal = *readPtr++ << 2;
+                tempVal = (uint8_t)(*readPtr++ << 2);
                 if (readPtr < bufferEnd)
                     tempVal |= *readPtr >> 6;
                 *writePtr++ = IntToBase64Char(tempVal);

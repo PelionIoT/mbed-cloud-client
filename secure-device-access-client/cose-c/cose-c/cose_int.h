@@ -246,6 +246,7 @@ extern cose_error _MapFromCBOR(CborError err);
  *  Set of routines for handle checking
  */
 
+extern bool _COSE_SetExternal(COSE * pcose, const byte * pbExternalData, size_t cbExternalData, cose_errback * perr);
 extern void _COSE_InsertInList(COSE ** rootNode, COSE * newMsg);
 extern bool _COSE_IsInList(COSE * rootNode, COSE * thisMsg);
 extern void _COSE_RemoveFromList(COSE ** rootNode, COSE * thisMsg);
@@ -266,8 +267,6 @@ extern void _COSE_Release(COSE * pcose CBOR_CONTEXT);
 extern cn_cbor * _COSE_map_get_string(COSE * cose, const char * key, int flags, cose_errback * errp);
 extern cn_cbor * _COSE_map_get_int(COSE * cose, int key, int flags, cose_errback * errp);
 extern bool _COSE_map_put(COSE * cose, int key, cn_cbor * value, int flags, CBOR_CONTEXT_COMMA cose_errback * errp);
-
-bool _COSE_SetExternal(COSE * hcose, const byte * pbExternalData, size_t cbExternalData, cose_errback * perr);
 
 
 extern HCOSE_ENVELOPED _COSE_Enveloped_Init_From_Object(cn_cbor *, COSE_Enveloped * pIn, CBOR_CONTEXT_COMMA cose_errback * errp);

@@ -843,6 +843,7 @@ protected: // from M2MReportObserver
 #endif //ENABLE_ASYNC_REST_RESPONSE
 
 private:
+
     static bool is_integer(const String &value);
 
     static bool is_integer(const char *value);

@@ -588,17 +588,21 @@ palStatus_t pal_ECKeyNew(palECKeyHandle_t* key);
  */
 palStatus_t pal_ECKeyFree(palECKeyHandle_t* key);
 
-/*! \brief Initializes a handle to key according to its size
+/*! \brief Initialize a pal key handle.
  *
- * @param[in] keyHandle: A handle for the key
- * @param[in] key_size: size of the key.
+ * In non-PSA configuration, allocate a key buffer, according to its size and initialize the pal key handle. 
+ * 
+ * @param[in] keyHandle: Pal key handle to be initialized.
+ * @param[in] keySize: size of the key to be allocated
  *
  \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size); 
+palStatus_t pal_newKeyHandle( palKeyHandle_t *keyHandle, size_t keySize); 
 
 
-/*! \brief frees a a key handle.
+/*! \brief frees a pal key handle.
+ *
+ * In non-PSA configuration, free the allocated key buffer.
  *
  * @param[in] keyHandle: A handle for the key
  *
@@ -696,24 +700,23 @@ palStatus_t pal_asymmetricVerify(const palECKeyHandle_t publicKeyHanlde, palMDTy
 
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-/*! \brief Write a private key from a key handle
+/*! \brief Write a pal private key handle from an EC key handle
  *
- * @param[in] prvKeyHandle:  A handle to the private key.
+ * @param[in] prvKeyHandle:  A pal pivate key handle. Its buffer field is filled by the function
  * @param[in] ECKeyHandle:   A handle to EC Key handle.
  *
  \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_writePrivateKeyWithHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle);
+palStatus_t pal_writePrivateKeyWithHandle(palKeyHandle_t prvKeyHandle, const palECKeyHandle_t ECKeyHandle);
 
-
-/*! \brief Write a public key from a key handle
+/*! \brief Write a pal public key handle from an EC key handle
  *
- * @param[in] prvKeyHandle:  A handle to the public key.
+ * @param[in] prvKeyHandle:  A pal public key handle. Its buffer field is filled by the function
  * @param[in] ECKeyHandle:   A handle to EC Key handle.
  *
  \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_writePublicKeyWithHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle);
+palStatus_t pal_writePublicKeyWithHandle(palKeyHandle_t pubKeyHandle, const palECKeyHandle_t ECKeyHandle);
 #endif
 
 /*! \brief DER encode a private key from a key handle.

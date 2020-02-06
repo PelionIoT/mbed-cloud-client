@@ -1206,17 +1206,15 @@ palStatus_t pal_plat_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx)
     // If using mbedtls with entropy sources, if the reseed_counter is 0 - this means seeding has not been done yet and generating a random number will not work
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)ctx;
-    if (palCtrDrbgCtx->ctrDrbgCtx.reseed_counter > 0)
+    // If f_entropy is set, this means that mbedtls_ctr_drbg_seed() has been
+    // called. Otherwise, the DRBG is not seeded yet.
+    if (palCtrDrbgCtx->ctrDrbgCtx.f_entropy != 0)
     {
         return PAL_SUCCESS;
     }
-    else if (palCtrDrbgCtx->ctrDrbgCtx.reseed_counter == 0)
+    else
     {
         return PAL_ERR_CTR_DRBG_NOT_SEEDED;
-    }
-    else 
-    {
-        return PAL_ERR_GENERIC_FAILURE; // Having the reseed counter negative indicates some wierd error. Perhaps uninitialized context
     }
 #else
     // If not using mbedtls with entropy sources, reseed_counter will always be 0 and seeding is done in a lazy fashion
@@ -1660,56 +1658,56 @@ palStatus_t pal_plat_ECKeyFree(palECKeyHandle_t* key)
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size)
+palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t keySize)
 {
 
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t palStatus = PAL_SUCCESS;
 
     //allocate palCryptoBuffer_t struct
-    palCryptoBuffer_t* crypto_buffer = (palCryptoBuffer_t*)malloc(sizeof(palCryptoBuffer_t));
-    if (NULL == crypto_buffer)
+    palCryptoBuffer_t* cryptoBuffer = (palCryptoBuffer_t*)malloc(sizeof(palCryptoBuffer_t));
+    if (NULL == cryptoBuffer)
     {
-        pal_status = PAL_ERR_NO_MEMORY;
+        palStatus = PAL_ERR_NO_MEMORY;
         goto exit;
     }
 
-    crypto_buffer->buffer = NULL;
-    crypto_buffer->size = 0;
+    cryptoBuffer->buffer = NULL;
+    cryptoBuffer->size = 0;
 
     //allocate buffer for the key
-    crypto_buffer->buffer = malloc(key_size);
-    if (NULL == crypto_buffer->buffer)
+    cryptoBuffer->buffer = malloc(keySize);
+    if (NULL == cryptoBuffer->buffer)
     {
-        pal_status = PAL_ERR_NO_MEMORY;
+        palStatus = PAL_ERR_NO_MEMORY;
         goto free_and_exit;
     }
 
-    crypto_buffer->size = (uint32_t)key_size;
+    cryptoBuffer->size = (uint32_t)keySize;
 
-    //init key_hanlde with pal_key_buffer address
-    *keyHandle = (palKeyHandle_t)crypto_buffer;
+    //init handle with pal_key_buffer address
+    *keyHandle = (palKeyHandle_t)cryptoBuffer;
 
     goto exit;
 
 free_and_exit:
-    pal_plat_freeKeyHandle((palKeyHandle_t*)&crypto_buffer);
+    pal_plat_freeKeyHandle((palKeyHandle_t*)&cryptoBuffer);
 
 exit:
-    return pal_status;
+    return palStatus;
 }
 
 palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle)
 {
 
-    palCryptoBuffer_t* crypto_buffer = (palCryptoBuffer_t*)*keyHandle;
+    palCryptoBuffer_t* cryptoBuffer = (palCryptoBuffer_t*)*keyHandle;
 
     // free buffer
-    if (crypto_buffer->buffer != NULL) {
-        free(crypto_buffer->buffer);
+    if (cryptoBuffer->buffer != NULL) {
+        free(cryptoBuffer->buffer);
     }
 
     //free struct
-    free(crypto_buffer);
+    free(cryptoBuffer);
     *keyHandle = 0;
 
     return PAL_SUCCESS;
@@ -1718,7 +1716,7 @@ palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle)
 
 #else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t key_size)
+palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t keySize)
 {
    *keyHandle = 0; 
     return PAL_SUCCESS;
@@ -1937,7 +1935,6 @@ palStatus_t pal_plat_parseECPublicKeyFromHandle(const palKeyHandle_t pubKeyHandl
     return status;
 }
 
-
 palStatus_t pal_plat_writePrivateKeyWithHandle(const palKeyHandle_t prvKeyHandle, palECKeyHandle_t ECKeyHandle)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -1951,9 +1948,7 @@ palStatus_t pal_plat_writePrivateKeyWithHandle(const palKeyHandle_t prvKeyHandle
     }
 
     return status;
-
 }
-
 
 palStatus_t pal_plat_writePublicKeyWithHandle(const palKeyHandle_t pubKeyHandle, palECKeyHandle_t ECKeyHandle)
 {
@@ -1968,12 +1963,9 @@ palStatus_t pal_plat_writePublicKeyWithHandle(const palKeyHandle_t pubKeyHandle,
     }
 
     return status;
-
 }
 
 #endif//!MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-
-
 
 //! Move data from the end of the buffer to the begining, this function is needed since mbedTLS
 //! write functions write the data at the end of the buffers.

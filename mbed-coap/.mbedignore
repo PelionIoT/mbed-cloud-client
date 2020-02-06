@@ -1,5 +1,3 @@
 test/*
 test_modules/*
 unittest/*
-yotta_modules/*
-yotta_targets/*

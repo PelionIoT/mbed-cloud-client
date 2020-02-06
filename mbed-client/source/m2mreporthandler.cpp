@@ -561,6 +561,18 @@ void M2MReportHandler::set_default_values()
 }
 
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
+void M2MReportHandler::init_float_values(float value)
+{
+    _current_value.float_value = value;
+    _last_value.float_value = value;
+}
+
+void M2MReportHandler::init_int_values(int64_t value)
+{
+    _current_value.int_value = value;
+    _last_value.int_value = value;
+}
+
 bool M2MReportHandler::check_threshold_values() const
 {
     tr_debug("M2MReportHandler::check_threshold_values");

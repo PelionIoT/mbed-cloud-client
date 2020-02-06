@@ -17,7 +17,9 @@
 
 #include "pal.h"
 #include "pal_plat_rot.h"
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
+#endif
 #define TRACE_GROUP "PAL"
 
 /*
@@ -28,6 +30,7 @@
 #define PAL_STORAGE_ENCRYPTION_128_BIT_KEY "RoTStorageEnc128"
 #define PAL_STORAGE_ENCRYPTION_256_BIT_KEY "StorageEnc256HMACSHA256SIGNATURE"
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
 palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t keyLenBytes)
 {
@@ -117,7 +120,7 @@ palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t key
     return status;
 
 }
-
+#endif
 
 palStatus_t pal_osSetRoT(uint8_t *key, size_t keyLenBytes) {
 

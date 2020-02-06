@@ -114,6 +114,11 @@ bool M2MResourceInstance::handle_observation_attribute(const char *query)
     }
 
     if (handler) {
+        if (resource_instance_type() == M2MResourceBase::FLOAT) {
+            handler->init_float_values(get_value_float());
+        } else if (resource_instance_type() == M2MResourceBase::INTEGER) {
+            handler->init_int_values(get_value_int());
+        }
         success = handler->parse_notification_attribute(query,
                 M2MBase::base_type(), resource_instance_type());
         if(success) {

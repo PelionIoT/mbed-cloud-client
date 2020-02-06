@@ -23,15 +23,11 @@
 #include "cs_der_keys_and_csrs.h"
 #include "pv_macros.h"
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
-#include "psa_driver_se.h"
 #include "se_slot_manager.h"
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
-#include "psa_driver_se_atmel.h"
-#endif
+#include "se_driver_config.h"
 #endif
 
 /*============================================== Static functions CRYPTO driver implementation =========================================*/
-
 static kcm_status_e psa_import_or_generate(const void* raw_data,
                                             size_t raw_data_size,
                                             psa_key_attributes_t *psa_key_attr,
@@ -176,8 +172,6 @@ static kcm_status_e import_or_generate_item(const void* raw_data,
     size_t actual_data_size = 0;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-	
-	
 
     // get last used id
     psa_status = psa_ps_get((psa_storage_uid_t)PSA_PS_LAST_USED_CRYPTO_ID, 0, sizeof(id), &id, &actual_data_size);
@@ -240,11 +234,9 @@ kcm_status_e psa_drv_crypto_init(void)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed to initialize crypto module");
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_ATCA_SUPPORT
-    //Register Atmel's secure element driver
-    kcm_status_e kcm_status = psa_drv_atca_register();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to initialize Atmel's secure element (%" PRIu32 ")", (uint32_t)kcm_status);
-#endif
+    //Register se driver
+    psa_status = psa_register_se_driver(PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE, g_se_driver_info);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != psa_status), psa_drv_translate_to_kcm_error(psa_status), "Failed psa_register_se_driver (%" PRIu32 ")", (uint32_t)psa_status);
 #endif
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return KCM_STATUS_SUCCESS;
@@ -278,7 +270,7 @@ kcm_status_e psa_drv_crypto_register(uint32_t extra_flags, uint64_t slot_number,
     //Register SE item
     psa_status = mbedtls_psa_register_se_key(&psa_key_attr);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((psa_status != PSA_SUCCESS && psa_status != PSA_ERROR_ALREADY_EXISTS),
-                                    psa_drv_translate_to_kcm_error(psa_status), exit,"Failed to register a SE key (%" PRIi32 ")", (int32_t)psa_status);
+                                    kcm_status = psa_drv_translate_to_kcm_error(psa_status), exit,"Failed to register a SE key (%" PRIi32 ")", (int32_t)psa_status);
 
 exit:
     // reset psa_key_attr to free resources the structure may contain
