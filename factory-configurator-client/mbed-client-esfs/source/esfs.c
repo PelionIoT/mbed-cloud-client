@@ -109,7 +109,7 @@ esfs_result_e esfs_init(void)
             goto errorExit;
         }
 
-        strncat(dir_path, "/" ESFS_WORKING_DIRECTORY, sizeof(ESFS_WORKING_DIRECTORY));
+        strncat(dir_path, "/" ESFS_WORKING_DIRECTORY, 1 + sizeof(ESFS_WORKING_DIRECTORY));
 
         //Looping on first file system operation to work around IOTMORF-914 - sd-driver initialization
         for(int i=0 ; i<100; i++)
@@ -141,7 +141,7 @@ esfs_result_e esfs_init(void)
             goto errorExit;
         }
 
-        strncat(dir_path, "/" ESFS_BACKUP_DIRECTORY, sizeof(ESFS_BACKUP_DIRECTORY));
+        strncat(dir_path, "/" ESFS_BACKUP_DIRECTORY, 1 + sizeof(ESFS_BACKUP_DIRECTORY));
 
         // Create the directory ESFS_BACKUP_DIRECTORY
         pal_result = pal_fsMkDir(dir_path);
@@ -157,7 +157,7 @@ esfs_result_e esfs_init(void)
         }
 
         // create the correct path for factory reset file fr_on
-        strncat(dir_path, "/" FACTORY_RESET_DIR "/" FACTORY_RESET_FILE, sizeof(FACTORY_RESET_DIR) + sizeof(FACTORY_RESET_FILE));
+        strncat(dir_path, "/" FACTORY_RESET_DIR "/" FACTORY_RESET_FILE, 1 + sizeof(FACTORY_RESET_DIR) + 1 + sizeof(FACTORY_RESET_FILE));
         pal_result = pal_fsFopen(dir_path, PAL_FS_FLAG_READONLY, &(file_handle.file));
         // (res == PAL_SUCCESS) : flag file can be opened for reading --> file \FR\fr_on found
         //                        previous factory reset failed during execution
@@ -376,12 +376,14 @@ static esfs_result_e esfs_cmac_skip_to(esfs_file_t *file_handle, int32_t to)
 {
     // Get current position
     int32_t current_pos;
-    palStatus_t res = pal_fsFtell(&file_handle->file, &current_pos);
+    off_t pal_offset;
+    palStatus_t res = pal_fsFtell(&file_handle->file, &pal_offset);
     if (res != PAL_SUCCESS)
     {
         tr_err("esfs_cmac_skip_to() - pal_fsFtell() failed with pal_status = 0x%x", (unsigned int)res);
         return  ESFS_ERROR;
     }
+    current_pos = (int32_t)pal_offset;
 
     // Iterate over the rest of file in chunks to calculate the cmac
     // buffer will contain only data read form the file
@@ -391,7 +393,7 @@ static esfs_result_e esfs_cmac_skip_to(esfs_file_t *file_handle, int32_t to)
         // Here we read the file as is - plain text or encrypted
         uint8_t buffer[ESFS_READ_CHUNK_SIZE_IN_BYTES];
         size_t num_bytes;
-        esfs_result_e res = esfs_cmac_read(file_handle, buffer, PAL_MIN(i, ESFS_READ_CHUNK_SIZE_IN_BYTES), &num_bytes);
+        esfs_result_e res = esfs_cmac_read(file_handle, buffer, PAL_MIN((size_t)i, ESFS_READ_CHUNK_SIZE_IN_BYTES), &num_bytes);
         if (res != ESFS_SUCCESS || num_bytes == 0)
         {
             tr_err("esfs_cmac_skip_to() failed  num_bytes bytes = %zu", num_bytes);
@@ -499,20 +501,19 @@ static void *esfs_memcpy_reverse(void *dest_ptr, const void *src_ptr, uint32_t l
 static esfs_result_e esfs_calc_file_pos_for_aes(esfs_file_t *file_handle, size_t *position)
 {
     palStatus_t pal_status = PAL_SUCCESS;
-
     size_t non_encrypt_size = 0;
-
+    off_t pal_offset;
 
     *position = 0;
 
     // Get current position inside the file
-    pal_status = pal_fsFtell( &(file_handle->file), (int32_t *)position );
-
+    pal_status = pal_fsFtell(&file_handle->file, &pal_offset);
     if(pal_status != PAL_SUCCESS)
     {
         tr_err("esfs_calc_file_pos_for_aes() - pal_fsFtell() failed with pal_status = 0x%x", (unsigned int)pal_status);
         return ESFS_ERROR;
     }
+    *position = (size_t)pal_offset;
 
     // Calculate non_encrypt_size to be subtracted from position
     non_encrypt_size = esfs_not_encrypted_file_header_size(file_handle);
@@ -617,10 +618,10 @@ static esfs_result_e esfs_aes_enc_dec_by_file_pos( palAesHandle_t  aes_ctx,
 //                                       (might consume the buffer till its end)
 
 
-    prev_remainder = (position % ESFS_AES_BLOCK_SIZE_BYTES);
+    prev_remainder = (uint8_t)(position % ESFS_AES_BLOCK_SIZE_BYTES);
 
-    partial_block_size_temp = ESFS_AES_BLOCK_SIZE_BYTES - prev_remainder;
-    partial_block_size      = PAL_MIN(partial_block_size_temp, len_bytes);
+    partial_block_size_temp = (uint8_t)(ESFS_AES_BLOCK_SIZE_BYTES - prev_remainder);
+    partial_block_size      = (uint8_t)PAL_MIN(partial_block_size_temp, len_bytes);
 
     // Prepare partial_block_in: Copy data for next encrypt / decrypt from buf_in to partial_block_in
     memcpy(partial_block_in + prev_remainder, buf_in, partial_block_size);
@@ -837,7 +838,7 @@ esfs_result_e esfs_reset(void)
         goto errorExit;
     }
 
-    strncat(dir_path, "/" ESFS_WORKING_DIRECTORY, sizeof(ESFS_WORKING_DIRECTORY));
+    strncat(dir_path, "/" ESFS_WORKING_DIRECTORY, 1 + sizeof(ESFS_WORKING_DIRECTORY));
 
     // delete the files in working dir
     pal_result = pal_fsRmFiles(dir_path);
@@ -871,7 +872,7 @@ esfs_result_e esfs_reset(void)
         goto errorExit;
     }
 
-    strncat(dir_path, "/" ESFS_BACKUP_DIRECTORY, sizeof(ESFS_BACKUP_DIRECTORY));
+    strncat(dir_path, "/" ESFS_BACKUP_DIRECTORY, 1 + sizeof(ESFS_BACKUP_DIRECTORY));
 
     // delete the files in backup dir
     pal_result = pal_fsRmFiles(dir_path);
@@ -922,8 +923,8 @@ esfs_result_e esfs_factory_reset(void) {
     esfs_file_t file_handle = { 0 };
     char working_dir_path[MAX_FULL_PATH_SIZE] = { 0 };
     char full_path_backup_dir[MAX_FULL_PATH_SIZE] = { 0 };
-	bool is_single_partition = true;
-	
+    bool is_single_partition = true;
+    
     tr_info("esfs_factory_reset - enter");
     pal_result = pal_fsGetMountPoint(PAL_FS_PARTITION_SECONDARY, PAL_MAX_FOLDER_DEPTH_CHAR + 1, full_path_backup_dir);
     if (pal_result != PAL_SUCCESS)
@@ -932,7 +933,7 @@ esfs_result_e esfs_factory_reset(void) {
         return ESFS_ERROR;
     }
 
-    strncat(full_path_backup_dir, "/" ESFS_BACKUP_DIRECTORY "/" FACTORY_RESET_DIR, sizeof(ESFS_BACKUP_DIRECTORY) + sizeof(FACTORY_RESET_DIR));
+    strncat(full_path_backup_dir, "/" ESFS_BACKUP_DIRECTORY "/" FACTORY_RESET_DIR, 1 + sizeof(ESFS_BACKUP_DIRECTORY) + 1 + sizeof(FACTORY_RESET_DIR));
     // Create the factory reset subfolder - FR
     pal_result = pal_fsMkDir(full_path_backup_dir);
     if (pal_result != PAL_SUCCESS)
@@ -946,7 +947,7 @@ esfs_result_e esfs_factory_reset(void) {
         }
     }
 
-    strncat(full_path_backup_dir, "/" FACTORY_RESET_FILE, sizeof(FACTORY_RESET_FILE));
+    strncat(full_path_backup_dir, "/" FACTORY_RESET_FILE, 1 + sizeof(FACTORY_RESET_FILE));
     // Create the fr_on flag file
     pal_result = pal_fsFopen(full_path_backup_dir, PAL_FS_FLAG_READWRITEEXCLUSIVE, &(file_handle.file));
 
@@ -992,7 +993,7 @@ esfs_result_e esfs_factory_reset(void) {
     }
     is_single_partition = (strcmp(working_dir_path,full_path_backup_dir) == 0);
 
-    strncat(working_dir_path, "/" ESFS_WORKING_DIRECTORY, sizeof(ESFS_WORKING_DIRECTORY));
+    strncat(working_dir_path, "/" ESFS_WORKING_DIRECTORY, 1 + sizeof(ESFS_WORKING_DIRECTORY));
 
     // We can only format the working folder if it is dedicated for exclusive use of esfs and
     // it is not the only partition that exists. The assumption here is that if it is the only partition,
@@ -1034,7 +1035,7 @@ esfs_result_e esfs_factory_reset(void) {
         tr_err("esfs_factory_reset() - pal_fsGetMountPoint() for backup directory failed with pal_status = 0x%x", (unsigned int)pal_result);
         return ESFS_ERROR;
     }
-    strncat(full_path_backup_dir, "/" ESFS_BACKUP_DIRECTORY, sizeof(ESFS_BACKUP_DIRECTORY));
+    strncat(full_path_backup_dir, "/" ESFS_BACKUP_DIRECTORY, 1 + sizeof(ESFS_BACKUP_DIRECTORY));
 
     pal_result = pal_fsCpFolder(full_path_backup_dir, working_dir_path);
 
@@ -1045,7 +1046,7 @@ esfs_result_e esfs_factory_reset(void) {
         goto errorExit;
     }
 
-    strncat(full_path_backup_dir, "/" FACTORY_RESET_DIR "/" FACTORY_RESET_FILE, sizeof(FACTORY_RESET_DIR) + sizeof(FACTORY_RESET_FILE));
+    strncat(full_path_backup_dir, "/" FACTORY_RESET_DIR "/" FACTORY_RESET_FILE, 1 + sizeof(FACTORY_RESET_DIR) + 1 + sizeof(FACTORY_RESET_FILE));
     // delete the flag file because factory reset flow ended successfully 
     pal_result = pal_fsUnlink(full_path_backup_dir);
     if (pal_result != PAL_SUCCESS)
@@ -1127,11 +1128,11 @@ static esfs_result_e esfs_check_file_validity(const uint8_t* name, size_t name_l
         goto errorExit;
     }
     // Check the name chunk by chunk
-    for (int i = name_length; i > 0; i -= ESFS_READ_CHUNK_SIZE_IN_BYTES)
+    for (int i = (int)name_length; i > 0; i -= ESFS_READ_CHUNK_SIZE_IN_BYTES)
     {
         // Read a chunk
         char buffer[ESFS_READ_CHUNK_SIZE_IN_BYTES];
-        result = esfs_cmac_read(file_handle, (void *)buffer, PAL_MIN(i, ESFS_READ_CHUNK_SIZE_IN_BYTES), &num_bytes);
+        result = esfs_cmac_read(file_handle, (void *)buffer, (size_t)PAL_MIN(i, ESFS_READ_CHUNK_SIZE_IN_BYTES), &num_bytes);
         if (result != ESFS_SUCCESS || num_bytes == 0)
         {
             tr_err("esfs_check_file_validity() - read name failed with ESFS result = 0x%x and num_bytes bytes = %zu",
@@ -1175,12 +1176,16 @@ static palStatus_t esfs_get_physical_file_size(palFileDescriptor_t* fd, int32_t 
 
     // Get current position
     int32_t current_pos;
-    res = pal_fsFtell(fd, &current_pos);
+    off_t pal_offset;
+
+    res = pal_fsFtell(fd, &pal_offset);
     if (res != PAL_SUCCESS)
     {
         tr_err("esfs_get_physical_file_size() - pal_fsFtell() failed with pal_status = 0x%x", (unsigned int)res);
         goto errorExit;
     }
+    current_pos = (int32_t)pal_offset;
+
     // Seek to end of file
     res = pal_fsFseek(fd, 0, PAL_FS_OFFSET_SEEKEND);
     if (res != PAL_SUCCESS)
@@ -1189,12 +1194,14 @@ static palStatus_t esfs_get_physical_file_size(palFileDescriptor_t* fd, int32_t 
         goto errorExit;
     }
     // Get new position
-    res = pal_fsFtell(fd, file_size);
+    res = pal_fsFtell(fd, &pal_offset);
     if (res != PAL_SUCCESS)
     {
         tr_err("esfs_get_physical_file_size() - pal_fsFtell() failed with pal_status = 0x%x", (unsigned int)res);
         goto errorExit;
     }
+    *file_size = (int32_t)pal_offset;
+
     // Restore old position
     res = pal_fsFseek(fd, current_pos, PAL_FS_OFFSET_SEEKSET);
     if (res != PAL_SUCCESS)
@@ -1258,7 +1265,7 @@ static esfs_result_e esfs_copy_file(const char *src_file, const char *dst_file)
     {
         if (copied_bytes + (int32_t)bytes_to_read > file_size)
         {
-            bytes_to_read = file_size - copied_bytes;
+            bytes_to_read = (size_t)(file_size - copied_bytes);
         }
         res = pal_fsFread(&(file_handle.file), buffer, bytes_to_read, &num_bytes_read);
         if (res != PAL_SUCCESS)
@@ -1277,10 +1284,8 @@ static esfs_result_e esfs_copy_file(const char *src_file, const char *dst_file)
             goto errorExit;
         }
 
-        copied_bytes += bytes_to_read;
-            
+        copied_bytes += (int32_t)bytes_to_read;
     }
-
 
     res = pal_fsFclose(&(file_handle.file));
     if (res != PAL_SUCCESS)
@@ -1345,8 +1350,8 @@ static esfs_result_e esfs_create_internal( const uint8_t *name,
     size_t i;
     uint16_t file_created = 0;
     uint16_t cmac_created = 0;
-	uint16_t u16 = ESFS_FILE_FORMAT_VERSION;
-
+    uint16_t u16 = ESFS_FILE_FORMAT_VERSION;
+    off_t pal_offset;
 
     // Create the file.
     // Note that we always overwrite any previous file.
@@ -1424,14 +1429,16 @@ static esfs_result_e esfs_create_internal( const uint8_t *name,
     // If there is meta data
     if(meta_data_qty != 0)
     {
-        res = pal_fsFtell(&file_handle->file, &position);
+        res = pal_fsFtell(&file_handle->file, &pal_offset);
         if(res != PAL_SUCCESS)
         {
             tr_err("esfs_create_internal() - pal_fsFtell() failed with pal_status = 0x%x", (unsigned int)res);
             result = ESFS_ERROR;
             goto errorExit;
         }
-        position += (sizeof(file_handle->tlv_properties.tlv_items[0]) * meta_data_qty);
+        position = (int32_t)pal_offset;
+
+        position += (int32_t)(sizeof(file_handle->tlv_properties.tlv_items[0]) * meta_data_qty);
         for(i = 0; i < meta_data_qty; i++ )
         {
             file_handle->tlv_properties.tlv_items[i].type = meta_data[i].type;
@@ -1452,7 +1459,7 @@ static esfs_result_e esfs_create_internal( const uint8_t *name,
 
         // Set the number_of_items field here since it is in use later in this function
         // when we calculate the file header size
-        file_handle->tlv_properties.number_of_items = meta_data_qty;
+        file_handle->tlv_properties.number_of_items = (uint16_t)meta_data_qty;
 
         // Write the Metadata data values
         // If encrypted esfs is requested (by the esfs_mode argument), then this part should be encrypted
@@ -1593,7 +1600,7 @@ esfs_result_e esfs_create(const uint8_t *name, size_t name_length, const esfs_tl
 
     // We set the blob_name_length field here because it is in use later in this function when we calculate the file header size.
     // Since this field is also used to check the file handle validity [ esfs_validate() ] we set it to zero on an error exit.
-    file_handle->blob_name_length = name_length;
+    file_handle->blob_name_length = (uint16_t)name_length;
 
     file_handle->esfs_mode = esfs_mode;
 
@@ -1606,7 +1613,7 @@ esfs_result_e esfs_create(const uint8_t *name, size_t name_length, const esfs_tl
 
     file_handle->data_size = 0;
 
-    if (esfs_get_name_from_blob(name, name_length, file_handle->short_file_name, ESFS_FILE_NAME_LENGTH) != ESFS_SUCCESS)
+    if (esfs_get_name_from_blob(name, (uint32_t)name_length, file_handle->short_file_name, ESFS_FILE_NAME_LENGTH) != ESFS_SUCCESS)
     {
         tr_err("esfs_create() - esfs_get_name_from_blob() failed");
         goto errorExit;
@@ -1621,7 +1628,7 @@ esfs_result_e esfs_create(const uint8_t *name, size_t name_length, const esfs_tl
         result = ESFS_ERROR;
         goto errorExit;
     }
-    strncat(file_full_path, "/" ESFS_WORKING_DIRECTORY "/", sizeof(ESFS_WORKING_DIRECTORY) + 1);
+    strncat(file_full_path, "/" ESFS_WORKING_DIRECTORY "/", 1 + sizeof(ESFS_WORKING_DIRECTORY) + 1);
     strncat(file_full_path, file_handle->short_file_name, ESFS_QUALIFIED_FILE_NAME_LENGTH - 1);
 
 
@@ -1657,7 +1664,7 @@ esfs_result_e esfs_create(const uint8_t *name, size_t name_length, const esfs_tl
             result = ESFS_ERROR;
             goto errorExit;
         }
-        strncat(file_full_path, "/" ESFS_BACKUP_DIRECTORY, sizeof(ESFS_BACKUP_DIRECTORY));
+        strncat(file_full_path, "/" ESFS_BACKUP_DIRECTORY, 1 + sizeof(ESFS_BACKUP_DIRECTORY));
 
         // Create the esfs subfolder for backup
         res = pal_fsMkDir(file_full_path);
@@ -1739,7 +1746,7 @@ esfs_result_e esfs_open(const uint8_t *name, size_t name_length, uint16_t *esfs_
     uint16_t file_opened = 0;
     uint16_t cmac_created = 0;
     bool is_aes_ctx_created = false;
-	palStatus_t res = PAL_SUCCESS;
+    palStatus_t res = PAL_SUCCESS;
 
     tr_info("esfs_open - enter");
     // Check parameters
@@ -1758,7 +1765,7 @@ esfs_result_e esfs_open(const uint8_t *name, size_t name_length, uint16_t *esfs_
         return ESFS_ERROR;
     }
 
-    strncat(working_dir_path, "/" ESFS_WORKING_DIRECTORY "/", sizeof(ESFS_WORKING_DIRECTORY) + 1);
+    strncat(working_dir_path, "/" ESFS_WORKING_DIRECTORY "/", 1 + sizeof(ESFS_WORKING_DIRECTORY) + 1);
 
     // This is used to esfs_validate the file handle so we set it to zero here and only when open
     // succeeds to the real value.
@@ -1768,7 +1775,7 @@ esfs_result_e esfs_open(const uint8_t *name, size_t name_length, uint16_t *esfs_
 
     memset(&file_handle->cmac[0], 0, sizeof(file_handle->cmac));
 
-    if(esfs_get_name_from_blob(name, name_length, file_handle->short_file_name, ESFS_FILE_NAME_LENGTH) != ESFS_SUCCESS)
+    if(esfs_get_name_from_blob(name, (uint32_t)name_length, file_handle->short_file_name, ESFS_FILE_NAME_LENGTH) != ESFS_SUCCESS)
     {
         tr_err("esfs_open() - esfs_get_name_from_blob() failed");
         result = ESFS_ERROR;
@@ -1920,12 +1927,14 @@ esfs_result_e esfs_open(const uint8_t *name, size_t name_length, uint16_t *esfs_
 
     // Get current position
     int32_t current_pos;
-    res = pal_fsFtell(&file_handle->file, &current_pos);
+    off_t pal_offset;
+    res = pal_fsFtell(&file_handle->file, &pal_offset);
     if (res != PAL_SUCCESS)
     {
         tr_err("esfs_open() - pal_fsFtell() failed with pal_status = 0x%x", (unsigned int)res);
         goto errorExit;
     }
+    current_pos = (int32_t)pal_offset;
 
     // get the whole file size and store it in the handle
     res = esfs_get_physical_file_size(&file_handle->file, &file_handle->file_size);
@@ -1966,13 +1975,13 @@ esfs_result_e esfs_open(const uint8_t *name, size_t name_length, uint16_t *esfs_
     }
 
     // Calculate the size of the data only, by getting the file size and deducting the header and cmac
-    file_handle->data_size =  file_handle->file_size - esfs_file_header_size(file_handle);
+    file_handle->data_size = (size_t)file_handle->file_size - esfs_file_header_size(file_handle);
 
     // We deduct the cmac bytes at the end of the file since they are not part of the data
     file_handle->data_size -= ESFS_CMAC_SIZE_IN_BYTES;
 
     file_handle->file_flag = ESFS_READ;
-    file_handle->blob_name_length = name_length;
+    file_handle->blob_name_length = (uint16_t)name_length;
 
     return ESFS_SUCCESS;
 
@@ -2048,8 +2057,8 @@ esfs_result_e esfs_read(esfs_file_t *file_handle, void *buffer, size_t bytes_to_
 {
     esfs_result_e result = ESFS_ERROR;
     uint16_t cmac_created = 0;
-	size_t remaining_bytes = 0;
-	palStatus_t res = PAL_SUCCESS;
+    size_t remaining_bytes = 0;
+    palStatus_t res = PAL_SUCCESS;
 
     tr_info("esfs_read - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS || read_bytes == NULL || !buffer)
@@ -2065,15 +2074,17 @@ esfs_result_e esfs_read(esfs_file_t *file_handle, void *buffer, size_t bytes_to_
     }
     // Save file position
     int32_t position;
-    res = pal_fsFtell(&file_handle->file, &position);
+    off_t pal_offset;
+    res = pal_fsFtell(&file_handle->file, &pal_offset);
     if(res != PAL_SUCCESS)
     {
         tr_err("esfs_read() - pal_fsFtell() failed with pal status 0x%x", (unsigned int)res);
         goto errorExit;
     }
+    position = (int32_t)pal_offset;
 
     // Limit how many bytes we can actually read depending on the size of the data section.
-    remaining_bytes = file_handle->data_size - file_handle->current_read_pos;
+    remaining_bytes = file_handle->data_size - (size_t)file_handle->current_read_pos;
     bytes_to_read = PAL_MIN(remaining_bytes, bytes_to_read);
 
     if(esfs_cmac_start(file_handle) != ESFS_SUCCESS)
@@ -2121,7 +2132,7 @@ esfs_result_e esfs_read(esfs_file_t *file_handle, void *buffer, size_t bytes_to_
     cmac_created = 0;
 
     // Check the cmac and set to the byte after the end of the data being read.
-    if(esfs_cmac_check_and_restore(file_handle, &cmac[0], position + num_bytes) != ESFS_SUCCESS)
+    if(esfs_cmac_check_and_restore(file_handle, &cmac[0], position + (int32_t)num_bytes) != ESFS_SUCCESS)
     {
         tr_err("esfs_read() - cmac that we read from the file does not match the one that we calculated");
         result = ESFS_CMAC_DOES_NOT_MATCH;
@@ -2129,7 +2140,7 @@ esfs_result_e esfs_read(esfs_file_t *file_handle, void *buffer, size_t bytes_to_
     }
 
     // Update the current position
-    file_handle->current_read_pos += num_bytes;
+    file_handle->current_read_pos += (long)num_bytes;
 
     return ESFS_SUCCESS;
 
@@ -2147,7 +2158,9 @@ errorExit:
 esfs_result_e esfs_seek(esfs_file_t *file_handle, int32_t offset, esfs_seek_origin_e whence, uint32_t *position)
 {
     esfs_result_e result = ESFS_ERROR;
-	palStatus_t res = PAL_SUCCESS;
+    palStatus_t res = PAL_SUCCESS;
+    off_t pal_offset;
+
     tr_info("esfs_seek - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS)
     {
@@ -2172,7 +2185,7 @@ esfs_result_e esfs_seek(esfs_file_t *file_handle, int32_t offset, esfs_seek_orig
             goto errorExit;
         }
         // Add the offset to the start of the data
-        offset += esfs_file_header_size(file_handle);
+        offset += (int32_t)esfs_file_header_size(file_handle);
         pal_whence = PAL_FS_OFFSET_SEEKSET;
     }
     else if(whence == ESFS_SEEK_END)
@@ -2212,15 +2225,16 @@ esfs_result_e esfs_seek(esfs_file_t *file_handle, int32_t offset, esfs_seek_orig
     // Get current position if position is not NULL
     if(position)
     {
-        res = pal_fsFtell(&file_handle->file, (int32_t *)position);
+        res = pal_fsFtell(&file_handle->file, &pal_offset);
         if(res != PAL_SUCCESS)
         {
             tr_err("esfs_seek() - pal_fsFtell() failed with pal status 0x%x", (unsigned int)res);
             goto errorExit;
         }
+        *position = (uint32_t)pal_offset;
 
         // Ignore the file header data
-        *position -= esfs_file_header_size(file_handle);
+        *position -= (uint32_t)esfs_file_header_size(file_handle);
 
         // Update the current position
         file_handle->current_read_pos = *position;
@@ -2261,7 +2275,7 @@ esfs_result_e esfs_close(esfs_file_t *file_handle)
     char esfs_short_file_name[ESFS_QUALIFIED_FILE_NAME_LENGTH] = {0};
     esfs_result_e result = ESFS_ERROR;
     char full_path_working_dir[MAX_FULL_PATH_SIZE];
-	palStatus_t res = PAL_SUCCESS;
+    palStatus_t res = PAL_SUCCESS;
 
     tr_info("esfs_close - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS)
@@ -2279,7 +2293,7 @@ esfs_result_e esfs_close(esfs_file_t *file_handle)
         goto errorExit;
     }
 
-    strncat(full_path_working_dir, "/" ESFS_WORKING_DIRECTORY "/", sizeof(ESFS_WORKING_DIRECTORY) + 1);
+    strncat(full_path_working_dir, "/" ESFS_WORKING_DIRECTORY "/", 1 + sizeof(ESFS_WORKING_DIRECTORY) + 1);
 
 
     // Close AES context if needed
@@ -2355,7 +2369,7 @@ esfs_result_e esfs_close(esfs_file_t *file_handle)
             goto errorExit;
         }
 
-        strncat(full_path_backup_dir, "/" ESFS_BACKUP_DIRECTORY "/", sizeof(ESFS_BACKUP_DIRECTORY) + 1);
+        strncat(full_path_backup_dir, "/" ESFS_BACKUP_DIRECTORY "/", 1 + sizeof(ESFS_BACKUP_DIRECTORY) + 1);
 
         strncat(full_path_working_dir, esfs_short_file_name, ESFS_QUALIFIED_FILE_NAME_LENGTH -1);
         strncat(full_path_backup_dir, esfs_short_file_name, ESFS_QUALIFIED_FILE_NAME_LENGTH - 1);
@@ -2388,7 +2402,7 @@ esfs_result_e esfs_delete(const uint8_t *name, size_t name_length)
         result = ESFS_INVALID_PARAMETER;
         goto errorExit;
     }
-    if(esfs_get_name_from_blob(name, name_length, short_file_name, ESFS_FILE_NAME_LENGTH ) != ESFS_SUCCESS)
+    if(esfs_get_name_from_blob(name, (uint32_t)name_length, short_file_name, ESFS_FILE_NAME_LENGTH ) != ESFS_SUCCESS)
     {
         tr_err("esfs_delete() - esfs_get_name_from_blob() failed");
         goto errorExit;
@@ -2403,7 +2417,7 @@ esfs_result_e esfs_delete(const uint8_t *name, size_t name_length)
         goto errorExit;
     }
 
-    strncat(working_dir_path, "/" ESFS_WORKING_DIRECTORY "/", sizeof(ESFS_WORKING_DIRECTORY) + 1);
+    strncat(working_dir_path, "/" ESFS_WORKING_DIRECTORY "/", 1 + sizeof(ESFS_WORKING_DIRECTORY) + 1);
 
     // We do not verify that name is the actual name in the file because currently we do not allow the situation of hash
     // clash to arise.
@@ -2460,8 +2474,8 @@ esfs_result_e esfs_read_meta_data(esfs_file_t *file_handle, uint32_t index, esfs
     esfs_result_e result = ESFS_ERROR;
     bool is_read_error = false;
     uint16_t cmac_created = 0;
-	int32_t offset_to_restore = 0;
-	palStatus_t res = PAL_SUCCESS;
+    int32_t offset_to_restore = 0;
+    palStatus_t res = PAL_SUCCESS;
 
     tr_info("esfs_read_meta_data - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS || index >= ESFS_MAX_TYPE_LENGTH_VALUES || !meta_data || (file_handle->tlv_properties.tlv_items[index].length_in_bytes == 0))
@@ -2479,12 +2493,14 @@ esfs_result_e esfs_read_meta_data(esfs_file_t *file_handle, uint32_t index, esfs
     }
     // Get current file position
     int32_t current_pos;
-    res = pal_fsFtell(&file_handle->file, &current_pos);
+    off_t pal_offset;
+    res = pal_fsFtell(&file_handle->file, &pal_offset);
     if(res != PAL_SUCCESS)
     {
         tr_err("esfs_read_meta_data() - pal_fsFtell() failed with pal status 0x%x", (unsigned int)res);
         goto errorExit;
     }
+    current_pos = (int32_t)pal_offset;
 
     // Start the cmac calculation and position to the start of the file
     if(esfs_cmac_start(file_handle) != ESFS_SUCCESS)

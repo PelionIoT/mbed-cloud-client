@@ -468,7 +468,7 @@ extern "C" {
     *     @param[in]  public_key_name      The public key name for which a key pair is generated.
     *                                      This parameter is optional.
     *                                      If not provided, the key is generated, but not stored.
-    *     @param public_key_name_len       The length of the public key name.
+    *     @param[in] public_key_name_len   The length of the public key name.
     *                                      Must be 0, if `::public_key_name` is not provided.
     *     @param[in]  kcm_item_is_factory  True if the KCM item is a factory item; otherwise, it is false.
     *     @param[in]  csr_params           CSR parameters.

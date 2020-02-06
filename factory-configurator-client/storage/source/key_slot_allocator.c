@@ -24,7 +24,6 @@
 #include "psa_driver_dispatcher.h"
 #include "storage_kcm.h"
 #include "key_slot_allocator_internal.h"
-#include "psa_driver_se_atmel.h"
 
 /** The Key-Slot-Allocator table hard-coded PSA TS(trusted storage) id value
 */

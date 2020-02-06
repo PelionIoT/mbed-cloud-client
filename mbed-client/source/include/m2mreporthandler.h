@@ -135,6 +135,19 @@ public:
     void set_default_values();
 
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
+
+    /**
+     * @brief Sets the float value to _last_value and to _current_value.
+     * @param value, Value to use init last and current value without reporting
+     */
+    void init_float_values(float value);
+
+    /**
+     * @brief Sets the integer value to _last_value and to _current_value.
+     * @param value, Value to use init last and current value without reporting
+     */
+    void init_int_values(int64_t value);
+
     /**
      * @brief Return write attribute flags.
      */
@@ -318,7 +331,7 @@ private:
     unsigned                    _observation_number : 24;
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     M2MTimer                    _pmin_timer;
-    M2MTimer                    _pmax_timer;    
+    M2MTimer                    _pmax_timer;
     int32_t                     _pmax;
     int32_t                     _pmin;
     high_step_t                 _high_step;

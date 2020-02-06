@@ -1017,6 +1017,11 @@ void M2MInterfaceImpl::state_registered( EventData */*data*/)
     if (_reconnection_state == M2MInterfaceImpl::Unregistration) {
         internal_event(STATE_UNREGISTER);
     } else {
+        if(queue_mode() && _callback_handler) {
+            _queue_sleep_timer.stop_timer();
+            _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
+                                            M2MTimerObserver::QueueSleep);
+        }
         _reconnection_state = M2MInterfaceImpl::WithUpdate;
     }
 }

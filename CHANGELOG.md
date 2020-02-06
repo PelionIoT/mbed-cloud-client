@@ -1,8 +1,22 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.3.0 (03.02.2020)
+
+#### Device Management Client
+
+* Updated Mbed CoAP to 5.1.3.
+* Changed trace group so that all CoAP messages are visible in the [COAP] trace group.
+* Fixed a double free error. In certain situations free was called twice for CoAP message payload.
+
+### Platform Adaptation Layer (PAL)
+
+* Fixed PAL filesystem API to allow access to files larger than 2GB. This allows update of images up to 4GB.
+* [Crypto] Made entropy seeding check more robust.
+* [Mbed OS] Removed dependency on string-based network API.
+
 ### Release 4.2.1 (20.12.2019)
 
-Reverted a bug fix for PAL and FCC support for files larger than 2 GB. This fixes a regression in 4.2.0 release for embedded Linux platforms where enabling tracing causes a hard fault in the application.
+Reverted a bug fix for PAL and FCC support for larger than 2 GB files. This fixes a regression in 4.2.0 release for embedded linux platforms where the application hardfaults when tracing is enabled.
 
 ### Release 4.2.0 (18.12.2019)
 

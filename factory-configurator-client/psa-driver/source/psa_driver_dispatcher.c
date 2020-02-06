@@ -19,7 +19,6 @@
 #include "key_slot_allocator.h"
 #include "psa_driver_dispatcher.h"
 #include "psa_driver.h"
-#include "psa_driver_se_atmel.h"
 #include "kcm_defs.h"
 #include "pv_macros.h"
 #include "pv_log.h"

@@ -43,6 +43,9 @@ typedef struct {
     palSemaphoreID_t sem;
 } shared_lock_priv_t;
 #endif
+
+#define UNUSED_PARAM(param) (void)(param)
+
 // -------------------------------------------------- Local Functions Declaration ----------------------------------------------------
 
 
@@ -71,6 +74,8 @@ sotp_sh_lock_result_e sotp_sh_lock_create(sotp_shared_lock_t *sh_lock)
     }
 
     *sh_lock = (sotp_shared_lock_t) lock_priv;
+#else
+    UNUSED_PARAM(sh_lock);
 #endif
     return SOTP_SHL_SUCCESS;
 }
@@ -98,6 +103,8 @@ sotp_sh_lock_result_e sotp_sh_lock_destroy(sotp_shared_lock_t sh_lock)
     }
 
     free(lock_priv);
+#else
+    UNUSED_PARAM(sh_lock);
 #endif
     return SOTP_SHL_SUCCESS;
 }
@@ -126,6 +133,8 @@ sotp_sh_lock_result_e sotp_sh_lock_shared_lock(sotp_shared_lock_t sh_lock)
         PR_ERR("sotp_sh_lock_shared_lock: PAL error\n");
         return SOTP_SHL_PAL_ERR;
     }
+#else
+    UNUSED_PARAM(sh_lock);
 #endif
     return SOTP_SHL_SUCCESS;
 }
@@ -150,7 +159,8 @@ sotp_sh_lock_result_e sotp_sh_lock_shared_release(sotp_shared_lock_t sh_lock)
         PR_ERR("sotp_sh_lock_shared_release: Misuse (released more than locked)\n");
         return SOTP_SHL_MISUSE;
     }
-
+#else
+    UNUSED_PARAM(sh_lock);
 #endif
     return SOTP_SHL_SUCCESS;
 }
@@ -178,6 +188,8 @@ sotp_sh_lock_result_e sotp_sh_lock_exclusive_lock(sotp_shared_lock_t sh_lock)
     while(lock_priv->ctr)
         pal_osDelay(MEDITATE_TIME_MS);
 
+#else
+    UNUSED_PARAM(sh_lock);
 #endif
     return SOTP_SHL_SUCCESS;
 }
@@ -200,7 +212,8 @@ sotp_sh_lock_result_e sotp_sh_lock_exclusive_release(sotp_shared_lock_t sh_lock)
         PR_ERR("sotp_sh_lock_exclusive_release: PAL error\n");
         return SOTP_SHL_PAL_ERR;
     }
-
+#else
+    UNUSED_PARAM(sh_lock);
 #endif
     return SOTP_SHL_SUCCESS;
 }
@@ -234,7 +247,8 @@ sotp_sh_lock_result_e sotp_sh_lock_promote(sotp_shared_lock_t sh_lock)
     }
 
     pal_osAtomicIncrement(&lock_priv->ctr, -1);
-
+#else
+    UNUSED_PARAM(sh_lock);
 #endif
     return SOTP_SHL_SUCCESS;
 }

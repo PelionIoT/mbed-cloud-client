@@ -24,7 +24,6 @@
 
 #if defined(ARM_UC_FEATURE_CRYPTO_PAL) && (ARM_UC_FEATURE_CRYPTO_PAL == 1)
 #include "pal.h"
-#include "sotp.h"
 #ifndef palMDHandle_t
 #include "pal_plat_rot.h"
 #else

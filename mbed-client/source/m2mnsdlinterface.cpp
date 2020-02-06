@@ -58,6 +58,7 @@
 #include "eventOS_event_timer.h"
 #include "eventOS_scheduler.h"
 #include "ns_hal_init.h"
+#include "pal.h"
 
 #define MBED_CLIENT_NSDLINTERFACE_TASKLET_INIT_EVENT 0 // Tasklet init occurs always when generating a tasklet
 #define MBED_CLIENT_NSDLINTERFACE_EVENT 30
@@ -82,7 +83,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.2.1";
+const char *MCC_VERSION = "mccv=4.3.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -934,6 +935,13 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
 
     M2MBase *base = find_resource(resource_name);
 
+    // Update current time resource when doing a GET to the device object.
+    if (received_coap_header->msg_code == COAP_MSG_CODE_REQUEST_GET &&
+        resource_name.compare(0, 1, "3") == 0) {
+        M2MDevice* dev = M2MInterfaceFactory::create_device();
+        dev->set_resource_value(M2MDevice::CurrentTime, pal_osGetTime());
+    }
+
 #ifdef ENABLE_ASYNC_REST_RESPONSE
     if (base) {
         if (base->is_async_coap_request_callback_set()) {
@@ -989,21 +997,21 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
     }
 
     send_empty_ack(received_coap_header, address);
-    nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(received_coap_header,
-                                                              address,
-                                                              nsdl_handle,
-                                                              received_coap_header->msg_code);
-    if (nsdl_coap_data) {
-        if (!_event.data.event_data) {
+    if (!_event.data.event_data) {
+        nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(received_coap_header,
+                                                                  address,
+                                                                  nsdl_handle,
+                                                                  received_coap_header->msg_code);
+        if (nsdl_coap_data) {
             _event.data.event_data = true;
             _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_EVENT;
             _event.data.data_ptr = (void*)nsdl_coap_data;
             eventOS_event_send_user_allocated(&_event);
         } else {
-            tr_debug("M2MNsdlInterface::resource_callback() - event already in queue!");
+            tr_error("M2MNsdlInterface::resource_callback() - failed to allocate nsdl_coap_data_s!");
         }
     } else {
-        tr_error("M2MNsdlInterface::resource_callback() - failed to allocate nsdl_coap_data_s!");
+        tr_debug("M2MNsdlInterface::resource_callback() - event already in queue!");
     }
     return 0;
 }
@@ -2386,7 +2394,7 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
 
     // Send a event which is responsible of sending the final response
     if (COAP_MSG_CODE_RESPONSE_CHANGED == msg_code) {
-        bool success = false;
+        bool alloc_failed = true;
         sn_coap_hdr_s *coap_message = sn_nsdl_build_response(_nsdl_handle,
                                                              coap_header,
                                                              (sn_coap_msg_code_e)msg_code);
@@ -2395,26 +2403,31 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
             memory_free(_endpoint->endpoint_name_ptr);
             _endpoint->endpoint_name_ptr = alloc_string_copy((uint8_t*)_endpoint_name.c_str(), _endpoint_name.length());
             if (_endpoint->endpoint_name_ptr) {
-                _endpoint->endpoint_name_len = _endpoint_name.length();
-                nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(coap_message,
-                                                                          address,
-                                                                          _nsdl_handle,
-                                                                          (sn_coap_msg_code_e)msg_code);
-                if (nsdl_coap_data) {
-                    if (!_event.data.event_data) {
-                        success = true;
+                if (!_event.data.event_data) {
+                    _endpoint->endpoint_name_len = _endpoint_name.length();
+                    nsdl_coap_data_s *nsdl_coap_data = create_coap_event_data(coap_message,
+                                                                              address,
+                                                                              _nsdl_handle,
+                                                                              (sn_coap_msg_code_e)msg_code);
+                    if (nsdl_coap_data) {
+                        alloc_failed = false;
                         _event.data.event_data = true;
                         _event.data.event_type = MBED_CLIENT_NSDLINTERFACE_BS_EVENT;
                         _event.data.data_ptr = (void*)nsdl_coap_data;
                         eventOS_event_send_user_allocated(&_event);
                     } else {
-                        tr_debug("M2MNsdlInterface::handle_bootstrap_finished - event already in queue");
+                        tr_error("M2MNsdlInterface::handle_bootstrap_finished - CoAP data memory allocation failed");
                     }
+                } else {
+                    alloc_failed = false;
+                    tr_debug("M2MNsdlInterface::handle_bootstrap_finished - event already in queue");
                 }
+            } else {
+                tr_error("M2MNsdlInterface::handle_bootstrap_finished - endpoint name memory allocation failed");
             }
         }
 
-        if (!success) {
+        if (alloc_failed) {
             const char *desc = "memory allocation failed";
             if (strlen(ERROR_REASON_22) + strlen(desc) <= MAX_ALLOWED_ERROR_STRING_LENGTH) {
                 snprintf(buffer, sizeof(buffer), ERROR_REASON_22, desc);

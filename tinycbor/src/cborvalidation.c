@@ -436,7 +436,7 @@ static CborError validate_container(CborValue *it, int containerType, int flags,
 {
     CborError err;
     const uint8_t *previous = NULL;
-    const uint8_t *previous_end;
+    const uint8_t *previous_end = NULL;
 
     if (!recursionLeft)
         return CborErrorNestingTooDeep;

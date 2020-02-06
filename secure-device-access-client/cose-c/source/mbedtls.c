@@ -120,7 +120,7 @@ bool ECDSA_Verify(
     unsigned char rgbDigest[PAL_SHA256_SIZE];
     uint32_t rgbDigestSize = sizeof(rgbDigest);
     cn_cbor *signerSig;
-    int signerSigLength;
+    size_t signerSigLength;
 
     int mbedtlsStatus;
     mbedtls_mpi r, s;
@@ -208,10 +208,9 @@ bool ECDSA_Verify_tiny(
     CborParser parser;
     CborValue value;
     CborValue signerSig;
-    uint8_t *sig_buffer = NULL;
-    size_t sig_buffer_size = 0;
+    const uint8_t *sig_buffer = NULL;
     CborError cbor_error = CborNoError;
-    int signerSigLength;
+    size_t signerSigLength;
 
     int mbedtlsStatus;
     mbedtls_mpi r, s;

@@ -891,14 +891,11 @@ palStatus_t pal_plat_getNumberOfNetInterfaces( uint32_t* numInterfaces)
 palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t * interfaceInfo)
 {
     palStatus_t result = PAL_SUCCESS;
-    const char* address = NULL;
     SocketAddress addr;
     PAL_VALIDATE_ARGUMENTS((interfaceNum >= s_pal_numberOFInterfaces));
 
-    address = s_pal_networkInterfacesSupported[interfaceNum].interface->get_ip_address(); // ip address returned is a null terminated string
-    if (NULL != address)
+    if (s_pal_networkInterfacesSupported[interfaceNum].interface->get_ip_address(&addr) == NSAPI_ERROR_OK)
     {
-        addr.set_ip_address(address);
 #if (PAL_DNS_API_VERSION != 2)
         result = socketAddressToPalSockAddr(addr, &interfaceInfo->address, &interfaceInfo->addressSize);
 #else

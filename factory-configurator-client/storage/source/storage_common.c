@@ -19,12 +19,13 @@
 #include "pv_error_handling.h"
 #include "pv_macros.h"
 #include "storage_kcm.h"
-#include "esfs.h"
 #include "fcc_malloc.h"
 #include "storage_internal.h"
 #include "cs_der_certs.h"
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "pal_sst.h"
+#else
+#include "esfs.h"
 #endif
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #include "key_slot_allocator.h"

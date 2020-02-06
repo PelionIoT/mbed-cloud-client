@@ -664,20 +664,20 @@ static bool CreateSign0AAD_tiny(COSE_Sign0Message * pMessage, byte ** ppbToSign,
         }
         else {
             cbor_error = cbor_encode_byte_string(&array_encoder, pMessage->m_message.message_protected_map_cbor.buffer, pMessage->m_message.message_protected_map_cbor.buffer_size);
-            CHECK_CONDITION_CBOR((cbor_error == CborNoError || cbor_error == CborErrorOutOfMemory && iteration_count == 0), cbor_error);
+            CHECK_CONDITION_CBOR(((cbor_error == CborNoError) || (cbor_error == CborErrorOutOfMemory && iteration_count == 0)), cbor_error);
         }
 
         //3. Add pb external data
         cbor_error = cbor_encode_byte_string(&array_encoder, pMessage->m_message.m_pbExternal, (int)pMessage->m_message.m_cbExternal);
-        CHECK_CONDITION_CBOR((cbor_error == CborNoError || cbor_error == CborErrorOutOfMemory && iteration_count == 0), cbor_error);
+        CHECK_CONDITION_CBOR(((cbor_error == CborNoError) || (cbor_error == CborErrorOutOfMemory && iteration_count == 0)), cbor_error);
 
         //4. Add data
         //Add the retrieved data to array
         cbor_error = cbor_encode_byte_string(&array_encoder, data_to_sign_buffer, data_to_sign_buffer_size);
-        CHECK_CONDITION_CBOR((cbor_error == CborNoError || cbor_error == CborErrorOutOfMemory && iteration_count == 0), cbor_error);
+        CHECK_CONDITION_CBOR(((cbor_error == CborNoError) || (cbor_error == CborErrorOutOfMemory && iteration_count == 0)), cbor_error);
 
         cbor_error = cbor_encoder_close_container(&encoder, &array_encoder);
-        CHECK_CONDITION_CBOR((cbor_error == CborNoError || cbor_error == CborErrorOutOfMemory && iteration_count == 0), cbor_error);
+        CHECK_CONDITION_CBOR(((cbor_error == CborNoError) || (cbor_error == CborErrorOutOfMemory && iteration_count == 0)), cbor_error);
 
         if (cbor_error == CborErrorOutOfMemory  && iteration_count == 0) {
 

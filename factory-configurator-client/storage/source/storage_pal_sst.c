@@ -710,7 +710,7 @@ kcm_status_e storage_check_certificate_existance(const uint8_t *kcm_chain_name, 
 
     //If single certificate with the chain name is exists in the data base - return an error
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Data with the same name already exists");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Item %.*s already exists as single certificate", (int)kcm_chain_name_len, kcm_chain_name);
 
     //Build complete name of first certificate name in the chain
     cert_name_info.certificate_index = 0;
@@ -720,7 +720,7 @@ kcm_status_e storage_check_certificate_existance(const uint8_t *kcm_chain_name, 
 
     //If first certificate with the chain name is exists in the data base - return an error
     pal_status = pal_SSTGetInfo(kcm_complete_name, &palItemInfo);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Data with the same name already exists");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), kcm_status = KCM_STATUS_FILE_EXIST, "Item %.*s already exists as certificate chain", (int)kcm_chain_name_len, kcm_chain_name);
 
     return kcm_status;
 }

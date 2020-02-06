@@ -85,7 +85,7 @@ kcm_status_e cs_is_self_signed_x509_cert(palX509Handle_t x509_cert, bool *is_sel
     SA_PV_ERR_RECOVERABLE_GOTO_IF((cert_subject == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit, "Allocate subject attribute failed");
 
     pal_status = pal_x509CertGetAttribute(x509_cert, PAL_X509_SUBJECT_ATTR, cert_subject, subject_size, &subject_size);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), exit,"pal_x509CertGetAttribute PAL_X509_SUBJECT_ATTR failed %d ", (int)cs_error_handler(pal_status));
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), exit, "pal_x509CertGetAttribute PAL_X509_SUBJECT_ATTR failed %d ", (int)cs_error_handler(pal_status));
 
     cert_issuer = fcc_malloc(issuer_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((cert_subject == NULL), kcm_status = KCM_STATUS_OUT_OF_MEMORY, exit, "Allocate issuer attribute failed");
@@ -151,7 +151,7 @@ kcm_status_e cs_close_handle_x509_cert(palX509Handle_t *x509_cert_handle)
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
 
-    pal_status =  pal_x509Free(x509_cert_handle);
+    pal_status = pal_x509Free(x509_cert_handle);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), "pal_x509Free failed");
 
     return kcm_status;
@@ -178,7 +178,7 @@ exit:
     return kcm_status;
 }
 
-kcm_status_e cs_verify_x509_cert(palX509Handle_t x509_cert,palX509Handle_t x509_cert_chain)
+kcm_status_e cs_verify_x509_cert(palX509Handle_t x509_cert, palX509Handle_t x509_cert_chain)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
@@ -194,7 +194,7 @@ kcm_status_e cs_verify_x509_cert(palX509Handle_t x509_cert,palX509Handle_t x509_
     if (is_self_signed && x509_cert_chain == NULLPTR) { // Send the certificate itself as trusted chain
         x509_ca_cert = x509_cert;
     } else {
-            x509_ca_cert = x509_cert_chain;
+        x509_ca_cert = x509_cert_chain;
     }
 
     //Verify certificate using created certificate chain
@@ -214,6 +214,7 @@ kcm_status_e  cs_attr_get_data_size_x509_cert(palX509Handle_t x509_cert,
     palStatus_t pal_status = PAL_SUCCESS;
     uint8_t output_buffer;
 
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((x509_cert == NULLPTR), KCM_STATUS_INVALID_PARAMETER, "Invalid x509_cert");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((size_of_attribute == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid size_of_attribute pointer");
 
@@ -225,6 +226,8 @@ kcm_status_e  cs_attr_get_data_size_x509_cert(palX509Handle_t x509_cert,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_SUCCESS), KCM_STATUS_ERROR, "Attribute size is 0");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_ERR_BUFFER_TOO_SMALL), kcm_status = cs_error_handler(pal_status), "Failed to get attribute size");
 
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return KCM_STATUS_SUCCESS;
 };
 

@@ -75,7 +75,7 @@ sotp_result_e sotp_get(uint32_t type, uint16_t buf_len_bytes, uint32_t *buf, uin
     }
 
     memset(&handle, 0, sizeof(handle));
-    sprintf(file_name, "%s%ld", FILE_NAME_BASE, type);
+    sprintf(file_name, "%s%" PRIu32, FILE_NAME_BASE, type);
 
     esfs_ret = esfs_open((uint8_t *)file_name, strlen(file_name), &mode, &handle);
     if (esfs_ret == ESFS_NOT_EXISTS) {
@@ -137,7 +137,7 @@ sotp_result_e sotp_get_item_size(uint32_t type, uint16_t *actual_len_bytes)
     }
 
     memset(&handle, 0, sizeof(handle));
-    sprintf(file_name, "%s%ld", FILE_NAME_BASE, type);
+    sprintf(file_name, "%s%" PRIu32, FILE_NAME_BASE, type);
 
     esfs_ret = esfs_open((uint8_t *)file_name, strlen(file_name), &mode, &handle);
     if (esfs_ret == ESFS_NOT_EXISTS) {
@@ -187,7 +187,7 @@ sotp_result_e sotp_set(uint32_t type, uint16_t buf_len_bytes, const uint32_t *bu
     }
 
     memset(&handle, 0, sizeof(handle));
-    sprintf(file_name, "%s%ld", FILE_NAME_BASE, type);
+    sprintf(file_name, "%s%" PRIu32, FILE_NAME_BASE, type);
 
     esfs_ret = esfs_open((uint8_t *)file_name, strlen(file_name), &mode, &handle);
     if (esfs_ret == ESFS_SUCCESS) {
@@ -300,7 +300,7 @@ sotp_result_e sotp_reset(void)
     }
 
     for (type = 0; type < SOTP_MAX_TYPES; type++) {
-        sprintf(file_name, "%s%ld", FILE_NAME_BASE, type);
+        sprintf(file_name, "%s%" PRIu32, FILE_NAME_BASE, type);
 
         esfs_ret = esfs_delete((uint8_t *)file_name, strlen(file_name));
         if ((esfs_ret != ESFS_NOT_EXISTS) && (esfs_ret != ESFS_SUCCESS)) {

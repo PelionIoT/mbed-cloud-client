@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
 #include <stdbool.h>
@@ -21,18 +20,23 @@
 #include "kcm_defs.h"
 #include "pv_error_handling.h"
 #include "storage_internal.h"
-#include "storage_se_atmel.h"
 #include "kcm_defs.h"
 #include "key_slot_allocator.h"
 #include "pv_macros.h"
-#include "psa_driver_se_atmel.h"
 #include "fcc_defs.h"
 #include "storage_kcm.h"
 #include "fcc_malloc.h"
 #include "se_slot_manager.h"
-#include "storage_se_atmel.h"
 #include "se_data_user_config.h"
 #include "psa_driver.h"
+#ifdef GENERATION_SE_KEYS_TESTS
+#include "se_generation_data_user_config.h"
+#else
+#define SE_DATA_PRIV_KEY_SLOTS_NUMBER 0
+#define SE_DATA_PUB_KEY_SLOTS_NUMBER 0
+uint64_t g_private_key_slots[SE_DATA_PRIV_KEY_SLOTS_NUMBER];//Array of private key slots
+uint64_t g_public_key_slots[SE_DATA_PUB_KEY_SLOTS_NUMBER]; //Array of public key slots
+#endif
 
 typedef struct sem_psa_correlation {
     uint64_t slot_num;
@@ -158,6 +162,7 @@ kcm_status_e sem_get_num_of_slots(uint32_t item_type_flag, uint16_t *num_of_slot
     }
 
     switch (item_type_flag) {
+
         case PSA_CRYPTO_PRIVATE_KEY_FLAG:
             *num_of_slots = (uint16_t)SE_DATA_PRIV_KEY_SLOTS_NUMBER;
             break;
@@ -207,4 +212,3 @@ kcm_status_e sem_get_preprovisioned_psa_id(uint64_t slot, uint16_t *psa_id)
 }
 
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
-#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT

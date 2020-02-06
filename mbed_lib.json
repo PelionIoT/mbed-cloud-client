@@ -31,6 +31,12 @@
             "options": [ "null", "1" ],
             "default": null,
             "value": null
+        },
+        "secure-element-support": {
+            "help": "Enables Secure Element feature",
+            "options": [ "null", "1"],
+            "default": null,
+            "value": null
         }
     },
     "macros" : [

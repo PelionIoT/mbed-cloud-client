@@ -21,7 +21,6 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal_rtos_test_utils.h"
-#include "sotp.h"
 #include "pal_plat_rtos.h"
 #include "test_runners.h"
 
@@ -1272,6 +1271,7 @@ TEST(pal_rtos, pal_init_test)
  */
 TEST(pal_rtos, GetDeviceKeyTest_CMAC)
 {
+#ifndef  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     palStatus_t status = PAL_SUCCESS;
     size_t keyLenBytes = 16;
     uint8_t timesToDerive = 4;
@@ -1304,7 +1304,9 @@ TEST(pal_rtos, GetDeviceKeyTest_CMAC)
         } //if
 
     } //for
-
+#else // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is set ");
+#endif
 }
 
 /*! \brief Check derivation of keys from the platform's Root of Trust using the KDF algorithm.
@@ -1322,6 +1324,7 @@ TEST(pal_rtos, GetDeviceKeyTest_CMAC)
  */
 TEST(pal_rtos, GetDeviceKeyTest_HMAC_SHA256)
 {
+#ifndef  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     palStatus_t status = PAL_SUCCESS;
     size_t keyLenBytes = 32;
     uint8_t timesToDerive = 4;
@@ -1352,6 +1355,9 @@ TEST(pal_rtos, GetDeviceKeyTest_HMAC_SHA256)
       /*#6*/
     status = pal_osGetDeviceKey((palDevKeyType_t)999, encKeyDerive[0], keyLenBytes);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_INVALID_ARGUMENT, status);
+#endif
+#else // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is set ");
 #endif
 }
 
