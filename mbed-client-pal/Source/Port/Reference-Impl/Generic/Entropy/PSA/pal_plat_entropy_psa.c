@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,8 +20,10 @@
 
 #include "pal.h"
 #include "pal_plat_entropy.h"
+#ifdef MBEDTLS_ENTROPY_NV_SEED
 #include "crypto.h"
-#include "config.h" // Include mbedtls config file explicitly for MBEDTLS_ENTROPY_NV_SEED flag
+#include "mbedtls/config.h" // Include mbedtls config file explicitly for MBEDTLS_ENTROPY_NV_SEED flag
+#endif
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 /*

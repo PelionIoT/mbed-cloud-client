@@ -18,13 +18,34 @@
 #include "pal.h"
 #include "pal_sst.h"
 #include "kvstore_global_api.h"
+#ifdef TARGET_LIKE_MBED
 #include "mbed_error.h"
+#endif
 
 #define EXPANSION_STR(x) STR(x) //stringification of macro value
 #define STR(x) #x //stringification of the macro
 #define PAL_SST_KV_PREFIX "/"EXPANSION_STR(MBED_CONF_STORAGE_DEFAULT_KV)"/"
 
 #define TRACE_GROUP "PAL"
+
+#ifndef TARGET_LIKE_MBED
+enum mbed_errors {
+    MBED_SUCCESS,
+    MBED_ERROR_READ_FAILED,
+    MBED_ERROR_WRITE_FAILED,
+    MBED_ERROR_INVALID_DATA_DETECTED,
+    MBED_ERROR_ITEM_NOT_FOUND,
+    MBED_ERROR_INVALID_ARGUMENT,
+    MBED_ERROR_NOT_READY,
+    MBED_ERROR_INVALID_SIZE,
+    MBED_ERROR_OUT_OF_RESOURCES,
+    MBED_ERROR_MEDIA_FULL,
+    MBED_ERROR_WRITE_PROTECTED,
+    MBED_ERROR_FAILED_OPERATION,
+    MBED_ERROR_RBP_AUTHENTICATION_FAILED,
+    MBED_ERROR_AUTHENTICATION_FAILED,
+};
+#endif
 
 static palStatus_t pal_sst_translate_error(int kv_status)
 {
@@ -75,10 +96,10 @@ static palStatus_t pal_sst_translate_error(int kv_status)
     }
 
     if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
-        PAL_LOG_DBG("kv_status: %" PRId16", pal_sst status: 0x%" PRIx32 "", MBED_GET_ERROR_CODE(kv_status), pal_status);
+        PAL_LOG_DBG("kv_status: %" PRId16", pal_sst status: 0x%" PRIx32 "", kv_status, pal_status);
     }
     else if (pal_status != PAL_SUCCESS) {
-        PAL_LOG_ERR("kv_status: %" PRId16", pal_sst status: 0x%" PRIx32 "", MBED_GET_ERROR_CODE(kv_status), pal_status);
+        PAL_LOG_DBG("kv_status: %" PRId16", pal_sst status: 0x%" PRIx32 "", kv_status, pal_status);
     }
 
     return pal_status;
@@ -117,13 +138,13 @@ palStatus_t pal_SSTSet(const char *itemName, const void *itemBuffer, size_t item
     char sst_complete_item_name[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
 
     //these bitmask is for unused bits in SSTFlagsBitmap.
-    //only PAL_SST_WRITE_ONCE_FLAG, PAL_SST_CONFIDENTIALITY_FLAG and PAL_SST_REPLAY_PROTECTION_FLAG used  
+    //only PAL_SST_WRITE_ONCE_FLAG, PAL_SST_CONFIDENTIALITY_FLAG and PAL_SST_REPLAY_PROTECTION_FLAG used
     uint32_t sst_flag_unused_bits_mask = ~(PAL_SST_WRITE_ONCE_FLAG | PAL_SST_CONFIDENTIALITY_FLAG | PAL_SST_REPLAY_PROTECTION_FLAG);
 
     //arguments validation
     PAL_VALIDATE_ARGUMENTS((NULL == itemName) || ((NULL == itemBuffer) && (itemBufferSize > 0)) || ((SSTFlagsBitmap & sst_flag_unused_bits_mask) != 0));
 
-    //allocate buffer for itemName + prefix and copy prefix to the new buffer    
+    //allocate buffer for itemName + prefix and copy prefix to the new buffer
     pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
     if (pal_status != PAL_SUCCESS) {
         PAL_LOG_ERR("pal_SSTSet: 0x%" PRIx32 "", pal_status);
@@ -157,7 +178,7 @@ palStatus_t pal_SSTGet(const char *itemName, void *itemBuffer, size_t itemBuffer
     //arguments validation
     PAL_VALIDATE_ARGUMENTS((NULL == itemName) || ((NULL == itemBuffer) && (itemBufferSize > 0)) || (NULL == actualItemSize));
 
-    //allocate buffer for itemName + prefix and copy prefix to the new buffer    
+    //allocate buffer for itemName + prefix and copy prefix to the new buffer
     pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
     if (pal_status != PAL_SUCCESS) {
         PAL_LOG_ERR("pal_SSTGet returned: 0x%" PRIx32 "", pal_status);
@@ -182,7 +203,7 @@ palStatus_t pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo)
     //arguments validation
     PAL_VALIDATE_ARGUMENTS((NULL == itemName) || (NULL == palItemInfo));
 
-    //allocate buffer for itemName + prefix and copy prefix to the new buffer    
+    //allocate buffer for itemName + prefix and copy prefix to the new buffer
     pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
     if (pal_status != PAL_SUCCESS) {
         PAL_LOG_ERR("pal_SSTGetInfo returned: 0x%" PRIx32 "", pal_status);
@@ -223,7 +244,7 @@ palStatus_t pal_SSTRemove(const char *itemName)
     //arguments validation
     PAL_VALIDATE_ARGUMENTS((NULL == itemName));
 
-    //allocate buffer for itemName + prefix and copy prefix to the new buffer    
+    //allocate buffer for itemName + prefix and copy prefix to the new buffer
     pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
     if (pal_status != PAL_SUCCESS) {
         PAL_LOG_ERR("pal_SSTRemove returned: 0x%" PRIx32 "", pal_status);
@@ -246,7 +267,7 @@ palStatus_t pal_SSTIteratorOpen(palSSTIterator_t *palSSTIterator, const char *it
     //arguments validation
     PAL_VALIDATE_ARGUMENTS((NULL == palSSTIterator));
 
-    //allocate buffer for itemName + prefix and copy prefix to the new buffer    
+    //allocate buffer for itemName + prefix and copy prefix to the new buffer
     pal_status = pal_sst_build_complete_name(itemPrefix, sst_complete_item_prefix);
     if (pal_status != PAL_SUCCESS) {
         PAL_LOG_ERR("pal_SSTIteratorOpen returned: 0x%" PRIx32 "", pal_status);

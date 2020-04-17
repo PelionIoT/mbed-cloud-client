@@ -739,6 +739,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                            ARM_UC_SHA256_SIZE);
 #endif
                 }
+#else
+                /* copy hash */
+                memcpy(arm_uc_hub_firmware_details.hash,
+                       fwinfo->hash.ptr,
+                       ARM_UC_SHA256_SIZE);
 #endif // ARM_UC_FEATURE_DELTA_PAAL
 
 #if 0

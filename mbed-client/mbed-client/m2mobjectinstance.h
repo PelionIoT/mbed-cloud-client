@@ -349,6 +349,7 @@ private:
     friend class Test_M2MBase;
     friend class Test_M2MResource;
     friend class Test_M2MResourceInstance;
+    friend class Test_M2MReportHandler;
     friend class TestFactory;
 };
 

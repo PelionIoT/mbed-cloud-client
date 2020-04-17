@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+// Needed for PRIu64 on FreeRTOS
+#include <stdio.h>
+// Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
+#ifndef __STDC_LIMIT_MACROS
+#define __STDC_LIMIT_MACROS
+#endif
+
+// Note: this macro is needed on armcc to get the the PRI*32 macros
+// from inttypes.h in a C++ code.
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
 
 #include "update-client-common/arm_uc_config.h"
 

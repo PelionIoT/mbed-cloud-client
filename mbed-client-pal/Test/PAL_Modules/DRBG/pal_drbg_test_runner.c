@@ -20,8 +20,10 @@
 
 TEST_GROUP_RUNNER(pal_drbg)
 {
+#ifndef PAL_SKIP_TEST_MODULE_DRBG
     RUN_TEST_CASE(pal_drbg, RandomUnityTest);
     RUN_TEST_CASE(pal_drbg, loopRandomBigNumber);
     RUN_TEST_CASE(pal_drbg, pal_noise);
+#endif
 }
 

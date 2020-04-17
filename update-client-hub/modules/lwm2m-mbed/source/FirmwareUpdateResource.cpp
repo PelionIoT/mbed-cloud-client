@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -37,6 +37,7 @@
 #include "source/update_client_hub_state_machine.h"
 #include "source/update_client_hub_error_handler.h"
 
+// Need to use .h includes instead of <c...> because of SXOS support
 #include <stdio.h>
 #include <inttypes.h>
 
@@ -72,7 +73,7 @@ const uint8_t defaultValue = -1;
 #else
 static void packageCallback(void *_parameters);
 static void updateCallback(void *);
-static void notificationCallback(const M2MBase &object, NotificationDeliveryStatus delivery_status, void *client_args);
+static void notificationCallback(const M2MBase& base, const M2MBase::MessageDeliveryStatus status, const M2MBase::MessageType type, void *client_args);
 uint8_t defaultValue[] = {"-1"};
 #endif
 static void sendDelayedResponseTask(uintptr_t parameter);
@@ -170,7 +171,7 @@ void FirmwareUpdateResource::Initialize(void)
                                     RESOURCE_VALUE(2), "State", M2MResourceInstance::INTEGER, true);
                 if (resourceState) {
                     resourceState->set_operation(M2MBase::GET_ALLOWED);
-                    resourceState->set_notification_delivery_status_cb(notificationCallback, NULL);
+                    resourceState->set_message_delivery_status_cb(notificationCallback, NULL);
 #if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
                     resourceState->set_value(defaultValue);
 #else
@@ -185,7 +186,7 @@ void FirmwareUpdateResource::Initialize(void)
                                      RESOURCE_VALUE(3), "UpdateResult", M2MResourceInstance::INTEGER, true);
                 if (resourceResult) {
                     resourceResult->set_operation(M2MBase::GET_ALLOWED);
-                    resourceResult->set_notification_delivery_status_cb(notificationCallback, NULL);
+                    resourceResult->set_message_delivery_status_cb(notificationCallback, NULL);
 #if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
                     resourceResult->set_value(defaultValue);
 #else
@@ -354,10 +355,10 @@ void FirmwareUpdateResource::updateCallback(void *_parameters)
 void FirmwareUpdateResource::notificationCallback(void *client_args,
                                                   const M2MBase &object,
                                                   const NotificationDeliveryStatus delivery_status)
-
 #else
-void FirmwareUpdateResource::notificationCallback(const M2MBase &base,
-                                                  const NotificationDeliveryStatus delivery_status,
+void FirmwareUpdateResource::notificationCallback(const M2MBase& base,
+                                                  const M2MBase::MessageDeliveryStatus delivery_status,
+                                                  const M2MBase::MessageType type,
                                                   void *client_args)
 #endif
 {
@@ -367,18 +368,29 @@ void FirmwareUpdateResource::notificationCallback(const M2MBase &base,
     object.uri_path(buffer);
     UC_SRCE_TRACE("Callback for resource: %s", buffer.c_str());
 #endif
-
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
     if (delivery_status == NOTIFICATION_STATUS_DELIVERED) {
+#else
+    if (delivery_status == M2MBase::MESSAGE_STATUS_DELIVERED) {
+#endif
         // Notification has been ACKed by server, complete to callback
         UC_SRCE_TRACE("FirmwareUpdateResource::notificationCallback DELIVERED");
 
         if (externalNotificationCallback) {
             externalNotificationCallback();
         }
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
+
     } else if (delivery_status == NOTIFICATION_STATUS_BUILD_ERROR ||
                delivery_status == NOTIFICATION_STATUS_RESEND_QUEUE_FULL ||
                delivery_status == NOTIFICATION_STATUS_SEND_FAILED ||
                delivery_status == NOTIFICATION_STATUS_UNSUBSCRIBED) {
+#else
+    } else if (delivery_status == M2MBase::MESSAGE_STATUS_BUILD_ERROR ||
+               delivery_status == M2MBase::MESSAGE_STATUS_RESEND_QUEUE_FULL ||
+               delivery_status == M2MBase::MESSAGE_STATUS_SEND_FAILED ||
+               delivery_status == M2MBase::MESSAGE_STATUS_UNSUBSCRIBED) {
+#endif
         // Error case, notification not reaching service
         // We are sending out error because we cannot rely connection is
         // anymore up and the service and client are not in sync anymore.
@@ -538,9 +550,9 @@ int32_t FirmwareUpdateResource::sendPkgVersion(uint64_t version)
 
     int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
     if (resourceVersion != NULL) {
-        uint8_t value[MAX_PACKAGE_VERSION_CHARS + 1] = { 0 };
-        uint8_t length = snprintf((char *)value, MAX_PACKAGE_VERSION_CHARS, "%" PRIu64, version);
-        if (resourceVersion->set_value(value, length)) {
+        char buffer[20+1];
+        uint32_t len = m2m::itoa_c(version, buffer);
+        if (resourceVersion->set_value((uint8_t*)buffer, len)) {
             result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
         }
     }

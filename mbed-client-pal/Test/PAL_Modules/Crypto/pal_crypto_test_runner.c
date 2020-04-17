@@ -21,7 +21,8 @@
 // PAL Socket API tests
 TEST_GROUP_RUNNER(pal_crypto)
 {
-	// AES cryptography
+#ifndef PAL_SKIP_TEST_MODULE_CRYPTO
+    // AES cryptography
     RUN_TEST_CASE(pal_crypto, AES_CTR);
     RUN_TEST_CASE(pal_crypto, AES_ECB);
     RUN_TEST_CASE(pal_crypto, AES_CCM);
@@ -63,5 +64,5 @@ TEST_GROUP_RUNNER(pal_crypto)
     RUN_TEST_CASE(pal_crypto, ECKey_SignVerify);
 
     RUN_TEST_CASE(pal_crypto, ECKey_Agreement);
-    
+#endif
 }

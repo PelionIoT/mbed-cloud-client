@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
 // Note: this macro is needed on armcc to get the the PRI*32 macros
 // from inttypes.h in a C++ code.
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-#include <inttypes.h>
 
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
 #include "include/m2minterfaceimpl.h"
 #include "include/eventdata.h"
 #include "mbed-client/m2minterfaceobserver.h"
@@ -38,7 +31,13 @@
 #include "mbed-trace/mbed_trace.h"
 #include "randLIB.h"
 
+#include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define TRACE_GROUP "mClt"
 
@@ -142,7 +141,6 @@ void M2MInterfaceImpl::bootstrap(M2MSecurity *security)
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_waiting
     END_TRANSITION_MAP(&data)
@@ -213,7 +211,6 @@ void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MBaseList 
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (STATE_REGISTER)               // state_resume
         TRANSITION_MAP_ENTRY (STATE_REGISTER)               // state_waiting
     END_TRANSITION_MAP(&data)
@@ -297,7 +294,6 @@ void M2MInterfaceImpl::unregister_object(M2MSecurity* /*security*/)
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_coap_data_received
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_processing_coap_data
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (STATE_UNREGISTER)             // state_waiting
     END_TRANSITION_MAP(NULL)
@@ -478,7 +474,7 @@ void M2MInterfaceImpl::bootstrap_error(const char *reason)
     create_random_initial_reconnection_time();
     _retry_timer.start_timer(_reconnection_time * 1000,
                               M2MTimerObserver::RetryTimer);
-    tr_info("M2MInterfaceImpl::bootstrap_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
+    tr_info("M2MInterfaceImpl::bootstrap_error - reconnecting in %" PRIu32 "(s)", _reconnection_time);
     _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
     // The timeout is randomized to + 10% and -10% range from reconnection value
     _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
@@ -603,7 +599,7 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
         _retry_timer.start_timer(_reconnection_time * 1000,
                                  M2MTimerObserver::RetryTimer);
 
-        tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu64 "(s)", _reconnection_time);
+        tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu32 "(s)", _reconnection_time);
 
         _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
         // The timeout is randomized to + 10% and -10% range from reconnection value
@@ -1063,9 +1059,9 @@ void M2MInterfaceImpl::state_resume(EventData *data)
     }
 }
 
-void M2MInterfaceImpl::state_pause()
+void M2MInterfaceImpl::pause()
 {
-    tr_debug("M2MInterfaceImpl::state_pause()");
+    tr_debug("M2MInterfaceImpl::pause()");
     _connection_handler.claim_mutex();
     _connection_handler.unregister_network_handler();
     _connection_handler.force_close();
@@ -1274,9 +1270,6 @@ void M2MInterfaceImpl::state_function( uint8_t current_state, EventData* data )
         case STATE_RESUME:
             M2MInterfaceImpl::state_resume(data);
             break;
-        case STATE_PAUSE:
-            M2MInterfaceImpl::state_pause();
-            break;
         case STATE_WAITING:
             M2MInterfaceImpl::state_waiting(data);
             break;
@@ -1319,7 +1312,6 @@ void M2MInterfaceImpl::start_register_update(M2MUpdateRegisterData *data) {
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (STATE_UPDATE_REGISTRATION)    // state_waiting
     END_TRANSITION_MAP(data)
@@ -1414,43 +1406,6 @@ bool M2MInterfaceImpl::set_uri_query_parameters(const char *uri_query_params)
     return _nsdl_interface.set_uri_query_parameters(uri_query_params);
 }
 
-void M2MInterfaceImpl::pause()
-{
-    _connection_handler.claim_mutex();
-    tr_debug("M2MInterfaceImpl::pause");
-
-     BEGIN_TRANSITION_MAP                                    // - Current State -
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_idle
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state__bootstrap_address_resolved
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap_resource_created
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap_wait
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrap_error_wait
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_bootstrapped
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_register
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_register_address_resolved
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_registered
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_update_registration
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_unregister
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_unregistered
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_sending_coap_data
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_coap_data_sent
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_coap_data_received
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_processing_coap_data
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_coap_data_processed
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_pause
-         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
-         TRANSITION_MAP_ENTRY (STATE_PAUSE)                  // state_waiting
-     END_TRANSITION_MAP(NULL)
-
-     if (_event_ignored) {
-         _event_ignored = false;
-         set_error_description(ERROR_REASON_29);
-         _observer.error(M2MInterface::NotAllowed);
-     }
-     _connection_handler.release_mutex();
-}
-
 void M2MInterfaceImpl::resume(void *iface, const M2MBaseList &list)
 {
     _connection_handler.claim_mutex();
@@ -1478,7 +1433,6 @@ void M2MInterfaceImpl::resume(void *iface, const M2MBaseList &list)
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (STATE_RESUME)                 // state_pause
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_resume
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_waiting
     END_TRANSITION_MAP(&data)

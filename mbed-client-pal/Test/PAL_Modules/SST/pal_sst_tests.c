@@ -23,8 +23,8 @@
 
 #include "kvstore_global_api.h"
 
-#define TEST_PAL_SST_MAX_ITEM_NAME_SIZE           120
-#define TEST_PAL_SST_MAX_INPUT_DATA_SIZE          10
+#define TEST_PAL_SST_MAX_ITEM_NAME_SIZE           15
+#define TEST_PAL_SST_MAX_INPUT_DATA_SIZE          8
 
 #define TRACE_GROUP "PAL"
 

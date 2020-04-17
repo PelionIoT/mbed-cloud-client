@@ -30,8 +30,10 @@
 //!< Number partitions on SD card used by PAL File System
 #ifndef PAL_NUMBER_OF_PARTITIONS
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 // if no partition setup given, get the default from system configuration
 #include "ffconf.h"
+#endif
 
 #if _MULTI_PARTITION
     #define PAL_NUMBER_OF_PARTITIONS 1
@@ -100,7 +102,7 @@
 #endif
 
 #ifndef PAL_USE_HW_ROT
-    #define PAL_USE_HW_ROT 1
+    #define PAL_USE_HW_ROT 0
 #endif
 
 #ifndef PAL_USE_HW_RTC
@@ -112,11 +114,19 @@
 #endif
 
 #ifndef PAL_USE_INTERNAL_FLASH
-    #define PAL_USE_INTERNAL_FLASH 1
+    #define PAL_USE_INTERNAL_FLASH 0
 #endif
 
 #ifndef PAL_USE_SECURE_TIME
     #define PAL_USE_SECURE_TIME 1
 #endif
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    #define MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT 1
+#endif
+#define SYS_CONF_SOTP   SYS_CONF_SOTP_DISABLED
+
+#ifndef PAL_SUPPORT_IP_V6
+    #define PAL_SUPPORT_IP_V6 0
+#endif
 #endif /* PAL_FREERTOS_CONFIGURATION_H_ */

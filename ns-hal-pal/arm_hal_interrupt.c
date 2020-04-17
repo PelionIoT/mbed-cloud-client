@@ -33,6 +33,7 @@ void platform_critical_init(void)
     palStatus_t status;
     status = pal_osMutexCreate(&critical_mutex_id);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }
 
 void platform_enter_critical(void)
@@ -40,6 +41,7 @@ void platform_enter_critical(void)
     palStatus_t status;
     status = pal_osMutexWait(critical_mutex_id, UINT32_MAX);
     assert(PAL_SUCCESS == status);
+    (void) status;
     sys_irq_disable_counter++;
 }
 
@@ -49,4 +51,5 @@ void platform_exit_critical(void)
     --sys_irq_disable_counter;
     status = pal_osMutexRelease(critical_mutex_id);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }

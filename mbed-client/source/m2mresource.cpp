@@ -255,6 +255,9 @@ bool M2MResource::handle_observation_attribute(const char *query)
             if (is_under_observation()) {
                 handler->set_under_observation(true);
             }
+            else {
+                handler->start_timers();
+            }
         }
         else {
             handler->set_default_values();

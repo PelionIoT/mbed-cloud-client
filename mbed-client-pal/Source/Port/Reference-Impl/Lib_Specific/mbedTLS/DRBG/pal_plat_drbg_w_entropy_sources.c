@@ -1,6 +1,5 @@
-
 // ----------------------------------------------------------------------------
-// Copyright 2019 ARM Ltd.
+// Copyright 2019-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -30,7 +29,7 @@
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/entropy.h"
-#include "config.h"
+#include "mbedtls/config.h"
 #include "pal_plat_Crypto.h"
 #if PAL_USE_HW_TRNG
 #include "pal_plat_drbg_noise.h"

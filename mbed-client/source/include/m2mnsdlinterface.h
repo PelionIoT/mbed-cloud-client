@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -489,6 +489,8 @@ private:
 
     bool create_nsdl_structure(M2MBase *base);
 
+    bool set_resource_value(M2MResourceBase *res, const uint8_t *value_ptr, const uint32_t size);
+
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     bool create_nsdl_endpoint_structure(M2MEndpoint *endpoint);
 #endif
@@ -507,7 +509,7 @@ private:
 
     void execute_nsdl_process_loop();
 
-    uint64_t registration_time() const;
+    uint32_t registration_time() const;
 
     M2MBase* find_resource(const String &object) const;
 
@@ -748,7 +750,7 @@ private:
     bool                                    _registered;
     bool                                    _waiting_for_bs_finish_ack;
     M2MTimer                                _download_retry_timer;
-    uint64_t                                _download_retry_time;
+    uint32_t                                _download_retry_time;
 
 friend class Test_M2MNsdlInterface;
 

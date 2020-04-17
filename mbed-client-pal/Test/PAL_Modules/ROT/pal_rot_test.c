@@ -88,7 +88,7 @@ TEST_TEAR_DOWN(pal_rot)
 
 /*! \brief Check derivation of keys from the platform's Root of Trust using the KDF algorithm.
  *
- * 
+ *
  *
 * | # |    Step                                                                        |   Expected  |
 * |---|--------------------------------------------------------------------------------|-------------|
@@ -146,7 +146,7 @@ TEST(pal_rot, GetDeviceKeyTest_CMAC)
 
 /*! \brief Check derivation of keys from the platform's Root of Trust using the KDF algorithm.
  *
- * 
+ *
  *
 * | # |    Step                                                                        | Expected            |
 * |---|--------------------------------------------------------------------------------|---------------------|
@@ -254,7 +254,7 @@ TEST(pal_rot, GetRoTKeyTest)
         TEST_ASSERT_NOT_EQUAL(PAL_SUCCESS, status);
         /*#6*/
         status = memcmp(encKeyDerive[i], signKeyDerive[i], keyLenBytes);
-        TEST_ASSERT_EQUAL(status, 0); //The ROT must be the same 
+        TEST_ASSERT_EQUAL(status, 0); //The ROT must be the same
         /*#7*/
         if (i > 0) //Make sure key is persistent every time
         {
@@ -304,7 +304,7 @@ TEST(pal_rot, SeTRoTKeyTest)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
     status = memcmp(readRoTKey, setRoTKey, keyLenBytes);
-    TEST_ASSERT_EQUAL(status, 0); //The ROT must be the same 
+    TEST_ASSERT_EQUAL(status, 0); //The ROT must be the same
     /*#5*/
     status = pal_osSetRoT(setRoTKey, keyLenBytes);
     TEST_ASSERT_EQUAL_HEX(PAL_ERR_ITEM_EXIST, status);
@@ -313,7 +313,7 @@ TEST(pal_rot, SeTRoTKeyTest)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#7*/
     status = memcmp(readRoTKey, setRoTKey, keyLenBytes);
-    TEST_ASSERT_EQUAL(status, 0); //The ROT must be the same 
+    TEST_ASSERT_EQUAL(status, 0); //The ROT must be the same
 #else // PAL_USE_HW_ROT =1
 #ifdef __SXOS__
     status = pal_plat_osGetRoT(readRoTKey, keyLenBytes);

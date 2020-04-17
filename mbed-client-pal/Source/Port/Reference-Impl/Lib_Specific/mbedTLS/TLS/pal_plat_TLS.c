@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2020 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@
 #define SSL_LIB_SUCCESS 0
 
 #if PAL_USE_SECURE_TIME
-#include "platform_time.h"
+#include "mbedtls/platform_time.h"
 PAL_PRIVATE mbedtls_time_t g_timeFromHS = 0;
 PAL_PRIVATE palMutexID_t g_palTLSTimeMutex = NULLPTR;
 #ifdef MBEDTLS_PLATFORM_TIME_ALT
@@ -395,6 +395,7 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
     localConfigCtx->hasChain = false;
 
     memset(localConfigCtx->cipherSuites, 0,(sizeof(int)* (PAL_MAX_ALLOWED_CIPHER_SUITES+1)) );
+    memset(&(localConfigCtx->timerCtx), 0, sizeof(palTimingDelayContext_t));
     mbedtls_ssl_config_init(localConfigCtx->confCtx);
 
 #if (PAL_ENABLE_X509 == 1)
@@ -1156,6 +1157,10 @@ PAL_PRIVATE int palBIOSend(palTLSSocketHandle_t socket, const unsigned char *buf
     size_t sentDataSize = 0;
     palTLSSocket_t* localSocket = (palTLSSocket_t*)socket;
 
+#ifdef PAL_UDP_MTU_SIZE
+#warning PAL_UDP_MTU_SIZE is obsolete and has been removed. Use instead pal-max-frag-len
+#endif
+
     if (NULLPTR == socket)
     {
         status = -1;
@@ -1168,11 +1173,6 @@ PAL_PRIVATE int palBIOSend(palTLSSocketHandle_t socket, const unsigned char *buf
     }
     else if (PAL_DTLS_MODE == localSocket->transportationMode)
     {
-        #if defined(PAL_UDP_MTU_SIZE)
-        if(len > PAL_UDP_MTU_SIZE) {
-            len = PAL_UDP_MTU_SIZE;
-        }
-        #endif
         status = pal_sendTo(localSocket->socket, buf, len, localSocket->socketAddress, localSocket->addressLength, &sentDataSize);
     }
     else
@@ -1229,11 +1229,6 @@ PAL_PRIVATE int palBIORecv(palTLSSocketHandle_t socket, unsigned char *buf, size
     }
     else if (PAL_DTLS_MODE == localSocket->transportationMode)
     {
-        #if defined(PAL_UDP_MTU_SIZE)
-        if(len > PAL_UDP_MTU_SIZE) {
-            len = PAL_UDP_MTU_SIZE;
-        }
-        #endif
         status = pal_receiveFrom(localSocket->socket, buf, len, localSocket->socketAddress, &localSocket->addressLength, &recievedDataSize);
         if (PAL_SUCCESS == status)
         {

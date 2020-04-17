@@ -59,8 +59,11 @@ include_directories(${UPDATE_SOURCE_DIR}/modules/pal-filesystem)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-filesystem/update-client-pal-filesystem)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap/update-client-pal-flashiap)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap-mcuboot)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-flashiap-mcuboot/update-client-pal-flashiap-mcuboot)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-linux)
 include_directories(${UPDATE_SOURCE_DIR}/modules/pal-linux/update-client-pal-linux)
+include_directories(${UPDATE_SOURCE_DIR}/modules/pal-blockdevice/)
 include_directories(${UPDATE_SOURCE_DIR}/modules/delta-paal/update-client-delta-paal)
 include_directories(${UPDATE_SOURCE_DIR}/delta-tool-internal/include)
 
@@ -95,6 +98,8 @@ FILE(GLOB UPDATE_SRC
     "${UPDATE_SOURCE_DIR}/modules/pal-filesystem/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/pal-flashiap/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/pal-flashiap/source/*.cpp"
+    "${UPDATE_SOURCE_DIR}/modules/pal-flashiap-mcuboot/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/pal-flashiap-mcuboot/source/*.cpp"
     "${UPDATE_SOURCE_DIR}/modules/pal-linux/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/delta-paal/source/*.c"
     "${UPDATE_SOURCE_DIR}/delta-tool-internal/source/*.c"
@@ -102,6 +107,23 @@ FILE(GLOB UPDATE_SRC
 else()
 FILE(GLOB UPDATE_SRC
     "${UPDATE_SOURCE_DIR}/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/atomic-queue/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/common/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/metadata-header/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/control-center/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/device-identity/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/firmware-manager/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed/source/*.cpp"
+    "${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/manifest-manager/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/source-manager/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/paal/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/pal-flashiap/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/pal-flashiap/source/*.cpp"
+    "${UPDATE_SOURCE_DIR}/modules/pal-flashiap-mcuboot/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/pal-flashiap-mcuboot/source/*.cpp"
+    "${UPDATE_SOURCE_DIR}/modules/pal-blockdevice/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/pal-blockdevice/source/*.cpp"
 )
 endif()
 

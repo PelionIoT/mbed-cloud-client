@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016-2018 ARM Ltd.
+ * Copyright 2016-2020 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@
     #define TEST_PRINTF(ARGS...) PAL_PRINTF(ARGS)
 #endif //TEST_PRINTF
 
-#ifdef PAL_LINUX
+#if defined(__linux__)
 #define PAL_TEST_THREAD_STACK_SIZE 16*1024*sizeof(uint32_t)
 #else
 #define PAL_TEST_THREAD_STACK_SIZE 512*sizeof(uint32_t)

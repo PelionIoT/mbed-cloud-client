@@ -14,6 +14,10 @@
  * limitations under the License.
  *******************************************************************************/
 
+// PAL Includes
+#include "pal.h"
+#include "pal_plat_fileSystem.h"
+
 #if PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM
 
 /************************************************

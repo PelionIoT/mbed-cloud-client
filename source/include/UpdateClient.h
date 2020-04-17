@@ -91,7 +91,7 @@ namespace UpdateClient
      * \brief Registers a callback function for authorizing firmware downloads and reboots.
      * \param handler Callback function.
      */
-    void set_update_authorize_handler(void (*handler)(int32_t request));
+    void set_update_authorize_handler(void (*handler)(int32_t request)) __attribute__((deprecated("Use set_update_authorize_priority_handler instead")));
 
     /**
      * \brief Registers a callback function for authorizing update requests with priority.

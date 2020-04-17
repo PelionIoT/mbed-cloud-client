@@ -25,7 +25,7 @@
 #include "update-client-pal-linux/arm_uc_pal_linux_implementation.h"
 #include "update-client-paal/arm_uc_paal_update_api.h"
 #include "update-client-pal-linux/arm_uc_pal_linux_ext.h"
-
+#include "update-client-hub/source/update_client_hub_state_machine.h"
 #include "update-client-metadata-header/arm_uc_metadata_header_v2.h"
 
 #define __STDC_FORMAT_MACROS

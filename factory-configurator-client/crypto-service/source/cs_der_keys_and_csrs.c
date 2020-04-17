@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //  
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include "cs_der_certs.h"
 #include "pal.h"
 #include "cs_utils.h"
-#include "pk.h"
+#include "mbedtls/pk.h"
 #include "fcc_malloc.h"
 #include "key_slot_allocator.h"
 #include "storage_kcm.h"

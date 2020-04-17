@@ -4,5 +4,6 @@ mbed-trace/*
 nanostack-libservice/*
 ns-hal-pal/*
 sal-stack-nanostack-eventloop/*
+kvstore/*
 unittests/*
 test_modules/*

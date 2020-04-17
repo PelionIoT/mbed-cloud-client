@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -1102,7 +1102,6 @@ void ConnectorClient::value_updated(M2MBase *base, M2MBase::BaseType type)
 
 bool ConnectorClient::connector_credentials_available()
 {
-    tr_debug("ConnectorClient::connector_credentials_available");
     if (ccs_check_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM) != CCS_STATUS_SUCCESS) {
         return false;
     }

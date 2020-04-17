@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -59,14 +59,20 @@
 
 #ifdef PAL_PLATFORM_DEFINED_CONFIGURATION
     #include PAL_PLATFORM_DEFINED_CONFIGURATION
-#elif defined(__LINUX__)
+#elif defined(__linux__) || defined(__LINUX__)
     #include "Linux_default.h"
 #elif defined(__FREERTOS__)
     #include "FreeRTOS_default.h"
+#elif defined(__NXP_FREERTOS__)
+    #include "NXP_default.h"
+#elif defined(__RENESAS_EK_RA6M3__)
+    #include "Renesas/Renesas_default.h"
 #elif defined(__MBED__)
     #include "mbedOS_default.h"
 #elif defined(__SXOS__)
     #include "sxos_default.h"
+#elif defined(__RTX)
+    #include "RTX_MW_default.h"
 #else
     #error "Please specify the platform PAL_PLATFORM_DEFINED_CONFIGURATION"
 #endif
@@ -108,11 +114,11 @@
 #endif
 
 #ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
-	#define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 0
+    #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 0
 #endif
 
 #ifndef PAL_USE_INTERNAL_FLASH
-	#define PAL_USE_INTERNAL_FLASH 0
+    #define PAL_USE_INTERNAL_FLASH 0
 #endif
 
 /*
@@ -136,10 +142,10 @@
 #endif
 
 #ifndef PAL_SUPPORT_IP_V4
-    #define PAL_SUPPORT_IP_V4                 true //!< support IPV4 as default
+    #define PAL_SUPPORT_IP_V4                 1 //!< support IPV4 as default
 #endif
 #ifndef PAL_SUPPORT_IP_V6
-    #define PAL_SUPPORT_IP_V6                 true //!< support IPV6 as default
+    #define PAL_SUPPORT_IP_V6                 1 //!< support IPV6 as default
 #endif
 
 //values for PAL_NET_DNS_IP_SUPPORT
@@ -148,9 +154,9 @@
 #define PAL_NET_DNS_IPV6_ONLY    4    //!< if PAL_NET_DNS_IP_SUPPORT is set to PAL_NET_DNS_IPV6_ONLY pal_getAddressInfo will return the first available IPV6 address
 
 #ifndef PAL_NET_DNS_IP_SUPPORT
-#if PAL_SUPPORT_IP_V6 == true && PAL_SUPPORT_IP_V4 == true
+#if (PAL_SUPPORT_IP_V6 == 1) && (PAL_SUPPORT_IP_V4 == 1)
     #define PAL_NET_DNS_IP_SUPPORT  0 //!< sets the type of IP addresses returned by  pal_getAddressInfo
-#elif PAL_SUPPORT_IP_V6 == true
+#elif (PAL_SUPPORT_IP_V6 == 1)
     #define PAL_NET_DNS_IP_SUPPORT  4 //!< sets the type of IP addresses returned by  pal_getAddressInfo
 #else
     #define PAL_NET_DNS_IP_SUPPORT  2 //!< sets the type of IP addresses returned by  pal_getAddressInfo
@@ -482,7 +488,7 @@
     #error Minimum configuration setting does not meet the requirements
 #endif
 
-#if (((PAL_ENABLE_PSK == 1) && (PAL_ENABLE_X509 == 1)) && !(defined(__LINUX__)))
+#if (((PAL_ENABLE_PSK == 1) && (PAL_ENABLE_X509 == 1)) && !(defined(__linux__) || defined(__LINUX__)))
     #error "Please select only one option: PSK or X509"
 #endif
 

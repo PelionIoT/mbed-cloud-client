@@ -36,6 +36,10 @@
 #include "certificate-enrollment-client/certificate-enrollment-client/ce_defs.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+#include "di_status.h"
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+
 #if MBED_CLOUD_CLIENT_STL_API
 #include <map>
 #include <string>
@@ -175,8 +179,14 @@ public:
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
         // Certificate Enrollment error 0x0500 - 0x05ff. Defined in ce_status.h
         EnrollmentErrorBase = CE_STATUS_RANGE_BASE,
-        EnrollmentErrorEnd = CE_STATUS_RANGE_END
+        EnrollmentErrorEnd = CE_STATUS_RANGE_END,
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+        // Device Insights error 0x0600 - 0x06ff. Defined in di_status.h
+        DeviceInsightsErrorBase = DI_STATUS_RANGE_BASE,
+        DeviceInsightsErrorEnd = DI_STATUS_RANGE_END
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+
     }Error;
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
@@ -354,7 +364,7 @@ public:
         void on_registration_updated(T *object, void (T::*member)(void));
 
     /**
-    * \brief Send a registration update message to Device Management when Device Management Client is registered  
+    * \brief Send a registration update message to Device Management when Device Management Client is registered
     * successfully and there is no internal connection error.
     * If Device Management Client is not connected and there is some other internal network
     * transaction ongoing, this function triggers an error `MbedCloudClient::ConnectNotAllowed`.
@@ -430,7 +440,7 @@ public:
      * \brief Register a callback function for authorizing firmware downloads and reboots.
      * \param handler Callback function.
      */
-    void set_update_authorize_handler(void (*handler)(int32_t request));
+    void set_update_authorize_handler(void (*handler)(int32_t request)) __attribute__((deprecated("Use set_update_authorize_priority_handler instead")));
 
     /**
      * \brief Register a callback function for authorizing update requests with priority.

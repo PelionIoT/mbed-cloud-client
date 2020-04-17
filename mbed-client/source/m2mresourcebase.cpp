@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
 #ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
@@ -27,7 +25,6 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#include <stdlib.h>
 #include "mbed-client/m2mresourcebase.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2mobservationhandler.h"
@@ -39,6 +36,9 @@
 #include "include/m2mtlvserializer.h"
 #include "mbed-client/m2mblockmessage.h"
 #include "mbed-trace/mbed_trace.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 #define TRACE_GROUP "mClt"
 
@@ -66,9 +66,9 @@ M2MResourceBase::M2MResourceBase(
           path,
           external_blockwise_store,
           multiple_instance,
-          type)
+          type),
 #ifndef DISABLE_BLOCK_MESSAGE
- ,_block_message_data(NULL),
+ _block_message_data(NULL),
 #endif
   _notification_status(M2MResourceBase::INIT)
 {
@@ -92,9 +92,9 @@ M2MResourceBase::M2MResourceBase(
           path,
           external_blockwise_store,
           multiple_instance,
-          type)
+          type),
 #ifndef DISABLE_BLOCK_MESSAGE
- ,_block_message_data(NULL),
+ _block_message_data(NULL),
 #endif
  _notification_status(M2MResourceBase::INIT)
 {
@@ -109,9 +109,9 @@ M2MResourceBase::M2MResourceBase(
 M2MResourceBase::M2MResourceBase(
                                          const lwm2m_parameters_s* s,
                                          M2MBase::DataType /*type*/)
-: M2MBase(s)
+: M2MBase(s),
 #ifndef DISABLE_BLOCK_MESSAGE
-  ,_block_message_data(NULL),
+  _block_message_data(NULL),
 #endif
   _notification_status(M2MResourceBase::INIT)
 {
@@ -235,7 +235,7 @@ bool M2MResourceBase::set_value_float(float value)
 
     // Convert value to string
     /* write the float value to a decimal number string and copy it into a buffer allocated for caller */
-    uint32_t size = snprintf(buffer, REGISTRY_FLOAT_STRING_MAX_LEN, "%f", value);
+    uint32_t size = snprintf(buffer, REGISTRY_FLOAT_STRING_MAX_LEN, "%e", value);
 
     success = set_value((const uint8_t*)buffer, size);
 
@@ -310,6 +310,26 @@ void M2MResourceBase::update_value(uint8_t *value, const uint32_t value_length)
     }
 }
 
+void M2MResourceBase::report_to_parents()
+{
+    M2MBase::Observation observation_level = M2MBase::observation_level();
+    tr_debug("M2MResourceBase::report_to_parents() - level %d", observation_level);
+
+    // We must combine the parent object/objectinstance/resource observation information
+    // when determining if there is observation set or not.
+    M2MObjectInstance& object_instance = get_parent_resource().get_parent_object_instance();
+    int parent_observation_level = (int)object_instance.observation_level();
+    parent_observation_level |= (int)object_instance.get_parent_object().observation_level();
+    parent_observation_level |= (int)get_parent_resource().observation_level();
+    parent_observation_level |= (int)observation_level;
+
+    if((M2MBase::O_Attribute & parent_observation_level) == M2MBase::O_Attribute ||
+       (M2MBase::OI_Attribute & parent_observation_level) == M2MBase::OI_Attribute) {
+        tr_debug("M2MResourceBase::report_to_parents() -- object/instance level");
+        object_instance.notification_update((M2MBase::Observation)parent_observation_level);
+    }
+}
+
 void M2MResourceBase::report()
 {
     M2MBase::Observation observation_level = M2MBase::observation_level();
@@ -328,8 +348,13 @@ void M2MResourceBase::report()
 
     if((M2MBase::O_Attribute & parent_observation_level) == M2MBase::O_Attribute ||
        (M2MBase::OI_Attribute & parent_observation_level) == M2MBase::OI_Attribute) {
-        tr_debug("M2MResourceBase::report() -- object/instance level");
-        object_instance.notification_update((M2MBase::Observation)parent_observation_level);
+        M2MReportHandler *report_handler = M2MBase::report_handler();
+        if (report_handler) {
+            report_handler->wait_to_report(this);
+        }
+        else {
+            report_to_parents();
+        }
     }
 
     if(M2MBase::Dynamic == mode() &&
@@ -745,7 +770,6 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                         int64_t lifetime;
                         bool success = String::convert_ascii_to_int((char*)received_coap_header->payload_ptr, received_coap_header->payload_len, lifetime);
                         if ((success == false) || (lifetime < MINIMUM_REGISTRATION_TIME)) {
-                            tr_error("M2MResourceBase::handle_put_request() - lifetime value % " PRId64 " not acceptable", lifetime);
                             msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                         }
                     } else {

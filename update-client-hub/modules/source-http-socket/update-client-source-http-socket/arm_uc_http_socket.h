@@ -253,4 +253,10 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetFile(arm_uc_uri_t *uri, arm_uc_buffer_t *bu
  */
 arm_uc_error_t ARM_UCS_HttpSocket_GetFragment(arm_uc_uri_t *uri, arm_uc_buffer_t *buffer, uint32_t offset);
 
+/**
+ * @brief Cancel resume engine externally
+ * @param unused Unused.
+ */
+void ARM_UC_HttpSocket_EndResume(void);
+
 #endif /* UPDATE_CLIENT_SOURCE_HTTP_SOCKET_H */

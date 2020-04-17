@@ -22,6 +22,7 @@
 // pal Socket API tests
 TEST_GROUP_RUNNER(pal_socket)
 {
+#ifndef PAL_SKIP_TEST_MODULE_NETWORK
     RUN_TEST_CASE(pal_socket, socketUDPCreationOptionsTest);
     RUN_TEST_CASE(pal_socket, basicTCPclientSendRecieve);
     RUN_TEST_CASE(pal_socket, basicUDPclientSendRecieve);
@@ -40,4 +41,5 @@ TEST_GROUP_RUNNER(pal_socket)
     RUN_TEST_CASE(pal_socket, tcp_echo);
     RUN_TEST_CASE(pal_socket, udp_echo);
     RUN_TEST_CASE(pal_socket, interfaceStatusListener);
+#endif
 }

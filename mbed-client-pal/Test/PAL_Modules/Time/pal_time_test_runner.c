@@ -20,11 +20,13 @@
 
 TEST_GROUP_RUNNER(pal_time)
 {
+#ifndef PAL_SKIP_TEST_MODULE_TIME
     RUN_TEST_CASE(pal_time, RealTimeClockTest1);
     RUN_TEST_CASE(pal_time, OsWeakSetTime_Forward);
     RUN_TEST_CASE(pal_time, OsWeakSetTime_Backward);
     RUN_TEST_CASE(pal_time, OsWeakSetTime_minimalStoredLag);
     RUN_TEST_CASE(pal_time, OsStrongSetTime);
+#endif
 }
 
 

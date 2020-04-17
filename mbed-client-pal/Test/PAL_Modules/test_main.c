@@ -43,7 +43,7 @@ static volatile int main_init_flags;
 static int palTestMainRunner(void);
 
 
-pal_args_t g_args; // defiend as global so it could persist 
+pal_args_t g_args; // defiend as global so it could persist
                    // during task execution on FreeRTOS
 
 #ifdef DEBUG
@@ -55,18 +55,35 @@ pal_args_t g_args; // defiend as global so it could persist
 
 palTestsStatusData_t palTestStatus = {-1,-1,-1,0,0,0};
 
+#ifndef TARGET_LIKE_MBED
+#if (PAL_USE_HW_ROT)
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+palStatus_t pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeBytes)
+{
+    int x = 1;
+    printf("Using this random function is not suitable for production use. Implement your own.\n");
+    while(bufSizeBytes--) {
+        *randomBuf++ = (uint8_t)++x;
+    }
+    return 0;
+}
+#endif // SST
+#endif // HW_ROT
+#endif
+
 
 palStatus_t getPalTestStatus(void)
 {
     palStatus_t status = PAL_SUCCESS, status2 = PAL_SUCCESS;
+#ifdef PAL_USE_PLATFORM_FILESYSTEM
     char filePath[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
     palFileDescriptor_t fd = 0;
     size_t dataSizeWritten = 0;
     char data[128] = {0};
-  
+
 
     status = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, filePath);
-    if (PAL_SUCCESS == status) 
+    if (PAL_SUCCESS == status)
     {
         strncat(filePath,PAL_TEST_STATUS_FILE_LOCATION,PAL_MAX_FILE_AND_FOLDER_LENGTH - strlen(filePath));
         status = pal_fsFopen(filePath, PAL_FS_FLAG_READONLY, &fd);
@@ -80,12 +97,12 @@ palStatus_t getPalTestStatus(void)
                  sscanf(data,"%i %i %i %llu %llu %llu", &palTestStatus.module, &palTestStatus.test, &palTestStatus.inner, &palTestStatus.numOfTestsFailures, &palTestStatus.numberOfTests, &palTestStatus.numberOfIgnoredTests);
              }
              status2 = pal_fsFclose(&fd);
-             if (PAL_SUCCESS != status2) 
+             if (PAL_SUCCESS != status2)
              {
                  PAL_LOG_ERR("Failed to close data file of test status after read");
              }
              status2 = pal_fsUnlink(filePath);
-             if (PAL_SUCCESS != status2) 
+             if (PAL_SUCCESS != status2)
              {
                  PAL_LOG_ERR("Failed to delete data file of test status after read");
              }
@@ -97,60 +114,62 @@ palStatus_t getPalTestStatus(void)
     }
 
     PAL_LOG_DBG("*********************************\n"
-    		"** Test status: 				**\n"
-    		"** Module %d    				**\n"
-    		"** Test %d      				**\n"
-    		"** Inner %d     				**\n"
-    		"** num of tests failures %llu	**\n"
-    		"** num of tests %llu     		**\n"
-    		"** num of ignored tests %llu   **\n"
-    		"*********************************\n",
-			palTestStatus.module, palTestStatus.test, palTestStatus.inner,
-			palTestStatus.numOfTestsFailures, palTestStatus.numberOfTests,
-			palTestStatus.numberOfIgnoredTests);
-
+                "** Test status: 				**\n"
+                "** Module %d    				**\n"
+                "** Test %d      				**\n"
+                "** Inner %d     				**\n"
+                "** num of tests failures %llu	**\n"
+                "** num of tests %llu     		**\n"
+                "** num of ignored tests %llu   **\n"
+                "*********************************\n",
+                palTestStatus.module, palTestStatus.test, palTestStatus.inner,
+                palTestStatus.numOfTestsFailures, palTestStatus.numberOfTests,
+                palTestStatus.numberOfIgnoredTests);
+#endif
     return status;
 }
 
 void updatePalTestStatusAfterReboot(void)
 {
-	if (palTestStatus.numberOfTests > 0)
-	{
-		Unity.TestFailures = palTestStatus.numOfTestsFailures;
-		Unity.NumberOfTests = palTestStatus.numberOfTests;
-		Unity.CurrentTestIgnored =palTestStatus.numberOfIgnoredTests;
+    if (palTestStatus.numberOfTests > 0)
+    {
+        Unity.TestFailures = palTestStatus.numOfTestsFailures;
+        Unity.NumberOfTests = palTestStatus.numberOfTests;
+        Unity.CurrentTestIgnored =palTestStatus.numberOfIgnoredTests;
         PAL_LOG_DBG("Unity number of tests was updated\r\n");
-	}
+    }
 
-	palTestStatus.inner = -1;
+    palTestStatus.inner = -1;
 }
 
 
 palStatus_t setPalTestStatus(palTestsStatusData_t palRebootTestStatus)
 {
-    palStatus_t status = PAL_SUCCESS, status2 = PAL_SUCCESS;;
+    palStatus_t status = PAL_SUCCESS, status2 = PAL_SUCCESS;
+#ifdef PAL_USE_PLATFORM_FILESYSTEM
     char filePath[PAL_MAX_FILE_AND_FOLDER_LENGTH] = {0};
     palFileDescriptor_t fd = 0;
     size_t dataSizeWritten = 0;
     char data[PAL_TEST_STATUS_FILE_DATA_MAX_SIZE] = {0};
-    
+
 
     status = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, filePath);
-    if (PAL_SUCCESS == status) 
+    if (PAL_SUCCESS == status)
     {
         strncat(filePath,PAL_TEST_STATUS_FILE_LOCATION,PAL_MAX_FILE_AND_FOLDER_LENGTH - strlen(filePath));
         status = pal_fsFopen(filePath, PAL_FS_FLAG_READWRITETRUNC, &fd);
          if (PAL_SUCCESS == status)
          {
-        	 snprintf((char *)data,PAL_TEST_STATUS_FILE_DATA_MAX_SIZE, "%d %d %d %llu %llu %llu ", palRebootTestStatus.module, palRebootTestStatus.test, palRebootTestStatus.inner, palRebootTestStatus.numOfTestsFailures, palRebootTestStatus.numberOfTests, palRebootTestStatus.numberOfIgnoredTests);
-        	 status =  pal_fsFwrite(&fd, (void *)data, PAL_TEST_STATUS_FILE_DATA_MAX_SIZE, &dataSizeWritten);
+             snprintf((char *)data,PAL_TEST_STATUS_FILE_DATA_MAX_SIZE, "%d %d %d %llu %llu %llu ", palRebootTestStatus.module, palRebootTestStatus.test, palRebootTestStatus.inner, palRebootTestStatus.numOfTestsFailures, palRebootTestStatus.numberOfTests, palRebootTestStatus.numberOfIgnoredTests);
+             status =  pal_fsFwrite(&fd, (void *)data, PAL_TEST_STATUS_FILE_DATA_MAX_SIZE, &dataSizeWritten);
              pal_fsFclose(&fd);
-             if (PAL_SUCCESS != status2) 
+             if (PAL_SUCCESS != status2)
              {
                  PAL_LOG_ERR("Failed to close data file of test status after write");
              }
          }
     }
+#endif
     return status;
 }
 
@@ -158,8 +177,8 @@ palStatus_t setPalTestStatus(palTestsStatusData_t palRebootTestStatus)
 palStatus_t palTestReboot(palTestModules_t module ,palTestSOTPTests_t test )
 {
     palStatus_t status = PAL_SUCCESS;
-	palTestsStatusData_t palRebootTestStatus;
-	palRebootTestStatus.module = module;
+    palTestsStatusData_t palRebootTestStatus;
+    palRebootTestStatus.module = module;
     palRebootTestStatus.test = test;
     palRebootTestStatus.inner = 1;
     palRebootTestStatus.numberOfTests = Unity.NumberOfTests;
@@ -173,7 +192,7 @@ palStatus_t palTestReboot(palTestModules_t module ,palTestSOTPTests_t test )
     }
     else
     {
-		pal_osReboot();
+        pal_osReboot();
     }
     return status;
 }
@@ -351,7 +370,7 @@ static int palTestMainRunner(void)
 
     // XXX: this function uses the filesystem and it will typically fail if the storage is not initialized.
     palStatus_t getTestStatusReturnValue = getPalTestStatus();
-    if (PAL_SUCCESS != getTestStatusReturnValue) 
+    if (PAL_SUCCESS != getTestStatusReturnValue)
     {
         PAL_LOG_ERR("%s: Failed to get current status of tests 0x%" PRIX32 "\r\n",__FUNCTION__,getTestStatusReturnValue);
     }

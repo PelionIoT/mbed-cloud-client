@@ -22,6 +22,7 @@
 // PAL Update API tests
 TEST_GROUP_RUNNER(pal_update)
 {
+#ifndef PAL_SKIP_TEST_MODULE_UPDATE
   RUN_TEST_CASE(pal_update, pal_update_writeSmallChunk_5b);
   RUN_TEST_CASE(pal_update, pal_update_writeUnaligned_1001b);
   RUN_TEST_CASE(pal_update, pal_update_1k);
@@ -32,5 +33,6 @@ TEST_GROUP_RUNNER(pal_update)
   RUN_TEST_CASE(pal_update, pal_update_Read);
   RUN_TEST_CASE(pal_update, pal_update_stressTest);
   RUN_TEST_CASE(pal_update, pal_update_4k_write_1k_4_times);
+#endif
 }
 

@@ -286,7 +286,7 @@ void ARM_UCS_Http_ProcessHash()
 
     /* Request complete, reset state */
     uc_state_reset();
-    arm_uc_http_socket_end_resume();
+    ARM_UC_HttpSocket_EndResume();
 
     /* Signal that a new manifest is available if the hash is non-zero
        and different from the last check.

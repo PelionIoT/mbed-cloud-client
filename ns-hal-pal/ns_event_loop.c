@@ -42,6 +42,7 @@ void eventOS_scheduler_mutex_wait(void)
     palStatus_t status;
     status = pal_osMutexWait(event_mutex_id, UINT32_MAX);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }
 
 void eventOS_scheduler_mutex_release(void)
@@ -49,6 +50,7 @@ void eventOS_scheduler_mutex_release(void)
     palStatus_t status;
     status = pal_osMutexRelease(event_mutex_id);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }
 
 void eventOS_scheduler_signal(void)
@@ -56,6 +58,7 @@ void eventOS_scheduler_signal(void)
     palStatus_t status;
     status = pal_osSemaphoreRelease(event_signal_sema_id);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }
 
 void eventOS_scheduler_idle(void)
@@ -67,6 +70,7 @@ void eventOS_scheduler_idle(void)
 
     status = pal_osSemaphoreWait(event_signal_sema_id, UINT32_MAX, &counters);
     assert(PAL_SUCCESS == status);
+    (void) status;
 
     eventOS_scheduler_mutex_wait();
 }
@@ -101,6 +105,7 @@ static void event_loop_thread(const void *arg)
     // signal the ns_event_loop_thread_stop() that it can continue 
     status = pal_osSemaphoreRelease(event_stop_sema_id);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }
 
 void ns_event_loop_thread_create(void)
@@ -125,6 +130,7 @@ void ns_event_loop_thread_create(void)
 
     status = pal_osThreadCreateWithAlloc(event_loop_thread, NULL, PAL_osPriorityNormal, MBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE, NULL, &event_thread_id);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }
 
 void ns_event_loop_thread_start(void)
@@ -132,6 +138,7 @@ void ns_event_loop_thread_start(void)
     palStatus_t status;
     status = pal_osSemaphoreRelease(event_start_sema_id);
     assert(PAL_SUCCESS == status);
+    (void) status;
 }
 
 void ns_event_loop_thread_stop(void)
@@ -149,6 +156,7 @@ void ns_event_loop_thread_stop(void)
     // Note: the PAL API does not have any better means to join with a thread termination. 
     status = pal_osSemaphoreWait(event_stop_sema_id, UINT32_MAX, NULL);
     assert(PAL_SUCCESS == status);
+    (void) status;
 
     pal_osSemaphoreDelete(&event_start_sema_id);
     pal_osSemaphoreDelete(&event_stop_sema_id);
