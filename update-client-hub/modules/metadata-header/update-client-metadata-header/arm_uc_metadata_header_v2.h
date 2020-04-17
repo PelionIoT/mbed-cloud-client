@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,6 +19,7 @@
 #ifndef ARM_UC_METADATA_HEADER_V2_H
 #define ARM_UC_METADATA_HEADER_V2_H
 
+#include "update-client-common/arm_uc_config.h"
 #include "update-client-common/arm_uc_types.h"
 #include "update-client-common/arm_uc_error.h"
 #include "arm_uc_buffer_utilities.h"

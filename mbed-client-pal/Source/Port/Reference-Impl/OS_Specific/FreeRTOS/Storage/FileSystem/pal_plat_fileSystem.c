@@ -15,7 +15,7 @@
  *******************************************************************************/
 
 #if ((!defined(PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM)) || (PAL_SIMULATOR_FILE_SYSTEM_OVER_RAM == 0)) 
-
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "pal.h"
 #include "pal_plat_fileSystem.h"
 #include "pal_plat_rtos.h"
@@ -725,5 +725,5 @@ palStatus_t pal_plat_fsFormat(pal_fsStorageID_t dataID)
     }
     return result;
 }
-
+#endif
 #endif

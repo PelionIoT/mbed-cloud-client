@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2020 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,11 +116,11 @@ void* __wrap_malloc(size_t c)
 #endif
 
 #if PAL_MEMORY_PRINT_DATA
-#ifdef __LINUX__
+#ifdef __linux__
 	printf("malloc: ptr - %p, size - %d\n\r",ptr,c);
 #else
 	tr_info("malloc: ptr - %p, size - %d\n\r",ptr,c);
-#endif//LINUX
+#endif
 
 #endif
 	return ptr;
@@ -134,7 +134,7 @@ void __wrap_free(void* ptr)
 		return;
 	}
 #if PAL_MEMORY_PRINT_DATA
-#ifdef __LINUX__
+#ifdef __linux__
 	printf("free: ptr - %p\n\r",ptr);
 #endif
 #endif

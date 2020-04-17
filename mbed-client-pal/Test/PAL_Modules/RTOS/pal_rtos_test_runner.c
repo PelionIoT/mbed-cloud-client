@@ -20,6 +20,7 @@
 
 TEST_GROUP_RUNNER(pal_rtos)
 {
+#ifndef PAL_SKIP_TEST_MODULE_RTOS
     RUN_TEST_CASE(pal_rtos, BasicSnprintfTestInt);
     RUN_TEST_CASE(pal_rtos, BasicSnprintfTestSize);
     RUN_TEST_CASE(pal_rtos, SemaphoreWaitForever);
@@ -50,4 +51,5 @@ TEST_GROUP_RUNNER(pal_rtos)
     RUN_TEST_CASE(pal_rtos, Sleep_thread_launch_and_terminate);
     RUN_TEST_CASE(pal_rtos, Loop_thread_launch_and_terminate);
     RUN_TEST_CASE(pal_rtos, Semaphore_wait_thread_launch_and_terminate);
+#endif
 }

@@ -372,6 +372,12 @@ public:
     void update_value(uint8_t *value, const uint32_t value_length);
 
     /**
+     * \brief Function to report the value changes to the object instance and object parent of the
+     * resource if they have been subscribed
+     */
+    void report_to_parents();
+
+    /**
      * \brief Handles the GET request for the registered objects.
      * \param nsdl An NSDL handler for the CoAP library.
      * \param received_coap_header The CoAP message received from the server.

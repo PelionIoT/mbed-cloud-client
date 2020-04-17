@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2011-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -20,8 +20,6 @@
  *
  */
 
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
 #ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
@@ -32,9 +30,6 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-
-#include <string.h>
-#include <assert.h>
 
 #include "ns_types.h"
 #include "sn_nsdl.h"
@@ -48,7 +43,9 @@
 #include "common_functions.h"
 #include "randLIB.h"
 
+#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if defined MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 #define MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -741,9 +738,8 @@ int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet_ptr, uint16_t
     sn_nsdl_print_coap_data(coap_packet_ptr, false);
 
 #if SN_COAP_DUPLICATION_MAX_MSGS_COUNT
-    if (coap_packet_ptr->msg_type == COAP_MSG_TYPE_ACKNOWLEDGEMENT &&
-        coap_packet_ptr->coap_status == COAP_STATUS_PARSER_DUPLICATED_MSG) {
-        tr_info("sn_nsdl_process_coap - received duplicate ACK, ignore");
+    if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_DUPLICATED_MSG) {
+        tr_info("sn_nsdl_process_coap - received duplicate message, ignore");
         sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
         return SN_NSDL_SUCCESS;
     }

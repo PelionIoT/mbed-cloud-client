@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 - 2017 ARM Limited. All rights reserved.
+ * Copyright (c) 2015 - 2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
 #ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
@@ -35,6 +33,7 @@
 #include "pal.h"
 #include "m2mdevice.h"
 #include "m2minterfacefactory.h"
+
 #include <string.h>
 
 #define TRACE_GROUP "mClt"
@@ -266,11 +265,13 @@ int M2MConnectionSecurityPimpl::start_handshake()
         return M2MConnectionHandler::ERROR_GENERIC;
     }
 
+#if PAL_USE_SECURE_TIME
     ret = pal_sslGetVerifyResult(_ssl);
     if (PAL_SUCCESS != ret){
         tr_error("M2MConnectionSecurityPimpl::start_handshake pal_sslGetVerifyResult() error %" PRIx32, ret);
         return M2MConnectionHandler::ERROR_GENERIC;
     }
+#endif
 
     return ret;
 }

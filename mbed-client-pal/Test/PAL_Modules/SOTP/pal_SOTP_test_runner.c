@@ -24,7 +24,8 @@ extern palTestsStatusData_t palTestStatus;
 
 TEST_GROUP_RUNNER(pal_SOTP)
 {
-    switch (palTestStatus.test) 
+#ifndef PAL_SKIP_TEST_MODULE_SOTP
+    switch (palTestStatus.test)
     {
     case -1:
     case PAL_TEST_SOTP_TEST_SW_HW_ROT:
@@ -37,4 +38,5 @@ TEST_GROUP_RUNNER(pal_SOTP)
     default:
         PAL_PRINTF("This should not happen\r\n");
     }
+#endif
 }

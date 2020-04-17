@@ -40,6 +40,11 @@ kcm_status_e kcm_init(void)
         pal_status = pal_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed initializing PAL (%" PRIu32 ")", pal_status);
 
+
+        //Initialize back-end storage
+        status = storage_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), status, "Failed initializing storage\n");
+
         /*
          * Do not initialize the time module inside pal_init since pal_initTime() uses storage functions.
          * At KCM init it is guaranteed that any entropy and RoT that should be injected - is already injected.
@@ -47,9 +52,7 @@ kcm_status_e kcm_init(void)
         pal_status = pal_initTime();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed PAL time module (%" PRIu32 ")", pal_status);
 
-        //Initialize back-end storage
-        status = storage_init();
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), status, "Failed initializing storage\n");
+
         
         // Mark as "initialized"
         g_kcm_initialized = true;

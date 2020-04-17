@@ -34,6 +34,11 @@
 #include "CertificateEnrollmentClient.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+#include "DeviceInsightsClient.h"
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+
+
 #if MBED_CLOUD_CLIENT_STL_API
 #include <string>
 #endif
@@ -74,6 +79,9 @@ ServiceClient::~ServiceClient()
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
     CertificateEnrollmentClient::finalize();
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+    DeviceInsightsClient::finalize();
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
 }
 
 void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
@@ -168,6 +176,13 @@ void ServiceClient::finish_initialization(void)
             _service_callback.error((int)CE_STATUS_INIT_FAILED, "Certificate Enrollment initialization failed");
         }
 #endif /* !MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT */
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+    // Initialize the device insights feature
+    if (DeviceInsightsClient::init(*_client_objs) != DI_STATUS_SUCCESS) { 
+         _service_callback.error((int)DI_STATUS_INIT_FAILED, "Device Insights initialization failed"); 
+    }
+#endif /* MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS */
 
     if (device_object) {
         /* Publish device object resource to mds */

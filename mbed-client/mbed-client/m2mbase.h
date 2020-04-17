@@ -815,6 +815,11 @@ protected: // from M2MReportObserver
                             sn_coap_msg_code_e &response_code);
 
     /**
+     * \brief Cancels the ongoing observation.
+     */
+    void cancel_observation();
+
+    /**
      * \brief Start the observation.
      * \param received_coap_header An NSDL handler for the CoAP library.
      * \param observation_handler A handler object for sending

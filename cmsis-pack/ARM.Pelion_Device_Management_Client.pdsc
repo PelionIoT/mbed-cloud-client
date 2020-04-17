@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package schemaVersion="1.4" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="PACK.xsd">
+  <vendor>ARM</vendor>
+  <name>Pelion_Device_Management_Client</name>
+  <description>https://www.pelion.com/docs/device-management/current/welcome/index.html</description>
+  <!-- web download link -->
+  <url>https://github.com/MDK-Packs/Pack/raw/master/Mbed_Cloud_Client/</url>
+  <license>LICENSE.txt</license>
+  <releases>
+    <release version="1.0.0" date="2020-02-06">
+      Initial release
+    </release>
+    <release version="1.0.1" date="2020-03-25">
+      Example added
+    </release>
+  </releases>
+  <requirements>
+    <packages>
+      <package name="MDK-Middleware" vendor="Keil" version="7.10.0"/>
+      <package name="mbedTLS" vendor="ARM" version="1.6.0"/>
+    </packages>
+  </requirements>
+
+  <conditions>
+    <condition id="Cortex-M Device">
+      <description>Cortex-M processor based device: Cortex-M4</description>
+      <accept Dcore="Cortex-M4"/>
+    </condition>
+  </conditions>
+  <components>
+    <component Cclass="IoT Client" Cgroup="Pelion Device Management Client" Cversion="4.4.0" condition="Cortex-M Device">
+      <description>Pelion Device Management Client</description>
+      <RTE_Components_h>
+        #define RTE_IoT_Client_Pelion_Device_Management_Client /* Pelion Device Management Client */
+      </RTE_Components_h>
+      <Pre_Include_Global_h>
+        // enabling local pre include
+        #define MBED_CONF_MBED_TRACE_ENABLE 1
+        #define PAL_USER_DEFINED_CONFIGURATION "mbed_cloud_client_user_config.h"
+        #define MBED_CLOUD_CLIENT_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
+        #define MBED_CLIENT_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
+        #define NS_EVENTLOOP_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
+        #define MBEDTLS_CONFIG_FILE "mbedtls_config_RTX.h"
+        #define MBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE 8192
+        #define MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT 1
+        #define MBED_CLOUD_CLIENT_UPDATE_STORAGE ARM_UCP_FLASHIAP
+        #define MBED_CONF_MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP
+        #define PAL_USE_FILESYSTEM 0
+        #define ATOMIC_QUEUE_USE_PAL 1
+        #define ARM_UC_FEATURE_DELTA_PAAL 0
+        #define ARM_UC_PROFILE_MBED_CLOUD_CLIENT 1
+        #define MBED_CONF_APP_MBED_CLOUD_CLIENT_UPDATE_BUFFER_SIZE 2048
+        #define MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS 0x8088000
+        #define MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE 0x78000
+        #define MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS 0x8008000
+        #define MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT 1
+      </Pre_Include_Global_h>
+      <files>
+
+        <!-- mbed-cloud-client -->
+        <file category="doc"     name="https://www.pelion.com/docs/device-management/current/welcome/index.html"/>
+        <file category="include" name="./"/>
+        <file category="include" name="mbed-cloud-client/"/>
+        <file category="include" name="source/"/>
+        <file category="include" name="source/include/"/>
+        <file category="source"  name="source/CertificateParser.c"/>
+        <file category="source"  name="source/CloudClientStorage.c"/>
+        <file category="source"  name="source/ConnectorClient.cpp"/>
+        <file category="source"  name="source/EstClient.cpp"/>
+        <file category="source"  name="source/MbedCloudClient.cpp"/>
+        <file category="source"  name="source/ServiceClient.cpp"/>
+        <file category="source"  name="source/SimpleM2MResource.cpp"/>
+        <file category="source"  name="source/UpdateClient.cpp"/>
+
+        <file category="header"  name="config/mbed_cloud_client_user_config.h" attr="config" version="1.0.0"/>
+        <file category="header"  name="mbed-client-pal\Configs\mbedTLS\mbedtls_config_RTX.h" attr="config" version="1.0.0"/>
+        <file category="source"  name="template/mbed_cloud_dev_credentials.c" attr="template" select="Device Credentials"/>
+
+        <!-- mbed-client -->
+        <file category="include" name="mbed-client/"/>
+        <file category="include" name="mbed-client/mbed-client/"/>
+        <file category="include" name="mbed-client/source/"/>
+        <file category="include" name="mbed-client/source/include/"/>
+        <file category="source"  name="mbed-client/source/m2mbase.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mblockmessage.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mcallbackstorage.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mdevice.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mendpoint.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mfirmware.cpp"/>
+        <file category="source"  name="mbed-client/source/m2minterfacefactory.cpp"/>
+        <file category="source"  name="mbed-client/source/m2minterfaceimpl.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mnotificationhandler.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mnsdlinterface.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mobject.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mobjectinstance.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mreporthandler.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mresource.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mresourcebase.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mresourceinstance.cpp"/>
+        <file category="source"  name="mbed-client/source/m2msecurity.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mserver.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mstring.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mstringbufferbase.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mtlvdeserializer.cpp"/>
+        <file category="source"  name="mbed-client/source/m2mtlvserializer.cpp"/>
+        <file category="source"  name="mbed-client/source/nsdlaccesshelper.cpp"/>
+        <file category="source"  name="mbed-client/source/uriqueryparser.c"/>
+
+        <!-- mbed-client-c -->
+        <file category="include" name="mbed-client/mbed-client-c/"/>
+        <file category="include" name="mbed-client/mbed-client-c/nsdl-c/"/>
+        <file category="include" name="mbed-client/mbed-client-c/source/include/"/>
+        <file category="source"  name="mbed-client/mbed-client-c/source/sn_grs.c"/>
+        <file category="source"  name="mbed-client/mbed-client-c/source/sn_nsdl.c"/>
+
+        <!-- mbed-client-classic -->
+        <file category="include" name="mbed-client/mbed-client-classic/"/>
+        <file category="source"  name="mbed-client/mbed-client-classic/source/m2mconnectionhandler.cpp"/>
+        <file category="source"  name="mbed-client/mbed-client-classic/source/m2mconnectionhandlerpimpl.cpp"/>
+        <file category="source"  name="mbed-client/mbed-client-classic/source/m2mtimer.cpp"/>
+        <file category="source"  name="mbed-client/mbed-client-classic/source/m2mtimerpimpl.cpp"/>
+
+        <!-- mbed-client-mbed-tls -->
+        <file category="include" name="mbed-client/mbed-client-mbed-tls/"/>
+        <file category="source"  name="mbed-client/mbed-client-mbed-tls/source/m2mconnectionsecurity.cpp"/>
+        <file category="source"  name="mbed-client/mbed-client-mbed-tls/source/m2mconnectionsecuritypimpl.cpp"/>
+
+        <!-- mbed-client-pal -->
+        <file category="include" name="mbed-client-pal/Source/"/>
+        <file category="include" name="mbed-client-pal/Configs/pal_config/"/>
+        <file category="include" name="mbed-client-pal/Configs/pal_config/RTX_MW/"/>
+        <file category="include" name="mbed-client-pal/Source/PAL-Impl/Services-API/"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/pal_init.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/Crypto/pal_Crypto.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/Networking/pal_network.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/RTOS/pal_rtos.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/Storage/Flash/pal_internalFlash.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/TLS/pal_TLS.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/ROT/pal_rot.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/Entropy/pal_entropy.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/Time/pal_time.c"/>
+        <file category="source"  name="mbed-client-pal/Source/PAL-Impl/Modules/DRBG/pal_drbg.c"/>
+        <file category="include" name="mbed-client-pal/Source/Port/Platform-API/"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/Lib_Specific/mbedTLS/Crypto/pal_plat_Crypto.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/Lib_Specific/mbedTLS/TLS/pal_plat_TLS.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/OS_Specific/RTX_MW/Networking/pal_plat_network_bsd_sock.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/OS_Specific/RTX_MW/Networking/pal_plat_network_iot_sock.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/OS_Specific/RTX_MW/RTOS/pal_plat_rtos.cpp"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/OS_Specific/RTX_MW/Storage/Flash/flash_iap_rtx.cpp"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/Generic/DRBG/pal_plat_drbg_noise.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/Lib_Specific/mbedTLS/DRBG/pal_plat_drbg_w_entropy_sources.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/Generic/Entropy/PSA/pal_plat_entropy_psa.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/Generic/Time/pal_plat_time.c"/>
+        <file category="source"  name="mbed-client-pal/Source/Port/Reference-Impl/Generic/SST/kvstore_impl/pal_plat_sst_impl.c"/>
+
+        <!-- kvstore -->
+        <file category="include" name="kvstore/include/"/>
+        <file category="include" name="kvstore/tdbstore/"/>
+        <file category="include" name="kvstore/helpers/"/>
+        <file category="include" name="kvstore/global_api/"/>
+        <file category="include" name="kvstore/conf/"/>
+        <file category="include" name="kvstore/kv_map/"/>
+        <file category="include" name="kvstore/securestore/"/>
+
+        <file category="source"  name="kvstore/helpers/BufferedBlockDevice.cpp"/>
+        <file category="source"  name="kvstore/helpers/FlashIAPBlockDevice.cpp"/>
+        <file category="source"  name="kvstore/global_api/kvstore_global_api.cpp"/>
+        <file category="source"  name="kvstore/tdbstore/TDBStore.cpp"/>
+        <file category="source"  name="kvstore/kv_map/KVMap.cpp"/>
+        <file category="source"  name="kvstore/conf/kv_config.cpp"/>
+        <file category="source"  name="kvstore/helpers/pal_plat_rot.cpp"/>
+        <file category="source"  name="kvstore/helpers/DeviceKey.cpp"/>
+        <file category="source"  name="kvstore/helpers/FlashSimBlockDevice.cpp"/>
+        <file category="source"  name="kvstore/helpers/SlicingBlockDevice.cpp"/>
+        <file category="source"  name="kvstore/securestore/SecureStore.cpp"/>
+
+        <!-- mbed-client-randlib -->
+        <file category="include" name="mbed-client-randlib/mbed-client-randlib/"/>
+        <file category="source"  name="mbed-client-randlib/source/randLIB.c"/>
+
+        <!-- mbed-coap -->
+        <file category="include" name="mbed-coap/"/>
+        <file category="include" name="mbed-coap/mbed-coap/"/>
+        <file category="include" name="mbed-coap/source/include/"/>
+        <file category="source"  name="mbed-coap/source/sn_coap_builder.c"/>
+        <file category="source"  name="mbed-coap/source/sn_coap_header_check.c"/>
+        <file category="source"  name="mbed-coap/source/sn_coap_parser.c"/>
+        <file category="source"  name="mbed-coap/source/sn_coap_protocol.c"/>
+
+        <!-- mbed-trace -->
+        <file category="include" name="mbed-trace/"/>
+        <file category="include" name="mbed-trace/mbed-trace/"/>
+        <file category="source"  name="mbed-trace/source/mbed_trace.c"/>
+
+        <!-- nanostack-libservice -->
+        <file category="include" name="nanostack-libservice/"/>
+        <file category="include" name="nanostack-libservice/mbed-client-libservice/"/>
+        <file category="source"  name="nanostack-libservice/source/IPv6_fcf_lib/ip_fsc.c"/>
+        <file category="source"  name="nanostack-libservice/source/libBits/common_functions.c"/>
+        <file category="source"  name="nanostack-libservice/source/libip6string/ip6tos.c"/>
+        <file category="source"  name="nanostack-libservice/source/libip6string/stoip6.c"/>
+        <file category="source"  name="nanostack-libservice/source/libip6string/stoip6.c"/>
+        <file category="source"  name="nanostack-libservice/source/libip4string/stoip4.c"/>
+        <file category="source"  name="nanostack-libservice/source/libip4string/ip4tos.c"/>
+        <file category="source"  name="nanostack-libservice/source/libList/ns_list.c"/>
+        <file category="source"  name="nanostack-libservice/source/nsdynmemLIB/nsdynmemLIB.c"/>
+
+        <!-- ns-hal-pal -->
+        <file category="include" name="ns-hal-pal/"/>
+        <file category="source"  name="ns-hal-pal/arm_hal_interrupt.c"/>
+        <file category="source"  name="ns-hal-pal/arm_hal_random.c"/>
+        <file category="source"  name="ns-hal-pal/arm_hal_timer.cpp"/>
+        <file category="source"  name="ns-hal-pal/ns_event_loop.c"/>
+        <file category="source"  name="ns-hal-pal/ns_hal_init.c"/>
+
+        <!-- sal-stack-nanostack-eventloop -->
+        <file category="include" name="sal-stack-nanostack-eventloop/nanostack-event-loop/"/>
+        <file category="source"  name="sal-stack-nanostack-eventloop/source/event.c"/>
+        <file category="source"  name="sal-stack-nanostack-eventloop/source/ns_timeout.c"/>
+        <file category="source"  name="sal-stack-nanostack-eventloop/source/ns_timer.c"/>
+        <file category="source"  name="sal-stack-nanostack-eventloop/source/system_timer.c"/>
+
+        <!-- tinycbor -->
+        <file category="include" name="tinycbor/src/"/>
+        <file category="source" name="tinycbor/src/cborencoder.c"/>
+        <file category="source" name="tinycbor/src/cborencoder_close_container_checked.c"/>
+        <file category="source" name="tinycbor/src/cborerrorstrings.c"/>
+        <file category="source" name="tinycbor/src/cborparser.c"/>
+        <file category="source" name="tinycbor/src/cborparser_dup_string.c"/>
+        <file category="source" name="tinycbor/src/cborpretty.c"/>
+        <file category="source" name="tinycbor/src/cborvalidation.c"/>
+
+        <!-- factory-configurator-client -->
+        <file category="include" name="factory-configurator-client/"/>
+        <file category="include" name="factory-configurator-client/crypto-service/crypto-service/"/>
+        <file category="include" name="factory-configurator-client/crypto-service/source/include/"/>
+        <file category="source"  name="factory-configurator-client/crypto-service/source/cs_der_certs.c"/>
+        <file category="source"  name="factory-configurator-client/crypto-service/source/cs_der_keys_and_csrs.c"/>
+        <file category="source"  name="factory-configurator-client/crypto-service/source/cs_hash.c"/>
+        <file category="source"  name="factory-configurator-client/crypto-service/source/cs_utils.c"/>
+        <file category="include" name="factory-configurator-client/factory-configurator-client/factory-configurator-client/"/>
+        <file category="include" name="factory-configurator-client/factory-configurator-client/source/include/"/>
+        <file category="source"  name="factory-configurator-client/factory-configurator-client/source/factory_configurator_client.c"/>
+        <file category="source"  name="factory-configurator-client/factory-configurator-client/source/fcc_dev_flow.c"/>
+        <file category="source"  name="factory-configurator-client/factory-configurator-client/source/fcc_utils.c"/>
+        <file category="source"  name="factory-configurator-client/factory-configurator-client/source/fcc_verification.c"/>
+        <file category="include" name="factory-configurator-client/fcc-bundle-handler/fcc-bundle-handler/"/>
+        <file category="include" name="factory-configurator-client/fcc-bundle-handler/source/include/"/>
+        <file category="source"  name="factory-configurator-client/fcc-bundle-handler/source/fcc_bundle_certificate_utils.c"/>
+        <file category="source"  name="factory-configurator-client/fcc-bundle-handler/source/fcc_bundle_common_utils.c"/>
+        <file category="source"  name="factory-configurator-client/fcc-bundle-handler/source/fcc_bundle_config_params_utils.c"/>
+        <file category="source"  name="factory-configurator-client/fcc-bundle-handler/source/fcc_bundle_csr_utils.c"/>
+        <file category="source"  name="factory-configurator-client/fcc-bundle-handler/source/fcc_bundle_handler.c"/>
+        <file category="source"  name="factory-configurator-client/fcc-bundle-handler/source/fcc_bundle_key_utils.c"/>
+        <file category="include" name="factory-configurator-client/fcc-output-info-handler/fcc-output-info-handler/"/>
+        <file category="source"  name="factory-configurator-client/fcc-output-info-handler/source/fcc_output_info_handler.c"/>
+        <file category="include" name="factory-configurator-client/ftcd-comm-base/ftcd-comm-base/"/>
+        <file category="source"  name="factory-configurator-client/ftcd-comm-base/source/ftcd_comm_base.cpp"/>
+        <file category="include" name="factory-configurator-client/ftcd-comm-serial/ftcd-comm-serial/"/>
+        <file category="include" name="factory-configurator-client/ftcd-comm-socket/ftcd-comm-socket/"/>
+        <file category="source"  name="factory-configurator-client/ftcd-comm-socket/source/ftcd_comm_socket.cpp"/>
+        <file category="include" name="factory-configurator-client/key-config-manager/"/>
+        <file category="include" name="factory-configurator-client/key-config-manager/key-config-manager/"/>
+        <file category="source"  name="factory-configurator-client/key-config-manager/source/key_config_manager.c"/>
+        <file category="include" name="factory-configurator-client/logger/logger/"/>
+
+        <file category="include" name="factory-configurator-client/mbed-trace-helper/mbed-trace-helper/"/>
+        <file category="source"  name="factory-configurator-client/mbed-trace-helper/source/mbed-trace-helper.c"/>
+        <file category="include" name="factory-configurator-client/psa-driver/psa-driver/"/>
+        <file category="source"  name="factory-configurator-client/psa-driver/source/psa_driver_common.c"/>
+        <file category="source"  name="factory-configurator-client/psa-driver/source/psa_driver_crypto.c"/>
+        <file category="source"  name="factory-configurator-client/psa-driver/source/psa_driver_dispatcher.c"/>
+        <file category="source"  name="factory-configurator-client/psa-driver/source/psa_driver_ps.c"/>
+        <file category="include" name="factory-configurator-client/storage/storage/"/>
+        <file category="include" name="factory-configurator-client/storage/source/include/"/>
+        <file category="source"  name="factory-configurator-client/storage/source/key_slot_allocator.c"/>
+        <file category="source"  name="factory-configurator-client/storage/source/se_slot_manager.c"/>
+        <file category="source"  name="factory-configurator-client/storage/source/storage_common.c"/>
+        <file category="source"  name="factory-configurator-client/storage/source/storage_non_psa.c"/>
+        <file category="source"  name="factory-configurator-client/storage/source/storage_pal_sst.c"/>
+        <file category="source"  name="factory-configurator-client/storage/source/storage_pelion_sst.c"/>
+        <file category="source"  name="factory-configurator-client/storage/source/storage_psa.c"/>
+        <file category="include" name="factory-configurator-client/utils/utils/"/>
+        <file category="source"  name="factory-configurator-client/utils/source/common_utils.c"/>
+        <file category="source"  name="factory-configurator-client/utils/source/fcc_stats.c"/>
+        <file category="source"  name="factory-configurator-client/utils/source/fcc_time_profiling.c"/>
+        <file category="source"  name="factory-configurator-client/utils/source/general_utils.c"/>
+        <file category="source"  name="factory-configurator-client/utils/source/pv_error_handling.c"/>
+
+        <!-- certificate-enrollment-client -->
+        <file category="include" name="certificate-enrollment-client/certificate-enrollment-client/"/>
+        <file category="include" name="certificate-enrollment-client/source/include/"/>
+        <file category="source"  name="certificate-enrollment-client/source/ce_safe_renewal_internal.c"/>
+        <file category="source"  name="certificate-enrollment-client/source/ce_tlv.c"/>
+        <file category="source"  name="certificate-enrollment-client/source/certificate_enrollment.c"/>
+        <file category="source"  name="certificate-enrollment-client/source/CertificateEnrollmentClient.cpp"/>
+        <file category="source"  name="certificate-enrollment-client/source/CertificateEnrollmentClientCommon.cpp"/>
+        <file category="source"  name="certificate-enrollment-client/source/CertificateRenewalData.cpp"/>
+
+        <!-- update-client -->
+        <file category="include" name="update-client-hub/"/>
+        <file category="include" name="update-client-hub/modules/atomic-queue/"/>
+        <file category="include" name="update-client-hub/modules/atomic-queue/atomic-queue/"/>
+        <file category="include" name="update-client-hub/modules/common/"/>
+        <file category="include" name="update-client-hub/modules/common/update-client-common/"/>
+        <file category="include" name="update-client-hub/modules/metadata-header/"/>
+        <file category="include" name="update-client-hub/modules/metadata-header/update-client-metadata-header/"/>
+        <file category="include" name="update-client-hub/modules/resume-engine/"/>
+        <file category="include" name="update-client-hub/modules/resume-engine/resume-engine/"/>
+        <file category="include" name="update-client-hub/modules/control-center/"/>
+        <file category="include" name="update-client-hub/modules/control-center/update-client-control-center/"/>
+        <file category="include" name="update-client-hub/modules/device-identity/"/>
+        <file category="include" name="update-client-hub/modules/device-identity/pal4life-device-identity/"/>
+        <file category="include" name="update-client-hub/modules/firmware-manager/"/>
+        <file category="include" name="update-client-hub/modules/firmware-manager/update-client-firmware-manager/"/>
+        <file category="include" name="update-client-hub/modules/lwm2m-mbed/"/>
+        <file category="include" name="update-client-hub/modules/lwm2m-mbed/update-client-lwm2m/"/>
+        <file category="include" name="update-client-hub/modules/manifest-manager/"/>
+        <file category="include" name="update-client-hub/modules/manifest-manager/update-client-manifest-manager/"/>
+        <file category="include" name="update-client-hub/modules/manifest-manager/source/"/>
+        <file category="include" name="update-client-hub/modules/monitor/"/>
+        <file category="include" name="update-client-hub/modules/monitor/update-client-monitor/"/>
+        <file category="include" name="update-client-hub/modules/paal-update-api/"/>
+        <file category="include" name="update-client-hub/modules/paal-update-api/paal-update-api/"/>
+        <file category="include" name="update-client-hub/modules/source/"/>
+        <file category="include" name="update-client-hub/modules/source/update-client-source/"/>
+        <file category="include" name="update-client-hub/modules/source-http/"/>
+        <file category="include" name="update-client-hub/modules/source-http/update-client-source-http/"/>
+        <file category="include" name="update-client-hub/modules/source-http-socket/"/>
+        <file category="include" name="update-client-hub/modules/source-http-socket/update-client-source-http-socket/"/>
+        <file category="include" name="update-client-hub/modules/source-local-file/"/>
+        <file category="include" name="update-client-hub/modules/source-local-file/update-client-source-local-file/"/>
+        <file category="include" name="update-client-hub/modules/source-manager/"/>
+        <file category="include" name="update-client-hub/modules/source-manager/update-client-source-manager/"/>
+        <file category="include" name="update-client-hub/modules/paal/"/>
+        <file category="include" name="update-client-hub/modules/paal/update-client-paal/"/>
+        <file category="include" name="update-client-hub/modules/pal-filesystem/"/>
+        <file category="include" name="update-client-hub/modules/pal-filesystem/update-client-pal-filesystem/"/>
+        <file category="include" name="update-client-hub/modules/pal-flashiap/"/>
+        <file category="include" name="update-client-hub/modules/pal-flashiap/update-client-pal-flashiap/"/>
+        <file category="include" name="update-client-hub/modules/delta-paal/update-client-delta-paal/"/>
+        <file category="include" name="update-client-hub/delta-tool-internal/include/"/>
+        <file category="include" name="update-client-hub/modules/pal-blockdevice/"/>
+
+        <file category="source"  name="update-client-hub\delta-tool-internal\source\bspatch.c"/>
+        <file category="source"  name="update-client-hub\delta-tool-internal\source\lz4.c"/>
+        <file category="source"  name="update-client-hub\delta-tool-internal\source\varint.c"/>
+        <file category="source"  name="update-client-hub\modules\atomic-queue\source\atomic-cm3.c"/>
+        <file category="source"  name="update-client-hub\modules\atomic-queue\source\atomic-queue.c"/>
+        <file category="source"  name="update-client-hub\modules\atomic-queue\source\atomic.c"/>
+        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical-nordic.c"/>
+        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical-pal.c"/>
+        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical-posix.c"/>
+        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical.c"/>
+        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_crypto_mbedtls.c"/>
+        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_crypto_pal.c"/>
+        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_error.c"/>
+        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_hw_plat.c"/>
+        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_scheduler.c"/>
+        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_test_rot.c"/>
+        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_utilities.c"/>
+        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_certificate.c"/>
+        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_certificate_kcm_api.c"/>
+        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_certificate_raw_api.c"/>
+        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_control_center.c"/>
+        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_pre_shared_key.c"/>
+        <file category="source"  name="update-client-hub\modules\delta-paal\source\arm_uc_pal_delta_paal.c"/>
+        <file category="source"  name="update-client-hub\modules\delta-paal\source\arm_uc_pal_delta_paal_implementation.c"/>
+        <file category="source"  name="update-client-hub\modules\delta-paal\source\arm_uc_pal_delta_paal_original_reader.c"/>
+        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity.c"/>
+        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity_kcm.c"/>
+        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity_nvstore.c"/>
+        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity_raw.c"/>
+        <file category="source"  name="update-client-hub\modules\firmware-manager\source\arm_uc_firmware_manager.c"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\device_metadata.c"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\firmware_update.c"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\update-lwm2m-mbed-apis.c"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\update_lwm2m_monitor.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmCommon.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmCryptoUtils.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmDerManifestAccessors.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmDerManifestParser.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmFetchFirmwareInfo.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmGetLatestTimestamp.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmInit.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmInsertManifest.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmStateSelector.c"/>
+        <file category="source"  name="update-client-hub\modules\manifest-manager\source\manifest-manager-api.c"/>
+        <file category="source"  name="update-client-hub\modules\metadata-header\source\arm_uc_buffer_utilities.c"/>
+        <file category="source"  name="update-client-hub\modules\metadata-header\source\arm_uc_crypto_hmac_mbedtls.c"/>
+        <file category="source"  name="update-client-hub\modules\metadata-header\source\arm_uc_metadata_header_v2.c"/>
+        <file category="source"  name="update-client-hub\modules\paal\source\arm_uc_paal_update.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-blockdevice\source\arm_uc_pal_blockdevice.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-blockdevice\source\arm_uc_pal_blockdevice_implementation.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_paal_classic_pal.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_filesystem_utils.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_linux_extensions.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_mbed_extensions.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_sxos_extensions.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-flashiap\source\arm_uc_pal_flashiap.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-flashiap\source\arm_uc_pal_flashiap_implementation.c"/>
+        <file category="source"  name="update-client-hub\modules\pal-target-specific\source\arm_uc_pal_realtek_rtl8195am.c"/>
+        <file category="source"  name="update-client-hub\modules\resume-engine\source\arm_uc_resume.c"/>
+        <file category="source"  name="update-client-hub\modules\source-http\source\arm_uc_source_http.c"/>
+        <file category="source"  name="update-client-hub\modules\source-http-socket\source\arm_uc_http_socket.c"/>
+        <file category="source"  name="update-client-hub\modules\source-http-socket\source\arm_uc_http_socket_private.c"/>
+        <file category="source"  name="update-client-hub\modules\source-http-socket\source\arm_uc_socket_help.c"/>
+        <file category="source"  name="update-client-hub\modules\source-manager\source\arm_uc_source_manager.c"/>
+        <file category="source"  name="update-client-hub\source\update_client_hub.c"/>
+        <file category="source"  name="update-client-hub\source\update_client_hub_error_handler.c"/>
+        <file category="source"  name="update-client-hub\source\update_client_hub_event_handlers.c"/>
+        <file category="source"  name="update-client-hub\source\update_client_hub_state_machine.c"/>
+
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\DeviceMetadataResource.cpp"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\FirmwareUpdateResource.cpp"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\lwm2m-control.cpp"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\lwm2m-monitor.cpp"/>
+        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\lwm2m-source.cpp"/>
+        <file category="source"  name="update-client-hub\modules\pal-blockdevice\source\arm_uc_pal_blockdevice_mbed.cpp"/>
+        <file category="source"  name="update-client-hub\modules\pal-flashiap\source\arm_uc_pal_flashiap_mbed.cpp"/>
+
+
+      </files>
+    </component>
+  </components>
+  <examples>
+  <example name="Pelion Device Management Client Example" doc="https://github.com/ARMmbed/mbed-cloud-client-example" folder="MDK/pdmc_example">
+    <description>Pelion Device Management Client Example</description>
+    <board name="B-L475E-IOT01A1" vendor="STMicroelectronics"/>
+    <project>
+      <environment name="uv" load="pdmc_example.uvprojx"/>
+    </project>
+    <attributes>
+      <component Cclass="IoT Client" Cgroup="Pelion Device Management Client"/>
+      <keyword>Pelion</keyword>
+    </attributes>
+  </example>
+</examples>
+</package>
+

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016-2018 ARM Ltd.
+ * Copyright 2016-2020 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,5 @@ palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes)
 // as possible.
 palStatus_t pal_osRandom32bit(uint32_t *randomInt)
 {
-    palStatus_t status;
-    status = pal_plat_osRandomBuffer_blocking((uint8_t*)randomInt, sizeof(uint32_t));
-    return status;
+    return pal_plat_osRandomBuffer_blocking((uint8_t*)randomInt, sizeof(uint32_t));
 }
-
-

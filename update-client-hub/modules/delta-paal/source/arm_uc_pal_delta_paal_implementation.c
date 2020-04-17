@@ -78,7 +78,7 @@ static uint64_t bspatch_write_new_buffer_remaining = 0;
 // Reference pointer to buffer which is received in Write() from the Hub
 static arm_uc_buffer_t *arm_uc_pal_deltapaal_incoming_buf_ref = NULL;
 // To keep internal state of which bspatch event is currently going to be completed
-static bs_patch_api_event_t arm_uc_pal_deltapaal_nextEventToPostToBsPatch = EBSAPI_START_PATCH_PROCESSING;
+static uint32_t arm_uc_pal_deltapaal_nextEventToPostToBsPatch = EBSAPI_START_PATCH_PROCESSING;
 // Assume there is process ongoing  only to one output slot
 static uint32_t current_slot_id = 0;
 

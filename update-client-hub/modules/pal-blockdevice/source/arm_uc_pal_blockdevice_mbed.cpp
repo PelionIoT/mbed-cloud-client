@@ -18,10 +18,9 @@
 
 #include "update-client-common/arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) && (ARM_UC_FEATURE_PAL_BLOCKDEVICE == 1)
-#if defined(TARGET_LIKE_MBED)
 
 #include "update-client-pal-blockdevice/arm_uc_pal_blockdevice_platform.h"
-#include "mbed.h"
+#include "BlockDevice.h"
 
 #if defined(TARGET_CY8CKIT_062_WIFI_BT_PSA)
 
@@ -115,5 +114,4 @@ int32_t arm_uc_blockdevice_read(uint8_t *buffer,
 
 }
 
-#endif /* #if defined(TARGET_LIKE_MBED) */
 #endif /* defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE) */

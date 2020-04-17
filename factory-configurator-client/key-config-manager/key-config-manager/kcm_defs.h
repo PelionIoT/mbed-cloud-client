@@ -25,55 +25,55 @@ extern "C" {
 
     /**
     * @file kcm_defs.h
-    *  \brief Keys and configuration manager (KCM) definitions.
+    *  \brief Key and configuration manager (KCM) definitions.
     */
 
     /**
-    * KCM item types
+    * KCM item types.
     */
     typedef enum {
-        KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
-        KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
+        KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM supports ECC keys with curves defined in palGroupIndex_t (pal_Crypto.h).
+        KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM supports ECC keys with curves defined in palGroupIndex_t (pal_Crypto.h).
         KCM_SYMMETRIC_KEY_ITEM,        //!< KCM symmetric key item type.
-        KCM_CERTIFICATE_ITEM,          //!< KCM certificate item type. Supported x509 certificates in der format.
+        KCM_CERTIFICATE_ITEM,          //!< KCM certificate item type. Supports x509 certificates in DER format.
         KCM_CONFIG_ITEM,               //!< KCM configuration parameter item type.
-        KCM_LAST_ITEM                  //!< KCM not defined item type.
+        KCM_LAST_ITEM                  //!< KCM undefined item type.
     } kcm_item_type_e;
 
-    /** supported message digests */
+    /** Supported message digests. */
     typedef enum {
         KCM_MD_NONE = 0x0,
         KCM_MD_SHA256 = 0x1               //!< KCM SHA256 message digest.
     } kcm_md_type_e;
 
-    /** X.509 v3 Key Usage Extension bit-mask options */
+    /** X.509 v3 key usage extension bit-mask options. */
     typedef enum {
         KCM_CSR_KU_NONE = 0x0,
         KCM_CSR_KU_DIGITAL_SIGNATURE = 0x1, //!< Digital signature key usage extension bit.
-        KCM_CSR_KU_NON_REPUDIATION = 0x2,   //!< Non repudiation key usage extension bit.
+        KCM_CSR_KU_NON_REPUDIATION = 0x2,   //!< Nonrepudiation key usage extension bit.
         KCM_CSR_KU_KEY_CERT_SIGN = 0x4,     //!< Certificate signing key usage extension bit.
         KCM_CSR_KU_KEY_AGREEMENT = 0x8      //!< Key agreement key usage extension bit.
     } kcm_csr_key_usage_e;
 
-    /** X.509 v3 Extended Key Usage Extension bit-mask options */
+    /** X.509 v3 extended key usage extension bit-mask options. */
     typedef enum {
         KCM_CSR_EXT_KU_NONE =             0,
         KCM_CSR_EXT_KU_ANY =              (1 << 0),
-        KCM_CSR_EXT_KU_SERVER_AUTH =      (1 << 1), //!< SSL / TLS Web Server Authentication.
-        KCM_CSR_EXT_KU_CLIENT_AUTH =      (1 << 2), //!< SSL / TLS Web Client Authentication.
+        KCM_CSR_EXT_KU_SERVER_AUTH =      (1 << 1), //!< SSL/TLS web server authentication.
+        KCM_CSR_EXT_KU_CLIENT_AUTH =      (1 << 2), //!< SSL/TLS web client authentication.
         KCM_CSR_EXT_KU_CODE_SIGNING =     (1 << 3), //!< Code signing.
-        KCM_CSR_EXT_KU_EMAIL_PROTECTION = (1 << 4), //!< E - mail Protection(S / MIME).
-        KCM_CSR_EXT_KU_TIME_STAMPING =    (1 << 8), //!< Trusted Time stamping.
-        KCM_CSR_EXT_KU_OCSP_SIGNING =     (1 << 9)  //!< OCSP Signing.
+        KCM_CSR_EXT_KU_EMAIL_PROTECTION = (1 << 4), //!< Email protection (S/MIME).
+        KCM_CSR_EXT_KU_TIME_STAMPING =    (1 << 8), //!< Trusted time stamping.
+        KCM_CSR_EXT_KU_OCSP_SIGNING =     (1 << 9)  //!< OCSP signing.
     } kcm_csr_ext_key_usage_e;
 
-    /** Cryptographic scheme types
-    *   Currently only ECC-256 curve is supported.
-    *   More schemes can be added later on.
+    /** Cryptographic scheme types.
+    *   Currently, only ECC-256 curve is supported.
+    *   Additional schemes can be added.
     */
     typedef enum {
         KCM_SCHEME_NONE,
-        KCM_SCHEME_EC_SECP256R1,       //!< KCM ECC cryptographic scheme, 256-bits NIST curve.
+        KCM_SCHEME_EC_SECP256R1,       //!< KCM ECC cryptographic scheme, 256-bit NIST curve.
     } kcm_crypto_key_scheme_e;
 
     /*
@@ -82,8 +82,8 @@ extern "C" {
     typedef void* kcm_cert_chain_handle;
 
     /**
-    * KCM key handle type
-    * Represents a reference to internal kcm key handler
+    * KCM key handle type.
+    * Represents a reference to an internal KCM key handler.
     */
     typedef uintptr_t kcm_key_handle_t;
 
@@ -93,17 +93,17 @@ extern "C" {
     */
     typedef void* kcm_security_desc_s;
 
-    /** This struct contains CSR parameters for future generated CSR
+    /** This struct contains CSR parameters for the future-generated CSR.
     *
-    *      @param subject String that contains the subject (distinguished name) of the certificate in predefined format.
-    *                     The format should be as the following example: "C=US,ST=California,L=San Francisco,O=Wikimedia Foundation,Inc.,CN=*.wikipedia.org".
+    *      @param subject String that contains the subject (distinguished name) of the certificate in the predefined format.<br/>Consists of a comma-separated list of the Object Identifier (OID) types and values; for example, `"C=UK,O=ARM,CN=mbed TLS Server 1"`.
+    *                     See the [instructions for generating a CSR](https://tls.mbed.org/kb/how-to/generate-a-certificate-request-csr) for the full list of supported OIDs.
     *      @param md_type Message digest selected from `::kcm_md_type_e`.
-    *      @param key_usage Key usage extension bit-mask selected from `::kcm_csr_key_usage_e`. If the requested CSR does not contain any key usage extension, it needs to be set to `::KCM_CSR_KU_NONE`.
-    *      @param ext_key_usage Extended key usage extensions bit-mask selected from `::kcm_csr_ext_key_usage_e`. If the requested CSR does not contain any extended key usage extension, it needs to be set to `::KCM_CSR_EXT_KU_NONE`.
+    *      @param key_usage Key usage extension bit-mask selected from `::kcm_csr_key_usage_e`. If the requested CSR does not contain a key usage extension, set to `::KCM_CSR_KU_NONE`.
+    *      @param ext_key_usage Extended key usage extensions bit-mask selected from `::kcm_csr_ext_key_usage_e`. If the requested CSR does not contain an extended key usage extension, set to `::KCM_CSR_EXT_KU_NONE`.
     */
     typedef struct kcm_csr_params_ {
         char *subject;
-        kcm_md_type_e md_type;
+        kcm_md_type_e md_type; 
         uint32_t key_usage;
         uint32_t ext_key_usage;
     } kcm_csr_params_s;

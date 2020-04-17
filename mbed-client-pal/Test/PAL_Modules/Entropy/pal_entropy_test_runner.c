@@ -22,6 +22,8 @@
 
 TEST_GROUP_RUNNER(pal_entropy)
 {
+#ifndef PAL_SKIP_TEST_MODULE_ENTROPY
     RUN_TEST_CASE(pal_entropy, inject);
+#endif
 }
 

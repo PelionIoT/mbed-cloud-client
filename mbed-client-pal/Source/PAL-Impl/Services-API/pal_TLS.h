@@ -219,6 +219,7 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
  */
 palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t timeoutInMilliSec);
 
+#if PAL_USE_SECURE_TIME
 /*! \brief Return the result of the certificate verification.
  *
  * @param[in] palTLSHandle: The TLS context.
@@ -237,6 +238,7 @@ palStatus_t pal_sslGetVerifyResult(palTLSHandle_t palTLSHandle);
  * \return PAL_ERR_X509_CERT_VERIFY_FAILED in case of failure.
  */
 palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult);
+#endif //PAL_USE_SECURE_TIME
 
 /*! \brief Read the application data bytes (the max number of bytes).
  *

@@ -216,6 +216,11 @@ palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *randomBuf, size_t bufSizeByt
     return status;
 }
 
+int mbedtls_hardware_poll( void *data, unsigned char *output, size_t len, size_t *olen )
+{
+    return (int)pal_plat_getRandomBufferFromHW((uint8_t*)output, len, olen);
+}
+
 #if (PAL_USE_HW_RTC)
 palMutexID_t rtcMutex = NULLPTR;
 palStatus_t pal_plat_osGetRtcTime(uint64_t *rtcGetTime)

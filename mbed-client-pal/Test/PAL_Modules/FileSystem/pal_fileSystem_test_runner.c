@@ -20,15 +20,17 @@
 
 TEST_GROUP_RUNNER(pal_fileSystem)
 {
+#ifndef PAL_SKIP_TEST_MODULE_FILESYSTEM
     RUN_TEST_CASE(pal_fileSystem, SDFormat);
-	RUN_TEST_CASE(pal_fileSystem, rootDirectoryTests);
-	RUN_TEST_CASE(pal_fileSystem, directoryTests);
-	RUN_TEST_CASE(pal_fileSystem, FilesTests);
-	RUN_TEST_CASE(pal_fileSystem, FilesTestsSeek);
-	RUN_TEST_CASE(pal_fileSystem, FilesPermission_read_only);
-	RUN_TEST_CASE(pal_fileSystem, FilesPermission_read_write);
-	RUN_TEST_CASE(pal_fileSystem, FilesPermission_read_write_trunc);
-	RUN_TEST_CASE(pal_fileSystem, create_write_and_read_pal_file);
+    RUN_TEST_CASE(pal_fileSystem, rootDirectoryTests);
+    RUN_TEST_CASE(pal_fileSystem, directoryTests);
+    RUN_TEST_CASE(pal_fileSystem, FilesTests);
+    RUN_TEST_CASE(pal_fileSystem, FilesTestsSeek);
+    RUN_TEST_CASE(pal_fileSystem, FilesPermission_read_only);
+    RUN_TEST_CASE(pal_fileSystem, FilesPermission_read_write);
+    RUN_TEST_CASE(pal_fileSystem, FilesPermission_read_write_trunc);
+    RUN_TEST_CASE(pal_fileSystem, create_write_and_read_pal_file);
     RUN_TEST_CASE(pal_fileSystem, WriteInTheMiddle);
     RUN_TEST_CASE(pal_fileSystem, SequentialWriteAndRead);
+#endif
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2020 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
 #include "crypto.h"
 #endif
 
-#ifdef __LINUX__
+#ifdef __linux__
 #include <netdb.h>
 #endif
 
@@ -385,11 +385,8 @@ TEST(pal_socket, basicTCPclientSendRecieve)
     do {
         result = pal_connect(g_testSockets[0], &address, 16);
         pal_osSemaphoreWait(s_semaphoreID3, 100, &temp);
-    } while (result == PAL_ERR_SOCKET_IN_PROGRES || result == PAL_ERR_SOCKET_WOULD_BLOCK);
+    } while (result != PAL_SUCCESS);
 
-    if (result == PAL_ERR_SOCKET_ALREADY_CONNECTED) {
-        result = PAL_SUCCESS;
-    }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, result);
 
     /*#5*/

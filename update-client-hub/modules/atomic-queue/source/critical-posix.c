@@ -59,6 +59,7 @@ void aq_critical_section_enter()
         assert(rc == 0);
         rc = sigprocmask(SIG_BLOCK, &full_set, &old_sig_set);
         assert(rc == 0);
+        (void) rc;
     }
 }
 
@@ -68,6 +69,7 @@ void aq_critical_section_exit(void)
     if (--irq_nesting_depth == 0) {
         int rc = sigprocmask(SIG_SETMASK, &old_sig_set, NULL);
         assert(rc == 0);
+        (void) rc;
     }
     pthread_mutex_unlock(get_mutex());
 }

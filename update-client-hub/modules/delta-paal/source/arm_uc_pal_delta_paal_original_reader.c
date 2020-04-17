@@ -48,7 +48,9 @@
 #include "update-client-paal/arm_uc_paal_update_api.h"
 #define TRACE_GROUP  "UCPI"
 
+#if defined(TARGET_LIKE_MBED)
 static int flash_init_done = 0;
+#endif
 
 /**
  * @brief arm_uc_deltapaal_original_reader - helper function to read bytes from original reader.

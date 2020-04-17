@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -25,6 +25,9 @@ namespace m2m {
 #ifndef MIN
 #define MIN(A,B) ((A) < (B) ? (A) : (B))
 #endif
+
+// (space needed for -3.402823 × 10^38) + (magic decimal 6 digits added as no precision is added to "%f") + trailing zero
+#define REGISTRY_FLOAT_STRING_MAX_LEN 48
 
 const String::size_type String::npos = static_cast<size_t>(-1);
 
@@ -457,7 +460,7 @@ bool String::convert_ascii_to_int(const char *value, size_t length, int64_t &con
     // return value, will be set to true if at least one digit is found
     // and a false is returned if
     // a) no digits found, ie. string is empty
-    // b) a non-digit or non-'+' or non-'-' char is found. 
+    // b) a non-digit or non-'+' or non-'-' char is found.
     // c) more than one +, - chars are found
     //
     bool success = false;
@@ -503,7 +506,7 @@ bool String::convert_ascii_to_int(const char *value, size_t length, int64_t &con
             case '-':
             default:
                 // Note: the handling of having a number with digits in front and
-                // non-digits at end (eg. "0zero") differs from sscanf() on glibc, 
+                // non-digits at end (eg. "0zero") differs from sscanf() on glibc,
                 // as sscanf will return what it got converted and a success value
                 // even if the string ended with junk.
                 conversion_result = 0;
@@ -518,6 +521,21 @@ bool String::convert_ascii_to_int(const char *value, size_t length, int64_t &con
     conversion_result = result;
 
     return success;
+}
+
+bool String::convert_ascii_to_float(const char *value, size_t size, float &conversion_result)
+{
+    if (size > REGISTRY_FLOAT_STRING_MAX_LEN) {
+        return false;
+    }
+    char valueArray[REGISTRY_FLOAT_STRING_MAX_LEN + 1];
+    for (size_t i=0; i<size; i++) {
+        valueArray[i] = *(value +i);
+    }
+    valueArray[size] = '\0';
+    char *end_ptr;
+    conversion_result = strtof(valueArray, &end_ptr);
+    return *end_ptr == '\0';
 }
 
 } // namespace

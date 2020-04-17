@@ -129,5 +129,14 @@ arm_uc_error_t ARM_UCS_HttpSocket_GetFragment(arm_uc_uri_t *uri,
     return arm_uc_http_socket_get(uri, buffer, offset, RQST_TYPE_GET_FRAG);
 }
 
+/**
+ * @brief Cancel resume engine externally
+ * @param unused Unused.
+ */
+void ARM_UC_HttpSocket_EndResume(void)
+{
+    arm_uc_http_socket_end_resume();
+}
+
 #endif // ARM_UC_FEATURE_FW_SOURCE_HTTP
 

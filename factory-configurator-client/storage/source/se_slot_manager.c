@@ -32,10 +32,10 @@
 #ifdef GENERATION_SE_KEYS_TESTS
 #include "se_generation_data_user_config.h"
 #else
-#define SE_DATA_PRIV_KEY_SLOTS_NUMBER 0
-#define SE_DATA_PUB_KEY_SLOTS_NUMBER 0
-uint64_t g_private_key_slots[SE_DATA_PRIV_KEY_SLOTS_NUMBER];//Array of private key slots
-uint64_t g_public_key_slots[SE_DATA_PUB_KEY_SLOTS_NUMBER]; //Array of public key slots
+#define SE_DATA_PRIV_KEY_SLOTS_NUMBER 1
+#define SE_DATA_PUB_KEY_SLOTS_NUMBER 1
+uint64_t g_private_key_slots[SE_DATA_PRIV_KEY_SLOTS_NUMBER] = {0};//Array of private key slots
+uint64_t g_public_key_slots[SE_DATA_PUB_KEY_SLOTS_NUMBER]= {0}; //Array of public key slots
 #endif
 
 typedef struct sem_psa_correlation {

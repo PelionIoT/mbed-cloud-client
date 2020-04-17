@@ -21,6 +21,7 @@
 
 TEST_GROUP_RUNNER(pal_tls)
 {
+#ifndef PAL_SKIP_TEST_MODULE_TLS
     RUN_TEST_CASE(pal_tls, tlsConfiguration);
     RUN_TEST_CASE(pal_tls, tlsInitTLS);
     RUN_TEST_CASE(pal_tls, tlsPrivateAndPublicKeys);
@@ -36,5 +37,5 @@ TEST_GROUP_RUNNER(pal_tls)
     RUN_TEST_CASE(pal_tls, TCPHandshakeWhileCertVerify_threads);
     RUN_TEST_CASE(pal_tls, tlsHandshakeUDP);
     RUN_TEST_CASE(pal_tls, tlsHandshake_SessionResume);
-
+#endif
 }

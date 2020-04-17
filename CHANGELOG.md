@@ -1,6 +1,25 @@
 ## Changelog for Pelion Device Management Client
 
-### Release 4.3.0 (03.02.2020)
+### Release 4.4.0 (17.04.2020)
+
+* Fixed off-by-one bug in `m2mstring::convert_ascii_to_float()`.
+* Deprecated and removed the usage of `PAL_UDP_MTU_SIZE`. The implementation was not correct and was not doing what it claimed to do. Applications should use instead `mbed-client-pal.pal-max-frag-len` to enable DTLS fragmentation support for network stacks with MTU limitations.
+* Added KVStore library as a new component.
+* Allow client to pause in any state.
+* Client now cancels existing subscriptions after a full registration. This matches the server side behaviour for full registration, and ensures that notification tokens are properly synchronized.
+
+### Factory Configuration Client
+
+Bugfix: When a device with PSA configuration was restarted, the time was read before storage initialization. This caused rebootstrap of the device on every restart.
+
+### Platform Adaptation Layer (PAL)
+
+* Reintroduced backwards compatibility with Mbed OS 5.x releases to the PAL layer. String-based Mbed OS APIs are also supported in function `pal_plat_getNetInterfaceInfo`.
+* Added support for NXP SDK.
+* Added support for Renesas SDK.
+* Flagged `pal_sslGetVerifyResult` and `pal_sslGetVerifyResultExtended` functions with `PAL_USE_SECURE_TIME` option. These functions rely on having the current time available and are not guaranteed to work without `PAL_USE_SECURE_TIME`.
+
+### Release 4.3.0 (06.02.2020)
 
 #### Device Management Client
 

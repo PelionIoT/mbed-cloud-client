@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -13,8 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Needed for PRIu64 on FreeRTOS
-#include <stdio.h>
+
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
 #ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS

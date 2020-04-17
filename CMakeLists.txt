@@ -3,31 +3,28 @@ INCLUDE(CMakeForceCompiler)
 cmake_minimum_required (VERSION 3.5)
 SET(CMAKE_SYSTEM_NAME Generic)
 
-add_definitions(-DTARGET_LIKE_POSIX)
-
+# For Linux OS we will maintain backwards compatibility with the porting layer.
+# This does cause limitations on the porting flexibility for Linux.
 if (${OS_BRAND} MATCHES Linux)
     add_definitions(-DMBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE=102400)
-else()
-    add_definitions(-DMBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE=8000)
+    add_definitions(-DARM_UC_FEATURE_PAL_FILESYSTEM=1)
+    add_definitions(-DTARGET_LIKE_POSIX)
 endif()
 
-
-SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client)
-
+# Mandatory defines for eventloop and update client configuration
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_EXCLUDE_HIGHRES_TIMER)
 add_definitions(-DMBED_CONF_NANOSTACK_EVENTLOOP_USE_PLATFORM_TICK_TIMER)
-
 add_definitions(-DARM_UC_PROFILE_MBED_CLOUD_CLIENT=1)
-add_definitions(-DARM_UC_FEATURE_PAL_FILESYSTEM=1)
 
 # enable duplicate detection by default, count is the same as resend queue size
 add_definitions(-DMBED_CONF_MBED_CLIENT_SN_COAP_DUPLICATION_MAX_MSGS_COUNT=4)
-
 add_definitions(-DSN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT=1)
 
 project(mbedCloudClient)
 
 # mbed-cloud-client
+
+SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client)
 
 ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR})
 ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR}/source)

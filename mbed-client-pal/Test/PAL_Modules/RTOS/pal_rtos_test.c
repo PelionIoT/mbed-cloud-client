@@ -1549,7 +1549,8 @@ TEST(pal_rtos, Loop_thread_launch_and_terminate)
     palThreadID_t threadID = NULLPTR;
 
     /*#1*/
-    status = pal_osThreadCreateWithAlloc(palThreadFunc9, NULL, PAL_osPriorityNormal, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID);
+    // use priority just above idle to guarantee main thread getting run time
+    status = pal_osThreadCreateWithAlloc(palThreadFunc9, NULL, PAL_osPriorityLow, PAL_TEST_THREAD_STACK_SIZE, NULL, &threadID);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/

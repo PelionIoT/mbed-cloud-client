@@ -449,9 +449,9 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
         status = pal_plat_handShake(palTLSCtx->platTlsHandle, &palTLSCtx->serverTime);
         if (PAL_SUCCESS == status)
         {
+#if PAL_USE_SECURE_TIME
             int32_t verifyResult = 0;
             status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
-#if PAL_USE_SECURE_TIME
             if (PAL_ERR_X509_CERT_VERIFY_FAILED == status)
             {
                 if ((PAL_ERR_X509_BADCERT_FUTURE & verifyResult) || ((true == palTLSConfCtx->trustedTimeServer) && (PAL_ERR_X509_BADCERT_EXPIRED & verifyResult)))
@@ -522,6 +522,7 @@ finish:
     return status;
 }
 
+#if PAL_USE_SECURE_TIME
 palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -557,7 +558,7 @@ palStatus_t pal_sslGetVerifyResult(palTLSHandle_t palTLSHandle)
     status = pal_plat_sslGetVerifyResultExtended(palTLSCtx->platTlsHandle, &verifyResult);
     return status;
 }
-
+#endif //PAL_USE_SECURE_TIME
 
 palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t timeoutInMilliSec)
 {

@@ -20,9 +20,11 @@
 
 TEST_GROUP_RUNNER(pal_rot)
 {
+#ifndef PAL_SKIP_TEST_MODULE_ROT
     RUN_TEST_CASE(pal_rot, GetDeviceKeyTest_CMAC);
     RUN_TEST_CASE(pal_rot, GetDeviceKeyTest_HMAC_SHA256);
     RUN_TEST_CASE(pal_rot, GetRoTKeyTest);
     RUN_TEST_CASE(pal_rot, SeTRoTKeyTest);
+#endif
 }
 

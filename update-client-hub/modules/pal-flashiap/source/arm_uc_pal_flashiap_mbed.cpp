@@ -18,12 +18,12 @@
 
 #include "update-client-common/arm_uc_config.h"
 #if defined(ARM_UC_FEATURE_PAL_FLASHIAP) && (ARM_UC_FEATURE_PAL_FLASHIAP == 1)
-#if defined(TARGET_LIKE_MBED)
 
 #include "update-client-pal-flashiap/arm_uc_pal_flashiap_platform.h"
-#include "mbed.h"
+#include "FlashIAP.h"
+#include "SingletonPtr.h"
 
-SingletonPtr<FlashIAP> flash;
+SingletonPtr<mbed::FlashIAP> flash;
 
 int32_t arm_uc_flashiap_init(void)
 {
@@ -85,5 +85,4 @@ uint32_t arm_uc_flashiap_get_flash_start(void)
     return flash->get_flash_start();
 }
 
-#endif /* TARGET_LIKE_MBED */
 #endif /* ARM_UC_FEATURE_PAL_FLASHIAP */

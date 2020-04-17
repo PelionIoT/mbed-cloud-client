@@ -9,7 +9,7 @@
             "value": "MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP"
         },
         "update-storage": {
-            "help": "Storage option for update image. Common values: ARM_UCP_FLASHIAP and ARM_UCP_FLASHIAP_BLOCKDEVICE.",
+            "help": "Storage option for update image. Common values: ARM_UCP_FLASHIAP, ARM_UCP_FLASHIAP_MCUBOOT and ARM_UCP_FLASHIAP_BLOCKDEVICE.",
             "macro_name": "MBED_CLOUD_CLIENT_UPDATE_STORAGE",
             "default": null,
             "value": null
@@ -35,6 +35,12 @@
         "secure-element-support": {
             "help": "Enables Secure Element feature",
             "options": [ "null", "1"],
+            "default": null,
+            "value": null
+        },
+        "enable-device-insights": {
+            "help": "Enables Device Insights feature",
+            "options": [ "null", "1" ],
             "default": null,
             "value": null
         }

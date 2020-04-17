@@ -894,16 +894,22 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
     SocketAddress addr;
     PAL_VALIDATE_ARGUMENTS((interfaceNum >= s_pal_numberOFInterfaces));
 
-    if (s_pal_networkInterfacesSupported[interfaceNum].interface->get_ip_address(&addr) == NSAPI_ERROR_OK)
-    {
+#if defined (MBED_MAJOR_VERSION) && (MBED_MAJOR_VERSION==5)
+    const char* address = NULL;
+
+    address = s_pal_networkInterfacesSupported[interfaceNum].interface->get_ip_address(); // ip address returned is a null terminated string
+    if (NULL != address) {
+        addr.set_ip_address(address);
+#else // Mbed OS 6 or newer, with socket address based get_ip_address API
+    if (s_pal_networkInterfacesSupported[interfaceNum].interface->get_ip_address(&addr) == NSAPI_ERROR_OK) {
+#endif
+
 #if (PAL_DNS_API_VERSION != 2)
         result = socketAddressToPalSockAddr(addr, &interfaceInfo->address, &interfaceInfo->addressSize);
 #else
         result = socketAddressToPalSockAddr(addr, &interfaceInfo->address);
 #endif
     }
-
-
     return result;
 }
 

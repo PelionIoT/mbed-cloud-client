@@ -25,6 +25,7 @@ void arm_random_module_init(void)
 {
     palStatus_t status = pal_init();
     assert(status == PAL_SUCCESS);
+    (void) status;
 }
 
 uint32_t arm_random_seed_get(void)
@@ -32,5 +33,6 @@ uint32_t arm_random_seed_get(void)
     uint32_t result = 0;
     palStatus_t status = pal_osRandom32bit(&result);
     assert(status == PAL_SUCCESS);
+    (void) status;
     return result;
 }

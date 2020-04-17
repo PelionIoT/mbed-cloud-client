@@ -465,11 +465,6 @@ private: // state machine state functions
     void state_resume(EventData *data);
 
     /**
-     * When the client has paused.
-     */
-    void state_pause();
-
-    /**
     * State enumeration order must match the order of state
     * method entries in the state map
     */
@@ -494,7 +489,6 @@ private: // state machine state functions
         STATE_COAP_DATA_RECEIVED, // 15
         STATE_PROCESSING_COAP_DATA,
         STATE_COAP_DATA_PROCESSED,
-        STATE_PAUSE,
         STATE_RESUME,
         STATE_WAITING, // 20
         STATE_MAX_STATES
@@ -599,8 +593,9 @@ private:
     char                        _error_description[MAX_ALLOWED_ERROR_STRING_LENGTH];
 #endif
 
+    // Reconnection related variables (in seconds)
     uint16_t                     _initial_reconnection_time;
-    uint64_t                    _reconnection_time;
+    uint32_t                    _reconnection_time;
 
     friend class Test_M2MInterfaceImpl;
 

@@ -1,7 +1,7 @@
 
 if(DEFINED DISABLE_PAL_TESTS)
     # disabled and compiled out tests if DISABLE_PAL_TESTS variable is defined
-	return()
+  return()
 endif()
 
 include_directories(../Source/PAL-Impl/Services-API)
@@ -26,10 +26,10 @@ if (${OS_BRAND} MATCHES Linux)
   add_definitions(-DPAL_NO_FATFS_SD_TEST=1)
   if (NOT USE_ETH_INTERFACE)
     execute_process(COMMAND ip -o -4 route show to default
-	                  COMMAND awk "{print $5}"
-			  COMMAND head -1
-	                  OUTPUT_STRIP_TRAILING_WHITESPACE
-	                  OUTPUT_VARIABLE  ETHNAME)
+                    COMMAND awk "{print $5}"
+                    COMMAND head -1
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    OUTPUT_VARIABLE  ETHNAME)
     set(TMPD \"${ETHNAME}\")
     add_definitions(-DPAL_LINUX_ETH=${TMPD})
     message( "ETHNAME = ${ETHNAME}")
@@ -40,7 +40,7 @@ if (${OS_BRAND} MATCHES Linux)
 endif()
 
 if (CMAKE_BUILD_TYPE MATCHES Debug)
-	add_definitions(-DDEBUG)
+  add_definitions(-DDEBUG)
 endif()
 
 include_directories(Unitest)
@@ -130,17 +130,17 @@ message(PAL_TEST_MAIN_SRCS = ${PAL_TEST_MAIN_SRCS})
 file(GLOB PAL_TEST_BSP_SRCS "${PAL_TEST_BSP_DIR}/${PAL_TARGET_DEVICE}_${OS_BRAND}/*")
 
 set(PAL_TEST_UNITY_SRC
-  	${PAL_UNITY_SOURCE_DIR}/unity.c
-  	${PAL_UNITY_FIXTURE_DIR}/unity_fixture.c
+    ${PAL_UNITY_SOURCE_DIR}/unity.c
+    ${PAL_UNITY_FIXTURE_DIR}/unity_fixture.c
 )
 
 set(PAL_INSECURE_ROT_SRC
-	  ${PAL_TEST_BSP_DIR}/pal_insecure_ROT.c
-	  )
+    ${PAL_TEST_BSP_DIR}/pal_insecure_ROT.c
+)
 
 if (PAL_MEMORY_STATISTICS) #currently working only in gcc based compilers
-    list (APPEND PAL_TEST_BSP_SRCS  ${PAL_UTILS_DIR}/pal_memory.c)
-    add_definitions(-DPAL_MEMORY_STATISTICS=1)
+  list (APPEND PAL_TEST_BSP_SRCS  ${PAL_UTILS_DIR}/pal_memory.c)
+  add_definitions(-DPAL_MEMORY_STATISTICS=1)
 endif()
 
 ADD_GLOBALDIR(${PAL_TEST_BSP_DIR}/Include/)
@@ -152,7 +152,7 @@ set(test_src ${PAL_TEST_MAIN_SRCS})
 set (PAL_TEST_FLAGS
     -DPAL_TEST_RTOS
     -DPAL_TEST_ROT
-	-DPAL_TEST_ENTROPY
+    -DPAL_TEST_ENTROPY
     -DPAL_TEST_DRBG
     -DPAL_TEST_FS
     -DPAL_TEST_UPDATE

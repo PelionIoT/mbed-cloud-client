@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016-2019 ARM Ltd.
+ * Copyright 2016-2020 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,11 +40,11 @@ PAL_PRIVATE void pal_modulesCleanup(void)
 #endif
     pal_plat_cleanupCrypto();
     pal_cleanupTLS();
+#if PAL_USE_FILESYSTEM
     pal_fsCleanup();
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-    #if PAL_USE_INTERNAL_FLASH
-        pal_internalFlashDeInit();
-    #endif
+#endif
+#if (PAL_USE_INTERNAL_FLASH == 1) && !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)
+    pal_internalFlashDeInit();
 #endif
     pal_RTOSDestroy();
 }
@@ -91,9 +91,9 @@ palStatus_t pal_init(void)
                     {
                         DEBUG_PRINT("Internal Flash init\r\n");
 
-                        #if PAL_USE_INTERNAL_FLASH
+#if (PAL_USE_INTERNAL_FLASH == 1) && !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)
                             status = pal_internalFlashInit();
-                        #endif
+#endif
                         if (PAL_SUCCESS != status)
                         {
                             DEBUG_PRINT("init of Internal Flash module has failed with status %" PRIx32 "\r\n",status);
@@ -101,7 +101,7 @@ palStatus_t pal_init(void)
 
                         else
                         {
-#if !defined  MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
                             sotp_result_e sotpStatus = SOTP_SUCCESS;
                             DEBUG_PRINT("SOTP init\r\n");
 
@@ -120,6 +120,7 @@ palStatus_t pal_init(void)
                                     DEBUG_PRINT("init of DRBG module has failed with status %" PRIx32 "\r\n",status);
                                 }
                             }
+
                         }
                     }
                 }
@@ -133,7 +134,7 @@ palStatus_t pal_init(void)
         // if failed decrease the value of g_palIntialized
         if (PAL_SUCCESS != status)
         {
-#if PAL_CLEANUP_ON_INIT_FAILURE           
+#if PAL_CLEANUP_ON_INIT_FAILURE
             pal_modulesCleanup();
             pal_osAtomicIncrement(&g_palIntialized, -1);
 #endif
@@ -162,5 +163,4 @@ int32_t  pal_destroy(void)
 
     return currentInitValue;
 }
-
 
