@@ -252,10 +252,10 @@ protected:
      * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
      *        otherwise handled in mbed-client-c.
      */
-    M2MBase(const String &name,
+    M2MBase(const m2m::String &name,
             M2MBase::Mode mode,
 #ifndef DISABLE_RESOURCE_TYPE
-            const String &resource_type,
+            const m2m::String &resource_type,
 #endif
             char *path,
             bool external_blockwise_store,
@@ -283,7 +283,7 @@ public:
      * \param description The description to be set.
      */
 #if !defined(DISABLE_INTERFACE_DESCRIPTION) || defined(RESOURCE_ATTRIBUTES_LIST)
-    void set_interface_description(const String &description);
+    void set_interface_description(const m2m::String &description);
 
     /**
      * \brief Sets the interface description of the object.
@@ -302,7 +302,7 @@ public:
      * \brief Sets the resource type of the object.
      * \param resource_type The resource type to be set.
      */
-    virtual void set_resource_type(const String &resource_type);
+    virtual void set_resource_type(const m2m::String &resource_type);
 
     /**
      * \brief Sets the resource type of the object.
@@ -571,7 +571,7 @@ public:
      * @brief Calls the function that is set in the "set_value_updated_function".
      * @param name The name of the object.
      */
-    void execute_value_updated(const String& name);
+    void execute_value_updated(const m2m::String& name);
 
     /**
      * @brief Returns length of the object name.
@@ -720,7 +720,7 @@ protected: // from M2MReportObserver
     static uint8_t* alloc_copy(const uint8_t* source, uint32_t size);
 
     // validate string length to be [min_length..max_length]
-    static bool validate_string_length(const String &string, size_t min_length, size_t max_length);
+    static bool validate_string_length(const m2m::String &string, size_t min_length, size_t max_length);
     static bool validate_string_length(const char* string, size_t min_length, size_t max_length);
 
     /**
@@ -849,7 +849,7 @@ protected: // from M2MReportObserver
 
 private:
 
-    static bool is_integer(const String &value);
+    static bool is_integer(const m2m::String &value);
 
     static bool is_integer(const char *value);
 

@@ -62,12 +62,12 @@ public:
 
 public:
 
-    String                          endpoint_name;
-    String                          account_id;
-    String                          internal_endpoint_name;
+    m2m::String                          endpoint_name;
+    m2m::String                          account_id;
+    m2m::String                          internal_endpoint_name;
     M2MSecurity::SecurityModeType   mode;
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-    String                          lwm2m_server_uri;
+    m2m::String                          lwm2m_server_uri;
 #endif
 };
 

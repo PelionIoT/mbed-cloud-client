@@ -286,20 +286,20 @@ public:
      * @brief Updates the endpoint name.
      * @param name New endpoint name
      */
-    virtual void update_endpoint(const String &name) = 0;
+    virtual void update_endpoint(const m2m::String &name) = 0;
 
     /**
      * @brief Updates the domain name.
      * @param domain New domain name
      */
-    virtual void update_domain(const String &domain) = 0;
+    virtual void update_domain(const m2m::String &domain) = 0;
 
 
     /**
      * @brief Return internal endpoint name
      * @return internal endpoint name
      */
-    virtual const String internal_endpoint_name() const = 0;
+    virtual const m2m::String internal_endpoint_name() const = 0;
 
     /**
      * @brief Return error description for the latest error code

@@ -52,9 +52,9 @@ private: // Constructor and destructor are private
      *        otherwise handled in mbed-client-c.
      */
     M2MResourceInstance(M2MResource &parent,
-                        const String &resource_name,
+                        const m2m::String &resource_name,
                         M2MBase::Mode mode,
-                        const String &resource_type,
+                        const m2m::String &resource_type,
                         M2MBase::DataType type,
                         char* path,
                         bool external_blockwise_store,
@@ -74,9 +74,9 @@ private: // Constructor and destructor are private
      *        otherwise handled in mbed-client-c.
      */
     M2MResourceInstance(M2MResource &parent,
-                        const String &resource_name,
+                        const m2m::String &resource_name,
                         M2MBase::Mode mode,
-                        const String &resource_type,
+                        const m2m::String &resource_type,
                         M2MBase::DataType type,
                         const uint8_t *value,
                         const uint8_t value_length,

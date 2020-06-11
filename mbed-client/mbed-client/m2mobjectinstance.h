@@ -47,7 +47,7 @@ private: // Constructor and destructor are private which means
      * \param name Name of the object
      */
     M2MObjectInstance(M2MObject& parent,
-                      const String &resource_type,
+                      const m2m::String &resource_type,
                       char *path,
                       bool external_blockwise_store = false);
 
@@ -89,8 +89,8 @@ public:
      *        otherwise handled in mbed-client-c.
      * \return M2MResource The resource for managing other client operations.
      */
-    M2MResource* create_static_resource(const String &resource_name,
-                                        const String &resource_type,
+    M2MResource* create_static_resource(const m2m::String &resource_name,
+                                        const m2m::String &resource_type,
                                         M2MResourceInstance::ResourceType type,
                                         const uint8_t *value,
                                         const uint8_t value_length,
@@ -110,8 +110,8 @@ public:
      *        otherwise handled in mbed-client-c.
      * \return M2MResource The resource for managing other client operations.
      */
-    M2MResource* create_dynamic_resource(const String &resource_name,
-                                         const String &resource_type,
+    M2MResource* create_dynamic_resource(const m2m::String &resource_name,
+                                         const m2m::String &resource_type,
                                          M2MResourceInstance::ResourceType type,
                                          bool observable,
                                          bool multiple_instance = false,
@@ -157,8 +157,8 @@ public:
      *        otherwise handled in mbed-client-c.
      * \return M2MResourceInstance The resource instance for managing other client operations.
      */
-    M2MResourceInstance* create_static_resource_instance(const String &resource_name,
-                                                         const String &resource_type,
+    M2MResourceInstance* create_static_resource_instance(const m2m::String &resource_name,
+                                                         const m2m::String &resource_type,
                                                          M2MResourceInstance::ResourceType type,
                                                          const uint8_t *value,
                                                          const uint8_t value_length,
@@ -177,8 +177,8 @@ public:
      *        otherwise handled in mbed-client-c.
      * \return M2MResourceInstance The resource instance for managing other client operations.
      */
-    M2MResourceInstance* create_dynamic_resource_instance(const String &resource_name,
-                                                          const String &resource_type,
+    M2MResourceInstance* create_dynamic_resource_instance(const m2m::String &resource_name,
+                                                          const m2m::String &resource_type,
                                                           M2MResourceInstance::ResourceType type,
                                                           bool observable,
                                                           uint16_t instance_id,
@@ -191,7 +191,7 @@ public:
      * remove_resource(const char*) version instead.
      * \return True if removed, else false.
      */
-    bool remove_resource(const String &name);
+    bool remove_resource(const m2m::String &name);
 
     /**
      * \brief Removes the resource with the given name.
@@ -206,7 +206,7 @@ public:
      * \param instance_id The instance ID of the instance.
      * \return True if removed, else false.
      */
-    bool remove_resource_instance(const String &resource_name,
+    bool remove_resource_instance(const m2m::String &resource_name,
                                           uint16_t instance_id);
 
     /**
@@ -216,7 +216,7 @@ public:
      */
     M2MResource* resource(const uint16_t resource_id) const;
 
-    M2MResource* resource(const String &name) const;
+    M2MResource* resource(const m2m::String &name) const;
 
     M2MResource* resource(const char *resource) const;
 
@@ -239,7 +239,7 @@ public:
      * \param resource The name of the resource.
      * \return Total number of the resources.
      */
-    uint16_t resource_count(const String& resource) const;
+    uint16_t resource_count(const m2m::String& resource) const;
 
     /**
      * \brief Returns the total number of single resource instances.

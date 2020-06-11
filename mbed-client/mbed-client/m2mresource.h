@@ -66,9 +66,9 @@ private: // Constructor and destructor are private,
      *        otherwise handled in mbed-client-c.
      */
     M2MResource(M2MObjectInstance &_parent,
-                const String &resource_name,
+                const m2m::String &resource_name,
                 M2MBase::Mode mode,
-                const String &resource_type,
+                const m2m::String &resource_type,
                 M2MBase::DataType type,
                 const uint8_t *value,
                 const uint8_t value_length,
@@ -89,9 +89,9 @@ private: // Constructor and destructor are private,
      *        otherwise handled in mbed-client-c.
      */
     M2MResource(M2MObjectInstance &_parent,
-                const String &resource_name,
+                const m2m::String &resource_name,
                 M2MBase::Mode mode,
-                const String &resource_type,
+                const m2m::String &resource_type,
                 M2MBase::DataType type,
                 bool observable,
                 char *path,
@@ -328,7 +328,7 @@ private:
     M2MExecuteParameter(const char *object_name, const char *resource_name, uint16_t object_instance_id);
 #else
     // This is a deprecated constructor, to be removed on next release.
-    M2MExecuteParameter(const String &object_name, const String &resource_name, uint16_t object_instance_id);
+    M2MExecuteParameter(const m2m::String &object_name, const m2m::String &resource_name, uint16_t object_instance_id);
 #endif
 
 public:
@@ -352,7 +352,7 @@ public:
 #ifdef MEMORY_OPTIMIZED_API
     const char* get_argument_object_name() const;
 #else
-    const String& get_argument_object_name() const;
+    const m2m::String& get_argument_object_name() const;
 #endif
 
     /**
@@ -362,7 +362,7 @@ public:
 #ifdef MEMORY_OPTIMIZED_API
     const char* get_argument_resource_name() const;
 #else
-    const String& get_argument_resource_name() const;
+    const m2m::String& get_argument_resource_name() const;
 #endif
 
     /**
@@ -378,8 +378,8 @@ private:
     const char      *_object_name;
     const char      *_resource_name;
 #else
-    const String    &_object_name;
-    const String    &_resource_name;
+    const m2m::String    &_object_name;
+    const m2m::String    &_resource_name;
 #endif
 
     const uint8_t   *_value;

@@ -35,7 +35,7 @@ typedef void(*notification_sent_callback_2) (void);
 
 #ifndef DISABLE_BLOCK_MESSAGE
 typedef FP1<void, M2MBlockMessage *> incoming_block_message_callback;
-typedef FP3<void, const String &, uint8_t *&, uint32_t &> outgoing_block_message_callback;
+typedef FP3<void, const m2m::String &, uint8_t *&, uint32_t &> outgoing_block_message_callback;
 #endif
 
 class M2MResource;
@@ -136,9 +136,9 @@ protected: // Constructor and destructor are private
      *        otherwise handled in mbed-client-c.
      */
     M2MResourceBase(
-                        const String &resource_name,
+                        const m2m::String &resource_name,
                         M2MBase::Mode mode,
-                        const String &resource_type,
+                        const m2m::String &resource_type,
                         M2MBase::DataType type,
                         char* path,
                         bool external_blockwise_store,
@@ -158,9 +158,9 @@ protected: // Constructor and destructor are private
      *        otherwise handled in mbed-client-c.
      */
     M2MResourceBase(
-                        const String &resource_name,
+                        const m2m::String &resource_name,
                         M2MBase::Mode mode,
-                        const String &resource_type,
+                        const m2m::String &resource_type,
                         M2MBase::DataType type,
                         const uint8_t *value,
                         const uint8_t value_length,
@@ -335,7 +335,7 @@ public:
      * Get the value as a string object. No encoding/charset conversions
      * are done for the value, just a raw copy.
      */
-    String get_value_string() const;
+    m2m::String get_value_string() const;
 
     /**
      * \brief Converts a value to float and returns it. Note: Conversion

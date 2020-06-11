@@ -154,7 +154,7 @@ public:
      * \return True if successfully set, else false.
      */
     bool set_resource_value(SecurityResource resource,
-                            const String &value,
+                            const m2m::String &value,
                             uint16_t instance_id);
 
     /**
@@ -191,7 +191,7 @@ public:
      * \param instance_id Instance id of the security instance where resource value should be retrieved.
      * \return The value associated with the resource. If the resource is not valid an empty string is returned.
      */
-    String resource_value_string(SecurityResource resource, uint16_t instance_id) const;
+    m2m::String resource_value_string(SecurityResource resource, uint16_t instance_id) const;
 
     /**
      * \brief Populates the data buffer and returns the size of the buffer.

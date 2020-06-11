@@ -61,14 +61,14 @@ public:
      * \return M2MInterfaceImpl An object for managing other client operations.
      */
     static M2MInterface *create_interface(M2MInterfaceObserver &observer,
-                                              const String &endpoint_name,
-                                              const String &endpoint_type = "",
+                                              const m2m::String &endpoint_name,
+                                              const m2m::String &endpoint_type = "",
                                               const int32_t life_time = -1,
                                               const uint16_t listen_port = 5683,
-                                              const String &domain = "",
+                                              const m2m::String &domain = "",
                                               M2MInterface::BindingMode mode = M2MInterface::NOT_SET,
                                               M2MInterface::NetworkStack stack = M2MInterface::LwIP_IPv4,
-                                              const String &context_address = "");
+                                              const m2m::String &context_address = "");
 
     /**
      * \brief Creates a security object for the mbed Client Inteface. With this, the
@@ -110,7 +110,7 @@ public:
      * \param name The name of the object.
      * \return M2MObject An object for managing other mbed Client operations.
      */
-    static M2MObject *create_object(const String &name);
+    static M2MObject *create_object(const m2m::String &name);
 
     /**
      * \brief Creates a M2M resource and places it to the given object list.
@@ -144,7 +144,7 @@ public:
      * \param name The name of the object.
      * \return M2MObject An object for managing other mbed Client operations.
      */
-    static M2MEndpoint* create_endpoint(const String &name);
+    static M2MEndpoint* create_endpoint(const m2m::String &name);
 #endif
 
 private:

@@ -52,7 +52,7 @@ protected :
      * \param external_blockwise_store If true, CoAP blocks are passed to application through callbacks,
      *        otherwise handled in mbed-client-c.
      */
-    M2MObject(const String &object_name,
+    M2MObject(const m2m::String &object_name,
               char *path,
               bool external_blockwise_store = false);
 

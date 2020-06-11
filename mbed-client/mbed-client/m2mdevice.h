@@ -106,7 +106,7 @@ public:
      * \param value The value to be set on the resource, in string format.
      * \return M2MResource if created successfully, else NULL.
      */
-    M2MResource* create_resource(DeviceResource resource, const String &value);
+    M2MResource* create_resource(DeviceResource resource, const m2m::String &value);
 
     /**
      * \brief Creates a new resource for the given resource enum.
@@ -168,7 +168,7 @@ public:
      * \return True if successfully set, else false.
      */
     bool set_resource_value(DeviceResource resource,
-                            const String &value,
+                            const m2m::String &value,
                             uint16_t instance_id = 0);
 
     /**
@@ -194,7 +194,7 @@ public:
      * \param instance_id The instance ID of the resource, default is 0.
      * \return The value associated with that resource. If the resource is not valid NULL is returned.
      */
-    String resource_value_string(DeviceResource resource,
+    m2m::String resource_value_string(DeviceResource resource,
                                  uint16_t instance_id = 0) const;
 
     /**
