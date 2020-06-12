@@ -2,22 +2,22 @@
 <package schemaVersion="1.4" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="PACK.xsd">
   <vendor>ARM</vendor>
   <name>Pelion_Device_Management_Client</name>
-  <description>https://www.pelion.com/docs/device-management/current/welcome/index.html</description>
+  <description>Pelion Device Management Client</description>
   <!-- web download link -->
-  <url>https://github.com/MDK-Packs/Pack/raw/master/Mbed_Cloud_Client/</url>
+  <url></url>
   <license>LICENSE.txt</license>
   <releases>
-    <release version="1.0.0" date="2020-02-06">
-      Initial release
-    </release>
-    <release version="1.0.1" date="2020-03-25">
-      Example added
+    <release version="1.0.0" date="2020-05-25">
+    Initial PDMC release
     </release>
   </releases>
   <requirements>
     <packages>
-      <package name="MDK-Middleware" vendor="Keil" version="7.10.0"/>
-      <package name="mbedTLS" vendor="ARM" version="1.6.0"/>
+      <package name="MDK-Middleware" vendor="Keil" version="7.11.1"/>
+          <package name="mbedTLS" vendor="ARM" version="1.6.1"/>
+          <package name="IoT_Socket" vendor="MDK-Packs" version="1.2.0"/>
+          <package name="CMSIS" vendor="ARM" version="5.7.0"/>
+          <package name="CMSIS-Driver" vendor="ARM" version="2.6.0"/>
     </packages>
   </requirements>
 
@@ -33,28 +33,28 @@
       <RTE_Components_h>
         #define RTE_IoT_Client_Pelion_Device_Management_Client /* Pelion Device Management Client */
       </RTE_Components_h>
-      <Pre_Include_Global_h>
-        // enabling local pre include
-        #define MBED_CONF_MBED_TRACE_ENABLE 1
-        #define PAL_USER_DEFINED_CONFIGURATION "mbed_cloud_client_user_config.h"
-        #define MBED_CLOUD_CLIENT_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
-        #define MBED_CLIENT_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
-        #define NS_EVENTLOOP_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
-        #define MBEDTLS_CONFIG_FILE "mbedtls_config_RTX.h"
-        #define MBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE 8192
-        #define MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT 1
-        #define MBED_CLOUD_CLIENT_UPDATE_STORAGE ARM_UCP_FLASHIAP
-        #define MBED_CONF_MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP
-        #define PAL_USE_FILESYSTEM 0
-        #define ATOMIC_QUEUE_USE_PAL 1
-        #define ARM_UC_FEATURE_DELTA_PAAL 0
-        #define ARM_UC_PROFILE_MBED_CLOUD_CLIENT 1
-        #define MBED_CONF_APP_MBED_CLOUD_CLIENT_UPDATE_BUFFER_SIZE 2048
-        #define MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS 0x8088000
-        #define MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE 0x78000
-        #define MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS 0x8008000
-        #define MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT 1
-      </Pre_Include_Global_h>
+          <Pre_Include_Global_h>
+            // enabling local pre include
+            #define MBED_CONF_MBED_TRACE_ENABLE 1
+            #define PAL_USER_DEFINED_CONFIGURATION "mbed_cloud_client_user_config.h"
+            #define MBED_CLOUD_CLIENT_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
+            #define MBED_CLIENT_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
+            #define NS_EVENTLOOP_USER_CONFIG_FILE "mbed_cloud_client_user_config.h"
+            #define MBEDTLS_CONFIG_FILE "mbedtls_config_RTX.h"
+            #define MBED_CONF_NS_HAL_PAL_EVENT_LOOP_THREAD_STACK_SIZE 8192
+            #define MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT 1
+            #define MBED_CLOUD_CLIENT_UPDATE_STORAGE ARM_UCP_FLASHIAP
+            #define MBED_CONF_MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL MBED_CLOUD_CLIENT_UPDATE_DOWNLOAD_PROTOCOL_COAP
+            #define PAL_USE_FILESYSTEM 0
+            #define ATOMIC_QUEUE_USE_PAL 1
+            #define ARM_UC_FEATURE_DELTA_PAAL 0
+            #define ARM_UC_PROFILE_MBED_CLOUD_CLIENT 1
+            #define MBED_CONF_APP_MBED_CLOUD_CLIENT_UPDATE_BUFFER_SIZE 2048
+            #define MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS 0x8088000
+            #define MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE 0x78000
+            #define MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS 0x8008000
+            #define MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT 1
+          </Pre_Include_Global_h>
       <files>
 
         <!-- mbed-cloud-client -->
@@ -73,7 +73,7 @@
         <file category="source"  name="source/UpdateClient.cpp"/>
 
         <file category="header"  name="config/mbed_cloud_client_user_config.h" attr="config" version="1.0.0"/>
-        <file category="header"  name="mbed-client-pal\Configs\mbedTLS\mbedtls_config_RTX.h" attr="config" version="1.0.0"/>
+        <file category="header"  name="mbed-client-pal/Configs/mbedTLS/mbedtls_config_RTX.h" attr="config" version="1.0.0"/>
         <file category="source"  name="template/mbed_cloud_dev_credentials.c" attr="template" select="Device Credentials"/>
 
         <!-- mbed-client -->
@@ -306,7 +306,6 @@
         <file category="include" name="update-client-hub/modules/metadata-header/"/>
         <file category="include" name="update-client-hub/modules/metadata-header/update-client-metadata-header/"/>
         <file category="include" name="update-client-hub/modules/resume-engine/"/>
-        <file category="include" name="update-client-hub/modules/resume-engine/resume-engine/"/>
         <file category="include" name="update-client-hub/modules/control-center/"/>
         <file category="include" name="update-client-hub/modules/control-center/update-client-control-center/"/>
         <file category="include" name="update-client-hub/modules/device-identity/"/>
@@ -320,8 +319,6 @@
         <file category="include" name="update-client-hub/modules/manifest-manager/source/"/>
         <file category="include" name="update-client-hub/modules/monitor/"/>
         <file category="include" name="update-client-hub/modules/monitor/update-client-monitor/"/>
-        <file category="include" name="update-client-hub/modules/paal-update-api/"/>
-        <file category="include" name="update-client-hub/modules/paal-update-api/paal-update-api/"/>
         <file category="include" name="update-client-hub/modules/source/"/>
         <file category="include" name="update-client-hub/modules/source/update-client-source/"/>
         <file category="include" name="update-client-hub/modules/source-http/"/>
@@ -342,84 +339,81 @@
         <file category="include" name="update-client-hub/delta-tool-internal/include/"/>
         <file category="include" name="update-client-hub/modules/pal-blockdevice/"/>
 
-        <file category="source"  name="update-client-hub\delta-tool-internal\source\bspatch.c"/>
-        <file category="source"  name="update-client-hub\delta-tool-internal\source\lz4.c"/>
-        <file category="source"  name="update-client-hub\delta-tool-internal\source\varint.c"/>
-        <file category="source"  name="update-client-hub\modules\atomic-queue\source\atomic-cm3.c"/>
-        <file category="source"  name="update-client-hub\modules\atomic-queue\source\atomic-queue.c"/>
-        <file category="source"  name="update-client-hub\modules\atomic-queue\source\atomic.c"/>
-        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical-nordic.c"/>
-        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical-pal.c"/>
-        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical-posix.c"/>
-        <file category="source"  name="update-client-hub\modules\atomic-queue\source\critical.c"/>
-        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_crypto_mbedtls.c"/>
-        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_crypto_pal.c"/>
-        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_error.c"/>
-        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_hw_plat.c"/>
-        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_scheduler.c"/>
-        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_test_rot.c"/>
-        <file category="source"  name="update-client-hub\modules\common\source\arm_uc_utilities.c"/>
-        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_certificate.c"/>
-        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_certificate_kcm_api.c"/>
-        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_certificate_raw_api.c"/>
-        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_control_center.c"/>
-        <file category="source"  name="update-client-hub\modules\control-center\source\arm_uc_pre_shared_key.c"/>
-        <file category="source"  name="update-client-hub\modules\delta-paal\source\arm_uc_pal_delta_paal.c"/>
-        <file category="source"  name="update-client-hub\modules\delta-paal\source\arm_uc_pal_delta_paal_implementation.c"/>
-        <file category="source"  name="update-client-hub\modules\delta-paal\source\arm_uc_pal_delta_paal_original_reader.c"/>
-        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity.c"/>
-        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity_kcm.c"/>
-        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity_nvstore.c"/>
-        <file category="source"  name="update-client-hub\modules\device-identity\source\arm_uc_device_identity_raw.c"/>
-        <file category="source"  name="update-client-hub\modules\firmware-manager\source\arm_uc_firmware_manager.c"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\device_metadata.c"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\firmware_update.c"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\update-lwm2m-mbed-apis.c"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\update_lwm2m_monitor.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmCommon.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmCryptoUtils.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmDerManifestAccessors.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmDerManifestParser.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmFetchFirmwareInfo.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmGetLatestTimestamp.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmInit.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmInsertManifest.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\arm_uc_mmStateSelector.c"/>
-        <file category="source"  name="update-client-hub\modules\manifest-manager\source\manifest-manager-api.c"/>
-        <file category="source"  name="update-client-hub\modules\metadata-header\source\arm_uc_buffer_utilities.c"/>
-        <file category="source"  name="update-client-hub\modules\metadata-header\source\arm_uc_crypto_hmac_mbedtls.c"/>
-        <file category="source"  name="update-client-hub\modules\metadata-header\source\arm_uc_metadata_header_v2.c"/>
-        <file category="source"  name="update-client-hub\modules\paal\source\arm_uc_paal_update.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-blockdevice\source\arm_uc_pal_blockdevice.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-blockdevice\source\arm_uc_pal_blockdevice_implementation.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_paal_classic_pal.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_filesystem_utils.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_linux_extensions.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_mbed_extensions.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-filesystem\source\arm_uc_pal_sxos_extensions.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-flashiap\source\arm_uc_pal_flashiap.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-flashiap\source\arm_uc_pal_flashiap_implementation.c"/>
-        <file category="source"  name="update-client-hub\modules\pal-target-specific\source\arm_uc_pal_realtek_rtl8195am.c"/>
-        <file category="source"  name="update-client-hub\modules\resume-engine\source\arm_uc_resume.c"/>
-        <file category="source"  name="update-client-hub\modules\source-http\source\arm_uc_source_http.c"/>
-        <file category="source"  name="update-client-hub\modules\source-http-socket\source\arm_uc_http_socket.c"/>
-        <file category="source"  name="update-client-hub\modules\source-http-socket\source\arm_uc_http_socket_private.c"/>
-        <file category="source"  name="update-client-hub\modules\source-http-socket\source\arm_uc_socket_help.c"/>
-        <file category="source"  name="update-client-hub\modules\source-manager\source\arm_uc_source_manager.c"/>
-        <file category="source"  name="update-client-hub\source\update_client_hub.c"/>
-        <file category="source"  name="update-client-hub\source\update_client_hub_error_handler.c"/>
-        <file category="source"  name="update-client-hub\source\update_client_hub_event_handlers.c"/>
-        <file category="source"  name="update-client-hub\source\update_client_hub_state_machine.c"/>
-
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\DeviceMetadataResource.cpp"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\FirmwareUpdateResource.cpp"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\lwm2m-control.cpp"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\lwm2m-monitor.cpp"/>
-        <file category="source"  name="update-client-hub\modules\lwm2m-mbed\source\lwm2m-source.cpp"/>
-        <file category="source"  name="update-client-hub\modules\pal-blockdevice\source\arm_uc_pal_blockdevice_mbed.cpp"/>
-        <file category="source"  name="update-client-hub\modules\pal-flashiap\source\arm_uc_pal_flashiap_mbed.cpp"/>
-
-
+        <file category="source"  name="update-client-hub/delta-tool-internal/source/bspatch.c"/>
+        <file category="source"  name="update-client-hub/delta-tool-internal/source/lz4.c"/>
+        <file category="source"  name="update-client-hub/delta-tool-internal/source/varint.c"/>
+        <file category="source"  name="update-client-hub/modules/atomic-queue/source/atomic-cm3.c"/>
+        <file category="source"  name="update-client-hub/modules/atomic-queue/source/atomic-queue.c"/>
+        <file category="source"  name="update-client-hub/modules/atomic-queue/source/atomic.c"/>
+        <file category="source"  name="update-client-hub/modules/atomic-queue/source/critical-nordic.c"/>
+        <file category="source"  name="update-client-hub/modules/atomic-queue/source/critical-pal.c"/>
+        <file category="source"  name="update-client-hub/modules/atomic-queue/source/critical-posix.c"/>
+        <file category="source"  name="update-client-hub/modules/atomic-queue/source/critical.c"/>
+        <file category="source"  name="update-client-hub/modules/common/source/arm_uc_crypto_mbedtls.c"/>
+        <file category="source"  name="update-client-hub/modules/common/source/arm_uc_crypto_pal.c"/>
+        <file category="source"  name="update-client-hub/modules/common/source/arm_uc_error.c"/>
+        <file category="source"  name="update-client-hub/modules/common/source/arm_uc_hw_plat.c"/>
+        <file category="source"  name="update-client-hub/modules/common/source/arm_uc_scheduler.c"/>
+        <file category="source"  name="update-client-hub/modules/common/source/arm_uc_test_rot.c"/>
+        <file category="source"  name="update-client-hub/modules/common/source/arm_uc_utilities.c"/>
+        <file category="source"  name="update-client-hub/modules/control-center/source/arm_uc_certificate.c"/>
+        <file category="source"  name="update-client-hub/modules/control-center/source/arm_uc_certificate_kcm_api.c"/>
+        <file category="source"  name="update-client-hub/modules/control-center/source/arm_uc_certificate_raw_api.c"/>
+        <file category="source"  name="update-client-hub/modules/control-center/source/arm_uc_control_center.c"/>
+        <file category="source"  name="update-client-hub/modules/control-center/source/arm_uc_pre_shared_key.c"/>
+        <file category="source"  name="update-client-hub/modules/delta-paal/source/arm_uc_pal_delta_paal.c"/>
+        <file category="source"  name="update-client-hub/modules/delta-paal/source/arm_uc_pal_delta_paal_implementation.c"/>
+        <file category="source"  name="update-client-hub/modules/delta-paal/source/arm_uc_pal_delta_paal_original_reader.c"/>
+        <file category="source"  name="update-client-hub/modules/device-identity/source/arm_uc_device_identity.c"/>
+        <file category="source"  name="update-client-hub/modules/device-identity/source/arm_uc_device_identity_kcm.c"/>
+        <file category="source"  name="update-client-hub/modules/device-identity/source/arm_uc_device_identity_nvstore.c"/>
+        <file category="source"  name="update-client-hub/modules/device-identity/source/arm_uc_device_identity_raw.c"/>
+        <file category="source"  name="update-client-hub/modules/firmware-manager/source/arm_uc_firmware_manager.c"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/device_metadata.c"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/firmware_update.c"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/update-lwm2m-mbed-apis.c"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/update_lwm2m_monitor.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmCommon.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmCryptoUtils.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmDerManifestAccessors.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmDerManifestParser.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmFetchFirmwareInfo.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmGetLatestTimestamp.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmInit.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmInsertManifest.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/arm_uc_mmStateSelector.c"/>
+        <file category="source"  name="update-client-hub/modules/manifest-manager/source/manifest-manager-api.c"/>
+        <file category="source"  name="update-client-hub/modules/metadata-header/source/arm_uc_buffer_utilities.c"/>
+        <file category="source"  name="update-client-hub/modules/metadata-header/source/arm_uc_crypto_hmac_mbedtls.c"/>
+        <file category="source"  name="update-client-hub/modules/metadata-header/source/arm_uc_metadata_header_v2.c"/>
+        <file category="source"  name="update-client-hub/modules/paal/source/arm_uc_paal_update.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-blockdevice/source/arm_uc_pal_blockdevice.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-blockdevice/source/arm_uc_pal_blockdevice_implementation.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-filesystem/source/arm_uc_paal_classic_pal.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-filesystem/source/arm_uc_pal_filesystem_utils.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-filesystem/source/arm_uc_pal_linux_extensions.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-filesystem/source/arm_uc_pal_mbed_extensions.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-filesystem/source/arm_uc_pal_sxos_extensions.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-flashiap/source/arm_uc_pal_flashiap.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-flashiap/source/arm_uc_pal_flashiap_implementation.c"/>
+        <file category="source"  name="update-client-hub/modules/pal-target-specific/source/arm_uc_pal_realtek_rtl8195am.c"/>
+        <file category="source"  name="update-client-hub/modules/resume-engine/source/arm_uc_resume.c"/>
+        <file category="source"  name="update-client-hub/modules/source-http/source/arm_uc_source_http.c"/>
+        <file category="source"  name="update-client-hub/modules/source-http-socket/source/arm_uc_http_socket.c"/>
+        <file category="source"  name="update-client-hub/modules/source-http-socket/source/arm_uc_http_socket_private.c"/>
+        <file category="source"  name="update-client-hub/modules/source-http-socket/source/arm_uc_socket_help.c"/>
+        <file category="source"  name="update-client-hub/modules/source-manager/source/arm_uc_source_manager.c"/>
+        <file category="source"  name="update-client-hub/source/update_client_hub.c"/>
+        <file category="source"  name="update-client-hub/source/update_client_hub_error_handler.c"/>
+        <file category="source"  name="update-client-hub/source/update_client_hub_event_handlers.c"/>
+        <file category="source"  name="update-client-hub/source/update_client_hub_state_machine.c"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/DeviceMetadataResource.cpp"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/FirmwareUpdateResource.cpp"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/lwm2m-control.cpp"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/lwm2m-monitor.cpp"/>
+        <file category="source"  name="update-client-hub/modules/lwm2m-mbed/source/lwm2m-source.cpp"/>
+        <file category="source"  name="update-client-hub/modules/pal-blockdevice/source/arm_uc_pal_blockdevice_mbed.cpp"/>
+        <file category="source"  name="update-client-hub/modules/pal-flashiap/source/arm_uc_pal_flashiap_mbed.cpp"/>
       </files>
     </component>
   </components>
@@ -432,7 +426,7 @@
     </project>
     <attributes>
       <component Cclass="IoT Client" Cgroup="Pelion Device Management Client"/>
-      <keyword>Pelion</keyword>
+          <keyword>Pelion</keyword>
     </attributes>
   </example>
 </examples>

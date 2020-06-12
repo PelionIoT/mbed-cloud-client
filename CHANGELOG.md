@@ -1,7 +1,22 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.5.0 (12.06.2020)
+
+#### Device Management Client
+
+* Updated Mbed CoAP to v5.1.5.
+* Fixed a bug that caused a transmission of a notification outside the threshold values after a registration update.
+* Added support to define custom server URI port by application, `MBED_CLOUD_CLIENT_CUSTOM_URI_PORT` is build time optional parameter and is not set by default. When defined the client will connect to Cloud over this CoAP port rather than over one provided through factory or developer provisioned URI port.It is application's responsibility to ensure that the provided port is open on server side to accept incoming CoAP connection.
+* Fixed client crash caused by wrong order of initializing event scheduler. As part of resource creation, there is a possibility that some of the resources can be created as Auto Observable, but that will require that those resources have certain base component like Timer to be created. Timer creation requires that event scheduler must have been created before hand. Since, Resource creation is an independent operation than instantiating Pelion Client, there is a chance that Resource can be created before Client stack is instantiated so it becomes highly dependant on order in which APIs are called. To resolve this issue, scheduler initilization call is also added in M2MBase constructor as fail-safe mechanism, so that order of API calls does not matter for application developer.
+* Fixed the issue of reporting error callback of `MESSAGE_STATUS_SEND_FAILED` when notification sending fails because of network issue and internal CoAP retransmission fails.This is especially helpful for UDP and UDP-QUEUE based client where packets can be lost easily and should be informed to application for their booking purposes.
+However, the notification will still be stored internally in client and it will attempt to re-send it on next successful reconnection to Pelion Cloud.
+* Added a compile-time check to prevent configuring the client with LIFETIME values below 60 seconds. 60 seconds is the minimum allowed.
+* [Mbed OS] Changed the default storage location for update to `ARM_UCP_FLASHIAP`.
+* Added support for Device Sentry feature.
+
 ### Release 4.4.0 (17.04.2020)
 
+* Changed the handling of numeric resources. Client now converts payloads to correct underlying data type. Previously, it allowed storing of `string-type` data in a resource with numeric data type.
 * Fixed off-by-one bug in `m2mstring::convert_ascii_to_float()`.
 * Deprecated and removed the usage of `PAL_UDP_MTU_SIZE`. The implementation was not correct and was not doing what it claimed to do. Applications should use instead `mbed-client-pal.pal-max-frag-len` to enable DTLS fragmentation support for network stacks with MTU limitations.
 * Added KVStore library as a new component.

@@ -15,7 +15,7 @@
  *******************************************************************************/
 
 /* PAL-RTOS porting for FreeRTOS-8.1.2
-*  This is porting code for PAL RTOS APIS for 
+*  This is porting code for PAL RTOS APIS for
 *  FreeRTOS-8.1.2 version.
 */
 
@@ -24,7 +24,7 @@
 #include "event_groups.h"
 #include "semphr.h"
 #include "task.h"
-
+#include "mbedtls/entropy.h"
 
 #include "pal.h"
 #include "pal_plat_rtos.h"
@@ -80,6 +80,7 @@ typedef struct palThreadData
 
 PAL_PRIVATE palMutexID_t g_threadsMutex = NULLPTR;
 PAL_PRIVATE palThreadData_t* g_threadsArray[PAL_MAX_CONCURRENT_THREADS] = { 0 };
+PAL_PRIVATE mbedtls_entropy_context g_entropy = { 0 };
 
 #define PAL_THREADS_MUTEX_LOCK(status) \
     { \
@@ -145,9 +146,15 @@ palStatus_t pal_plat_RTOSInitialize(void* opaqueContext)
 #if (PAL_USE_HW_RTC)
     if (PAL_SUCCESS == status)
     {
-        status = pal_plat_rtcInit();        
+        status = pal_plat_rtcInit();
     }
 #endif
+
+    if (PAL_SUCCESS == status)
+    {
+        mbedtls_entropy_init(&g_entropy);
+    }
+
 end:
     return status;
 }
@@ -249,7 +256,7 @@ PAL_PRIVATE void threadFunction(void* arg)
     palThreadData_t** threadData;
     palThreadFuncPtr userFunction;
     void* userFunctionArgument;
-    
+
     PAL_THREADS_MUTEX_LOCK(status);
     if (PAL_SUCCESS != status)
     {
@@ -261,15 +268,15 @@ PAL_PRIVATE void threadFunction(void* arg)
     if (NULL == (*threadData)->sysThreadID) // maybe null if this thread has a higher priority than the thread which created this thread
     {
         (*threadData)->sysThreadID = xTaskGetCurrentTaskHandle(); // set the thread id
-    }    
+    }
     PAL_THREADS_MUTEX_UNLOCK(status);
     if (PAL_SUCCESS != status)
     {
         goto end;
     }
-    
+
     userFunction(userFunctionArgument); // invoke user function with user argument (use local vars) - note we're not under mutex lock anymore
-    
+
     PAL_THREADS_MUTEX_LOCK(status);
     if (PAL_SUCCESS != status)
     {
@@ -285,7 +292,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
 {
     palStatus_t status = PAL_SUCCESS;
     palThreadData_t** threadData;
-    TaskHandle_t sysThreadID = NULLPTR;    
+    TaskHandle_t sysThreadID = NULLPTR;
 
     PAL_THREADS_MUTEX_LOCK(status);
     if (PAL_SUCCESS != status)
@@ -307,7 +314,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
 
     (*threadData)->userFunction = function; // note that threadData is safe here (eventhough it's not mutex locked), no other thread will attempt to change it until the thread is either finished or terminated
     (*threadData)->userFunctionArgument = funcArgument;
-    
+
     //Note: the stack in this API is handled as an array of "StackType_t" which can be of different sizes for different ports.
     //      in this specific port of (8.1.2) the "StackType_t" is defined to 4-bytes this is why we divide the "stackSize" parameter by "sizeof(uint32_t)".
     //      inside freeRTOS code, the stack size is calculated according to the following formula: "((size_t)usStackDepth) * sizeof(StackType_t)"
@@ -325,13 +332,13 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
         goto end;
     }
     if (pdPASS == result)
-    {        
+    {
         if ((NULL != *threadData) && (NULL == (*threadData)->sysThreadID)) // *threadData maybe null in case the thread has already finished and cleaned up, sysThreadID maybe null if the created thread is lower priority than the creating thread
         {
             (*threadData)->sysThreadID = sysThreadID; // set the thread id
         }
         *threadID = (palThreadID_t)sysThreadID;
-    }   
+    }
     else
     {
         threadFree(threadData); // thread creation failed so clean up dynamic allocations etc.
@@ -366,7 +373,7 @@ palStatus_t pal_plat_osThreadTerminate(palThreadID_t* threadID)
             vTaskDelete(sysThreadID);
             threadFree(threadData);
         }
-        PAL_THREADS_MUTEX_UNLOCK(status);        
+        PAL_THREADS_MUTEX_UNLOCK(status);
     }
 end:
     return status;
@@ -772,18 +779,18 @@ palStatus_t pal_plat_osSemaphoreWait(palSemaphoreID_t semaphoreID, uint32_t mill
 	{
 		if (millisec == PAL_RTOS_WAIT_FOREVER)
 		{
-			res = xSemaphoreTake(semaphore->semaphoreID, portMAX_DELAY);
+			res = xSemaphoreTake((QueueHandle_t) semaphore->semaphoreID, portMAX_DELAY);
 		}
 		else
 		{
-			res = xSemaphoreTake(semaphore->semaphoreID, millisec / portTICK_PERIOD_MS);
+			res = xSemaphoreTake((QueueHandle_t) semaphore->semaphoreID, millisec / portTICK_PERIOD_MS);
 		}
 	}
 
 	if (pdTRUE == res)
 	{
-		
-		tmpCounters = uxQueueMessagesWaiting((QueueHandle_t)(semaphore->semaphoreID));
+
+		tmpCounters = uxQueueMessagesWaiting((QueueHandle_t) semaphore->semaphoreID);
 	}
 	else
 	{
@@ -828,15 +835,15 @@ palStatus_t pal_plat_osSemaphoreRelease(palSemaphoreID_t semaphoreID)
 		}
 
 		if (pdTRUE != res)
-		{	
+		{
 			status = PAL_ERR_RTOS_PARAMETER;
 		}
 	}
-	else 
+	else
 	{
 		status = PAL_ERR_RTOS_RESOURCE;
 	}
-	
+
 	return status;
 }
 
@@ -878,13 +885,29 @@ void pal_plat_free(void * buffer)
 	free(buffer);
 }
 
-
 palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, size_t* actualRandomSizeBytes)
 {
-    palStatus_t status = PAL_SUCCESS;
+    palStatus_t status = PAL_ERR_GENERIC_FAILURE;
 
-	status = pal_plat_getRandomBufferFromHW(randomBuf, bufSizeBytes, actualRandomSizeBytes);
+    /* Access hardware entropy through mbedtls. */
+    int result = mbedtls_entropy_func(&g_entropy, randomBuf, bufSizeBytes);
+
+    if (result != MBEDTLS_ERR_ENTROPY_SOURCE_FAILED)
+    {
+        status = PAL_SUCCESS;
+    }
+
+    if (actualRandomSizeBytes)
+    {
+        if (status == PAL_SUCCESS)
+        {
+            *actualRandomSizeBytes = bufSizeBytes;
+        }
+        else
+        {
+            *actualRandomSizeBytes = 0;
+        }
+    }
+
     return status;
 }
-
-

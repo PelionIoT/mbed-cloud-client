@@ -942,8 +942,13 @@ void M2MInterfaceImpl::process_address(const String& server_address, String& ip_
     int colonFound = server_address.find_last_of(':'); //10
     if(colonFound != -1) {
         ip_address = server_address.substr(0,colonFound);
+#ifndef MBED_CLOUD_CLIENT_CUSTOM_URI_PORT
         port = atoi(server_address.substr(colonFound+1,
                                          server_address.size()-ip_address.size()).c_str());
+#else
+        port = MBED_CLOUD_CLIENT_CUSTOM_URI_PORT;
+        tr_info("Using custom URI port %d", port);
+#endif
         colonFound = ip_address.find_last_of(']');
         if(ip_address.compare(0,1,"[") == 0) {
             if(colonFound == -1) {

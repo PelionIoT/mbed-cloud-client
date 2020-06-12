@@ -19,6 +19,7 @@
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ssl_internal.h"
+#include "mbedtls/error.h"
 #ifdef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
 #include "mbedtls/memory_buffer_alloc.h"
 #endif
@@ -212,17 +213,12 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
         case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:
             status = PAL_ERR_TLS_HELLO_VERIFY_REQUIRED;
             break;
-        case MBEDTLS_ERR_SSL_TIMEOUT:
-            status = PAL_ERR_TIMEOUT_EXPIRED;
-            break;
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
             status = PAL_ERR_TLS_PEER_CLOSE_NOTIFY;
             break;
-        case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
-            status = PAL_ERR_TLS_CLIENT_RECONNECT;
-            break;
 #if (PAL_ENABLE_X509 == 1)
         case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED:
+    case MBEDTLS_ERR_X509_FATAL_ERROR:
             status = PAL_ERR_X509_CERT_VERIFY_FAILED;
             break;
 #endif
@@ -233,14 +229,20 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
         case MBEDTLS_ERR_ECP_ALLOC_FAILED:
         case MBEDTLS_ERR_CIPHER_ALLOC_FAILED:
         case MBEDTLS_ERR_MPI_ALLOC_FAILED:
+        case MBEDTLS_ERR_SSL_CERTIFICATE_TOO_LARGE:
             status = PAL_ERR_NO_MEMORY;
             break;
 
         default:
             PAL_LOG_ERR("SSL handshake return code 0x%" PRIx32 ".", error);
-            status = PAL_ERR_GENERIC_FAILURE;
+            status = PAL_ERR_TLS_CLIENT_RECONNECT;
 
     }
+#ifdef MBEDTLS_ERROR_C
+    char error_buf[100];
+    mbedtls_strerror( error, error_buf, 100 );
+    PAL_LOG_ERR("mbedTLS handshake return %s", error_buf);
+#endif
     return status;
 }
 

@@ -129,8 +129,6 @@ public:
 
 private:
 
-    int start_handshake();
-
     /**
     *  \brief Returns certificate expiration time in epoch format.
     *  \param certificate, The certificate to be extracted.

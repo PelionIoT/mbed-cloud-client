@@ -175,7 +175,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
             }
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = ((result.error == ERR_NONE) && (remaining > 0));
@@ -203,7 +203,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
             }
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = ((result.error == ERR_NONE) && (remaining > 0));
@@ -218,7 +218,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
                                *arm_uc_location);
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = (remaining > 0);
@@ -233,7 +233,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
                                arm_uc_offset);
 
             /* update remaining */
-            remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+            remaining = command_length - length;
 
             /* check validity */
             valid = (remaining > 0);
@@ -249,7 +249,7 @@ static bool arm_uc_pal_linux_internal_command(arm_ucp_worker_t *parameters,
                                    arm_uc_buffer->size_max);
 
                 /* update remaining */
-                remaining = ARM_UC_MAXIMUM_FILE_AND_PATH_LENGTH - length;
+                remaining = command_length - length;
 
                 /* check validity */
                 valid = (remaining > 0);

@@ -2411,6 +2411,7 @@ static palStatus_t ThreadHandshakeTCP()
             }
         }
         status = pal_handShake(palTLSHandle, palTLSConf);
+        pal_osDelay(1000);
     }
     while ( (PAL_ERR_TLS_WANT_READ == status) || (PAL_ERR_TLS_WANT_WRITE == status));
 

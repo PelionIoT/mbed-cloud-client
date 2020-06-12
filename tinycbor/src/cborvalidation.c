@@ -372,7 +372,8 @@ static inline CborError validate_tag(CborValue *it, CborTag tag, int flags, int 
 #ifndef CBOR_NO_FLOATING_POINT
 static inline CborError validate_floating_point(CborValue *it, CborType type, int flags)
 {
-    CborError err;
+    CborError err = CborNoError;
+    (void)err;
     double val;
     float valf;
     uint16_t valf16;
@@ -442,7 +443,7 @@ static CborError validate_container(CborValue *it, int containerType, int flags,
         return CborErrorNestingTooDeep;
 
     while (!cbor_value_at_end(it)) {
-        const uint8_t *current;
+        const uint8_t *current = NULL;
 
         if (containerType == CborMapType) {
             current = it->ptr;

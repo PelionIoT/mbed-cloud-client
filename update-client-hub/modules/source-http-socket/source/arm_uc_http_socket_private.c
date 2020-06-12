@@ -586,9 +586,9 @@ arm_uc_error_t arm_uc_http_socket_get(
     // Tracing for development debugging.
     if (ARM_UC_IS_ERROR(status)) {
         UC_SRCE_TRACE("warning: on socket get = %" PRIx32, (uint32_t)status.code);
-        UC_SRCE_TRACE_VERBOSE("context 0x%" PRIx32" uri 0x%" PRIx32, (uint32_t)context, (uint32_t)uri);
+        UC_SRCE_TRACE_VERBOSE("context 0x%" PRIx32 " uri 0x%" PRIx32, (uint32_t)context, (uint32_t)uri);
         if (uri != NULL) {
-            UC_SRCE_TRACE_VERBOSE("scheme %" PRIu32" host 0x%" PRIx32, (uint32_t)uri->scheme, (uint32_t)uri->host);
+            UC_SRCE_TRACE_VERBOSE("scheme %" PRIu32 " host 0x%" PRIx32, (uint32_t)uri->scheme, (uint32_t)uri->host);
             if (uri->host != NULL) {
                 UC_SRCE_TRACE_VERBOSE("host %s",uri->host);
             }
@@ -598,7 +598,7 @@ arm_uc_error_t arm_uc_http_socket_get(
             }
         }
         if (buffer != NULL) {
-            UC_SRCE_TRACE_VERBOSE("buffer 0x%" PRIx32" buffer.ptr 0x%" PRIx32, (uint32_t)buffer, (uint32_t)buffer->ptr);
+            UC_SRCE_TRACE_VERBOSE("buffer 0x%" PRIx32 " buffer.ptr 0x%" PRIx32, (uint32_t)buffer, (uint32_t)buffer->ptr);
         }
     }
     if (ARM_UC_IS_ERROR(status)) {
@@ -857,7 +857,7 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
                 req_type_str = "GET";
                 break;
             default:
-                UC_SRCE_ERR_MSG("warning: on send request = %" PRIx32" (invalid request type)", (uint32_t)status.code);
+                UC_SRCE_ERR_MSG("warning: on send request = %" PRIx32 " (invalid request type)", (uint32_t)status.code);
                 ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);
                 break;
         }
@@ -930,9 +930,11 @@ arm_uc_error_t arm_uc_http_socket_send_request(void)
         }
     }
 
-    UC_SRCE_TRACE("%s\r\n%.*s\r\nrequest_buffer->size %"PRIx32"\r\n request_buffer->size_max %"PRIx32,
-                  __func__, request_buffer->size_max, request_buffer->ptr,
-                  request_buffer->size,request_buffer->size_max);
+    if (request_buffer != NULL) {
+        UC_SRCE_TRACE("%s\r\n%.*s\r\nrequest_buffer->size %" PRIx32 "\r\n request_buffer->size_max %" PRIx32,
+                      __func__, request_buffer->size_max, request_buffer->ptr,
+                      request_buffer->size,request_buffer->size_max);
+    }
 
     if (ARM_UC_IS_NOT_ERROR(status)) {
         /* Send HTTP request */
@@ -1019,7 +1021,7 @@ arm_uc_error_t arm_uc_http_socket_receive(void)
                               &(request_buffer->ptr[request_buffer->size]),
                               available_space,
                               &received_bytes);
-        UC_SRCE_TRACE("%s  \r\n request_buffer->size %"PRIx32"\r\n request_buffer->size_max %"PRIx32,
+        UC_SRCE_TRACE("%s  \r\n request_buffer->size %" PRIx32 "\r\n request_buffer->size_max %" PRIx32,
                       __func__, request_buffer->size,request_buffer->size_max);
         switch (pal_result) {
             case PAL_SUCCESS:
@@ -1267,7 +1269,7 @@ arm_uc_error_t arm_uc_http_socket_process_header_return_codes(
     }
     if (ARM_UC_IS_NOT_ERROR(status)) {
         arm_uc_buffer_t *request_buffer = context->request_buffer;
-        UC_SRCE_TRACE("%s an_http_status_code %" PRIx32" context->request_type %" PRIx32,
+        UC_SRCE_TRACE("%s an_http_status_code %" PRIx32 " context->request_type %" PRIx32,
                       __func__,an_http_status_code,(uint32_t)context->request_type);
         switch (context->request_type) {
             case RQST_TYPE_HASH_ETAG: {
@@ -1432,7 +1434,7 @@ arm_uc_error_t arm_uc_http_socket_process_header(void)
                                &(request_buffer->ptr[header_start]),
                                request_buffer->size - header_start,
                                &header_parsed);
-        UC_SRCE_TRACE("%s http_status_code %"PRIx32, __func__, (uint32_t)http_status_code);
+        UC_SRCE_TRACE("%s http_status_code %" PRIx32, __func__, (uint32_t)http_status_code);
         if (!header_parsed) {
             UC_SRCE_ERR_MSG("warning: unable to read status code");
             ARM_UC_SET_ERROR(status, SRCE_ERR_FAILED);

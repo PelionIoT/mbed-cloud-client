@@ -130,6 +130,13 @@ ADD_GLOBALDIR(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment
 include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/certificate-enrollment-client)
 include_directories(${CERTIFICATE_ENROLLMENT_CLIENT_SOURCE_DIR}/source/include)
 
+# Device Sentry Client
+SET(DEVICE_SENTRY_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/device-sentry-client)
+ADD_GLOBALDIR(${DEVICE_SENTRY_CLIENT_SOURCE_DIR})
+ADD_GLOBALDIR(${DEVICE_SENTRY_CLIENT_SOURCE_DIR}/device-sentry-client)
+include_directories(${DEVICE_SENTRY_CLIENT_SOURCE_DIR}/device-sentry-client)
+
+
 # Secure Device Access Client
 SET(SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/secure-device-access-client)
 ADD_GLOBALDIR(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/secure-device-access/secure-device-access)
@@ -251,12 +258,12 @@ target_link_libraries(mbedclient palTLS nanostacklibservice nanostackeventloop m
 CREATE_LIBRARY(mbedCloudClient "${MBED_CLOUD_CLIENT_SRC}" "")
 
 # Create buld dependencies to ensure all the needed parts get build
-add_dependencies(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client pal)
+add_dependencies(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client update-client pal)
 
 # Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
 # just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
 # automatically build all the submodules.
-target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client update-client pal)
+target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client update-client pal)
 
 ADDSUBDIRS()
 

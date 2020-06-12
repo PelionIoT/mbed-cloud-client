@@ -52,7 +52,7 @@ PAL_PRIVATE const char *path_join_and_alloc(const char * const * path_list);
 
 PAL_PRIVATE palStatus_t pal_set_fw_header(palImageId_t index, FirmwareHeader_t *headerP);
 PAL_PRIVATE uint32_t internal_crc32(const uint8_t* buffer, uint32_t length);
-
+PAL_PRIVATE void get_image_folder(char* path);
 
 char* pal_imageGetFolder(void)
 {
@@ -63,16 +63,15 @@ char* pal_imageGetFolder(void)
 palStatus_t pal_imageInitAPI(palImageSignalEvent_t CBfunction)
 {
     palStatus_t status = PAL_SUCCESS;
-    //printf("pal_imageInitAPI\r\n");
+
     PAL_MODULE_INIT(palUpdateInitFlag);
-
-    // create absolute path.
-
-
-    pal_fsMkDir(PAL_UPDATE_FIRMWARE_DIR);
-
+    char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+    get_image_folder(path);
+    printf("pal_imageInitAPI - create path %s\r\n", path);
+    pal_fsMkDir(path);
     g_palUpdateServiceCBfunc = CBfunction;
     g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_INIT);
+
     return status;
 }
 
@@ -543,8 +542,10 @@ PAL_PRIVATE const char *image_path_alloc_from_index(uint32_t index)
     char file_name[32] = {0};
     snprintf(file_name, sizeof(file_name)-1, "image_%" PRIu32 ".bin", index);
     file_name[sizeof(file_name) - 1] = 0;
+    char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+    get_image_folder(path);
     const char * const path_list[] = {
-         (char*)PAL_UPDATE_FIRMWARE_DIR,
+        path,
         file_name,
         NULL
     };
@@ -565,8 +566,11 @@ PAL_PRIVATE const char *header_path_alloc_from_index(uint32_t index)
         snprintf(file_name, sizeof(file_name)-1, "header_%" PRIu32 ".bin", index);
     }
 
+    char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+    get_image_folder(path);
+
     const char * const path_list[] = {
-         (char*)PAL_UPDATE_FIRMWARE_DIR,
+        path,
         file_name,
         NULL
     };
@@ -610,7 +614,12 @@ PAL_PRIVATE const char *path_join_and_alloc(const char * const * path_list)
     return path;
 }
 
-
+PAL_PRIVATE void get_image_folder(char* path)
+{
+    char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+    pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+    snprintf(path, PAL_MAX_FILE_AND_FOLDER_LENGTH, "%s%s", primary, pal_imageGetFolder());
+}
 
 
 #elif (PAL_UPDATE_IMAGE_LOCATION == PAL_UPDATE_USE_FLASH)

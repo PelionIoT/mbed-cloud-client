@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,6 +16,13 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+/*! \file SimpleM2MResource.h
+ *  \brief SimpleM2MResourceBase.
+ * This class provides an easy wrapper base class for creating a simple M2MResource based on
+ * integer and string values. This class is NOT meant to be directed instantiated but is used
+ * by the SimpleM2MResourceInt and SimpleM2MResourceString classes to create resources.
+ */
+
 #ifndef SIMPLE_M2M_RESOURCE_H
 #define SIMPLE_M2M_RESOURCE_H
 
@@ -27,13 +34,6 @@
 #if MBED_CLOUD_CLIENT_STL_API
 
 #include <string>
-
-/*! \file SimpleM2MResource.h
- *  \brief SimpleM2MResourceBase.
- * This class provides an easy wrapper base class for creating a simple M2MResource based on
- * integer and string values. This class is NOT meant to be directed instantiated but is used
- * by the SimpleM2MResourceInt and SimpleM2MResourceString classes to create resources.
- */
 
 class SimpleM2MResourceBase {
 

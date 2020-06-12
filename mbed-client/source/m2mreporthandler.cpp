@@ -794,9 +794,9 @@ bool M2MReportHandler::blockwise_notify() const
 void M2MReportHandler::send_value()
 {
     tr_debug("M2MReportHandler::send_value() - new value");
-    set_notification_in_queue(true);
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     if (check_threshold_values()) {
+        set_notification_in_queue(true);
         if (_resource_type == M2MBase::FLOAT) {
             _high_step.float_value = _current_value.float_value + _st;
             _low_step.float_value = _current_value.float_value - _st;
@@ -818,6 +818,7 @@ void M2MReportHandler::send_value()
         }
     }
 #else
+    set_notification_in_queue(true);
     schedule_report();
 #endif
 }

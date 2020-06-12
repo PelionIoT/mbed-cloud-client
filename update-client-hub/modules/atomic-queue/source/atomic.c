@@ -52,7 +52,7 @@ int aq_atomic_cas_deref_uintptr(uintptr_t *volatile *ptrAddr,
 #endif
 
 
-#if !defined(__SXOS__) && defined(__GNUC__) && (!defined(__CORTEX_M) || (__CORTEX_M >= 0x03))
+#if !defined(__SXOS__) && defined(__GNUC__) && (!defined(__CORTEX_M) || (__CORTEX_M >= 0x03)) && (!defined(__RXv2__))
 int aq_atomic_cas_uintptr(uintptr_t *ptr, uintptr_t oldval, uintptr_t newval)
 {
     return __sync_bool_compare_and_swap(ptr, oldval, newval);

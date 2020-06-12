@@ -350,7 +350,7 @@
 
 //! The location of the firmware update folder
 #ifndef PAL_UPDATE_FIRMWARE_DIR
-    #define PAL_UPDATE_FIRMWARE_DIR PAL_UPDATE_FIRMWARE_MOUNT_POINT "/firmware"
+    #define PAL_UPDATE_FIRMWARE_DIR "/firmware"
 #endif
 
 #ifndef PAL_INT_FLASH_NUM_SECTIONS
