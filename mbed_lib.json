@@ -11,8 +11,8 @@
         "update-storage": {
             "help": "Storage option for update image. Common values: ARM_UCP_FLASHIAP, ARM_UCP_FLASHIAP_MCUBOOT and ARM_UCP_FLASHIAP_BLOCKDEVICE.",
             "macro_name": "MBED_CLOUD_CLIENT_UPDATE_STORAGE",
-            "default": null,
-            "value": null
+            "default": "ARM_UCP_FLASHIAP",
+            "value": "ARM_UCP_FLASHIAP"
         },
         "disable-certificate-enrollment": {
             "help": "Enables or disables certificate enrollment feature",
@@ -38,8 +38,8 @@
             "default": null,
             "value": null
         },
-        "enable-device-insights": {
-            "help": "Enables Device Insights feature",
+        "enable-device-sentry": {
+            "help": "Enables Device Sentry feature",
             "options": [ "null", "1" ],
             "default": null,
             "value": null

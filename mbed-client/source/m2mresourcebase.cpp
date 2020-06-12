@@ -726,8 +726,9 @@ sn_coap_hdr_s* M2MResourceBase::handle_put_request(nsdl_s *nsdl,
 #ifndef DISABLE_BLOCK_MESSAGE
                 if (block_message()) {
                     block_message()->set_message_info(received_coap_header);
-                    if (received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED ||
-                        received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING) {
+                    if ((received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED ||
+                        received_coap_header->coap_status == COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING) &&
+                        received_coap_header->options_list_ptr) {
 
                         // Callback should contain only the last received block data instead of the whole package payload.
                         uint8_t temp = (received_coap_header->options_list_ptr->block1 & 0x07);

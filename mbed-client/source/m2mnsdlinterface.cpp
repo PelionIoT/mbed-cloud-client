@@ -84,7 +84,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.4.0";
+const char *MCC_VERSION = "mccv=4.5.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -855,6 +855,14 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                        COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED == coap_header->coap_status) {
 
                 tr_info("M2MNsdlInterface::received_from_server_callback - message sending failed, id %d", coap_header->msg_id);
+                coap_response_s *resp = find_response(coap_header->msg_id);
+                if (resp) {
+                    M2MBase *base = find_resource(resp->uri_path);
+                    if (base) {
+                        base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, resp->type);
+                    }
+                }
+
                 _observer.registration_error(M2MInterface::NetworkError, true);
 
             // Handle Server-side expections during registration flow
@@ -2535,6 +2543,8 @@ bool M2MNsdlInterface::validate_security_object()
         String address = _security->resource_value_string(M2MSecurity::M2MServerUri, instance_id);
         uint32_t sec_mode = _security->resource_value_int(M2MSecurity::SecurityMode, instance_id);
         uint32_t is_bs_server = _security->resource_value_int(M2MSecurity::BootstrapServer, instance_id);
+        //Suppress unused variable warning that occurs if EST is disabled
+        (void)is_bs_server;
 
         size_t chain_size = 0;
         size_t server_key_size = 0;
@@ -2587,7 +2597,6 @@ bool M2MNsdlInterface::validate_security_object()
         default:
             // Security mode not supported
             return false;
-        (void)is_bs_server;
         }
     }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE

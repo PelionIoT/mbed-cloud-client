@@ -582,13 +582,26 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Activate(uint32_t slot_id)
         UC_PAAL_TRACE("load: %" PRIX32, header_cache->ih_load_addr);
         UC_PAAL_TRACE("hdr: %" PRIX16, header_cache->ih_hdr_size);
         UC_PAAL_TRACE("img: %" PRIX32, header_cache->ih_img_size);
+        UC_PAAL_TRACE("prot: %" PRIX16, header_cache->ih_protect_tlv_size);
 
         uint32_t tlv_address = slot_addr +
                                header_cache->ih_hdr_size +
                                header_cache->ih_img_size;
 
+        /* search TLV for hash */
         result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address,
                                                                &header_hash_candidate);
+
+        /**
+         * If hash wasn't found, assume we just searched the optional protected TLV.
+         * Proceed to the main TLV and search for hash.
+         */
+        if ((result.error != ERR_NONE) && header_cache->ih_protect_tlv_size) {
+
+            tlv_address += header_cache->ih_protect_tlv_size;
+            result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address,
+                                                                   &header_hash_candidate);
+        }
 
         if (result.error ==  ERR_NONE) {
             /**
@@ -598,6 +611,8 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Activate(uint32_t slot_id)
             arm_uc_pal_flashiap_mcuboot_set_kcm_details(&header_hash_active,
                                                         &header_hash_candidate,
                                                         &arm_uc_pal_flashiap_details);
+        } else {
+            UC_PAAL_ERR_MSG("No hash found in candidate image");
         }
     }
 

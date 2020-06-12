@@ -119,6 +119,17 @@
 #define MBED_CLOUD_CLIENT_LISTEN_PORT               0
 #endif
 
+/**
+* \def MBED_CLOUD_CLIENT_CUSTOM_URI_PORT
+*
+* \brief This is optional MACRO and is not set by default. This implies that if application wants the client to connect
+* on any other CoAP port then provided through factory or developer provisioned URI port they can override that port number.
+*  But, its application's responsibility to ensure that the provided port is open on server side to accept incoming CoAP
+*  connection.
+*/
+//#define MBED_CLOUD_CLIENT_CUSTOM_URI_PORT              5684
+
+
 #include "MbedCloudClientConfigCheck.h"
 
 #endif // MBED_CLOUD_CLIENT_CONFIG_H

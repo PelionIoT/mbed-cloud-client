@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018 ARM Ltd.
+// Copyright 2018-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+/*! \file est_defs.h
+* \brief Definitions for certificate chain structures and Enrollment over Secure
+         Transport (EST) callback.
+*/
 
 #ifndef __EST_DEFS_H__
 #define __EST_DEFS_H__

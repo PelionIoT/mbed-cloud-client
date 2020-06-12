@@ -35,6 +35,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include "common_functions.h"
+#include "ns_hal_init.h"
+
+#ifdef MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
+#define MBED_CLIENT_EVENT_LOOP_SIZE MBED_CONF_MBED_CLIENT_EVENT_LOOP_SIZE
+#else
+#define MBED_CLIENT_EVENT_LOOP_SIZE 1024
+#endif
 
 #define TRACE_GROUP "mClt"
 
@@ -53,6 +60,8 @@ M2MBase::M2MBase(const String& resource_name,
 {
     // Checking the name length properly, i.e returning error is impossible from constructor without exceptions
     assert(resource_name.length() <= MAX_ALLOWED_STRING_LENGTH);
+
+    ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
 
     _sn_resource = (lwm2m_parameters_s*)memory_alloc(sizeof(lwm2m_parameters_s));
     if(_sn_resource) {

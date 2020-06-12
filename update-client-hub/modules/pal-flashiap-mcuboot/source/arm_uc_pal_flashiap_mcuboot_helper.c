@@ -50,7 +50,7 @@
 arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
                                                              arm_uc_hash_t* header_hash)
 {
-    UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_get_header_hash");
+    UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv");
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
@@ -86,6 +86,8 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
 
                 if (status == ARM_UC_FLASHIAP_SUCCESS) {
 
+                    UC_PAAL_TRACE("type: %" PRIX16, record.it_type);
+
                     /* search for the mandatory SHA256 record */
                     if (record.it_type == IMAGE_TLV_SHA256) {
 
@@ -118,6 +120,10 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
         }
     }
 
+    if (result.error != ERR_NONE) {
+        UC_PAAL_TRACE("hash not found in TLV area");
+    }
+
     return result;
 }
 
@@ -136,7 +142,7 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
 arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(uint32_t address,
                                                                 arm_uc_hash_t* header_hash)
 {
-    UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_get_header_hash");
+    UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_get_hash_from_header");
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
@@ -154,13 +160,23 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(uint32_t address
             UC_PAAL_TRACE("load: %" PRIX32, header.ih_load_addr);
             UC_PAAL_TRACE("hdr: %" PRIX16, header.ih_hdr_size);
             UC_PAAL_TRACE("img: %" PRIX32, header.ih_img_size);
+            UC_PAAL_TRACE("prot: %" PRIX16, header.ih_protect_tlv_size);
 
-            /* find address for main TLV */
+            /* find address for TLV */
             uint32_t tlv_address = address + header.ih_hdr_size + header.ih_img_size;
 
-            /* get hash from main TLV */
+            /* search protected TLV first */
             result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address, header_hash);
 
+            /**
+             * If hash wasn't found, assume we just searched the optional protected TLV.
+             * Proceed to the main TLV and search for hash.
+             */
+            if ((result.error != ERR_NONE) && header.ih_protect_tlv_size) {
+
+                tlv_address += header.ih_protect_tlv_size;
+                result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address, header_hash);
+            }
         } else {
             UC_PAAL_TRACE("no header at address: %" PRIX32, address);
         }

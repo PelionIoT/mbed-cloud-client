@@ -521,7 +521,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
                                                  hdr_size);
         if (status != ARM_UC_FLASHIAP_SUCCESS) {
             UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed failed");
-            result.error = FIRM_ERR_ACTIVATE;
+            result.code = FIRM_ERR_ACTIVATE;
         }
     } else {
         /* set return code */

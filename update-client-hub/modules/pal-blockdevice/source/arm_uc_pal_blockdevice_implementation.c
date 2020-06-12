@@ -493,7 +493,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Activate(uint32_t slot_id)
                 metadata_buffer.ptr, slot_addr, pal_blockdevice_hdr_size);
         if (status != ARM_UC_BLOCKDEVICE_SUCCESS) {
             UC_PAAL_ERR_MSG("arm_uc_blockdevice_program failed");
-            result.error = FIRM_ERR_ACTIVATE;
+            result.code = FIRM_ERR_ACTIVATE;
         }
     }
 

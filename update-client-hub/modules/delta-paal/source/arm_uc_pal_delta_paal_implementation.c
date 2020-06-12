@@ -894,10 +894,15 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_Read(uint32_t slot_id,
                                            uint32_t offset,
                                            arm_uc_buffer_t *buffer)
 {
-    UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Read offset %" PRIu32 " buffer->size %" PRIu32, offset, buffer->size);
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (paal_storage_implementation && buffer) {
+    if (!buffer) {
+        return result;
+    }
+
+    UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Read offset %" PRIu32 " buffer->size %" PRIu32, offset, buffer->size);
+
+    if (paal_storage_implementation) {
         result = paal_storage_implementation->Read(slot_id, offset, buffer);
     }
 

@@ -275,7 +275,7 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
   _interface(NULL), _security(NULL),
   _endpoint_info(M2MSecurity::Certificate), _client_objs(NULL),
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-  _rebootstrap_timer(NULL), _bootstrap_security_instance(1), _rebootstrap_time_initialized(false),
+  _rebootstrap_timer(NULL), _bootstrap_security_instance(1), _rebootstrap_time(0), _rebootstrap_time_initialized(false),
 #endif
   _lwm2m_security_instance(0), _certificate_chain_handle(NULL)
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
@@ -293,7 +293,9 @@ ConnectorClient::~ConnectorClient()
     M2MDevice::delete_instance();
     M2MSecurity::delete_instance();
     delete _interface;
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     delete _rebootstrap_timer;
+#endif
 }
 
 bool ConnectorClient::setup()
@@ -304,10 +306,11 @@ bool ConnectorClient::setup()
         // The ns_hal_init() needs to be called by someone before create_interface(),
         // as it will also initialize the tasklet.
         ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         if (!_rebootstrap_timer) {
             _rebootstrap_timer = new M2MTimer(*this);
         }
-
+#endif
         // Create the lwm2m server security object we need always
         M2MSecurity *security = M2MInterfaceFactory::create_security(M2MSecurity::M2MServer);
         M2MInterface *interface = M2MInterfaceFactory::create_interface(*this,
@@ -913,7 +916,9 @@ void ConnectorClient::state_est_started()
 void ConnectorClient::state_est_success()
 {
     tr_info("ConnectorClient::state_est_success()");
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     _interface->finish_bootstrap();
+#endif
 }
 
 void ConnectorClient::state_est_failure()

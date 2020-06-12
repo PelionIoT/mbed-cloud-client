@@ -17,11 +17,11 @@
 #include "pal.h"
 #include "pal_plat_network.h"
 
-#include "api.h" // include LWIP sockets header
-#include "netdb.h"
-#include "netif.h"
-#include "ip.h"
-#include "tcp.h"
+#include "lwip/api.h" // include LWIP sockets header
+#include "lwip/netdb.h"
+#include "lwip/netif.h"
+#include "lwip/ip.h"
+#include "lwip/tcp.h"
 
 #define TRACE_GROUP "PAL"
 
@@ -303,7 +303,7 @@ palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, pal
     int result = PAL_SUCCESS;
     struct netconn* conn = NULL;
     err_t error = 0;
-    palIpV4Addr_t ipv4 = {0};
+    palIpV4Addr_t ipv4 = { 0 };
     uint16_t port = 0;
     if (NULL == socket) // NULL is not a vlaid socket.
     {
@@ -337,7 +337,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
     struct netbuf *newBuf = NULL;
     palLwipNetConnInfo_t* socketInfo = (palLwipNetConnInfo_t*)socket;
     struct netconn* conn = NULL;
-    struct ip4_addr_t* fromAddr;
+    ip_addr_t* fromAddr;
     unsigned short fromPort;
     size_t bufferLength = 0;
     *bytesReceived = 0;
@@ -380,7 +380,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
         {
             fromAddr = netbuf_fromaddr(newBuf);
             fromPort = netbuf_fromport(newBuf);
-            result = pal_setSockAddrIPV4Addr(from, *((palIpV4Addr_t*)fromAddr));
+            result = pal_setSockAddrIPV4Addr(from, *((palIpV4Addr_t*) &(fromAddr->u_addr.ip4.addr)));
             if (PAL_SUCCESS == result)
             {
                 result = pal_setSockAddrPort(from, fromPort);
@@ -418,7 +418,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
     int result = 0;
     struct netconn* conn = NULL;
     struct netbuf *localNetbuf;
-    struct ip4_addr toAddr;
+    ip_addr_t toAddr;
     palIpV4Addr_t ipv4;
     unsigned short toPort;
     *bytesSent = 0;
@@ -453,7 +453,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
             result = pal_getSockAddrIPV4Addr(to, ipv4);
             if (PAL_SUCCESS == result)
             {
-                toAddr.addr = ipv4[0] | (ipv4[1] << 8) | (ipv4[2] << 16) | (ipv4[3] << 24);
+                toAddr.u_addr.ip4.addr = ipv4[0] | (ipv4[1] << 8) | (ipv4[2] << 16) | (ipv4[3] << 24);
 
                 result = netconn_connect(conn, &toAddr, toPort);
                 if (ERR_OK == result)
@@ -549,7 +549,7 @@ palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceI
     if (interfaceNum <numInterfaces) // only "default" interface supported at this point
     {
         struct netif* fsl_netif0 = (struct netif*)s_pal_networkInterfacesSupported[interfaceNum] ;
-        result = pal_setSockAddrIPV4Addr(&interfaceInfo->address, *((palIpV4Addr_t*)&(fsl_netif0->ip_addr.u_addr.ip4)));
+        result = pal_setSockAddrIPV4Addr(&interfaceInfo->address, *((palIpV4Addr_t*) &(fsl_netif0->ip_addr.u_addr.ip4.addr)));
         if (PAL_SUCCESS == result)
         {
             result = pal_setSockAddrPort(&interfaceInfo->address, port);
@@ -626,7 +626,7 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
 {
     palStatus_t result = PAL_SUCCESS;
     struct netconn * new_conn = NULL;
-    ip4_addr_t addr;
+    ip_addr_t addr;
     uint16_t port;
     palLwipNetConnInfo_t* socketInfo = NULL;
     uint32_t index = 0;
@@ -676,7 +676,7 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
             }
             else
             {
-                result = pal_setSockAddrIPV4Addr(address, *((palIpV4Addr_t*)&(addr.addr)));
+                result = pal_setSockAddrIPV4Addr(address, *((palIpV4Addr_t*) &(addr.u_addr.ip4.addr)));
                 if (result == PAL_SUCCESS)
                 {
                     pal_setSockAddrPort(address, port);
@@ -931,7 +931,7 @@ palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *ad
         }
         else
         {
-            result = pal_setSockAddrIPV4Addr(address, *(palIpV4Addr_t*)&addr.u_addr.ip4.addr);
+            result = pal_setSockAddrIPV4Addr(address, *((palIpV4Addr_t*) &(addr.u_addr.ip4.addr)));
             if (PAL_SUCCESS == result)
             {
                 result = pal_setSockAddrPort(address, 0); // we have no port fo the lookup -  zero it to avoif mistakes.

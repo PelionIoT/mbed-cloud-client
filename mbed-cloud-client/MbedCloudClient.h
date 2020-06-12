@@ -36,9 +36,9 @@
 #include "certificate-enrollment-client/certificate-enrollment-client/ce_defs.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
-#include "di_status.h"
-#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+#include "ds_status.h"
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 
 #if MBED_CLOUD_CLIENT_STL_API
 #include <map>
@@ -181,11 +181,11 @@ public:
         EnrollmentErrorBase = CE_STATUS_RANGE_BASE,
         EnrollmentErrorEnd = CE_STATUS_RANGE_END,
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
-        // Device Insights error 0x0600 - 0x06ff. Defined in di_status.h
-        DeviceInsightsErrorBase = DI_STATUS_RANGE_BASE,
-        DeviceInsightsErrorEnd = DI_STATUS_RANGE_END
-#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_INSIGHTS
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+        // Device Sentry error 0x0600 - 0x06ff. Defined in ds_status.h
+        DeviceSentryErrorBase = DS_STATUS_RANGE_BASE,
+        DeviceSentryErrorEnd = DS_STATUS_RANGE_END
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 
     }Error;
 

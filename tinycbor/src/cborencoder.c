@@ -250,14 +250,14 @@ static inline void advance_ptr(CborEncoder *encoder, size_t n)
     if (encoder->end)
         encoder->data.ptr += n;
     else
-        encoder->data.bytes_needed += n;
+        encoder->data.bytes_needed += (ptrdiff_t)n;
 }
 
 static inline CborError append_to_buffer(CborEncoder *encoder, const void *data, size_t len)
 {
     if (would_overflow(encoder, len)) {
         if (encoder->end != NULL) {
-            len -= encoder->end - encoder->data.ptr;
+            len -= (size_t)(encoder->end - encoder->data.ptr);
             encoder->end = NULL;
             encoder->data.bytes_needed = 0;
         }
@@ -289,7 +289,7 @@ static inline CborError encode_number_no_update(CborEncoder *encoder, uint64_t u
     put64(buf + 1, ui);     /* we probably have a bunch of zeros in the beginning */
 
     if (ui < Value8Bit) {
-        *bufstart += shiftedMajorType;
+        *bufstart = (uint8_t)(*bufstart + shiftedMajorType);
     } else {
         uint8_t more = 0;
         if (ui > 0xffU)
@@ -299,10 +299,10 @@ static inline CborError encode_number_no_update(CborEncoder *encoder, uint64_t u
         if (ui > 0xffffffffU)
             ++more;
         bufstart -= (size_t)1 << more;
-        *bufstart = shiftedMajorType + Value8Bit + more;
+        *bufstart = (uint8_t)(shiftedMajorType + Value8Bit + more);
     }
 
-    return append_to_buffer(encoder, bufstart, bufend - bufstart);
+    return append_to_buffer(encoder, bufstart, (size_t)(bufend - bufstart));
 }
 
 static inline CborError encode_number(CborEncoder *encoder, uint64_t ui, uint8_t shiftedMajorType)
@@ -342,9 +342,9 @@ CborError cbor_encode_negative_int(CborEncoder *encoder, uint64_t absolute_value
 CborError cbor_encode_int(CborEncoder *encoder, int64_t value)
 {
     /* adapted from code in RFC 7049 appendix C (pseudocode) */
-    uint64_t ui = value >> 63;              /* extend sign to whole length */
+    uint64_t ui = (uint64_t)(value >> 63);              /* extend sign to whole length */
     uint8_t majorType = ui & 0x20;          /* extract major type */
-    ui ^= value;                            /* complement negatives */
+    ui ^= (uint64_t)value;                            /* complement negatives */
     return encode_number(encoder, ui, majorType);
 }
 
@@ -505,7 +505,7 @@ CBOR_API CborError cbor_encode_byte_string_start(const CborEncoder *encoder, con
 CBOR_API CborError cbor_encode_byte_string_finish(CborEncoder *encoder, size_t used_length)
 {
     CborError err = CborNoError;
-    const uint8_t *start_ptr;
+    const uint8_t *start_ptr = NULL;
     size_t max_string_length;
     size_t i;
 
@@ -551,7 +551,7 @@ static CborError create_container(CborEncoder *encoder, CborEncoder *container, 
 
     if (length == CborIndefiniteLength) {
         container->flags |= CborIteratorFlag_UnknownLength;
-        err = append_byte_to_buffer(container, shiftedMajorType + IndefiniteLength);
+        err = append_byte_to_buffer(container, (uint8_t)(shiftedMajorType + IndefiniteLength));
     } else {
         err = encode_number_no_update(container, length, shiftedMajorType);
     }

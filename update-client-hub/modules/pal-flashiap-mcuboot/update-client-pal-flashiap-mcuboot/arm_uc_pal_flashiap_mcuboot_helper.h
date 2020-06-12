@@ -64,8 +64,7 @@ typedef struct image_tlv_info {
  * MCUBOOT Image trailer TLV format. All fields in little endian.
  */
 typedef struct image_tlv {
-    uint8_t  it_type;   /* IMAGE_TLV_[...]. */
-    uint8_t  _pad;
+    uint16_t it_type;   /* IMAGE_TLV_[...]. */
     uint16_t it_len;    /* Data length (not including TLV header). */
 } image_tlv_t;
 
