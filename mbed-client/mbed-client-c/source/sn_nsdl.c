@@ -286,8 +286,21 @@ uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
             return 0;
         }
     }
-    tr_info("REGISTER MESSAGE %.*s", register_message_ptr->payload_len, register_message_ptr->payload_ptr);
 
+#if MBED_CONF_MBED_TRACE_ENABLE
+    int i = 0;
+    int row_len = 60;
+    int max_length = 2048;
+    while (i < register_message_ptr->payload_len && i < max_length) {
+        if (i + row_len > register_message_ptr->payload_len) {
+            row_len = register_message_ptr->payload_len - i;
+        }
+        tr_info("REGISTER MESSAGE: %.*s", row_len, register_message_ptr->payload_ptr + i);
+        i += row_len;
+    }
+    if (i >= max_length)
+        tr_info("REGISTER MESSAGE:.....");
+#endif
     /* Clean (possible) existing and save new endpoint info to handle */
     if (set_endpoint_info(handle, endpoint_info_ptr) == -1) {
 
@@ -497,6 +510,8 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
                                            sizeof(handle->update_register_token));
 
     sn_nsdl_add_token(handle, &handle->update_register_token, register_message_ptr);
+
+    tr_info("UPDATE REGISTER MESSAGE %.*s", register_message_ptr->payload_len, register_message_ptr->payload_ptr);
 
     /* Build and send coap message to NSP */
     message_id = sn_nsdl_internal_coap_send(handle, register_message_ptr, &handle->server_address);

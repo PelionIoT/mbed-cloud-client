@@ -19,6 +19,8 @@
 #ifndef MBED_CLOUD_CLIENT_UPDATE_RESOURCES_H
 #define MBED_CLOUD_CLIENT_UPDATE_RESOURCES_H
 
+/** \internal \file UpdateClientResources.h */
+
 #ifdef MBED_CLOUD_CLIENT_USER_CONFIG_FILE
 #include MBED_CLOUD_CLIENT_USER_CONFIG_FILE
 #endif

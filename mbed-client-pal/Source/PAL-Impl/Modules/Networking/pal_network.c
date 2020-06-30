@@ -482,6 +482,17 @@ palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
 {
     return pal_plat_cancelAddressInfoAsync(queryHandle);
 }
-#endif //  PAL_DNS_API_VERSION
 
+#endif //  PAL_DNS_API_VERSION
 #endif // PAL_NET_DNS_SUPPORT
+
+uint8_t pal_getRttEstimate()
+{
+    return pal_plat_getRttEstimate();
+}
+
+uint16_t pal_getStaggerEstimate(uint16_t data_amount)
+{
+    return pal_plat_getStaggerEstimate(data_amount);
+}
+

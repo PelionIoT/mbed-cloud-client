@@ -22,20 +22,18 @@
 #include "mbed-client/coap_response.h"
 #include <stdlib.h>
 
+/*! \file m2mresource.h \brief header for M2MResource. */
+
 //FORWARD DECLARATION
 class M2MObjectInstance;
 typedef Vector<M2MResourceInstance *> M2MResourceInstanceList;
 
-/*! \file m2mresource.h
- *  \brief M2MResource.
- *  This class is the base class for mbed Client Resources.
- *
- *  All defined LwM2M object models can be created using it.
- *  This class will also hold all resources instances associated with the given object.
- */
 
-/*! \class M2MResource
- *  \brief The base class for Client Resources.
+/**
+ * This class represent LwM2M resource.
+ *
+ * You can create any LwM2M resources with it.
+ * This class will also hold all resources instances associated with the given object.
  */
 class M2MResource : public M2MResourceBase
 {

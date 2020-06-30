@@ -19,6 +19,8 @@
 #ifndef __SERVICE_CLIENT_H__
 #define __SERVICE_CLIENT_H__
 
+/** \internal \file ServiceClient.h */
+
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
 #include "UpdateClient.h"

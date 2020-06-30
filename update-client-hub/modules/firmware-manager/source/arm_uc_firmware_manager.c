@@ -17,7 +17,7 @@
 // ----------------------------------------------------------------------------
 
 #include "update-client-common/arm_uc_config.h"
-
+#include "update_client_hub_state_machine.h"
 #if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)
 
 
@@ -303,8 +303,14 @@ static void arm_uc_internal_event_handler(uintptr_t event)
             event_handler_finalize();
             break;
         case ARM_UC_PAAL_EVENT_READ_DONE:
-            event_handler_read();
+            if (ARM_UC_HUB_getState() == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST) {
+                event = UCFM_EVENT_READ_DONE;
+                arm_uc_signal_ucfm_handler(event);
+            } else {
+                event_handler_read();
+            }
             break;
+
         default:
             /* pass all other events directly */
             arm_uc_signal_ucfm_handler(event);
@@ -488,6 +494,25 @@ static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t *fragment)
     return result;
 }
 
+static arm_uc_error_t ARM_UCFM_WriteWithOffset(const arm_uc_buffer_t *fragment, const uint32_t offset)
+{
+    UC_FIRM_TRACE("ARM_UCFM_WriteWithOffset");
+
+    package_offset = offset;
+    return ARM_UCFM_Write(fragment);
+}
+
+static arm_uc_error_t ARM_UCFM_Read(arm_uc_buffer_t *buf, uint32_t offset)
+{
+    UC_FIRM_TRACE("ARM_UCFM_READ");
+    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
+    result = ARM_UCP_Read(package_configuration->package_id,
+                          offset,
+                          buf);
+    UC_FIRM_TRACE("ARM_UCFM_READ returning %d", result.code);
+    return result;
+}
+
 static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t *front, arm_uc_buffer_t *back)
 {
     UC_FIRM_TRACE("ARM_UCFM_Finish");
@@ -593,6 +618,8 @@ ARM_UC_FIRMWARE_MANAGER_t ARM_UC_FirmwareManager = {
     .Initialize               = ARM_UCFM_Initialize,
     .Prepare                  = ARM_UCFM_Prepare,
     .Write                    = ARM_UCFM_Write,
+    .WriteWithOffset          = ARM_UCFM_WriteWithOffset,
+    .Read                     = ARM_UCFM_Read,
     .Finalize                 = ARM_UCFM_Finalize,
     .Activate                 = ARM_UCFM_Activate,
     .GetActiveFirmwareDetails = ARM_UCFM_GetActiveFirmwareDetails,

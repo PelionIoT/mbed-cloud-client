@@ -101,18 +101,22 @@ static arm_uc_error_t spawn_thread(void *(*start_routine)(void *), void *arg)
 arm_uc_error_t ARM_UC_PAL_Linux_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_t callback)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-
+    printf("ARM_UC_PAL_Linux_Initialize!!!!\n");
     if (callback) {
         arm_uc_pal_linux_internal_set_callback(callback);
 
         /* create folder for headers if it does not already exist */
         errno = 0;
-        int status = mkdir(ARM_UC_HEADER_FOLDER_PATH, 0700);
-
+        char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+        int length = snprintf(path, PAL_MAX_FILE_AND_FOLDER_LENGTH, "%s%s", primary, ARM_UC_HEADER_FOLDER_PATH);
+        int status = mkdir(path, 0700);
+        printf("ARM_UC_PAL_Linux_Initialize!!!! - path %s\n", path);
         if ((status == 0) || (errno == EEXIST)) {
             /* create folder for firmwares if it does not already exist */
             errno = 0;
-            status = mkdir(ARM_UC_FIRMWARE_FOLDER_PATH, 0700);
+            status = mkdir(path, 0700);
 
             if ((status == 0) || (errno == EEXIST)) {
                 /* set return code on success */

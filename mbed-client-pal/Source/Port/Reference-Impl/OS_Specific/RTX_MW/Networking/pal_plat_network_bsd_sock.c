@@ -627,3 +627,15 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
 #endif
 
 #endif // RTE_Network_Socket_BSD
+
+uint8_t pal_plat_getRttEstimate()
+{
+    return PAL_DEFAULT_RTT_ESTIMATE;
+}
+
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
+{
+    (void) data_amount;
+    return PAL_DEFAULT_STAGGER_ESTIMATE;
+}
+

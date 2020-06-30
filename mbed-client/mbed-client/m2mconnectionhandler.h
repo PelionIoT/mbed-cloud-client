@@ -24,11 +24,9 @@
 class M2MConnectionSecurity;
 class M2MConnectionHandlerPimpl;
 
-/*! \file m2mconnectionhandler.h
- * \brief M2MConnectionHandler.
- * This class handles the socket connection for the LWM2M Client.
- */
+/** \file m2mconnectionhandler.h \brief header for M2MConnectionHandler */
 
+/** This class handles the socket connection for the LWM2M Client. */
 class M2MConnectionHandler {
 public:
 

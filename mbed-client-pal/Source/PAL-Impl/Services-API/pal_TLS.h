@@ -213,11 +213,12 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
  *  DTLS only, no effect on TLS.
  *
  * @param[in] palTLSConf: The DTLS configuration context.
- * @param[in] timeoutInMilliSec: The timeout value in milliseconds.
+ * @param[in] minTimeout: The timeout minimum value in milliseconds.
+ * @param[in] maxTimeout: The timeout maxmimum value in milliseconds.
  *
  * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t timeoutInMilliSec);
+palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t minTimeout, uint32_t maxTimeout);
 
 #if PAL_USE_SECURE_TIME
 /*! \brief Return the result of the certificate verification.
@@ -254,13 +255,14 @@ palStatus_t pal_sslRead(palTLSHandle_t palTLSHandle, void *buffer, uint32_t len,
 /*! \brief Write the exact length of application data bytes.
  *
  * @param[in] palTLSHandle: The TLS context.
+ * @param[in] palTLSConf: The TLS configuration
  * @param[in] buffer: A buffer holding the data.
  * @param[in] len: The number of bytes to be written.
  * @param[out] bytesWritten: The number of bytes actually written.
  *
  * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, uint32_t len, uint32_t *bytesWritten);
+palStatus_t pal_sslWrite(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf, const void *buffer, uint32_t len, uint32_t *bytesWritten);
 
 /*! \brief Turn the debugging on or off for the given TLS library configuration handle. The logs are sent via the `mbedTrace`.
  *   In case of release mode, an error will be returned.

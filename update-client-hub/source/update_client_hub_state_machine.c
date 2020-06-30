@@ -35,7 +35,7 @@
 #include "update-client-source-manager/arm_uc_source_manager.h"
 #include "update-client-control-center/arm_uc_control_center.h"
 #include "update-client-control-center/arm_uc_pre_shared_key.h"
-
+#include "eventOS_event_timer.h"
 #include "mbedtls/aes.h"
 
 #include <inttypes.h>
@@ -59,6 +59,8 @@ static arm_uc_hub_state_t arm_uc_hub_state = ARM_UC_HUB_STATE_UNINITIALIZED;
 
 // the call back function registered by the user to signal end of initialisation
 static void (*arm_uc_hub_init_cb)(uintptr_t) = NULL;
+
+static void arm_uc_get_next_fragment();
 
 // The hub uses a double buffer system to speed up firmware download and storage
 #define BUFFER_SIZE_MAX (ARM_UC_BUFFER_SIZE / 2) //  define size of the double buffers
@@ -146,6 +148,35 @@ static arm_uc_uri_t uri = {
 
 // true if the hub initialization callback was called, false otherwise
 static bool init_cb_called = false;
+
+// delay in seconds before actual reboot is to be done after state machine
+// reaches ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER. If zero, the state machine
+// proceeds immediately to ARM_UC_HUB_STATE_REBOOT
+static uint32_t arm_uc_hub_reboot_delay = 0;
+#define REBOOT_TIMER_ID 1
+#define ARM_UC_REBOOT_TIMER_EVENT 1
+static int8_t arm_uc_tasklet_id = -1;
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+#include "eventOS_event.h"
+#include "multicast.h"
+static int8_t ota_lib_tasklet_id = -1;
+static uint32_t arm_uc_hub_download_delay = 2000;
+#define ARM_UC_DOWNLOAD_TIMER_EVENT 2
+#define DOWNLOAD_TIMER_ID 2
+#endif
+
+static void arm_uc_tasklet(struct arm_event_s *event)
+{
+    if (ARM_UC_REBOOT_TIMER_EVENT == event->event_type) {
+        ARM_UC_HUB_setState(ARM_UC_HUB_STATE_REBOOT);
+    }
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+    else if (ARM_UC_DOWNLOAD_TIMER_EVENT == event->event_type) {
+        arm_uc_get_next_fragment();
+    }
+#endif
+}
 
 /*****************************************************************************/
 /* Debug                                                                     */
@@ -288,6 +319,11 @@ arm_uc_firmware_details_t *ARM_UC_HUB_getActiveFirmwareDetails(void)
 arm_uc_delta_details_t *ARM_UC_HUB_getDeltaDetails(void)
 {
     return &arm_uc_hub_delta_details;
+}
+
+void ARM_UC_HUB_setRebootDelay(uint32_t delay)
+{
+    arm_uc_hub_reboot_delay = delay;
 }
 
 void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
@@ -434,6 +470,9 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_MANIFEST_FETCHED:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_MANIFEST_FETCHED");
+
+                // reset the reboot delay after new manifest is fetched
+                arm_uc_hub_reboot_delay = 0;
 
                 /* Save the manifest for later */
                 memcpy(&fwinfo->manifestBuffer, front_buffer.ptr,
@@ -787,6 +826,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_FETCH_FIRST_FRAGMENT:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_FETCH_FIRST_FRAGMENT");
 
+
                 /* Check firmware size before entering the download state machine.
                    An empty firmware is used for erasing a slot.
                    If true, then send next state to monitor service, close storage slot.
@@ -797,6 +837,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE);
                     new_state = ARM_UC_HUB_STATE_FINALIZE_STORAGE;
                 } else {
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && !defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+                    // Wait ota process to complete
+                    UC_HUB_TRACE("Wait OTA process to complete download");
+                    new_state = ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST;
+#else // ARM_UC_MULTICAST_BORDER_ROUTER_MODE
                     // Set downloadSize here already because fwinfo struct is sharing memory
                     // with backbuffer so fwinfo contents are overwritten starting in next state
                     fw_downloadSize = fwinfo->size;
@@ -808,21 +853,16 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     }
 #endif
 #endif
+
                     UC_HUB_TRACE("loading %" PRIu32 " byte first fragment at %" PRIu32,
                                  front_buffer.size_max, firmware_offset);
                     /* reset download values */
                     front_buffer.size = 0;
                     back_buffer.size = 0;
-                    retval = ARM_UC_SourceManager.GetFirmwareFragment(&uri, &front_buffer, firmware_offset);
-                    if (retval.code !=ERR_NONE) {
-                        // @todo: no separate error for Prepare ?
-                        ARM_UC_HUB_ErrorHandler(SOMA_ERR_NO_ROUTE_TO_SOURCE,
-                                                ARM_UC_HUB_STATE_FETCH_FIRST_FRAGMENT);
-                        HANDLE_ERROR(retval, "GetFirmwareFragment failed")
-                    }
+                    arm_uc_get_next_fragment();
+#endif // #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && (!defined ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
                 }
                 break;
-
             case ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD");
 
@@ -855,14 +895,20 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 /* go fetch a new chunk using the front buffer if more are expected */
                 if (firmware_offset < fw_downloadSize) {
                     front_buffer.size = 0;
-                    UC_HUB_TRACE("Getting next fragment at offset: %" PRIu32, firmware_offset);
-                    retval = ARM_UC_SourceManager.GetFirmwareFragment(&uri, &front_buffer, firmware_offset);
-                    if (retval.code != ERR_NONE) {
-                        // @todo: no separate error for Prepare ?
-                        ARM_UC_HUB_ErrorHandler(SOMA_ERR_NO_ROUTE_TO_SOURCE,
-                                                ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD);
-                        HANDLE_ERROR(retval, "GetFirmwareFragment failed")
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+                    UC_HUB_TRACE("Getting next fragment after %d", arm_uc_hub_download_delay);
+                    if (arm_uc_tasklet_id != -1) {
+                        if (eventOS_event_timer_request(DOWNLOAD_TIMER_ID, ARM_UC_DOWNLOAD_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_download_delay) == -1) {
+                            UC_HUB_TRACE("Failed to start download timer");
+                            arm_uc_get_next_fragment();
+                        }
+                    } else {
+                        UC_HUB_TRACE("Tasklet not created");
+                        arm_uc_get_next_fragment();
                     }
+#else
+                    arm_uc_get_next_fragment();
+#endif
                 } else {
                     // Terminate the process, but first ensure the last fragment has been stored.
                     UC_HUB_TRACE("Last fragment fetched.");
@@ -886,7 +932,28 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE");
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+                if (ota_lib_tasklet_id != -1) {
+                    // Send event back to OTA lib to continue with process completed
+                    new_state = ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST;
+                    arm_event_s event = {0};
+                    event.receiver = ota_lib_tasklet_id;
+                    event.event_type = ARM_UC_OTA_MULTICAST_DL_DONE_EVENT;
+                    event.priority = ARM_LIB_MED_PRIORITY_EVENT;
 
+                    // Clear flags so normal campaing can be run
+                    fwinfo = &message2.fwinfo;
+                    ota_lib_tasklet_id = -1;
+
+                    if (eventOS_event_send(&event) != 0) {
+                        retval.code = ERR_OUT_OF_MEMORY;
+                        ARM_UC_HUB_ErrorHandler(ERR_OUT_OF_MEMORY,
+                                                ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
+                        HANDLE_ERROR(retval, "Failed to send OTA event failed")
+                    }
+                    break;
+                }
+#endif
                 /* set state to downloaded when the full size of the firmware has been fetched. */
                 UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE");
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE);
@@ -963,6 +1030,30 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_REBOOTING);
                 break;
 
+            case ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER:
+                UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER");
+                if(arm_uc_hub_reboot_delay) {
+                    // Create tasklet if not done yet
+                    if (arm_uc_tasklet_id == -1) {
+                        arm_uc_tasklet_id = eventOS_event_handler_create(&arm_uc_tasklet, 0);
+                    }
+
+                    if (arm_uc_tasklet_id != -1) {
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - reboot after %ld seconds", arm_uc_hub_reboot_delay);
+                        if (eventOS_event_timer_request(REBOOT_TIMER_ID, ARM_UC_REBOOT_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_reboot_delay*1000) == -1) {
+                            UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - failed to start timer");
+                            new_state = ARM_UC_HUB_STATE_REBOOT;
+                        }
+                    } else {
+                        // couldn't create tasklet. better to reboot immediately than hang forever
+                        new_state = ARM_UC_HUB_STATE_REBOOT;
+                    }
+                }
+                else {
+                    new_state = ARM_UC_HUB_STATE_REBOOT;
+                }
+                break;
+
             case ARM_UC_HUB_STATE_REBOOT:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_REBOOT");
 
@@ -1016,6 +1107,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 /* do nothing and wait for ARM_UC_HUB_Initialize call to change the state */
                 break;
 
+            case ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST:
+                UC_HUB_TRACE("ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST");
+                /* do nothing and wait for multicast to change the state */
+                break;
+
             default:
                 new_state = ARM_UC_HUB_STATE_IDLE;
                 break;
@@ -1031,9 +1127,32 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
         arm_uc_hub_printStackStats();
 #endif
     }
-
-
-
 }
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info, const int8_t tasklet_id)
+{
+    fwinfo = fw_info;
+    ota_lib_tasklet_id = tasklet_id;
+
+    if (arm_uc_tasklet_id == -1) {
+        arm_uc_tasklet_id = eventOS_event_handler_create(&arm_uc_tasklet, 0);
+    }
+}
+#endif
+
+static void arm_uc_get_next_fragment()
+{
+    UC_HUB_TRACE("arm_uc_get_next_fragment - next fragment at offset: %" PRIu32, firmware_offset);
+    arm_uc_error_t retval;
+    retval = ARM_UC_SourceManager.GetFirmwareFragment(&uri, &front_buffer, firmware_offset);
+    if (retval.code != ERR_NONE) {
+        // @todo: no separate error for Prepare ?
+        ARM_UC_HUB_ErrorHandler(SOMA_ERR_NO_ROUTE_TO_SOURCE,
+                                ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD);
+
+        ARM_UC_HUB_setState(ARM_UC_HUB_STATE_IDLE);
+        UC_HUB_TRACE("arm_uc_get_next_fragment - GetFirmwareFragment failed");
+    }
+}
 #endif // ARM_UC_ENABLE

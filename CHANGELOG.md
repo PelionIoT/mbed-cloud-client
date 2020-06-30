@@ -1,6 +1,6 @@
 ## Changelog for Pelion Device Management Client
 
-### Release 4.5.0 (12.06.2020)
+### Release 4.5.0 (04.06.2020)
 
 #### Device Management Client
 

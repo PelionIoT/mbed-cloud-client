@@ -237,6 +237,28 @@ palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
 
 #endif // PAL_NET_DNS_SUPPORT
 
+/*! \brief This function returns the round-trip estimate for packet in seconds.
+ *
+ * This value can be used to control client retransmission and responsiveness in high latency networks based
+ * on the network information the stack has.
+ * This feature is currently only supported for Mbed OS Wi-SUN stack as a dynamic feature. Other platforms/stacks return
+ * PAL_DEFAULT_RTT_ESTIMATE.
+ * This API limits the RTT to uint8_t due to most of the callers only supporting uint8_t or uint16_t types.
+ * @param[out] rtt_estimate The round-trip estimate in seconds.
+ */
+uint8_t pal_plat_getRttEstimate();
+
+/*! \brief This function returns the stagger estimate for registration in seconds.
+ *
+ * This value can be used to delay the registration of the client after interface GLOBAL_UP
+ * to stagger the traffic in a multidevice network with limited bandwidth.
+ * This feature is currently only supported for Mbed OS Wi-SUN stack as a dynamic feature. Other platforms/stacks return
+ * PAL_DEFAULT_STAGGER_ESTIMATE.
+ * @param[in] estimate for the amount of data in KiB to be transferred.
+ * @param[out] stagger_estimate The randomized stagger estimate.
+ */
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount);
+
 #ifdef __cplusplus
 }
 #endif

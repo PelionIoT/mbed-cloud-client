@@ -19,10 +19,10 @@
 #include <string.h>
 #include <stdint.h>
 
-/*! \file functionpointer.h
-* \brief A class for storing and calling a pointer to a static or member void function.
- */
+/*! \file functionpointer.h \brief Header for function pointer classes */
 
+
+/** Pointer to a function with no parameters. */
 template <typename R>
 class FP0{
 public:
@@ -108,8 +108,7 @@ private:
 
 /* If we had variadic templates, this wouldn't be a problem, but until C++11 is enabled, we are stuck with multiple classes... */
 
-/** A class for storing and calling a pointer to a static or member void function
- */
+/** Pointer to a function with one parameter. */
 template <typename R, typename A1>
 class FP1{
 public:
@@ -193,8 +192,7 @@ private:
     R (*_membercaller)(void*, uintptr_t*, A1); // registered membercaller function to convert back and call _m.member on _object
 };
 
-/** A class for storing and calling a pointer to a static or member void function.
- */
+/** Pointer to a function with two parameters */
 template <typename R, typename A1, typename A2>
 class FP2{
 public:
@@ -278,8 +276,7 @@ private:
     R (*_membercaller)(void*, uintptr_t*, A1, A2); // registered membercaller function to convert back and call _m.member on _object
 };
 
-/** A class for storing and calling a pointer to a static or member void function.
- */
+/** Pointer to a function with three parameters */
 template <typename R, typename A1, typename A2, typename A3>
 class FP3{
 public:

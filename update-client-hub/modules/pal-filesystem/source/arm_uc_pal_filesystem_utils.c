@@ -54,7 +54,9 @@ arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location,
 
     if (dest && dest_size > 0) {
         /* copy the base directory of firmware into dest */
-        int length = snprintf(dest, dest_size, "%s", pal_imageGetFolder());
+        char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+        int length = snprintf(dest, dest_size, "%s%s", primary, pal_imageGetFolder());
 
         if (length > 0) {
             /* add missing slash at end if needed */

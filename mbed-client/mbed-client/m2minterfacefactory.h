@@ -27,10 +27,10 @@ class M2MServer;
 class M2MInterfaceImpl;
 class M2MFirmware;
 
-/*! \file m2minterfacefactory.h
- *  \brief M2MInterfaceFactory.
- *  This is a factory class that provides an interface for creating an mbed Client Interface
- *  object for an application to utilize the LWM2M features provided by the client.
+/** \file m2minterfacefactory.h \brief header for M2MInterfaceFactory. */
+
+/**  This is a factory class that allows you to create an M2MInterface
+ *   object.
  */
 
 class  M2MInterfaceFactory {
@@ -79,7 +79,7 @@ public:
     static M2MSecurity *create_security(M2MSecurity::ServerType server_type);
 
     /**
-     * \brief Creates a server object for the mbed Client Inteface. With this, the 
+     * \brief Creates a server object for the mbed Client Inteface. With this, the
      * client can manage the server resources used for client operations
      * such as Client Registration, server lifetime.
      * \return M2MServer An object for managing server client operations.

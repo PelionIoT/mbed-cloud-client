@@ -67,3 +67,8 @@ int M2MConnectionSecurity::set_dtls_socket_callback(void(*foo)(void*), void *arg
 {
     return _private_impl->set_dtls_socket_callback(foo, argument);
 }
+
+void M2MConnectionSecurity::update_network_rtt_estimate(uint16_t rtt_estimate)
+{
+    _private_impl->update_network_rtt_estimate(rtt_estimate);
+}

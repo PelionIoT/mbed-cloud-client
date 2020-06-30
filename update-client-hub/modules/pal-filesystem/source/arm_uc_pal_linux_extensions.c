@@ -73,7 +73,11 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
 
     if (details) {
         palFileDescriptor_t fd;
-        palStatus_t status = pal_fsFopen(IMAGE_HEADER_FILENAME_UPDATE, PAL_FS_FLAG_READONLY, &fd);
+        char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+        snprintf(path, PAL_MAX_FILE_AND_FOLDER_LENGTH, "%s/%s", primary, IMAGE_HEADER_FILENAME_UPDATE);
+        palStatus_t status = pal_fsFopen(path, PAL_FS_FLAG_READONLY, &fd);
         if (PAL_SUCCESS == status) {
             uint8_t read_buffer[ARM_UC_EXTERNAL_HEADER_SIZE_V2];
             size_t bytes_read;
@@ -144,7 +148,7 @@ static void pal_ext_imageActivationWorker(const void *location)
     char cmd_buf[sizeof(PAL_UPDATE_ACTIVATE_SCRIPT) + 1 + PAL_MAX_FILE_AND_FOLDER_LENGTH + 1];
     char path_buf[PAL_MAX_FILE_AND_FOLDER_LENGTH];
 
-    arm_uc_error_t result = arm_uc_pal_filesystem_get_path(*(palImageId_t *)location, FIRMWARE_IMAGE_ITEM_DATA,
+    arm_uc_error_t result = arm_uc_pal_filesystem_get_path(*(palImageId_t *)location, FIRMWARE_IMAGE_ITEM_HEADER,
                                                            path_buf, PAL_MAX_FILE_AND_FOLDER_LENGTH);
     palStatus_t rc = PAL_ERR_GENERIC_FAILURE;
 

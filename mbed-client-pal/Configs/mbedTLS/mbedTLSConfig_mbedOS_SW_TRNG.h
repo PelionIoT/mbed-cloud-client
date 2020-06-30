@@ -341,6 +341,10 @@
 // This will reduce the RAM consumption roughly by 1500 bytes.
 #undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
 
+// Need MBEDTLS_SSL_CONTEXT_SERIALIZATION and MBEDTLS_SSL_DTLS_CONNECTION_ID for CID feature
+#define MBEDTLS_SSL_CONTEXT_SERIALIZATION
+#define MBEDTLS_SSL_DTLS_CONNECTION_ID
+
 #include "mbedtls/check_config.h"
 
 #endif /* PAL_MBEDTLS_USER_CONFIG_H */

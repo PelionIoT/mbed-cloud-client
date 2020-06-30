@@ -16,9 +16,9 @@
 #ifndef M2MCONSTANTS_H
 #define M2MCONSTANTS_H
 
-/*! \file m2mconstants.h
-* \brief File defining all the constants used across mbed-client.
-*/
+/** \file m2mconstants.h
+ * \brief File defining all the constants used across mbed-client.
+ */
 
 #include <stdint.h>
 #include "m2mconfig.h"

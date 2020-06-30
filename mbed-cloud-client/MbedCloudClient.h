@@ -20,6 +20,8 @@
 #ifndef __MBED_CLOUD_CLIENT_H__
 #define __MBED_CLOUD_CLIENT_H__
 
+/** \file MbedCloudClient.h \brief Header for MbedCloudClient. */
+
 #include "include/ServiceClient.h"
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #include "est_defs.h"
@@ -59,7 +61,7 @@ class SimpleM2MResourceBase;
 /**
  * \brief MbedCloudClientCallback
  * A callback class for informing updated Object and Resource value from the
- * LwM2M server to the user of the `MbedCloudClient` class. The user must instantiate the
+ * LwM2M server to the user of the `MbedCloudClient` class. You must instantiate the
  * class derived out of this and pass the Object to `MbedCloudClient::set_update_callback()`.
  */
 class MbedCloudClientCallback {
@@ -77,13 +79,23 @@ public:
 
 
 
-/*! \file MbedCloudClient.h
- *  \brief MbedCloudClient.
- *  This class provides an interface for handling all the client interface operations
- *  including device provisioning, identity setup, device resource management defined in the OMA
- *  LwM2M specifications, and update firmware.
- *  Device Resource management includes bootstrapping, client registration, device management &
- *  service enablement and information reporting.
+/** A High level Cloud Client class.
+ *
+ * \startuml
+ *  class MbedCloudClient
+ *  class M2MInterface
+ *  MbedCloudClient "1" -- "1" M2MInterface
+ *  M2MInterface  -- "0..*" M2MObject
+ *  M2MInterface  -- "0..*" M2MObjectInstance
+ *  M2MInterface  -- "0..*" M2MResource
+ *  M2MInterface  -- "0..*" M2MResourceInstance
+ * \enduml
+ *
+ * This is a high level application API that encapsulates and simplifies the
+ * usage of LwM2M client.
+ * MbedCloudClient internally maintains the M2MInterface which is the main
+ * LwM2M client as well as list of LwM2M objects and resources that are registered to
+ * the client.
  */
 
 class MbedCloudClient : public ServiceClientCallback {
@@ -93,66 +105,68 @@ public:
     /**
      * \brief An enum defining different kinds of errors
      * that can occur during various client operations.
+     *
+     * Range 0x30 - 0x3FF reserved for Connector error.
      */
     typedef enum {
-        // Range 0x30 - 0x3FF reserved for Connector error.
+        /// No error.
         ConnectErrorNone                        = M2MInterface::ErrorNone,
 
-        // Not used.
+        /// Not used.
         ConnectAlreadyExists                    = M2MInterface::AlreadyExists,
 
-        // Bootstrap failed.
-        // Client recovers automatically.
+        /// Bootstrap failed.
+        /// Client recovers automatically.
         ConnectBootstrapFailed                  = M2MInterface::BootstrapFailed,
 
-        // Security object is not valid or server rejects the registration.
-        // No internal recovery mechanism. Actions needed on the application side.
+        /// Security object is not valid or server rejects the registration.
+        /// No internal recovery mechanism. Actions needed on the application side.
         ConnectInvalidParameters                = M2MInterface::InvalidParameters,
 
-        // Cannot unregister as client is not registered.
-        // No internal recovery mechanism. Actions needed on the application side.
+        /// Cannot unregister as client is not registered.
+        /// No internal recovery mechanism. Actions needed on the application side.
         ConnectNotRegistered                    = M2MInterface::NotRegistered,
 
-        // Registration has timed out.
-        // Client recovers automatically.
+        /// Registration has timed out.
+        /// Client recovers automatically.
         ConnectTimeout                          = M2MInterface::Timeout,
 
-        // Socket level operation error.
-        // Client recovers automatically.
+        /// Socket level operation error.
+        /// Client recovers automatically.
         ConnectNetworkError                     = M2MInterface::NetworkError,
 
-        // Failed to parse an incoming CoAP message.
-        // Client will continue working, no actions needed.
+        /// Failed to parse an incoming CoAP message.
+        /// Client will continue working, no actions needed.
         ConnectResponseParseFailed              = M2MInterface::ResponseParseFailed,
 
-        // Unknown CoAP level error.
-        // Client recovers automatically.
+        /// Unknown CoAP level error.
+        /// Client recovers automatically.
         ConnectUnknownError                     = M2MInterface::UnknownError,
 
-        // Memory allocation has failed.
-        // No internal recovery mechanism. Actions needed on the application side.
+        /// Memory allocation has failed.
+        /// No internal recovery mechanism. Actions needed on the application side.
         ConnectMemoryConnectFail                = M2MInterface::MemoryFail,
 
-        // API call is not allowed for now.
-        // Application should try again later.
+        /// API call is not allowed for now.
+        /// Application should try again later.
         ConnectNotAllowed                       = M2MInterface::NotAllowed,
 
-        // Failed to initialize secure connection or DTLS/TLS handshake failed.
-        // Client recovers automatically.
+        /// Failed to initialize secure connection or DTLS/TLS handshake failed.
+        /// Client recovers automatically.
         ConnectSecureConnectionFailed           = M2MInterface::SecureConnectionFailed,
 
-        // DNS resolving has failed.
-        // Client recovers automatically.
+        /// DNS resolving has failed.
+        /// Client recovers automatically.
         ConnectDnsResolvingFailed               = M2MInterface::DnsResolvingFailed,
 
-        // Not used.
+        /// Not used.
         ConnectorFailedToStoreCredentials       = M2MInterface::FailedToStoreCredentials,
 
-        // Failed to read credentials from storage.
-        // No internal recovery mechanism. Actions needed on the application side.
+        /// Failed to read credentials from storage.
+        /// No internal recovery mechanism. Actions needed on the application side.
         ConnectorFailedToReadCredentials        = M2MInterface::FailedToReadCredentials,
 
-        // Not used.
+        /// Not used.
         ConnectorInvalidCredentials,
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         UpdateWarningNoActionRequired           = UpdateClient::WarningBase, // Range reserved for Update Error from 0x0400 - 0x04FF
@@ -177,13 +191,15 @@ public:
         UpdateFatalRebootRequired,
 #endif
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
-        // Certificate Enrollment error 0x0500 - 0x05ff. Defined in ce_status.h
+        /// Certificate Enrollment error 0x0500 - 0x05ff. Defined in ce_status.h
         EnrollmentErrorBase = CE_STATUS_RANGE_BASE,
+        /// Certificate Enrollment errors end.
         EnrollmentErrorEnd = CE_STATUS_RANGE_END,
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
-        // Device Sentry error 0x0600 - 0x06ff. Defined in ds_status.h
+        /// Device Sentry error 0x0600 - 0x06ff. Defined in ds_status.h
         DeviceSentryErrorBase = DS_STATUS_RANGE_BASE,
+        /// Device Sentry error.
         DeviceSentryErrorEnd = DS_STATUS_RANGE_END
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 
@@ -206,7 +222,7 @@ public:
     MbedCloudClient();
 
     /**
-     * \brief Constructor with callback registration.
+     * \brief Constructor a Cloud Client with given callbacks.
      * \param on_registered_cb Callback function that Device Management Client calls when the client has registered
      * successfully to Device Management.
      * \param on_unregistered_cb Callback function that Device Management Client calls when the client has unregistered

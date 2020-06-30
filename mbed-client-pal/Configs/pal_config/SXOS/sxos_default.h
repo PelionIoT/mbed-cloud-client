@@ -111,7 +111,7 @@
 #endif
 
 #ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
-	// This also implies PAL_USE_INTERNAL_FLASH 1
+    // This also implies PAL_USE_INTERNAL_FLASH 1
     #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
 #endif
 
@@ -122,6 +122,10 @@
 // Define max fragment length to be 1024 (2)
 #ifndef PAL_MAX_FRAG_LEN
     #define PAL_MAX_FRAG_LEN 2
+#endif
+
+#ifndef PAL_DEFAULT_RTT_ESTIMATE
+    #define PAL_DEFAULT_RTT_ESTIMATE 8
 #endif
 
 /* To relax some pal_init/pal_destroy tests when running unit tests from testapp.

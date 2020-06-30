@@ -1297,3 +1297,102 @@ void pal_plat_connectionStatusCallback(void *interfaceIndex, nsapi_event_t statu
         }
     }
 }
+
+uint8_t pal_plat_getRttEstimate()
+{
+    uint8_t rtt_estimate = PAL_DEFAULT_RTT_ESTIMATE;
+#if ((MBED_MAJOR_VERSION <=5) && (MBED_MINOR_VERSION < 15 || ((MBED_MINOR_VERSION == 15) && (MBED_PATCH_VERSION < 4))))
+    //Unsupported before Mbed OS 5.15.4
+#else
+    if (s_pal_networkInterfacesSupported[0].interface) {
+        PAL_LOG_INFO("pal_plat_getRttEstimate asking stack");
+
+        SocketAddress sa;
+        nsapi_error_t err;
+        NetworkInterface* net;
+        UDPSocket socket;
+
+        net = s_pal_networkInterfacesSupported[0].interface;
+        err = socket.open(net);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_INFO("open returned %d", err);
+            return PAL_DEFAULT_RTT_ESTIMATE;
+        }
+        err = net->get_ip_address(&sa);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_INFO("get_ip_address returned %d", err);
+            return PAL_DEFAULT_RTT_ESTIMATE;
+        }
+
+        uint32_t rtt_temp;
+        err = socket.get_rtt_estimate_to_address(sa, &rtt_temp);
+        PAL_LOG_INFO("get_rtt_estimate_to_address returned %d rtt_temp %d", err, rtt_temp);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_ERR("get_rtt_estimate_to_address failed.");
+            (void) socket.close();
+            return PAL_DEFAULT_RTT_ESTIMATE;
+        }
+
+        // Returned value is in milliseconds, convert to seconds and limit to uint8_t max
+        rtt_temp = rtt_temp/1000;
+        if (rtt_temp > UINT8_MAX) {
+            rtt_temp = UINT8_MAX;
+        }
+
+        rtt_estimate = (uint8_t)rtt_temp;
+        PAL_LOG_INFO("get_rtt_estimate_to_address returned %d, rand %d", err, rtt_estimate);
+        (void) socket.close();
+    } else {
+        PAL_LOG_INFO("pal_plat_getRttEstimate using default");
+    }
+    // Ensure that RTT is always at least 1.
+    if (rtt_estimate < 1) {
+        rtt_estimate = PAL_DEFAULT_RTT_ESTIMATE;
+    }
+#endif
+    return rtt_estimate;
+}
+
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
+{
+    uint16_t stagger_rand = PAL_DEFAULT_STAGGER_ESTIMATE;
+#if ((MBED_MAJOR_VERSION <=5) && (MBED_MINOR_VERSION < 15 || ((MBED_MINOR_VERSION == 15) && (MBED_PATCH_VERSION < 4))))
+    (void) data_amount;
+    //Unsupported before Mbed OS 5.15.4
+#else
+    if (s_pal_networkInterfacesSupported[0].interface) {
+        PAL_LOG_INFO("pal_plat_getStaggerEstimate asking stack");
+        SocketAddress sa;
+        nsapi_error_t err;
+        NetworkInterface* net;
+        UDPSocket socket;
+
+        net = s_pal_networkInterfacesSupported[0].interface;
+        err = socket.open(net);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_INFO("open returned %d", err);
+            return PAL_DEFAULT_STAGGER_ESTIMATE;
+        }
+        err = net->get_ip_address(&sa);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_INFO("get_ip_address returned %d", err);
+            return PAL_DEFAULT_STAGGER_ESTIMATE;
+        }
+
+        // Hardcoded to ask estimate for 2 KiB packets.
+        err = socket.get_stagger_estimate_to_address(sa, data_amount, NULL, NULL, &stagger_rand);
+        PAL_LOG_INFO("get_stagger_estimate_to_address returned %d", err);
+        if (err != NSAPI_ERROR_OK) {
+            (void) socket.close();
+            return PAL_DEFAULT_STAGGER_ESTIMATE;
+        }
+
+        PAL_LOG_INFO("get_stagger_estimate_to_address returned %d, rand %d", err, stagger_rand);
+        (void) socket.close();
+    } else {
+        PAL_LOG_INFO("pal_plat_getStaggerEstimate using default");
+    }
+#endif
+    return stagger_rand;
+}
+

@@ -107,8 +107,11 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 #endif
 
     if (_sec_mode == M2MConnectionSecurity::DTLS) {
-        // PAL divides the defined MAX_TIMEOUT by 2
-        pal_setHandShakeTimeOut(_conf, MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT*2);
+        // convert to milliseconds and scale to reasonable range based on the network latency
+        uint32_t dtls_min = _network_rtt_estimate * 1000;
+        uint32_t dtls_max = _network_rtt_estimate * 1000 * 5;
+
+        pal_setHandShakeTimeOut(_conf, dtls_min, dtls_max);
     }
 
     M2MSecurity::SecurityModeType cert_mode =
@@ -269,7 +272,7 @@ int M2MConnectionSecurityPimpl::send_message(unsigned char *message, int len)
     palStatus_t return_value;
     uint32_t len_write;
 
-    if (PAL_SUCCESS == (return_value = pal_sslWrite(_ssl, message, len, &len_write))){
+    if (PAL_SUCCESS == (return_value = pal_sslWrite(_ssl, _conf, message, len, &len_write))){
         ret = (int)len_write;
     }
     else if (return_value == PAL_ERR_TLS_WANT_READ || return_value == PAL_ERR_TIMEOUT_EXPIRED){
@@ -341,4 +344,9 @@ int M2MConnectionSecurityPimpl::set_dtls_socket_callback(void(*foo)(void*), void
 {
     pal_setDTLSSocketCallback(_conf, (palSocketCallback_f)foo, argument);
     return M2MConnectionHandler::ERROR_NONE;
+}
+
+void M2MConnectionSecurityPimpl::update_network_rtt_estimate(uint8_t rtt_estimate)
+{
+    _network_rtt_estimate = rtt_estimate;
 }
