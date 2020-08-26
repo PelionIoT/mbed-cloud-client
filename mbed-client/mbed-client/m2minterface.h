@@ -24,6 +24,7 @@
 #include "sn_coap_protocol.h"
 #include "nsdl-c/sn_nsdl_lib.h"
 
+/** \file m2minterface.h \brief header for M2MInterface */
 
 //FORWARD DECLARATION
 class M2MSecurity;
@@ -71,12 +72,15 @@ typedef void (*request_error_cb)(request_error_t error_code, void *context);
 typedef request_error_cb get_data_error_cb; // For backward compatibility
 
 
-/*! \file m2minterface.h
- *  \brief M2MInterface.
- *  This class provides an interface for handling all mbed Client interface operations
- *  defined in the OMA LWM2M specifications.
- *  This includes Bootstrapping, Client Registration, Device Management &
- *  Service Enablement and Information Reporting.
+/** This class handles LwM2M Client logic related to communicating with
+ * all four interfaces defined in LwM2M.
+ *
+ * LwM2M defines four interfaces:
+ * * Bootstrap
+ * * Client Registration
+ * * Device management and service enablement
+ * * Information Reporting
+ *
  */
 
 class M2MInterface {
@@ -283,6 +287,18 @@ public:
     virtual void set_platform_network_handler(void *handler = NULL) = 0;
 
     /**
+     * @brief Sets the network interface handler that is used by client to connect
+     * to a network over IP.
+     * @param handler A network interface handler that is used by client to connect.
+     *  This API is optional but provides a mechanism for different platforms to
+     * manage usage of underlying network interface by client.
+     * @param credentials_available This extra parameter allows the client to further
+     * optimize its internal connection logic in high latency networks when dynamic
+     * handling of network staggering is supported. (Platform-dependent).
+     */
+    virtual void set_platform_network_handler(void *handler = NULL, bool credentials_available = 0) = 0;
+
+    /**
      * @brief Updates the endpoint name.
      * @param name New endpoint name
      */
@@ -371,6 +387,8 @@ public:
      *  register to the LWM2M server.
      */
     virtual void resume(void *iface, const M2MBaseList &object_list) = 0;
+
+    virtual nsdl_s* get_nsdl_handle() const = 0;
 };
 
 #endif // M2M_INTERFACE_H

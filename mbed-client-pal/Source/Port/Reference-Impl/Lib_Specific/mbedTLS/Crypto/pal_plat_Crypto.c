@@ -1775,6 +1775,7 @@ PAL_PRIVATE palStatus_t pal_plat_pkMbedtlsToPalError(int32_t platStatus)
         status = PAL_ERR_NOT_SUPPORTED_CURVE;
         break;
     case MBEDTLS_ERR_PK_KEY_INVALID_FORMAT:
+    case MBEDTLS_ERR_PK_KEY_INVALID_FORMAT + MBEDTLS_ERR_ASN1_OUT_OF_DATA: //It is done to parse status of mbedtls_pk_parse_public_key()
         status = PAL_ERR_PK_KEY_INVALID_FORMAT;
         break;
     case MBEDTLS_ERR_PK_INVALID_PUBKEY + MBEDTLS_ERR_ASN1_LENGTH_MISMATCH: //This is how mbedTLS returns erros for this function

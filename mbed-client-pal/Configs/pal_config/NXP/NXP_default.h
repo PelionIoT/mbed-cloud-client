@@ -66,6 +66,8 @@
     #define PAL_SUPPORT_IP_V6 0
 #endif
 
-
+#ifndef PAL_DEFAULT_RTT_ESTIMATE
+    #define PAL_DEFAULT_RTT_ESTIMATE 5
+#endif
 
 #endif /* PAL_NXP_CONFIGURATION_H_ */

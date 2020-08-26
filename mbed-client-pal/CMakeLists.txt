@@ -168,6 +168,10 @@ set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/SOTP/pal_pl
 # Add the platform independent ROT implementation for PSA, which gets used if the PAL_USE_HW_ROT==0
 set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/PSA/pal_plat_rot_psa.c)
 
+# Add the platform independent ROT implementation for KVSTORE platform, which gets used if the PAL_USE_HW_ROT==0
+# TODO: the code is really in wrong place for generic implementation
+set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/Source/Port/Reference-Impl/OS_Specific/mbedOS/ROT/pal_plat_rot.cpp)
+
 # Add the platform independent DRBG implementation
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/SOTP/pal_plat_drbg_sotp.c)
 
@@ -180,18 +184,6 @@ set (PAL_ENTROPY_SRCS ${PAL_ENTROPY_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Entropy
 # PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM==1
 set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/Storage/Flash/pal_plat_internalFlash_FlashOverFilesystem.c)
 
-if (NOT (${OS_BRAND} MATCHES "Linux"))
-# Add the KVStore based storage implementation, which gets used if
-# MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is defined
-#set (PAL_SRCS ${PAL_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/SST/kvstore_impl/pal_plat_sst_impl.c)
-
-set (PAL_SST_SRCS ${PAL_PORT_GENERIC_SOURCE_DIR}/SST/kvstore_impl/pal_plat_sst_impl.c)
-
-add_library(palSST STATIC "${PAL_SST_SRCS}")
-add_dependencies(palSST kvstore)
-target_link_libraries(palSST kvstore)
-endif()
-
 # Add the platform independent noise implementation (used by the DRBG mdule)
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/pal_plat_drbg_noise.c)
 
@@ -200,6 +192,7 @@ set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/PSA/pal_
 
 # Add DRBG support for targets with KVStore on non-mbed-os and non-Linux targets
 set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_SOURCE_DIR}/../../Lib_Specific/${TLS_LIBRARY}/DRBG/pal_plat_drbg_w_entropy_sources.c)
+set (PAL_DRBG_SRCS ${PAL_DRBG_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/DRBG/KVSTORE/pal_plat_drbg_kvstore.cpp)
 
 # Create the RTOS module library
 add_library(palRTOS STATIC "${PAL_RTOS_SRCS}")
@@ -212,6 +205,13 @@ add_library(palNetworking STATIC "${PAL_NETWORKING_SRCS}")
 
 # Create the ROT module library
 add_library(palROT STATIC "${PAL_ROT_SRCS}")
+
+# Add dependency for pal rot library only for FreeRTOS
+#TODO: check what configuration needed to change this to kvstore dependency
+if(${OS_BRAND} MATCHES "FreeRTOS")
+add_dependencies(palROT sotp)
+target_link_libraries(palROT sotp)
+endif()
 
 # Create the Entropy module library
 add_library(palEntropy STATIC "${PAL_ENTROPY_SRCS}")
@@ -244,8 +244,8 @@ add_library(pal STATIC "${PAL_SRCS}")
 # Linux platform does not support KVStore
 if (NOT (${OS_BRAND} MATCHES "Linux"))
 # Add dependency to KVStore and FCC so they will be built before and linked with PAL into final executable.
-add_dependencies(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime palSST sotp PLATFORM_LIBS)
-target_link_libraries(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime palSST sotp PLATFORM_LIBS)
+add_dependencies(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
+target_link_libraries(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
 else()
 # Add dependency to SOTP and FCC so they will be built before and linked with PAL into final executable.
 add_dependencies(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)

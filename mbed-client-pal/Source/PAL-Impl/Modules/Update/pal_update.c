@@ -52,26 +52,40 @@ PAL_PRIVATE const char *path_join_and_alloc(const char * const * path_list);
 
 PAL_PRIVATE palStatus_t pal_set_fw_header(palImageId_t index, FirmwareHeader_t *headerP);
 PAL_PRIVATE uint32_t internal_crc32(const uint8_t* buffer, uint32_t length);
+
+#ifdef __NANOSIMULATOR__
 PAL_PRIVATE void get_image_folder(char* path);
+#endif //__NANOSIMULATOR__
 
 char* pal_imageGetFolder(void)
 {
     return PAL_UPDATE_FIRMWARE_DIR;
 }
 
-
 palStatus_t pal_imageInitAPI(palImageSignalEvent_t CBfunction)
 {
     palStatus_t status = PAL_SUCCESS;
 
     PAL_MODULE_INIT(palUpdateInitFlag);
+#ifdef __NANOSIMULATOR__
     char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
     get_image_folder(path);
-    printf("pal_imageInitAPI - create path %s\r\n", path);
-    pal_fsMkDir(path);
+    status = pal_fsMkDir(path);
+#else
+    // create absolute path.
+    status = pal_fsMkDir(PAL_UPDATE_FIRMWARE_DIR);
+#endif
+
+    if (status != PAL_SUCCESS) {
+        if (status == PAL_ERR_FS_NAME_ALREADY_EXIST) {
+            status = PAL_SUCCESS;
+        } else {
+            PAL_LOG_ERR("pal_imageInitAPI - failed to create path!");
+        }
+    }
+
     g_palUpdateServiceCBfunc = CBfunction;
     g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_INIT);
-
     return status;
 }
 
@@ -542,6 +556,7 @@ PAL_PRIVATE const char *image_path_alloc_from_index(uint32_t index)
     char file_name[32] = {0};
     snprintf(file_name, sizeof(file_name)-1, "image_%" PRIu32 ".bin", index);
     file_name[sizeof(file_name) - 1] = 0;
+#ifdef __NANOSIMULATOR__
     char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
     get_image_folder(path);
     const char * const path_list[] = {
@@ -549,7 +564,13 @@ PAL_PRIVATE const char *image_path_alloc_from_index(uint32_t index)
         file_name,
         NULL
     };
-
+#else
+    const char * const path_list[] = {
+         (char*)PAL_UPDATE_FIRMWARE_DIR,
+        file_name,
+        NULL
+    };
+#endif
     return path_join_and_alloc(path_list);
 }
 
@@ -565,7 +586,7 @@ PAL_PRIVATE const char *header_path_alloc_from_index(uint32_t index)
     {
         snprintf(file_name, sizeof(file_name)-1, "header_%" PRIu32 ".bin", index);
     }
-
+#ifdef __NANOSIMULATOR__
     char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
     get_image_folder(path);
 
@@ -574,7 +595,13 @@ PAL_PRIVATE const char *header_path_alloc_from_index(uint32_t index)
         file_name,
         NULL
     };
-
+#else
+    const char * const path_list[] = {
+        (char*)PAL_UPDATE_FIRMWARE_DIR,
+        file_name,
+        NULL
+    };
+#endif
     return path_join_and_alloc(path_list);
 }
 
@@ -614,13 +641,14 @@ PAL_PRIVATE const char *path_join_and_alloc(const char * const * path_list)
     return path;
 }
 
+#ifdef __NANOSIMULATOR__
 PAL_PRIVATE void get_image_folder(char* path)
 {
     char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
-    pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+    (void)pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
     snprintf(path, PAL_MAX_FILE_AND_FOLDER_LENGTH, "%s%s", primary, pal_imageGetFolder());
 }
-
+#endif // __NANOSIMULATOR__
 
 #elif (PAL_UPDATE_IMAGE_LOCATION == PAL_UPDATE_USE_FLASH)
 

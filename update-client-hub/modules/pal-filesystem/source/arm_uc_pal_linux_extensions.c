@@ -73,46 +73,61 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
 
     if (details) {
         palFileDescriptor_t fd;
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+        char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        palStatus_t status = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+#else
         palStatus_t status = pal_fsFopen(IMAGE_HEADER_FILENAME_UPDATE, PAL_FS_FLAG_READONLY, &fd);
+#endif
         if (PAL_SUCCESS == status) {
-            uint8_t read_buffer[ARM_UC_EXTERNAL_HEADER_SIZE_V2];
-            size_t bytes_read;
-            status = pal_fsFread(&fd, &read_buffer, sizeof(read_buffer), &bytes_read);
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+            snprintf(path, PAL_MAX_FILE_AND_FOLDER_LENGTH, "%s/%s", primary, IMAGE_HEADER_FILENAME_UPDATE);
+            status = pal_fsFopen(path, PAL_FS_FLAG_READONLY, &fd);
             if (PAL_SUCCESS == status) {
-                /* read out header magic */
-                uint32_t headerMagic = arm_uc_parse_uint32(&read_buffer[0]);
+#endif
+                uint8_t read_buffer[ARM_UC_EXTERNAL_HEADER_SIZE_V2];
+                size_t bytes_read;
+                status = pal_fsFread(&fd, &read_buffer, sizeof(read_buffer), &bytes_read);
+                if (PAL_SUCCESS == status) {
+                    /* read out header magic */
+                    uint32_t headerMagic = arm_uc_parse_uint32(&read_buffer[0]);
 
-                /* read out header magic */
-                uint32_t headerVersion = arm_uc_parse_uint32(&read_buffer[4]);
+                    /* read out header magic */
+                    uint32_t headerVersion = arm_uc_parse_uint32(&read_buffer[4]);
 
-                /* choose version to decode */
-                if (headerMagic == ARM_UC_INTERNAL_HEADER_MAGIC_V2 &&
-                        headerVersion == ARM_UC_INTERNAL_HEADER_VERSION_V2 &&
-                        bytes_read == ARM_UC_INTERNAL_HEADER_SIZE_V2) {
-                    result = arm_uc_parse_internal_header_v2(read_buffer, details);
-                } else if (headerMagic == ARM_UC_EXTERNAL_HEADER_MAGIC_V2 &&
-                           headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2 &&
-                           bytes_read == ARM_UC_EXTERNAL_HEADER_SIZE_V2) {
-                    result = arm_uc_parse_external_header_v2(read_buffer, details);
-                } else {
-                    /* invalid header format */
-                    tr_err("Unrecognized firmware header: magic = 0x%" PRIx32 ", version = 0x%" PRIx32 ", size = %" PRIu32 ,
-                           headerMagic, headerVersion, bytes_read);
+                    /* choose version to decode */
+                    if (headerMagic == ARM_UC_INTERNAL_HEADER_MAGIC_V2 &&
+                            headerVersion == ARM_UC_INTERNAL_HEADER_VERSION_V2 &&
+                            bytes_read == ARM_UC_INTERNAL_HEADER_SIZE_V2) {
+                        result = arm_uc_parse_internal_header_v2(read_buffer, details);
+                    } else if (headerMagic == ARM_UC_EXTERNAL_HEADER_MAGIC_V2 &&
+                               headerVersion == ARM_UC_EXTERNAL_HEADER_VERSION_V2 &&
+                               bytes_read == ARM_UC_EXTERNAL_HEADER_SIZE_V2) {
+                        result = arm_uc_parse_external_header_v2(read_buffer, details);
+                    } else {
+                        /* invalid header format */
+                        tr_err("Unrecognized firmware header: magic = 0x%" PRIx32 ", version = 0x%" PRIx32 ", size = %" PRIu32 ,
+                               headerMagic, headerVersion, bytes_read);
+                    }
                 }
+                pal_fsFclose(&fd);
+            } else {
+                // XXX TODO: Need to implement version query before any update has been processed.
+                //           In this version info is fetched only from header file which is created
+                //           during update process.
+                tr_err("No image header! pal_fsOpen returned status = %" PRIu32, status);
             }
-            pal_fsFclose(&fd);
+
+            if (PAL_SUCCESS != status || ERR_NONE != result.code) {
+                // Zero the details
+                memset(details, 0, sizeof(arm_uc_firmware_details_t));
+            }
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
         } else {
-            // XXX TODO: Need to implement version query before any update has been processed.
-            //           In this version info is fetched only from header file which is created
-            //           during update process.
-            tr_err("No image header! pal_fsOpen returned status = %" PRIu32, status);
+            tr_err("pal_fsGetMountPoint returned status = %" PRIu32, status);
         }
-
-        if (PAL_SUCCESS != status || ERR_NONE != result.code) {
-            // Zero the details
-            memset(details, 0, sizeof(arm_uc_firmware_details_t));
-        }
-
+#endif
         if (arm_ucex_linux_callback) {
             arm_ucex_linux_callback(ARM_UC_PAAL_EVENT_GET_ACTIVE_FIRMWARE_DETAILS_DONE);
         }
@@ -143,9 +158,13 @@ static void pal_ext_imageActivationWorker(const void *location)
 {
     char cmd_buf[sizeof(PAL_UPDATE_ACTIVATE_SCRIPT) + 1 + PAL_MAX_FILE_AND_FOLDER_LENGTH + 1];
     char path_buf[PAL_MAX_FILE_AND_FOLDER_LENGTH];
-
-    arm_uc_error_t result = arm_uc_pal_filesystem_get_path(*(palImageId_t *)location, FIRMWARE_IMAGE_ITEM_DATA,
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    arm_uc_error_t result = arm_uc_pal_filesystem_get_path(*(palImageId_t *)location, FIRMWARE_IMAGE_ITEM_HEADER,
                                                            path_buf, PAL_MAX_FILE_AND_FOLDER_LENGTH);
+#else
+    arm_uc_error_t result = arm_uc_pal_filesystem_get_path(*(palImageId_t *)location, FIRMWARE_IMAGE_ITEM_DATA,
+                                                               path_buf, PAL_MAX_FILE_AND_FOLDER_LENGTH);
+#endif
     palStatus_t rc = PAL_ERR_GENERIC_FAILURE;
 
     if (result.code == ERR_NONE) {

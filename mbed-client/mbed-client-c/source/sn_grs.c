@@ -337,14 +337,7 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
         /* * * * * * * * * * * * * * */
 
         else {
-            if (coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_POST) {
-                handle->sn_grs_rx_callback(nsdl_handle, coap_packet_ptr, src_addr_ptr);
-                sn_grs_free_coap_packet(nsdl_handle, coap_packet_ptr, src_addr_ptr);
-                sn_coap_parser_release_allocated_coap_msg_mem(handle->coap, coap_packet_ptr);
-                return SN_NSDL_SUCCESS;
-            } else {
-                status = COAP_MSG_CODE_RESPONSE_NOT_FOUND;
-            }
+            status = COAP_MSG_CODE_RESPONSE_NOT_FOUND;
         }
     }
 

@@ -19,6 +19,8 @@
 #ifndef CLOUD_CLIENT_STORAGE_H
 #define CLOUD_CLIENT_STORAGE_H
 
+/** \internal \file CloudClientStorage.h */
+
 #include <stddef.h>
 #include <stdint.h>
 

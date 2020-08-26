@@ -27,6 +27,11 @@
 #include "se_driver_config.h"
 #endif
 
+#ifdef TARGET_TFM_V1_0
+kcm_status_e psa_drv_ps_set(void* data, size_t data_size, uint32_t extra_flags, uint16_t *ksa_id);
+kcm_status_e psa_drv_ps_remove(const uint16_t ksa_id);
+#endif
+
 /*============================================== Static functions CRYPTO driver implementation =========================================*/
 static kcm_status_e psa_import_or_generate(const void* raw_data,
                                             size_t raw_data_size,
@@ -189,9 +194,8 @@ static kcm_status_e import_or_generate_item(const void* raw_data,
         // set key id in key attribute (this also set key lifetime to persistent)
         psa_set_key_id(psa_key_attr, (psa_key_id_t)id);
 
-
         kcm_status = psa_import_or_generate(raw_data, raw_data_size, psa_key_attr, psa_key_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_FILE_EXIST), kcm_status, "Failed to perfomrm psa operation");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_FILE_EXIST), kcm_status, "Failed to perform psa operation");
 
         if (kcm_status == KCM_STATUS_FILE_EXIST) {
             // key with that id already exists. try with next id
@@ -230,19 +234,20 @@ kcm_status_e psa_drv_crypto_init(void)
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+    //Register se driver before calling to psa_crypto_init
+    psa_status = psa_register_se_driver(PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE, g_se_driver_info);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed psa_register_se_driver (%" PRIu32 ")", (uint32_t)psa_status);
+#endif
+
     psa_status = psa_crypto_init();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed to initialize crypto module");
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
-    //Register se driver
-    psa_status = psa_register_se_driver(PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE, g_se_driver_info);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != psa_status), psa_drv_translate_to_kcm_error(psa_status), "Failed psa_register_se_driver (%" PRIu32 ")", (uint32_t)psa_status);
-#endif
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return KCM_STATUS_SUCCESS;
 }
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#if  defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && !defined(MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT)
 kcm_status_e psa_drv_crypto_register(uint32_t extra_flags, uint64_t slot_number, uint16_t *ksa_id)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -290,7 +295,11 @@ kcm_status_e psa_drv_crypto_import_or_generate(const void* data, size_t data_siz
     psa_status_t psa_status = PSA_SUCCESS;
     psa_key_handle_t psa_key_handle = PSA_CRYPTO_INVALID_KEY_HANDLE;
     psa_key_attributes_t psa_key_attr = PSA_KEY_ATTRIBUTES_INIT;
+#ifndef TARGET_TFM_V1_0
     uint8_t raw_key[KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE]; // should be bigger than KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE
+#else
+    uint8_t raw_key[KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE + sizeof(extra_flags)];
+#endif
     size_t raw_key_act_size = 0;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
@@ -329,9 +338,19 @@ kcm_status_e psa_drv_crypto_import_or_generate(const void* data, size_t data_siz
     } else
 #endif 
     {
+#ifndef TARGET_TFM_V1_0
         //Assign item
         kcm_status = import_or_generate_item(raw_key, raw_key_act_size, &psa_key_attr, ksa_id, &psa_key_handle);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to assign SE item");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to assign item");
+#else
+        // T-FM v1.0 doesn't support persistent keys. therefor, reject generate keys and for import, store key data to PS
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_act_size == 0), KCM_STATUS_ERROR, "T-FM v1.0 doesn't support generate persistent keys");
+        // copy extra_flags after key buffer and store in PS
+        memcpy(raw_key + raw_key_act_size, &extra_flags, sizeof(extra_flags));
+        kcm_status = psa_drv_ps_set(raw_key, raw_key_act_size + sizeof(extra_flags),
+                                    PSA_PS_CONFIDENTIALITY_FLAG | PSA_PS_REPLAY_PROTECTION_FLAG, ksa_id);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to import key to PS");
+#endif // TARGET_TFM_V1_0
     }
 
 exit:
@@ -411,11 +430,14 @@ kcm_status_e psa_drv_crypto_export_data_size(const uint16_t ksa_id, size_t* actu
 kcm_status_e psa_drv_crypto_destroy(const uint16_t ksa_id)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+#ifndef TARGET_TFM_V1_0
     psa_status_t psa_status = PSA_SUCCESS;
     psa_key_handle_t psa_key_handle = PSA_CRYPTO_INVALID_KEY_HANDLE;
+#endif
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
+#ifndef TARGET_TFM_V1_0
     //Check parameters
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ksa_id < PSA_CRYPTO_MIN_ID_VALUE) || (ksa_id > PSA_CRYPTO_MAX_ID_VALUE), KCM_STATUS_INVALID_PARAMETER, "ksa_id is in invalid range %d", ksa_id);
 
@@ -426,6 +448,12 @@ kcm_status_e psa_drv_crypto_destroy(const uint16_t ksa_id)
 
     psa_status = psa_destroy_key(psa_key_handle);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), kcm_status = psa_drv_translate_to_kcm_error(psa_status), "Failed to destroy key at id %d", ksa_id);
+
+#else
+    // also remove from PS
+    kcm_status = psa_drv_ps_remove(ksa_id);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to remove key data from PS");
+#endif // TARGET_TFM_V1_0
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return kcm_status;
@@ -527,8 +555,9 @@ void psa_drv_crypto_fini(void)
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
+#if !(defined(TARGET_TFM) && (MBED_MAJOR_VERSION > 5))
     mbedtls_psa_crypto_free();
-
+#endif
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return;
 }
@@ -537,13 +566,32 @@ kcm_status_e psa_drv_crypto_get_handle(uint16_t key_id, psa_key_handle_t *key_ha
 {
     psa_status_t psa_status = PSA_SUCCESS;
 
-    //TODO: check correct range one we move to KSA table for all items
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_id == PSA_INVALID_SLOT_ID || key_id > KSA_MAX_PSA_ID_VALUE), KCM_STATUS_INVALID_PARAMETER, "Invalid key id ");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_handle_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Wrong key handle pointer");
+#ifndef TARGET_TFM_V1_0
+    //TODO: check correct range one we move to KSA table for all items
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((key_id == PSA_INVALID_SLOT_ID || key_id > PSA_CRYPTO_MAX_ID_VALUE), KCM_STATUS_INVALID_PARAMETER, "Invalid key id ");
 
     //Open key handle
     psa_status = psa_open_key(key_id, key_handle_out);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed to open the key with  ");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed to open the key");
+#else
+    uint32_t extra_flags;
+    uint8_t raw_key[KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE + sizeof(extra_flags)]; // should be bigger than KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE
+    size_t raw_key_act_size = 0;
+    // read stored key from PS
+    kcm_status_e kcm_status = psa_drv_ps_get_data(key_id, raw_key, sizeof(raw_key), &raw_key_act_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get the key data from PS");
+    // extract extra_flags from buffer and update raw_key_act_size
+    memcpy(&extra_flags, raw_key + raw_key_act_size - sizeof(extra_flags), sizeof(extra_flags));
+    raw_key_act_size -= sizeof(extra_flags);
+    // import key as volatile
+    psa_key_attributes_t psa_key_attr = PSA_KEY_ATTRIBUTES_INIT;
+    set_generic_attr(extra_flags, &psa_key_attr);
+    psa_set_key_lifetime(&psa_key_attr, PSA_KEY_LIFETIME_VOLATILE);
+    psa_status = psa_import_key(&psa_key_attr, raw_key, raw_key_act_size, key_handle_out);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS),
+                                    psa_drv_translate_to_kcm_error(psa_status), "Failed to import the key (%" PRIi32 ")", (int32_t)psa_status);
+#endif // TARGET_TFM_V1_0
 
     return KCM_STATUS_SUCCESS;
 }

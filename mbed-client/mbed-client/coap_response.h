@@ -17,22 +17,22 @@
 #define COAP_RESPONSE_H
 
 /*! \file coap_response.h
- *  \brief CoAP response code values. 
+ *  \brief CoAP response code values.
  */
 
 // Note: Don't put any C++ code into this file as this file is included from C sources.
 
-// These values are COAP response codes. See https://tools.ietf.org/html/rfc7252#section-5.9.1
+/*! COAP response codes. See https://tools.ietf.org/html/rfc7252#section-5.9 */
 typedef enum {
-    COAP_RESPONSE_CREATED = 65,
-    COAP_RESPONSE_DELETED = 66,
-    COAP_RESPONSE_VALID = 67,
-    COAP_RESPONSE_CHANGED = 68,
-    COAP_RESPONSE_CONTENT = 69,
-    COAP_RESPONSE_CONTINUE = 95,
-    COAP_RESPONSE_BAD_REQUEST = 128,
-    COAP_RESPONSE_UNAUTHORIZED = 129,
-    COAP_RESPONSE_BAD_OPTION = 130,
+    COAP_RESPONSE_CREATED = 65,                     /**< https://tools.ietf.org/html/rfc7252#section-5.9.1.1 */
+    COAP_RESPONSE_DELETED = 66,                     /**< https://tools.ietf.org/html/rfc7252#section-5.9.1.2 */
+    COAP_RESPONSE_VALID = 67,                       /**< https://tools.ietf.org/html/rfc7252#section-5.9.1.3 */
+    COAP_RESPONSE_CHANGED = 68,                     /**< https://tools.ietf.org/html/rfc7252#section-5.9.1.4 */
+    COAP_RESPONSE_CONTENT = 69,                     /**< https://tools.ietf.org/html/rfc7252#section-5.9.1.5 */
+    COAP_RESPONSE_CONTINUE = 95,                    /**<  */
+    COAP_RESPONSE_BAD_REQUEST = 128,                /**< https://tools.ietf.org/html/rfc7252#section-5.9.2.1 */
+    COAP_RESPONSE_UNAUTHORIZED = 129,               /**< https://tools.ietf.org/html/rfc7252#section-5.9.2.2 */
+    COAP_RESPONSE_BAD_OPTION = 130,                 /**< https://tools.ietf.org/html/rfc7252#section-5.9.2.3 */
     COAP_RESPONSE_FORBIDDEN = 131,
     COAP_RESPONSE_NOT_FOUND = 132,
     COAP_RESPONSE_METHOD_NOT_ALLOWED = 133,

@@ -54,29 +54,38 @@ arm_uc_error_t arm_uc_pal_filesystem_get_path(uint32_t location,
 
     if (dest && dest_size > 0) {
         /* copy the base directory of firmware into dest */
-        int length = snprintf(dest, dest_size, "%s", pal_imageGetFolder());
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+        char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        palStatus_t pal_status = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+        if (pal_status == PAL_SUCCESS) {
+            int length = snprintf(dest, dest_size, "%s%s", primary, pal_imageGetFolder());
+#else
+            int length = snprintf(dest, dest_size, "%s", pal_imageGetFolder());
+#endif
 
-        if (length > 0) {
-            /* add missing slash at end if needed */
-            if (((uint32_t)length < dest_size) && (dest[length - 1] != '/')) {
-                dest[length] = '/';
-                length++;
+            if (length > 0) {
+                /* add missing slash at end if needed */
+                if (((uint32_t)length < dest_size) && (dest[length - 1] != '/')) {
+                    dest[length] = '/';
+                    length++;
+                }
+
+                /* start snprintf after the mount point name and add length */
+                length += snprintf(&dest[length],
+                                   dest_size - length,
+                                   "%s_%" PRIu32 ".bin",
+                                   what == FIRMWARE_IMAGE_ITEM_HEADER ? "header" : "image",
+                                   location);
+
+                /* check that file path didn't overrun */
+                if ((uint32_t)length < dest_size) {
+                    result.code = ERR_NONE;
+                }
             }
-
-            /* start snprintf after the mount point name and add length */
-            length += snprintf(&dest[length],
-                               dest_size - length,
-                               "%s_%" PRIu32 ".bin",
-                               what == FIRMWARE_IMAGE_ITEM_HEADER ? "header" : "image",
-                               location);
-
-            /* check that file path didn't overrun */
-            if ((uint32_t)length < dest_size) {
-                result.code = ERR_NONE;
-            }
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
         }
+#endif
     }
-
     return result;
 }
 

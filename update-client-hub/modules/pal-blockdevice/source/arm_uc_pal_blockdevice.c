@@ -79,7 +79,7 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP_BLOCKDEVICE = {
     .Read                       = ARM_UC_PAL_BlockDevice_Read,
     .Activate                   = ARM_UC_PAL_BlockDevice_Activate,
     .GetActiveFirmwareDetails   = ARM_UC_PAL_FlashIAP_GetActiveDetails,
-    .GetFirmwareDetails         = ARM_UC_PAL_BlockDevice_GetFirmwareDetails,
+    .GetFirmwareDetails         = NULL,
     .GetInstallerDetails        = ARM_UC_PAL_FlashIAP_GetInstallerDetails
 };
 #endif // #if defined(ARM_UC_FEATURE_PAL_BLOCKDEVICE)

@@ -36,12 +36,12 @@ extern "C" {
     /** Populates SE slot tables.The tables correlate user defined SE slot with a specific psa ids.
     *
     */
-    void sem_init(void);
+    void sem_slots_init(void);
 
     /** Finalizes resources of SEM module
     *
     */
-    void sem_finalize(void);
+    void sem_slots_finalize(void);
 
 
     /** The function retrives a pointer to pre proviosioned table.
@@ -71,13 +71,13 @@ extern "C" {
     */
     kcm_status_e sem_get_next_slot_and_psa_id(uint32_t item_type_flag, uint64_t *slot, uint16_t *psa_id);
 
-
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_CLEAN_CREDENTIALS_SE
     /** The function retrieves a specific psa id for current slot.
     *
     * @returns ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise..
     */
     kcm_status_e sem_get_preprovisioned_psa_id(uint64_t slot, uint16_t *psa_id);
-
+#endif
 
     /** The function retrieves a total number of SE slot in use.
     *

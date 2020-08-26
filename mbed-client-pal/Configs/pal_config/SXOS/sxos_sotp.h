@@ -37,4 +37,8 @@
 #define PAL_MAX_FRAG_LEN 2
 #endif
 
+#ifndef PAL_DEFAULT_RTT_ESTIMATE
+    #define PAL_DEFAULT_RTT_ESTIMATE 8
+#endif
+
 #endif // !__SXOS_SOTP_H__

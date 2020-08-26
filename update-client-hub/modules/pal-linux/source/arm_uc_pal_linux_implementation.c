@@ -101,19 +101,27 @@ static arm_uc_error_t spawn_thread(void *(*start_routine)(void *), void *arg)
 arm_uc_error_t ARM_UC_PAL_Linux_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_t callback)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-
     if (callback) {
         arm_uc_pal_linux_internal_set_callback(callback);
 
         /* create folder for headers if it does not already exist */
         errno = 0;
-        int status = mkdir(ARM_UC_HEADER_FOLDER_PATH, 0700);
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+        char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+        palStatus_t pal_status = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
+        if (pal_status == PAL_SUCCESS) {
+            int length = snprintf(path, PAL_MAX_FILE_AND_FOLDER_LENGTH, "%s%s", primary, ARM_UC_HEADER_FOLDER_PATH);
+            printf("ARM_UC_PAL_Linux_Initialize - path %s\n", path);
+            int status = mkdir(path, 0700);
+#else
+            int status = mkdir(ARM_UC_HEADER_FOLDER_PATH, 0700);
 
-        if ((status == 0) || (errno == EEXIST)) {
-            /* create folder for firmwares if it does not already exist */
-            errno = 0;
-            status = mkdir(ARM_UC_FIRMWARE_FOLDER_PATH, 0700);
-
+            if ((status == 0) || (errno == EEXIST)) {
+                /* create folder for firmwares if it does not already exist */
+                errno = 0;
+                status = mkdir(ARM_UC_FIRMWARE_FOLDER_PATH, 0700);
+#endif
             if ((status == 0) || (errno == EEXIST)) {
                 /* set return code on success */
                 result.code = ERR_NONE;

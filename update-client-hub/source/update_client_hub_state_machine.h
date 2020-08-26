@@ -25,6 +25,7 @@ extern "C" {
 
 #include <stdint.h>
 #include "update-client-common/arm_uc_common.h"
+#include "update-client-manifest-manager/update-client-manifest-types.h"
 
 /**
  * States in the Update Hub.
@@ -75,6 +76,8 @@ typedef enum {
     ARM_UC_HUB_STATE_ERROR_SOURCE_MANAGER,
     ARM_UC_HUB_STATE_ERROR_CONTROL_CENTER,
     ARM_UC_HUB_STATE_WAIT_FOR_ERROR_ACK,
+    ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST,
+    ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER,
 } arm_uc_hub_state_t;
 
 /**
@@ -104,6 +107,12 @@ void ARM_UC_HUB_setInitializationCallback(void (*callback)(uintptr_t));
 arm_uc_firmware_details_t *ARM_UC_HUB_getActiveFirmwareDetails(void);
 
 arm_uc_delta_details_t *ARM_UC_HUB_getDeltaDetails(void);
+
+void ARM_UC_HUB_setRebootDelay(uint32_t delay);
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info, const int8_t tasklet_id);
+#endif
 
 #ifdef __cplusplus
 }

@@ -21,9 +21,7 @@
 #ifndef _PAL_SST_H
 #define _PAL_SST_H
 
-#ifndef _PAL_H
-    #error "Do not include this file directly. Use pal.h instead."
-#endif
+#include "pal.h"
 
 #include <stdint.h>
 

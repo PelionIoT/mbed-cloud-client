@@ -290,6 +290,17 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
     return PAL_SUCCESS;
 }
 
+palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+{
+    (void)socket;
+    (void)optionLevel;
+    (void)optionName;
+    (void)optionValue;
+    (void)optionLength;
+
+    return PAL_ERR_NOT_SUPPORTED;
+}
+
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
     if (isNonBlocking == NULL) {
@@ -549,10 +560,10 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
 }
 
 // Generate callbacks for asynchronous sockets
-void net_bsd_notify (int32_t sock, uint8_t evt) {    
+void net_bsd_notify (int32_t sock, uint8_t evt) {
     PAL_LOG_DBG("net_bsd_notify - socket: %d, event type: %d", sock, evt);
     evt &= ~BSD_EVT_SEND;
-    if ((evt != 0) && (sock_control[sock-1].callback != NULL)) {                
+    if ((evt != 0) && (sock_control[sock-1].callback != NULL)) {
         sock_control[sock-1].callback(sock_control[sock-1].callbackArgument);
     }
 }
@@ -627,3 +638,15 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
 #endif
 
 #endif // RTE_Network_Socket_BSD
+
+uint8_t pal_plat_getRttEstimate()
+{
+    return PAL_DEFAULT_RTT_ESTIMATE;
+}
+
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
+{
+    (void) data_amount;
+    return PAL_DEFAULT_STAGGER_ESTIMATE;
+}
+

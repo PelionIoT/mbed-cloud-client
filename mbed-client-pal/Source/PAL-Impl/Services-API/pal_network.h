@@ -88,7 +88,14 @@ typedef enum {
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
     PAL_SO_SNDTIMEO = 0x1005,  /*!< \brief Send timeout. */
     PAL_SO_RCVTIMEO = 0x1006,  /*!< \brief Receive timeout. */
+    PAL_SO_IPV6_MULTICAST_HOPS = 0x1007  /*!< \brief Hop limit for subsequent multicast datagrams to be set to any value from 0 to 255. This ability is used to control the scope of the multicasts. */
 } palSocketOptionName_t;
+
+/*! \brief Socket protocol level options supported by PAL. */
+typedef enum {
+    PAL_SOL_SOCKET = 0,
+    PAL_SOL_IPPROTO_IPV6 =1
+} palSocketOptionLevelName_t;
 
 #define PAL_NET_DEFAULT_INTERFACE 0xFFFFFFFF
 
@@ -172,6 +179,16 @@ palStatus_t pal_getSockAddrPort(const palSocketAddress_t* address, uint16_t* por
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
 palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength);
+
+/*! \brief Set the value for a socket option on a network socket.
+ * @param[in] socket The socket to configure.
+ * @param[in] optionLevel Specifies the protocol level at which the option resides. See \c palSocketOptionLevelName_t for supported levels.
+ * @param[in] optionName The identification of the socket option to set. See \c palSocketOptionName_t for supported options.
+ * @param[in] optionValue The buffer holding the option value to set for the option.
+ * @param[in] optionLength  The size of the buffer provided for `optionValue`.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ */
+palStatus_t pal_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength);
 
 /*! \brief Check if a socket is non-blocking.
  * @param[in] socket The socket to check.
@@ -414,6 +431,30 @@ palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
     #error "Please specify the platform PAL_DNS_API_VERSION 0, 1, or 2."
 #endif //  PAL_DNS_API_VERSION
 #endif  // PAL_NET_DNS_SUPPORT
+
+/*! \brief This function returns the round-trip estimate for packet in seconds.
+ *
+ * This value can be used to control client retransmission and responsiveness in high latency networks based
+ * on the network information the stack has.
+ * This feature is currently only supported for Mbed OS Wi-SUN stack as a dynamic feature. Other platforms/stacks return
+ * PAL_DEFAULT_RTT_ESTIMATE.
+ * This API limits the RTT to uint8_t due to most of the callers only supporting uint8_t or uint16_t types.
+ * @param[out] rtt_estimate The round-trip estimate in seconds.
+ */
+
+uint8_t pal_getRttEstimate();
+
+/*! \brief This function returns the stagger estimate for registration in seconds.
+ *
+ * This value can be used to delay the registration of the client after interface GLOBAL_UP
+ * to stagger the traffic in a multidevice network with limited bandwidth.
+ * This feature is currently only supported for Mbed OS Wi-SUN stack as a dynamic feature. Other platforms/stacks return
+ * PAL_DEFAULT_STAGGER_ESTIMATE.
+ * @param[in] estimate for the amount of data in KiB to be transferred.
+ * @param[out] stagger_estimate The randomized stagger estimate.
+ */
+
+uint16_t pal_getStaggerEstimate(uint16_t data_amount);
 
 #ifdef __cplusplus
 }

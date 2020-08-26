@@ -19,6 +19,7 @@
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 #include "mbed-cloud-client/MbedCloudClient.h"
 #include "mbed-cloud-client/SimpleM2MResource.h"
+#include "pal.h"
 
 #include "mbed-trace/mbed_trace.h"
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -151,7 +152,7 @@ bool MbedCloudClient::setup(void* iface)
 
     if (success) {
         // set the network interface to M2MInterface
-        _client.connector_client().m2m_interface()->set_platform_network_handler(iface);
+        _client.connector_client().m2m_interface()->set_platform_network_handler(iface, _client.connector_client().connector_credentials_available());
         _client.initialize_and_register(_object_list);
     }
 
@@ -207,6 +208,13 @@ const ConnectorClientEndpointInfo *MbedCloudClient::endpoint_info() const
 {
     return _client.connector_client().endpoint_info();
 }
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+M2MInterface *MbedCloudClient::get_m2m_interface()
+{
+    return _client.connector_client().m2m_interface();
+}
+#endif
 
 void MbedCloudClient::set_queue_sleep_handler(callback_handler handler)
 {

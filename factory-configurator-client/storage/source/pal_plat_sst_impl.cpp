@@ -19,12 +19,16 @@
 #include "pal_sst.h"
 #include "kvstore_global_api.h"
 #ifdef TARGET_LIKE_MBED
-#include "mbed_error.h"
+#include "mbed.h"
+#if MBED_MAJOR_VERSION > 5
+#include "DeviceKey.h"
 #endif
+#endif
+#include "pv_macros.h"
 
 #define EXPANSION_STR(x) STR(x) //stringification of macro value
 #define STR(x) #x //stringification of the macro
-#define PAL_SST_KV_PREFIX "/"EXPANSION_STR(MBED_CONF_STORAGE_DEFAULT_KV)"/"
+#define PAL_SST_KV_PREFIX "/" EXPANSION_STR(MBED_CONF_STORAGE_DEFAULT_KV) "/"
 
 #define TRACE_GROUP "PAL"
 
@@ -140,6 +144,9 @@ palStatus_t pal_SSTSet(const char *itemName, const void *itemBuffer, size_t item
     //these bitmask is for unused bits in SSTFlagsBitmap.
     //only PAL_SST_WRITE_ONCE_FLAG, PAL_SST_CONFIDENTIALITY_FLAG and PAL_SST_REPLAY_PROTECTION_FLAG used
     uint32_t sst_flag_unused_bits_mask = ~(PAL_SST_WRITE_ONCE_FLAG | PAL_SST_CONFIDENTIALITY_FLAG | PAL_SST_REPLAY_PROTECTION_FLAG);
+	
+	PV_UNUSED_PARAM(sst_flag_unused_bits_mask);
+	
 
     //arguments validation
     PAL_VALIDATE_ARGUMENTS((NULL == itemName) || ((NULL == itemBuffer) && (itemBufferSize > 0)) || ((SSTFlagsBitmap & sst_flag_unused_bits_mask) != 0));
@@ -197,7 +204,7 @@ palStatus_t pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo)
 
     int kv_status = MBED_SUCCESS;
     palStatus_t pal_status = PAL_SUCCESS;
-    kv_info_t kv_info = { 0 };
+    kv_info_t kv_info = { 0, 0 };
     char sst_complete_item_name[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
 
     //arguments validation
@@ -322,8 +329,20 @@ palStatus_t pal_SSTReset()
 
     //call kv_reset API
     kv_status = kv_reset(PAL_SST_KV_PREFIX);
-
-    return pal_sst_translate_error(kv_status);
+    if (kv_status != MBED_SUCCESS) {
+        PAL_LOG_ERR("kv_reset() - failed, status %d\n", kv_status);
+        return pal_sst_translate_error(kv_status);
+    }
+#if MBED_MAJOR_VERSION > 5
+    // generate new rot after storage error
+    DeviceKey &devkey = DeviceKey::get_instance();
+    int kd_status = devkey.generate_root_of_trust();
+    if (kd_status != DEVICEKEY_SUCCESS) {
+        PAL_LOG_ERR("generate_root_of_trust() - failed, status %d\n", kd_status);
+        return PAL_ERR_SST_FAILED_OPERATION;
+    }
+#endif
+    return PAL_SUCCESS;
 }
 
 #endif

@@ -26,10 +26,21 @@
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
 // ARM_UC_ENABLE is an internal flag used by update client.
 #define ARM_UC_ENABLE 1
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    #define ARM_UC_MULTICAST_ENABLE 1
+    #ifdef MBED_CLOUD_CLIENT_MULTICAST_BORDER_ROUTER
+        #define ARM_UC_MULTICAST_BORDER_ROUTER_MODE
+    #endif
+#else
+    #define ARM_UC_MULTICAST_ENABLE 0
+#endif
 #else
 #define ARM_UC_ENABLE 0
+#define ARM_UC_MULTICAST_ENABLE 0
 #define ARM_UC_FEATURE_DELTA_PAAL 0
 #endif
+
+
 
 // Rest is only defined when update client is enabled
 #if defined(ARM_UC_ENABLE) && (ARM_UC_ENABLE == 1)

@@ -128,7 +128,9 @@ M2MBase::M2MBase(const lwm2m_parameters_s *s):
 {
     tr_debug("M2MBase::M2MBase(const lwm2m_parameters_s *s)");
     // Set callback function in case of both dynamic and static resource
-    _sn_resource->dynamic_resource_params->sn_grs_dyn_res_callback = __nsdl_c_callback;
+    if (_sn_resource->dynamic_resource_params->sn_grs_dyn_res_callback == NULL) {
+        _sn_resource->dynamic_resource_params->sn_grs_dyn_res_callback = __nsdl_c_callback;
+    }
 }
 
 M2MBase::~M2MBase()

@@ -19,6 +19,8 @@
 #ifndef MBED_CLOUD_CLIENT_UPDATE_CLIENT_H
 #define MBED_CLOUD_CLIENT_UPDATE_CLIENT_H
 
+/** \internal \file UpdateClient.h */
+
 #include "mbed-client/m2minterface.h"
 #include "update-client-hub/update_client_public.h"
 

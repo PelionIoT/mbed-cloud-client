@@ -22,11 +22,10 @@
 //FORWARD DECLARATION
 class M2MResourceInstance;
 
-/*! \file m2mobservationhandler.h
- * \brief M2MObservationHandler.
- * An interface for handling observation
- * callbacks from different objects.
- *
+/** \file m2mobservationhandler.h \brief header for M2MObservationHandler */
+
+/** An interface for handling observation
+ *  callbacks from different objects.
  */
 class M2MObservationHandler
 {

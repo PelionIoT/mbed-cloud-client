@@ -175,8 +175,12 @@ arm_uc_error_t ARM_UC_Classic_PAL_Prepare(uint32_t location,
 
     if (details && buffer) {
         /* encode firmware details in buffer */
-        arm_uc_error_t header_status = arm_uc_create_external_header_v2(details,
-                                                                        buffer);
+        arm_uc_error_t header_status = { .code = ERR_UNSPECIFIED };
+        #if ARM_UC_USE_EXTERNAL_HEADER
+                header_status = arm_uc_create_external_header_v2(details, buffer);
+        #else
+                header_status = arm_uc_create_internal_header_v2(details, buffer);
+        #endif
 
         if (header_status.error == ERR_NONE) {
             /* format file name and path */

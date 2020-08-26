@@ -31,6 +31,7 @@ typedef enum {
     UCFM_EVENT_PREPARE_DONE                      = ARM_UC_PAAL_EVENT_PREPARE_DONE,
     UCFM_EVENT_WRITE_DONE                        = ARM_UC_PAAL_EVENT_WRITE_DONE,
     UCFM_EVENT_FINALIZE_DONE                     = ARM_UC_PAAL_EVENT_FINALIZE_DONE,
+    UCFM_EVENT_READ_DONE                         = ARM_UC_PAAL_EVENT_READ_DONE,
     UCFM_EVENT_ACTIVATE_DONE                     = ARM_UC_PAAL_EVENT_ACTIVATE_DONE,
     UCFM_EVENT_GET_ACTIVE_FIRMWARE_DETAILS_DONE  = ARM_UC_PAAL_EVENT_GET_ACTIVE_FIRMWARE_DETAILS_DONE,
     UCFM_EVENT_GET_FIRMWARE_DETAILS_DONE         = ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE,
@@ -96,6 +97,22 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      * @return Error code.
      */
     arm_uc_error_t (*Write)(const arm_uc_buffer_t *input);
+
+    /**
+     * @brief Function for adding a package fragment with offset.
+     * @details Generates either UCFM_EVENT_WRITE_DONE or UCFM_EVENT_WRITE_ERROR.
+     * @details Fragments are processed based on the mode set in the configure
+     *          struct. This can include decryption, validation, and storage.
+     * @param input Buffer struct.
+     * @param offset Offset where to write.
+     * @return Error code.
+     */
+    arm_uc_error_t (*WriteWithOffset)(const arm_uc_buffer_t *input, const uint32_t offset);
+
+    /**
+     * @brief Function for reading a package fragment from the storage.
+     */
+    arm_uc_error_t (*Read)(const arm_uc_buffer_t* output, uint32_t offset);
 
     /**
      * @brief Function for finalizing the current package.

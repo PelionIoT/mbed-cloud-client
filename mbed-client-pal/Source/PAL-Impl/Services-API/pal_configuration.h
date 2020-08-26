@@ -67,6 +67,8 @@
     #include "NXP_default.h"
 #elif defined(__RENESAS_EK_RA6M3__)
     #include "Renesas/Renesas_default.h"
+#elif defined(__RENESAS_RX65N_CK__)
+    #include "Renesas/Renesas_RX65N-CK_default.h"
 #elif defined(__MBED__)
     #include "mbedOS_default.h"
 #elif defined(__SXOS__)
@@ -219,15 +221,6 @@
 
 //! This value is in milliseconds.
 
-/*
- * /def PAL_DTLS_PEER_MIN_TIMEOUT
- * /brief Define the DTLS peer minimum timeout value.
- */
-
-#ifndef PAL_DTLS_PEER_MIN_TIMEOUT
-    #define PAL_DTLS_PEER_MIN_TIMEOUT 10000
-#endif
-
 //! The debug threshold for TLS API.
 #ifndef PAL_TLS_DEBUG_THRESHOLD
     #define PAL_TLS_DEBUG_THRESHOLD 5
@@ -350,7 +343,11 @@
 
 //! The location of the firmware update folder
 #ifndef PAL_UPDATE_FIRMWARE_DIR
+#ifdef __NANOSIMULATOR__
     #define PAL_UPDATE_FIRMWARE_DIR "/firmware"
+#else
+    #define PAL_UPDATE_FIRMWARE_DIR PAL_UPDATE_FIRMWARE_MOUNT_POINT "/firmware"
+#endif
 #endif
 
 #ifndef PAL_INT_FLASH_NUM_SECTIONS
@@ -514,9 +511,9 @@
 #define PAL_NOISE_SIZE_BITS (PAL_NOISE_SIZE_BYTES * CHAR_BIT) //!< Maximum number of bits for noise
 #define PAL_NOISE_BUFFER_LEN (PAL_NOISE_SIZE_BYTES / sizeof(int32_t)) //!< Length of the noise buffer
 
-// SSL session resume is enabled by default
+// Disable SSL SESSION RESUME feature till CID support is fixed for UDP as well.
 #ifndef PAL_USE_SSL_SESSION_RESUME
-    #define PAL_USE_SSL_SESSION_RESUME 1
+    #define PAL_USE_SSL_SESSION_RESUME 0
 #endif
 
 // Sanity check for using static memory buffer with mbedtls.
@@ -527,5 +524,23 @@
 #endif
 
 #endif // #ifdef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
+
+// For platforms that do not support dynamic fetching of network stagger (pal_getStaggerEstimate()), this default value will be used.
+// This parameter is relevant when large number of clients is expected to connect through a single constrained backbone connection.
+// As of now dynamic implementation exists only for Mbed OS Wi-SUN stack.
+#ifndef PAL_DEFAULT_STAGGER_ESTIMATE
+#define PAL_DEFAULT_STAGGER_ESTIMATE 0
+#endif
+
+// For platforms that do not support dynamic fetching of network stagger (pal_getRttEstimate()), this default value will be used.
+// This value controls network latency related parameters and represents the expected packet round-trip total times.
+// This value is used to control client retransmission timers and DTLS timers.
+#ifndef PAL_DEFAULT_RTT_ESTIMATE
+#define PAL_DEFAULT_RTT_ESTIMATE 10
+#endif
+
+#if PAL_DEFAULT_RTT_ESTIMATE < 1
+#error "PAL_DEFAULT_RTT_ESTIMATE must be at least 1"
+#endif
 
 #endif //_PAL_COFIGURATION_H

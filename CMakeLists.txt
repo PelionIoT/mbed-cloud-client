@@ -154,13 +154,16 @@ include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/cose-c/cose-c)
 SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)
 
 include_directories(${UPDATE_SOURCE_DIR})
+include_directories(${UPDATE_SOURCE_DIR}/source)
 include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue)
 include_directories(${UPDATE_SOURCE_DIR}/modules/common)
 include_directories(${UPDATE_SOURCE_DIR}/modules/control-center)
 include_directories(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed)
 include_directories(${UPDATE_SOURCE_DIR}/modules/monitor)
+include_directories(${UPDATE_SOURCE_DIR}/modules/multicast)
 include_directories(${UPDATE_SOURCE_DIR}/modules/paal)
 include_directories(${UPDATE_SOURCE_DIR}/modules/source)
+
 include_directories(${UPDATE_SOURCE_DIR}/modules/source-http)
 
 

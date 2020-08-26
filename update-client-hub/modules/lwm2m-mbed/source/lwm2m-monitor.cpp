@@ -44,6 +44,7 @@ ARM_MONITOR_CAPABILITIES ARM_UCS_LWM2M_MONITOR_GetCapabilities(void)
     result.state   = 1;
     result.result  = 1;
     result.version = 1;
+    result.reserved = 30;
 
     return result;
 }

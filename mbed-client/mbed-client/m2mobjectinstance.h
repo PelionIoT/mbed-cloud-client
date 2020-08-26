@@ -26,22 +26,25 @@ typedef Vector<M2MResourceInstance *> M2MResourceInstanceList;
 
 class M2MObject;
 
-/*! \file m2mobjectinstance.h
- *  \brief M2MObjectInstance.
- *  This class is the instance class for mbed Client Objects. All defined
- *  LWM2M object models can be created based on it. This class also holds all resource
- *  instances associated with the given object.
- */
+/** \file m2mobjectinstance.h \brief header for M2MObjectInstance */
 
+/**
+ * This the LwM2M object instance class.
+ * You can use it to represent any defined LWM2M object instances.
+ *
+ * This class also holds all resource instances associated with
+ * the given object.
+ *
+ * Constructor and destructor are private which means
+ * that these objects can be created or
+ * deleted only through function provided by M2MObject.
+ */
 class M2MObjectInstance : public M2MBase
 {
 
 friend class M2MObject;
 
-private: // Constructor and destructor are private which means
-         // that these objects can be created or
-         // deleted only through function provided by M2MObject.
-
+private:
     /**
      * \brief Constructor
      * \param name Name of the object

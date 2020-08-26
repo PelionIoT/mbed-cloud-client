@@ -65,7 +65,7 @@ fcc_status_e fcc_developer_flow(void)
         //param name                                //param kcm type        //param data                                              //param data_size
         //Device general info
         { g_fcc_use_bootstrap_parameter_name,          KCM_CONFIG_ITEM,      (const uint8_t*)&is_bootstrap_mode,                       sizeof(uint32_t) },
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#if  !defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) || (defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && defined(MBED_CONF_MBED_CLOUD_CLIENT_CLEAN_CREDENTIALS_SE))
         { g_fcc_endpoint_parameter_name,               KCM_CONFIG_ITEM,      (const uint8_t*)MBED_CLOUD_DEV_BOOTSTRAP_ENDPOINT_NAME,   (uint32_t)strlen((char*)MBED_CLOUD_DEV_BOOTSTRAP_ENDPOINT_NAME) },
         //Bootstrap configuration
         { g_fcc_bootstrap_device_certificate_name,     KCM_CERTIFICATE_ITEM,  MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE,             MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE_SIZE },

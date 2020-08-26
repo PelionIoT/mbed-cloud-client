@@ -243,6 +243,15 @@ palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void*
     result = pal_plat_setSocketOptions( socket,  optionName, optionValue,  optionLength);
     return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
 }
+palStatus_t pal_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+{
+
+    PAL_VALIDATE_ARGUMENTS (NULL == optionValue);
+
+    palStatus_t result = PAL_SUCCESS;
+    result = pal_plat_setSocketOptionsWithLevel(socket, optionLevel, optionName, optionValue, optionLength);
+    return result; // TODO(nirson01) ADD debug print for error propagation(once debug print infrastructure is finalized)
+}
 
 palStatus_t pal_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
@@ -482,6 +491,17 @@ palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
 {
     return pal_plat_cancelAddressInfoAsync(queryHandle);
 }
-#endif //  PAL_DNS_API_VERSION
 
+#endif //  PAL_DNS_API_VERSION
 #endif // PAL_NET_DNS_SUPPORT
+
+uint8_t pal_getRttEstimate()
+{
+    return pal_plat_getRttEstimate();
+}
+
+uint16_t pal_getStaggerEstimate(uint16_t data_amount)
+{
+    return pal_plat_getStaggerEstimate(data_amount);
+}
+

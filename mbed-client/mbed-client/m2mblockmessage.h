@@ -19,9 +19,9 @@
 #include "ns_types.h"
 #include "sn_coap_header.h"
 
-/*! \file m2mblockmessage.h
- *  \brief M2MBlockMessage.
- *  This class contains the data of an incoming block message.
+/*! \file m2mblockmessage.h \brief header for M2MBlockMessage */
+
+/** This class contains the data of an incoming block message.
  */
 class M2MBlockMessage {
 

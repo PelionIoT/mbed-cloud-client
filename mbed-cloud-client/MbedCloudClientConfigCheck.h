@@ -24,7 +24,7 @@
 * \brief Configuration options check.
 *
 *  This set checks and validates the compile-time options that can be made for possible client library.
-*  NOTE: Not to be used by developers.
+*  \note You should not modify this file directly.
 */
 
 #ifndef MBED_CLOUD_CLIENT_ENDPOINT_TYPE

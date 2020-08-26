@@ -210,7 +210,11 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Initialize(ARM_UC_PAAL_UPDATE_SignalEvent_
         int status = arm_uc_blockdevice_init();
         pal_blockdevice_page_size  = arm_uc_blockdevice_get_program_size();
         pal_blockdevice_sector_size = arm_uc_blockdevice_get_erase_size();
+#ifndef ARM_UC_CUSTOM_FW_DETAILS
         pal_blockdevice_hdr_size   = pal_blockdevice_round_up_to_page(ARM_UC_EXTERNAL_HEADER_SIZE_V2);
+#else
+        pal_blockdevice_hdr_size   = 0;
+#endif
 
         if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
             pal_blockdevice_event_handler = callback;
@@ -255,9 +259,11 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
                       slot_id, details->size);
 
         /* encode firmware details in buffer */
+#ifndef ARM_UC_CUSTOM_FW_DETAILS
         arm_uc_error_t header_status = arm_uc_create_external_header_v2(details,
                                                                         &metadata_buffer);
         if (header_status.error == ERR_NONE) {
+#endif
             /* find the size needed to erase. Header is stored contiguous with firmware */
             uint32_t erase_size = pal_blockdevice_round_up_to_sector(pal_blockdevice_hdr_size + \
                                                                      details->size);
@@ -292,9 +298,11 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Prepare(uint32_t slot_id,
             } else {
                 UC_PAAL_ERR_MSG("arm_uc_blockdevice_erase failed");
             }
+#ifndef ARM_UC_CUSTOM_FW_DETAILS
         } else {
             UC_PAAL_ERR_MSG("arm_uc_create_external_header_v2 failed");
         }
+#endif
     }
 
     return result;
@@ -482,6 +490,7 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Activate(uint32_t slot_id)
 {
     arm_uc_error_t result = { .code = ERR_NONE };
 
+#ifndef ARM_UC_CUSTOM_FW_DETAILS
     /* find address of slot */
     uint32_t slot_addr = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
     uint32_t slot_size = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
@@ -496,60 +505,12 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Activate(uint32_t slot_id)
             result.code = FIRM_ERR_ACTIVATE;
         }
     }
+#endif
 
     if (result.error == ERR_NONE) {
         UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_Activate");
         pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
     }
-    return result;
-}
-
-/**
- * @brief Get firmware details for the firmware image in the slot passed.
- * @details This call populates the passed details struct with information
- *          about the firmware image in the slot passed. Only the fields
- *          marked as supported in the capabilities bitmap will have valid
- *          values.
- *
- * @param slot_id Storage location ID.
- * @param details Pointer to firmware details struct to be populated.
- * @return Returns ERR_NONE on accept, and signals the event handler with
- *         either DONE or ERROR when complete.
- *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
- */
-arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
-    uint32_t slot_id,
-    arm_uc_firmware_details_t *details)
-{
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-
-    if (details) {
-        UC_PAAL_TRACE("ARM_UC_PAL_BlockDevice_GetFirmwareDetails");
-
-        /* find address of slot */
-        uint32_t slot_addr = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
-        uint32_t slot_size = ARM_UC_BLOCKDEVICE_INVALID_SIZE;
-        result = pal_blockdevice_get_slot_addr_size(slot_id, &slot_addr, &slot_size);
-        uint8_t buffer[pal_blockdevice_hdr_size];
-
-        int status = arm_uc_blockdevice_read(buffer,
-                                             slot_addr,
-                                             pal_blockdevice_hdr_size);
-
-        if (status == ARM_UC_BLOCKDEVICE_SUCCESS) {
-            result = arm_uc_parse_external_header_v2(buffer, details);
-
-            if (result.error == ERR_NONE) {
-                /* signal done */
-                pal_blockdevice_signal_internal(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE);
-            } else {
-                UC_PAAL_ERR_MSG("arm_uc_parse_external_header_v2 failed");
-            }
-        } else {
-            UC_PAAL_ERR_MSG("arm_uc_blockdevice_read failed");
-        }
-    }
-
     return result;
 }
 

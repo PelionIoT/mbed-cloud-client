@@ -16,9 +16,9 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-/*! \file est_defs.h
+/** \file est_defs.h
 * \brief Definitions for certificate chain structures and Enrollment over Secure
-         Transport (EST) callback.
+*        Transport (EST) callback.
 */
 
 #ifndef __EST_DEFS_H__

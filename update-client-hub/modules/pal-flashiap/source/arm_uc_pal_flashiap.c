@@ -49,7 +49,7 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP = {
     .Read                       = ARM_UC_PAL_FlashIAP_Read,
     .Activate                   = ARM_UC_PAL_FlashIAP_Activate,
     .GetActiveFirmwareDetails   = ARM_UC_PAL_FlashIAP_GetActiveDetails,
-    .GetFirmwareDetails         = ARM_UC_PAL_FlashIAP_GetFirmwareDetails,
+    .GetFirmwareDetails         = NULL,
     .GetInstallerDetails        = ARM_UC_PAL_FlashIAP_GetInstallerDetails
 };
 

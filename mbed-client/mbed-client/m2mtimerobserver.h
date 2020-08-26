@@ -16,9 +16,9 @@
 #ifndef M2M_TIMER_OBSERVER_H
 #define M2M_TIMER_OBSERVER_H
 
-/*! \file m2mtimerobserver.h
- *  \brief M2MTimerObserver.
- *  Observer class for indicating the timer expiry to the parent class.
+/*! \file m2mtimerobserver.h \brief header for M2MTimerObserver. */
+
+/**  Observer class for indicating the timer expiry to the parent class.
  */
 class M2MTimerObserver
 {

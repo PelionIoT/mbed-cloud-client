@@ -38,6 +38,12 @@
             "default": null,
             "value": null
         },
+        "non-provisioned-secure-element": {
+            "help": "Configuration option for Secure Element's preprovisioned credentials state",
+            "options": [ "null", "1"],
+            "default": null,
+            "value": null
+        },
         "enable-device-sentry": {
             "help": "Enables Device Sentry feature",
             "options": [ "null", "1" ],

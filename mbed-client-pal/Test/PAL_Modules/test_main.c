@@ -245,11 +245,6 @@ void TEST_pal_all_GROUPS_RUNNER(void)
             #ifndef PAL_SKIP_TEST_MODULE_FILESYSTEM
                 TEST_pal_fileSystem_GROUP_RUNNER();
             #endif
-        case PAL_TEST_MODULE_SST:
-            PRINT_MEMORY_STATS;
-            #ifndef PAL_SKIP_TEST_MODULE_SST
-                TEST_pal_sst_GROUP_RUNNER();
-            #endif
         case PAL_TEST_MODULE_ROT:
             // if the implementation is using SOTP, it may be better to test storage and SOTP before it
             PRINT_MEMORY_STATS;
@@ -441,12 +436,6 @@ int palStorageTestMain(void)
 {
     int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE;
     return palTestMain(TEST_pal_internalFlash_GROUP_RUNNER, init_flags);
-}
-
-int palSSTTestMain(void)
-{
-    int init_flags = PAL_TEST_PLATFORM_INIT_BASE | PAL_TEST_PLATFORM_INIT_STORAGE;
-    return palTestMain(TEST_pal_sst_GROUP_RUNNER, init_flags);
 }
 
 int palTimeTestMain(void)

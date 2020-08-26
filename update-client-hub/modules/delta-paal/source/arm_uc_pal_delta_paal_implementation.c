@@ -801,7 +801,9 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_Write(uint32_t slot_id,
                                             const arm_uc_buffer_t *buffer)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-
+    if (buffer == NULL){
+        return result;
+    }
     UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Write slot %" PRIu32 " offset: %" PRIu32, slot_id, offset);
     UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Write bspatch_read_patch_buffer_length %" PRIu64 " bspatch_read_patch_buffer_remaining: %" PRIu64,
                   bspatch_read_patch_buffer_length,
@@ -843,7 +845,7 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_Write(uint32_t slot_id,
         }
 
     }
-    else if (paal_storage_implementation && buffer) {
+    else if (paal_storage_implementation) {
         // Full image write
         UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Write Going into downstream Write ");
 

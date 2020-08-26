@@ -19,6 +19,8 @@
 #ifndef CERTIFICATE_PARSER_H
 #define CERTIFICATE_PARSER_H
 
+/** \internal \file CertificateParser.h  */
+
 #include "ns_types.h"
 
 #ifdef __cplusplus

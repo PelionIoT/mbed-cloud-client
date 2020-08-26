@@ -93,3 +93,10 @@ void M2MConnectionHandler::unregister_network_handler()
 {
     _private_impl->unregister_network_handler();
 }
+
+#if 0
+void M2MConnectionHandler::store_cid()
+{
+    _private_impl->store_cid();
+}
+#endif

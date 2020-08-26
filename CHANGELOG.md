@@ -1,5 +1,28 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.6.0 (26.08.2020)
+
+#### Device Management Client
+
+-  Removed the upper limit (900 seconds before expiration) for calculating the registration update timer expiration. Now, the timer uses 75% of the lifetime.
+-  Changed the notification handler to send a notification only when crossing the "less than" or "greater than" notification threshold values.
+-  Added support for the [Parsec](https://parallaxsecond.github.io/parsec-book/index.html) open-source initiative. It provides a platform-agnostic interface for calling the secure storage and operation services of a Trusted Platform Module (TPM) on Linux.
+-  Optimized application reconnection handling.
+   - Previously, the reconnection timer seed was randomized between 10 and 100 seconds. Now, the base value is platform-specific and you can control it using the `PAL_DEFAULT_RTT_ESTIMATE` macro (estimated round-trip time for the network).
+      - Mbed OS defaults to 10 seconds.
+      - NXP and Renesas SDKs default to 5 seconds.
+      - Linux defaults to 3 seconds.
+   - You can now optimize the client recovery behaviour based on the expected network performance (latency and bandwidth).
+- Added handling for `MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE` during handshake. This allows the client to recover and fall back to bootstrap if the LwM2M credentials are invalid.
+- Improved handling of timeouts during network and TLS/DTLS operations. This will avoid unnessary fallbacks to re-bootstrapping.
+
+### Platform Adaptation Layer (PAL)
+
+-  PAL SST APIs were removed. The new adaptation layer for Secure Storage is KVStore APIs.
+-  Deprecated the `MBED_CLIENT_RECONNECTION_INTERVAL` macro. An application that needs to control the CoAP retransmission intervals should now define `PAL_DEFAULT_RTT_ESTIMATE`.
+-  Deprecated the `MBED_CONF_MBED_CLIENT_DTLS_PEER_MAX_TIMEOUT` macro. An application that needs to control the DTLS intervals should now define `PAL_DEFAULT_RTT_ESTIMATE`.
+-  Linux: Fixed handling of PIPE errors during socket handling that resulted in unwanted application termination instead of raising an error. Now, PIPE errors result in SSL handshake erro
+
 ### Release 4.5.0 (12.06.2020)
 
 #### Device Management Client
@@ -13,6 +36,7 @@ However, the notification will still be stored internally in client and it will 
 * Added a compile-time check to prevent configuring the client with LIFETIME values below 60 seconds. 60 seconds is the minimum allowed.
 * [Mbed OS] Changed the default storage location for update to `ARM_UCP_FLASHIAP`.
 * Added support for Device Sentry feature.
+* Added new library flag `MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT`, The default is `null`. Should be set to `1` if SE hasn't pre-provisioned credentials.  
 
 ### Release 4.4.0 (17.04.2020)
 

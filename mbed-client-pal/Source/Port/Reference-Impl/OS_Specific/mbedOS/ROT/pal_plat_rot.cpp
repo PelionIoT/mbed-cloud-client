@@ -17,7 +17,9 @@
 #include "pal.h"
 #include "pal_plat_rot.h"
 #include "KVMap.h"
+#ifdef TARGET_LIKE_MBED
 #include "mbed_error.h"
+#endif
 #include "TDBStore.h"
 #include "DeviceKey.h"
 

@@ -16,6 +16,8 @@
 #ifndef M2M_STRING_H
 #define M2M_STRING_H
 
+/** \file m2mstring.h \brief header for m2m::String */
+
 #include <stddef.h> // size_t
 #include <stdint.h>
 
@@ -27,9 +29,8 @@ class Test_M2MString;
 namespace m2m
 {
 
-/*! \file m2mstring.h
-* \brief A simple C++ string class, used as replacement for std::string.
-   */
+
+  /** A simple C++ string class, used as replacement for std::string. */
   class String
   {
     char* p;           ///< The data.

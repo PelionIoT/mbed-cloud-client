@@ -25,14 +25,14 @@ class M2MSecurity;
 class M2MConnectionSecurityPimpl;
 class M2MConnectionHandler;
 
-/*! \file m2mconnectionsecurity.h
- * \brief M2MConnectionSecurity.
- * This class provides a method to create a secure socket connection
- * to handle connectivity for the mbed Client. It handles sending, receiving
+/** \file m2mconnectionsecurity.h \brief header for M2MConnectionSecurity. */
+
+/** This class provides a method to create a secure socket connection.
+ *
+ * Handles connectivity for the mbed Client. It handles sending, receiving
  * and establishing a secure connection for mbed Client on top of the
  * normal socket connection.
  */
-
 class M2MConnectionSecurity {
 public:
     typedef enum {
@@ -139,6 +139,8 @@ public:
      * \return Indicates whether the data is read successfully or not.
      */
     int set_dtls_socket_callback(void(*foo)(void*), void *argument);
+
+    void update_network_rtt_estimate(uint8_t rtt_estimate);
 
 private:
 

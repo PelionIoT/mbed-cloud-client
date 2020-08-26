@@ -19,9 +19,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/*! \file m2mstringbufferbase.h
- *  \brief StringBufferBase.
- *  This class is the base class for fixed-sized string buffers.
+/** \file m2mstringbufferbase.h \brief header for StringBufferBase. */
+
+/**  This class is the base class for fixed-sized string buffers.
  */
 class StringBufferBase
 {

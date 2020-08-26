@@ -20,11 +20,10 @@
 #include "mbed-client/functionpointer.h"
 
 
-/*! \file m2mresourcebase.h
- *  \brief M2MResourceBase.
- *  This class is the base class for mbed Client Resources. All defined
- *  LWM2M resource models can be created based on it.
- */
+/*! \file m2mresourcebase.h \brief header for M2MResourceBase. */
+
+// Forward declarations
+
 class M2MBlockMessage;
 
 typedef FP1<void,void*> execute_callback;
@@ -40,6 +39,10 @@ typedef FP3<void, const String &, uint8_t *&, uint32_t &> outgoing_block_message
 
 class M2MResource;
 
+/**
+ * This class is a base class for LwM2M resources.
+ * Common functionality between M2MResource and M2MResourceInstance is here.
+ */
 class M2MResourceBase : public M2MBase {
 
 friend class M2MObjectInstance;

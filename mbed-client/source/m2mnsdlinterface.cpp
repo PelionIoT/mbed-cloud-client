@@ -54,7 +54,6 @@
 #include "eventOS_event_timer.h"
 #include "eventOS_scheduler.h"
 #include "ns_hal_init.h"
-#include "pal.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -84,7 +83,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.5.0";
+const char *MCC_VERSION = "mccv=4.6.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -200,7 +199,9 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _registered(false),
   _waiting_for_bs_finish_ack(false),
   _download_retry_timer(*this),
-  _download_retry_time(0)
+  _download_retry_time(0),
+  _network_stagger_estimate(0),
+  _network_rtt_estimate(10)                              // Use reasonable initialization value for the RTT estimate. Must be larger than 0.
 {
     tr_debug("M2MNsdlInterface::M2MNsdlInterface()");
 
@@ -267,7 +268,7 @@ bool M2MNsdlInterface::initialize()
     // Sets the packet retransmission attempts and time interval
     sn_nsdl_set_retransmission_parameters(_nsdl_handle,
                                           MBED_CLIENT_RECONNECTION_COUNT,
-                                          MBED_CLIENT_RECONNECTION_INTERVAL);
+                                          _network_rtt_estimate);
 
     sn_nsdl_set_retransmission_buffer(_nsdl_handle, MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS, 0);
 
@@ -833,7 +834,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                         coap_header->msg_code == COAP_MSG_CODE_RESPONSE_CHANGED)) {
 
                 coap_response_s *resp = find_response(coap_header->msg_id);
-                if (resp) {
+                if (resp && resp->uri_path) {
                     M2MBase *base = find_resource(resp->uri_path);
                     if (base) {
                         if (resp->type == M2MBase::BLOCK_SUBSCRIBE) {
@@ -856,7 +857,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
 
                 tr_info("M2MNsdlInterface::received_from_server_callback - message sending failed, id %d", coap_header->msg_id);
                 coap_response_s *resp = find_response(coap_header->msg_id);
-                if (resp) {
+                if (resp && resp->uri_path) {
                     M2MBase *base = find_resource(resp->uri_path);
                     if (base) {
                         base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, resp->type);
@@ -1754,11 +1755,9 @@ uint32_t M2MNsdlInterface::registration_time() const
         value = MINIMUM_REGISTRATION_TIME;
     }
 
-    if(value >= OPTIMUM_LIFETIME) {
-        value = value - REDUCE_LIFETIME;
-    } else {
-        value = REDUCTION_FACTOR * value;
-    }
+    //Use 75% of the lifetime value to ensure registration update is started before the lifetime expires
+    value = value * 3 / 4;
+
     tr_debug("M2MNsdlInterface::registration_time - value (in seconds) %" PRIu32, value);
     return value;
 }
@@ -3566,11 +3565,11 @@ void M2MNsdlInterface::handle_message_delivered(M2MBase *base, const M2MBase::Me
 
 void M2MNsdlInterface::set_retransmission_parameters()
 {
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
     // in UDP mode, reconnection attempts must be scaled down so that last attempt does not slip
     // past the client lifetime.
     uint32_t lifetime = registration_time();
-    uint32_t resend_count = MBED_CLIENT_RECONNECTION_COUNT;
-
+    uint8_t resend_count = MBED_CLIENT_RECONNECTION_COUNT;
     uint32_t reconnection_total_time = total_retransmission_time(resend_count);
     tr_debug("M2MNsdlInterface::set_retransmission_parameters() - total resend time %" PRIu32, reconnection_total_time);
 
@@ -3578,10 +3577,20 @@ void M2MNsdlInterface::set_retransmission_parameters()
         reconnection_total_time = total_retransmission_time(--resend_count);
     }
 
-    tr_info("M2MNsdlInterface::set_retransmission_parameters() - setting max resend count to %" PRIu32 " with total time: %" PRIu32, resend_count, reconnection_total_time);
-    sn_nsdl_set_retransmission_parameters(_nsdl_handle, resend_count, MBED_CLIENT_RECONNECTION_INTERVAL);
+    tr_info("M2MNsdlInterface::set_retransmission_parameters() - setting max resend count to %" PRIu32 " with total time: %" PRIu32,
+            resend_count, reconnection_total_time);
+    sn_nsdl_set_retransmission_parameters(_nsdl_handle, resend_count, _network_rtt_estimate);
+#else
+    tr_info("M2MNsdlInterface::set_retransmission_parameters() - setting resend count to %" PRIu32 " with initial retransmission time: %" PRIu32,
+            sn_nsdl_get_retransmission_count(_nsdl_handle),
+            _network_rtt_estimate);
+    sn_nsdl_set_retransmission_parameters(_nsdl_handle,
+                                          sn_nsdl_get_retransmission_count(_nsdl_handle),
+                                          _network_rtt_estimate);
+#endif // (PAL_USE_SSL_SESSION_RESUME == 0)
 }
 
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
 uint32_t M2MNsdlInterface::total_retransmission_time(uint32_t resend_count)
 {
     uint32_t reconnection_total_time = 1;
@@ -3591,7 +3600,7 @@ uint32_t M2MNsdlInterface::total_retransmission_time(uint32_t resend_count)
     }
 
     reconnection_total_time--;
-    reconnection_total_time *= MBED_CLIENT_RECONNECTION_INTERVAL;
+    reconnection_total_time *= _network_rtt_estimate;
 
     // We need to take into account that CoAP specification mentions that each retransmission
     // has to have a random multiplying factor between 1 - 1.5 , max of which can be 1.5
@@ -3600,14 +3609,15 @@ uint32_t M2MNsdlInterface::total_retransmission_time(uint32_t resend_count)
     return reconnection_total_time;
 }
 
-bool M2MNsdlInterface::is_update_register_ongoing() const
-{
-    return _nsdl_handle->update_register_token == 0 ? false : true;
-}
-
 uint8_t M2MNsdlInterface::get_resend_count()
 {
     return sn_nsdl_get_retransmission_count(_nsdl_handle);
+}
+#endif // #if (PAL_USE_SSL_SESSION_RESUME == 0)
+
+bool M2MNsdlInterface::is_update_register_ongoing() const
+{
+    return _nsdl_handle->update_register_token == 0 ? false : true;
 }
 
 void M2MNsdlInterface::send_pending_request()
@@ -3675,7 +3685,7 @@ void M2MNsdlInterface::remove_items_from_response_list_for_uri(const char* uri_p
     coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
     while (data) {
         bool remove = false;
-        if (uri_path) {
+        if (uri_path && data->uri_path) {
             if ((strcmp(uri_path, data->uri_path) == 0)) {
                 remove = true;
             }
@@ -3822,3 +3832,25 @@ bool M2MNsdlInterface::handle_delayed_response_store(const char* uri_path,
     return success;
 }
 #endif
+
+void M2MNsdlInterface::update_network_stagger_estimate(uint16_t data_amount)
+{
+    _network_stagger_estimate = pal_getStaggerEstimate(data_amount);
+    tr_info("M2MNsdlInterface::update_network_stagger_estimate() to %d", _network_stagger_estimate);
+}
+
+uint16_t M2MNsdlInterface::get_network_stagger_estimate()
+{
+    return _network_stagger_estimate;
+}
+
+void M2MNsdlInterface::update_network_rtt_estimate()
+{
+    _network_rtt_estimate = pal_getRttEstimate();
+    tr_info("M2MNsdlInterface::update_network_rtt_estimate() to %d", _network_rtt_estimate);
+}
+
+uint8_t M2MNsdlInterface::get_network_rtt_estimate()
+{
+    return _network_rtt_estimate;
+}

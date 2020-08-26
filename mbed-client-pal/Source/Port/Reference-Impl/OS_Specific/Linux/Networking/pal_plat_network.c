@@ -100,6 +100,7 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
         break;
     case ECONNRESET:
     case ECONNREFUSED:
+    case EPIPE:
         status = PAL_ERR_SOCKET_CONNECTION_RESET;
         break;
     case ENOBUFS:
@@ -749,6 +750,17 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
     return result;
 }
 
+palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+{
+    (void)socket;
+    (void)optionLevel;
+    (void)optionName;
+    (void)optionValue;
+    (void)optionLength;
+
+    return PAL_ERR_NOT_SUPPORTED;
+}
+
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
     int flags = fcntl((intptr_t)socket, F_GETFL);
@@ -1096,8 +1108,8 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
     ssize_t res;
 
     clearSocketFilter((intptr_t)socket);
+    res = send((intptr_t)socket, buf, len, MSG_NOSIGNAL);
 
-    res = send((intptr_t)socket, buf, len, 0);
     if(res == -1)
     {
         result = translateErrorToPALError(errno);
@@ -1217,3 +1229,15 @@ palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connec
 
     return PAL_ERR_NOT_SUPPORTED;
 }
+
+uint8_t pal_plat_getRttEstimate()
+{
+    return PAL_DEFAULT_RTT_ESTIMATE;
+}
+
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
+{
+    (void) data_amount;
+    return PAL_DEFAULT_STAGGER_ESTIMATE;
+}
+
