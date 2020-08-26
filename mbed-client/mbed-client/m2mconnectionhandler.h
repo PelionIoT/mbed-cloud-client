@@ -24,11 +24,9 @@
 class M2MConnectionSecurity;
 class M2MConnectionHandlerPimpl;
 
-/*! \file m2mconnectionhandler.h
- * \brief M2MConnectionHandler.
- * This class handles the socket connection for the LWM2M Client.
- */
+/** \file m2mconnectionhandler.h \brief header for M2MConnectionHandler */
 
+/** This class handles the socket connection for the LWM2M Client. */
 class M2MConnectionHandler {
 public:
 
@@ -51,6 +49,7 @@ public:
         DNS_RESOLVING_ERROR = -10,
         SSL_HANDSHAKE_ERROR = -11,
         FAILED_TO_READ_CREDENTIALS = -12,
+        SOCKET_TIMEOUT = -13,
     } ConnectionError;
 
 public:
@@ -149,6 +148,13 @@ public:
      * \brief Unregisters the network interface handler that is set in 'set_platform_network_handler'.
      */
     void unregister_network_handler();
+
+#if 0
+    /**
+     * \brief Stores CID persistently for DTLS connections.
+     */
+    void store_cid();
+#endif
 
 private:
 

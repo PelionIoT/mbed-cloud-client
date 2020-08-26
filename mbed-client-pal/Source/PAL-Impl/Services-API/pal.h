@@ -40,8 +40,6 @@ extern "C" {
 #include "PAL-Impl/Services-API/pal_entropy.h"
 #include "PAL-Impl/Services-API/pal_update.h"
 #include "PAL-Impl/Services-API/pal_internalFlash.h"
-#include "PAL-Impl/Services-API/pal_sst.h"
-
 
 /*! \file pal.h
 *  \brief PAL.

@@ -27,6 +27,7 @@
 #include "mbed-client/m2mserver.h"
 #include "include/nsdllinker.h"
 #include "eventOS_event.h"
+#include "pal.h"
 
 //FORWARD DECLARARTION
 class M2MSecurity;
@@ -414,6 +415,7 @@ public:
     */
     bool is_registered() const;
 
+#if (PAL_USE_SSL_SESSION_RESUME == 0)
     /**
      * @brief Returns total retransmission time
      * @resend_count Resend count
@@ -426,6 +428,7 @@ public:
      * @return CoAP retransmission count
     */
     uint8_t get_resend_count();
+#endif // (PAL_USE_SSL_SESSION_RESUME == 0)
 
     /**
      * @brief Mark request to be resend again after network break
@@ -438,6 +441,15 @@ public:
      * @brief Create a new time when to send CoAP ping.
     */
     void calculate_new_coap_ping_send_time();
+
+    virtual void update_network_stagger_estimate(uint16_t data_amount);
+
+    virtual uint16_t get_network_stagger_estimate();
+
+    virtual void update_network_rtt_estimate();
+
+    virtual uint8_t get_network_rtt_estimate();
+
 
 protected: // from M2MTimerObserver
 
@@ -751,6 +763,8 @@ private:
     bool                                    _waiting_for_bs_finish_ack;
     M2MTimer                                _download_retry_timer;
     uint32_t                                _download_retry_time;
+    uint16_t                                _network_stagger_estimate;
+    uint8_t                                 _network_rtt_estimate;
 
 friend class Test_M2MNsdlInterface;
 

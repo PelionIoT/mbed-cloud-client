@@ -1,5 +1,7 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018 ARM Ltd.
+// Copyright 2020 ARM Ltd.
+//
+// SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,15 +16,28 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#include "unity.h"
-#include "unity_fixture.h"
+#ifndef ARM_UC_MULTICAST_H
+#define ARM_UC_MULTICAST_H
 
-// PAL SST API tests
-TEST_GROUP_RUNNER(pal_sst)
-{
-    RUN_TEST_CASE(pal_sst, pal_sst_test_basic);
-    RUN_TEST_CASE(pal_sst, pal_sst_test_iterator);
-    RUN_TEST_CASE(pal_sst, pal_sst_test_flags);
-    RUN_TEST_CASE(pal_sst, pal_sst_test_special_cases);
-}
+#define ARM_UC_OTA_MULTICAST_UC_HUB_EVENT   1
+#define ARM_UC_OTA_MULTICAST_TIMER_EVENT    2
+#define ARM_UC_OTA_MULTICAST_DL_DONE_EVENT  3
 
+typedef enum {
+    MULTICAST_STATUS_SUCCESS = 0,
+    MULTICAST_INIT_FAILED = 1
+} multicast_status_e;
+
+
+#ifdef __cplusplus
+#include "m2minterface.h"
+#include "ConnectorClient.h"
+
+int arm_uc_multicast_init(M2MBaseList& list, ConnectorClient &client);
+
+void arm_uc_multicast_deinit();
+
+bool arm_uc_multicast_interface_configure(int8_t interface_id);
+#endif
+
+#endif /* ARM_UC_MULTICAST_H */

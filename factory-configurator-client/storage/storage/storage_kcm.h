@@ -23,6 +23,9 @@
 #if !defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT && !defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #include "storage_pelion_sst.h"
 #endif
+#if defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#include "pal_sst.h"
+#endif
 #include "pal.h"
 
 #ifdef __cplusplus
@@ -185,6 +188,27 @@ extern "C" {
                                      size_t kcm_item_name_len,
                                      kcm_item_type_e kcm_item_type,
                                      storage_item_prefix_type_e item_prefix_type);
+
+
+#if defined (MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && defined (MBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT)
+    /** Deletes factory item data from the storage.
+     *  Deletes items that were stored with factory_item tag.  
+     *  Note: this function should be used only in a very special case!
+     *
+     *    @param[in] kcm_item_name KCM item name.
+     *    @param[in] kcm_item_name_len KCM item name length.
+     *    @param[in] kcm_item_type KCM item type as defined in `::kcm_item_type_e`
+     *    @param[in] item_prefix_type KCM item prefix type (KCM or CE) as defined in `::storage_item_prefix_type_e`
+     *
+     *    @returns
+     *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+     */
+    kcm_status_e storage_factory_item_delete(const uint8_t *kcm_item_name,
+                                    size_t kcm_item_name_len,
+                                    kcm_item_type_e kcm_item_type,
+                                    storage_item_prefix_type_e item_prefix_type);
+#endif
+
 
     /* === Roll back protected data Operations === */
     /** Reads a rollback protected data from the storage

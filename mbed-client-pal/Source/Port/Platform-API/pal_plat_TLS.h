@@ -18,6 +18,7 @@
 #define _PAL_PLAT_TLS_H_
 #include "pal_TLS.h"
 
+
 /*! \file pal_plat_TLS.h
 *  \brief PAL TLS/DTLS - platform.
 *   This file contains TLS/DTLS APIs that need to be implemented in the platform layer.
@@ -175,11 +176,12 @@ palStatus_t pal_plat_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, u
  *	DTLS only, no effect on TLS.
  *
  * @param[in] palTLSConf: The DTLS configuration context.
- * @param[in] timeoutInMilliSec: The maximum timeout value in milliseconds.
+ * @param[in] minTimeout: The timeout minimum value in milliseconds.
+ * @param[in] maxTimeout: The timeout maxmimum value in milliseconds.
  *
  * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_plat_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t timeoutInMilliSec);
+palStatus_t pal_plat_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t minTimeout, uint32_t maxTimeout);
 
 /*!	\brief Set up a TLS context for use.
  *
@@ -341,7 +343,48 @@ uint8_t* pal_plat_GetSslSessionBuffer(palTLSHandle_t palTLSHandle, size_t *buffe
  *
  */
 void pal_plat_SetSslSession(palTLSHandle_t palTLSHandle, const uint8_t *session_buffer);
-#endif
+
+/*! \brief Save the ssl session buffer.
+ *
+ * @param[in] palTLSHandle: The TLS context.
+ * @param[out] buffer_size: Size of the session buffer.
+ *
+ */
+int32_t pal_plat_saveSslSessionBuffer(palTLSHandle_t palTLSHandle);
+
+/*! \brief Load the ssl session.
+ *
+ * @param[in] palTLSHandle: The TLS context.
+ *
+ * \return 0 if success else TLS error code.
+  */
+int32_t pal_plat_loadSslSession(palTLSHandle_t palTLSHandle);
+
+/*! \brief Resets ssl session.
+ *
+  */
+void pal_plat_removeSslSession();
+
+/*! \brief Checks if session is available or not.
+ *
+ * \ return true if session is stored else false.
+  */
+bool pal_plat_sslSessionAvailable();
+
+/*! \brief Returns CID based SSL context persistently for DTLS based connection.
+ * @param[out] context: CID context, passing only the memory pointer.
+ * @param[out] size: Size of the session buffer.
+ *
+  */
+const uint8_t* pal_plat_get_cid(size_t *size);
+
+/*! \brief Sets CID for SSL context for DTLS based connection.
+ * @param[in] context: CID context, passing only the memory pointer.
+ * @param[in] size: Size of the session buffer.
+ *
+  */
+void pal_plat_set_cid(const uint8_t* context, const size_t length);
+#endif //PAL_USE_SSL_SESSION_RESUME
 #endif //_PAL_PLAT_TLS_H_
 
 

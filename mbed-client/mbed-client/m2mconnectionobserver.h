@@ -18,11 +18,9 @@
 
 #include "mbed-client/m2minterface.h"
 
-/*! \file m2mconnectionobserver.h
- * \brief M2MConnectionObserver.
- * The observer class for passing the socket activity to the state machine.
- */
+/** \file m2mconnectionobserver.h \brief header for M2MConnectionObserver. */
 
+/** The observer class for passing the socket activity to the state machine. */
 class M2MConnectionObserver
 {
 

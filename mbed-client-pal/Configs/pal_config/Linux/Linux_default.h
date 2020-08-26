@@ -170,12 +170,16 @@
 #endif
 
 #ifndef PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM
-	// This also implies PAL_USE_INTERNAL_FLASH 1
+    // This also implies PAL_USE_INTERNAL_FLASH 1
     #define PAL_SIMULATOR_FLASH_OVER_FILE_SYSTEM 1
 #endif
 
 #ifndef PAL_USE_SECURE_TIME
     #define PAL_USE_SECURE_TIME 1
+#endif
+
+#ifndef PAL_DEFAULT_RTT_ESTIMATE
+    #define PAL_DEFAULT_RTT_ESTIMATE 3
 #endif
 
 // Sanity check for defined stack sizes

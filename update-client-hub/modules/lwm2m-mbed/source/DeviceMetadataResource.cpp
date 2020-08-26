@@ -254,11 +254,10 @@ void DeviceMetadataResource::Initialize(void)
 
 int32_t DeviceMetadataResource::setBootloaderHash(arm_uc_buffer_t *hash)
 {
-    UC_SRCE_TRACE("DeviceMetadataResource::setBootloaderHash ptr %p size %" PRIu32, hash, hash->size);
-
     int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
 
     if (bootloaderHashResource && hash && hash->size > 0) {
+        UC_SRCE_TRACE("DeviceMetadataResource::setBootloaderHash ptr %p size %" PRIu32, hash, hash->size);
         bool rt = bootloaderHashResource->set_value(hash->ptr, hash->size);
         if (rt == true) {
             result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;
@@ -270,11 +269,10 @@ int32_t DeviceMetadataResource::setBootloaderHash(arm_uc_buffer_t *hash)
 
 int32_t DeviceMetadataResource::setOEMBootloaderHash(arm_uc_buffer_t *hash)
 {
-    UC_SRCE_TRACE("DeviceMetadataResource::setOEMBootloaderHash ptr %p size %" PRIu32, hash, hash->size);
-
     int32_t result = ARM_UCS_LWM2M_INTERNAL_ERROR;
 
     if (OEMBootloaderHashResource && hash && hash->size > 0) {
+        UC_SRCE_TRACE("DeviceMetadataResource::setOEMBootloaderHash ptr %p size %" PRIu32, hash, hash->size);
         bool rt = OEMBootloaderHashResource->set_value(hash->ptr, hash->size);
         if (rt == true) {
             result = ARM_UCS_LWM2M_INTERNAL_SUCCESS;

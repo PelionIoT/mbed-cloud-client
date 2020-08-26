@@ -19,6 +19,8 @@
 #ifndef __CONNECTOR_CLIENT_H__
 #define __CONNECTOR_CLIENT_H__
 
+/** \internal \file ConnectorClient.h */
+
 #include "mbed-client/functionpointer.h"
 #include "mbed-client/m2minterfacefactory.h"
 #include "mbed-client/m2mdevice.h"

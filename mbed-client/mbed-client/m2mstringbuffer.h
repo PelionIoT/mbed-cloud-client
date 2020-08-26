@@ -16,14 +16,14 @@
 #ifndef __STRING_BUFFER_H__
 #define __STRING_BUFFER_H__
 
+/** \file m2mstringbuffer.h \brief header for StringBuffer. */
+
 #include "mbed-client/m2mstringbufferbase.h"
 
 #include <assert.h>
 #include <stddef.h>
 
-/*! \file m2mstringbuffer.h
- *  \brief StringBuffer.
- *  This class performs common string concatenation operations on a fixed-sized buffers.
+/** This class performs common string concatenation operations on a fixed-sized buffers.
  */
 
 template <int SIZE>

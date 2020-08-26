@@ -143,6 +143,7 @@ typedef enum {
     PAL_ERR_TLS_FAILED_TO_SET_CERT =                        PAL_ERR_TLS_ERROR_BASE + 12,
     PAL_ERR_TLS_PEER_CLOSE_NOTIFY =                         PAL_ERR_TLS_ERROR_BASE + 13,
     PAL_ERR_TLS_MULTIPLE_HANDSHAKE =                        PAL_ERR_TLS_ERROR_BASE + 14,
+    PAL_ERR_TLS_TIMEOUT =                                   PAL_ERR_TLS_ERROR_BASE + 15,
 
     //Update errors
     PAL_ERR_UPDATE_ERROR_BASE =                             PAL_ERR_MODULE_UPDATE_BASE,         /*! Generic error. */
@@ -217,6 +218,7 @@ typedef enum {
     PAL_ERR_PK_SIGN_FAILED =                                PAL_ERR_CRYPTO_ERROR_BASE + 57,
     PAL_ERR_PARSING_KEY =                                   PAL_ERR_CRYPTO_ERROR_BASE + 58,
     PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED =          PAL_ERR_CRYPTO_ERROR_BASE + 59,
+    PAL_ERR_SSL_FATAL_ALERT_MESSAGE =                       PAL_ERR_CRYPTO_ERROR_BASE + 60,
     PAL_ERR_X509_BADCERT_EXPIRED =                          PAL_ERR_MODULE_BITMASK_BASE + 0x01, //!< Value must not be changed in order to be able to create bit mask
     PAL_ERR_X509_BADCERT_FUTURE =                           PAL_ERR_MODULE_BITMASK_BASE + 0x02, //!< Value must not be changed in order to be able to create bit mask
     PAL_ERR_X509_BADCERT_BAD_MD =                           PAL_ERR_MODULE_BITMASK_BASE + 0x04, //!< Value must not be changed in order to be able to create bit mask

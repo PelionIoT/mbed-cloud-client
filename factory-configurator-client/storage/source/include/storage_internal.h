@@ -187,6 +187,9 @@
 
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #if defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT || defined MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT //SST + PSA
 
@@ -377,5 +380,8 @@ void storage_chain_delete(storage_cert_chain_context_s *chain_context, storage_i
 
 kcm_status_e storage_check_certificate_existance(const uint8_t *kcm_chain_name, size_t kcm_chain_name_len, storage_item_prefix_type_e item_prefix_type);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__STORAGE_INTERNAL_H__

@@ -454,7 +454,7 @@ bool FtcdCommSocket::send(const uint8_t *data, uint32_t data_size)
 
     do {
         if (_connection_state != SOCKET_CONNECTION_ACCEPTED) {
-            return FTCD_COMM_NETWORK_CONNECTION_CLOSED;
+            return false;
         }
         result = _send(_client_socket, data, remaind_bytes, &sent_bytes);
         if (result != PAL_SUCCESS) {

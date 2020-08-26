@@ -19,25 +19,28 @@
 #include "mbed-client/m2mresourcebase.h"
 
 
-/*! \file m2mresourceinstance.h
- *  \brief M2MResourceInstance.
- *  This class is the base class for mbed Client Resources. All defined
- *  LWM2M resource models can be created based on it.
- */
+/** \file m2mresourceinstance.h \brief header for M2MResourceInstance. */
+
+// Forward declarations
+
 class M2MBlockMessage;
-
-
 class M2MResource;
 
+/**
+ * This class represent LwM2M resource instance.
+ *
+ * You can use it for creating resource instances.
+ *
+ * Constructor and destructor are private
+ * which means that these objects can be created or
+ * deleted only through a function provided by the M2MObjectInstance.
+ */
 class M2MResourceInstance : public M2MResourceBase {
 
 friend class M2MObjectInstance;
 friend class M2MResource;
 
-private: // Constructor and destructor are private
-         // which means that these objects can be created or
-         // deleted only through a function provided by the M2MObjectInstance.
-
+private:
     M2MResourceInstance(M2MResource &parent,
                         const lwm2m_parameters_s* s,
                         M2MBase::DataType type);

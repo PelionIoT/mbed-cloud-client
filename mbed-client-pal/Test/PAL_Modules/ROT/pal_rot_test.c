@@ -24,6 +24,8 @@
 #include <stdlib.h>
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"
+#else
+#include "pal_sst.h"
 #endif
 #if (PAL_USE_HW_ROT == 1)
 #ifdef __SXOS__

@@ -19,6 +19,8 @@
 #ifndef __EST_CLIENT_H__
 #define __EST_CLIENT_H__
 
+/** \internal \file EstClient.h */
+
 #include "mbed-client/m2minterface.h"
 #include "est_defs.h"
 

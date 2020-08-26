@@ -14,24 +14,35 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-
+#define __STDC_LIMIT_MACROS
 #include <stdbool.h>
+#include <string.h>
 #include "key_slot_allocator.h"
 #include "pv_error_handling.h"
 #include "storage_internal.h"
 #include "pv_macros.h"
 #ifdef TARGET_LIKE_MBED
+#include "mbed.h"
+#if MBED_MAJOR_VERSION > 5
+#include "DeviceKey.h"
+#endif
+#if !(defined(TARGET_TFM) && (MBED_MAJOR_VERSION > 5))
 #include "psa/lifecycle.h"
+#endif
 #endif
 #include "psa/crypto_types.h"
 #include "psa/crypto.h"
 #include "fcc_malloc.h"
+#include "fcc_defs.h"
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 #include "se_slot_manager.h"
 #endif
 
-extern bool g_kcm_initialized;
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+extern "C" {
+    extern bool g_kcm_initialized;
+}
+
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && !defined(MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT)
 /** Loads the device private key from Atmel's secure element into KSA table.
 *
 * @returns ::KCM_STATUS_SUCCESS in case of success or one of the `::kcm_status_e` errors otherwise.
@@ -621,7 +632,7 @@ kcm_status_e storage_cert_chain_add_next_impl(kcm_cert_chain_handle kcm_chain_ha
     storage_cert_chain_context_s *chain_context = (storage_cert_chain_context_s*)kcm_chain_handle;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     uint8_t storage_cert_name[STORAGE_COMPLETE_ITEM_NAME_SIZE];
-    kcm_chain_cert_info_s cert_name_info = { 0 };
+    kcm_chain_cert_info_s cert_name_info = { 0, 0 };
     uint32_t storage_flags = 0;
     ksa_type_location_e ksa_item_location = KSA_PSA_TYPE_LOCATION;
 
@@ -734,29 +745,35 @@ kcm_status_e storage_cert_chain_delete(const uint8_t *kcm_chain_name, size_t kcm
 }
 
 
-kcm_status_e storage_item_delete(
+static kcm_status_e storage_get_item_name_for_deleting(
     const uint8_t *kcm_item_name,
     size_t kcm_item_name_len,
     kcm_item_type_e kcm_item_type,
-    storage_item_prefix_type_e item_prefix_type)
+    storage_item_prefix_type_e item_prefix_type,
+    uint8_t storage_item_name_out[STORAGE_COMPLETE_ITEM_NAME_SIZE])
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    uint8_t storage_item_name[STORAGE_COMPLETE_ITEM_NAME_SIZE] = { 0 };
-    size_t item_data_act_size;
+
+    // Check if KCM initialized, if not initialize it
+    if (!g_kcm_initialized) {
+        kcm_status = kcm_init();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
+    }
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
     SA_PV_LOG_INFO_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_prefix_type != STORAGE_ITEM_PREFIX_KCM && item_prefix_type != STORAGE_ITEM_PREFIX_CE), KCM_STATUS_INVALID_PARAMETER, "Invalid origin_type");
 
-    kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type, NULL, storage_item_name);
+    kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type, NULL, storage_item_name_out);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to build complete data name");
 
-    kcm_status = ksa_item_check_existence((const uint8_t*)storage_item_name, kcm_item_type);
+    kcm_status = ksa_item_check_existence((const uint8_t*)storage_item_name_out, kcm_item_type);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "Failed getting item data from PSA store (%u)", kcm_status);
 
     if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
         if (kcm_item_type == KCM_CERTIFICATE_ITEM) {
-            kcm_status = check_existance_first_cert_in_chain(item_prefix_type, kcm_item_name, kcm_item_name_len, storage_item_name, &item_data_act_size);
+            size_t item_data_act_size;
+            kcm_status = check_existance_first_cert_in_chain(item_prefix_type, kcm_item_name, kcm_item_name_len, storage_item_name_out, &item_data_act_size);
             SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "Item not found");
             SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to check single certificate name");
         } else {//not certificate
@@ -764,13 +781,87 @@ kcm_status_e storage_item_delete(
         }
     }
 
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+    return kcm_status;
+}
+
+
+kcm_status_e storage_item_delete(
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len,
+    kcm_item_type_e kcm_item_type,
+    storage_item_prefix_type_e item_prefix_type)
+{
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
+    SA_PV_LOG_INFO_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
+
+    uint8_t storage_item_name[STORAGE_COMPLETE_ITEM_NAME_SIZE] = { 0 };
+    kcm_status_e kcm_status = storage_get_item_name_for_deleting(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type, storage_item_name);
+    
+    // return with status if the item not found
+    SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "Item not found");
+
+    // return with error if result differs from KCM_STATUS_ITEM_NOT_FOUND
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get storage name for item = %.*s len = %" PRIu32, 
+        (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
+
     kcm_status = ksa_item_delete((const uint8_t *)storage_item_name, kcm_item_type);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destorying PSA key (%u)", kcm_status);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destorying item, status = %d", kcm_status);
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 
     return kcm_status;
 }
+
+#if defined (MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && defined (MBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT)
+kcm_status_e storage_factory_item_delete(
+    const uint8_t *kcm_item_name,
+    size_t kcm_item_name_len,
+    kcm_item_type_e kcm_item_type,
+    storage_item_prefix_type_e item_prefix_type)
+{
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_name");
+    SA_PV_LOG_INFO_FUNC_ENTER("item name = %.*s len = %" PRIu32 "", (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
+
+    const size_t bootstrap_key_name_len = strlen(g_fcc_bootstrap_device_private_key_name);
+    
+    // currently only bootstrap private key deleting is allowed
+
+    // verify name's length
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_name_len != bootstrap_key_name_len), 
+        KCM_STATUS_INVALID_PARAMETER,
+        "Currently only deleting of %s is supported that has length of %" PRIu32 " bytes, but given kcm_item_name_len = %" PRIu32, 
+        g_fcc_bootstrap_device_private_key_name,
+        (uint32_t)bootstrap_key_name_len, 
+        (uint32_t)kcm_item_name_len); 
+
+    // verify name
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((0 != strncmp((char*)kcm_item_name, 
+                                                g_fcc_bootstrap_device_private_key_name, 
+                                                bootstrap_key_name_len)), 
+        KCM_STATUS_INVALID_PARAMETER,
+        "Currently only deleting of %s is supported, but given %.*s", 
+        g_fcc_bootstrap_device_private_key_name,
+        (int)kcm_item_name_len, (char*)kcm_item_name); 
+
+    uint8_t storage_item_name[STORAGE_COMPLETE_ITEM_NAME_SIZE] = { 0 };
+    kcm_status_e kcm_status = storage_get_item_name_for_deleting(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type, storage_item_name);
+    
+    // return with status if the item not found
+    SA_PV_TRACE_RECOVERABLE_RETURN_IF((kcm_status == KCM_STATUS_ITEM_NOT_FOUND), kcm_status, "Item not found");
+
+    // return with error if result differs from KCM_STATUS_ITEM_NOT_FOUND
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to get storage name for item = %.*s len = %" PRIu32, 
+        (int)kcm_item_name_len, (char*)kcm_item_name, (uint32_t)kcm_item_name_len);
+
+    kcm_status = ksa_factory_item_delete((const uint8_t *)storage_item_name, kcm_item_type);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destorying factory item, status = %d", kcm_status);
+
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
+
+    return kcm_status;
+}
+#endif
 
 
 kcm_status_e storage_factory_reset()
@@ -828,6 +919,18 @@ kcm_status_e storage_key_get_handle(
         kcm_status = kcm_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "KCM initialization failed\n");
     }
+
+#ifdef CY_PRE_PROVISIONED_BS_PRIV_KEY_ID
+    // BS device private key was pre-provisioned and has fixed and known psa key id
+    if (strncmp((const char *)key_name, g_fcc_bootstrap_device_private_key_name, key_name_len) == 0) {
+        psa_status_t psa_status = psa_open_key((psa_key_id_t)CY_PRE_PROVISIONED_BS_PRIV_KEY_ID, &key_handle);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), KCM_STATUS_ERROR, "Failed to open key (%d)", psa_status);
+        *key_h_out = (kcm_key_handle_t)key_handle;
+        SA_PV_LOG_INFO_FUNC_EXIT("kcm_item_h_out = %" PRIu32 "", (uint32_t)(*key_h_out));
+        return kcm_status;
+    }
+#endif
+    
     //Build complete data name
     kcm_status = storage_build_item_name(key_name, key_name_len, key_type, item_prefix_type, NULL, storage_item_name);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to to build complete name");
@@ -988,12 +1091,14 @@ kcm_status_e storage_init(void)
 #ifdef  MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
     //Initialize SE slot management component
-    sem_init();
+    sem_slots_init();
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
+    //Call to register preprovisioned items function for preprovisioned SE only
     kcm_status = register_preprovisioned_items();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for register_preprovisioned_items (%" PRIu32 ")", (uint32_t)kcm_status);
-
-#endif
+#endif //ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 
     return kcm_status;
@@ -1006,7 +1111,7 @@ kcm_status_e storage_finalize(void)
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
 #ifdef  MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT
-    sem_finalize();
+    sem_slots_finalize();
 #endif
 
     kcm_status = ksa_fini();
@@ -1024,10 +1129,25 @@ kcm_status_e storage_reset(void)
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
+#if defined (MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && defined (MBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT)
+
+    kcm_status = storage_factory_item_delete((const uint8_t *)g_fcc_bootstrap_device_private_key_name, 
+        strlen(g_fcc_bootstrap_device_private_key_name), 
+        KCM_PRIVATE_KEY_ITEM, 
+        STORAGE_ITEM_PREFIX_KCM);
+
+    if(kcm_status == KCM_STATUS_ITEM_NOT_FOUND){
+        // if item not found, it's ok, change status to 'success'
+        kcm_status = KCM_STATUS_SUCCESS;
+    }
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(kcm_status != KCM_STATUS_SUCCESS, kcm_status, "Failed to remove bootstrap private key");
+#endif
+
     kcm_status = ksa_reset();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed for ksa reset");
 
-#ifdef TARGET_LIKE_MBED
+#if defined(TARGET_LIKE_MBED) && !(defined(TARGET_TFM) && (MBED_MAJOR_VERSION > 5))
     psa_status_t psa_status;
 
     /* Go back to an empty storage state
@@ -1041,6 +1161,14 @@ kcm_status_e storage_reset(void)
     */
     psa_status = mbed_psa_reboot_and_request_new_security_state(PSA_LIFECYCLE_ASSEMBLY_AND_TEST);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), KCM_STATUS_ERROR, "Failed for mbed_psa_reboot_and_request_new_security_state() (status %" PRIu32 ")", psa_status);
+
+#if MBED_MAJOR_VERSION > 5
+    // generate new rot after storage error
+    DeviceKey &devkey = DeviceKey::get_instance();
+    int kd_status = devkey.generate_root_of_trust();
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kd_status != DEVICEKEY_SUCCESS), KCM_STATUS_ERROR, "generate_root_of_trust() - failed, status %d\n", kd_status);
+#endif
+
 #endif
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
@@ -1107,7 +1235,7 @@ kcm_status_e storage_ce_destory_old_active_and_remove_backup_entries(
         }
 
         //Build name of source item
-        kcm_status = storage_build_item_name(cert_name, cert_name_len, KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_CE, extra_param, storage_cert_name);
+        kcm_status = storage_build_item_name(cert_name, cert_name_len, KCM_CERTIFICATE_ITEM, STORAGE_ITEM_PREFIX_CE, (kcm_chain_cert_info_s*)extra_param, storage_cert_name);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to build complete data name ");
 
         kcm_status = ksa_destroy_old_active_and_remove_backup_entry((const uint8_t *)storage_cert_name, KCM_CERTIFICATE_ITEM);
@@ -1279,13 +1407,13 @@ kcm_status_e storage_ce_item_copy(
         }
 
         //Build name of source item
-        kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, source_item_prefix_type, extra_param, storage_source_name);
+        kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, source_item_prefix_type, (kcm_chain_cert_info_s*)extra_param, storage_source_name);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to build complete source data name ");
 
         SA_PV_LOG_BYTE_BUFF_TRACE("storage_source_name: ", storage_source_name, STORAGE_COMPLETE_ITEM_NAME_SIZE);
 
         //Build name of destination item
-        kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, destination_item_prefix_type, extra_param, storage_destination_name);
+        kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, destination_item_prefix_type, (kcm_chain_cert_info_s*)extra_param, storage_destination_name);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to build complete destination data name ");
 
         SA_PV_LOG_BYTE_BUFF_TRACE("storage_destination_name: ", storage_destination_name, STORAGE_COMPLETE_ITEM_NAME_SIZE);
@@ -1347,7 +1475,7 @@ kcm_status_e storage_ce_clean_item(
             cert_name_info.is_last_certificate = true;
         }
 
-        kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type, extra_param, storage_item_name);
+        kcm_status = storage_build_item_name(kcm_item_name, kcm_item_name_len, kcm_item_type, item_prefix_type, (kcm_chain_cert_info_s*)extra_param, storage_item_name);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to build complete source data name ");
 
         SA_PV_LOG_TRACE("item name = %.*s", (int)STORAGE_COMPLETE_ITEM_NAME_SIZE, (char*)storage_item_name);

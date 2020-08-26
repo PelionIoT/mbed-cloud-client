@@ -134,6 +134,7 @@ ARM_SOURCE_CAPABILITIES ARM_UCS_LWM2M_SOURCE_GetCapabilities(void)
     result.manifest_url = 0;
     result.firmware = 0;
     result.keytable = 0;
+    result.reserved = 0;
 
     /* the event handler must be set before module can be used */
     if (ARM_UCS_EventHandler != 0) {

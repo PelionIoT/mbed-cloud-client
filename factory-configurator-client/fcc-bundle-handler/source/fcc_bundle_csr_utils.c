@@ -262,19 +262,19 @@ static fcc_status_e process_csr_request_cb(CborValue *tcbor_val, void *extra_inf
         SA_PV_ERR_RECOVERABLE_RETURN_IF((tcbor_error != CborNoError), FCC_STATUS_BUNDLE_ERROR, "Failed during parse CSR request");
 
         if (strncmp(FCC_CSRREQ_INBOUND_PRIVATE_KEY_NAME, key_name, key_name_len) == 0) {
-            
+
             // get private key name
             success = fcc_bundle_get_text_string(tcbor_val, &priv_key_name, &priv_key_name_len, NULL, 0);
             SA_PV_ERR_RECOVERABLE_RETURN_IF((!success), FCC_STATUS_BUNDLE_ERROR, "Failed during parse CSR request");
 
         } else if (strncmp(FCC_CSRREQ_INBOUND_EXTENSIONS_NAME, key_name, key_name_len) == 0) {
-            
+
             // parse extensions
             success = parse_csr_extensions(tcbor_val, &csr_params);
             SA_PV_ERR_RECOVERABLE_RETURN_IF((!success), FCC_STATUS_BUNDLE_ERROR, "Failed during parse CSR request");
 
         } else if (strncmp(FCC_CSRREQ_INBOUND_SUBJECT_NAME, key_name, key_name_len) == 0) {
-            
+
             // get CSR's subject
             success = fcc_bundle_get_text_string(tcbor_val, &subject, &subject_len, NULL, 0);
             SA_PV_ERR_RECOVERABLE_RETURN_IF((!success), FCC_STATUS_BUNDLE_ERROR, "Failed during parse CSR request");
@@ -291,7 +291,7 @@ static fcc_status_e process_csr_request_cb(CborValue *tcbor_val, void *extra_inf
 
             // get CSR's Storage Medium for private and public keys (the public key may be absent)
             fcc_status = parse_csr_storage_medium(tcbor_val, kcm_item_ctx, &is_gen_public_key);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_status != FCC_STATUS_SUCCESS ), fcc_status, "Failed during parse CSR request");
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status, "Failed during parse CSR request");
 
         } else {
             SA_PV_ERR_RECOVERABLE_RETURN_IF((true), FCC_STATUS_NOT_SUPPORTED, "CSR request field is not supported");
@@ -326,6 +326,17 @@ static fcc_status_e process_csr_request_cb(CborValue *tcbor_val, void *extra_inf
         pub_key_name = priv_key_name;
         pub_key_name_len = priv_key_name_len;
     }
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
+#ifdef MBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT
+    if (memcmp((const char*)priv_key_name, g_fcc_bootstrap_device_private_key_name, priv_key_name_len) == 0) {
+        //Set SE location to create parsec bootstrap private key inside tpm
+        item_extra_info.priv_key_location = KCM_LOCATION_SECURE_ELEMENT;
+        item_extra_info.pub_key_location = KCM_LOCATION_SECURE_ELEMENT;
+        kcm_item_ctx = &item_extra_info;
+    }
+#endif
+#endif//MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
     // parse and process CSR request and encode CSR response into tcbor_map_encoder
     fcc_status = generate_and_encode_csr_response(

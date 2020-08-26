@@ -47,16 +47,31 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             /* Storage prepared for firmware. Await setup completion. */
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_AWAIT_FIRMWARE_SETUP) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FIRMWARE_SETUP_DONE);
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+            } else if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST) {
+                break;
+#endif
             } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
             }
             break;
-
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+        case UCFM_EVENT_READ_DONE:
+            UC_HUB_TRACE("UCFM_EVENT_READ_DONE");
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST)
+                break;
+            // in other states, this is an error
+            ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
+            break;
+#endif
         /* Firmware fragment written */
         case UCFM_EVENT_WRITE_DONE:
             UC_HUB_TRACE("UCFM_EVENT_WRITE_DONE");
-
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST)
+                break;
+#endif
             /* Firmware fragment stored */
 
             /* Fragment stored before network could finish,
@@ -329,6 +344,9 @@ void ARM_UC_HUB_SourceManagerEventHandler(uintptr_t event)
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_IDLE) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_NOTIFIED);
             }
+            else {
+                UC_HUB_TRACE("ARM_UC_SM_EVENT_NOTIFICATION received while in state %d. Ignored.", arm_uc_hub_state);
+            }
             /* No else. All notifications are ignored during an ongoing update. */
             break;
 
@@ -503,7 +521,7 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
                     break;
                 case ARM_UC_HUB_STATE_PREP_REBOOT:
                     UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_PREP_REBOOT");
-                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_REBOOT);
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER);
                     break;
                 case ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE:
                     UC_HUB_TRACE("ARM_UCCC_EVENT_MONITOR_SEND_DONE for ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE");

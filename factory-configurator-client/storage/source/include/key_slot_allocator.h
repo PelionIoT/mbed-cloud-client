@@ -48,9 +48,6 @@ typedef enum {
     KSA_MAX_TYPE_LOCATION,
 } ksa_type_location_e;
 
-//Max value of PSA id in KSA
-#define KSA_MAX_PSA_ID_VALUE   0x2800
-
 /** ksa table version current version number
 */
 #define KSA_TABLE_VERSION_NUM    0x1
@@ -209,8 +206,8 @@ extern "C" {
                                    size_t *item_data_act_size_out);
 
 
-    /** Deletes data item from the PSA storage.
-    *
+    /** Deletes data item from the PSA storage(excepting factory items).
+    * If the item was stored with tag `factory_item` - the item would not be deleted from the storage. 
     * @item_name[IN] The complete item name (hash + metadata)
     * @param[in] item_type Item type as defined in `::kcm_item_type_e` and  `storage_item_type_e`
     *
@@ -219,6 +216,21 @@ extern "C" {
     */
     kcm_status_e ksa_item_delete(const uint8_t *item_name,
                                  uint32_t item_type);
+
+
+#if defined (MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && defined (MBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT)
+   /** Deletes factory item data from the PSA storage.
+    *  Note: this function should be used only in a very special case! 
+    * @item_name[IN] The complete item name (hash + metadata)
+    * @param[in] item_type Item type as defined in `::kcm_item_type_e` and  `storage_item_type_e`
+    *
+    *    @returns
+    *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+    */
+ 
+kcm_status_e ksa_factory_item_delete(const uint8_t *item_name,
+                             uint32_t item_type);
+#endif
 
 
     /** Resets the PSA storage to an empty state.

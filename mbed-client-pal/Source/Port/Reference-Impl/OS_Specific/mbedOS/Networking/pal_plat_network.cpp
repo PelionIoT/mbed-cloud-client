@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2020 ARM Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "pal_plat_network.h"
 
 #include "mbed.h"
+#include "socket_api.h"
 
 #define TRACE_GROUP "PAL"
 
@@ -316,7 +317,7 @@ void palConnectCallBack()
         {
             nsapi_error_t status = NSAPI_ERROR_OK;
             PAL_VALIDATE_CONDITION_WITH_ERROR((false == initialized),NSAPI_ERROR_PARAMETER);
-            status = activeSocket->setsockopt(level,  optname, optval,  optlen);
+            status = activeSocket->setsockopt(level, optname, optval, optlen);
             return  status;
         }
 
@@ -324,7 +325,7 @@ void palConnectCallBack()
         {
             nsapi_error_t status = NSAPI_ERROR_OK;
             PAL_VALIDATE_CONDITION_WITH_ERROR((false == initialized),NSAPI_ERROR_PARAMETER);
-            status = activeSocket->getsockopt( level,  optname,  optval,  optlen);
+            status = activeSocket->getsockopt(level,  optname,  optval,  optlen);
             return  status;
         }
 
@@ -426,6 +427,8 @@ PAL_PRIVATE  uint32_t s_pal_network_initialized = 0;
 
 PAL_PRIVATE palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void* arg,  palSocket_t* socket);
 
+PAL_PRIVATE palStatus_t set_sock_options(PALSocketWrapper *socketObj, int optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength);
+
 void pal_plat_connectionStatusCallback(void *interfaceIndex, nsapi_event_t status, intptr_t param);
 
 PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
@@ -433,14 +436,27 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     palStatus_t status;
     switch (errnoValue)
     {
-    case NSAPI_ERROR_NO_MEMORY:
-        status = PAL_ERR_NO_MEMORY;
+    case NSAPI_ERROR_WOULD_BLOCK:
+        status = PAL_ERR_SOCKET_WOULD_BLOCK;
+        break;
+    case NSAPI_ERROR_UNSUPPORTED:
+        status = PAL_ERR_NOT_SUPPORTED;
         break;
     case NSAPI_ERROR_PARAMETER:
         status = PAL_ERR_SOCKET_INVALID_VALUE;
         break;
-    case NSAPI_ERROR_WOULD_BLOCK:
-        status = PAL_ERR_SOCKET_WOULD_BLOCK;
+    case NSAPI_ERROR_NO_CONNECTION:
+        status = PAL_ERR_SOCKET_NOT_CONNECTED;
+        break;
+
+    case NSAPI_ERROR_NO_SOCKET:
+        status = PAL_ERR_SOCKET_ALLOCATION_FAILED;
+        break;
+    case NSAPI_ERROR_NO_ADDRESS:
+        status = PAL_ERR_SOCKET_INVALID_ADDRESS;
+        break;
+    case NSAPI_ERROR_NO_MEMORY:
+        status = PAL_ERR_NO_MEMORY;
         break;
     case NSAPI_ERROR_DNS_FAILURE:
         status = PAL_ERR_SOCKET_DNS_ERROR;
@@ -451,20 +467,8 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     case NSAPI_ERROR_AUTH_FAILURE:
         status = PAL_ERR_SOCKET_AUTH_ERROR;
         break;
-    case NSAPI_ERROR_NO_ADDRESS:
-        status = PAL_ERR_SOCKET_INVALID_ADDRESS;
-        break;
-    case NSAPI_ERROR_NO_CONNECTION:
-        status = PAL_ERR_SOCKET_NOT_CONNECTED;
-        break;
     case NSAPI_ERROR_DEVICE_ERROR:
         status = PAL_ERR_SOCKET_INPUT_OUTPUT_ERROR;
-        break;
-    case NSAPI_ERROR_UNSUPPORTED:
-        status = PAL_ERR_NOT_SUPPORTED;
-        break;
-    case NSAPI_ERROR_NO_SOCKET:
-        status = PAL_ERR_SOCKET_ALLOCATION_FAILED;
         break;
     case NSAPI_ERROR_IN_PROGRESS:
     case NSAPI_ERROR_ALREADY:
@@ -473,6 +477,17 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
     case NSAPI_ERROR_IS_CONNECTED:
         status = PAL_SUCCESS;
         break;
+    case NSAPI_ERROR_CONNECTION_LOST:
+        status = PAL_ERR_SOCKET_CONNECTION_RESET;
+        break;
+    case NSAPI_ERROR_CONNECTION_TIMEOUT:
+    case NSAPI_ERROR_TIMEOUT:
+        status = PAL_ERR_TIMEOUT_EXPIRED;
+        break;
+    case NSAPI_ERROR_ADDRESS_IN_USE:
+        status = PAL_ERR_SOCKET_ADDRESS_IN_USE;
+        break;
+
     default:
         PAL_LOG_ERR("translateErrorToPALError() cannot translate %d", errnoValue);
         status = PAL_ERR_SOCKET_GENERIC;
@@ -582,6 +597,9 @@ PAL_PRIVATE int translateNSAPItoPALSocketOption(int option)
         optionVal = NSAPI_KEEPINTVL;
         break;
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
+    case PAL_SO_IPV6_MULTICAST_HOPS:
+        optionVal = SOCKET_IPV6_MULTICAST_HOPS;
+        break;
     case PAL_SO_SNDTIMEO:
     case PAL_SO_RCVTIMEO:
     default:
@@ -689,55 +707,27 @@ PAL_PRIVATE palStatus_t socketAddressToPalSockAddr(SocketAddress& input, palSock
 
 palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
 {
+    return pal_plat_setSocketOptionsWithLevel(socket, PAL_SOL_SOCKET, optionName, optionValue, optionLength);
+}
+palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+{
     int result = PAL_SUCCESS;
     PALSocketWrapper* socketObj = (PALSocketWrapper*)socket;
-    int socketOption = PAL_SOCKET_OPTION_ERROR;
-
     PAL_VALIDATE_ARGUMENTS(NULL == socket);
+    int level;
 
-    socketOption = translateNSAPItoPALSocketOption(optionName);
-    if (PAL_SOCKET_OPTION_ERROR != socketOption)
-    {
-        if (PAL_SO_REUSEADDR == optionName)
-        {
-            result = socketObj->setsockopt(NSAPI_SOCKET, socketOption, optionValue, optionLength);
-        }
-#if PAL_NET_TCP_AND_TLS_SUPPORT
-        else if (PAL_SO_KEEPIDLE == optionName ||
-                 PAL_SO_KEEPINTVL == optionName )
-        {
-                // Timeouts are in milliseconds
-                uint32_t timeout = (*(int *)optionValue) * 1000;
-                result = socketObj->setsockopt(NSAPI_SOCKET, socketOption, (void*)&timeout, sizeof(timeout));
-        }
-#endif
-        else
-        {
-            result = socketObj->setsockopt(NSAPI_SOCKET, socketOption, optionValue, optionLength);
-        }
-
-        if (result < 0)
-        {
-            result = translateErrorToPALError(result);
-        }
-    }
-    else
-    {
-        if ((PAL_SO_SNDTIMEO == optionName) || (PAL_SO_RCVTIMEO == optionName)) // timeouts in MBED API are not managed though socket options, bun instead via a different funciton call
-        {
-            int timeout = *((int*)optionValue);
-            // SO_xxxTIMEO should only affect blocking sockets - it only limits the block,
-            // whereas NSAPI's set_timeout is coupled with the blocking setting
-            if (!socketObj->isNonBlocking()) {
-                socketObj->set_timeout(timeout);
-            }
-        }
-        else
-        {
-            result = PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
-        }
+    if (optionLevel == PAL_SOL_SOCKET) {
+        level = NSAPI_SOCKET;
+    } else if (optionLevel == PAL_SOL_IPPROTO_IPV6) {
+        level = SOCKET_IPPROTO_IPV6;
+    } else {
+        level = PAL_SOCKET_OPTION_ERROR;
     }
 
+    if (PAL_SOCKET_OPTION_ERROR != level)
+    {
+        result = set_sock_options(socketObj, level, optionName, optionValue, optionLength);
+    }
 
     return result;
 }
@@ -752,7 +742,6 @@ palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
     *isNonBlocking = socketObj->isNonBlocking();
 
     return PAL_SUCCESS;
-
 }
 
 palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocketLength_t addressLength)
@@ -775,7 +764,6 @@ palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, pal
 
     return result;
 }
-
 
 palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length, palSocketAddress_t* from, palSocketLength_t* fromLength, size_t* bytesReceived)
 {
@@ -1296,4 +1284,161 @@ void pal_plat_connectionStatusCallback(void *interfaceIndex, nsapi_event_t statu
                 break;
         }
     }
+}
+
+uint8_t pal_plat_getRttEstimate()
+{
+    uint8_t rtt_estimate = PAL_DEFAULT_RTT_ESTIMATE;
+#if ((MBED_MAJOR_VERSION <=5) && (MBED_MINOR_VERSION < 15 || ((MBED_MINOR_VERSION == 15) && (MBED_PATCH_VERSION < 4))))
+    //Unsupported before Mbed OS 5.15.4
+#else
+    if (s_pal_networkInterfacesSupported[0].interface) {
+        PAL_LOG_DBG("pal_plat_getRttEstimate asking stack");
+
+        SocketAddress sa;
+        nsapi_error_t err;
+        NetworkInterface* net;
+        UDPSocket socket;
+
+        net = s_pal_networkInterfacesSupported[0].interface;
+        err = socket.open(net);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_DBG("open returned %d", err);
+            return PAL_DEFAULT_RTT_ESTIMATE;
+        }
+        err = net->get_ip_address(&sa);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_DBG("get_ip_address returned %d", err);
+            return PAL_DEFAULT_RTT_ESTIMATE;
+        }
+
+        uint32_t rtt_temp;
+        err = socket.get_rtt_estimate_to_address(sa, &rtt_temp);
+        PAL_LOG_INFO("get_rtt_estimate_to_address returned %d rtt_temp %" PRIu32 "", err, rtt_temp);
+        if (err == NSAPI_ERROR_UNSUPPORTED) {
+            PAL_LOG_INFO("get_rtt_estimate_not supported.");
+            (void) socket.close();
+            return PAL_DEFAULT_RTT_ESTIMATE;
+        } else if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_ERR("get_rtt_estimate_to_address failed.");
+            (void) socket.close();
+            return PAL_DEFAULT_RTT_ESTIMATE;
+        }
+
+        // Returned value is in milliseconds, convert to seconds and limit to uint8_t max
+        rtt_temp = rtt_temp/1000;
+        if (rtt_temp > UINT8_MAX) {
+            rtt_temp = UINT8_MAX;
+        }
+
+        rtt_estimate = (uint8_t)rtt_temp;
+        PAL_LOG_INFO("get_rtt_estimate_to_address returned %d, rand %d", err, rtt_estimate);
+        (void) socket.close();
+    } else {
+        PAL_LOG_DBG("pal_plat_getRttEstimate using default");
+    }
+    // Ensure that RTT is always at least 1.
+    if (rtt_estimate < 1) {
+        rtt_estimate = PAL_DEFAULT_RTT_ESTIMATE;
+    }
+#endif
+    return rtt_estimate;
+}
+
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
+{
+    uint16_t stagger_rand = PAL_DEFAULT_STAGGER_ESTIMATE;
+#if ((MBED_MAJOR_VERSION <=5) && (MBED_MINOR_VERSION < 15 || ((MBED_MINOR_VERSION == 15) && (MBED_PATCH_VERSION < 4))))
+    (void) data_amount;
+    //Unsupported before Mbed OS 5.15.4
+#else
+    if (s_pal_networkInterfacesSupported[0].interface) {
+        PAL_LOG_DBG("pal_plat_getStaggerEstimate asking stack");
+        SocketAddress sa;
+        nsapi_error_t err;
+        NetworkInterface* net;
+        UDPSocket socket;
+
+        net = s_pal_networkInterfacesSupported[0].interface;
+        err = socket.open(net);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_DBG("open returned %d", err);
+            return PAL_DEFAULT_STAGGER_ESTIMATE;
+        }
+        err = net->get_ip_address(&sa);
+        if (err != NSAPI_ERROR_OK) {
+            PAL_LOG_DBG("get_ip_address returned %d", err);
+            return PAL_DEFAULT_STAGGER_ESTIMATE;
+        }
+
+        // Hardcoded to ask estimate for 2 KiB packets.
+        err = socket.get_stagger_estimate_to_address(sa, data_amount, NULL, NULL, &stagger_rand);
+        PAL_LOG_DBG("get_stagger_estimate_to_address returned %d", err);
+        if (err == NSAPI_ERROR_UNSUPPORTED) {
+            PAL_LOG_INFO("get_stagger_estimate_not supported.");
+            (void) socket.close();
+            return PAL_DEFAULT_STAGGER_ESTIMATE;
+        } else if (err != NSAPI_ERROR_OK) {
+            (void) socket.close();
+            return PAL_DEFAULT_STAGGER_ESTIMATE;
+        }
+
+        PAL_LOG_INFO("get_stagger_estimate_to_address returned %d, rand %d", err, stagger_rand);
+        (void) socket.close();
+    } else {
+        PAL_LOG_DBG("pal_plat_getStaggerEstimate using default");
+    }
+#endif
+    return stagger_rand;
+}
+
+PAL_PRIVATE palStatus_t set_sock_options(PALSocketWrapper *socketObj, int optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+{
+    int result = PAL_SUCCESS;
+    int socketOption = PAL_SOCKET_OPTION_ERROR;
+
+    socketOption = translateNSAPItoPALSocketOption(optionName);
+    if (PAL_SOCKET_OPTION_ERROR != socketOption)
+    {
+        if (PAL_SO_REUSEADDR == optionName)
+        {
+            result = socketObj->setsockopt(optionLevel, socketOption, optionValue, optionLength);
+        }
+#if PAL_NET_TCP_AND_TLS_SUPPORT
+        else if (PAL_SO_KEEPIDLE == optionName ||
+                 PAL_SO_KEEPINTVL == optionName )
+        {
+                // Timeouts are in milliseconds
+                uint32_t timeout = (*(int *)optionValue) * 1000;
+                result = socketObj->setsockopt(optionLevel, socketOption, (void*)&timeout, sizeof(timeout));
+        }
+#endif
+        else
+        {
+            result = socketObj->setsockopt(optionLevel, socketOption, optionValue, optionLength);
+        }
+
+        if (result < 0)
+        {
+            result = translateErrorToPALError(result);
+        }
+    }
+    else
+    {
+        if ((PAL_SO_SNDTIMEO == optionName) || (PAL_SO_RCVTIMEO == optionName)) // timeouts in MBED API are not managed though socket options, bun instead via a different funciton call
+        {
+            int timeout = *((int*)optionValue);
+            // SO_xxxTIMEO should only affect blocking sockets - it only limits the block,
+            // whereas NSAPI's set_timeout is coupled with the blocking setting
+            if (!socketObj->isNonBlocking()) {
+                socketObj->set_timeout(timeout);
+            }
+        }
+        else
+        {
+            result = PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
+        }
+    }
+
+    return result;
 }

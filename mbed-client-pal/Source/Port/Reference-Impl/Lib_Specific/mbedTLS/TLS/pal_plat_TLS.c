@@ -86,6 +86,8 @@ typedef mbedtls_ssl_config platTlsConfigurationContext;
 
 // Size of the session data
 static const int ssl_session_size = 92;
+unsigned char ssl_session_context[512] = {0};
+uint16_t ssl_session_context_length = 0;
 #endif
 
 PAL_PRIVATE mbedtls_entropy_context *g_entropy = NULL;
@@ -218,10 +220,13 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
             break;
 #if (PAL_ENABLE_X509 == 1)
         case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED:
-    case MBEDTLS_ERR_X509_FATAL_ERROR:
+        case MBEDTLS_ERR_X509_FATAL_ERROR:
             status = PAL_ERR_X509_CERT_VERIFY_FAILED;
             break;
 #endif
+        case MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE:
+            status = PAL_ERR_SSL_FATAL_ALERT_MESSAGE;
+            break;
         case MBEDTLS_ERR_X509_ALLOC_FAILED:
         case MBEDTLS_ERR_SSL_ALLOC_FAILED:
         case MBEDTLS_ERR_PK_ALLOC_FAILED:
@@ -232,10 +237,16 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
         case MBEDTLS_ERR_SSL_CERTIFICATE_TOO_LARGE:
             status = PAL_ERR_NO_MEMORY;
             break;
+        case MBEDTLS_ERR_SSL_TIMEOUT:
+            status = PAL_ERR_TLS_TIMEOUT;
+            break;
+        case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
+            status = PAL_ERR_TLS_CLIENT_RECONNECT;
+            break;
 
         default:
-            PAL_LOG_ERR("SSL handshake return code 0x%" PRIx32 ".", error);
-            status = PAL_ERR_TLS_CLIENT_RECONNECT;
+            PAL_LOG_ERR("SSL handshake return code -0x%" PRIx32 ".", -error);
+            status = PAL_ERR_GENERIC_FAILURE;
 
     }
 #ifdef MBEDTLS_ERROR_C
@@ -706,13 +717,14 @@ palStatus_t pal_plat_sslRead(palTLSHandle_t palTLSHandle, void *buffer, uint32_t
     else
     {
         status = translateTLSErrToPALError(platStatus);
-        if (MBEDTLS_ERR_SSL_WANT_READ != platStatus)
+        // Normal BS will return SSL_PEER_CLOSE_NOTIFY so we can normally suppress the error print.
+        if (platStatus != MBEDTLS_ERR_SSL_WANT_READ && platStatus != MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
         {
-            PAL_LOG_ERR("SSL Read return code %" PRId32 ".", platStatus);
+            PAL_LOG_ERR("SSL Read return code -0x%" PRIx32 ".", -platStatus);
         }
         else
         {
-            PAL_LOG_DBG("SSL Read return code %" PRId32 ".", platStatus);
+            PAL_LOG_DBG("SSL Read return code -0x%" PRIx32 ".", -platStatus);
         }
     }
 
@@ -725,6 +737,8 @@ palStatus_t pal_plat_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, u
     palStatus_t status = PAL_SUCCESS;
     int32_t platStatus = SSL_LIB_SUCCESS;
     palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+
+    PAL_LOG_DBG("pal_plat_sslWrite ssl->state %d", (&localTLSCtx->tlsCtx)->state);
 
     platStatus = mbedtls_ssl_write(&localTLSCtx->tlsCtx, (unsigned char*)buffer, len);
     if (platStatus > SSL_LIB_SUCCESS)
@@ -748,24 +762,10 @@ palStatus_t pal_plat_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, u
 }
 
 
-palStatus_t pal_plat_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t timeoutInMilliSec)
+palStatus_t pal_plat_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t minTimeout, uint32_t maxTimeout)
 {
+    PAL_LOG_DBG("DTLS min timeout %d max timeout %d", minTimeout, maxTimeout);
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
-    uint32_t minTimeout = PAL_DTLS_PEER_MIN_TIMEOUT;
-    uint32_t maxTimeout = timeoutInMilliSec >> 1; //! faster dividing by 2
-    //! Since mbedTLS algorithm for UDP handshake algorithm is as follow:
-    //! wait 'minTimeout' ..=> 'minTimeout = 2*minTimeout' while 'minTimeout < maxTimeout'
-    //! if 'minTimeout >= maxTimeout' them wait 'maxTimeout'.
-    //! The whole waiting time is the sum of the different intervals waited.
-    //! Therefore we need divide the 'timeoutInMilliSec' by 2 to give a close approximation of the desired 'timeoutInMilliSec'
-    //! 1 + 2 + ... + 'timeoutInMilliSec/2' ~= 'timeoutInMilliSec'
-
-    if (maxTimeout < PAL_DTLS_PEER_MIN_TIMEOUT)
-    {
-        minTimeout = (timeoutInMilliSec+1) >> 1; //to prevent 'minTimeout == 0'
-        maxTimeout = timeoutInMilliSec;
-    }
-
     mbedtls_ssl_conf_handshake_timeout(localConfigCtx->confCtx, minTimeout, maxTimeout);
 
     return PAL_SUCCESS;
@@ -793,6 +793,13 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
             status = PAL_ERR_GENERIC_FAILURE;
             goto finish;
         }
+#if defined (MBEDTLS_SSL_DTLS_CONNECTION_ID) && (PAL_USE_SSL_SESSION_RESUME == 1)
+         platStatus = mbedtls_ssl_set_cid(&localTLSCtx->tlsCtx, MBEDTLS_SSL_CID_ENABLED, NULL, 0);
+         if(SSL_LIB_SUCCESS != platStatus)
+         {
+             PAL_LOG_DBG("mbedtls_ssl_set_cid failed return code %" PRId32 ".", platStatus);
+         }
+#endif
 
 #if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH) && (PAL_MAX_FRAG_LEN > 0)
         platStatus = mbedtls_ssl_conf_max_frag_len(localConfigCtx->confCtx, PAL_MAX_FRAG_LEN);
@@ -1442,5 +1449,70 @@ void pal_plat_SetSslSession(palTLSHandle_t palTLSHandle, const uint8_t *session_
     if (platStatus != SSL_LIB_SUCCESS) {
         PAL_LOG_ERR("pal_plat_SetSslSession - session set failed %" PRId32, platStatus);
     }
+}
+
+int32_t pal_plat_saveSslSessionBuffer(palTLSHandle_t palTLSHandle)
+{
+    int32_t platStatus  = 0;
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+
+    size_t olen = 0;
+    unsigned char temp_context[512] = {0};
+    platStatus  = mbedtls_ssl_context_save( &localTLSCtx->tlsCtx,
+                                                    temp_context,
+                                                    2048,
+                                                    &olen );
+    if (platStatus == SSL_LIB_SUCCESS) {
+        memcpy(ssl_session_context, temp_context, olen);
+        ssl_session_context_length = olen;
+    } else {
+        PAL_LOG_ERR("pal_plat_GetSslSessionBuffer - failed to save ssl context %" PRId32, platStatus);
+    }
+    return platStatus;
+}
+
+int32_t pal_plat_loadSslSession(palTLSHandle_t palTLSHandle)
+{
+    int32_t platStatus  = 0;
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+    platStatus  = mbedtls_ssl_context_load( &localTLSCtx->tlsCtx,
+                                                    ssl_session_context,
+                                                    ssl_session_context_length );
+
+    if (platStatus != SSL_LIB_SUCCESS) {
+        PAL_LOG_ERR("pal_plat_SetSslSession - session set failed %" PRId32, platStatus);
+    }
+    return platStatus;
+}
+
+void pal_plat_removeSslSession()
+{
+    PAL_LOG_DBG("pal_plat_removeSslSession");
+    memset(ssl_session_context, 0, 512);
+    ssl_session_context_length = 0;
+}
+
+bool pal_plat_sslSessionAvailable()
+{
+    if(ssl_session_context_length != 0) {
+        PAL_LOG_DBG("pal_plat_sslSessionAvailable true");
+        return true;
+    } else {
+        PAL_LOG_DBG("pal_plat_sslSessionAvailable false");
+        return false;
+    }
+}
+
+const uint8_t* pal_plat_get_cid(size_t *size)
+{
+    *size = ssl_session_context_length;
+    return ssl_session_context;
+}
+
+void pal_plat_set_cid(const uint8_t* context, const size_t length)
+{
+    memset(ssl_session_context, 0, 512);
+    memcpy(ssl_session_context, context, length);
+    ssl_session_context_length = length;
 }
 #endif // PAL_USE_SSL_SESSION_RESUME

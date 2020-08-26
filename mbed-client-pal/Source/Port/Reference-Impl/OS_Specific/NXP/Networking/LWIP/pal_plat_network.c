@@ -276,6 +276,17 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
     return result;
 }
 
+palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+{
+    (void)socket;
+    (void)optionLevel;
+    (void)optionName;
+    (void)optionValue;
+    (void)optionLength;
+
+    return PAL_ERR_NOT_SUPPORTED;
+}
+
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
     struct netconn* conn = NULL;
@@ -953,3 +964,15 @@ palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connec
 
     return PAL_ERR_NOT_SUPPORTED;
 }
+
+uint8_t pal_plat_getRttEstimate()
+{
+    return PAL_DEFAULT_RTT_ESTIMATE;
+}
+
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
+{
+    (void) data_amount;
+    return PAL_DEFAULT_STAGGER_ESTIMATE;
+}
+

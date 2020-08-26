@@ -30,7 +30,11 @@ extern "C" {
  *   This file contains the real-time OS APIs that need to be implemented in the platform layer.
  */
 
-
+// This is the kv_key value used by Mbed OS PSA APIs for entropy initialization. Using the save value for DRBG to maintain
+// backwards compatibility. This was added for backwards compatibility between Mbed OS 5.15 and Mbed OS 6.
+// Previously all non-TRNG targets used PSA to inject entropy, but if application now uses direct KVStore mode (which is default)
+// we need to ensure that we use the same name for the kv_key.
+#define ENTROPY_RANDOM_SEED "B#S9---D"
 
 /*! \brief Initialize all data structures (semaphores, mutexes, memory pools, message queues) at system initialization.
  *
@@ -73,6 +77,28 @@ palStatus_t pal_plat_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes, siz
  * \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeBytes);
+
+/*! \brief Direct read from internal KVStore used for entropy injection with non-TRNG.
+ *
+ * @param[out] buffer_actual_size_out Size of data actually read from KVStore.
+ * @param[in] KVStore kv_key item name to be read.
+ * @param[in] buffer The buffer where to read.
+ * @param[in] buffer_size The size of the buffer given.
+ *
+ */
+
+palStatus_t storage_kvstore_read(const char *item_name, uint8_t *buffer, size_t buffer_size, size_t *buffer_actual_size_out);
+
+/*! \brief Direct write to internal KVstore used for entropy injection with non-TRNG.
+ *
+ * @param[out] buffer_actual_size_out Size of data actually read from KVStore.
+ * @param[in] KVStore kv_key item name to be read.
+ * @param[in] buffer The buffer to be written.
+ * @param[in] buffer_size The size of the buffer given.
+ *
+ */
+
+palStatus_t storage_kvstore_write(const char *item_name, const uint8_t *buffer, size_t buffer_size);
 
 #ifdef __cplusplus
 }

@@ -79,7 +79,7 @@ void socket_callback(void *raw_param)
                 }
             }
 
-            if (sock_control[index].callback) {                
+            if (sock_control[index].callback) {
                 sock_control[index].callback(sock_control[index].callbackArgument);
             } else {
                 PAL_LOG_ERR("socket_callback - callback not set!");
@@ -131,7 +131,7 @@ palStatus_t pal_plat_socketsInit(void* context)
 {
     (void)context;
 
-    memset (sock_control, 0, sizeof(sock_control));
+    memset(sock_control, 0, sizeof(sock_control));
 
     return PAL_SUCCESS;
 }
@@ -170,18 +170,41 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
 
 palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
 {
+    return pal_plat_setSocketOptionsWithLevel(socket, PAL_SOL_IPPROTO_IPV6, optionName, optionValue, optionLength);
+}
+
+palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+{
     int8_t index;
     int8_t socket_handle = get_socket_handle(socket, &index);
 
     if (socket_handle == -1) {
-        PAL_LOG_ERR("pal_plat_setSocketOptions - socket id not found!");
+        PAL_LOG_ERR("pal_plat_setSocketOptionsWithLevel - socket id not found!");
         return PAL_ERR_ITEM_NOT_EXIST;
     }
 
-    int8_t res = socket_setsockopt(socket, SOCKET_IPPROTO_IPV6, optionName, optionValue, optionLength);
-    if (res < 0) {
-        PAL_LOG_ERR("pal_plat_setSocketOptions - socket_setsockopt fails: %d", res);
-        return PAL_ERR_SOCKET_GENERIC;
+    int level;
+    if (optionLevel == PAL_SOL_SOCKET) {
+        level = SOCKET_SOL_SOCKET;
+    } else if (optionLevel == PAL_SOL_IPPROTO_IPV6) {
+        level = SOCKET_IPPROTO_IPV6;
+    } else {
+        return PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
+    }
+
+    if (PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED != level) {
+        int optionVal;
+        if (optionName == PAL_SO_IPV6_MULTICAST_HOPS) {
+            optionVal = SOCKET_IPV6_MULTICAST_HOPS;
+        } else {
+            return PAL_ERR_SOCKET_GENERIC;
+        }
+
+        int8_t res = socket_setsockopt(socket, level, optionVal, optionValue, optionLength);
+        if (res < 0) {
+            PAL_LOG_ERR("pal_plat_setSocketOptionsWithLevel - socket_setsockopt fails: %d", res);
+            return PAL_ERR_SOCKET_GENERIC;
+        }
     }
 
     return PAL_SUCCESS;
@@ -290,7 +313,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
 palStatus_t pal_plat_close(palSocket_t* socket)
 {
     int8_t index;
-    int8_t socket_index = get_socket_handle(socket, &index);
+    int8_t socket_index = get_socket_handle(*socket, &index);
 
     if (socket_index == -1) {
         PAL_LOG_ERR("pal_plat_close - socket id not found!");
@@ -699,3 +722,15 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
 }
 
 #endif // PAL_NET_DNS_SUPPORT
+
+uint8_t pal_plat_getRttEstimate()
+{
+    return PAL_DEFAULT_RTT_ESTIMATE;
+}
+
+uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
+{
+    (void) data_amount;
+    return PAL_DEFAULT_STAGGER_ESTIMATE;
+}
+

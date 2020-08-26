@@ -21,8 +21,8 @@ extern "C" {
 #ifndef URIQUERYPARSER_H_
 #define URIQUERYPARSER_H_
 
-/*! \file uriqueryparser.h
- *  \brief Provides helper functions for parsing URI query parameters.
+/** \file uriqueryparser.h
+ *  \brief Helper functions for parsing URI query parameters.
  */
 
 /**

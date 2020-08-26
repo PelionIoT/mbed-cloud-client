@@ -69,9 +69,17 @@
 #error Update client buffer must be divisible by the block page size
 #endif
 
+#ifdef ARM_UC_CUSTOM_FW_DETAILS
+arm_uc_error_t ARM_UC_PAL_FlashIAP_GetCustomDetails(arm_uc_firmware_details_t *details);
+#endif
+
+#ifndef ARM_UC_CUSTOM_FW_DETAILS
 /* Use internal header format because we are using internal flash and
    is assumed to be trusted */
-#define ARM_UC_PAL_HEADER_SIZE (uint32_t) ARM_UC_INTERNAL_HEADER_SIZE_V2
+#define ARM_UC_PAL_HEADER_SIZE ARM_UC_INTERNAL_HEADER_SIZE_V2
+#else
+#define ARM_UC_PAL_HEADER_SIZE 0
+#endif
 
 #define TRACE_GROUP  "UCPI"
 
@@ -86,12 +94,14 @@ static void arm_uc_pal_flashiap_signal_internal(uint32_t event)
     }
 }
 
+#if ARM_UC_PAL_HEADER_SIZE > 0
 static uint8_t _metadata[ARM_UC_PAL_HEADER_SIZE] = { 0 };
 static arm_uc_buffer_t metadata_buffer = {
         .size_max = sizeof(_metadata),
         .size = 0,
         .ptr = _metadata
 };
+#endif
 
 /**
  * @brief Align address up/down to sector boundary
@@ -320,12 +330,14 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Prepare(uint32_t slot_id,
     }
 
     /* generate header blob */
+#if ARM_UC_PAL_HEADER_SIZE > 0
     if (result.error == ERR_NONE) {
         result  = arm_uc_create_internal_header_v2(details, &metadata_buffer);
         if (result.error != ERR_NONE) {
             UC_PAAL_ERR_MSG("arm_uc_create_internal_header_v2 failed");
         }
     }
+#endif
 
     if (result.error == ERR_NONE) {
         /* store firmware size in global */
@@ -501,6 +513,8 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Read(uint32_t slot_id,
 arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
 {
     arm_uc_error_t result = { .code = ERR_NONE };
+
+#if ARM_UC_PAL_HEADER_SIZE > 0
     uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
     uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
 
@@ -527,6 +541,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
         /* set return code */
         result.code = ERR_INVALID_PARAMETER;
     }
+#endif
 
     /* write header blob */
     if (result.error == ERR_NONE) {
@@ -536,57 +551,6 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
     return result;
 }
 
-/**
- * @brief Get firmware details for the firmware image in the slot passed.
- * @details This call populates the passed details struct with information
- *          about the firmware image in the slot passed. Only the fields
- *          marked as supported in the capabilities bitmap will have valid
- *          values.
- *
- * @param details Pointer to firmware details struct to be populated.
- * @return Returns ERR_NONE on accept, and signals the event handler with
- *         either DONE or ERROR when complete.
- *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
- */
-arm_uc_error_t ARM_UC_PAL_FlashIAP_GetFirmwareDetails(
-    uint32_t slot_id,
-    arm_uc_firmware_details_t *details)
-{
-    UC_PAAL_TRACE("ARM_UC_PAL_FlashIAP_GetFirmwareDetails");
-
-    /* find slot address and size */
-    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
-    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
-    arm_uc_error_t result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id,
-                                                                   &slot_addr,
-                                                                   &slot_size);
-
-    if (details && result.error == ERR_NONE) {
-        uint8_t buffer[ARM_UC_PAL_HEADER_SIZE] = { 0 };
-
-        int status = arm_uc_flashiap_read(buffer,
-                                          slot_addr,
-                                          ARM_UC_PAL_HEADER_SIZE);
-
-        if (status == ARM_UC_FLASHIAP_SUCCESS) {
-            result = arm_uc_parse_internal_header_v2(buffer, details);
-
-            if (result.error == ERR_NONE) {
-                /* signal done */
-                arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_GET_FIRMWARE_DETAILS_DONE);
-            } else {
-                UC_PAAL_ERR_MSG("arm_uc_parse_internal_header_v2 failed");
-            }
-        } else {
-            UC_PAAL_ERR_MSG("arm_uc_flashiap_read failed");
-        }
-    }
-
-    return result;
-}
-
-/*****************************************************************************/
-
 arm_uc_error_t ARM_UC_PAL_FlashIAP_GetActiveDetails(arm_uc_firmware_details_t *details)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
@@ -594,6 +558,10 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_GetActiveDetails(arm_uc_firmware_details_t *d
     if (details) {
         /* read details from memory if offset is set */
         if (MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS) {
+
+#ifdef ARM_UC_CUSTOM_FW_DETAILS
+            result = ARM_UC_PAL_FlashIAP_GetCustomDetails(details);
+#else
             /* set default error code */
             result.code = ERR_NOT_READY;
 
@@ -655,6 +623,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_GetActiveDetails(arm_uc_firmware_details_t *d
             } else {
                 UC_PAAL_ERR_MSG("flash read failed");
             }
+#endif
         } else {
             /* offset not set - zero out struct */
             memset(details, 0, sizeof(arm_uc_firmware_details_t));

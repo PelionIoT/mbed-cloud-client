@@ -126,23 +126,6 @@ arm_uc_error_t ARM_UC_PAL_BlockDevice_Read(uint32_t slot_id,
  */
 arm_uc_error_t ARM_UC_PAL_BlockDevice_Activate(uint32_t slot_id);
 
-/**
- * @brief Get firmware details for the firmware image in the slot passed.
- * @details This call populates the passed details struct with information
- *          about the firmware image in the slot passed. Only the fields
- *          marked as supported in the capabilities bitmap will have valid
- *          values.
- *
- * @param slot_id Storage location ID.
- * @param details Pointer to firmware details struct to be populated.
- * @return Returns ERR_NONE on accept, and signals the event handler with
- *         either DONE or ERROR when complete.
- *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
- */
-arm_uc_error_t ARM_UC_PAL_BlockDevice_GetFirmwareDetails(
-    uint32_t slot_id,
-    arm_uc_firmware_details_t *details);
-
 #ifdef __cplusplus
 }
 #endif

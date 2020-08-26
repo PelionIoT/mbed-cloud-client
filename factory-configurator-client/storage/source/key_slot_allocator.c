@@ -898,19 +898,19 @@ kcm_status_e ksa_item_get_data(const uint8_t *item_name,
 }
 
 
-kcm_status_e ksa_item_delete(const uint8_t *item_name,
-                             uint32_t item_type)
+
+static kcm_status_e ksa_item_delete_internal(const uint8_t *item_name,
+                             uint32_t item_type, 
+                             bool factory_item_delete)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     ksa_item_type_e ksa_item_type = get_ksa_type(item_type);
     ksa_item_entry_s *ksa_item_entry = NULL;
 
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+    SA_PV_LOG_INFO_FUNC_ENTER("item_type = %" PRIu32 ", factory_item_delete = %d", item_type, factory_item_delete);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid item_name");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ksa_item_type >= KSA_LAST_ITEM), KCM_STATUS_INVALID_PARAMETER, "Wrong item type");
-
-
 
     if (!g_ksa_initialized) {
         kcm_status = ksa_init();
@@ -924,14 +924,29 @@ kcm_status_e ksa_item_delete(const uint8_t *item_name,
     bool is_delete_allowed = (bool)(ksa_item_entry->item_extra_info & KSA_IS_DELETE_ALLOWED_MASK);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!is_delete_allowed), KCM_STATUS_NOT_PERMITTED, "item is not allowed for delete operation!");
 
-    // Use dispatcher to determinate "delete" function
-    psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, ksa_item_type,
-        (ksa_type_location_e)(ksa_item_entry->item_extra_info & KSA_LOCATION_MASK));
+    ksa_type_location_e ksa_type_location = (ksa_type_location_e)(ksa_item_entry->item_extra_info & KSA_LOCATION_MASK);
 
+    // Use dispatcher to determinate "delete" function
+    psa_drv_delete_f delete_data = (psa_drv_delete_f)psa_drv_func_dispatch_operation(PSA_DRV_FUNC_DELETE, ksa_item_type, ksa_type_location);
+
+
+    if (factory_item_delete){
+        // if it is required to delete factory item
+        
+        // verify that it is really a factory item
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((ksa_item_entry->active_item_id != ksa_item_entry->factory_item_id), // the item is not factory item
+            KCM_STATUS_STORAGE_ERROR, "Item to be deleted must be factory item, but it is not!");
+
+        // verify that it is located in SE
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((KSA_SECURE_ELEMENT_TYPE_LOCATION != ksa_type_location), // the item is not in SE 
+            KCM_STATUS_STORAGE_ERROR, "Factory item to be deleted must be located in SE, but it is not!");
+    }
 
     /*We proceed only if active items are valid!*/
-
-    if (ksa_item_entry->active_item_id != ksa_item_entry->factory_item_id) {
+    if ( factory_item_delete ||                                              // we need to delete factory item
+         (ksa_item_entry->active_item_id != ksa_item_entry->factory_item_id) // not factory item, so it is OK to delete it
+       )
+    {
         //The item is factory-> we keep the item name and the factory id in the table
         //If active id is different then factory -> destroy the active
 
@@ -963,8 +978,30 @@ kcm_status_e ksa_item_delete(const uint8_t *item_name,
     kcm_status = store_table(&g_ksa_desc[ksa_item_type]);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store KSA volatile table to persistent memory");
 
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
+}
+
+
+#if defined (MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && defined (MBED_CONF_APP_SECURE_ELEMENT_PARSEC_TPM_SUPPORT)
+kcm_status_e ksa_factory_item_delete(const uint8_t *item_name,
+                             uint32_t item_type)
+{
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+    kcm_status_e status = ksa_item_delete_internal(item_name, item_type, true);
+    SA_PV_LOG_TRACE_FUNC_EXIT("ksa_item_delete_internal status = %d", status);
+    return status;
+}
+#endif
+
+
+kcm_status_e ksa_item_delete(const uint8_t *item_name,
+                             uint32_t item_type)
+{
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+    kcm_status_e status = ksa_item_delete_internal(item_name, item_type, false);
+    SA_PV_LOG_TRACE_FUNC_EXIT("ksa_item_delete_internal status = %d", status);
+    return status;
 }
 
 
@@ -987,6 +1024,8 @@ kcm_status_e ksa_reset(void)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed to get mount point");
 
     pal_status = pal_fsRmFiles(dir_path);
+#elif defined(TARGET_TFM) && (MBED_MAJOR_VERSION > 5)
+    SA_PV_ERR_RECOVERABLE_RETURN(KCM_STATUS_NOT_PERMITTED, "Reset storage is not supported in TFM");
 #else
     //remove call to psa_ps_reset() once lifecycle/psa storage removal API is implemented
     extern psa_status_t psa_ps_reset();
@@ -1264,7 +1303,7 @@ kcm_status_e ksa_se_private_key_get_slot(const uint8_t *prv_key_name, uint64_t *
 
     return kcm_status;
 }
-
+#if !defined(MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT)
 kcm_status_e ksa_register_se_item(const uint8_t *item_name, uint32_t item_type, uint64_t slot_number)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -1315,6 +1354,7 @@ kcm_status_e ksa_register_se_item(const uint8_t *item_name, uint32_t item_type, 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
 
 #endif // #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 

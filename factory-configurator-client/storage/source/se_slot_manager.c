@@ -32,16 +32,36 @@
 #ifdef GENERATION_SE_KEYS_TESTS
 #include "se_generation_data_user_config.h"
 #else
+
+// slot number that will store generated private key(currently it is used only for bootstrap key in Parsec with TPM SE)
+#define BOOTSTRAP_KEY_SLOT 0
+
+// currently we allow to have only one generated private key - it is the bootstrap key (which is used in Parsec with TPM SE flow)
 #define SE_DATA_PRIV_KEY_SLOTS_NUMBER 1
+
+// SE_DATA_PUB_KEY_SLOTS_NUMBER is set to 1 (although it is not used) to avoid compilation issues.
 #define SE_DATA_PUB_KEY_SLOTS_NUMBER 1
-uint64_t g_private_key_slots[SE_DATA_PRIV_KEY_SLOTS_NUMBER] = {0};//Array of private key slots
-uint64_t g_public_key_slots[SE_DATA_PUB_KEY_SLOTS_NUMBER]= {0}; //Array of public key slots
+
+// array of private key slots - currently used to generate and store only the bootstrap key in Parsec with TPM SE flow.
+uint64_t g_private_key_slots[SE_DATA_PRIV_KEY_SLOTS_NUMBER] = {BOOTSTRAP_KEY_SLOT}; 
+
+// array of public key slots - currently is not used.
+uint64_t g_public_key_slots[SE_DATA_PUB_KEY_SLOTS_NUMBER];
 #endif
 
 typedef struct sem_psa_correlation {
     uint64_t slot_num;
     uint16_t psa_id;
 } sem_psa_correlation_s;
+
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
+uint64_t g_preprovisioned_slots[SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS] = { 0 };
+sem_psa_correlation_s g_sem_preprovisioned_slot_psa_correlation_table[SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS];
+#else
+#define SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS    0//Total number of SE preprovisioned slots
+#endif
+
 
 /*Total number of SE slot in usage*/
 #define SEM_SLOTS_TOTAL_NUMBER                    SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS + SE_DATA_PRIV_KEY_SLOTS_NUMBER + SE_DATA_PUB_KEY_SLOTS_NUMBER
@@ -64,10 +84,11 @@ uint16_t g_ssm_current_pub_key_index = 0;
 uint16_t g_ssm_current_preprovisioned_index = 0;
 bool g_sem_initialized = false;
 
-uint64_t g_preprovisioned_slots[SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS] = { 0 };
+
+
 sem_psa_correlation_s g_sem_priv_slot_psa_correlation_table[SE_DATA_PRIV_KEY_SLOTS_NUMBER];
 sem_psa_correlation_s g_sem_pub_slot_psa_correlation_table[SE_DATA_PUB_KEY_SLOTS_NUMBER];
-sem_psa_correlation_s g_sem_preprovisioned_slot_psa_correlation_table[SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS];
+
 
 
 /*The function populates correlation table of current type slot array according to the passed parameters*/
@@ -90,22 +111,27 @@ static void get_slot_and_id(sem_psa_correlation_s *table, uint64_t *slot, uint16
         *g_last_index = 0;
     }
 }
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
 static void populate_preproviosioned_slot_array()
 {
     for (size_t index = 0; index < SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS; index++) {
         g_preprovisioned_slots[index] = g_sem_preprovisioned_data[index].se_slot_num;
     }
 }
+#endif
 
-void sem_init(void)
+void sem_slots_init(void)
 {
 
-    /* Populate correlation table of pre provsioned items */
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
+   /* Populate correlation table of pre provsioned items */
     populate_preproviosioned_slot_array( );
    /* Populate correlation table of pre provsioned items */
     populate_correlation_table(g_sem_preprovisioned_slot_psa_correlation_table, SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS, g_preprovisioned_slots, (uint16_t)(SEM_PSA_IDS_MIN_VALUE));
+#endif
     /* Populate correlation table of private keys */
     populate_correlation_table(g_sem_priv_slot_psa_correlation_table, SE_DATA_PRIV_KEY_SLOTS_NUMBER, g_private_key_slots, (uint16_t)(SEM_PRIV_KEY_IDS_MIN_VALUE));
+
     /* Populate correlation table of public keys */
     populate_correlation_table(g_sem_pub_slot_psa_correlation_table, SE_DATA_PUB_KEY_SLOTS_NUMBER, g_public_key_slots, (uint16_t)(SEM_PUB_KEY_IDS_MIN_VALUE));
 
@@ -115,9 +141,11 @@ void sem_init(void)
 
     g_sem_initialized = true;
 }
-void sem_finalize(void)
+void sem_slots_finalize(void)
 {
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
     memset(g_sem_preprovisioned_slot_psa_correlation_table, 0, sizeof(g_sem_preprovisioned_slot_psa_correlation_table));
+#endif
     memset(g_sem_priv_slot_psa_correlation_table, 0, sizeof(g_sem_priv_slot_psa_correlation_table));
     memset(g_sem_pub_slot_psa_correlation_table, 0, sizeof(g_sem_pub_slot_psa_correlation_table));
 
@@ -131,16 +159,19 @@ void sem_finalize(void)
 sem_preprovisioned_item_data_s* sem_get_preprovisioned_data(void)
 {
     if (!g_sem_initialized) {
-        sem_init();
+        sem_slots_init();
     }
-
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
     return (sem_preprovisioned_item_data_s*)g_sem_preprovisioned_data;
+#else
+    return NULL;
+#endif
 }
 
 uint16_t sem_get_total_num_of_se_slots(void)
 {
     if (!g_sem_initialized) {
-        sem_init();
+        sem_slots_init();
     }
 
     return (uint16_t)(SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS + SE_DATA_PRIV_KEY_SLOTS_NUMBER + SE_DATA_PUB_KEY_SLOTS_NUMBER);
@@ -149,7 +180,7 @@ uint16_t sem_get_total_num_of_se_slots(void)
 size_t sem_get_num_of_preprovisioned_items(void)
 {
     if (!g_sem_initialized) {
-        sem_init();
+        sem_slots_init();
     }
 
     return (uint16_t)SE_DATA_NUMBER_OF_PREPROVISIONED_ITEMS;
@@ -158,7 +189,7 @@ size_t sem_get_num_of_preprovisioned_items(void)
 kcm_status_e sem_get_num_of_slots(uint32_t item_type_flag, uint16_t *num_of_slots)
 {
     if (!g_sem_initialized) {
-        sem_init();
+        sem_slots_init();
     }
 
     switch (item_type_flag) {
@@ -179,7 +210,7 @@ kcm_status_e sem_get_num_of_slots(uint32_t item_type_flag, uint16_t *num_of_slot
 kcm_status_e sem_get_next_slot_and_psa_id(uint32_t item_type_flag, uint64_t *slot, uint16_t *psa_id)
 {
     if (!g_sem_initialized) {
-        sem_init();
+        sem_slots_init();
     }
 
     switch (item_type_flag) {
@@ -196,10 +227,11 @@ kcm_status_e sem_get_next_slot_and_psa_id(uint32_t item_type_flag, uint64_t *slo
 
 }
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT
 kcm_status_e sem_get_preprovisioned_psa_id(uint64_t slot, uint16_t *psa_id)
 {
     if (!g_sem_initialized) {
-        sem_init();
+        sem_slots_init();
     }
 
     for (size_t index = 0; index < sizeof(g_sem_preprovisioned_slot_psa_correlation_table); index++) {
@@ -210,5 +242,6 @@ kcm_status_e sem_get_preprovisioned_psa_id(uint64_t slot, uint16_t *psa_id)
     }
     return KCM_STATUS_ITEM_NOT_FOUND;
 }
+#endif
 
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT

@@ -21,9 +21,9 @@
 // FORWARD DECLARATION
 class M2MResource;
 
-/*! \file m2mserver.h
- *  \brief M2MServer.
- *  This class represents an interface for the Server Object model of the LWM2M framework.
+/** \file m2mserver.h \brief header for M2MServer */
+
+/** This class represents an interface for the Server Object model of the LWM2M framework.
  *  It handles the server object and all its corresponding
  *  resources.
  */
@@ -101,7 +101,7 @@ public:
 
     /**
      * \brief Sets the value of a given resource enum.
-     * \param resource With this function, a value can be set on the following resources: 
+     * \param resource With this function, a value can be set on the following resources:
      * 'Binding'.
      * \param value The value to be set on the resource, in string format.
      * \return True if successfully set, else false.

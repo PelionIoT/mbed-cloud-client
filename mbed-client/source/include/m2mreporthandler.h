@@ -352,6 +352,7 @@ private:
     float                       _gt;
     float                       _lt;
     float                       _st;
+    bool                        _last_value_valid;
 #endif
     uint8_t                     *_token;
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
@@ -367,7 +368,7 @@ private:
     bool                        _waiting_to_report;
     M2MResourceBase             *_resource_base;
 friend class Test_M2MReportHandler;
-
+friend class Test_M2MResourceInstance;
 };
 
 #endif // M2MREPORTHANDLER_H

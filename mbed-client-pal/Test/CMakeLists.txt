@@ -73,8 +73,6 @@ file(GLOB PAL_TEST_NETWORK_SRCS "${PAL_TESTS_SOURCE_DIR}/Networking/*.c")
 
 file(GLOB PAL_TEST_FS_SRCS "${PAL_TESTS_SOURCE_DIR}/FileSystem/*.c")
 
-file(GLOB PAL_TEST_SST_SRCS "${PAL_TESTS_SOURCE_DIR}/SST/*.c")
-
 file(GLOB PAL_TEST_TIME_SRCS "${PAL_TESTS_SOURCE_DIR}/Time/*.c")
 
 file(GLOB PAL_TEST_TLS_SRCS "${PAL_TESTS_SOURCE_DIR}/TLS/*.c")
@@ -103,8 +101,6 @@ file(GLOB PAL_TEST_RUNNER_ENTROPY_SRCS "${PAL_TESTS_RUNNER_DIR}/Entropy/*.c")
 file(GLOB PAL_TEST_RUNNER_NETWORK_SRCS "${PAL_TESTS_RUNNER_DIR}/Networking/*.c")
 
 file(GLOB PAL_TEST_RUNNER_FS_SRCS "${PAL_TESTS_RUNNER_DIR}/FileSystem/*.c")
-
-file(GLOB PAL_TEST_RUNNER_SST_SRCS "${PAL_TESTS_RUNNER_DIR}/SST/*.c")
 
 file(GLOB PAL_TEST_RUNNER_TIME_SRCS "${PAL_TESTS_RUNNER_DIR}/Time/*.c")
 
@@ -212,11 +208,6 @@ CREATE_TEST_LIBRARY(FileSystemTests "${fs_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(FileSystemTests pal palunity platformCommon)
 target_link_libraries(FileSystemTests pal palunity platformCommon)
 
-set(sst_test_src ${test_src}; ${PAL_TEST_RUNNER_SST_SRCS}; ${PAL_TEST_SST_SRCS})
-CREATE_TEST_LIBRARY(SSTTests "${sst_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(SSTTests pal palunity platformCommon)
-target_link_libraries(SSTTests pal palunity platformCommon)
-
 set(time_test_src ${test_src}; ${PAL_TEST_RUNNER_TIME_SRCS}; ${PAL_TEST_TIME_SRCS})
 CREATE_TEST_LIBRARY(TimeTests "${time_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(TimeTests pal palunity)
@@ -253,5 +244,5 @@ target_link_libraries(SotpTests pal palunity platformCommon)
 set(all_test_src ${test_src}; ${PAL_TEST_RUNNER_FULL_SRCS})
 CREATE_TEST_LIBRARY(palTests "${all_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(palTests pal palunity sanityTests platformCommon)
-target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests EntropyTests NetworkTests DRBGTests FileSystemTests SSTTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
+target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests EntropyTests NetworkTests DRBGTests FileSystemTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
 

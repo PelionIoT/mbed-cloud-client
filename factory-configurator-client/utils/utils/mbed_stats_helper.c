@@ -28,7 +28,8 @@
 #include "cmsis_os2.h"
 #endif
 
-#define MBED_STATS_FILE_NAME "/mbedos_stats.txt"
+// define MBED_STATS_FILE_NAME to save statistics also to file
+// #define MBED_STATS_FILE_NAME "/mbedos_stats.txt"
 
 /**
     Print mbed-os stack and heap usage to stdout and to text file named mbedos_stats.txt.
@@ -36,6 +37,7 @@
 */
 void print_mbed_stats(void)
 {
+#ifdef MBED_STATS_FILE_NAME
     palStatus_t pal_result = PAL_SUCCESS;
     // Max size of directory acquired by pal_fsGetMountPoint + file name (including '/') + '\0'
     char file_name[PAL_MAX_FOLDER_DEPTH_CHAR + sizeof(MBED_STATS_FILE_NAME)] = { 0 };
@@ -49,13 +51,17 @@ void print_mbed_stats(void)
     FILE *f = fopen(file_name, "wt");
     if (f) {
         // Heap
+#endif
 #if defined(MBED_HEAP_STATS_ENABLED)
         mbed_stats_heap_t heap_stats;
         mbed_stats_heap_get(&heap_stats);
-        fprintf(f, "Current heap usage size: %" PRIu32 "\n", heap_stats.current_size);
+        printf("\n*****************************\n");
         printf("Current heap usage size: %" PRIu32 "\n", heap_stats.current_size);
-        fprintf(f, "Max heap usage size: %" PRIu32 "\n", heap_stats.max_size);
         printf("Max heap usage size: %" PRIu32 "\n", heap_stats.max_size);
+#ifdef MBED_STATS_FILE_NAME
+        fprintf(f, "Current heap usage size: %" PRIu32 "\n", heap_stats.current_size);
+        fprintf(f, "Max heap usage size: %" PRIu32 "\n", heap_stats.max_size);
+#endif
 #endif
         // Stacks
 #if defined(MBED_STACK_STATS_ENABLED) && defined(MBED_CONF_RTOS_PRESENT)
@@ -63,19 +69,25 @@ void print_mbed_stats(void)
         mbed_stats_stack_t *stack_stats = (mbed_stats_stack_t*)malloc(cnt * sizeof(mbed_stats_stack_t));
 
         if (stack_stats) {
-            fprintf(f, "Thread's stack usage:\n");
-            printf("Thread's stack usage:\n");
+            printf("\nThread's stack usage:\n");
+#ifdef MBED_STATS_FILE_NAME
+            fprintf(f, "\nThread's stack usage:\n");
+#endif
             cnt = mbed_stats_stack_get_each(stack_stats, cnt);
             for (int i = 0; i < cnt; i++) {
-                fprintf(f, "Thread: 0x%" PRIx32 ", Stack size: %" PRIu32 ", Max stack: %" PRIu32 "\r\n", stack_stats[i].thread_id, stack_stats[i].reserved_size, stack_stats[i].max_size);
-                printf("Thread: 0x%" PRIx32 ", Stack size: %" PRIu32 ", Max stack: %" PRIu32 "\r\n", stack_stats[i].thread_id, stack_stats[i].reserved_size, stack_stats[i].max_size);
+                printf("Thread: '%s' <0x%" PRIx32 ">, Stack size: %" PRIu32 ", Max stack: %" PRIu32 "\r\n", osThreadGetName(stack_stats[i].thread_id), stack_stats[i].thread_id, stack_stats[i].reserved_size, stack_stats[i].max_size);
+#ifdef MBED_STATS_FILE_NAME
+                fprintf(f, "Thread: '%s' <0x%" PRIx32 ">, Stack size: %" PRIu32 ", Max stack: %" PRIu32 "\r\n", osThreadGetName(stack_stats[i].thread_id), stack_stats[i].thread_id, stack_stats[i].reserved_size, stack_stats[i].max_size);
+#endif
             }
             free(stack_stats);
         }
 #endif
-        fclose(f);
         printf("*****************************\n\n");
+#ifdef MBED_STATS_FILE_NAME
+        fclose(f);
     }
+#endif
 
 }
 #endif

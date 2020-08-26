@@ -114,24 +114,6 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Read(uint32_t location,
  */
 arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t location);
 
-/**
- * @brief Get firmware details for the firmware image in the slot passed.
- * @details This call populates the passed details struct with information
- *          about the firmware image in the slot passed. Only the fields
- *          marked as supported in the capabilities bitmap will have valid
- *          values.
- *
- * @param details Pointer to firmware details struct to be populated.
- * @return Returns ERR_NONE on accept, and signals the event handler with
- *         either DONE or ERROR when complete.
- *         Returns ERR_INVALID_PARAMETER on reject, and no signal is sent.
- */
-arm_uc_error_t ARM_UC_PAL_FlashIAP_GetFirmwareDetails(
-    uint32_t location,
-    arm_uc_firmware_details_t *details);
-
-/*****************************************************************************/
-
 arm_uc_error_t ARM_UC_PAL_FlashIAP_GetActiveDetails(arm_uc_firmware_details_t *details);
 
 arm_uc_error_t ARM_UC_PAL_FlashIAP_GetInstallerDetails(arm_uc_installer_details_t *details);

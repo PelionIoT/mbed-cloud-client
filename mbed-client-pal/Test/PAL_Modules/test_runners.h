@@ -111,8 +111,6 @@ void TEST_pal_update_GROUP_RUNNER(void);
 
 void TEST_pal_internalFlash_GROUP_RUNNER(void);
 
-void TEST_pal_sst_GROUP_RUNNER(void);
-
 void TEST_pal_SOTP_GROUP_RUNNER(void);
 
 void TEST_pal_sanity_GROUP_RUNNER(void);
@@ -143,7 +141,6 @@ typedef enum _palTestModules_t
     PAL_TEST_MODULE_FILESYSTEM,
     PAL_TEST_MODULE_UPDATE,
     PAL_TEST_MODULE_INTERNALFLASH,
-    PAL_TEST_MODULE_SST,
     PAL_TEST_MODULE_SOTP,
     PAL_TEST_MODULE_SANITY,
     PAL_TEST_MODULE_ALL,
@@ -184,7 +181,6 @@ int palEntropyTestMain(void);
 int palRTOSTestMain(void);
 int palStorageTestMain(void);
 int palTimeTestMain(void);
-int palSSTTestMain(void);
 int palTLSTestMain(void);
 int palUpdateTestMain(void);
 int palSOTPTestMain(void);

@@ -140,6 +140,10 @@
 
 /******** PSA Crypto related declaration*****/
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
 * Initiates the PSA crypto module.
 *

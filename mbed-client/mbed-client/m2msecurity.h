@@ -18,16 +18,16 @@
 
 #include "mbed-client/m2mobject.h"
 
+/** \file m2msecurity.h \brief header for M2MSecurity. */
+
 // FORWARD DECLARATION
 class M2MResource;
 
-/*! \file m2msecurity.h
- *  \brief M2MSecurity.
- *  This class represents an interface for the Security Object model of the LWM2M framework.
+
+/** This class represents an interface for the Security Object model of the LWM2M framework.
  *  It handles the security object instances and all corresponding
  *  resources.
  */
-
 class  M2MSecurity : public M2MObject {
 
 friend class M2MInterfaceFactory;

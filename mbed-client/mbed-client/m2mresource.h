@@ -22,20 +22,18 @@
 #include "mbed-client/coap_response.h"
 #include <stdlib.h>
 
+/*! \file m2mresource.h \brief header for M2MResource. */
+
 //FORWARD DECLARATION
 class M2MObjectInstance;
 typedef Vector<M2MResourceInstance *> M2MResourceInstanceList;
 
-/*! \file m2mresource.h
- *  \brief M2MResource.
- *  This class is the base class for mbed Client Resources.
- *
- *  All defined LwM2M object models can be created using it.
- *  This class will also hold all resources instances associated with the given object.
- */
 
-/*! \class M2MResource
- *  \brief The base class for Client Resources.
+/**
+ * This class represent LwM2M resource.
+ *
+ * You can create any LwM2M resources with it.
+ * This class will also hold all resources instances associated with the given object.
  */
 class M2MResource : public M2MResourceBase
 {
@@ -284,10 +282,29 @@ public:
     virtual const char* object_name() const;
 
     virtual M2MResource& get_parent_resource() const;
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    /**
+     * \brief save the status of the manifest verification.
+     */
+    void set_manifest_check_status(bool status);
+
+    /**
+     * \brief return the status of the manifest verification for subdevice.
+     * \return manifest status
+     */
+    bool get_manifest_check_status();
+#endif
+
 private:
     M2MObjectInstance &_parent;
 
     M2MResourceInstanceList     _resource_instance_list; // owned
+
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    bool                        _status;
+#endif
+
 #ifndef DISABLE_DELAYED_RESPONSE
     uint8_t                     *_delayed_token;
     uint8_t                     _delayed_token_len;
@@ -330,7 +347,6 @@ private:
     // This is a deprecated constructor, to be removed on next release.
     M2MExecuteParameter(const String &object_name, const String &resource_name, uint16_t object_instance_id);
 #endif
-
 public:
 
     /**
@@ -371,6 +387,20 @@ public:
     */
     uint16_t get_argument_object_instance_id() const;
 
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    /** \brief Storing the instance of the resource class.
+     * \param res Resource pointer to be stored.
+     */
+    void set_resource(M2MResource* res);
+
+    /**
+    * \brief Returns the Resource pointer.
+    * \return M2MResource pointer.
+     */
+    M2MResource * get_resource();
+
+#endif
+
 private:
     // pointers to const data, not owned by this instance
 
@@ -381,10 +411,12 @@ private:
     const String    &_object_name;
     const String    &_resource_name;
 #endif
-
     const uint8_t   *_value;
     uint16_t        _value_length;
     uint16_t        _object_instance_id;
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+    M2MResource     *_resource;
+#endif
 
 friend class Test_M2MResource;
 friend class M2MResource;

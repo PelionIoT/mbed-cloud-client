@@ -524,8 +524,9 @@ sn_coap_hdr_s* M2MResource::handle_post_request(nsdl_s *nsdl,
 #else
             M2MResource::M2MExecuteParameter exec_params(object_name(), name(), object_instance_id());
 #endif
-
-
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+            exec_params.set_resource(this);
+#endif
 
             uint16_t coap_content_type = 0;
             if(received_coap_header->payload_ptr) {
@@ -611,6 +612,18 @@ const char* M2MResource::object_name() const
     return parent_object.name();
 }
 
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+bool M2MResource::get_manifest_check_status()
+{
+    return _status;
+}
+
+void M2MResource::set_manifest_check_status(bool status)
+{
+    _status = status;
+}
+#endif
+
 #ifdef MEMORY_OPTIMIZED_API
 M2MResource::M2MExecuteParameter::M2MExecuteParameter(const char *object_name, const char *resource_name,
                                                       uint16_t object_instance_id) :
@@ -673,3 +686,14 @@ uint16_t M2MResource::M2MExecuteParameter::get_argument_object_instance_id() con
 {
     return _object_instance_id;
 }
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+void M2MResource::M2MExecuteParameter::set_resource(M2MResource* resource)
+{
+    _resource = resource;
+}
+
+M2MResource * M2MResource::M2MExecuteParameter::get_resource()
+{
+    return _resource;
+}
+#endif

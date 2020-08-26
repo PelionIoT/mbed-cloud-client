@@ -16,9 +16,9 @@
 #ifndef M2MCONSTANTS_H
 #define M2MCONSTANTS_H
 
-/*! \file m2mconstants.h
-* \brief File defining all the constants used across mbed-client.
-*/
+/** \file m2mconstants.h
+ * \brief File defining all the constants used across mbed-client.
+ */
 
 #include <stdint.h>
 #include "m2mconfig.h"
@@ -30,9 +30,6 @@ const uint8_t MINIMUM_REGISTRATION_TIME = 60; //in seconds
 const uint8_t ONE_SECOND_TIMER = 1;
 const uint8_t MAX_ALLOWED_STRING_LENGTH = 64;
 const uint8_t MAX_ALLOWED_ERROR_STRING_LENGTH = 64;
-const uint16_t OPTIMUM_LIFETIME = 3600;
-const uint16_t REDUCE_LIFETIME = 900;
-const float REDUCTION_FACTOR = 0.75f;
 const uint16_t MAX_CERTIFICATE_SIZE = 1024;
 const uint16_t CONFIG_BOOLEAN_ITEM_SIZE = 4;
 const uint32_t HANDSHAKE_TIMEOUT_MSECS = (30 * 60 * 1000);

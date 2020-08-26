@@ -21,10 +21,10 @@
 
 class M2MTimerPimpl;
 
-/*! \file m2mtimer.h
-* \brief M2MTimer.
-* Timer class for mbed client.
-*/
+/*! \file m2mtimer.h \brief header for M2MTimer. */
+
+/** Timer class for mbed client.
+ */
 class M2MTimer
 {
 private:

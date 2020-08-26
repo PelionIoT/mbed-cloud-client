@@ -154,7 +154,11 @@ TEST_SETUP(pal_tls)
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     sotp_reset();
-#endif
+#else
+    // Reset storage before pal_initTime since there might be CMAC lefovers
+    // in internal flash which might fail storage access in pal_initTime
+    pal_SSTReset();
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
 #if !PAL_USE_HW_TRNG
     // If no hardware trng - entropy must be injected for random to work
@@ -169,12 +173,6 @@ TEST_SETUP(pal_tls)
     psa_status = psa_crypto_init();
     TEST_ASSERT_EQUAL_HEX(PSA_SUCCESS, psa_status);
 #endif
-
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-    // Reset storage before pal_initTime since there might be CMAC lefovers
-    // in internal flash which might fail storage access in pal_initTime
-    pal_SSTReset();
-#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 
     // Initialize the time module, as this test uses time functionality
     status = pal_initTime();
@@ -575,7 +573,7 @@ TEST(pal_tls, tlsHandshakeTCP)
     /*#11*/
     do
     {
-        status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+        status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_TLS_WANT_WRITE);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
@@ -706,7 +704,7 @@ TEST(pal_tls, tlsHandshakeUDP)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#8*/
-    status = pal_setHandShakeTimeOut(palTLSConf, 30000);
+    status = pal_setHandShakeTimeOut(palTLSConf, 5000, 30000);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#9*/
@@ -723,7 +721,7 @@ TEST(pal_tls, tlsHandshakeUDP)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#11*/
-    status = pal_sslWrite(palTLSHandle, PAL_TLS_UDP_REQUEST_MESSAGE, sizeof(PAL_TLS_UDP_REQUEST_MESSAGE), &written);
+    status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_UDP_REQUEST_MESSAGE, sizeof(PAL_TLS_UDP_REQUEST_MESSAGE), &written);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#12*/
@@ -846,7 +844,7 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#8*/
-    status = pal_setHandShakeTimeOut(palTLSConf, 100);
+    status = pal_setHandShakeTimeOut(palTLSConf, 50, 100);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     status = pal_osSetTime(minSecSinceEpoch);
@@ -1006,11 +1004,11 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     /*#12*/
     do
     {
-        status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+        status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_TLS_WANT_WRITE);
 
-    status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+    status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#13*/
@@ -1202,7 +1200,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     /*#13*/
     do
     {
-        status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+        status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_TLS_WANT_WRITE);
 
@@ -1614,7 +1612,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     /*#15*/
     do
     {
-        status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+        status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_TLS_WANT_WRITE);
 
@@ -1881,7 +1879,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     /*#15*/
     do
     {
-        status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+        status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_TLS_WANT_WRITE);
 
@@ -2143,7 +2141,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     /*#15*/
     do
     {
-        status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+        status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_TLS_WANT_WRITE);
 
@@ -2424,7 +2422,7 @@ static palStatus_t ThreadHandshakeTCP()
     /*#11*/
     do
     {
-        status = pal_sslWrite(palTLSHandle, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
+        status = pal_sslWrite(palTLSHandle, palTLSConf, PAL_TLS_REQUEST_MESSAGE, sizeof(PAL_TLS_REQUEST_MESSAGE), &written);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     } while (status == PAL_ERR_TLS_WANT_WRITE);
 
