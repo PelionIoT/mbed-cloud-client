@@ -1648,7 +1648,9 @@ bool M2MNsdlInterface::create_nsdl_resource_structure(M2MResource *res,
                     }
                 }
                 // Register the main Resource as well along with ResourceInstances
-                success = create_nsdl_resource(res);
+                success = create_nsdl_resource(res);                
+            } else {
+                success = create_nsdl_resource(res); //this is also legal, an empty multi instance resource that the server can later PUT instances into
             }
         } else {
             success = create_nsdl_resource(res);
