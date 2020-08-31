@@ -345,10 +345,12 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
             }
         }
         if(!found) {
-            if(M2MTLVDeserializer::Post == operation) {
-                error = M2MTLVDeserializer::NotAllowed;
-            } else if(M2MTLVDeserializer::Put == operation) {
-                error = M2MTLVDeserializer::NotFound;
+            M2MResourceInstance *res_instance = resource.get_parent_object_instance().create_dynamic_resource_instance(resource.name(),"",
+                                                                                            resource.resource_instance_type(),
+                                                                                            true,
+                                                                                            til._id);
+            if(res_instance) {
+                res_instance->set_operation(M2MBase::GET_PUT_POST_DELETE_ALLOWED);
             }
         }
     } else {
