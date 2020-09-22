@@ -29,6 +29,7 @@ extern "C" {
 
 #if defined(ARM_UC_FEATURE_CRYPTO_PAL) && (ARM_UC_FEATURE_CRYPTO_PAL == 1)
 #include "pal.h"
+#include "pal_Crypto.h"
 
 typedef palMDHandle_t arm_uc_mdHandle_t;
 typedef palMDType_t arm_uc_mdType_t;

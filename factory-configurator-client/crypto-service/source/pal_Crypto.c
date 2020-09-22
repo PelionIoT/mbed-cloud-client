@@ -225,9 +225,9 @@ palStatus_t pal_CCMSetKey(palCCMHandle_t ctx, const unsigned char *key, uint32_t
 }
 
 palStatus_t pal_CCMDecrypt(palCCMHandle_t ctx, unsigned char* input, size_t inLen, 
-							unsigned char* iv, size_t ivLen, unsigned char* add, 
-							size_t addLen, unsigned char* tag, size_t tagLen, 
-							unsigned char* output)
+                           unsigned char* iv, size_t ivLen, unsigned char* add, 
+                           size_t addLen, unsigned char* tag, size_t tagLen, 
+                           unsigned char* output)
 {
     PAL_VALIDATE_ARGUMENTS((NULLPTR == ctx || NULL == input || NULL == iv || NULL == add || NULL == tag || NULL == output))
 
@@ -235,9 +235,9 @@ palStatus_t pal_CCMDecrypt(palCCMHandle_t ctx, unsigned char* input, size_t inLe
 }
 
 palStatus_t pal_CCMEncrypt(palCCMHandle_t ctx, unsigned char* input, 
-							size_t inLen, unsigned char* iv, size_t ivLen, 
-							unsigned char* add, size_t addLen, unsigned char* output, 
-							unsigned char* tag, size_t tagLen)
+                           size_t inLen, unsigned char* iv, size_t ivLen, 
+                           unsigned char* add, size_t addLen, unsigned char* output, 
+                           unsigned char* tag, size_t tagLen)
 {
     PAL_VALIDATE_ARGUMENTS((NULLPTR == ctx || NULL == input || NULL == iv || NULL == add || NULL == tag || NULL == output))
 
@@ -294,7 +294,7 @@ palStatus_t pal_cipherCMAC(const unsigned char *key, size_t keyLenInBits, const 
     PAL_VALIDATE_ARGUMENTS((NULL == key || NULL == input || NULL == output))
 #if PAL_CMAC_SUPPORT
     return pal_plat_cipherCMAC(key, keyLenInBits, input, inputLenInBytes, output);
-#else   // no CMAC support		
+#else   // no CMAC support
     PAL_LOG_ERR("CMAC support in PAL is disabled");
     return PAL_ERR_NOT_SUPPORTED;
 #endif 
@@ -305,7 +305,7 @@ palStatus_t pal_CMACStart(palCMACHandle_t *ctx, const unsigned char *key, size_t
     PAL_VALIDATE_ARGUMENTS((NULLPTR == ctx || NULL == key))
 #if PAL_CMAC_SUPPORT
     return pal_plat_CMACStart(ctx, key, keyLenBits, cipherID);
-#else   // no CMAC support		
+#else   // no CMAC support
     PAL_LOG_ERR("CMAC support in PAL is disabled");
     return PAL_ERR_NOT_SUPPORTED;
 #endif
@@ -329,7 +329,7 @@ palStatus_t pal_CMACFinish(palCMACHandle_t *ctx, unsigned char *output, size_t* 
     PAL_VALIDATE_ARGUMENTS(NULLPTR == ctx || NULLPTR == *ctx || NULL == output || NULL == outLen)
 
     return pal_plat_CMACFinish(ctx, output, outLen);
-#else   // no CMAC support		
+#else   // no CMAC support
     PAL_LOG_ERR("CMAC support in PAL is disabled");
     return PAL_ERR_NOT_SUPPORTED;
 #endif
@@ -626,7 +626,7 @@ palStatus_t pal_ECDHKeyAgreement(
 }
 
 palStatus_t pal_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKeyHandle_t prvKey, unsigned char* dgst, 
-							uint32_t dgstLen, unsigned char *sig, size_t *sigLen)
+                          uint32_t dgstLen, unsigned char *sig, size_t *sigLen)
 {
     PAL_VALIDATE_ARGUMENTS((NULLPTR == grp || NULLPTR == prvKey || NULL == dgst || NULL == sig || NULL == sigLen))
     

@@ -30,6 +30,7 @@
 #include "mbed-client/m2mconstants.h"
 #include "mbed-trace/mbed_trace.h"
 #include "pal.h"
+#include "ns_hal_init.h"
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 #include "CertificateEnrollmentClient.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -40,8 +41,8 @@
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 #include "multicast.h"
+#include "update_client_hub_state_machine.h"
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-
 
 #if MBED_CLOUD_CLIENT_STL_API
 #include <string>
@@ -69,6 +70,10 @@ ServiceClient::ServiceClient(ServiceClientCallback& callback)
   _event_generated(false),
   _state_engine_running(false),
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+  _uc_hub_tasklet_id(-1),
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+  _multicast_tasklet_id(-1),
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
   _setup_update_client(false),
 #endif
   _connector_client(this)
@@ -91,6 +96,44 @@ ServiceClient::~ServiceClient()
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 }
 
+bool ServiceClient::init()
+{
+    tr_debug("ServiceClient::init");
+    // The ns_hal_init() needs to be called by someone before create_interface(),
+    // as it will also initialize the tasklet.
+    ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+        if (_uc_hub_tasklet_id < 0) {
+            _uc_hub_tasklet_id = eventOS_event_handler_create(UpdateClient::event_handler, UpdateClient::UPDATE_CLIENT_EVENT_CREATE);
+            if (_uc_hub_tasklet_id < 0) {
+                tr_error("ServiceClient::init - failed to create uc hub event handler (%d)", _uc_hub_tasklet_id);
+                _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+                return false;
+            }
+        }
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+        if (_multicast_tasklet_id < 0) {
+            _multicast_tasklet_id = eventOS_event_handler_create(&arm_uc_multicast_tasklet, 0);
+            if (_multicast_tasklet_id < 0) {
+                tr_error("ServiceClient::init - failed to create multicast event handler (%d)", _multicast_tasklet_id);
+                _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+                return false;
+            }
+        }
+
+        if (ARM_UC_HUB_createEventHandler() < 0) {
+            tr_error("ServiceClient::init - failed to create uc hub multicast event handler");
+            _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+            return false;
+        }
+
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+
+#endif // MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+
+    return true;
+}
+
 void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 {
     tr_debug("ServiceClient::initialize_and_register");
@@ -102,7 +145,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         tr_debug("ServiceClient::initialize_and_register: update client supported");
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-        if (arm_uc_multicast_init(*_client_objs, _connector_client) != 0) {
+        if (arm_uc_multicast_init(*_client_objs, _connector_client, _multicast_tasklet_id) != 0) {
             _service_callback.error((int)MULTICAST_INIT_FAILED, "Multicast initialization failed");
             return;
         }
@@ -161,7 +204,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 
             /* Initialize Update Client */
             FP1<void, int32_t> callback(this, &ServiceClient::update_error_callback);
-            UpdateClient::UpdateClient(callback, _connector_client.m2m_interface(), this);
+            UpdateClient::UpdateClient(callback, _connector_client.m2m_interface(), this, _uc_hub_tasklet_id);
         }
         // else branch is required for re-initialization.
         else {
@@ -353,6 +396,14 @@ void ServiceClient::value_updated(M2MBase *base, M2MBase::BaseType type)
     tr_debug("ServiceClient::value_updated()");
     _service_callback.value_updated(base, type);
 }
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+void ServiceClient::external_update(uint32_t start_address, uint32_t firmware_size)
+{
+    tr_debug("ServiceClient::external_update()");
+    _service_callback.external_update(start_address, firmware_size);
+}
+#endif
 
 void ServiceClient::state_success()
 {

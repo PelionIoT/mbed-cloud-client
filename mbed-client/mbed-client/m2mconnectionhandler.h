@@ -149,12 +149,16 @@ public:
      */
     void unregister_network_handler();
 
-#if 0
     /**
      * \brief Stores CID persistently for DTLS connections.
      */
     void store_cid();
-#endif
+
+    /**
+     * \brief Removes CID for DTLS connections.
+     */
+    void remove_cid();
+
 
 private:
 

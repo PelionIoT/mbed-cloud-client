@@ -43,9 +43,6 @@
 #include "update-client-lwm2m/FirmwareUpdateResource.h"
 #include "update-client-lwm2m/DeviceMetadataResource.h"
 
-#include "eventOS_scheduler.h"
-#include "eventOS_event.h"
-
 #include "include/UpdateClient.h"
 #include "include/UpdateClientResources.h"
 #include "include/CloudClientStorage.h"
@@ -76,11 +73,6 @@ extern ARM_UC_PAAL_UPDATE MBED_CLOUD_CLIENT_UPDATE_STORAGE;
 
 namespace UpdateClient
 {
-    enum UpdateClientEventType {
-        UPDATE_CLIENT_EVENT_INITIALIZE,
-        UPDATE_CLIENT_EVENT_PROCESS_QUEUE
-    };
-
     static int8_t update_client_tasklet_id = -1;
     static FP1<void, int32_t> error_callback;
 
@@ -88,15 +80,15 @@ namespace UpdateClient
                                  const arm_uc_buffer_t* fingerprint);
     static void initialization(void);
     static void initialization_done(uintptr_t);
-    static void event_handler(arm_event_s* event);
     static void queue_handler(void);
     static void schedule_event(void);
     static void error_handler(int32_t error);
     static M2MInterface *_m2m_interface;
     static ServiceClient *_service;
+    static arm_event_storage_t _event;
 }
 
-void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface, ServiceClient *service)
+void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface, ServiceClient *service, const int8_t tasklet_id)
 {
     tr_info("Update Client External Initialization: %p", (void*)pal_osThreadGetId());
 
@@ -110,16 +102,14 @@ void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mIn
         _service = service;
     }
 
-    /* create event */
-    eventOS_scheduler_mutex_wait();
-    if (update_client_tasklet_id == -1) {
-        update_client_tasklet_id = eventOS_event_handler_create(UpdateClient::event_handler,
-                                                                UPDATE_CLIENT_EVENT_INITIALIZE);
+    update_client_tasklet_id = tasklet_id;
+    memset(&_event, 0, sizeof(_event));
 
-        tr_info("UpdateClient::update_client_tasklet_id: %d",
-                update_client_tasklet_id);
-    }
-    eventOS_scheduler_mutex_release();
+    _event.data.event_data = 0;
+    _event.data.event_type = UPDATE_CLIENT_EVENT_INITIALIZE;
+    _event.data.priority = ARM_LIB_LOW_PRIORITY_EVENT;
+    _event.data.receiver = update_client_tasklet_id;
+    eventOS_event_send_user_allocated(&_event);
 }
 
 /**
@@ -288,7 +278,7 @@ static void UpdateClient::initialization_done(uintptr_t result)
     }
 }
 
-static void UpdateClient::event_handler(arm_event_s* event)
+void UpdateClient::event_handler(arm_event_s* event)
 {
     switch (event->event_type)
     {
@@ -323,17 +313,11 @@ static void UpdateClient::queue_handler(void)
 
 static void UpdateClient::schedule_event()
 {
-    /* schedule event */
-    arm_event_s event = {0};
-    event.receiver = update_client_tasklet_id;
-    event.sender = 0;
-    event.event_type = UPDATE_CLIENT_EVENT_PROCESS_QUEUE;
-    event.event_id = 0;
-    event.data_ptr = NULL;
-    event.priority = ARM_LIB_LOW_PRIORITY_EVENT;
-    event.event_data = 0;
-
-    eventOS_event_send(&event);
+    _event.data.event_data = 0;
+    _event.data.event_type = UPDATE_CLIENT_EVENT_PROCESS_QUEUE;
+    _event.data.priority = ARM_LIB_LOW_PRIORITY_EVENT;
+    _event.data.receiver = update_client_tasklet_id;
+    eventOS_event_send_user_allocated(&_event);
 }
 
 static void UpdateClient::error_handler(int32_t error)

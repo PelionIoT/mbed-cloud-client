@@ -123,6 +123,11 @@ void MbedCloudClient::set_update_callback(MbedCloudClientCallback *callback)
 bool MbedCloudClient::init()
 {
     if (!_init_done) {
+        _init_done = _client.init();
+        if (!_init_done) {
+            return false;
+        }
+
         _init_done = _client.connector_client().setup();
     }
 
@@ -142,21 +147,14 @@ bool MbedCloudClient::setup(void* iface)
     }
 #endif
 
-    bool success = true;
-
-    // If init() is not called
-    if (!_init_done) {
-        // finish the ServiceClient's initialization and M2MInterface
-        success = _client.connector_client().setup();
+    if (!init()) {
+        return false;
     }
 
-    if (success) {
-        // set the network interface to M2MInterface
-        _client.connector_client().m2m_interface()->set_platform_network_handler(iface, _client.connector_client().connector_credentials_available());
-        _client.initialize_and_register(_object_list);
-    }
-
-    return success;
+    // set the network interface to M2MInterface
+    _client.connector_client().m2m_interface()->set_platform_network_handler(iface, _client.connector_client().connector_credentials_available());
+    _client.initialize_and_register(_object_list);
+    return true;
 }
 
 void MbedCloudClient::on_registered(void(*fn)(void))
@@ -171,6 +169,12 @@ void MbedCloudClient::on_error(void(*fn)(int))
     _on_error = fn;
 }
 
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+void MbedCloudClient::on_external_update(void(*fn)(uint32_t, uint32_t))
+{
+    _on_external_update = fn;
+}
+#endif
 
 void MbedCloudClient::on_unregistered(void(*fn)(void))
 {
@@ -393,6 +397,13 @@ void MbedCloudClient::resume(void *iface)
         _client.connector_client().m2m_interface()->resume(iface, _object_list);
     }
 }
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+void MbedCloudClient::external_update(uint32_t start_address, uint32_t size)
+{
+    _on_external_update(start_address, size);
+}
+#endif
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 est_status_e MbedCloudClient::est_request_enrollment(const char *cert_name,

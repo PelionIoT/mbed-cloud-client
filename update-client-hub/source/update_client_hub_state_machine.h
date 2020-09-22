@@ -111,7 +111,16 @@ arm_uc_delta_details_t *ARM_UC_HUB_getDeltaDetails(void);
 void ARM_UC_HUB_setRebootDelay(uint32_t delay);
 
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
-void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info, const int8_t tasklet_id);
+void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info);
+#endif
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+void ARM_UC_HUB_setMulticastTaskletId(const int8_t tasklet_id);
+#endif
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+int8_t ARM_UC_HUB_createEventHandler();
+void ARM_UC_HUB_setManifest(uint8_t* buf, uint32_t len);
 #endif
 
 #ifdef __cplusplus

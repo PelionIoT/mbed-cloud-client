@@ -69,20 +69,24 @@ void socket_callback(void *raw_param)
         } else {
             static ns_address_t addr;
             free(sock_control[index].payload);
-            sock_control[index].payload = malloc(cb_event->d_len);
-            if (sock_control[index].payload) {
-                if (cb_event->d_len == socket_read(cb_event->socket_id, &addr, sock_control[index].payload, cb_event->d_len)) {
-                    sock_control[index].payload_len = cb_event->d_len;
-                    sock_control[index].address.identifier = addr.identifier;
-                    sock_control[index].address.type = addr.type;
-                    memcpy(sock_control[index].address.address, addr.address, 16);
-                }
-            }
+            sock_control[index].payload_len = 0;
 
-            if (sock_control[index].callback) {
-                sock_control[index].callback(sock_control[index].callbackArgument);
-            } else {
-                PAL_LOG_ERR("socket_callback - callback not set!");
+            if (cb_event->d_len > 0) {
+                sock_control[index].payload = malloc(cb_event->d_len);
+                if (sock_control[index].payload) {
+                    if (cb_event->d_len == socket_read(cb_event->socket_id, &addr, sock_control[index].payload, cb_event->d_len)) {
+                        sock_control[index].payload_len = cb_event->d_len;
+                        sock_control[index].address.identifier = addr.identifier;
+                        sock_control[index].address.type = addr.type;
+                        memcpy(sock_control[index].address.address, addr.address, 16);
+                    }
+
+                    if (sock_control[index].callback) {
+                        sock_control[index].callback(sock_control[index].callbackArgument);
+                    } else {
+                        PAL_LOG_ERR("socket_callback - callback not set!");
+                    }
+                }
             }
         }
     }
@@ -252,7 +256,6 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
         return PAL_ERR_INVALID_ARGUMENT;
     }
 
-
     int8_t index;
     int8_t socket_handle = get_socket_handle(socket, &index);
 
@@ -261,6 +264,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
         return PAL_ERR_ITEM_NOT_EXIST;
     }
 
+    *bytesReceived = sock_control[index].payload_len;
     if (sock_control[index].payload_len > 0) {
         memcpy(buffer, sock_control[index].payload, sock_control[index].payload_len);
         *fromLength = address_nanostack2pal(&sock_control[index].address, from);
@@ -268,13 +272,10 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
             PAL_LOG_ERR("pal_plat_receiveFrom - failed to store address!");
             return PAL_ERR_SOCKET_GENERIC;
         }
-
-        *bytesReceived = sock_control[index].payload_len;
         free(sock_control[index].payload);
         sock_control[index].payload = NULL;
         sock_control[index].payload_len = 0;
-
-        return 0;
+        return PAL_SUCCESS;
     } else {
         return PAL_ERR_SOCKET_WOULD_BLOCK;
     }

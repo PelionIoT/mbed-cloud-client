@@ -108,16 +108,17 @@ public:
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
-     * @brief Initiates registration of the provided Security object to the
+     * \brief Initiates the registration of a provided security object to the
      * corresponding LWM2M server.
-     * @param security_object Security object which contains information
+     * \param security_object The security object that contains information
      * required for registering to the LWM2M server.
-     * If client wants to register to multiple LWM2M servers then it has call
-     * this function once for each of LWM2M server object separately.
-     * @param object_list Objects which contains information
-     * which the client want to register to the LWM2M server.
+     * If the client wants to register to multiple LWM2M servers, it must call
+     * this function once for each of the LWM2M server objects separately.
+     * \param object_list Objects that contain information about the
+     * client attempting to register to the LWM2M server.
+     * \param full_registration If True client will perform full registration and not just register update.
      */
-    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list);
+    virtual void register_object(M2MSecurity *security, const M2MBaseList &list, bool full_registration = false);
 
     /**
      * @brief Initiates registration of the provided Security object to the

@@ -46,8 +46,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "ns_hal_init.h"
-
 #define TRACE_GROUP "mClt"
 
 #define INTERNAL_ENDPOINT_PARAM     "&iep="
@@ -303,9 +301,6 @@ bool ConnectorClient::setup()
     // the setup() may be called again after connection has been closed so let's avoid leaks
     if (_setup_complete == false) {
 
-        // The ns_hal_init() needs to be called by someone before create_interface(),
-        // as it will also initialize the tasklet.
-        ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         if (!_rebootstrap_timer) {
             _rebootstrap_timer = new M2MTimer(*this);
@@ -531,6 +526,18 @@ void ConnectorClient::start_registration(M2MBaseList* client_objs)
 M2MInterface * ConnectorClient::m2m_interface()
 {
     return _interface;
+}
+
+void ConnectorClient::start_full_registration()
+{
+    tr_debug("ConnectorClient::start_full_registration()");
+
+    assert(_callback != NULL);
+    assert(_setup_complete);
+
+    _interface->register_object(_security, *_client_objs, true);
+    internal_event(State_Registration_Started);
+    state_engine();
 }
 
 void ConnectorClient::update_registration()
@@ -1186,10 +1193,12 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
     if(status == CCS_STATUS_SUCCESS) {
         ccs_delete_item(KEY_ACCOUNT_ID, CCS_CONFIG_ITEM);
         // AccountID optional so don't fail if unable to store
-        ccs_set_item(KEY_ACCOUNT_ID,
-                     (const uint8_t*)_endpoint_info.account_id.c_str(),
-                     (size_t)_endpoint_info.account_id.size(),
-                     CCS_CONFIG_ITEM);
+        if (_endpoint_info.account_id.size() != 0 && _endpoint_info.account_id.c_str() != NULL){
+            ccs_set_item(KEY_ACCOUNT_ID,
+                         (const uint8_t*)_endpoint_info.account_id.c_str(),
+                         (size_t)_endpoint_info.account_id.size(),
+                         CCS_CONFIG_ITEM);
+        }
     }
 
     if (status == CCS_STATUS_SUCCESS) {
@@ -1456,6 +1465,13 @@ void ConnectorClient::set_certificate_chain_handle(void *cert_handle)
 {
     _certificate_chain_handle = cert_handle;
 }
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+void ConnectorClient::external_update(uint32_t start_address, uint32_t firmware_size)
+{
+    _callback->external_update(start_address, firmware_size);
+}
+#endif
 
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 void ConnectorClient::bootstrap_again()

@@ -36,7 +36,6 @@ extern "C" {
 #include "PAL-Impl/Services-API/pal_network.h"
 #include "PAL-Impl/Services-API/pal_time.h"
 #include "PAL-Impl/Services-API/pal_TLS.h"
-#include "PAL-Impl/Services-API/pal_Crypto.h"
 #include "PAL-Impl/Services-API/pal_entropy.h"
 #include "PAL-Impl/Services-API/pal_update.h"
 #include "PAL-Impl/Services-API/pal_internalFlash.h"

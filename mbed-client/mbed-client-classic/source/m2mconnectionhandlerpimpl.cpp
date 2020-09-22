@@ -658,12 +658,17 @@ void M2MConnectionHandlerPimpl::set_platform_network_handler(void *handler)
 {
     tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler");
 
-    if (PAL_SUCCESS != pal_registerNetworkInterface(handler, &_net_iface)) {
-        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Interface registration failed.");
-    }
+    palStatus_t status = pal_registerNetworkInterface(handler, &_net_iface);
 
-    if (PAL_SUCCESS != pal_setConnectionStatusCallback(_net_iface, network_status_event, this)) {
-        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Connection status callback set failed.");
+    if (PAL_SUCCESS != status) {
+        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Interface registration failed 0x%" PRIx32, status);
+    }
+    status = pal_setConnectionStatusCallback(_net_iface, network_status_event, this);
+    if (PAL_ERR_NOT_SUPPORTED == status){
+        // On Linux pal_setConnectionStatusCallback will return PAL_ERR_NOT_SUPPORTED
+        tr_info("Connection status callback set not supported.");
+    } else if (PAL_SUCCESS != status) {
+        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Connection status callback set failed 0x%" PRIx32, status);
     }
 
     tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler - index = %d", _net_iface);
@@ -925,12 +930,19 @@ void M2MConnectionHandlerPimpl::unregister_network_handler()
     pal_unregisterNetworkInterface(_net_iface);
 }
 
-#if 0
 void M2MConnectionHandlerPimpl::store_cid()
 {
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
     pal_store_cid();
-}
 #endif
+}
+
+void M2MConnectionHandlerPimpl::remove_cid()
+{
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    pal_remove_cid();
+#endif
+}
 
 void M2MConnectionHandlerPimpl::interface_event(palNetworkStatus_t status)
 {

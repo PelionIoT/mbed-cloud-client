@@ -19,9 +19,11 @@
 #ifndef _PAL_CRYPTO_H_
 #define _PAL_CRYPTO_H_
 
-#ifndef _PAL_H
-    #error "Please do not include this file directly, use pal.h instead"
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+#include "pal_types.h"
 
 /*! \file pal_Crypto.h
 *  \brief PAL cryptographic.
@@ -952,5 +954,9 @@ palStatus_t pal_ECDSAVerify(palECKeyHandle_t pubKey, unsigned char* dgst, uint32
  */
 
 palStatus_t pal_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_type, unsigned char *output, size_t outLenBytes, size_t* actualOutLenBytes);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //_PAL_CRYPTO_H_

@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#include "pal.h"
+#include "pal_Crypto.h"
 /*! \file pal_plat_Crypto.h
  *  \brief PAL cryptographic - platform.
  *   This file contains cryptographic APIs that need to be implemented in the platform layer.

@@ -179,8 +179,9 @@ public:
      * this function once for each of the LWM2M server objects separately.
      * \param object_list Objects that contain information about the
      * client attempting to register to the LWM2M server.
+     * \param full_registration If True client will perform full registration and not just register update.
      */
-    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list) = 0;
+    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list, bool full_registration = false) = 0;
 
     /**
      * \brief Initiates the registration of a provided security object to the
@@ -193,7 +194,6 @@ public:
      * client attempting to register to the LWM2M server.
      */
     virtual void register_object(M2MSecurity *security_object, const M2MObjectList &object_list) = 0;
-
 
     /**
       * \brief Removes an object from M2MInterface.

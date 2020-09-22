@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#include "pal.h"
 #include "pal_plat_Crypto.h"
-#include "pal_plat_rtos.h"
+#include "pal_errors.h"
+#include "pal_macros.h"
 #include "mbedtls/aes.h"
 #if (PAL_ENABLE_X509 == 1)
 #include "mbedtls/asn1write.h"
@@ -41,6 +41,7 @@
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 #include "crypto.h"
 #endif
+#include "pv_macros.h"
 
 #define TRACE_GROUP "PAL"
 
@@ -59,12 +60,12 @@ typedef mbedtls_cipher_context_t palCipherCtx_t;
 
 //! forward declaration
 //! This function is based on PAL random algorithm which uses CTR-DRBG algorithm
-PAL_PRIVATE int pal_plat_entropySource( void *data, unsigned char *output, size_t len);
+static int pal_plat_entropySource( void *data, unsigned char *output, size_t len);
 
 //! forward declarations
 //! This function access directly to the plarform entropy source
 //! it was added specialy for DRBG reseeding process
-PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len);
+static int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len);
 
 
 
@@ -273,11 +274,11 @@ palStatus_t pal_plat_x509CertParse(palX509Handle_t x509, const unsigned char* in
      platStatus = mbedtls_x509_crt_parse_der(&localCtx->crt, input, inLen);
     if (platStatus < CRYPTO_PLAT_SUCCESS)
     {
-		if (MBEDTLS_ERR_PK_UNKNOWN_NAMED_CURVE == platStatus)
-		{
-			status = PAL_ERR_NOT_SUPPORTED_CURVE;
-		}
-		
+        if (MBEDTLS_ERR_PK_UNKNOWN_NAMED_CURVE == platStatus)
+        {
+            status = PAL_ERR_NOT_SUPPORTED_CURVE;
+        }
+
         else if (-(MBEDTLS_ERR_X509_UNKNOWN_SIG_ALG) == ((-platStatus) & 0xFF80))
         {
             status = PAL_ERR_INVALID_MD_TYPE;
@@ -383,17 +384,17 @@ PAL_PRIVATE palStatus_t pal_timegm( struct tm *tm, uint64_t* outTime)
     
     for (uint8_t m = 1; m < tm->tm_mon; ++m) 
     {
-        epoc += palMonthDays[m - 1] * PAL_SECONDS_PER_DAY;
-        if (m == PAL_FEB_MONTH && pal_isLeapYear(tm->tm_year))
+        epoc += (uint64_t)(palMonthDays[m - 1]) * PAL_SECONDS_PER_DAY;
+        if (m == PAL_FEB_MONTH && pal_isLeapYear((uint16_t)tm->tm_year))
         {
             epoc += PAL_SECONDS_PER_DAY;
         }
     }
 
-    epoc += (tm->tm_mday - 1) * PAL_SECONDS_PER_DAY;
-    epoc += tm->tm_hour * PAL_SECONDS_PER_HOUR;
-    epoc += tm->tm_min * PAL_SECONDS_PER_MIN;
-    epoc += tm->tm_sec;
+    epoc += (uint64_t)(tm->tm_mday - 1) * PAL_SECONDS_PER_DAY;
+    epoc += (uint64_t)tm->tm_hour * PAL_SECONDS_PER_HOUR;
+    epoc += (uint64_t)tm->tm_min * PAL_SECONDS_PER_MIN;
+    epoc += (uint64_t)tm->tm_sec;
     *outTime = epoc;
     return PAL_SUCCESS;
 }
@@ -459,7 +460,7 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             }
             *actualOutLenBytes = PAL_CRYPTO_CERT_DATE_LENGTH;
             break;
-	    
+
         case PAL_X509_VALID_TO:
             if ( PAL_CRYPTO_CERT_DATE_LENGTH > outLenBytes)
             {
@@ -1331,7 +1332,7 @@ palStatus_t pal_plat_cipherCMAC(const unsigned char *key, size_t keyLenInBits, c
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     const mbedtls_cipher_info_t *cipherInfo;
 
-    cipherInfo = mbedtls_cipher_info_from_values(MBEDTLS_CIPHER_ID_AES, keyLenInBits, MBEDTLS_MODE_ECB);
+    cipherInfo = mbedtls_cipher_info_from_values(MBEDTLS_CIPHER_ID_AES, (int)keyLenInBits, MBEDTLS_MODE_ECB);
     if (NULL == cipherInfo)
     {
         PAL_LOG_ERR("Crypto cipher cmac error");
@@ -1589,7 +1590,7 @@ PAL_PRIVATE palStatus_t pal_plat_ECCheckPublicKey(palECGroup_t* ecpGroup, palECK
         return PAL_ERR_INVALID_ARGUMENT;
     }
 
-	pubPoint = &((mbedtls_ecp_keypair*)publicKey->pk_ctx)->Q;
+    pubPoint = &((mbedtls_ecp_keypair*)publicKey->pk_ctx)->Q;
 
     platStatus =  mbedtls_ecp_check_pubkey(ecpGroup, pubPoint);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
@@ -1719,7 +1720,8 @@ palStatus_t pal_plat_freeKeyHandle( palKeyHandle_t *keyHandle)
 palStatus_t pal_plat_newKeyHandle( palKeyHandle_t *keyHandle, size_t keySize)
 {
    *keyHandle = 0; 
-    return PAL_SUCCESS;
+   PV_UNUSED_PARAM(keySize);
+   return PAL_SUCCESS;
 }
 
 
@@ -1739,6 +1741,8 @@ PAL_PRIVATE bool pal_plat_isPEM(const unsigned char* key, size_t keyLen)
     bool result = false;
     const unsigned char *s1 = NULL;
     const unsigned char *s2 = NULL;
+
+    PV_UNUSED_PARAM(keyLen);
 
     s1 = (unsigned char *) strstr( (const char *) key, "-----BEGIN ");
     if (NULL != s1)
@@ -1995,7 +1999,7 @@ palStatus_t pal_plat_writePrivateKeyToDer(palECKeyHandle_t key, unsigned char* d
     platStatus = mbedtls_pk_write_key_der(localECKey, derBuffer, bufferSize);
     if (CRYPTO_PLAT_SUCCESS < platStatus)
     {
-        *actualSize = platStatus;
+        *actualSize = (size_t)platStatus;
         moveDataToBufferStart(derBuffer, bufferSize, *actualSize);
     }
     else
@@ -2021,7 +2025,7 @@ palStatus_t pal_plat_writePublicKeyToDer(palECKeyHandle_t key, unsigned char* de
     platStatus = mbedtls_pk_write_pubkey_der(localECKey, derBuffer, bufferSize);
     if (CRYPTO_PLAT_SUCCESS < platStatus)
     {
-        *actualSize = platStatus;
+        *actualSize = (size_t)platStatus;
         moveDataToBufferStart(derBuffer, bufferSize, *actualSize);
     }
     else
@@ -2462,20 +2466,20 @@ PAL_PRIVATE palStatus_t ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbed
     int ret;
     unsigned char buf[PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE];
     unsigned char *p = buf + sizeof(buf);
-    size_t len = 0;
+    int len = 0;
 
     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, s));
     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
 
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, len));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, (size_t)len));
     MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
 
-    if (sigMaxSize < len) {
+    if (sigMaxSize < (size_t)len) {
         return PAL_ERR_BUFFER_TOO_SMALL;
     }
 
-    memcpy(sig, p, len);
-    *sigActSizeOut = len;
+    memcpy(sig, p, (size_t)len);
+    *sigActSizeOut =(size_t) len;
 
     return PAL_SUCCESS;
 }
@@ -2785,7 +2789,7 @@ palStatus_t pal_plat_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint
     }
 
     // Calc written len (from end to the end of value_buf) and write it to value_buf
-    platStatus = mbedtls_asn1_write_len(&end, start, (value_buf + sizeof(value_buf)) - end);
+    platStatus = mbedtls_asn1_write_len(&end, start,(size_t)((value_buf + sizeof(value_buf)) - end));
     if (platStatus < CRYPTO_PLAT_SUCCESS) {
         goto finish;
     }
@@ -2799,7 +2803,7 @@ palStatus_t pal_plat_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint
     start = end;
     end = value_buf + sizeof(value_buf);
     platStatus = mbedtls_x509write_csr_set_extension(localCSR, MBEDTLS_OID_EXTENDED_KEY_USAGE, MBEDTLS_OID_SIZE(MBEDTLS_OID_EXTENDED_KEY_USAGE),
-                                                     start, (end - start));
+                                                     start, (size_t)(end - start));
     if (CRYPTO_PLAT_SUCCESS != platStatus) {
         goto finish;
     }
@@ -2834,7 +2838,7 @@ palStatus_t pal_plat_x509CSRWriteDER(palx509CSRHandle_t x509CSR, unsigned char* 
     platStatus = mbedtls_x509write_csr_der(localCSR, derBuf, derBufLen, pal_plat_entropySource, NULL);
     if (CRYPTO_PLAT_SUCCESS < platStatus)
     {
-        *actualDerLen = platStatus;
+        *actualDerLen = (size_t)platStatus;
         moveDataToBufferStart(derBuf, derBufLen, *actualDerLen);
     } else {
         switch (platStatus) {
@@ -3015,6 +3019,8 @@ PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, s
 {
     palCtrDrbgCtx_t* palCtrDrbgCtx = (palCtrDrbgCtx_t*)data;
     
+    PV_UNUSED_PARAM(output);
+    PV_UNUSED_PARAM(len);
     // Simply signal to ourselves that the DRBG is seeded (we set the seed as the additional data when seeding)
     if (data)
     {
@@ -3025,7 +3031,7 @@ PAL_PRIVATE int pal_plat_entropySourceDRBG( void *data, unsigned char *output, s
 
 PAL_PRIVATE int pal_plat_entropySource( void *data, unsigned char *output, size_t len)
 {
-	palStatus_t status = PAL_SUCCESS;
+    palStatus_t status = PAL_SUCCESS;
     (void)data;
     
     status = pal_osRandomBuffer((uint8_t*) output, len);

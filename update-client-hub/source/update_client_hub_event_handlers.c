@@ -233,7 +233,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             break;
 
         default:
-            UC_HUB_TRACE("Firmware Manager: Invalid Event: %" PRIu32, event);
+            UC_HUB_TRACE("Firmware Manager: Invalid Event: %" PRIuPTR, event);
 
             /* Invalid state, abort and report error. */
             ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
@@ -460,7 +460,12 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
 
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION) {
                 /* Installation approved. Set firmware as active image and reboot. */
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && !defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+                UC_HUB_TRACE("Wait OTA process to send activation command");
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST);
+#else
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
+#endif
             }
             else {
                 UC_HUB_ERR_MSG("Ignoring install authorization granted event, invalid hub state: %d", arm_uc_hub_state);

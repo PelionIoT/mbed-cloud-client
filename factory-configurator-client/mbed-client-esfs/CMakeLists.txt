@@ -32,8 +32,8 @@ message ( "*********************************************************************
 
 CREATE_LIBRARY(esfs "${esfs_src}" "")
 
-add_dependencies(esfs palFilesystem palDRBG palCrypto palROT)
-target_link_libraries(esfs palFilesystem palDRBG palCrypto palROT)
+add_dependencies(esfs palFilesystem palDRBG palROT)
+target_link_libraries(esfs palFilesystem palDRBG palROT)
 
 # Create own library for SOTP features
 FILE(

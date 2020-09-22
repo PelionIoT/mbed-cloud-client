@@ -158,12 +158,31 @@ static uint32_t arm_uc_hub_reboot_delay = 0;
 static int8_t arm_uc_tasklet_id = -1;
 
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
-#include "eventOS_event.h"
-#include "multicast.h"
-static int8_t ota_lib_tasklet_id = -1;
-static uint32_t arm_uc_hub_download_delay = 2000;
+static uint32_t arm_uc_hub_download_delay = 10;
 #define ARM_UC_DOWNLOAD_TIMER_EVENT 2
 #define DOWNLOAD_TIMER_ID 2
+#endif
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+#include "eventOS_event.h"
+#include "multicast.h"
+#include "CloudClientStorage.h"
+#include "common_functions.h"
+
+const char external_app_version[] = "mbed.ExternalAppVersion";
+static int8_t ota_lib_tasklet_id = -1;
+static bool external_update = false;
+
+// TODO! Check can arm_uc_hub_firmware_details to be used?
+static uint32_t fw_size = 0;
+static uint64_t timestamp;
+static arm_event_storage_t _event;
+
+static arm_uc_firmware_address_t firmware_address = {
+    .start_address = 0,
+    .size     = 0
+};
+
 #endif
 
 static void arm_uc_tasklet(struct arm_event_s *event)
@@ -392,6 +411,21 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 UC_HUB_TRACE("Active version: %" PRIu64,
                              arm_uc_active_details.version);
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+                uint8_t version_buf[8];
+                size_t size = 0;
+                /* check if software version is already set */
+                ccs_status_e status = ccs_get_item(external_app_version,
+                                                   version_buf, 8, &size, CCS_CONFIG_ITEM);
+                if (status == CCS_STATUS_SUCCESS) {
+                    uint64_t ext_app_version = common_read_64_bit(version_buf);
+                    UC_HUB_TRACE("Active version from storage: %" PRIu64,
+                                 ext_app_version);
+                    if (ext_app_version > arm_uc_active_details.version) {
+                        arm_uc_active_details.version = ext_app_version;
+                    }
+                }
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
                 /* send timestamp to update service */
                 ARM_UC_ControlCenter_ReportVersion(arm_uc_active_details.version);
@@ -519,6 +553,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 /* get the firmware info out of the manifest we just inserted
                    into the manifest manager
                 */
+
                 retval = ARM_UC_mmFetchFirmwareInfo(&pManifestManagerContext, fwinfo, NULL);
                 if (retval.code != MFST_ERR_PENDING) {
                     HANDLE_ERROR(retval, "Manifest manager fetch info failed")
@@ -585,6 +620,19 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     new_state = ARM_UC_HUB_STATE_IDLE;
                     break;
                 }
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+                external_update = false;
+                fw_size = 0;
+                timestamp = 0;
+                if (fwinfo->vendorInfo.vendorBuffer.size == 15 &&
+                    memcmp(fwinfo->vendorInfo.vendorBuffer.ptr, "external update", fwinfo->vendorInfo.vendorBuffer.size) == 0) {
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP - external update");
+                    external_update = true;
+                    fw_size = fwinfo->size;
+                    timestamp = fwinfo->timestamp;
+                }
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                 // With new manifest fields the payload size is in manifest size-field
@@ -897,15 +945,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     front_buffer.size = 0;
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
                     UC_HUB_TRACE("Getting next fragment after %d", arm_uc_hub_download_delay);
-                    if (arm_uc_tasklet_id != -1) {
-                        if (eventOS_event_timer_request(DOWNLOAD_TIMER_ID, ARM_UC_DOWNLOAD_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_download_delay) == -1) {
-                            UC_HUB_TRACE("Failed to start download timer");
-                            arm_uc_get_next_fragment();
-                        }
-                    } else {
-                        UC_HUB_TRACE("Tasklet not created");
+
+                    if (eventOS_event_timer_request(DOWNLOAD_TIMER_ID, ARM_UC_DOWNLOAD_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_download_delay) == -1) {
+                        UC_HUB_TRACE("Failed to start download timer");
                         arm_uc_get_next_fragment();
                     }
+
 #else
                     arm_uc_get_next_fragment();
 #endif
@@ -936,21 +981,19 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 if (ota_lib_tasklet_id != -1) {
                     // Send event back to OTA lib to continue with process completed
                     new_state = ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST;
-                    arm_event_s event = {0};
-                    event.receiver = ota_lib_tasklet_id;
-                    event.event_type = ARM_UC_OTA_MULTICAST_DL_DONE_EVENT;
-                    event.priority = ARM_LIB_MED_PRIORITY_EVENT;
+                    _event.data.data_ptr = NULL;
+                    _event.data.event_data = 0;
+                    _event.data.event_id = 0;
+                    _event.data.sender = 0;
+                    _event.data.event_type = ARM_UC_OTA_MULTICAST_DL_DONE_EVENT;
+                    _event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+                    _event.data.receiver = ota_lib_tasklet_id;
+
+                    eventOS_event_send_user_allocated(&_event);
 
                     // Clear flags so normal campaing can be run
                     fwinfo = &message2.fwinfo;
                     ota_lib_tasklet_id = -1;
-
-                    if (eventOS_event_send(&event) != 0) {
-                        retval.code = ERR_OUT_OF_MEMORY;
-                        ARM_UC_HUB_ErrorHandler(ERR_OUT_OF_MEMORY,
-                                                ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
-                        HANDLE_ERROR(retval, "Failed to send OTA event failed")
-                    }
                     break;
                 }
 #endif
@@ -1009,7 +1052,6 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_INSTALL_AUTHORIZED:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_INSTALL_AUTHORIZED");
-
                 UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_INSTALLING_UPDATE");
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_INSTALLING_UPDATE);
 
@@ -1021,7 +1063,48 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* Firmware verification passes, activate firmware image.
                 */
-                ARM_UC_FirmwareManager.Activate(arm_uc_hub_firmware_config.package_id);
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+                // External update
+                if (external_update) {
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE - external update");
+                    /* send timestamp to update service */
+                    ccs_delete_item(external_app_version, CCS_CONFIG_ITEM);
+                    uint8_t version_buffer[8];
+                    common_write_64_bit(timestamp, version_buffer);
+
+                    if (ccs_set_item(external_app_version, version_buffer, 8, CCS_CONFIG_ITEM) != CCS_STATUS_SUCCESS) {
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE - failed to store version info!");
+                        retval.code = ERR_UNSPECIFIED;
+                        ARM_UC_HUB_ErrorHandler(ERR_UNSPECIFIED,
+                                                ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE);
+                        HANDLE_ERROR(retval, "Failed to store version info");
+                    }
+
+                    ARM_UC_ControlCenter_ReportVersion(timestamp);
+
+                    firmware_address.size = fw_size;
+                    if (ARM_UCP_GetFirmwareStartAddress(0, &firmware_address.start_address).code != ERR_NONE) {
+                        retval.code = ERR_UNSPECIFIED;
+                        ARM_UC_HUB_ErrorHandler(ERR_UNSPECIFIED,
+                                                ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE);
+                        HANDLE_ERROR(retval, "Failed to read start address");
+                    }
+
+                    _event.data.data_ptr = &firmware_address;
+                    _event.data.event_data = 0;
+                    _event.data.event_id = 0;
+                    _event.data.sender = 0;
+                    _event.data.event_type = ARM_UC_OTA_MULTICAST_EXTERNAL_UPDATE_EVENT;
+                    _event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+                    _event.data.receiver = ota_lib_tasklet_id;
+
+                    eventOS_event_send_user_allocated(&_event);
+                } else {
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+                    ARM_UC_FirmwareManager.Activate(arm_uc_hub_firmware_config.package_id);
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+                }
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
                 break;
 
             case ARM_UC_HUB_STATE_PREP_REBOOT:
@@ -1033,23 +1116,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER");
                 if(arm_uc_hub_reboot_delay) {
-                    // Create tasklet if not done yet
-                    if (arm_uc_tasklet_id == -1) {
-                        arm_uc_tasklet_id = eventOS_event_handler_create(&arm_uc_tasklet, 0);
-                    }
-
-                    if (arm_uc_tasklet_id != -1) {
-                        UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - reboot after %ld seconds", arm_uc_hub_reboot_delay);
-                        if (eventOS_event_timer_request(REBOOT_TIMER_ID, ARM_UC_REBOOT_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_reboot_delay*1000) == -1) {
-                            UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - failed to start timer");
-                            new_state = ARM_UC_HUB_STATE_REBOOT;
-                        }
-                    } else {
-                        // couldn't create tasklet. better to reboot immediately than hang forever
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - reboot after %" PRIu32 " seconds", arm_uc_hub_reboot_delay);
+                    if (eventOS_event_timer_request(REBOOT_TIMER_ID, ARM_UC_REBOOT_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_reboot_delay * 1000) == -1) {
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - failed to start timer");
                         new_state = ARM_UC_HUB_STATE_REBOOT;
                     }
-                }
-                else {
+                } else {
                     new_state = ARM_UC_HUB_STATE_REBOOT;
                 }
                 break;
@@ -1130,16 +1202,37 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 }
 
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
-void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info, const int8_t tasklet_id)
+void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info)
 {
     fwinfo = fw_info;
-    ota_lib_tasklet_id = tasklet_id;
+}
+#endif
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+int8_t ARM_UC_HUB_createEventHandler()
+{
     if (arm_uc_tasklet_id == -1) {
         arm_uc_tasklet_id = eventOS_event_handler_create(&arm_uc_tasklet, 0);
     }
+
+    return arm_uc_tasklet_id;
 }
-#endif
+
+void ARM_UC_HUB_setMulticastTaskletId(const int8_t tasklet_id)
+{
+    ota_lib_tasklet_id = tasklet_id;
+}
+
+void ARM_UC_HUB_setManifest(uint8_t* buf, uint32_t len)
+{
+    if (len <= front_buffer.size_max) {
+        memcpy(front_buffer.ptr, buf, len);
+        front_buffer.size = len;
+    } else {
+        UC_HUB_TRACE("ARM_UC_HUB_setManifest - manifest does not fit into buffer");
+    }
+}
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 static void arm_uc_get_next_fragment()
 {

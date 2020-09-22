@@ -231,4 +231,15 @@ palStatus_t pal_plat_DRBGEntropyInject(const uint8_t *entropyBuf, size_t bufSize
     return pal_status;
 }
 
+int seed_read_from_kvs( unsigned char *buf, size_t buf_len )
+{
+    size_t actual_size_out;
+    return storage_kvstore_read(ENTROPY_RANDOM_SEED, buf, buf_len, &actual_size_out);
+}
+
+int seed_write_to_kvs( unsigned char *buf, size_t buf_len )
+{
+    return storage_kvstore_write(ENTROPY_RANDOM_SEED, (uint8_t *) buf, buf_len);
+}
+
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

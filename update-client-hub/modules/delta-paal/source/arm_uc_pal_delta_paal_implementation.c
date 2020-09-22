@@ -1008,5 +1008,19 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetInstallerDetails(arm_uc_installer_details
     return result;
 }
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address)
+{
+    arm_uc_error_t result = { .code = ERR_NONE };
+
+    UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_GetFirmwareStartAddress");
+
+    if (paal_storage_implementation) {
+        result = paal_storage_implementation->GetFirmwareStartAddress(location, start_address);
+    }
+
+    return result;
+}
+#endif //defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 #endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL)

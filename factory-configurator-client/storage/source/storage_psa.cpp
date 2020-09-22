@@ -21,6 +21,7 @@
 #include "pv_error_handling.h"
 #include "storage_internal.h"
 #include "pv_macros.h"
+#include "pal_Crypto.h"
 #ifdef TARGET_LIKE_MBED
 #include "mbed.h"
 #if MBED_MAJOR_VERSION > 5

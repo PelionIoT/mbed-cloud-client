@@ -65,11 +65,10 @@ static arm_uc_error_t pal_kcm_internal_get_guid(arm_uc_guid_t *guid,
                                                 size_t key_length)
 {
     arm_uc_error_t result = (arm_uc_error_t){ARM_UC_DI_ERR_INVALID_PARAMETER};
-    if (guid && key) {
+    if (guid && key && key_length<=SIZE_OF_GUID) {
         uint8_t buffer[SIZE_OF_GUID] = { 0 };
         size_t value_length = 0;
         memset(guid, 0, SIZE_OF_GUID);
-
         kcm_status_e kcm_status = kcm_item_get_data((const uint8_t *) key,
                                                     key_length,
                                                     KCM_CONFIG_ITEM,

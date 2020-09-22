@@ -60,9 +60,6 @@ typedef struct manifest_guid_t {
  */
 struct manifest_vendor_info_t  {
     arm_uc_buffer_t     vendorBuffer;       // To store the whole octet stream
-    uint32_t            enumDeltaVariant; // 0 = reserved, 1=arm-stream-diff-lz4
-    arm_uc_buffer_t     preCursorHash;       ///< The hash of the delta image
-    arm_uc_buffer_t     deltaHash;       ///< The hash of the delta image
     uint32_t            deltaSize;       ///< The size of the delta in bytes
 };
 typedef struct manifest_vendor_info_t manifest_vendor_info_t;

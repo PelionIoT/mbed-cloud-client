@@ -31,7 +31,6 @@
 #include "eventOS_scheduler.h"
 #include "eventOS_event_timer.h"
 
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -84,9 +83,11 @@ typedef mbedtls_ssl_config platTlsConfigurationContext;
 //unsigned char id[32];       /*!< session identifier */
 //unsigned char master[48];   /*!< the master secret  */
 
+#define SSL_SESSION_STORE_SIZE 2048
+
 // Size of the session data
 static const int ssl_session_size = 92;
-unsigned char ssl_session_context[512] = {0};
+unsigned char ssl_session_context[SSL_SESSION_STORE_SIZE] = {0};
 uint16_t ssl_session_context_length = 0;
 #endif
 
@@ -225,6 +226,8 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
             break;
 #endif
         case MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE:
+        // In some cases the ssl->f_send() can already return connection termination.
+        case PAL_ERR_SOCKET_CONNECTION_RESET:
             status = PAL_ERR_SSL_FATAL_ALERT_MESSAGE;
             break;
         case MBEDTLS_ERR_X509_ALLOC_FAILED:
@@ -1457,10 +1460,10 @@ int32_t pal_plat_saveSslSessionBuffer(palTLSHandle_t palTLSHandle)
     palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
 
     size_t olen = 0;
-    unsigned char temp_context[512] = {0};
+    unsigned char temp_context[SSL_SESSION_STORE_SIZE] = {0};
     platStatus  = mbedtls_ssl_context_save( &localTLSCtx->tlsCtx,
                                                     temp_context,
-                                                    2048,
+                                                    SSL_SESSION_STORE_SIZE,
                                                     &olen );
     if (platStatus == SSL_LIB_SUCCESS) {
         memcpy(ssl_session_context, temp_context, olen);
@@ -1488,7 +1491,7 @@ int32_t pal_plat_loadSslSession(palTLSHandle_t palTLSHandle)
 void pal_plat_removeSslSession()
 {
     PAL_LOG_DBG("pal_plat_removeSslSession");
-    memset(ssl_session_context, 0, 512);
+    memset(ssl_session_context, 0, SSL_SESSION_STORE_SIZE);
     ssl_session_context_length = 0;
 }
 
@@ -1511,8 +1514,13 @@ const uint8_t* pal_plat_get_cid(size_t *size)
 
 void pal_plat_set_cid(const uint8_t* context, const size_t length)
 {
-    memset(ssl_session_context, 0, 512);
-    memcpy(ssl_session_context, context, length);
-    ssl_session_context_length = length;
+    memset(ssl_session_context, 0, SSL_SESSION_STORE_SIZE);
+    ssl_session_context_length = 0;
+    if (length <= SSL_SESSION_STORE_SIZE) {
+        memcpy(ssl_session_context, context, length);
+        ssl_session_context_length = length;
+    } else {
+        PAL_LOG_ERR("pal_plat_set_cid - cid set failed, too long %lu (max was %d)", length, SSL_SESSION_STORE_SIZE);
+    }
 }
 #endif // PAL_USE_SSL_SESSION_RESUME

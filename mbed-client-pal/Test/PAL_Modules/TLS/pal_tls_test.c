@@ -18,6 +18,7 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal.h"
+#include "pal_Crypto.h"
 #include "pal_tls_utils.h"
 #include "storage_kcm.h"
 #include "test_runners.h"
@@ -2675,12 +2676,16 @@ TEST(pal_tls, tlsHandshake_SessionResume)
 
     // Handshake again, session should be now stored into file system.
     do_handshake(PAL_DTLS_MODE, true);
+    pal_store_cid();
     TEST_ASSERT(isSslSessionAvailable());
 
     // This time handshake will use the saved session.
     // Currently can be verified only through mbedtls logs.
     do_handshake(PAL_DTLS_MODE, true);
     TEST_ASSERT(isSslSessionAvailable());
+
+    // Remove CID
+    pal_remove_cid();
 
     // TLS tests, clear old session first
     removeSslSession();

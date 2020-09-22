@@ -299,6 +299,11 @@ void pal_enableSslSessionStoring(palTLSConfHandle_t palTLSConf, bool enable);
  */
 void pal_store_cid();
 
+/*! \brief Removes CID context for DTLS based setup.
+ *
+ */
+void pal_remove_cid();
+
 #endif // PAL_USE_SSL_SESSION_RESUME
 
 /*! \brief Set the socket callback function pointer for the DTLS handshake retransmission.

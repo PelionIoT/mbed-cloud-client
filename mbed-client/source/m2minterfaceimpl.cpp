@@ -177,7 +177,7 @@ void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MObjectLis
     register_object(security, list);
 }
 
-void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MBaseList &list)
+void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MBaseList &list, bool full_registration)
 {
     tr_debug("M2MInterfaceImpl::register_object - IN - current state %d", _current_state);
     if(!security) {
@@ -185,6 +185,11 @@ void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MBaseList 
         _observer.error(M2MInterface::InvalidParameters);
         return;
     }
+
+    if (full_registration) {
+        _reconnection_state = None;
+    }
+
     // Transition to a new state based upon
     // the current state of the state machine
     //TODO: manage register object in a list.
@@ -380,6 +385,12 @@ void M2MInterfaceImpl::registration_error(uint8_t error_code, bool retry, bool f
     tr_error("M2MInterfaceImpl::registration_error code [%d]", error_code);
 
     _nsdl_interface.set_registration_status(false);
+
+    if (_binding_mode == UDP || _binding_mode == UDP_QUEUE) {
+        if(error_code != M2MInterface::MemoryFail) {
+            _connection_handler.remove_cid();
+        }
+    }
 
     // Try to register again
     if (retry) {
@@ -1093,9 +1104,9 @@ void M2MInterfaceImpl::pause()
     _connection_handler.unregister_network_handler();
     _connection_handler.force_close();
     // XXX: DISABLED STORING CID till backend is ready
-#if 0
-    _connection_handler.store_cid();
-#endif
+    if (_binding_mode == UDP || _binding_mode == UDP_QUEUE) {
+        _connection_handler.store_cid();
+    }
     _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
     _retry_timer.stop_timer();
     _reconnecting = false;

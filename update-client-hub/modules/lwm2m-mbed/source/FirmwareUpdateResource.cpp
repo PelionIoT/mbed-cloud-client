@@ -281,7 +281,11 @@ void FirmwareUpdateResource::packageCallback(void *_parameters)
         uint16_t length = parameters->get_argument_value_length();
 
         /* invoke external callback function */
+        // Unicast update for nodes are not supported atm.
+#if (ARM_UC_MULTICAST_ENABLE == 0) || defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
         externalPackageCallback(buffer, length);
+#endif // (ARM_UC_MULTICAST_ENABLE == 0) || defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+
 #endif
         /* schedule delayed response */
         ARM_UC_PostCallback(&callbackNodePackage,
