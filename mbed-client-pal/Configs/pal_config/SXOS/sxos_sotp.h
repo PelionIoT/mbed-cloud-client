@@ -41,4 +41,9 @@
     #define PAL_DEFAULT_RTT_ESTIMATE 8
 #endif
 
+// SSL session resume requires Mbed TLS 2.18.0 or later
+#ifndef PAL_USE_SSL_SESSION_RESUME
+#define PAL_USE_SSL_SESSION_RESUME 0
+#endif
+
 #endif // !__SXOS_SOTP_H__

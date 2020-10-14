@@ -18,6 +18,7 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal.h"
+#include "pal_Crypto.h"
 #include "pal_tls_utils.h"
 #include "storage_kcm.h"
 #include "test_runners.h"
@@ -322,7 +323,7 @@ TEST(pal_tls, tlsInitTLS)
     status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#2*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 #ifdef DEBUG
     /*#3*/
@@ -384,7 +385,7 @@ TEST(pal_tls, tlsPrivateAndPublicKeys)
     status = pal_setOwnPrivateKey(palTLSConf, &prvKey);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#5*/
     status = pal_freeTLS(&palTLSHandle);
@@ -429,7 +430,7 @@ TEST(pal_tls, tlsCACertandPSK)
     status = pal_setPSK(palTLSConf, g_psk_id, sizeof(g_psk_id) - 1, g_psk, sizeof(g_psk));
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#3*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     /*#4*/
     status = pal_freeTLS(&palTLSHandle);
@@ -531,7 +532,7 @@ TEST(pal_tls, tlsHandshakeTCP)
     TEST_ASSERT_NOT_EQUAL(palTLSConf, NULLPTR);
 
     /*#6*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
@@ -684,7 +685,7 @@ TEST(pal_tls, tlsHandshakeUDP)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#5*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
@@ -824,7 +825,7 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#5*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
@@ -967,7 +968,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#6*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#7*/
@@ -1158,7 +1159,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#8*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     if (PAL_SUCCESS != status)
     {
         pal_freeTLS(&palTLSHandle);
@@ -1337,7 +1338,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#6*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     if (PAL_SUCCESS != status)
     {
         pal_freeTLS(&palTLSHandle);
@@ -1551,7 +1552,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#9*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     if (PAL_SUCCESS != status)
     {
         pal_freeTLS(&palTLSHandle);
@@ -1828,7 +1829,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     }
 
     /*#10*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     if (PAL_SUCCESS != status)
     {
         pal_freeTLS(&palTLSHandle);
@@ -2090,7 +2091,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     }
 
     /*#10*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     if (PAL_SUCCESS != status)
     {
         pal_freeTLS(&palTLSHandle);
@@ -2275,12 +2276,12 @@ static void do_handshake(palTLSTransportMode_t mode, bool enable_session_storing
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_NOT_EQUAL(palTLSConf, NULLPTR);
 
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
     pal_enableSslSessionStoring(palTLSConf, enable_session_storing);
 #endif
-
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
     //status = pal_sslSetDebugging(palTLSConf, true);
@@ -2378,7 +2379,7 @@ static palStatus_t ThreadHandshakeTCP()
     TEST_ASSERT_NOT_EQUAL(palTLSConf, NULLPTR);
 
     /*#6*/
-    status = pal_initTLS(palTLSConf, &palTLSHandle);
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
     // This code commented out to prevent massive prints from mbedTLS, if you want to see logs from client side, just uncomment them.
@@ -2675,12 +2676,16 @@ TEST(pal_tls, tlsHandshake_SessionResume)
 
     // Handshake again, session should be now stored into file system.
     do_handshake(PAL_DTLS_MODE, true);
+    pal_store_cid();
     TEST_ASSERT(isSslSessionAvailable());
 
     // This time handshake will use the saved session.
     // Currently can be verified only through mbedtls logs.
     do_handshake(PAL_DTLS_MODE, true);
     TEST_ASSERT(isSslSessionAvailable());
+
+    // Remove CID
+    pal_remove_cid();
 
     // TLS tests, clear old session first
     removeSslSession();

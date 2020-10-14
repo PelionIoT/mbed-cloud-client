@@ -423,6 +423,7 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
     }
 
     if (!sn_nsdl_is_ep_registered(handle)){
+        tr_err("Register update called without registration.");
         return -1;
     }
 

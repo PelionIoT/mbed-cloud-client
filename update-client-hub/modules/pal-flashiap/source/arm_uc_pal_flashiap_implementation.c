@@ -685,4 +685,22 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_GetInstallerDetails(arm_uc_installer_details_
     return result;
 }
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+arm_uc_error_t ARM_UC_PAL_FlashIAP_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address)
+{
+    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
+    arm_uc_error_t result = arm_uc_pal_flashiap_get_slot_addr_size(location,
+                                                                   &slot_addr,
+                                                                   &slot_size);
+
+    if (result.error == ERR_NONE) {
+        uint32_t hdr_size = arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE);
+        *start_address = slot_addr + hdr_size;
+        result.code = ERR_NONE;
+    }
+    return result;
+}
+#endif
+
 #endif /* ARM_UC_FEATURE_PAL_FLASHIAP */

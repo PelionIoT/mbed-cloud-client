@@ -96,10 +96,10 @@ palStatus_t pal_cleanupTLS(void);
  *
  * @param[in] palTLSConf: The TLS configuration context.
  * @param[out] palTLSHandle: The index to the TLS context.
- *
+ * @param[in] is_server_ping: Defines whether the call is for Server ping or not.
  * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHandle);
+palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHandle, bool is_server_ping);
 
 /*! \brief Destroy and free the resources of the TLS context.
  *
@@ -283,6 +283,28 @@ palStatus_t pal_sslSetDebugging(palTLSConfHandle_t palTLSConf,uint8_t turnOn);
  */
 palStatus_t pal_sslDebugging(uint8_t turnOn);
 
+/*! \brief Stores CID context persistently for DTLS based setup.
+ *
+ */
+void pal_store_cid();
+
+/*! \brief Removes CID context for DTLS based setup.
+ *
+ */
+void pal_remove_cid();
+
+/*! \brief Status of CID availability in client.
+ *  \return true if CID is available else false.
+ */
+bool pal_is_cid_available();
+
+/*! \brief DTLS ping to Cloud to check connectivity status.
+ * @param[in] palTLSHandle: The TLS context.
+ *
+ * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_handShake_ping(palTLSHandle_t palTLSHandle);
+
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
 /*! \brief Enable SSL session storing. Disabled by default.
  *
@@ -293,11 +315,6 @@ palStatus_t pal_sslDebugging(uint8_t turnOn);
  *
  */
 void pal_enableSslSessionStoring(palTLSConfHandle_t palTLSConf, bool enable);
-
-/*! \brief Stores CID context persistently for DTLS based setup.
- *
- */
-void pal_store_cid();
 
 #endif // PAL_USE_SSL_SESSION_RESUME
 

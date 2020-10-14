@@ -17,7 +17,6 @@
 #include "pv_error_handling.h"
 #include "cs_der_keys_and_csrs.h"
 #include "cs_der_certs.h"
-#include "pal.h"
 #include "cs_utils.h"
 #include "mbedtls/pk.h"
 #include "fcc_malloc.h"

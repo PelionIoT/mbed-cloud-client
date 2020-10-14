@@ -230,11 +230,6 @@ void TEST_pal_all_GROUPS_RUNNER(void)
             #ifndef PAL_SKIP_TEST_MODULE_TIME
                 TEST_pal_time_GROUP_RUNNER();
             #endif
-        case PAL_TEST_MODULE_CRYPTO:
-            PRINT_MEMORY_STATS;
-            #ifndef PAL_SKIP_TEST_MODULE_CRYPTO
-                TEST_pal_crypto_GROUP_RUNNER();
-            #endif
         case PAL_TEST_MODULE_DRBG:
             PRINT_MEMORY_STATS;
             #ifndef PAL_SKIP_TEST_MODULE_DRBG
@@ -400,12 +395,6 @@ int palNetworkTestMain(void)
 {
     int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_CONNECTION;
     return palTestMain(TEST_pal_socket_GROUP_RUNNER, init_flags);
-}
-
-int palCryptoTestMain(void)
-{
-    int init_flags = PAL_TEST_PLATFORM_INIT_BASE|PAL_TEST_PLATFORM_INIT_STORAGE|PAL_TEST_PLATFORM_INIT_REFORMAT_STORAGE;
-    return palTestMain(TEST_pal_crypto_GROUP_RUNNER, init_flags);
 }
 
 int palDRBGTestMain(void)

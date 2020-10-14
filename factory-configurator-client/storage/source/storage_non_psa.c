@@ -23,6 +23,7 @@
 #include "pv_error_handling.h"
 #include "fcc_malloc.h"
 #include "pv_macros.h"
+#include "pal_Crypto.h"
 
 /*The function copies certificate chain or single certificate from source  to destination (inside storage)*/
 static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item_name_len, storage_item_prefix_type_e source_item_prefix_type, storage_item_prefix_type_e destination_item_prefix_type)

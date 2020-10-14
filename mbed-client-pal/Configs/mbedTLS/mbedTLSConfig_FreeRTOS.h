@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2019 ARM Ltd.
+// Copyright 2018-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -2554,6 +2554,11 @@
 // Do not save a copy of the peer certificate.
 // This will reduce the RAM consumption roughly by 1500 bytes.
 #undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
+
+// Need MBEDTLS_SSL_CONTEXT_SERIALIZATION and MBEDTLS_SSL_DTLS_CONNECTION_ID for CID feature
+// This requires Mbed TLS 2.18.0 or later.
+// #define MBEDTLS_SSL_CONTEXT_SERIALIZATION
+// #define MBEDTLS_SSL_DTLS_CONNECTION_ID
 
 #if defined(TARGET_LIKE_MBED)
 #include "mbedtls/target_config.h"

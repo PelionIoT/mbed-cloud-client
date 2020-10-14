@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-
+#if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) || defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 #ifndef _PAL_DRBG_H
 #define _PAL_DRBG_H
 
@@ -66,3 +66,4 @@ palStatus_t pal_osRandom32bit(uint32_t *randomInt);
 }
 #endif
 #endif //_PAL_DRBG_H
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

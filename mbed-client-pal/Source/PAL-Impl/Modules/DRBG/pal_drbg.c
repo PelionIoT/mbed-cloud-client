@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-
+#if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) || defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 #include "pal.h"
 #include "pal_plat_drbg.h"
 
@@ -30,3 +30,4 @@ palStatus_t pal_osRandom32bit(uint32_t *randomInt)
 {
     return pal_plat_osRandomBuffer_blocking((uint8_t*)randomInt, sizeof(uint32_t));
 }
+#endif

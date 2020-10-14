@@ -21,7 +21,8 @@
 extern "C" {
 #endif
 
-#include "pal.h"
+#include "pal_Crypto.h"
+//#include "pal_crypto_configuration.h"
 /*! \file pal_plat_Crypto.h
  *  \brief PAL cryptographic - platform.
  *   This file contains cryptographic APIs that need to be implemented in the platform layer.
@@ -804,6 +805,50 @@ palStatus_t pal_plat_ECGroupFree(palCurveHandle_t* grp);
  * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_plat_ECGroupInitAndLoad(palCurveHandle_t* grp, palGroupIndex_t index);
+
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) &&  !defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
+// This is the kv_key value used by Mbed OS PSA APIs for entropy initialization. Using the save value for DRBG to maintain
+// backwards compatibility. This was added for backwards compatibility between Mbed OS 5.15 and Mbed OS 6.
+// Previously all non-TRNG targets used PSA to inject entropy, but if application now uses direct KVStore mode (which is default)
+// we need to ensure that we use the same name for the kv_key.
+#define ENTROPY_RANDOM_SEED "B#S9---D"
+/*! \brief Initialize all data structures (semaphores, mutexes, memory pools, message queues) at system initialization.
+*
+*   In case of a failure in any of the initializations, the function returns an error and stops the rest of the initializations.
+* \return PAL_SUCCESS(0) in case of success, PAL_ERR_CREATION_FAILED in case of failure.
+*/
+palStatus_t pal_plat_DRBGInit(void);
+
+/*! \brief De-initialize thread objects.
+*/
+palStatus_t pal_plat_DRBGDestroy(void);
+
+// XXX: following two are really easy to mix up, a better naming needs to be done
+//
+// * pal_plat_osRandomBuffer_public() - The one which is called by pal_osRandomBuffer(), one which
+//                                      will block until there is enough entropy harvested
+//
+// * pal_plat_osRandomBuffer() - The lower level part, used by pal_plat_osRandomBuffer_public(),
+//                                  this is nonblocking version which will return as much as possible.
+//                               Perhaps this should be pal_plat_GetosRandomBufferFromHW() to align
+//                               with logic used with similar purpose function as pal_plat_osGetRoTFromHW().
+
+
+
+/*! \brief Generate random number into given buffer with given size in bytes.
+*
+* @param[out] randomBuf A buffer to hold the generated number.
+* @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
+*
+* \note `pal_init()` MUST be called before this function
+* \note If non-volatile entropy is expected, the entropy must have been injected before this function is called. Non-volatile entropy may be injected using `pal_plat_osEntropyInject()`.
+* \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
+*/
+palStatus_t  pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeBytes);
+/*! \brief De-initialize thread objects.
+*/
+palStatus_t pal_plat_DRBGDestroy(void);
+#endif
 
 #ifdef __cplusplus
 }

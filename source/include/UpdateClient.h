@@ -23,6 +23,8 @@
 
 #include "mbed-client/m2minterface.h"
 #include "update-client-hub/update_client_public.h"
+#include "eventOS_scheduler.h"
+#include "eventOS_event.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -75,11 +77,17 @@ namespace UpdateClient
       RejectReasonUnavailable           = ARM_UCCC_REJECT_REASON_UNAVAILABLE
     };
 
+    enum UpdateClientEventType {
+        UPDATE_CLIENT_EVENT_CREATE,
+        UPDATE_CLIENT_EVENT_INITIALIZE,
+        UPDATE_CLIENT_EVENT_PROCESS_QUEUE
+    };
+
     /**
      * \brief Initialization function for the Update Client.
      * \param Callback to error handler.
      */
-    void UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface, ServiceClient *service);
+    void UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface, ServiceClient *service, const int8_t tasklet_id);
     /**
      * \brief Populate M2MObjectList with Update Client objects.
      * \details The function takes an existing object list and adds LWM2M
@@ -140,16 +148,8 @@ namespace UpdateClient
      * \retval CCS_STATUS_SUCCESS on success
      */
     int getClassId(uint8_t* buffer, size_t buffer_size_max, size_t* value_size);
-    /**
-     * \brief Fills the buffer with the 16-byte device UUID
-     * \param buffer The buffer to fill with the UUID
-     * \param buffer_size_max The maximum avaliable space in the buffer
-     * \param value_size A pointer to a length variable to populate with the length of the UUID (always 16)
-     * \retval CCS_STATUS_MEMORY_ERROR when the buffer is less than 16 bytes
-     * \retval CCS_STATUS_KEY_DOESNT_EXIST when no device ID is present
-     * \retval CCS_STATUS_SUCCESS on success
-     */
-    int getDeviceId(uint8_t* buffer, size_t buffer_size_max, size_t* value_size);
+
+    void event_handler(arm_event_s* event);
 }
 
 #endif // MBED_CLOUD_CLIENT_UPDATE_CLIENT_H

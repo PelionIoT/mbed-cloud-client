@@ -70,8 +70,9 @@ class M2MObservationHandler
     /**
      * \brief Sends a delayed post response to the server with 'COAP_MSG_CODE_RESPONSE_CHANGED' response code.
      * \param base The resource sending the response.
+     * \param code Response code to be sent.
      */
-    virtual void send_delayed_response(M2MBase *base) = 0;
+    virtual void send_delayed_response(M2MBase *base, sn_coap_msg_code_e code = COAP_MSG_CODE_RESPONSE_CHANGED) = 0;
 #endif
 
 #ifdef ENABLE_ASYNC_REST_RESPONSE

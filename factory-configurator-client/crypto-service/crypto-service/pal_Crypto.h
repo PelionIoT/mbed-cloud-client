@@ -16,12 +16,25 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#ifndef _PAL_CRYPTO_H_
-#define _PAL_CRYPTO_H_
+#ifndef _FCC_PAL_CRYPTO_H_
+#define _FCC_PAL_CRYPTO_H_
 
-#ifndef _PAL_H
-    #error "Please do not include this file directly, use pal.h instead"
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <stddef.h>
+#include <pal_crypto_configuration.h>
+#include "mbed-trace/mbed_trace.h"
+#if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) ||  defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
+#include "pal.h"
+#endif
+
+#define NULLPTR 0
+typedef int32_t palStatus_t;
 
 /*! \file pal_Crypto.h
 *  \brief PAL cryptographic.
@@ -271,7 +284,7 @@ palStatus_t pal_x509CertParse(palX509Handle_t x509Cert, const unsigned char* inp
  * @param[in] outLenBytes: The size of the allocated buffer in bytes.
  * @param[out] actualOutLenBytes: The actual size of the attribute in bytes.
  *
- \note In case of PAL_ERR_BUFFER_TOO_SMALL, the required size is assigned into the `actualOutLen` parameter.
+ \note In case of FCC_PAL_ERR_BUFFER_TOO_SMALL, the required size is assigned into the `actualOutLen` parameter.
  \note `PAL_X509_CERT_ID_ATTR` requires a 33 bytes buffer size.
  \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
  */
@@ -283,12 +296,12 @@ palStatus_t pal_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_t att
  * @param[in] x509CertChain: Optional. The beginning of the chain to verify the X.509 DER certificate with.
  *
  \return PAL_SUCCESS on success. In case of failure:
- *      - PAL_ERR_X509_BADCERT_EXPIRED
- *      - PAL_ERR_X509_BADCERT_FUTURE
- *      - PAL_ERR_X509_BADCERT_BAD_MD
- *      - PAL_ERR_X509_BADCERT_BAD_PK
- *      - PAL_ERR_X509_BADCERT_NOT_TRUSTED
- *      - PAL_ERR_X509_BADCERT_BAD_KEY
+ *      - FCC_PAL_ERR_X509_BADCERT_EXPIRED
+ *      - FCC_PAL_ERR_X509_BADCERT_FUTURE
+ *      - FCC_PAL_ERR_X509_BADCERT_BAD_MD
+ *      - FCC_PAL_ERR_X509_BADCERT_BAD_PK
+ *      - FCC_PAL_ERR_X509_BADCERT_NOT_TRUSTED
+ *      - FCC_PAL_ERR_X509_BADCERT_BAD_KEY
  */
 palStatus_t pal_x509CertVerify(palX509Handle_t x509Cert, palX509Handle_t x509CertChain);
 
@@ -298,7 +311,7 @@ palStatus_t pal_x509CertVerify(palX509Handle_t x509Cert, palX509Handle_t x509Cer
  * @param[in] x509CertChain: The beginning of the chain to verify the X509 DER certificate with. Optional.
  * @param[out] verifyResult: A bitmask of the errors that cause the failure. This value is relevant only in case failure.
  *
- \return PAL_SUCCESS on success. In case of failure returns `PAL_ERR_X509_CERT_VERIFY_FAILED`.
+ \return PAL_SUCCESS on success. In case of failure returns `FCC_PAL_ERR_X509_CERT_VERIFY_FAILED`.
  */
 palStatus_t pal_x509CertVerifyExtended(palX509Handle_t x509Cert, palX509Handle_t x509CertChain, int32_t* verifyResult);
 
@@ -307,8 +320,8 @@ palStatus_t pal_x509CertVerifyExtended(palX509Handle_t x509Cert, palX509Handle_t
 * @param[in] x509Cert: A handle holding the parsed certificate.
 * @param[in] option: Intended usage (e.g.: PAL_X509_EXT_KU_CLIENT_AUTH)
 *
-\return PAL_SUCCESS if this use of the certificate is allowed, PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED if not
-*       or PAL_ERR_X509_UNKNOWN_OID if the given usage is unknown or not supported.
+\return PAL_SUCCESS if this use of the certificate is allowed, FCC_PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED if not
+*       or FCC_PAL_ERR_X509_UNKNOWN_OID if the given usage is unknown or not supported.
 */
 palStatus_t pal_x509CertCheckExtendedKeyUsage(palX509Handle_t x509Cert, palExtKeyUsage_t usage);
 
@@ -477,7 +490,7 @@ palStatus_t pal_CtrDRBGInit(palCtrDrbgCtxHandle_t* ctx, const void* seed, size_t
  * @param[in] ctx:	The CTR-DRBG context to be checked.
  *
  * \return PAL_SUCCESS if the CTR-DRBG is seeded.
- * \return PAL_ERR_CTR_DRBG_NOT_SEEDED if the CTR-DRBG is not yet seeded, meaning calls to `pal_CtrDRBGGenerate()` will fail.
+ * \return FCC_PAL_ERR_CTR_DRBG_NOT_SEEDED if the CTR-DRBG is not yet seeded, meaning calls to `pal_CtrDRBGGenerate()` will fail.
  * \return Any other negative value indicating a specific error code in case of failure.
  */
 palStatus_t pal_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx);
@@ -952,5 +965,176 @@ palStatus_t pal_ECDSAVerify(palECKeyHandle_t pubKey, unsigned char* dgst, uint32
  */
 
 palStatus_t pal_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_type, unsigned char *output, size_t outLenBytes, size_t* actualOutLenBytes);
+
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) &&  !defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
+/*! \brief Generate random number into given buffer with given size in bytes.
+*
+* @param[out] randomBuf A buffer to hold the generated number.
+* @param[in] bufSizeBytes The size of the buffer and the size of the required random number to generate.
+*
+* \note `pal_init()` MUST be called before this function.
+* \note If non-volatile entropy is expected, the entropy must have been injected before this function is called. If entropy has not been injected to non-volatile memory, us `pal_plat_osEntropyInject()`.
+* \return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_osRandomBuffer(uint8_t *randomBuf, size_t bufSizeBytes);
+
+/*! \brief Generate a 32-bit random number.
+*
+* @param[out] randomInt A 32-bit buffer to hold the generated number.
+*
+\note `pal_init()` MUST be called before this function.
+\note If non-volatile entropy is expected, the entropy must be in storage when this function is called. Non-volatile entropy may be injected using `pal_plat_osEntropyInject()`.
+\return PAL_SUCCESS on success, a negative value indicating a specific error code in case of failure.
+*/
+palStatus_t pal_osRandom32bit(uint32_t *randomInt);
+#endif
+
+#define FCC_PAL_ONE_SEC                   1
+#define FCC_PAL_SECONDS_PER_MIN           60
+#define FCC_PAL_MINUTES_PER_HOUR          60
+#define FCC_PAL_HOURS_PER_DAY              24
+#define FCC_PAL_SECONDS_PER_HOUR          FCC_PAL_MINUTES_PER_HOUR * FCC_PAL_SECONDS_PER_MIN
+#define FCC_PAL_SECONDS_PER_DAY           FCC_PAL_HOURS_PER_DAY * FCC_PAL_SECONDS_PER_HOUR
+#define FCC_PAL_FEB_MONTH 2
+/*! 
+*  \FCC CRYPTO PAL errors.
+*   This section contains enumeration for FCC CRYPTO PAL errors.
+*/
+
+//Error base
+#define FCC_PAL_ERR_MODULE_CRYPTO_BASE              ((int32_t)0xFF000000) // -1 << 0x18
+#define FCC_PAL_ERR_MODULE_BITMASK_BASE             ((int32_t)0xE0000000)
+#define FCC_PAL_ERR_MODULE_GENERAL_BASE             ((int32_t)0xFFFFFFF0) // -1 << 0x4
+#define FCC_PAL_ERR_MODULE_PAL_BASE                 ((int32_t)0xFFFFFFC0) // -1 << 0x6
+
+//Error enumeration
+typedef enum {
+    FCC_PAL_SUCCESS = 0,
+    //General errors
+    FCC_PAL_ERR_GENERAL_BASE =                                  FCC_PAL_ERR_MODULE_GENERAL_BASE,
+    FCC_PAL_ERR_GENERIC_FAILURE =                               FCC_PAL_ERR_GENERAL_BASE,          /*!< Generic failure*/ // Try to use a more specific error message whenever possible.
+    FCC_PAL_ERR_INVALID_ARGUMENT =                              FCC_PAL_ERR_GENERAL_BASE + 0x01,
+    FCC_PAL_ERR_NO_MEMORY =                                     FCC_PAL_ERR_GENERAL_BASE + 0x02,   /*!< Failure due to a failed attempt to allocate memory. */
+    FCC_PAL_ERR_BUFFER_TOO_SMALL =                              FCC_PAL_ERR_GENERAL_BASE + 0x03,   /*!< The buffer given is too small. */
+    FCC_PAL_ERR_NOT_SUPPORTED =                                 FCC_PAL_ERR_GENERAL_BASE + 0x04,   /*!< The operation is not supported by PAL for the current configuration. */
+    FCC_PAL_ERR_NOT_INITIALIZED =                               FCC_PAL_ERR_GENERAL_BASE + 0x06,   /*!< Component is not initialized */
+    FCC_PAL_ERR_CREATION_FAILED =                               FCC_PAL_ERR_GENERAL_BASE + 0x08,   /*!< Failure in creation of the given type, such as mutex or thread. */
+    FCC_PAL_ERR_TIME_TRANSLATE =                                FCC_PAL_ERR_GENERAL_BASE + 0x0C,   /*!< Failure to translate the time from "struct tm" to epoch time. */
+    FCC_PAL_ERR_NOT_IMPLEMENTED =                               FCC_PAL_ERR_MODULE_PAL_BASE,            /*! Failure due to being currently not implemented. */
+    FCC_PAL_ERR_ITEM_NOT_EXIST =                                FCC_PAL_ERR_NOT_IMPLEMENTED + 0x01,     /*! Failure, item does not exist. Used in Storage RBP */
+    FCC_PAL_ERR_ITEM_EXIST =                                    FCC_PAL_ERR_NOT_IMPLEMENTED + 0x02,     /*! Failure, item exists. Used in Storage RBP */
+    //Crypto errors
+    FCC_PAL_ERR_CRYPTO_ERROR_BASE =                             FCC_PAL_ERR_MODULE_CRYPTO_BASE,
+    FCC_PAL_ERR_AES_INVALID_KEY_LENGTH =                        FCC_PAL_ERR_CRYPTO_ERROR_BASE,
+    FCC_PAL_ERR_CERT_PARSING_FAILED =                           FCC_PAL_ERR_CRYPTO_ERROR_BASE + 1,
+    FCC_PAL_ERR_INVALID_MD_TYPE =                               FCC_PAL_ERR_CRYPTO_ERROR_BASE + 2,
+    FCC_PAL_ERR_MD_BAD_INPUT_DATA =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 3,
+    FCC_PAL_ERR_PK_SIG_VERIFY_FAILED =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 4,
+    FCC_PAL_ERR_ASN1_UNEXPECTED_TAG =                           FCC_PAL_ERR_CRYPTO_ERROR_BASE + 5,
+    FCC_PAL_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED =                FCC_PAL_ERR_CRYPTO_ERROR_BASE + 6,
+    FCC_PAL_ERR_CTR_DRBG_REQUEST_TOO_BIG =                      FCC_PAL_ERR_CRYPTO_ERROR_BASE + 7,
+    FCC_PAL_ERR_ECP_BAD_INPUT_DATA =                            FCC_PAL_ERR_CRYPTO_ERROR_BASE + 8,
+    FCC_PAL_ERR_MPI_ALLOC_FAILED =                              FCC_PAL_ERR_CRYPTO_ERROR_BASE + 9,
+    FCC_PAL_ERR_ECP_FEATURE_UNAVAILABLE =                       FCC_PAL_ERR_CRYPTO_ERROR_BASE + 10,
+    FCC_PAL_ERR_ECP_BUFFER_TOO_SMALL =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 11,
+    FCC_PAL_ERR_MPI_BUFFER_TOO_SMALL =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 12,
+    FCC_PAL_ERR_CMAC_GENERIC_FAILURE =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 13,
+    FCC_PAL_ERR_NOT_SUPPORTED_ASN_TAG =                         FCC_PAL_ERR_CRYPTO_ERROR_BASE + 14,
+    FCC_PAL_ERR_PRIVATE_KEY_BAD_DATA =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 15,
+    FCC_PAL_ERR_PRIVATE_KEY_VARIFICATION_FAILED =               FCC_PAL_ERR_CRYPTO_ERROR_BASE + 16,
+    FCC_PAL_ERR_PUBLIC_KEY_BAD_DATA =                           FCC_PAL_ERR_CRYPTO_ERROR_BASE + 17,
+    FCC_PAL_ERR_PUBLIC_KEY_VARIFICATION_FAILED =                FCC_PAL_ERR_CRYPTO_ERROR_BASE + 18,
+    FCC_PAL_ERR_NOT_SUPPORTED_CURVE =                           FCC_PAL_ERR_CRYPTO_ERROR_BASE + 19,
+    FCC_PAL_ERR_GROUP_LOAD_FAILED =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 20,
+    FCC_PAL_ERR_PARSING_PRIVATE_KEY =                           FCC_PAL_ERR_CRYPTO_ERROR_BASE + 21,
+    FCC_PAL_ERR_PARSING_PUBLIC_KEY =                            FCC_PAL_ERR_CRYPTO_ERROR_BASE + 22,
+    FCC_PAL_ERR_KEYPAIR_GEN_FAIL =                              FCC_PAL_ERR_CRYPTO_ERROR_BASE + 23,
+    FCC_PAL_ERR_X509_UNKNOWN_OID =                              FCC_PAL_ERR_CRYPTO_ERROR_BASE + 24,
+    FCC_PAL_ERR_X509_INVALID_NAME =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 25,
+    FCC_PAL_ERR_FAILED_TO_SET_KEY_USAGE =                       FCC_PAL_ERR_CRYPTO_ERROR_BASE + 26,
+    FCC_PAL_ERR_INVALID_KEY_USAGE =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 27,
+    FCC_PAL_ERR_SET_EXTENSION_FAILED =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 28,
+    FCC_PAL_ERR_CSR_WRITE_DER_FAILED =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 29,
+    FCC_PAL_ERR_FAILED_TO_COPY_KEYPAIR =                        FCC_PAL_ERR_CRYPTO_ERROR_BASE + 30,
+    FCC_PAL_ERR_FAILED_TO_COPY_GROUP =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 31,
+    FCC_PAL_ERR_FAILED_TO_WRITE_SIGNATURE =                     FCC_PAL_ERR_CRYPTO_ERROR_BASE + 32,
+    FCC_PAL_ERR_FAILED_TO_VERIFY_SIGNATURE =                    FCC_PAL_ERR_CRYPTO_ERROR_BASE + 33,
+    FCC_PAL_ERR_FAILED_TO_WRITE_PRIVATE_KEY =                   FCC_PAL_ERR_CRYPTO_ERROR_BASE + 34,
+    FCC_PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY  =                   FCC_PAL_ERR_CRYPTO_ERROR_BASE + 35,
+    FCC_PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY =                  FCC_PAL_ERR_CRYPTO_ERROR_BASE + 36,
+    FCC_PAL_ERR_INVALID_X509_ATTR =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 37,
+    FCC_PAL_ERR_INVALID_CIPHER_ID =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 38,
+    FCC_PAL_ERR_CMAC_START_FAILED =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 39,
+    FCC_PAL_ERR_CMAC_UPDATE_FAILED =                            FCC_PAL_ERR_CRYPTO_ERROR_BASE + 40,
+    FCC_PAL_ERR_CMAC_FINISH_FAILED =                            FCC_PAL_ERR_CRYPTO_ERROR_BASE + 41,
+    FCC_PAL_ERR_INVALID_IOD =                                   FCC_PAL_ERR_CRYPTO_ERROR_BASE + 42,
+    FCC_PAL_ERR_PK_UNKNOWN_PK_ALG =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 43,
+    FCC_PAL_ERR_PK_KEY_INVALID_VERSION =                        FCC_PAL_ERR_CRYPTO_ERROR_BASE + 44,
+    FCC_PAL_ERR_PK_KEY_INVALID_FORMAT =                         FCC_PAL_ERR_CRYPTO_ERROR_BASE + 45,
+    FCC_PAL_ERR_PK_PASSWORD_REQUIRED =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 46,
+    FCC_PAL_ERR_PK_INVALID_PUBKEY_AND_ASN1_LEN_MISMATCH =       FCC_PAL_ERR_CRYPTO_ERROR_BASE + 47,
+    FCC_PAL_ERR_ECP_INVALID_KEY =                               FCC_PAL_ERR_CRYPTO_ERROR_BASE + 48,
+    FCC_PAL_ERR_FAILED_SET_TIME_CB =                            FCC_PAL_ERR_CRYPTO_ERROR_BASE + 49,
+    FCC_PAL_ERR_HMAC_GENERIC_FAILURE =                          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 50,
+    FCC_PAL_ERR_X509_CERT_VERIFY_FAILED =                       FCC_PAL_ERR_CRYPTO_ERROR_BASE + 51,
+    FCC_PAL_ERR_FAILED_TO_SET_EXT_KEY_USAGE =                   FCC_PAL_ERR_CRYPTO_ERROR_BASE + 52,
+    FCC_PAL_ERR_CRYPTO_ALLOC_FAILED =                           FCC_PAL_ERR_CRYPTO_ERROR_BASE + 53,
+    FCC_PAL_ERR_ENTROPY_EXISTS =                                FCC_PAL_ERR_CRYPTO_ERROR_BASE + 54,
+    FCC_PAL_ERR_ENTROPY_TOO_LARGE =                             FCC_PAL_ERR_CRYPTO_ERROR_BASE + 55,
+    FCC_PAL_ERR_CTR_DRBG_NOT_SEEDED =                           FCC_PAL_ERR_CRYPTO_ERROR_BASE + 56,
+    FCC_PAL_ERR_PK_SIGN_FAILED =                                FCC_PAL_ERR_CRYPTO_ERROR_BASE + 57,
+    FCC_PAL_ERR_PARSING_KEY =                                   FCC_PAL_ERR_CRYPTO_ERROR_BASE + 58,
+    FCC_PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED =          FCC_PAL_ERR_CRYPTO_ERROR_BASE + 59,
+    FCC_PAL_ERR_SSL_FATAL_ALERT_MESSAGE =                       FCC_PAL_ERR_CRYPTO_ERROR_BASE + 60,
+    FCC_PAL_ERR_X509_BADCERT_EXPIRED =                          FCC_PAL_ERR_MODULE_BITMASK_BASE + 0x01, //!< Value must not be changed in order to be able to create bit mask
+    FCC_PAL_ERR_X509_BADCERT_FUTURE =                           FCC_PAL_ERR_MODULE_BITMASK_BASE + 0x02, //!< Value must not be changed in order to be able to create bit mask
+    FCC_PAL_ERR_X509_BADCERT_BAD_MD =                           FCC_PAL_ERR_MODULE_BITMASK_BASE + 0x04, //!< Value must not be changed in order to be able to create bit mask
+    FCC_PAL_ERR_X509_BADCERT_BAD_PK =                           FCC_PAL_ERR_MODULE_BITMASK_BASE + 0x08, //!< Value must not be changed in order to be able to create bit mask
+    FCC_PAL_ERR_X509_BADCERT_NOT_TRUSTED =                      FCC_PAL_ERR_MODULE_BITMASK_BASE + 0x10, //!< Value must not be changed in order to be able to create bit mask
+    FCC_PAL_ERR_X509_BADCERT_BAD_KEY =                          FCC_PAL_ERR_MODULE_BITMASK_BASE + 0x20, //!< Value must not be changed in order to be able to create bit mask
+
+} fcc_palError_t; /*! errors returned by the pal service API  */
+
+
+#if (defined(MBED_DEBUG) && !defined(DEBUG))
+#define DEBUG
+#endif
+
+/*!
+*  \FCC CRYPTO PAL trace macros.
+*/
+#define FCC_PAL_LOG_ERR_FUNC  tr_err
+#define FCC_PAL_LOG_WARN_FUNC tr_warn
+#define FCC_PAL_LOG_INFO_FUNC tr_info
+#define FCC_PAL_LOG_DBG_FUNC  tr_debug
+#define FCC_PAL_LOG_LEVEL_ERR  TRACE_LEVEL_ERROR
+#define FCC_PAL_LOG_LEVEL_WARN TRACE_LEVEL_WARN
+#define FCC_PAL_LOG_LEVEL_INFO TRACE_LEVEL_INFO
+#define FCC_PAL_LOG_LEVEL_DBG  TRACE_LEVEL_DEBUG
+
+#define FCC_PAL_LOG_ERR( ARGS...)   FCC_PAL_LOG_ERR_FUNC(ARGS);
+#define FCC_PAL_LOG_WARN( ARGS...)  FCC_PAL_LOG_WARN_FUNC(ARGS);
+#define FCC_PAL_LOG_INFO( ARGS...)  FCC_PAL_LOG_INFO_FUNC(ARGS);
+#define FCC_PAL_LOG_DBG( ARGS...)   FCC_PAL_LOG_DBG_FUNC(ARGS);
+
+#ifdef DEBUG
+#define FCC_PAL_VALIDATE_CONDITION_WITH_ERROR(condition, error) \
+    {\
+        if ((condition)) \
+        { \
+            FCC_PAL_LOG_ERR("(%s,%d): Parameters  values is illegal\r\n",__FUNCTION__,__LINE__); \
+            return error; \
+        } \
+    }
+#define FCC_PAL_VALIDATE_ARGUMENTS(condition) FCC_PAL_VALIDATE_CONDITION_WITH_ERROR(condition,FCC_PAL_ERR_INVALID_ARGUMENT)
+
+#else
+    #define FCC_PAL_VALIDATE_ARGUMENTS(condition)
+    #define FCC_PAL_VALIDATE_CONDITION_WITH_ERROR(condition, error)
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //_PAL_CRYPTO_H_

@@ -162,31 +162,6 @@ arm_uc_error_t pal_nvstore_getClassGuid(arm_uc_guid_t *guid)
 
 }
 
-/**
- * @brief Function for setting the device GUID.
- * @details The GUID is copied.
- * @param guid Pointer to a arm_uc_guid_t GUID.
- * @param copy Boolean value indicating whether the value should be copied or
- *             referenced.
- * @return Error code.
- */
-arm_uc_error_t pal_nvstore_setDeviceGuid(const arm_uc_guid_t *guid)
-{
-    return pal_nvstore_internal_set_guid(guid,
-                                         ENDPOINT_NAME);
-}
-
-/**
- * @brief Function for getting a pointer to the device GUID.
- * @param guid Pointer to a arm_uc_guid_t pointer.
- * @return Error code.
- */
-arm_uc_error_t pal_nvstore_getDeviceGuid(arm_uc_guid_t *guid)
-{
-    return pal_nvstore_internal_get_guid(guid,
-                                         ENDPOINT_NAME);
-}
-
 
 /**
  * @brief Check whether the three GUIDs provided are valid on the device.
@@ -198,34 +173,12 @@ arm_uc_error_t pal_nvstore_getDeviceGuid(arm_uc_guid_t *guid)
  * @return Error code.
  */
 arm_uc_error_t pal_nvstore_deviceIdentityCheck(const arm_uc_buffer_t *vendor_buffer,
-                                               const arm_uc_buffer_t *class_buffer,
-                                               const arm_uc_buffer_t *device_buffer)
+                                               const arm_uc_buffer_t *class_buffer)
 {
     arm_uc_error_t result = { .code = MFST_ERR_NULL_PTR };
 
     uint8_t parameters_set = 0;
     uint8_t parameters_ok = 0;
-
-    /* check device - device is optional */
-    if (device_buffer &&
-            device_buffer->ptr &&
-            (device_buffer->size > 0)) {
-        parameters_set++;
-
-        arm_uc_guid_t guid = { 0 };
-
-        arm_uc_error_t retval = pal_nvstore_getDeviceGuid(&guid);
-
-        if (retval.code == ERR_NONE) {
-            bool is_same = pal_nvstore_internal_compare(&guid, device_buffer);
-
-            if (is_same) {
-                parameters_ok++;
-            } else {
-                result.code = MFST_ERR_GUID_DEVICE;
-            }
-        }
-    }
 
     /* check class - class is optional */
     if (class_buffer &&
@@ -287,8 +240,6 @@ const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_nvstore = {
     .GetVendorGuid          = pal_nvstore_getVendorGuid,
     .SetClassGuid           = pal_nvstore_setClassGuid,
     .GetClassGuid           = pal_nvstore_getClassGuid,
-    .SetDeviceGuid          = pal_nvstore_setDeviceGuid,
-    .GetDeviceGuid          = pal_nvstore_getDeviceGuid,
     .DeviceIdentityCheck    = pal_nvstore_deviceIdentityCheck
 };
 

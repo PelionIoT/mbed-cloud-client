@@ -21,6 +21,7 @@
 #include "pv_error_handling.h"
 #include "storage_internal.h"
 #include "pv_macros.h"
+#include "pal_Crypto.h"
 #ifdef TARGET_LIKE_MBED
 #include "mbed.h"
 #if MBED_MAJOR_VERSION > 5
@@ -41,6 +42,11 @@
 extern "C" {
     extern bool g_kcm_initialized;
 }
+
+#if (MBED_MAJOR_VERSION > 5) && defined(TARGET_MBED_PSA_SRV)
+    // flag to save checking key existence
+    static bool g_is_device_rot_exist = false;
+#endif
 
 #if defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && !defined(MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT)
 /** Loads the device private key from Atmel's secure element into KSA table.
@@ -887,6 +893,11 @@ kcm_status_e storage_factory_reset()
     kcm_status = ksa_item_delete((const uint8_t*)storage_item_name, STORAGE_RBP_ITEM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to remove item");
 
+#if MBED_MAJOR_VERSION > 5
+    // reset flag too
+    g_is_device_rot_exist = false;
+#endif
+
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 
     return kcm_status;
@@ -1082,6 +1093,16 @@ kcm_status_e storage_init(void)
         kcm_status = storage_factory_reset();
     }
 
+#if MBED_MAJOR_VERSION > 5
+    if (g_is_device_rot_exist == false) {
+        // auto generate rot
+        DeviceKey &devkey = DeviceKey::get_instance();
+        int kd_status = devkey.generate_root_of_trust();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kd_status != DEVICEKEY_SUCCESS && kd_status != DEVICEKEY_ALREADY_EXIST), KCM_STATUS_ERROR, "generate_root_of_trust() - failed, status %d\n", kd_status);
+        g_is_device_rot_exist = true;
+    }
+#endif
+
     kcm_status = ksa_init();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed initializing KSA (kcm_status %d)", kcm_status);
 
@@ -1161,13 +1182,6 @@ kcm_status_e storage_reset(void)
     */
     psa_status = mbed_psa_reboot_and_request_new_security_state(PSA_LIFECYCLE_ASSEMBLY_AND_TEST);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), KCM_STATUS_ERROR, "Failed for mbed_psa_reboot_and_request_new_security_state() (status %" PRIu32 ")", psa_status);
-
-#if MBED_MAJOR_VERSION > 5
-    // generate new rot after storage error
-    DeviceKey &devkey = DeviceKey::get_instance();
-    int kd_status = devkey.generate_root_of_trust();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kd_status != DEVICEKEY_SUCCESS), KCM_STATUS_ERROR, "generate_root_of_trust() - failed, status %d\n", kd_status);
-#endif
 
 #endif
 

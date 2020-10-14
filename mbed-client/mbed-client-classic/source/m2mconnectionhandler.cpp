@@ -41,10 +41,11 @@ bool M2MConnectionHandler::bind_connection(const uint16_t listen_port)
 bool M2MConnectionHandler::resolve_server_address(const String& server_address,
                                                       const uint16_t server_port,
                                                       M2MConnectionObserver::ServerType server_type,
-                                                      const M2MSecurity* security)
+                                                      const M2MSecurity* security,
+                                                      bool is_server_ping)
 {
     return _private_impl->resolve_server_address(server_address, server_port,
-                                                 server_type, security);
+                                                 server_type, security, is_server_ping);
 }
 
 bool M2MConnectionHandler::start_listening_for_data()
@@ -94,9 +95,17 @@ void M2MConnectionHandler::unregister_network_handler()
     _private_impl->unregister_network_handler();
 }
 
-#if 0
 void M2MConnectionHandler::store_cid()
 {
     _private_impl->store_cid();
 }
-#endif
+
+void M2MConnectionHandler::remove_cid()
+{
+    _private_impl->remove_cid();
+}
+
+bool M2MConnectionHandler::is_cid_available()
+{
+    return _private_impl->is_cid_available();
+}

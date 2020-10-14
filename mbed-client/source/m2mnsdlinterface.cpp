@@ -83,7 +83,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.6.0";
+const char *MCC_VERSION = "mccv=4.6.1-multicast";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -200,7 +200,6 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _waiting_for_bs_finish_ack(false),
   _download_retry_timer(*this),
   _download_retry_time(0),
-  _network_stagger_estimate(0),
   _network_rtt_estimate(10)                              // Use reasonable initialization value for the RTT estimate. Must be larger than 0.
 {
     tr_debug("M2MNsdlInterface::M2MNsdlInterface()");
@@ -1336,7 +1335,7 @@ bool M2MNsdlInterface::observation_to_be_sent(M2MBase *object,
 }
 
 #ifndef DISABLE_DELAYED_RESPONSE
-void M2MNsdlInterface::send_delayed_response(M2MBase *base)
+void M2MNsdlInterface::send_delayed_response(M2MBase *base, sn_coap_msg_code_e code)
 {
     claim_mutex();
     tr_debug("M2MNsdlInterface::send_delayed_response()");
@@ -1355,7 +1354,7 @@ void M2MNsdlInterface::send_delayed_response(M2MBase *base)
                 memset(&coap_response,0,sizeof(sn_coap_hdr_s));
 
                 coap_response.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
-                coap_response.msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
+                coap_response.msg_code = code;
                 resource->get_delayed_token(coap_response.token_ptr,coap_response.token_len);
 
                 uint32_t length = 0;
@@ -3833,15 +3832,35 @@ bool M2MNsdlInterface::handle_delayed_response_store(const char* uri_path,
 }
 #endif
 
-void M2MNsdlInterface::update_network_stagger_estimate(uint16_t data_amount)
+
+uint16_t M2MNsdlInterface::estimate_stagger_data_amount(bool bootstrap, bool using_cid) const
 {
-    _network_stagger_estimate = pal_getStaggerEstimate(data_amount);
-    tr_info("M2MNsdlInterface::update_network_stagger_estimate() to %d", _network_stagger_estimate);
+    // The full TLS/DTLS handshake amounts to roughly 5 KiB data.
+    // Boostrap takes roughly 4 KiB.
+    // Registration goes to roughly 5 KiB.
+    // On top of this we need to calculate 300 byte overhead per packet in transit.
+    // ~30 for bootstrap, ~25 for registration. 10 for DTLS.
+    const static uint16_t bootstrap_amount = 4 + 9;
+    const static uint16_t registration_amount = 5 + 8;
+    const static uint16_t handshake = 8;
+
+    if (using_cid) {
+        // Bootstrap and registration handshake done, thus doing registration
+        return registration_amount;
+    }
+
+    if (bootstrap) {
+        // Doing bootstrap stagger
+        return bootstrap_amount + handshake;
+    } else {
+        // Doing register stagger
+        return registration_amount + handshake;
+    }
 }
 
-uint16_t M2MNsdlInterface::get_network_stagger_estimate()
+uint16_t M2MNsdlInterface::get_network_stagger_estimate(bool boostrap) const
 {
-    return _network_stagger_estimate;
+    return pal_getStaggerEstimate(estimate_stagger_data_amount(boostrap, _connection_handler.is_cid_available()));
 }
 
 void M2MNsdlInterface::update_network_rtt_estimate()

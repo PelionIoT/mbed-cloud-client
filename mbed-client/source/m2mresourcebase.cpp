@@ -235,7 +235,11 @@ bool M2MResourceBase::set_value_float(float value)
 
     // Convert value to string
     /* write the float value to a decimal number string and copy it into a buffer allocated for caller */
+#if MBED_MINIMAL_PRINTF
+    uint32_t size = snprintf(buffer, REGISTRY_FLOAT_STRING_MAX_LEN, "%f", value);
+#else
     uint32_t size = snprintf(buffer, REGISTRY_FLOAT_STRING_MAX_LEN, "%e", value);
+#endif
 
     success = set_value((const uint8_t*)buffer, size);
 

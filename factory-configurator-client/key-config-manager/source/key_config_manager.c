@@ -40,7 +40,6 @@ kcm_status_e kcm_init(void)
         pal_status = pal_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed initializing PAL (%" PRIu32 ")", pal_status);
 
-
         //Initialize back-end storage
         status = storage_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), status, "Failed initializing storage\n");
@@ -51,8 +50,6 @@ kcm_status_e kcm_init(void)
          */
         pal_status = pal_initTime();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed PAL time module (%" PRIu32 ")", pal_status);
-
-
         
         // Mark as "initialized"
         g_kcm_initialized = true;

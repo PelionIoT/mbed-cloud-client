@@ -21,10 +21,8 @@
 #ifndef _PAL_SST_H
 #define _PAL_SST_H
 
-#include "pal.h"
-
 #include <stdint.h>
-
+#include "key_config_manager.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -87,7 +85,7 @@ typedef struct palSSTItemInfo {
 *        PAL_ERR_SST_WRITE_PROTECTED when trying to set write-once value.
 *        Other negative value indicating a specific error code in the event of failure.
 */
-palStatus_t pal_SSTSet(const char *itemName, const void *itemBuffer, size_t itemBufferSize, uint32_t SSTFlagsBitmap);
+kcm_status_e pal_SSTSet(const char *itemName, const void *itemBuffer, size_t itemBufferSize, uint32_t SSTFlagsBitmap);
 
 /*! Reads an item's data from storage.
 *
@@ -106,7 +104,7 @@ palStatus_t pal_SSTSet(const char *itemName, const void *itemBuffer, size_t item
 *        PAL_ERR_SST_ITEM_NOT_FOUND if the item does not exist.
 *        Other negative value indicating a specific error code in the event of failure.
 */
-palStatus_t pal_SSTGet(const char *itemName, void *itemBuffer, size_t itemBufferSize, size_t *actualItemSize);
+kcm_status_e pal_SSTGet(const char *itemName, void *itemBuffer, size_t itemBufferSize, size_t *actualItemSize);
 
 /*! Gets item information.
 *
@@ -120,7 +118,7 @@ palStatus_t pal_SSTGet(const char *itemName, void *itemBuffer, size_t itemBuffer
 *        PAL_ERR_SST_ITEM_NOT_FOUND if the item does not exist.
 *        Other negative value indicating a specific error code in the event of failure.
 */
-palStatus_t pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo);
+kcm_status_e pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo);
 
 /*! Removes an item from storage, unless the write-once flag is turned on for the item.
 *
@@ -133,7 +131,7 @@ palStatus_t pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo);
 *        PAL_ERR_SST_WRITE_PROTECTED when trying to remove a write-once value.
 *        Other negative value indicating a specific error code in the event of failure.
 */
-palStatus_t pal_SSTRemove(const char *itemName);
+kcm_status_e pal_SSTRemove(const char *itemName);
 
 /*! Opens item iterator.
 *
@@ -142,7 +140,7 @@ palStatus_t pal_SSTRemove(const char *itemName);
 *
 * \return PAL_SUCCESS on success. A negative value indicating a specific error code in the event of failure.
 */
-palStatus_t pal_SSTIteratorOpen(palSSTIterator_t *palSSTIterator, const char *itemPrefix);
+kcm_status_e pal_SSTIteratorOpen(palSSTIterator_t *palSSTIterator, const char *itemPrefix);
 
 /*! Iterates to next item.
 *
@@ -155,7 +153,7 @@ palStatus_t pal_SSTIteratorOpen(palSSTIterator_t *palSSTIterator, const char *it
 *        PAL_ERR_SST_ITEM_NOT_FOUND if the item does not exist.
 *        Other negative value indicating a specific error code in the event of failure.
 */
-palStatus_t pal_SSTIteratorNext(palSSTIterator_t palSSTIterator, char *itemNameBuffer, size_t itemNameBufferSize);
+kcm_status_e pal_SSTIteratorNext(palSSTIterator_t palSSTIterator, char *itemNameBuffer, size_t itemNameBufferSize);
 
 /*! Closes item iterator.
 *
@@ -164,13 +162,13 @@ palStatus_t pal_SSTIteratorNext(palSSTIterator_t palSSTIterator, char *itemNameB
 * 
 * \return PAL_SUCCESS on success. A negative value indicating a specific error code in the event of failure.
 */
-palStatus_t pal_SSTIteratorClose(palSSTIterator_t palSSTIterator);
+kcm_status_e pal_SSTIteratorClose(palSSTIterator_t palSSTIterator);
 
 /*! Remove all items and related data.
  *
  * \return PAL_SUCCESS on success. A negative value indicating a specific error code in the event of failure.
  */
-palStatus_t pal_SSTReset(void);
+kcm_status_e pal_SSTReset(void);
 
 #ifdef __cplusplus
 }

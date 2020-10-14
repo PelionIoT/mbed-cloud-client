@@ -92,6 +92,11 @@
     #define PAL_USE_SECURE_TIME 1
 #endif
 
+// SSL session resume requires Mbed TLS 2.18.0 or later
+#ifndef PAL_USE_SSL_SESSION_RESUME
+#define PAL_USE_SSL_SESSION_RESUME 1
+#endif
+
 //issue a warning if PAL_USE_INTERNAL_FLASH!=0 and or define PAL_USE_INTERNAL_FLASH=0
 #if (PAL_USE_INTERNAL_FLASH == 1) //PAL_USE_INTERNAL_FLASH != 0
     #warning "Internal flash APIs should be disabled with KVStore"
