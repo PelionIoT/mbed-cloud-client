@@ -178,6 +178,11 @@
     #define PAL_USE_SECURE_TIME 1
 #endif
 
+// SSL session resume requires Mbed TLS 2.18.0 or later
+#ifndef PAL_USE_SSL_SESSION_RESUME
+#define PAL_USE_SSL_SESSION_RESUME 1
+#endif
+
 #ifndef PAL_DEFAULT_RTT_ESTIMATE
     #define PAL_DEFAULT_RTT_ESTIMATE 3
 #endif

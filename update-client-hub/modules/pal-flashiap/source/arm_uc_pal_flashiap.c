@@ -51,6 +51,10 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_FLASHIAP = {
     .GetActiveFirmwareDetails   = ARM_UC_PAL_FlashIAP_GetActiveDetails,
     .GetFirmwareDetails         = NULL,
     .GetInstallerDetails        = ARM_UC_PAL_FlashIAP_GetInstallerDetails
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+    ,
+    .GetFirmwareStartAddress    = ARM_UC_PAL_FlashIAP_GetFirmwareStartAddress
+#endif
 };
 
 #endif /* ARM_UC_FEATURE_PAL_FLASHIAP */

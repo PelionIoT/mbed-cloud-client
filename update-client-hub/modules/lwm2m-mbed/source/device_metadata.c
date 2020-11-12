@@ -102,18 +102,6 @@ bool device_metadata_create(registry_t *registry)
         return false;
     }
 
-    /* Create Update resource /10255/0/5 */
-    registry_set_path(&path, 10255, 0, 5, 0, REGISTRY_PATH_RESOURCE);
-
-    if (ERR_NONE != pal_getDeviceGuid(&guid).error ||
-        REGISTRY_STATUS_OK != registry_set_value_opaque_copy(registry, &path, guid, sizeof(guid)) ||
-        REGISTRY_STATUS_OK != registry_set_auto_observable_parameter(registry, &path, true) ||
-        REGISTRY_STATUS_OK != registry_set_resource_value_to_reg_msg(registry, &path, true)) {
-
-        //TODO: It seems like pal_getDeviceGuid may return error, do we need it?
-
-    }
-
     initialized = true;
 
     return true;

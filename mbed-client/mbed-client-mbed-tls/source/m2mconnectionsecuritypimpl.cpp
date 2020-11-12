@@ -70,7 +70,7 @@ void M2MConnectionSecurityPimpl::reset()
     _init_done = M2MConnectionSecurityPimpl::INIT_NOT_STARTED;
 }
 
-int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t security_instance_id)
+int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping)
 {
     tr_debug("M2MConnectionSecurityPimpl::init");
 
@@ -227,7 +227,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
         return M2MConnectionHandler::SSL_CONNECTION_ERROR;
     }
 
-    if (PAL_SUCCESS != pal_initTLS(_conf, &_ssl)) {
+    if (PAL_SUCCESS != pal_initTLS(_conf, &_ssl, is_server_ping)) {
         tr_error("M2MConnectionSecurityPimpl::init - pal_initTLS failed");
         return M2MConnectionHandler::SSL_CONNECTION_ERROR;
     }
@@ -249,9 +249,17 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     return M2MConnectionHandler::ERROR_NONE;
 }
 
-int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/)
+int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, bool is_server_ping)
 {
-    palStatus_t ret = pal_handShake(_ssl, _conf);
+    palStatus_t ret = PAL_SUCCESS;
+    if(is_server_ping) {
+        tr_debug("M2MConnectionSecurityPimpl::connect is SERVER PING");
+        ret = pal_handShake_ping(_ssl);
+    } else {
+        tr_debug("M2MConnectionSecurityPimpl::connect is normal HANDSHAKE");
+        ret = pal_handShake(_ssl, _conf);
+    }
+
     tr_debug("M2MConnectionSecurityPimpl::connect return code  %" PRIx32, ret);
 
     if (ret == PAL_SUCCESS) {
@@ -364,4 +372,19 @@ int M2MConnectionSecurityPimpl::set_dtls_socket_callback(void(*foo)(void*), void
 void M2MConnectionSecurityPimpl::update_network_rtt_estimate(uint8_t rtt_estimate)
 {
     _network_rtt_estimate = rtt_estimate;
+}
+
+void M2MConnectionSecurityPimpl::store_cid()
+{
+    pal_store_cid();
+}
+
+void M2MConnectionSecurityPimpl::remove_cid()
+{
+    pal_remove_cid();
+}
+
+bool M2MConnectionSecurityPimpl::is_cid_available()
+{
+    return pal_is_cid_available();
 }

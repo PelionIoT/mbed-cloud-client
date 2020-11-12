@@ -48,7 +48,5 @@ void arm_uc_plat_reboot(void)
     // Reboot the device
     reboot(RB_AUTOBOOT);
     while (1); /* wait until reset */
-#else
-#warning "No Reboot implemented for this platform, continuing operation!"
 #endif
 }

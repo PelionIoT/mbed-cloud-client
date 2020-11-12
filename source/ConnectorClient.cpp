@@ -41,12 +41,11 @@
 #include "key_config_manager.h"
 #include "mbed-client/uriqueryparser.h"
 #include "randLIB.h"
+#include "m2mtimer.h"
 
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
-
-#include "ns_hal_init.h"
 
 #define TRACE_GROUP "mClt"
 
@@ -273,7 +272,7 @@ ConnectorClient::ConnectorClient(ConnectorClientCallback* callback)
   _event_generated(false), _state_engine_running(false),
   _setup_complete(false),
   _interface(NULL), _security(NULL),
-  _endpoint_info(M2MSecurity::Certificate), _client_objs(NULL),
+  _endpoint_info(M2MSecurity::Certificate), _client_objs(NULL), _stagger_timer(NULL), _do_full_registration(false),
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
   _rebootstrap_timer(NULL), _bootstrap_security_instance(1), _rebootstrap_time(0), _rebootstrap_time_initialized(false),
 #endif
@@ -293,6 +292,7 @@ ConnectorClient::~ConnectorClient()
     M2MDevice::delete_instance();
     M2MSecurity::delete_instance();
     delete _interface;
+    delete _stagger_timer;
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     delete _rebootstrap_timer;
 #endif
@@ -302,10 +302,10 @@ bool ConnectorClient::setup()
 {
     // the setup() may be called again after connection has been closed so let's avoid leaks
     if (_setup_complete == false) {
+        if (!_stagger_timer) {
+            _stagger_timer = new M2MTimer(*this);
+        }
 
-        // The ns_hal_init() needs to be called by someone before create_interface(),
-        // as it will also initialize the tasklet.
-        ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         if (!_rebootstrap_timer) {
             _rebootstrap_timer = new M2MTimer(*this);
@@ -471,11 +471,12 @@ bool ConnectorClient::create_bootstrap_object()
 
 void ConnectorClient::state_bootstrap_start()
 {
-    tr_info("ConnectorClient::state_bootstrap_start()");
+
     assert(_interface != NULL);
     assert(_security != NULL);
-
-    _interface->bootstrap(_security);
+    uint16_t delay = _interface->stagger_wait_time(true);
+    tr_info("ConnectorClient::state_bootstrap_start() - bootstrap after %d seconds", delay);
+    _stagger_timer->start_timer(delay * 1000, M2MTimerObserver::StaggerWaitTimer);
 
     internal_event(State_Bootstrap_Started);
 }
@@ -504,7 +505,7 @@ void ConnectorClient::state_bootstrap_failure()
 void ConnectorClient::start_registration(M2MBaseList* client_objs)
 {
     tr_debug("ConnectorClient::start_registration()");
-
+    _do_full_registration = false;
     assert(_callback != NULL);
     assert(_setup_complete);
 
@@ -531,6 +532,21 @@ void ConnectorClient::start_registration(M2MBaseList* client_objs)
 M2MInterface * ConnectorClient::m2m_interface()
 {
     return _interface;
+}
+
+void ConnectorClient::start_full_registration()
+{
+    tr_debug("ConnectorClient::start_full_registration()");
+    _do_full_registration = true;
+    assert(_callback != NULL);
+    assert(_setup_complete);
+
+    uint16_t delay = _interface->stagger_wait_time(false);
+    tr_info("ConnectorClient::start_full_registration() - register after %d seconds", delay);
+    _stagger_timer->start_timer(delay * 1000, M2MTimerObserver::StaggerWaitTimer);
+
+    internal_event(State_Registration_Started);
+    state_engine();
 }
 
 void ConnectorClient::update_registration()
@@ -755,8 +771,6 @@ bool ConnectorClient::create_register_object()
     return success;
 }
 
-
-
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 void ConnectorClient::state_est_start()
 {
@@ -935,7 +949,11 @@ void ConnectorClient::state_registration_start()
     tr_info("ConnectorClient::state_registration_start()");
     assert(_interface != NULL);
     assert(_security != NULL);
-    _interface->register_object(_security, *_client_objs);
+
+    uint16_t delay = _interface->stagger_wait_time(false);
+    tr_info("ConnectorClient::state_registration_start() - register after %d seconds", delay);
+    _stagger_timer->start_timer(delay * 1000, M2MTimerObserver::StaggerWaitTimer);
+
     internal_event(State_Registration_Started);
 }
 
@@ -1186,10 +1204,12 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
     if(status == CCS_STATUS_SUCCESS) {
         ccs_delete_item(KEY_ACCOUNT_ID, CCS_CONFIG_ITEM);
         // AccountID optional so don't fail if unable to store
-        ccs_set_item(KEY_ACCOUNT_ID,
-                     (const uint8_t*)_endpoint_info.account_id.c_str(),
-                     (size_t)_endpoint_info.account_id.size(),
-                     CCS_CONFIG_ITEM);
+        if (_endpoint_info.account_id.size() != 0 && _endpoint_info.account_id.c_str() != NULL){
+            ccs_set_item(KEY_ACCOUNT_ID,
+                         (const uint8_t*)_endpoint_info.account_id.c_str(),
+                         (size_t)_endpoint_info.account_id.size(),
+                         CCS_CONFIG_ITEM);
+        }
     }
 
     if (status == CCS_STATUS_SUCCESS) {
@@ -1312,14 +1332,29 @@ bool ConnectorClient::is_first_to_claim()
     return false;
 }
 
-#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+
 void ConnectorClient::timer_expired(M2MTimerObserver::Type type)
 {
-    if (type == M2MTimerObserver::BootstrapFlowTimer) {
+    if (type == M2MTimerObserver::StaggerWaitTimer) {
+        bool credentials_ready = connector_credentials_available();
+        bool bootstrap = use_bootstrap();
+        if (credentials_ready || !bootstrap) {
+            if (_do_full_registration) {
+                _interface->register_object(_security, *_client_objs, true);
+            } else{
+                _interface->register_object(_security, *_client_objs);
+            }
+        } else {
+            _interface->bootstrap(_security);
+        }
+    }
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+    else if (type == M2MTimerObserver::BootstrapFlowTimer) {
         start_bootstrap();
     }
-}
 #endif
+}
+
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 void ConnectorClient::est_enrollment_result(est_enrollment_result_e result,
@@ -1455,6 +1490,20 @@ void *ConnectorClient::certificate_chain_handle() const
 void ConnectorClient::set_certificate_chain_handle(void *cert_handle)
 {
     _certificate_chain_handle = cert_handle;
+}
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+void ConnectorClient::external_update(uint32_t start_address, uint32_t firmware_size)
+{
+    _callback->external_update(start_address, firmware_size);
+}
+#endif
+
+void ConnectorClient::resume()
+{
+    uint16_t delay = _interface->stagger_wait_time(true);
+    tr_info("ConnectorClient::resume() - resume after %d seconds", delay);
+    _stagger_timer->start_timer(delay * 1000, M2MTimerObserver::StaggerWaitTimer);
 }
 
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE

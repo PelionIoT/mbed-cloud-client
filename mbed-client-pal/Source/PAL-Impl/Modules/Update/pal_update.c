@@ -54,7 +54,7 @@ PAL_PRIVATE palStatus_t pal_set_fw_header(palImageId_t index, FirmwareHeader_t *
 PAL_PRIVATE uint32_t internal_crc32(const uint8_t* buffer, uint32_t length);
 
 #ifdef __NANOSIMULATOR__
-PAL_PRIVATE void get_image_folder(char* path);
+void get_image_folder(char* path);
 #endif //__NANOSIMULATOR__
 
 char* pal_imageGetFolder(void)
@@ -642,7 +642,7 @@ PAL_PRIVATE const char *path_join_and_alloc(const char * const * path_list)
 }
 
 #ifdef __NANOSIMULATOR__
-PAL_PRIVATE void get_image_folder(char* path)
+void get_image_folder(char* path)
 {
     char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
     (void)pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);

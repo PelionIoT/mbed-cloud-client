@@ -20,11 +20,16 @@
 * \brief File defining all system build time configuration used by mbed-client.
 */
 
-#include "mbed-client/m2mstring.h"
-
 #include <stddef.h>
 
+#ifdef __cplusplus
+
+#include "mbed-client/m2mstring.h"
+
 using namespace m2m;
+
+#endif
+
 
 /**
  * \def MBED_CLIENT_RECONNECTION_COUNT

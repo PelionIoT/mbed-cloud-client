@@ -90,12 +90,25 @@ fcc_status_e fcc_developer_flow(void)
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!fcc_is_initialized()), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
 
+    // verify if an arbitrary item from the array is already existing on the storage (check with "mbed.UseBootstrap")  
+    
+    size_t UseBootstrap_size = 0;                    // mandatory_items_iter points on mbed.UseBootstrap  
+    kcm_status = kcm_item_get_data_size((const uint8_t*)mandatory_items_iter->item_name,
+                                        strlen(mandatory_items_iter->item_name), 
+                                        mandatory_items_iter->item_kcm_type,
+                                        &UseBootstrap_size);
+    if(kcm_status == KCM_STATUS_SUCCESS){
+        // item already exists - this means that storage already contains developer mode prov items.
+        // we don't need to override the items, we just exit from the function with "an item exists" status.
+        SA_PV_LOG_INFO("Developer mode prov items already exist on the storage.");
+        return FCC_STATUS_KCM_FILE_EXIST_ERROR;
+    }
+
+    // developer mode prov items do not exist on the storage. Flash them.
     for (; mandatory_items_iter->item_name!= NULL; mandatory_items_iter++) {
 
         kcm_status = kcm_item_store((const uint8_t*)(mandatory_items_iter->item_name), strlen(mandatory_items_iter->item_name), mandatory_items_iter->item_kcm_type, is_factory_item,
                                     (const uint8_t*)(mandatory_items_iter->item_data), mandatory_items_iter->item_data_size, NULL);
-
-        //FIXME : add relevant error translation.
         SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_convert_kcm_to_fcc_status(kcm_status), "Store status: %d, Failed to store %s", kcm_status, mandatory_items_iter->item_name);
     }
 

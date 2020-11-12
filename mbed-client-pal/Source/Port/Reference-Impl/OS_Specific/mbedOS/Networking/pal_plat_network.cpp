@@ -1348,7 +1348,8 @@ uint8_t pal_plat_getRttEstimate()
 uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
 {
     uint16_t stagger_rand = PAL_DEFAULT_STAGGER_ESTIMATE;
-#if ((MBED_MAJOR_VERSION <=5) && (MBED_MINOR_VERSION < 15 || ((MBED_MINOR_VERSION == 15) && (MBED_PATCH_VERSION < 4))))
+// If PAL_DEFAULT_STAGGER_ESTIMATE is defined as larger than 0, use that instead of the stack-returned values.
+#if (((MBED_MAJOR_VERSION <=5) && (MBED_MINOR_VERSION < 15 || ((MBED_MINOR_VERSION == 15) && (MBED_PATCH_VERSION < 4)))) || PAL_DEFAULT_STAGGER_ESTIMATE > 0)
     (void) data_amount;
     //Unsupported before Mbed OS 5.15.4
 #else

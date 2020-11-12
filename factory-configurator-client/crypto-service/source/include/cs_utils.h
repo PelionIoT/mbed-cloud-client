@@ -19,7 +19,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
-#include "pal.h"
+#include "pal_Crypto.h"
 #include "kcm_status.h"
 #include "kcm_defs.h"
 

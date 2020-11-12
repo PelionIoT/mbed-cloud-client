@@ -32,12 +32,12 @@ void M2MConnectionSecurity::reset(){
     _private_impl->reset();
 }
 
-int M2MConnectionSecurity::init(const M2MSecurity *security, uint16_t security_instance_id){
-    return _private_impl->init(security, security_instance_id);
+int M2MConnectionSecurity::init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping){
+    return _private_impl->init(security, security_instance_id, is_server_ping);
 }
 
-int M2MConnectionSecurity::connect(M2MConnectionHandler* connHandler){
-    return _private_impl->connect(connHandler);
+int M2MConnectionSecurity::connect(M2MConnectionHandler* connHandler, bool is_server_ping){
+    return _private_impl->connect(connHandler, is_server_ping);
 }
 
 int M2MConnectionSecurity::send_message(unsigned char *message, int len){
@@ -71,4 +71,19 @@ int M2MConnectionSecurity::set_dtls_socket_callback(void(*foo)(void*), void *arg
 void M2MConnectionSecurity::update_network_rtt_estimate(uint8_t rtt_estimate)
 {
     _private_impl->update_network_rtt_estimate(rtt_estimate);
+}
+
+void M2MConnectionSecurity::store_cid()
+{
+    _private_impl->store_cid();
+}
+
+void M2MConnectionSecurity::remove_cid()
+{
+    _private_impl->remove_cid();
+}
+
+bool M2MConnectionSecurity::is_cid_available()
+{
+    return _private_impl->is_cid_available();
 }

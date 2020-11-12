@@ -177,6 +177,17 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetActiveDetails(arm_uc_firmware_details_t *
  */
 arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetInstallerDetails(arm_uc_installer_details_t *details);
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+/**
+ * @brief ARM_UC_PAL_DeltaPaal_GetFirmwareStartAddress Get firmware candidate start address.
+ * @details Forwards GetFirmwareStartAddress-call to  paal_storage_implementation
+ *
+ * @param location Storage location ID.
+ * @param start_address Address where firmware starts.
+ * @return Returns ERR_NONE if null details or paal_storage_implementation or return value from paal_storage_implementation->GetInstallerDetails(details);
+ */
+arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address);
+#endif //defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 #ifdef __cplusplus
 }

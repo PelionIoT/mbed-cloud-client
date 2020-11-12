@@ -173,49 +173,75 @@ static arm_uc_error_t arm_uc_pal_flashiap_get_slot_addr_size(uint32_t slot_id,
                                                              uint32_t *slot_size)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-    /* find the start address of the whole storage area. It needs to be aligned to
-       sector boundary and we cannot go outside user defined storage area, hence
-       rounding up to sector boundary */
-    uint32_t storage_start_addr = arm_uc_pal_flashiap_align_to_sector(
-                                      MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS, 0);
-    /* find the end address of the whole storage area. It needs to be aligned to
-       sector boundary and we cannot go outside user defined storage area, hence
-       rounding down to sector boundary */
-    uint32_t storage_end_addr = arm_uc_pal_flashiap_align_to_sector(
-                                    MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS + \
-                                    MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE, 1);
-    /* find the maximum size each slot can have given the start and end, without
-       considering the alignment of individual slots */
-    uint32_t max_slot_size = (storage_end_addr - storage_start_addr) / \
-                             MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS;
-    /* find the start address of slot. It needs to align to sector boundary. We
-       choose here to round down at each slot boundary */
-    uint32_t slot_start_addr = arm_uc_pal_flashiap_align_to_sector(
-                                   storage_start_addr + \
-                                   slot_id * max_slot_size, 1);
-    /* find the end address of the slot, rounding down to sector boundary same as
-       the slot start address so that we make sure two slot don't overlap */
-    uint32_t slot_end_addr = arm_uc_pal_flashiap_align_to_sector(
-                                 slot_start_addr + \
-                                 max_slot_size, 1);
 
-    /* Any calculation above might result in an invalid address. */
-    if ((storage_start_addr == ARM_UC_FLASH_INVALID_SIZE) ||
-            (storage_end_addr == ARM_UC_FLASH_INVALID_SIZE) ||
-            (slot_start_addr == ARM_UC_FLASH_INVALID_SIZE) ||
-            (slot_end_addr == ARM_UC_FLASH_INVALID_SIZE) ||
-            (slot_id >= MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS)) {
-        UC_PAAL_ERR_MSG("Aligning fw storage slot to erase sector failed"
-                        " storage_start_addr %" PRIX32 " slot_start_addr %" PRIX32
-                        " max_slot_size %" PRIX32, storage_start_addr, slot_start_addr,
-                        max_slot_size);
-        *slot_addr = ARM_UC_FLASH_INVALID_SIZE;
-        *slot_size = ARM_UC_FLASH_INVALID_SIZE;
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    if (slot_id == ARM_UC_DELTA_SLOT_ID) {
+        uint32_t storage_start_addr = arm_uc_pal_flashiap_align_to_sector(
+                                          MBED_CONF_UPDATE_CLIENT_DELTA_STORAGE_ADDRESS, 0);
+
+        uint32_t storage_end_addr = arm_uc_pal_flashiap_align_to_sector(
+                                        MBED_CONF_UPDATE_CLIENT_DELTA_STORAGE_ADDRESS + \
+                                        MBED_CONF_UPDATE_CLIENT_DELTA_STORAGE_SIZE, 1);
+
+        /* Any calculation above might result in an invalid address. */
+        if ((storage_start_addr == ARM_UC_FLASH_INVALID_SIZE) || (storage_end_addr == ARM_UC_FLASH_INVALID_SIZE)) {
+            UC_PAAL_ERR_MSG("Aligning fw storage slot to erase sector failed"
+                            " storage_start_addr %" PRIX32, storage_start_addr);
+            *slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+            *slot_size = ARM_UC_FLASH_INVALID_SIZE;
+        } else {
+            *slot_addr = storage_start_addr;
+            *slot_size = storage_end_addr - storage_start_addr;
+            result.code = ERR_NONE;
+        }
     } else {
-        *slot_addr = slot_start_addr;
-        *slot_size = slot_end_addr - slot_start_addr;
-        result.code = ERR_NONE;
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
+        /* find the start address of the whole storage area. It needs to be aligned to
+           sector boundary and we cannot go outside user defined storage area, hence
+           rounding up to sector boundary */
+        uint32_t storage_start_addr = arm_uc_pal_flashiap_align_to_sector(
+                                          MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS, 0);
+        /* find the end address of the whole storage area. It needs to be aligned to
+           sector boundary and we cannot go outside user defined storage area, hence
+           rounding down to sector boundary */
+        uint32_t storage_end_addr = arm_uc_pal_flashiap_align_to_sector(
+                                        MBED_CONF_UPDATE_CLIENT_STORAGE_ADDRESS + \
+                                        MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE, 1);
+        /* find the maximum size each slot can have given the start and end, without
+           considering the alignment of individual slots */
+        uint32_t max_slot_size = (storage_end_addr - storage_start_addr) / \
+                                 MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS;
+        /* find the start address of slot. It needs to align to sector boundary. We
+           choose here to round down at each slot boundary */
+        uint32_t slot_start_addr = arm_uc_pal_flashiap_align_to_sector(
+                                       storage_start_addr + \
+                                       slot_id * max_slot_size, 1);
+        /* find the end address of the slot, rounding down to sector boundary same as
+           the slot start address so that we make sure two slot don't overlap */
+        uint32_t slot_end_addr = arm_uc_pal_flashiap_align_to_sector(
+                                     slot_start_addr + \
+                                     max_slot_size, 1);
+
+        /* Any calculation above might result in an invalid address. */
+        if ((storage_start_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+                (storage_end_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+                (slot_start_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+                (slot_end_addr == ARM_UC_FLASH_INVALID_SIZE) ||
+                (slot_id >= MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS)) {
+            UC_PAAL_ERR_MSG("Aligning fw storage slot to erase sector failed"
+                            " storage_start_addr %" PRIX32 " slot_start_addr %" PRIX32
+                            " max_slot_size %" PRIX32, storage_start_addr, slot_start_addr,
+                            max_slot_size);
+            *slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+            *slot_size = ARM_UC_FLASH_INVALID_SIZE;
+        } else {
+            *slot_addr = slot_start_addr;
+            *slot_size = slot_end_addr - slot_start_addr;
+            result.code = ERR_NONE;
+        }
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
     }
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
 
     return result;
 }
@@ -279,7 +305,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Prepare(uint32_t slot_id,
 
     /* validate input */
     if (details && buffer && buffer->ptr && \
-            slot_id < MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS) {
+            (slot_id < MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS || slot_id == ARM_UC_DELTA_SLOT_ID)) {
         UC_PAAL_TRACE("FW size %" PRIu64, details->size);
         result.error = ERR_NONE;
     } else {
@@ -535,7 +561,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
                                                  hdr_size);
         if (status != ARM_UC_FLASHIAP_SUCCESS) {
             UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed failed");
-            result.code = FIRM_ERR_ACTIVATE;
+            result.code = (int16_t)FIRM_ERR_ACTIVATE;
         }
     } else {
         /* set return code */
@@ -684,5 +710,23 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_GetInstallerDetails(arm_uc_installer_details_
 
     return result;
 }
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+arm_uc_error_t ARM_UC_PAL_FlashIAP_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address)
+{
+    uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
+    uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
+    arm_uc_error_t result = arm_uc_pal_flashiap_get_slot_addr_size(location,
+                                                                   &slot_addr,
+                                                                   &slot_size);
+
+    if (result.error == ERR_NONE) {
+        uint32_t hdr_size = arm_uc_pal_flashiap_round_up_to_page_size(ARM_UC_PAL_HEADER_SIZE);
+        *start_address = slot_addr + hdr_size;
+        result.code = ERR_NONE;
+    }
+    return result;
+}
+#endif
 
 #endif /* ARM_UC_FEATURE_PAL_FLASHIAP */

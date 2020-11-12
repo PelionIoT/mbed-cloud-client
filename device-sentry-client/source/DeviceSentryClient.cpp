@@ -35,6 +35,8 @@
 #include "ds_internal.h"
 #include "ds_plat_defs.h"
 #include "key_config_manager.h"
+#include "ds_custom_metrics_internal.h"
+#include "ds_custom_metrics.h"
 
 #ifdef DS_TEST_API
 #include "ds_test_metrics_report.h"
@@ -59,11 +61,17 @@ char active_conf_filename[] = "active.metrics.conf";
 
 typedef struct {
     bool is_initialized;
+    char policy_id[POLICY_ID_LEN];
+    bool is_policy_id_initialized;
     M2MObject* resource_object;
     M2MResource* metrics_resource;
     M2MResource* config_resource;
-    uint32_t report_intervals[DS_MAX_METRIC_NUMBER]; // metric is active when it's report interval != 0
+    uint32_t device_metrics_report_intervals[DS_MAX_METRIC_NUMBER]; // metric is active when it's report interval != 0
                                                      // metric is inactive, when it's interval = 0
+
+    ds_custom_metric_t custom_metrics[DS_MAX_NUMBER_OF_CUSTOM_METRICS];           // custom metric array
+    ds_custom_metric_value_getter_t custom_metric_value_getter_cb;    // custom metric getter 
+    void* user_context;                              // user context
 
     uint32_t min_report_interval_sec;   // minimal report interval for active configuration in seconds.
                                         // will be equal to the minimal report interval between metrics, 
@@ -71,16 +79,22 @@ typedef struct {
 
     int8_t event_handler_id;            // ID of the handler we register to the MbedCloudClient event loop
 
-    arm_event_storage_t *timer_event_handle; // handle to the timer event (when active)
+    arm_event_storage_t* timer_event_handle; // handle to the timer event (when active)
 
 } device_sentry_context_s;
 
+
 static device_sentry_context_s ds_ctx = {
     .is_initialized = false,
+    .policy_id = {0},
+    .is_policy_id_initialized = false,
     .resource_object = NULL,
     .metrics_resource = NULL, 
     .config_resource = NULL, 
-    .report_intervals = {0}, 
+    .device_metrics_report_intervals = {}, 
+    .custom_metrics = {}, 
+    .custom_metric_value_getter_cb = NULL,
+    .user_context = NULL,
     .min_report_interval_sec = 0,
     .event_handler_id = MBED_OS_INVALID_HANDLER_ID, 
     .timer_event_handle = NULL
@@ -115,32 +129,28 @@ static void metrics_config_callback(void *arg);
 /**
 * \brief Parse received configurational message and initialize metrics collection intervals.
 *
-* \param start_config start collection configuration message in cbor format.
+* \param metric_configuration_data metric configuration data in cbor format.
 */
-static ds_status_e start_metrics_collection_config_message_handle(CborValue *start_config);
+static ds_status_e start_metrics_collection_config_message_handle(CborValue *metric_configuration_data);
 
 /**
-* \brief Parse received message and initialize metrics and report interval
-*
-* \param stop_config stop collection configuration message in cbor format.
+* \brief Stop sending all metrics
 */
-static ds_status_e stop_metrics_collection_config_message_handle(CborValue *stop_config);
+static ds_status_e stop_metrics_collection_config_message_handle();
 
 /**
-* \brief Encode metric (by metric id) to the NOT labeled metrics in cbor buffer.
+* \brief Encode all NOT labeled metrics that should be reported into cbor buffer.
 *
-* \param metric_id id of the metric.
-* \param encoder pointer to relevant encoder to which the metric should be encoded.
+* \param main_array pointer to relevant main_array to which the metric should be encoded.
 */
-static ds_status_e metrics_report_not_labeled_encode(uint32_t metric_id, CborEncoder *encoder);
+static ds_status_e metrics_report_not_labeled_encode(CborEncoder *main_array);
 
 /**
-* \brief Encode metric (by metric id) to the labeled metrics in cbor buffer.
+* \brief Encode all labeled metrics that should be reported into cbor buffer.
 *
-* \param metric_id id of the metric.
-* \param encoder pointer to relevant encoder to which the metric should be encoded.
+* \param main_array pointer to relevant main_array to which the metric should be encoded.
 */
-static ds_status_e metrics_report_labeled_encode(uint32_t metric_id, CborEncoder *encoder);
+static ds_status_e metrics_report_labeled_encode(CborEncoder *main_array);
 
 /**
  * @brief Releases LWM2M objects
@@ -156,22 +166,12 @@ static void release_objects();
 static uint32_t min_report_interval_calculate();
 
 
-/* Active configuration data file save and load API:
-
-The purpose of the active configuration file is to store the configuration over the resets. Config file format:
-
-[metric_id_0, report_interval_0, metric_id_1, report_interval_1, ...]
-
-For example, for the following active configuration:
--	metric id 11 has report interval 120 sec
--	metric id 12 has report interval 60 sec
-
-The file content will be:
-| 4bytes | 4bytes | 4bytes | 4bytes |
-|    11  |   120  |    12  |   60   | */
-
 /**
  * @brief Loads active metrics configuration from config file. 
+ * 
+ * The purpose of the active configuration file is to store the configuration over the resets. 
+ * Config file contains start configuration message. 
+ * 
  * If active metrics configuration was loaded successfuly from file, 
  * function schedules metric collection timer event.
  * 
@@ -180,29 +180,61 @@ The file content will be:
 static ds_status_e load_active_config_from_file();
 
 /**
- * @brief Saves active metrics configuration to the persistant storage.
- * 
+ * @brief Saves start collection configuration message in cbor format to the persistant storage.
+ * \param config_message start collection configuration message in cbor format (that should be saved to config file).
+ * \param message_size start collection configuration message size in bytes.
  * @return DS_STATUS_SUCCESS in case of success, or ds_status_e error otherwise. 
  */
-static ds_status_e save_active_config_to_file();
+static ds_status_e save_active_config_to_file(const uint8_t *config_message, uint16_t message_size);
 
 /**
  * @brief Retunrs true if metric identrified by index is active. 
  * 
- * @param index index in device sentry report_intervals internal array. 
- * @return true if metric's report interval identrified by index > 0
- * @return false if metric's report interval identrified by index = 0
+ * @param index index in device sentry device_metrics_report_intervals array. 
+ * @return true if metric's report interval identified by index > 0
+ * @return false if metric's report interval identified by index = 0
  */
 static inline bool is_metric_active_by_index(uint32_t index)
 {
     SA_PV_ERR_RECOVERABLE_RETURN_IF(index >= DS_METRIC_GROUP_MAX, 
             false, "Invalid metric index = %" PRIu32, index);
     // if report interval > 0, then the metric is active, else the metric is inactive.
-    return (ds_ctx.report_intervals[index] > 0);
+    return (ds_ctx.device_metrics_report_intervals[index] > 0);
 }
 
 /**
- * @brief Retunrs true if metric identrified by group_id is active. 
+ * @brief Returns true if custom metric identrified by index is active. 
+ * 
+ * @param index index in device sentry custom metrics array. 
+ * @return true if metric's report interval identified by index > 0
+ * @return false if metric's report interval identified by index = 0
+ */
+static inline bool is_custom_metric_active_by_index(uint32_t index)
+{
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(index >= DS_MAX_NUMBER_OF_CUSTOM_METRICS, 
+            false, "Invalid custom metric index = %" PRIu32, index);
+    // if report interval > 0, then the metric is active, else the metric is inactive.
+    return (ds_ctx.custom_metrics[index].report_interval > 0);
+}
+
+
+/**
+ * @brief Returns custom metric_id by index. 
+ * 
+ * @param index index in device sentry custom metrics array. 
+ * @return custom metic_id
+ */
+static inline ds_custom_metric_id_t custom_metric_id_get_by_index(uint32_t index)
+{
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(index >= DS_MAX_NUMBER_OF_CUSTOM_METRICS, 
+            false, "Invalid custom metric index = %" PRIu32, index);
+
+    return ds_ctx.custom_metrics[index].metric_id;
+}
+
+
+/**
+ * @brief Returns true if metric identrified by group_id is active. 
  * 
  * @param group_id device sentry group id. 
  * @return true if metric's report interval identrified by group_id > 0
@@ -216,50 +248,29 @@ static inline bool is_metric_active_by_group_id(ds_metric_group_id_e group_id)
 }
 
 /**
- * @brief Sets value of report interval of the metric identified by index.
- * 
- * @param index index in device sentry report_intervals internal array. 
- * @param report_interval_sec report interval in sec that should be set, should be greater than 0.
- * @return true if index is valid
- * @return false if index is invalid or report_interval_sec is 0
- */
-static inline bool active_metric_report_interval_set_by_index(uint32_t index, uint32_t report_interval_sec)
-{
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(index >= DS_METRIC_GROUP_MAX, 
-            false, "Invalid metric index = %" PRIu32, index);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(report_interval_sec == 0, 
-            false, "Invalid report_interval = 0 for metric index = %" PRIu32, index);
-    ds_ctx.report_intervals[index] = report_interval_sec;
-    return true;
-}
-
-/**
  * @brief Gets value of report interval of the metric identified by index.
  * 
- * @param index index in device sentry report_intervals internal array. 
- * @return uint32_t  report interval of the metric if index is valid, and 0 if the index was not valid. 
+ * @param index index in device sentry device_metrics_report_intervals array. 
+ * @return uint32_t report interval of the metric if index is valid, and 0 if the index was not valid. 
  */
 static inline uint32_t report_interval_get_by_index(uint32_t index)
 {
     SA_PV_ERR_RECOVERABLE_RETURN_IF(index >= DS_METRIC_GROUP_MAX, 
             0, "Invalid metric index = %" PRIu32, index);
-    return ds_ctx.report_intervals[index];
+    return ds_ctx.device_metrics_report_intervals[index];
 }
 
 /**
- * @brief Sets metric identified by index be not active.
+ * @brief Gets value of custom report interval of the metric identified by index.
  * 
- * @param index index in device sentry report_intervals internal array. 
- * @return true if index is valid
- * @return false if index is invalid
+ * @param index index in device sentry custom metrics array. 
+ * @return uint32_t report interval of the metric if index is valid, and 0 if the index was not valid. 
  */
-static inline bool metric_set_to_not_active_by_index(uint32_t index)
+static inline uint32_t custom_metric_report_interval_get_by_index(uint32_t index)
 {
-    // verify value of metric_group_id
-    SA_PV_ERR_RECOVERABLE_RETURN_IF(index >= DS_METRIC_GROUP_MAX, 
-            false, "Invalid metric index = %" PRIu32, index);
-    ds_ctx.report_intervals[index] = 0;
-    return true;
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(index >= DS_MAX_NUMBER_OF_CUSTOM_METRICS, 
+            0, "Invalid custom metric index = %" PRIu32, index);
+    return ds_ctx.custom_metrics[index].report_interval;
 }
 
 /**
@@ -273,23 +284,38 @@ static inline bool is_labled_metric(ds_metric_group_id_e metric_id){
     return (metric_id == DS_METRIC_GROUP_NETWORK);
 }
 
-const size_t ACTIVE_CONFIG_FILE_FIELD_SIZE = sizeof(uint32_t);
-const size_t METRIC_ID_FIELD_SIZE = ACTIVE_CONFIG_FILE_FIELD_SIZE;
-const size_t METRIC_REPORT_INTERVAL_FIELD_SIZE = ACTIVE_CONFIG_FILE_FIELD_SIZE;
+/**
+ * @brief Resets policy id (only)
+ * 
+ */
+static void ds_metrics_policy_id_reset()
+{
+    SA_PV_LOG_TRACE("Reset policy id");
+    memset(&ds_ctx.policy_id, 0, sizeof(ds_ctx.policy_id));
+    ds_ctx.is_policy_id_initialized = 0;
+}
 
-//  TODO: remove this code after debug finished
-//void print_buff(const char * name, uint8_t* buff, int count){
-//    printf("%s\n", name);
-//    for(int i = 0; i<count; i++)
-//        printf("%02X ", buff[i]);
-//}
+
 static uint32_t min_report_interval_calculate()
 {
     uint32_t min_report_interval = 0xFFFFFFFF;
     // calculate min_report_interval, which is the minimal report interval in active metrics.
+
+    // pass over standart metrics
     for (uint32_t metric_index = 0; metric_index < DS_MAX_METRIC_NUMBER; metric_index++) {
         if (is_metric_active_by_index(metric_index)) {
             uint32_t report_interval = report_interval_get_by_index(metric_index);
+            if(report_interval < min_report_interval){
+                // we found active metric with report interval that is smaller than current min_report_interval
+                min_report_interval = report_interval;
+            } 
+        }
+    }
+
+    // pass over custom metrics
+    for (uint32_t metric_index = 0; metric_index < DS_MAX_NUMBER_OF_CUSTOM_METRICS; metric_index++) {
+        if (is_custom_metric_active_by_index(metric_index)) {
+            uint32_t report_interval = custom_metric_report_interval_get_by_index(metric_index);
             if(report_interval < min_report_interval){
                 // we found active metric with report interval that is smaller than current min_report_interval
                 min_report_interval = report_interval;
@@ -305,9 +331,6 @@ static ds_status_e load_active_config_from_file()
     ds_status_e status = DS_STATUS_SUCCESS;
     uint8_t *config_filedata = NULL;
     size_t config_filesize = 0;
-    // array will store configuration stored in the config file until we 
-    // know that the whole file loaded successfully.
-    uint32_t tmp_report_intervals[DS_MAX_METRIC_NUMBER] = {0};
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
@@ -320,7 +343,7 @@ static ds_status_e load_active_config_from_file()
             &config_filesize);
 
     if (KCM_STATUS_ITEM_NOT_FOUND == kcm_status){
-        // if config file not found, just continue, it's not an error 
+        // if config file not found, it's not an error 
         SA_PV_LOG_INFO("no saved active metrics file found, continue");
         return DS_STATUS_SUCCESS;
     }
@@ -329,67 +352,24 @@ static ds_status_e load_active_config_from_file()
         "reading %s is failed with kcm error %d", active_conf_filename, kcm_status);
 
     // active metrics config file found
-    //leave for debug
-    //print_buff(active_conf_filename, config_filedata, config_filesize);
 
-    uint32_t *config_filedata_fields_ptr = (uint32_t*)config_filedata;
-    size_t config_file_fields_number = config_filesize / ACTIVE_CONFIG_FILE_FIELD_SIZE;
-
-    // verify file size
-    SA_PV_ERR_RECOVERABLE_GOTO_IF(((0 == config_filesize) || // can't be 0, if the file found
-        (config_filesize < METRIC_ID_FIELD_SIZE + METRIC_REPORT_INTERVAL_FIELD_SIZE) || // verify min valid size
-        (config_filesize > DS_MAX_METRIC_NUMBER * (METRIC_ID_FIELD_SIZE + METRIC_REPORT_INTERVAL_FIELD_SIZE)) || // verify max valid size
-        (config_filesize % ACTIVE_CONFIG_FILE_FIELD_SIZE != 0)), // verify that integer number of fileds is stored
-        status = DS_STATUS_ERROR, 
-        release_resources,
-        "active config file format is invalid, filesize = %" PRIu32, (uint32_t)config_filesize);
+    // verify file size is not 0
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((0 == config_filesize), status = DS_STATUS_ERROR, 
+        release_resources, "active config file format is invalid, filesize = %" PRIu32, (uint32_t)config_filesize);
 
     // load active metrics configuration from file
     SA_PV_LOG_INFO("loading config file, size %" PRIu32, (uint32_t)config_filesize);
 
+    status = ds_metrics_config_message_handle(config_filedata, (uint16_t)config_filesize);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), 
+        status = DS_STATUS_INVALID_CONFIG, 
+        release_resources, 
+        "configuration message loaded from config file parsing failed, error = %d", status);
 
-    for(uint32_t index = 0; index < config_file_fields_number; index+=2){
-
-        // desrialize metric id from file data
-        uint32_t active_metric_id = config_filedata_fields_ptr[index];
-
-        // check value of active_metric_id
-        SA_PV_ERR_RECOVERABLE_GOTO_IF(
-            (DS_METRIC_GROUP_MAX <= active_metric_id) || (active_metric_id <= DS_METRIC_GROUP_BASE), 
-            status = DS_STATUS_ERROR, release_resources, 
-            "read invalid active metric id value: %" PRIu32, active_metric_id);
-
-        uint32_t active_metric_index = 
-            ds_array_index_by_metric_group_id_get((ds_metric_group_id_e)active_metric_id);
-
-        // desrialize report_interval_sec from file: it's next to metric id
-        uint32_t report_interval_sec = config_filedata_fields_ptr[index + 1];
-
-        // report interval can't be 0 for active metrics
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((report_interval_sec == 0), 
-            status = DS_STATUS_ERROR, release_resources, 
-            "read invalid report interval = 0 for active metric id: %" PRIu32, active_metric_id);
-
-        tmp_report_intervals[active_metric_index] = report_interval_sec;
-        
-        SA_PV_LOG_INFO("metric id %" PRIu32 " with report interval %" PRIu32 " loaded", (uint32_t)active_metric_id, report_interval_sec);
-    }
-
-    // copy from temporary to real report interval array
-    for(uint32_t index = 0; index < DS_MAX_METRIC_NUMBER; index++){
-        if(tmp_report_intervals[index] > 0) {
-            active_metric_report_interval_set_by_index(index, tmp_report_intervals[index]);
-        }
-    }
-
-    // initialize min_report_interval
-    ds_ctx.min_report_interval_sec = min_report_interval_calculate();
-    
     // Enqueue the event
     status = schedule_event(EVENT_TYPE_COLLECT_AND_SEND_METRICS);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), 
         status = DS_STATUS_ERROR, release_resources, "Failed to schedule event");
-
 
 release_resources:
 
@@ -405,61 +385,23 @@ release_resources:
 }
 
 
-static ds_status_e save_active_config_to_file()
+static ds_status_e save_active_config_to_file(const uint8_t *config_message, uint16_t message_size)
 {
-    // allocate buffer for all metrics
-    uint8_t config_filedata[DS_MAX_METRIC_NUMBER * (METRIC_ID_FIELD_SIZE + METRIC_REPORT_INTERVAL_FIELD_SIZE)] = {0};
-    size_t file_data_index = 0;
-
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
-    // try delete configuration file
+    // try delete possibly existing configuration file
     kcm_status_e kcm_status = kcm_item_delete((uint8_t*)active_conf_filename, strlen(active_conf_filename), KCM_CONFIG_ITEM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((KCM_STATUS_SUCCESS != kcm_status) && (KCM_STATUS_ITEM_NOT_FOUND != kcm_status), DS_STATUS_ERROR, 
             "deleting %s is failed with kcm error %d", active_conf_filename, kcm_status);
 
-    // save to file metric id's and report interval for each metric
-    for(uint32_t metric_index = 0; metric_index < DS_MAX_METRIC_NUMBER; metric_index++){
-        if(is_metric_active_by_index(metric_index)){
-            // serialize metric id
-            uint32_t metric_id = ds_metric_group_id_by_array_index_get(metric_index); 
-            memcpy(&config_filedata[file_data_index], 
-                &metric_id, 
-                METRIC_ID_FIELD_SIZE);
+    SA_PV_LOG_INFO("storing start message to file %s (size %" PRIu16 ") bytes", active_conf_filename, message_size); 
 
-            // move writing head METRIC_ID_FIELD_SIZE forward
-            file_data_index += METRIC_ID_FIELD_SIZE;
-
-            // serialize interval to the array
-            uint32_t report_interval = report_interval_get_by_index(metric_index);
-            memcpy(&config_filedata[file_data_index], 
-                &report_interval, 
-                METRIC_REPORT_INTERVAL_FIELD_SIZE);
-
-            // move writing head METRIC_REPORT_INTERVAL_FIELD_SIZE forward
-            file_data_index += METRIC_REPORT_INTERVAL_FIELD_SIZE;
-
-            SA_PV_LOG_INFO("metric id %" PRIu32 " with report interval %" PRIu32 " saved to file", 
-                metric_id, report_interval);
-        }
-    }
-
-    if(file_data_index > 0){
-        //leave for debug
-        // print_buff(active_conf_filename, config_filedata, file_data_index);
-
-        SA_PV_LOG_INFO("storing active configuration to file %s(size %" PRIu32 ") bytes", active_conf_filename, (uint32_t)file_data_index); 
-
-        // we have active metrics => write buffer with materic data to the file
-        kcm_status = kcm_item_store((uint8_t*)active_conf_filename, strlen(active_conf_filename),
-                                    KCM_CONFIG_ITEM, false,
-                                    config_filedata, file_data_index,
-                                    NULL);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((KCM_STATUS_SUCCESS != kcm_status), DS_STATUS_ERROR, 
-                "storing %s size %" PRIu32 " bytes failed with kcm error %d", active_conf_filename, (uint32_t)file_data_index, kcm_status);
-    }else{
-        SA_PV_LOG_TRACE("no active configuration to save to file"); 
-    }
+    kcm_status = kcm_item_store((uint8_t*)active_conf_filename, strlen(active_conf_filename),
+                                KCM_CONFIG_ITEM, false,
+                                config_message, message_size,
+                                NULL);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((KCM_STATUS_SUCCESS != kcm_status), DS_STATUS_ERROR, 
+            "storing %s (size %" PRIu16 ") bytes failed with kcm error %d", active_conf_filename, message_size, kcm_status);
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 
@@ -501,6 +443,9 @@ ds_status_e DeviceSentryClient::init(M2MBaseList& registration_list)
 
         // Allow GET operation only
         ds_ctx.metrics_resource->set_operation(M2MBase::GET_ALLOWED);
+
+        // Set auto-observalble mode for the resource
+        ds_ctx.metrics_resource->set_auto_observable(true);
 
         // Put the handler creation in a critical code block for the case that this function is called after the start of the event loop
         eventOS_scheduler_mutex_wait();
@@ -561,6 +506,7 @@ static void release_objects()
     }
 
     // ds_ctx.event_handler_id does not require release
+	
 }
 
 
@@ -571,10 +517,12 @@ void DeviceSentryClient::finalize()
         // was not initialized, so exit
         return;
     }
-    
-    ds_ctx.is_initialized = false;
 
+    ds_metrics_active_metric_config_reset();
+    
     release_objects();
+
+    ds_ctx.is_initialized = false;
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
 }
@@ -656,7 +604,7 @@ static void event_handler(arm_event_s* event)
         send_response, "Unsupported event = %d", event->event_type);
 
     //Create metrics report message
-    status = metrics_report_create(metrics_report, &metrics_report_size);
+    status = ds_metrics_report_create(metrics_report, &metrics_report_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status = status, send_response, "Failed to create report, error=%d", status);
 
 send_response:
@@ -748,11 +696,11 @@ ds_status_e ds_metrics_config_message_handle(const uint8_t *message, uint16_t me
     cbor_err = cbor_value_get_int(&msg_array, &value);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to read config message version");
 
-    cbor_err = cbor_get_next_container_element(&msg_array);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to move to next element");
-
     //check version number
     SA_PV_ERR_RECOVERABLE_RETURN_IF((value != DS_METRIC_CURRENT_VERSION), DS_STATUS_INVALID_CONFIG, "Invalid config message version (=%d)", value);
+
+    cbor_err = cbor_get_next_container_element(&msg_array);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to move to next element");
 
     //Check message type
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_value_get_type(&msg_array) != CborIntegerType), DS_STATUS_INVALID_CONFIG, "Wrong config message type data type");
@@ -766,30 +714,28 @@ ds_status_e ds_metrics_config_message_handle(const uint8_t *message, uint16_t me
     switch (value) {
         case DS_METRIC_START_COLLECT:
             status = start_metrics_collection_config_message_handle(&msg_array);
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status = status, send_response, 
+                "Handling start config message failed (error = %d)", status);
+
+            // save configuration message to the config file
+            status = save_active_config_to_file(message, message_size); 
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status = status, send_response, 
+                "Saving config file failed (error = %d)", status);
+
             break;
         case DS_METRIC_STOP_COLLECT:
-            status = stop_metrics_collection_config_message_handle(&msg_array);
+            status = stop_metrics_collection_config_message_handle();
+            SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status = status, send_response, 
+                "Stopping metrics failed (error = %d)", status);
             break;
         default:
             SA_PV_LOG_ERR("Wrong config message type (=%d)", value);
             status = DS_STATUS_INVALID_CONFIG;
     }
 
-    // after parsing config message
-    if (status == DS_STATUS_SUCCESS){
-
-        //  recalculate minimal report interval
-        ds_ctx.min_report_interval_sec = min_report_interval_calculate();
-        SA_PV_LOG_TRACE("min_report_interval_sec = %" PRIu32, ds_ctx.min_report_interval_sec);
-
-        // save active configuration to config file
-        if((status = save_active_config_to_file()) != DS_STATUS_SUCCESS){
-            SA_PV_LOG_ERR("saving active configuration to config file failed");
-        }
-    }
-
+send_response:
     if(status != DS_STATUS_SUCCESS){
-        SA_PV_LOG_INFO_FUNC_EXIT("failed with error %d", status);
+        SA_PV_LOG_INFO_FUNC_EXIT("Failed with error %d", status);
     }
     else {
         SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -797,6 +743,39 @@ ds_status_e ds_metrics_config_message_handle(const uint8_t *message, uint16_t me
     return status;
 }
 
+
+static ds_status_e set_policy_id(CborValue* config_map) 
+{
+    bool res = cbor_value_is_text_string(config_map);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((!res), DS_STATUS_INVALID_CONFIG, "Unexpected CBOR type, expected string");
+
+    const char* policy_id = NULL;
+    size_t policy_id_len = 0;
+    CborError cbor_err = cbor_value_get_text_string_chunk(config_map, &policy_id, &policy_id_len, NULL);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to read policy id");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((policy_id == NULL), DS_STATUS_ERROR, "CBOR parsing error: policy_id is null");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((policy_id_len != POLICY_ID_LEN), DS_STATUS_INVALID_CONFIG, "Policy id size differs from expected");
+
+    memcpy(ds_ctx.policy_id, policy_id, POLICY_ID_LEN);
+    ds_ctx.is_policy_id_initialized = true;
+
+    SA_PV_LOG_BYTE_BUFF_INFO("updated policy id", (uint8_t*)ds_ctx.policy_id, POLICY_ID_LEN);
+
+    return DS_STATUS_SUCCESS;
+}
+
+static ds_status_e encode_policy_id(CborEncoder* main_map)
+{
+    if(ds_ctx.is_policy_id_initialized) {
+        CborError cbor_err = cbor_encode_uint(main_map, DS_METRIC_POLICY_ID);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode policy id label");
+
+        cbor_err = cbor_encode_text_string(main_map, ds_ctx.policy_id, POLICY_ID_LEN);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode policy_id");
+    }
+
+    return DS_STATUS_SUCCESS;
+}
 
 /*
 # Example of the start metrics collection configuration message:
@@ -809,33 +788,41 @@ ds_status_e ds_metrics_config_message_handle(const uint8_t *message, uint16_t me
         METRIC_GROUP_THREADS : [60],
         METRIC_GROUP_NETWORK : [30],
         METRIC_GROUP_MEMORY : [40],
-    }
+
+        // custom metrics
+        1018 : [80],
+        8456 : [45],
+    },
+    POLICY_ID
 ]
 
 */
 
-static ds_status_e start_metrics_collection_config_message_handle(CborValue *start_config)
+static ds_status_e start_metrics_collection_config_message_handle(CborValue *metric_configuration_data)
 {
     size_t metrics_configs_num = 0;
     CborValue single_config;
     CborValue config_array;
+    ds_status_e ds_status = DS_STATUS_ERROR;
 
-    // array will store configuration sent in the message until we 
-    // know that the whole message parsed successfully.
-    uint32_t tmp_report_intervals[DS_MAX_METRIC_NUMBER] = {0};
-    
+    // array will store metric ids that were parsed out in the current config message. 
+    // When we affirmed that the whole message was parsed successfully, we copy the values to the active metrics.
+    uint32_t tmp_device_metrics_report_intervals[DS_MAX_METRIC_NUMBER] = {}; // temp device metric array
+    ds_custom_metric_t tmp_custom_metrics[DS_MAX_NUMBER_OF_CUSTOM_METRICS] = {}; // temp custom metric array
+
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((start_config == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: start_config is NULL");
-    // start collection config message points on configuration map
-    CborValue *config_map = start_config;
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((metric_configuration_data == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: metric_configuration_data is NULL");
 
     //Continue config message parsing. First item should be map.
-    bool is_map = cbor_value_is_map(config_map);
+    bool is_map = cbor_value_is_map(metric_configuration_data);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!is_map), DS_STATUS_INVALID_CONFIG, "Start config message should contain map");
 
     //Start iterations on the configuration in the map
-    CborError cbor_err = cbor_value_enter_container(config_map, &single_config);
+    CborError cbor_err = cbor_value_enter_container(metric_configuration_data, &single_config);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to parse config map container");
+
+    // Index in the custom metrics array
+    size_t custom_metrics_index = 0;
 
     //Go over parameter groups
     while (!cbor_value_at_end(&single_config)) {
@@ -862,18 +849,42 @@ static ds_status_e start_metrics_collection_config_message_handle(CborValue *sta
         cbor_err = cbor_value_get_int(&config_array, &report_interval_sec);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to read metric interval");
 
-        //If the metric in known metric's range
-        uint32_t metric_index = ds_array_index_by_metric_group_id_get((ds_metric_group_id_e)metric_group_id);
-        if (metric_index < DS_MAX_METRIC_NUMBER) {
+        // Check to which range the metric_group_id belongs:
+        // device "health" standard metrics: DS_METRIC_GROUP_BASE < metric_group_id < DS_METRIC_GROUP_MAX
+        // custom metrics: DS_CUSTOM_METRIC_MIN_ID < metric_group_id < DS_CUSTOM_METRIC_MAX_ID
+        if (DS_METRIC_GROUP_BASE < metric_group_id && metric_group_id < DS_METRIC_GROUP_MAX) {
+    
+            uint32_t metric_index = ds_array_index_by_metric_group_id_get((ds_metric_group_id_e)metric_group_id);
 
             // report interval can't be 0 for active metric
             SA_PV_ERR_RECOVERABLE_RETURN_IF((report_interval_sec == 0), 
                 DS_STATUS_INVALID_CONFIG, 
                 "received invalid report interval = 0 for metric id: %d", metric_group_id);
 
-            tmp_report_intervals[metric_index] = report_interval_sec;
+            // store parsed out metric's interval 
+            tmp_device_metrics_report_intervals[metric_index] = report_interval_sec;
 
             SA_PV_LOG_INFO("metric id=%d, interval=%d sec", metric_group_id, report_interval_sec);
+        } 
+        else if (DS_CUSTOM_METRIC_MIN_ID < metric_group_id && metric_group_id < DS_CUSTOM_METRIC_MAX_ID) {
+
+            // report interval can't be 0 for active metric
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((custom_metrics_index >= DS_MAX_NUMBER_OF_CUSTOM_METRICS), 
+                DS_STATUS_INVALID_CONFIG, 
+                "received too many custom metrics, only %d allowed", DS_MAX_NUMBER_OF_CUSTOM_METRICS);
+
+            // report interval can't be 0 for active metric
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((report_interval_sec == 0), 
+                DS_STATUS_INVALID_CONFIG, 
+                "received invalid report interval = 0 for metric id: %d", metric_group_id);
+
+            // store parsed out metric's interval 
+            tmp_custom_metrics[custom_metrics_index].report_interval = report_interval_sec;
+            tmp_custom_metrics[custom_metrics_index].metric_id = metric_group_id;
+
+            custom_metrics_index++;
+
+            SA_PV_LOG_INFO("custom metric id=%d, interval=%d sec", metric_group_id, report_interval_sec);
         } else {
             //We will not return error, may be current device does not support all metrics
             SA_PV_LOG_INFO("Unsupported metric id: %d", metric_group_id); 
@@ -888,12 +899,29 @@ static ds_status_e start_metrics_collection_config_message_handle(CborValue *sta
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((metrics_configs_num == 0), DS_STATUS_INVALID_CONFIG, "Failed on empty configuration map");
 
-    // copy from temporary to real report interval array
-    for(uint32_t index = 0; index < DS_MAX_METRIC_NUMBER; index++){
-        if(tmp_report_intervals[index] > 0) {
-            active_metric_report_interval_set_by_index(index, tmp_report_intervals[index]);
-        }
+    // move container iterator to next element and pass the remaining part to further parsing
+    cbor_err = cbor_get_next_container_element(metric_configuration_data);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((cbor_err != CborErrorAdvancePastEOF) && (cbor_err != CborNoError)), DS_STATUS_INVALID_CONFIG, "Failed to move to next element");	
+
+    // read policy id if exists - FIXME this is for backward compatibility with Device Insights service that doesn't send policy id.
+    // can be removed once Device Insights service is replaced by Device Sentry service.
+
+    // if we have one more element, so it supposed to be policy id 
+    if(cbor_err != CborErrorAdvancePastEOF) {
+        ds_status = set_policy_id(metric_configuration_data);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((ds_status != DS_STATUS_SUCCESS), ds_status, "Failed to set policy id");
+    } else {
+        // reset policy id in case it was already set by the previous start config message
+        ds_metrics_policy_id_reset();
     }
+
+    // copy temporary arrays to the context 
+    memcpy(ds_ctx.device_metrics_report_intervals, tmp_device_metrics_report_intervals, sizeof(tmp_device_metrics_report_intervals));
+    memcpy(ds_ctx.custom_metrics, tmp_custom_metrics, sizeof(tmp_custom_metrics));
+
+    //  set minimal report interval
+    ds_ctx.min_report_interval_sec = min_report_interval_calculate();
+    SA_PV_LOG_TRACE("min_report_interval_sec = %" PRIu32, ds_ctx.min_report_interval_sec);
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return DS_STATUS_SUCCESS;
@@ -904,71 +932,17 @@ static ds_status_e start_metrics_collection_config_message_handle(CborValue *sta
 
 [
     METRICS_VERSION_1,
-    DS_METRIC_STOP_COLLECT,
-    [METRIC_GROUP_CPU, METRIC_GROUP_THREADS, METRIC_GROUP_NETWORK, METRIC_GROUP_MEMORY]
+    DS_METRIC_STOP_COLLECT
 ]
 
 */
 
 
-static ds_status_e stop_metrics_collection_config_message_handle(CborValue *stop_config)
+static ds_status_e stop_metrics_collection_config_message_handle()
 {
-    CborValue single_config;
-
-    // array will store stopped metrics until we know that the whole message parsed successfully.
-    bool metrics_to_stop[DS_MAX_METRIC_NUMBER] = {0};
-
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((stop_config == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: stop_config is NULL");
-
-    //Continue config message parsing. First item should be array.
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_value_get_type(stop_config) != CborArrayType), DS_STATUS_INVALID_CONFIG, "Stop config message should contain array");
-
-    //Start to iterate over configuration array
-    CborError cbor_err = cbor_value_enter_container(stop_config, &single_config);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to parse config array container");
-
-    size_t stop_list_length = 0;
-    while (!cbor_value_at_end (&single_config)) {
-
-        int metric_group_id = 0;
-        // retrieve next metric that should be stopped
-        cbor_err = cbor_value_get_int(&single_config, &metric_group_id);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to read metric value");
-
-        uint32_t metric_index = ds_array_index_by_metric_group_id_get((ds_metric_group_id_e)metric_group_id);
-        if (metric_index < DS_MAX_METRIC_NUMBER) {
-            metrics_to_stop[metric_index] = true;
-            SA_PV_LOG_INFO("stop report metric %d", metric_group_id);
-        } else {
-            //We will not return error, may be current device does not support all metrics
-            SA_PV_LOG_INFO("Unsupported metric id: %d", metric_group_id); 
-        }
-
-        stop_list_length++;
-
-        // proceed to next metrics item
-        cbor_err = cbor_get_next_container_element(&single_config);
-        if (cbor_err == CborErrorAdvancePastEOF) {
-            break;// break if in array don't succeed to get next element
-        }
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_INVALID_CONFIG, "Failed to move to next entry in config array");
-    }
-
-    // stop metrics in real report interval array
-    for(uint32_t index = 0; index < DS_MAX_METRIC_NUMBER; index++){
-        if(metrics_to_stop[index]){
-            metric_set_to_not_active_by_index(index);
-        }
-    }
-
-    // if the list is empty, stop reporting of all metrics
-    if (stop_list_length == 0) {
-        // de-activate all metrics
-        SA_PV_LOG_INFO("Deactivate all metrics");
-        ds_metrics_config_report_intervals_reset();
-    }
+    // stop reporting of all metrics: we support only full stop when all metrics are stopped
+    SA_PV_LOG_INFO("Stop reporting all metrics");
+    ds_metrics_active_metric_config_reset();
 
     // stop metrics scheduler and reschedule if required
     if (ds_ctx.timer_event_handle != NULL) {
@@ -976,6 +950,14 @@ static ds_status_e stop_metrics_collection_config_message_handle(CborValue *stop
         ds_ctx.timer_event_handle = NULL;
     }
 
+    // delete configuration file
+    kcm_status_e kcm_status = kcm_item_delete((uint8_t*)active_conf_filename, strlen(active_conf_filename), KCM_CONFIG_ITEM);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((KCM_STATUS_SUCCESS != kcm_status) && (KCM_STATUS_ITEM_NOT_FOUND != kcm_status), DS_STATUS_ERROR, 
+            "deleting %s is failed with kcm error %d", active_conf_filename, kcm_status);
+
+    if (KCM_STATUS_ITEM_NOT_FOUND != kcm_status) {
+        SA_PV_LOG_TRACE("WARNING: no config file %s during stop config message handling", active_conf_filename);
+    }
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return DS_STATUS_SUCCESS;
 }
@@ -990,6 +972,10 @@ static ds_status_e stop_metrics_collection_config_message_handle(CborValue *stop
             DS_METRIC_THREADS_COUNT: 31,
             DS_METRIC_MEMORY_TOTAL: 135068012544,
             DS_METRIC_MEMORY_USED: 126662152192,
+
+            // custom metrics
+            1018 : 80,
+            8456 : 45,
         }, 
          
         // labeled metric maps
@@ -1002,7 +988,9 @@ static ds_status_e stop_metrics_collection_config_message_handle(CborValue *stop
         {DS_METRIC_LABEL_DEST_IP: "10.50.21.31", DS_METRIC_LABEL_DEST_PORT: 2049}, 
         {DS_METRIC_LABEL_DEST_IP: "10.50.0.157", DS_METRIC_LABEL_DEST_PORT: 52887}, 
         {DS_METRIC_LABEL_DEST_IP: "10.50.0.38", DS_METRIC_LABEL_DEST_PORT: 61375}, 
-    ]
+    ],
+    
+    DS_METRIC_POLICY_ID: "0168c6ed50b40000000000010010016a"
 }
 
 Example of cbor array for MbedOS platform:
@@ -1014,6 +1002,10 @@ Example of cbor array for MbedOS platform:
             DS_METRIC_THREADS_COUNT: 8,
             DS_METRIC_HEAP_TOTAL: 127648,
             DS_METRIC_HEAP_USED: 42354
+
+            // custom metrics
+            1018 : 80,
+            8456 : 45,
          }, 
         
          // labeled metric maps
@@ -1021,16 +1013,17 @@ Example of cbor array for MbedOS platform:
          {DS_METRIC_GROUP_LABELS: {DS_METRIC_LABEL_DEST_IP: "35.172.202.42", DS_METRIC_LABEL_DEST_PORT: 5684, DS_METRIC_LABEL_INTERFACE_NAME: "en0"}, DS_METRIC_BYTES_IN: 4961, DS_METRIC_BYTES_OUT: 2420}, 
          {DS_METRIC_GROUP_LABELS: {DS_METRIC_LABEL_DEST_IP: "8.8.8.8", DS_METRIC_LABEL_DEST_PORT: 53, DS_METRIC_LABEL_INTERFACE_NAME: "en0"}, DS_METRIC_BYTES_IN: 106, DS_METRIC_BYTES_OUT: 47}, 
          {DS_METRIC_GROUP_LABELS: {DS_METRIC_LABEL_DEST_IP: "34.230.180.49", DS_METRIC_LABEL_DEST_PORT: 5684, DS_METRIC_LABEL_INTERFACE_NAME: "en0"}, DS_METRIC_BYTES_IN: 1543, DS_METRIC_BYTES_OUT: 4066}
-       ]
+       ],
 
        // on MbedOS there no special section of active destinations, active destinations are part of "labeled metric maps"
+
+    DS_METRIC_POLICY_ID: "0168c6ed50b40000000000010010016a"
 }
 */
-ds_status_e metrics_report_create(uint8_t *metrics_report, size_t *metrics_report_size)
+ds_status_e ds_metrics_report_create(uint8_t *metrics_report, size_t *metrics_report_size)
 {
     ds_status_e status = DS_STATUS_SUCCESS;
-    CborEncoder cbor_report, main_map, main_array, not_labaled_map;
-    bool not_labaled_map_opened = false;
+    CborEncoder cbor_report, main_map, main_array;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
     
@@ -1048,36 +1041,13 @@ ds_status_e metrics_report_create(uint8_t *metrics_report, size_t *metrics_repor
     cbor_err = cbor_encoder_create_array(&main_map, &main_array, CborIndefiniteLength);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to create main array");
 
-    // go over all possible NOT labeled metrics and check if should be reported
-    for (uint32_t ind = 0; ind < DS_MAX_METRIC_NUMBER; ind++) {
-        if (is_metric_active_by_index(ind) && (!is_labled_metric(ds_metric_group_id_by_array_index_get(ind)))) { 
-            if (!not_labaled_map_opened) { 
-                //first not_labaled metric, map should be created
-                cbor_err = cbor_encoder_create_map(&main_array, &not_labaled_map, CborIndefiniteLength);
-                SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to create not labaled map");
-                not_labaled_map_opened = true;
-            }
-            //Add metric value to map of all unlabeled values
-            status = metrics_report_not_labeled_encode(ds_metric_group_id_by_array_index_get(ind), &not_labaled_map);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to add metric (id=%d) in not labaled map", 
-                ds_metric_group_id_by_array_index_get(ind));
-        }
-    }
+    // encode all NOT labeled metrics
+    status = metrics_report_not_labeled_encode(&main_array);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to add not labeled metrics");
 
-    if (not_labaled_map_opened) {
-        cbor_err = cbor_encoder_close_container(&main_array, &not_labaled_map);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to close not labaled map");
-    }
-
-    // go over all possible labeled metrics and check if should be reported
-    for (uint32_t ind = 0; ind < DS_MAX_METRIC_NUMBER; ind++) {
-        if (is_metric_active_by_index(ind) && is_labled_metric(ds_metric_group_id_by_array_index_get(ind))) {
-            //Add metric value to main map
-            status = metrics_report_labeled_encode(ds_metric_group_id_by_array_index_get(ind), &main_array);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to add metric (id=%d) in labled map", 
-                ds_metric_group_id_by_array_index_get(ind));
-        }
-    }
+    // encode all labeled metrics
+    status = metrics_report_labeled_encode(&main_array);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to add labeled metrics"); 
 
     cbor_err = cbor_encoder_close_container(&main_map, &main_array);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to close main array");
@@ -1087,6 +1057,9 @@ ds_status_e metrics_report_create(uint8_t *metrics_report, size_t *metrics_repor
         status = ds_active_dests_collect_and_encode(&main_map);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to encode active dests");
     }
+
+    status = encode_policy_id(&main_map);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), status, "Failed to get policy id");	
 
     cbor_err = cbor_encoder_close_container(&cbor_report, &main_map);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to close outer map");
@@ -1102,162 +1075,282 @@ ds_status_e metrics_report_create(uint8_t *metrics_report, size_t *metrics_repor
                                 LINE_SIZE;
         (void)print_size;
         SA_PV_LOG_BYTE_BUFF_TRACE("report buffer", metrics_report + start_offset, (uint16_t)print_size);
-
-        //leave for debug
-        // print_buff("report buffer", metrics_report + start_offset, print_size);
     }
 
     SA_PV_LOG_TRACE_FUNC_EXIT("metric cbor report size %" PRIu32 " bytes", (uint32_t)(*metrics_report_size));
     return DS_STATUS_SUCCESS;
 }
 
-static ds_status_e metrics_report_not_labeled_encode(uint32_t metric_id, CborEncoder *encoder)
+
+static ds_status_e metrics_report_not_labeled_encode(CborEncoder *main_array)
 {
-    SA_PV_LOG_TRACE_FUNC_ENTER("metric_id=%" PRIu32, metric_id);
-
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((encoder == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: encoder is NULL");
+    CborError cbor_err;
+    bool not_labeled_map_opened = false;	
     ds_status_e status = DS_STATUS_SUCCESS;
-    switch (metric_id) {
-        case DS_METRIC_GROUP_CPU: {
-            ds_stats_cpu_t cpu_stats;
-            status = ds_cpu_stats_get(&cpu_stats);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to get CPU metrics");
+    CborEncoder not_labeled_map;
 
-            CborError cbor_err = cbor_map_encode_uint_uint(encoder, DS_METRIC_CPU_UP_TIME, cpu_stats.uptime);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode cpu uptime");
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
-            cbor_err = cbor_map_encode_uint_uint(encoder, DS_METRIC_CPU_IDLE_TIME, cpu_stats.idle_time);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode cpu idle time");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((main_array == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: main_array is NULL");
 
-            SA_PV_LOG_INFO("cpu metric encoded: uptime=%" PRIu64 ", idle_time=%" PRIu64, cpu_stats.uptime, cpu_stats.idle_time); 
-        }
-        break;
-        case DS_METRIC_GROUP_THREADS: {
-            uint32_t thread_count = 0;
-            status = ds_thread_stats_get(&thread_count);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to get thread metrics");
+    // go over all possible NOT labeled metrics and check if should be reported
+    for (uint32_t ind = 0; ind < DS_MAX_METRIC_NUMBER; ind++) {
+        if (is_metric_active_by_index(ind) && (!is_labled_metric(ds_metric_group_id_by_array_index_get(ind)))) { 
 
-            CborError cbor_err = cbor_map_encode_uint_uint(encoder, DS_METRIC_THREADS_COUNT, thread_count);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode thread count");
-
-            SA_PV_LOG_INFO("thread metric encoded: thread_count=%" PRIu32, thread_count); 
-        }
-        break;
-        case DS_METRIC_GROUP_MEMORY: {
-            ds_stats_memory_t mem_stats;
-            status = ds_memory_stats_get(&mem_stats);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to get memory metrics");
-
-            CborError cbor_err = cbor_map_encode_uint_uint(encoder, mem_stats.mem_available_id, mem_stats.mem_available_bytes);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode mem available");
-
-            cbor_err = cbor_map_encode_uint_uint(encoder, mem_stats.mem_used_id, mem_stats.mem_used_bytes);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode mem used");
-
-            SA_PV_LOG_INFO("mem metric encoded: available=%" PRIu64 ", used=%" PRIu64, mem_stats.mem_available_bytes, mem_stats.mem_used_bytes); 
-        }
-
-        case DS_METRIC_GROUP_NETWORK:
-        // do nothing in nework metrics for not labled metrics
-        break;
-        default:
-            SA_PV_LOG_INFO_FUNC_EXIT("unsupported metric error %" PRIu32, metric_id);
-            return DS_STATUS_UNSUPPORTED_METRIC;
-    }
-
-    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return status;
-}
-
-
-static ds_status_e metrics_report_labeled_encode(uint32_t metric_id, CborEncoder *encoder)
-{
-    SA_PV_LOG_TRACE_FUNC_ENTER("metric_id=%" PRIu32, metric_id);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((encoder == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: encoder is NULL");
-   
-    ds_status_e status = DS_STATUS_SUCCESS;
-    switch (metric_id) {
-        case DS_METRIC_GROUP_CPU: 
-        case DS_METRIC_GROUP_THREADS: 
-        case DS_METRIC_GROUP_MEMORY: 
-        // CPU/THREADS/MEMORY metrics are not labled metrics
-        break;
-        case DS_METRIC_GROUP_NETWORK: {
-            uint32_t network_stats_count = 0;
-            ds_stats_network_t *network_stats = NULL;
-            status = ds_network_stats_get(&network_stats, &network_stats_count);
-            SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), status, "Failed to get network stats");
-
-            for (uint32_t i = 0; i < network_stats_count; i++) {
-                CborEncoder report_labled_map;
-                CborError cbor_err = cbor_encoder_create_map(encoder, &report_labled_map, CborIndefiniteLength);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to create group map");
-
-                cbor_err = cbor_encode_uint(&report_labled_map, DS_METRIC_GROUP_LABELS);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode group label");
-
-                CborEncoder lable;
-                // open map for labeled metrics
-                cbor_err = cbor_encoder_create_map(&report_labled_map, &lable, CborIndefiniteLength);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to create lable map");
-
-                // encode network ip data - relevant only for Mbed OS platform, on Linux will do nothing
-                status = ds_plat_labeled_metric_ip_data_encode(&lable, &network_stats[i].ip_data);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode dest ip at index %" PRIu32, i);
-
-                // add interface name to lable
-                cbor_err = cbor_encode_uint(&lable, DS_METRIC_LABEL_INTERFACE_NAME);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode if name key");
-
-                cbor_err = cbor_encode_text_stringz(&lable, network_stats[i].interface);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode if name");
-
-                // close map for labeled metrics
-                cbor_err = cbor_encoder_close_container(&report_labled_map, &lable);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to close label map");
-
-                // add received bytes
-                cbor_err = cbor_map_encode_uint_uint(&report_labled_map, DS_METRIC_BYTES_IN, network_stats[i].recv_bytes);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode tcp bytes in");
-
-                // add sent bytes
-                cbor_err = cbor_map_encode_uint_uint(&report_labled_map, DS_METRIC_BYTES_OUT, network_stats[i].sent_bytes);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode tcp bytes out");
-
-                SA_PV_LOG_INFO("net metric [%" PRIu32 "] if_name=%s, recv_bytes=%" PRIu64 " sent_bytes=%" PRIu64 " encoded", 
-                    i, network_stats[i].interface, network_stats[i].recv_bytes, network_stats[i].sent_bytes);
-
-                // close current socket report map
-                cbor_err = cbor_encoder_close_container(encoder, &report_labled_map);
-                SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to close group map");
+            if (!not_labeled_map_opened) { 
+                //first not_labeled metric, map should be created
+                cbor_err = cbor_encoder_create_map(main_array, &not_labeled_map, CborIndefiniteLength);
+                SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to create not labeled map");
+                not_labeled_map_opened = true;
             }
             
-release_resources:
-                free(network_stats);
+            ds_metric_group_id_e metric_id = ds_metric_group_id_by_array_index_get(ind);
+
+            //Add metric value to map of all unlabeled values
+            SA_PV_LOG_TRACE("encode not labeled metric_id = %" PRIu32, metric_id);
+
+            switch (metric_id) {
+                case DS_METRIC_GROUP_CPU: {
+                    ds_stats_cpu_t cpu_stats;
+                    status = ds_cpu_stats_get(&cpu_stats);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to get CPU metrics");
+
+                    cbor_err = cbor_map_encode_uint_uint(&not_labeled_map, DS_METRIC_CPU_UP_TIME, cpu_stats.uptime);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode cpu uptime");
+
+                    cbor_err = cbor_map_encode_uint_uint(&not_labeled_map, DS_METRIC_CPU_IDLE_TIME, cpu_stats.idle_time);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode cpu idle time");
+
+                    SA_PV_LOG_INFO("cpu metric encoded: uptime=%" PRIu64 ", idle_time=%" PRIu64, cpu_stats.uptime, cpu_stats.idle_time); 
+                }
+                break;
+                case DS_METRIC_GROUP_THREADS: {
+                    uint32_t thread_count = 0;
+                    status = ds_thread_stats_get(&thread_count);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to get thread metrics");
+
+                    cbor_err = cbor_map_encode_uint_uint(&not_labeled_map, DS_METRIC_THREADS_COUNT, thread_count);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode thread count");
+
+                    SA_PV_LOG_INFO("thread metric encoded: thread_count=%" PRIu32, thread_count); 
+                }
+                break;
+                case DS_METRIC_GROUP_MEMORY: {
+                    ds_stats_memory_t mem_stats;
+                    status = ds_memory_stats_get(&mem_stats);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to get memory metrics");
+
+                    cbor_err = cbor_map_encode_uint_uint(&not_labeled_map, mem_stats.mem_available_id, mem_stats.mem_available_bytes);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode mem available");
+
+                    cbor_err = cbor_map_encode_uint_uint(&not_labeled_map, mem_stats.mem_used_id, mem_stats.mem_used_bytes);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode mem used");
+
+                    SA_PV_LOG_INFO("mem metric encoded: available=%" PRIu64 ", used=%" PRIu64, mem_stats.mem_available_bytes, mem_stats.mem_used_bytes); 
+                }
+
+                case DS_METRIC_GROUP_NETWORK:
+                // do nothing in nework metrics for not labled metrics
+                break;
+                default:
+                    SA_PV_LOG_TRACE("unsupported metric error %" PRIu32, metric_id);
+                    return DS_STATUS_UNSUPPORTED_METRIC;
+            }
         }
-        break;
-            default:
-                SA_PV_LOG_TRACE_FUNC_EXIT("unsupported metric error %" PRIu32, metric_id);
-                return DS_STATUS_UNSUPPORTED_METRIC;
+    }
+
+    // encode custom metrics : go over all possible NOT labeled metrics and check if should be reported
+    for (uint32_t ind = 0; ind < DS_MAX_NUMBER_OF_CUSTOM_METRICS; ind++) {
+        if (is_custom_metric_active_by_index(ind)) { 
+
+            //Add metric value to map of all unlabeled values
+            
+            if (!not_labeled_map_opened) { 
+                //first not_labeled metric, map should be created
+                cbor_err = cbor_encoder_create_map(main_array, &not_labeled_map, CborIndefiniteLength);
+                SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to create not labeled map");
+                not_labeled_map_opened = true;
+            }
+            
+            SA_PV_ERR_RECOVERABLE_RETURN_IF(NULL == ds_ctx.custom_metric_value_getter_cb, DS_STATUS_ENCODE_FAILED, "User custom metric callback is NULL!");
+
+            ds_custom_metric_id_t custom_metric_id = custom_metric_id_get_by_index(ind);
+
+            SA_PV_LOG_TRACE("encode not labeled custom metric_id = %" PRIu64, custom_metric_id);
+
+            // get metric value from the user
+            uint8_t *metric_value_out = NULL;
+            ds_custom_metrics_value_type_t metric_value_type_out = DS_INVALID_TYPE;
+            size_t metric_value_size_out = 0;
+            status =  ds_ctx.custom_metric_value_getter_cb(
+                    custom_metric_id,           // input value
+                    ds_ctx.user_context,        // input value
+                    &metric_value_out,          // ouput value
+                    &metric_value_type_out,     // ouput value
+                    &metric_value_size_out
+                );    // ouput value
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), DS_STATUS_ENCODE_FAILED, "Failed to get custom metric, error = %d", status);
+
+            // Currently we support only int64
+
+            // verify that we got int 64 
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((metric_value_type_out != DS_INT64), DS_STATUS_ENCODE_FAILED, 
+                "Failed on getting wrong type (= %d) of the metric value. Currently only DS_INT64 is supported!", metric_value_type_out);
+
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((metric_value_size_out != DS_SIZE_OF_INT64), DS_STATUS_ENCODE_FAILED, 
+                "Failed on getting wrong size (= %" PRIu32 ") of the metric value. Currently Only int 64 bit is supported!", (uint32_t)metric_value_size_out);
+
+            // cast the output value to int 64
+            int64_t value = *(int64_t*) (metric_value_out); 
+
+            // put metrice_id (as uint64) and the value (as int64) to the cbor buffer
+            cbor_err = cbor_encode_uint(&not_labeled_map, custom_metric_id);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode custom metric_id=%" PRIu64, custom_metric_id);
+
+            cbor_err = cbor_encode_int(&not_labeled_map, value);
+            SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to encode custom metric value (metric_id=%" PRIu64 ", value=%" PRId64 ")", custom_metric_id, value);
+
+            SA_PV_LOG_INFO("custom metric encoded: metric_id=%" PRIu64 ", value=%" PRId64, custom_metric_id, value); 
+        }
+    }
+
+    if (not_labeled_map_opened) {
+        cbor_err = cbor_encoder_close_container(main_array, &not_labeled_map);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((cbor_err != CborNoError), DS_STATUS_ENCODE_FAILED, "Failed to close not labeled map");
+        not_labeled_map_opened = false;
     }
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
-    return status;
+    return DS_STATUS_SUCCESS;
 }
 
-uint32_t ds_metrics_config_min_report_interval_get()
+
+static ds_status_e metrics_report_labeled_encode(CborEncoder *main_array)
+{
+    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((main_array == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: main_array is NULL");
+        
+    for (uint32_t ind = 0; ind < DS_MAX_METRIC_NUMBER; ind++) {
+        if (is_metric_active_by_index(ind) && is_labled_metric(ds_metric_group_id_by_array_index_get(ind))) {
+            
+            //Add metric value to main map
+            uint32_t metric_id = ds_metric_group_id_by_array_index_get(ind);
+    
+            ds_status_e status = DS_STATUS_SUCCESS;
+            switch (metric_id) {
+                case DS_METRIC_GROUP_CPU: 
+                case DS_METRIC_GROUP_THREADS: 
+                case DS_METRIC_GROUP_MEMORY: 
+                // CPU/THREADS/MEMORY metrics are not labled metrics
+                break;
+                case DS_METRIC_GROUP_NETWORK: {
+                    uint32_t network_stats_count = 0;
+                    ds_stats_network_t *network_stats = NULL;
+                    status = ds_network_stats_get(&network_stats, &network_stats_count);
+                    SA_PV_ERR_RECOVERABLE_RETURN_IF((status != DS_STATUS_SUCCESS), status, "Failed to get network stats");
+
+                    for (uint32_t i = 0; i < network_stats_count; i++) {
+                        CborEncoder report_labled_map;
+                        CborError cbor_err = cbor_encoder_create_map(main_array, &report_labled_map, CborIndefiniteLength);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to create group map");
+
+                        cbor_err = cbor_encode_uint(&report_labled_map, DS_METRIC_GROUP_LABELS);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode group label");
+
+                        CborEncoder lable;
+                        // open map for labeled metrics
+                        cbor_err = cbor_encoder_create_map(&report_labled_map, &lable, CborIndefiniteLength);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to create lable map");
+
+                        // encode network ip data - relevant only for Mbed OS platform, on Linux will do nothing
+                        status = ds_plat_labeled_metric_ip_data_encode(&lable, &network_stats[i].ip_data);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode dest ip at index %" PRIu32, i);
+
+                        // add interface name to lable
+                        cbor_err = cbor_encode_uint(&lable, DS_METRIC_LABEL_INTERFACE_NAME);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode if name key");
+
+                        cbor_err = cbor_encode_text_stringz(&lable, network_stats[i].interface);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode if name");
+
+                        // close map for labeled metrics
+                        cbor_err = cbor_encoder_close_container(&report_labled_map, &lable);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to close label map");
+
+                        // add received bytes
+                        cbor_err = cbor_map_encode_uint_uint(&report_labled_map, DS_METRIC_BYTES_IN, network_stats[i].recv_bytes);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode tcp bytes in");
+
+                        // add sent bytes
+                        cbor_err = cbor_map_encode_uint_uint(&report_labled_map, DS_METRIC_BYTES_OUT, network_stats[i].sent_bytes);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to encode tcp bytes out");
+
+                        SA_PV_LOG_INFO("net metric [%" PRIu32 "] if_name=%s, recv_bytes=%" PRIu64 " sent_bytes=%" PRIu64 " encoded", 
+                            i, network_stats[i].interface, network_stats[i].recv_bytes, network_stats[i].sent_bytes);
+
+                        // close current socket report map
+                        cbor_err = cbor_encoder_close_container(main_array, &report_labled_map);
+                        SA_PV_ERR_RECOVERABLE_GOTO_IF((cbor_err != CborNoError), status = DS_STATUS_ENCODE_FAILED, release_resources, "Failed to close group map");
+                    }
+            
+                    release_resources:
+                    free(network_stats);
+                }
+                break;
+                    default:
+                        SA_PV_LOG_INFO_FUNC_EXIT("unsupported metric error %" PRIu32, metric_id);
+                        return DS_STATUS_UNSUPPORTED_METRIC;
+            }
+        }
+    }
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    return DS_STATUS_SUCCESS;
+}
+
+uint32_t ds_metrics_ctx_min_report_interval_get()
 {
     return ds_ctx.min_report_interval_sec;
 }
 
-const uint32_t* ds_metrics_config_report_intervals_get()
+const uint32_t* ds_metrics_ctx_device_metrics_report_intervals_get()
 {
-    return ds_ctx.report_intervals;
+    return ds_ctx.device_metrics_report_intervals;
 }
 
-void ds_metrics_config_report_intervals_reset()
+const ds_custom_metric_t* ds_custom_metrics_ctx_array_get()
 {
-    SA_PV_LOG_INFO("Reset all metrics");
-    memset(&ds_ctx.report_intervals, 0, sizeof(ds_ctx.report_intervals));
+    return ds_ctx.custom_metrics;
+}
+
+const char* ds_metrics_ctx_policy_id_get(bool *is_policy_initialized)
+{
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((is_policy_initialized == NULL), NULL, "Invalid parameter: is_policy_initialized is NULL");
+    *is_policy_initialized = ds_ctx.is_policy_id_initialized;
+
+    if(*is_policy_initialized){
+        return ds_ctx.policy_id;
+    } else {
+        return NULL;
+    }
+}
+
+void ds_metrics_active_metric_config_reset()
+{
+    SA_PV_LOG_TRACE("Reset all active metrics");
+    // reset standart metrics
+    memset(&ds_ctx.device_metrics_report_intervals, 0, sizeof(ds_ctx.device_metrics_report_intervals));
+    // reset custom metrics
+    memset(&ds_ctx.custom_metrics, 0, sizeof(ds_ctx.custom_metrics));
+
+    // reset report interval
     ds_ctx.min_report_interval_sec = 0;
+
+    ds_metrics_policy_id_reset();
+}
+
+void ds_custom_metric_callback_set(ds_custom_metric_value_getter_t cb, void *user_context)
+{
+    ds_ctx.custom_metric_value_getter_cb = cb;
+    ds_ctx.user_context = user_context;
 }

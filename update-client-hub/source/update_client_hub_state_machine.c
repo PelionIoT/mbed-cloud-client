@@ -157,21 +157,48 @@ static uint32_t arm_uc_hub_reboot_delay = 0;
 #define ARM_UC_REBOOT_TIMER_EVENT 1
 static int8_t arm_uc_tasklet_id = -1;
 
-#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
-#include "eventOS_event.h"
-#include "multicast.h"
-static int8_t ota_lib_tasklet_id = -1;
-static uint32_t arm_uc_hub_download_delay = 2000;
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+static uint32_t arm_uc_hub_download_delay = 10;
 #define ARM_UC_DOWNLOAD_TIMER_EVENT 2
 #define DOWNLOAD_TIMER_ID 2
 #endif
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+#include "eventOS_event.h"
+#include "multicast.h"
+#include "CloudClientStorage.h"
+#include "common_functions.h"
+
+const char external_app_version[] = "mbed.ExternalAppVersion";
+static int8_t ota_lib_tasklet_id = -1;
+static bool multicast_update = false;
+
+static arm_event_storage_t _event;
+
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+static bool multicast_delta = false;
+static bool external_update = false;
+uint8_t multicast_delta_state = ARM_UC_HUB_STATE_MULTICAST_DELTA_PREPARE; // not static!
+static uint32_t multicast_delta_read_offset;
+static arm_uc_firmware_details_t multicast_delta_details = { 0 };
+static uint32_t multicast_delta_delta_size;
+
+// TODO! Check can arm_uc_hub_firmware_details to be used?
+static uint32_t fw_size = 0;
+static uint64_t timestamp;
+static arm_uc_firmware_address_t firmware_address = {
+    .start_address = 0,
+    .size     = 0
+};
+#endif // #if defined(ARM_UC_MULTICAST_NODE_MODE)
+#endif // #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 static void arm_uc_tasklet(struct arm_event_s *event)
 {
     if (ARM_UC_REBOOT_TIMER_EVENT == event->event_type) {
         ARM_UC_HUB_setState(ARM_UC_HUB_STATE_REBOOT);
     }
-#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
     else if (ARM_UC_DOWNLOAD_TIMER_EVENT == event->event_type) {
         arm_uc_get_next_fragment();
     }
@@ -392,6 +419,21 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 UC_HUB_TRACE("Active version: %" PRIu64,
                              arm_uc_active_details.version);
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                uint8_t version_buf[8];
+                size_t size = 0;
+                /* check if software version is already set */
+                ccs_status_e status = ccs_get_item(external_app_version,
+                                                   version_buf, 8, &size, CCS_CONFIG_ITEM);
+                if (status == CCS_STATUS_SUCCESS) {
+                    uint64_t ext_app_version = common_read_64_bit(version_buf);
+                    UC_HUB_TRACE("Active version from storage: %" PRIu64,
+                                 ext_app_version);
+                    if (ext_app_version > arm_uc_active_details.version) {
+                        arm_uc_active_details.version = ext_app_version;
+                    }
+                }
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
 
                 /* send timestamp to update service */
                 ARM_UC_ControlCenter_ReportVersion(arm_uc_active_details.version);
@@ -446,6 +488,20 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* signal monitor that device has entered IDLE state */
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_IDLE);
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+                if (multicast_update) {
+                    _event.data.data_ptr = NULL;
+                    _event.data.event_data = 0;
+                    _event.data.event_id = 0;
+                    _event.data.sender = 0;
+                    _event.data.event_type = ARM_UC_OTA_DELETE_SESSION_EVENT;
+                    _event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+                    _event.data.receiver = ota_lib_tasklet_id;
+
+                    eventOS_event_send_user_allocated(&_event);
+                    multicast_update = false;
+                }
+#endif
 
                 /* signal that the Hub is initialized if needed */
                 if (!init_cb_called) {
@@ -464,6 +520,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_NOTIFIED");
 
                 /* notification received of a new manifest, hence go get said manifest */
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+                multicast_update = false;
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                multicast_delta = false;
+#endif
+#endif
                 retval = ARM_UC_SourceManager.GetManifest(&front_buffer, 0);
                 HANDLE_ERROR(retval, "Source manager GetManifest failed");
                 break;
@@ -519,6 +581,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 /* get the firmware info out of the manifest we just inserted
                    into the manifest manager
                 */
+
                 retval = ARM_UC_mmFetchFirmwareInfo(&pManifestManagerContext, fwinfo, NULL);
                 if (retval.code != MFST_ERR_PENDING) {
                     HANDLE_ERROR(retval, "Manifest manager fetch info failed")
@@ -586,6 +649,19 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     break;
                 }
 
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                external_update = false;
+                fw_size = 0;
+                timestamp = 0;
+                if (fwinfo->vendorInfo.vendorBuffer.size == 15 &&
+                    memcmp(fwinfo->vendorInfo.vendorBuffer.ptr, "external update", fwinfo->vendorInfo.vendorBuffer.size) == 0) {
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP - external update");
+                    external_update = true;
+                    fw_size = fwinfo->size;
+                    timestamp = fwinfo->timestamp;
+                }
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
+
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                 // With new manifest fields the payload size is in manifest size-field
                 arm_uc_hub_firmware_config.package_size = fwinfo->installedSize;
@@ -596,11 +672,48 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
 #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
 
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                if(ARM_UC_mmCheckFormatUint32(&fwinfo->format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
+
+                    if (external_update)
+                    {
+                        // external update should never mark the payload as delta.
+                        // potential handling of different types of payloads should be
+                        // handled by the application and payload should always be marked
+                        // as raw binary in the manifest
+                        retval.code = MFST_ERR_FORMAT;
+                        HANDLE_ERROR(retval, "Delta payload handling not supported for external update...");
+                    }
+
+                    if (multicast_update) {
+                        // multicast delta case; bypass on-the-fly delta to enable missing/out-of-order fragments
+                        arm_uc_hub_firmware_config.is_delta = 0;
+                        multicast_delta = true;
+
+                        multicast_delta_details.version = fwinfo->timestamp;
+                        multicast_delta_details.size    = fwinfo->installedSize;
+                        memcpy(multicast_delta_details.hash, fwinfo->installedHash.ptr, ARM_UC_SHA256_SIZE);
+                        multicast_delta_delta_size = fwinfo->size;
+
+                        // set the size and hash to refer to payload, not after-install values
+                        arm_uc_hub_firmware_config.package_size = fwinfo->size;
+                        arm_uc_hub_firmware_config.hash = &fwinfo->hash;
+
+                    } else {
+                        arm_uc_hub_firmware_config.is_delta = 1;
+                        multicast_delta = false;
+                    }
+                } else {
+                    arm_uc_hub_firmware_config.is_delta = 0;
+                    multicast_delta = false;
+                }
+#else
                 if(ARM_UC_mmCheckFormatUint32(&fwinfo->format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
                     arm_uc_hub_firmware_config.is_delta = 1;
                 } else {
                     arm_uc_hub_firmware_config.is_delta = 0;
                 }
+#endif
 #endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
                 /* read cryptography mode to determine if firmware is encrypted */
                 switch (fwinfo->cipherMode) {
@@ -638,28 +751,40 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                         break;
                 }
 
-                /* check if storage ID has been set */
-                if (fwinfo->strgId.size == 0 || fwinfo->strgId.ptr == NULL) {
-                    /* no storage ID set, use default value 0 */
-                    arm_uc_hub_firmware_config.package_id = 0;
-                } else {
-                    /* check if storage ID is "default" */
-                    uint32_t location = arm_uc_strnstrn(fwinfo->strgId.ptr,
-                                                        fwinfo->strgId.size,
-                                                        (const uint8_t *) "default",
-                                                        7);
-
-                    if (location != UINT32_MAX) {
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                if (multicast_delta) {
+                    // multicast delta special case; no option to pre-define storage IDs
+                    // initial delta payload is always stored to own specific slot and
+                    // full update candidate is always stored to slot 0
+                    arm_uc_hub_firmware_config.package_id = ARM_UC_DELTA_SLOT_ID;
+                }
+                else {
+#endif
+                    /* check if storage ID has been set */
+                    if (fwinfo->strgId.size == 0 || fwinfo->strgId.ptr == NULL) {
+                        /* no storage ID set, use default value 0 */
                         arm_uc_hub_firmware_config.package_id = 0;
                     } else {
-                        /* parse storage ID */
-                        bool success = false;
-                        arm_uc_hub_firmware_config.package_id =
-                            arm_uc_str2uint32(fwinfo->strgId.ptr,
-                                              fwinfo->strgId.size,
-                                              &success);
+                        /* check if storage ID is "default" */
+                        uint32_t location = arm_uc_strnstrn(fwinfo->strgId.ptr,
+                                                            fwinfo->strgId.size,
+                                                            (const uint8_t *) "default",
+                                                            7);
+
+                        if (location != UINT32_MAX) {
+                            arm_uc_hub_firmware_config.package_id = 0;
+                        } else {
+                            /* parse storage ID */
+                            bool success = false;
+                            arm_uc_hub_firmware_config.package_id =
+                                arm_uc_str2uint32(fwinfo->strgId.ptr,
+                                                  fwinfo->strgId.size,
+                                                  &success);
+                        }
                     }
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
                 }
+#endif
 
 #if ARM_UC_HUB_TRACE_ENABLE
                 arm_uc_hub_debug_output();
@@ -748,10 +873,22 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 arm_uc_hub_firmware_details.version = fwinfo->timestamp;
 #if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
                 arm_uc_hub_firmware_details.size    = fwinfo->installedSize;
+
                 /* copy hash */
                 memcpy(arm_uc_hub_firmware_details.hash,
                        fwinfo->installedHash.ptr,
                        ARM_UC_SHA256_SIZE);
+
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                if (multicast_delta) {
+                    arm_uc_hub_firmware_details.size = fwinfo->size;
+                    /* copy hash */
+                    memcpy(arm_uc_hub_firmware_details.hash,
+                           &fwinfo->hash,
+                           ARM_UC_SHA256_SIZE);
+                }
+#endif // ARM_UC_MULTICAST_NODE_MODE
+
 #else
                 arm_uc_hub_firmware_details.size    = fwinfo->size;
 #endif
@@ -792,6 +929,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 #endif
                 // initialise offset here so we can always resume with FIRST_FRAGMENT.
                 firmware_offset = 0;
+
                 /* setup the firmware manager to get ready for firmware storage */
                 retval = ARM_UC_FirmwareManager.Prepare(&arm_uc_hub_firmware_config,
                                                         &arm_uc_hub_firmware_details,
@@ -837,11 +975,13 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE);
                     new_state = ARM_UC_HUB_STATE_FINALIZE_STORAGE;
                 } else {
-#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && !defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
                     // Wait ota process to complete
-                    UC_HUB_TRACE("Wait OTA process to complete download");
-                    new_state = ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST;
-#else // ARM_UC_MULTICAST_BORDER_ROUTER_MODE
+                    if (multicast_update) {
+                        UC_HUB_TRACE("Wait OTA process to complete download");
+                        new_state = ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST;
+                    } else {
+#endif // ARM_UC_MULTICAST_NODE_MODE
                     // Set downloadSize here already because fwinfo struct is sharing memory
                     // with backbuffer so fwinfo contents are overwritten starting in next state
                     fw_downloadSize = fwinfo->size;
@@ -860,7 +1000,9 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     front_buffer.size = 0;
                     back_buffer.size = 0;
                     arm_uc_get_next_fragment();
-#endif // #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && (!defined ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                    }
+#endif // #if defined(ARM_UC_MULTICAST_NODE_MODE)
                 }
                 break;
             case ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD:
@@ -895,17 +1037,14 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 /* go fetch a new chunk using the front buffer if more are expected */
                 if (firmware_offset < fw_downloadSize) {
                     front_buffer.size = 0;
-#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
                     UC_HUB_TRACE("Getting next fragment after %d", arm_uc_hub_download_delay);
-                    if (arm_uc_tasklet_id != -1) {
-                        if (eventOS_event_timer_request(DOWNLOAD_TIMER_ID, ARM_UC_DOWNLOAD_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_download_delay) == -1) {
-                            UC_HUB_TRACE("Failed to start download timer");
-                            arm_uc_get_next_fragment();
-                        }
-                    } else {
-                        UC_HUB_TRACE("Tasklet not created");
+
+                    if (eventOS_event_timer_request(DOWNLOAD_TIMER_ID, ARM_UC_DOWNLOAD_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_download_delay) == -1) {
+                        UC_HUB_TRACE("Failed to start download timer");
                         arm_uc_get_next_fragment();
                     }
+
 #else
                     arm_uc_get_next_fragment();
 #endif
@@ -933,24 +1072,21 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE");
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
-                if (ota_lib_tasklet_id != -1) {
+                if (multicast_update) {
                     // Send event back to OTA lib to continue with process completed
                     new_state = ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST;
-                    arm_event_s event = {0};
-                    event.receiver = ota_lib_tasklet_id;
-                    event.event_type = ARM_UC_OTA_MULTICAST_DL_DONE_EVENT;
-                    event.priority = ARM_LIB_MED_PRIORITY_EVENT;
+                    _event.data.data_ptr = NULL;
+                    _event.data.event_data = 0;
+                    _event.data.event_id = 0;
+                    _event.data.sender = 0;
+                    _event.data.event_type = ARM_UC_OTA_MULTICAST_DL_DONE_EVENT;
+                    _event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+                    _event.data.receiver = ota_lib_tasklet_id;
+
+                    eventOS_event_send_user_allocated(&_event);
 
                     // Clear flags so normal campaing can be run
                     fwinfo = &message2.fwinfo;
-                    ota_lib_tasklet_id = -1;
-
-                    if (eventOS_event_send(&event) != 0) {
-                        retval.code = ERR_OUT_OF_MEMORY;
-                        ARM_UC_HUB_ErrorHandler(ERR_OUT_OF_MEMORY,
-                                                ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
-                        HANDLE_ERROR(retval, "Failed to send OTA event failed")
-                    }
                     break;
                 }
 #endif
@@ -1009,7 +1145,6 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_INSTALL_AUTHORIZED:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_INSTALL_AUTHORIZED");
-
                 UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_INSTALLING_UPDATE");
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_INSTALLING_UPDATE);
 
@@ -1021,7 +1156,78 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
                 /* Firmware verification passes, activate firmware image.
                 */
-                ARM_UC_FirmwareManager.Activate(arm_uc_hub_firmware_config.package_id);
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                // External update
+                if (external_update) {
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE - external update");
+                    /* send timestamp to update service */
+                    ccs_delete_item(external_app_version, CCS_CONFIG_ITEM);
+                    uint8_t version_buffer[8];
+                    common_write_64_bit(timestamp, version_buffer);
+
+                    if (ccs_set_item(external_app_version, version_buffer, 8, CCS_CONFIG_ITEM) != CCS_STATUS_SUCCESS) {
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE - failed to store version info!");
+                        retval.code = ERR_UNSPECIFIED;
+                        ARM_UC_HUB_ErrorHandler(ERR_UNSPECIFIED,
+                                                ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE);
+                        HANDLE_ERROR(retval, "Failed to store version info");
+                    }
+
+                    ARM_UC_ControlCenter_ReportVersion(timestamp);
+
+                    firmware_address.size = fw_size;
+                    if (ARM_UCP_GetFirmwareStartAddress(0, &firmware_address.start_address).code != ERR_NONE) {
+                        retval.code = ERR_UNSPECIFIED;
+                        ARM_UC_HUB_ErrorHandler(ERR_UNSPECIFIED,
+                                                ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE);
+                        HANDLE_ERROR(retval, "Failed to read start address");
+                    }
+
+                    _event.data.data_ptr = &firmware_address;
+                    _event.data.event_data = 0;
+                    _event.data.event_id = 0;
+                    _event.data.sender = 0;
+                    _event.data.event_type = ARM_UC_OTA_MULTICAST_EXTERNAL_UPDATE_EVENT;
+                    _event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+                    _event.data.receiver = ota_lib_tasklet_id;
+
+                    eventOS_event_send_user_allocated(&_event);
+                } else if (multicast_delta) {
+                    // Need to start from 'beginning'
+                    // 1. Prepare for new slot
+                    // 2. Read from old slot
+                    // 3. Write to new slot
+                    // 4. While stuff to read, jump to 2
+                    // 5. Finalize
+                    // 6. Activate
+                    new_state = ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA;
+                    multicast_delta_state = ARM_UC_HUB_STATE_MULTICAST_DELTA_PREPARE;
+
+
+
+                    arm_uc_hub_firmware_config.package_id = 0;
+                    arm_uc_hub_firmware_config.is_delta = 1;
+                    arm_uc_hub_firmware_config.package_size = multicast_delta_details.size;
+                    arm_uc_hub_firmware_config.hash->ptr = &multicast_delta_details.hash;
+                    arm_uc_hub_firmware_config.hash->size = sizeof(multicast_delta_details.hash);
+                    arm_uc_hub_delta_details.is_delta = 1;
+                    arm_uc_hub_delta_details.delta_payload_size = multicast_delta_delta_size;
+
+                    retval = ARM_UC_FirmwareManager.Prepare(&arm_uc_hub_firmware_config,
+                                                   &multicast_delta_details,
+                                                   &front_buffer);
+                    if (retval.code != ERR_NONE) {
+                        // @todo: no separate error for Prepare ?
+                        ARM_UC_HUB_ErrorHandler(FIRM_ERR_WRITE,
+                                                ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE);
+                        HANDLE_ERROR(retval, "ARM_UC_FirmwareManager multicast delta prepare failed")
+                    }
+                } else {
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
+                    ARM_UC_FirmwareManager.Activate(arm_uc_hub_firmware_config.package_id);
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+                }
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
                 break;
 
             case ARM_UC_HUB_STATE_PREP_REBOOT:
@@ -1033,23 +1239,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             case ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER");
                 if(arm_uc_hub_reboot_delay) {
-                    // Create tasklet if not done yet
-                    if (arm_uc_tasklet_id == -1) {
-                        arm_uc_tasklet_id = eventOS_event_handler_create(&arm_uc_tasklet, 0);
-                    }
-
-                    if (arm_uc_tasklet_id != -1) {
-                        UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - reboot after %ld seconds", arm_uc_hub_reboot_delay);
-                        if (eventOS_event_timer_request(REBOOT_TIMER_ID, ARM_UC_REBOOT_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_reboot_delay*1000) == -1) {
-                            UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - failed to start timer");
-                            new_state = ARM_UC_HUB_STATE_REBOOT;
-                        }
-                    } else {
-                        // couldn't create tasklet. better to reboot immediately than hang forever
+                    UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - reboot after %" PRIu32 " seconds", arm_uc_hub_reboot_delay);
+                    if (eventOS_event_timer_request(REBOOT_TIMER_ID, ARM_UC_REBOOT_TIMER_EVENT, arm_uc_tasklet_id, arm_uc_hub_reboot_delay * 1000) == -1) {
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER - failed to start timer");
                         new_state = ARM_UC_HUB_STATE_REBOOT;
                     }
-                }
-                else {
+                } else {
                     new_state = ARM_UC_HUB_STATE_REBOOT;
                 }
                 break;
@@ -1111,7 +1306,65 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST");
                 /* do nothing and wait for multicast to change the state */
                 break;
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+            case ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA:
+                UC_HUB_TRACE("ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA");
 
+                switch (multicast_delta_state) {
+                    case ARM_UC_HUB_STATE_MULTICAST_DELTA_PREPARE:
+                        // ARM_UC_HUB_FirmwareManagerEventHandler is triggering to a state ARM_UC_HUB_STATE_MULTICAST_DELTA_READ
+                        multicast_delta_read_offset = 0;
+                        break;
+                    case ARM_UC_HUB_STATE_MULTICAST_DELTA_WRITE:
+                        multicast_delta_read_offset += front_buffer.size;
+                        UC_HUB_TRACE("Processing delta - Write %"PRIu32, front_buffer.size);
+                        retval = ARM_UC_FirmwareManager.Write(&front_buffer);
+                        HANDLE_ERROR(retval, "ARM_UC_FirmwareManager write failed")
+                        multicast_delta_state = ARM_UC_HUB_STATE_MULTICAST_DELTA_READ;
+                        break;
+                    case ARM_UC_HUB_STATE_MULTICAST_DELTA_READ:
+                        {
+                            uint32_t read_size = multicast_delta_delta_size - multicast_delta_read_offset;
+                            if (front_buffer.size_max < read_size) {
+                                read_size = front_buffer.size_max;
+                            }
+                            front_buffer.size = read_size;
+                            if (read_size > 0) {
+                                UC_HUB_TRACE("Processing delta - Read %"PRIu32" , offset %"PRIu32, read_size, multicast_delta_read_offset);
+                                retval = ARM_UC_FirmwareManager.ReadFromSlot(&front_buffer, ARM_UC_DELTA_SLOT_ID, multicast_delta_read_offset);
+                                HANDLE_ERROR(retval, "ARM_UC_FirmwareManager read failed")
+                                multicast_delta_state = ARM_UC_HUB_STATE_MULTICAST_DELTA_WRITE;
+                            }
+                            else {
+                                multicast_delta_state = ARM_UC_HUB_STATE_MULTICAST_DELTA_FINALIZE;
+                                new_state = ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA_FINALIZE;
+                            }
+                        }
+                        break;
+                    default:
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA - unknown state (%d)", multicast_delta_state);
+                        break;
+                }
+                break;
+
+            case ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA_FINALIZE:
+                switch (multicast_delta_state) {
+                    case ARM_UC_HUB_STATE_MULTICAST_DELTA_FINALIZE:
+                        multicast_delta_state = ARM_UC_HUB_STATE_MULTICAST_DELTA_ACTIVATE;
+                        UC_HUB_TRACE("Processing delta - Finalize");
+                        retval = ARM_UC_FirmwareManager.Finalize(&front_buffer, &back_buffer);
+                        HANDLE_ERROR(retval, "ARM_UC_HUB_STATE_MULTICAST_DELTA_FINALIZE Finalize failed")
+                        break;
+                    case ARM_UC_HUB_STATE_MULTICAST_DELTA_ACTIVATE:
+                        UC_HUB_TRACE("Processing delta - Activate");
+                        ARM_UC_FirmwareManager.Activate(0);
+                        break;
+                    default:
+                        UC_HUB_TRACE("ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA_FINALIZE - unknown state (%d)", multicast_delta_state);
+                        break;
+                }
+                break;
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
             default:
                 new_state = ARM_UC_HUB_STATE_IDLE;
                 break;
@@ -1130,16 +1383,45 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 }
 
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
-void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info, const int8_t tasklet_id)
+void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info)
 {
     fwinfo = fw_info;
-    ota_lib_tasklet_id = tasklet_id;
+    multicast_update = true;
+}
+#endif
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+int8_t ARM_UC_HUB_createEventHandler()
+{
     if (arm_uc_tasklet_id == -1) {
         arm_uc_tasklet_id = eventOS_event_handler_create(&arm_uc_tasklet, 0);
     }
+
+    return arm_uc_tasklet_id;
 }
-#endif
+
+void ARM_UC_HUB_setMulticastTaskletId(const int8_t tasklet_id)
+{
+    ota_lib_tasklet_id = tasklet_id;
+}
+
+void ARM_UC_HUB_setManifest(uint8_t* buf, uint32_t len)
+{
+    if (len <= front_buffer.size_max) {
+        memcpy(front_buffer.ptr, buf, len);
+        front_buffer.size = len;
+        multicast_update = true;
+    } else {
+        UC_HUB_TRACE("ARM_UC_HUB_setManifest - manifest does not fit into buffer");
+    }
+}
+
+bool ARM_UC_HUB_getIsMulticastUpdate()
+{
+    return multicast_update;
+}
+
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 static void arm_uc_get_next_fragment()
 {

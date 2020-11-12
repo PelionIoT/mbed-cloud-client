@@ -83,7 +83,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.6.0";
+const char *MCC_VERSION = "mccv=4.6.2-multicast";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -200,7 +200,6 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _waiting_for_bs_finish_ack(false),
   _download_retry_timer(*this),
   _download_retry_time(0),
-  _network_stagger_estimate(0),
   _network_rtt_estimate(10)                              // Use reasonable initialization value for the RTT estimate. Must be larger than 0.
 {
     tr_debug("M2MNsdlInterface::M2MNsdlInterface()");
@@ -862,6 +861,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                     if (base) {
                         base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, resp->type);
                     }
+                    remove_item_from_response_list(resp->uri_path, coap_header->msg_id);
                 }
 
                 _observer.registration_error(M2MInterface::NetworkError, true);
@@ -946,8 +946,9 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
     M2MBase *base = find_resource(resource_name);
 
     // Update current time resource when doing a GET to the device object.
+    String lifetime_res_uri_path = "3/0/13";
     if (received_coap_header->msg_code == COAP_MSG_CODE_REQUEST_GET &&
-        resource_name.compare(0, 1, "3") == 0) {
+        (strcmp((char*)base->uri_path(), lifetime_res_uri_path.c_str()) == 0)) {
         M2MDevice* dev = M2MInterfaceFactory::create_device();
         dev->set_resource_value(M2MDevice::CurrentTime, pal_osGetTime());
     }
@@ -1336,7 +1337,7 @@ bool M2MNsdlInterface::observation_to_be_sent(M2MBase *object,
 }
 
 #ifndef DISABLE_DELAYED_RESPONSE
-void M2MNsdlInterface::send_delayed_response(M2MBase *base)
+void M2MNsdlInterface::send_delayed_response(M2MBase *base, sn_coap_msg_code_e code)
 {
     claim_mutex();
     tr_debug("M2MNsdlInterface::send_delayed_response()");
@@ -1355,7 +1356,7 @@ void M2MNsdlInterface::send_delayed_response(M2MBase *base)
                 memset(&coap_response,0,sizeof(sn_coap_hdr_s));
 
                 coap_response.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
-                coap_response.msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
+                coap_response.msg_code = code;
                 resource->get_delayed_token(coap_response.token_ptr,coap_response.token_len);
 
                 uint32_t length = 0;
@@ -3017,9 +3018,18 @@ bool M2MNsdlInterface::send_next_notification_for_object(M2MObject& object, bool
                     reporter = (*resource_iterator)->report_handler();
                     if (reporter) {
                         // Auto obs token can't be cleared
-                        if (clear_token && !(*resource_iterator)->get_nsdl_resource()->auto_observable) {
-                            reporter->set_observation_token(NULL, 0);
-                            (*resource_iterator)->cancel_observation();
+                        if (clear_token) {
+                            if ((*resource_iterator)->get_nsdl_resource()->auto_observable) {
+                                sn_nsdl_dynamic_resource_parameters_s* res = (*resource_iterator)->get_nsdl_resource();
+                                // Do not send unnecessary notification since resource value is going to be part of registration message
+                                if (res->publish_value != 0) {
+                                    reporter->set_notification_in_queue(false);
+                                    reporter->set_notification_send_in_progress(false);
+                                }
+                            } else {
+                                reporter->set_observation_token(NULL, 0);
+                                (*resource_iterator)->cancel_observation();
+                            }
                         } else if (reporter->is_under_observation() &&
                                    (reporter->notification_in_queue() || reporter->notification_send_in_progress())) {
                             reporter->schedule_report(true);
@@ -3833,15 +3843,35 @@ bool M2MNsdlInterface::handle_delayed_response_store(const char* uri_path,
 }
 #endif
 
-void M2MNsdlInterface::update_network_stagger_estimate(uint16_t data_amount)
+
+uint16_t M2MNsdlInterface::estimate_stagger_data_amount(bool bootstrap, bool using_cid) const
 {
-    _network_stagger_estimate = pal_getStaggerEstimate(data_amount);
-    tr_info("M2MNsdlInterface::update_network_stagger_estimate() to %d", _network_stagger_estimate);
+    // The full TLS/DTLS handshake amounts to roughly 5 KiB data.
+    // Boostrap takes roughly 4 KiB.
+    // Registration goes to roughly 5 KiB.
+    // On top of this we need to calculate 300 byte overhead per packet in transit.
+    // ~30 for bootstrap, ~25 for registration. 10 for DTLS.
+    const static uint16_t bootstrap_amount = 4 + 9;
+    const static uint16_t registration_amount = 5 + 8;
+    const static uint16_t handshake = 8;
+
+    if (using_cid) {
+        // Bootstrap and registration handshake done, thus doing registration
+        return registration_amount;
+    }
+
+    if (bootstrap) {
+        // Doing bootstrap stagger
+        return bootstrap_amount + handshake;
+    } else {
+        // Doing register stagger
+        return registration_amount + handshake;
+    }
 }
 
-uint16_t M2MNsdlInterface::get_network_stagger_estimate()
+uint16_t M2MNsdlInterface::get_network_stagger_estimate(bool boostrap) const
 {
-    return _network_stagger_estimate;
+    return pal_getStaggerEstimate(estimate_stagger_data_amount(boostrap, _connection_handler.is_cid_available()));
 }
 
 void M2MNsdlInterface::update_network_rtt_estimate()

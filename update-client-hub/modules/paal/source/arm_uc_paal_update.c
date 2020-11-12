@@ -20,9 +20,10 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
+#include "update-client-common/arm_uc_config.h"
 #include "update-client-paal/arm_uc_paal_update.h"
 #include "update-client-paal/arm_uc_paal_update_api.h"
-#include "update-client-common/arm_uc_config.h"
+
 #define TRACE_GROUP  "UCPI"
 
 static const ARM_UC_PAAL_UPDATE *paal_update_implementation = NULL;
@@ -327,3 +328,18 @@ arm_uc_error_t ARM_UCP_GetInstallerDetails(arm_uc_installer_details_t *details)
 
     return result;
 }
+
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+arm_uc_error_t ARM_UCP_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address)
+{
+    UC_PAAL_TRACE("ARM_UCP_GetFirmwareStartAddress");
+
+    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+
+    if (paal_update_implementation) {
+        result = paal_update_implementation->GetFirmwareStartAddress(location, start_address);
+    }
+
+    return result;
+}
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)

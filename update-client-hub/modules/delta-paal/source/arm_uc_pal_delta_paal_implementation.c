@@ -88,9 +88,6 @@ static uint64_t delta_patch_full_size = 0;
 static uint64_t delta_patch_full_offset = 0;
 // Store the information if current payload being processed is delta or not (pass-through)
 static uint8_t delta_incoming = 0;
-// Boolean to indicate if payload if delta or not - to be set false if first fragment (offset==0)
-// indicates we are receiveing bsdifflz4 payload and we need to process delta
-static bool update_payload_full = true;
 
 
 // Local Buffer to store the outgoing new image buffer
@@ -331,7 +328,6 @@ static void arm_uc_deltapaal_reset_internals(void)
     delta_patch_full_size = 0;
     delta_patch_full_offset = 0;
     delta_incoming = 0;
-    update_payload_full = true;
     outgoing_new_buffer.size = 0;
 }
 
@@ -824,17 +820,18 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_Write(uint32_t slot_id,
 
     /* Check whether processing delta or full payload */
     if (offset==0) {
-        if (memcmp(buffer->ptr, FILE_MAGIC, FILE_MAGIC_LEN) == 0) {
-            update_payload_full = false;
+        if (memcmp(buffer->ptr, FILE_MAGIC, FILE_MAGIC_LEN) == 0 && !delta_incoming) {
+            // Prepare indicated delta, but payload is not delta
+            // TODO: report error?
+        }
+        else if (delta_incoming) {
+            // Prepare indicated full, but payload is delta
+            // TODO: report error? Maybe not at least on multicasting case as we need to slip the delta
+            // first to disc fully before processing it.
         }
     }
 
-    if((update_payload_full && delta_incoming) || (!update_payload_full && !delta_incoming)) {
-        // either prepare said it's delta but it's not or vice versa
-        // TODO: report error
-    }
-
-    if (!update_payload_full) {
+    if (delta_incoming) {
         // Delta processing
         UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_Write We have DELTA PAYLOAD! ");
 
@@ -1008,5 +1005,19 @@ arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetInstallerDetails(arm_uc_installer_details
     return result;
 }
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+arm_uc_error_t ARM_UC_PAL_DeltaPaal_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address)
+{
+    arm_uc_error_t result = { .code = ERR_NONE };
+
+    UC_PAAL_TRACE("ARM_UC_PAL_DeltaPaal_GetFirmwareStartAddress");
+
+    if (paal_storage_implementation) {
+        result = paal_storage_implementation->GetFirmwareStartAddress(location, start_address);
+    }
+
+    return result;
+}
+#endif //defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 #endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL)

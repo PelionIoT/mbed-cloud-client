@@ -124,11 +124,6 @@ set(PAL_TLS_SRCS
     ${PAL_PORT_SOURCE_DIR}/../../Lib_Specific/${TLS_LIBRARY}/TLS/pal_plat_TLS.c
 )
 
-set(PAL_CRYPTO_SRCS
-    ${PAL_MODULES_SOURCE_DIR}/Crypto/pal_Crypto.c
-    ${PAL_PORT_SOURCE_DIR}/../../Lib_Specific/${TLS_LIBRARY}/Crypto/pal_plat_Crypto.c
-)
-
 set(PAL_DRBG_SRCS
     ${PAL_MODULES_SOURCE_DIR}/DRBG/pal_drbg.c
     # XXX: following file is in completely wrong place, it is tied to SOTP, not MBEDTLS
@@ -222,11 +217,6 @@ add_library(palTLS STATIC "${PAL_TLS_SRCS}")
 add_dependencies(palTLS palTime key-config-manager nanostackeventloop palDRBG PLATFORM_LIBS)
 target_link_libraries(palTLS palTime key-config-manager nanostackeventloop palDRBG PLATFORM_LIBS)
 
-# Create the Crypto module library
-add_library(palCrypto STATIC "${PAL_CRYPTO_SRCS}")
-add_dependencies(palCrypto PLATFORM_LIBS)
-target_link_libraries(palCrypto PLATFORM_LIBS)
-
 # Create the DRBG module library
 add_library(palDRBG STATIC "${PAL_DRBG_SRCS}")
 add_dependencies(palDRBG palRTOS)
@@ -244,12 +234,12 @@ add_library(pal STATIC "${PAL_SRCS}")
 # Linux platform does not support KVStore
 if (NOT (${OS_BRAND} MATCHES "Linux"))
 # Add dependency to KVStore and FCC so they will be built before and linked with PAL into final executable.
-add_dependencies(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
-target_link_libraries(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
+add_dependencies(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
+target_link_libraries(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
 else()
 # Add dependency to SOTP and FCC so they will be built before and linked with PAL into final executable.
-add_dependencies(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
-target_link_libraries(pal palRTOS palNetworking palCrypto palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
+add_dependencies(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
+target_link_libraries(pal palRTOS palNetworking  palDRBG palROT palEntropy palTLS palTime sotp PLATFORM_LIBS)
 endif()
 
 # Bring in the ROT implementation from platform-common/application side. This can be
@@ -262,9 +252,11 @@ if (PAL_USE_PLATFORM_ROT_OVERRIDE)
 endif()
 
 # Add test CMakeList.txt
-ADD_SUBDIRECTORY(Test ${CMAKE_CURRENT_BINARY_DIR}/Test)
-get_directory_property(hasParent PARENT_DIRECTORY)
-if(hasParent)
-    set (SRC_LIBS ${SRC_LIBS} PARENT_SCOPE)
-    set (TEST_LIBS ${TEST_LIBS} PARENT_SCOPE)
+if(NOT DEFINED DISABLE_PAL_TESTS)
+    ADD_SUBDIRECTORY(Test ${CMAKE_CURRENT_BINARY_DIR}/Test)
+    get_directory_property(hasParent PARENT_DIRECTORY)
+    if(hasParent)
+        set (SRC_LIBS ${SRC_LIBS} PARENT_SCOPE)
+        set (TEST_LIBS ${TEST_LIBS} PARENT_SCOPE)
+    endif()
 endif()

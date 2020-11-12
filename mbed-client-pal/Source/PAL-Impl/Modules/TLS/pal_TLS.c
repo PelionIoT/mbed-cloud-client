@@ -17,6 +17,7 @@
 
 #include "pal.h"
 #include "pal_plat_TLS.h"
+#include "pal_Crypto.h"
 
 // do not require storage unless this modules is configured to use it
 #if PAL_USE_SECURE_TIME
@@ -26,9 +27,9 @@
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
 #include "key_config_manager.h"
 static const char* kcm_session_item_name = "sslsession";
-static int32_t pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf);
 static void pal_saveSslSessionToStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf);
 static void pal_removeSslSessionFromStorage(palTLSConfHandle_t palTLSConf);
+static int32_t pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf);
 #endif
 
 #define TRACE_GROUP "PAL"
@@ -79,7 +80,7 @@ palStatus_t pal_cleanupTLS(void)
 }
 
 
-palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHandle)
+palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHandle, bool is_server_ping)
 {
     palStatus_t status = PAL_SUCCESS;
     palStatus_t mutexStatus = PAL_SUCCESS;
@@ -115,8 +116,10 @@ palStatus_t pal_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHan
     if (PAL_SUCCESS == status)
     {
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
-    pal_loadSslSessionFromStorage(*palTLSHandle, palTLSConf);
-#endif //PAL_USE_SSL_SESSION_RESUME
+        if(!is_server_ping) {
+            pal_loadSslSessionFromStorage(*palTLSHandle, palTLSConf);
+        }
+#endif
     }
 
 finish:
@@ -440,6 +443,17 @@ PAL_PRIVATE palStatus_t pal_updateTime(uint64_t serverTime, bool trustedTimeServ
 }
 #endif //PAL_USE_SECURE_TIME
 
+palStatus_t pal_handShake_ping(palTLSHandle_t palTLSHandle)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
+
+    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSCtx);
+    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSCtx->platTlsHandle);
+
+    return pal_plat_handShake_ping(palTLSCtx->platTlsHandle);
+}
+
 palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -644,10 +658,12 @@ void pal_enableSslSessionStoring(palTLSConfHandle_t palTLSConf, bool enable)
     }
     palTLSConfCtx->useSslSessionResume = enable;
 }
+#endif
 
 void pal_store_cid()
 {
-    kcm_item_delete((uint8_t *)kcm_session_item_name,
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    (void) kcm_item_delete((uint8_t *)kcm_session_item_name,
                                  strlen(kcm_session_item_name),
                                  KCM_CONFIG_ITEM);
 
@@ -668,8 +684,31 @@ void pal_store_cid()
             PAL_LOG_ERR("pal_store_cid - Failed to save CID persistently");
         }
     }
+#endif
 }
 
+void pal_remove_cid()
+{
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    PAL_LOG_DBG("pal_remove_cid - remove CID");
+    (void) kcm_item_delete((uint8_t *)kcm_session_item_name,
+                                 strlen(kcm_session_item_name),
+                                 KCM_CONFIG_ITEM);
+
+    pal_plat_removeSslSession();
+#endif
+}
+
+bool pal_is_cid_available()
+{
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    return pal_plat_sslSessionAvailable();
+#else
+    return false;
+#endif
+}
+
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
 void pal_removeSslSessionFromStorage(palTLSConfHandle_t palTLSConf)
 {
     palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
@@ -682,7 +721,7 @@ void pal_removeSslSessionFromStorage(palTLSConfHandle_t palTLSConf)
     if(palTLSConfCtx->isDtlsMode) {
         pal_plat_removeSslSession();
     } else {
-        kcm_item_delete((uint8_t *)kcm_session_item_name,
+        (void) kcm_item_delete((uint8_t *)kcm_session_item_name,
                         strlen(kcm_session_item_name),
                         KCM_CONFIG_ITEM);
     }
@@ -749,7 +788,7 @@ void pal_saveSslSessionToStorage(palTLSHandle_t palTLSHandle, palTLSConfHandle_t
         if (replace)
         {
             PAL_LOG_DBG("pal_saveSslSessionToStorage - save a new session");
-            kcm_item_delete((uint8_t *)kcm_session_item_name,
+            (void) kcm_item_delete((uint8_t *)kcm_session_item_name,
                                          strlen(kcm_session_item_name),
                                          KCM_CONFIG_ITEM);
 
@@ -832,8 +871,6 @@ int32_t pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHan
         if(pal_plat_sslSessionAvailable()) {
             return_value = pal_plat_loadSslSession(palTLSCtx->platTlsHandle);
         } else if(act_size > 0) {
-    // XXX: DISABLED STORING CID till backend is ready
-    #if 0
             size_t data_out = 0;
             uint8_t *existing_session = (uint8_t*)malloc(act_size);
             kcm_item_get_data((uint8_t *)kcm_session_item_name,
@@ -842,10 +879,9 @@ int32_t pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHan
             pal_plat_set_cid(existing_session, act_size);
             free(existing_session);
             return_value = pal_plat_loadSslSession(palTLSCtx->platTlsHandle);
-            kcm_item_delete((uint8_t *)kcm_session_item_name,
+            (void) kcm_item_delete((uint8_t *)kcm_session_item_name,
                             strlen(kcm_session_item_name),
                             KCM_CONFIG_ITEM);
-    #endif
         }
 
     }

@@ -19,6 +19,7 @@
 #if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) || defined (MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 
 #include "pal.h"
+#include "pal_Crypto.h"
 #include "pal_plat_entropy.h"
 
 // Include mbedtls config file explicitly for MBEDTLS_ENTROPY_NV_SEED flag

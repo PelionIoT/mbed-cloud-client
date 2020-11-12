@@ -54,7 +54,6 @@ static M2MResource *bootloaderHashResource    = NULL; // /10255/0/1
 static M2MResource *OEMBootloaderHashResource = NULL; // /10255/0/2
 static M2MResource *vendorIdResource          = NULL; // /10255/0/3
 static M2MResource *classIdResource           = NULL; // /10255/0/4
-static M2MResource *deviceIdResource          = NULL; // /10255/0/5
 
 #if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
 /* M2MInterface */
@@ -212,40 +211,6 @@ void DeviceMetadataResource::Initialize(void)
                     classIdResource->set_value(value, value_length);
                     classIdResource->publish_value_in_registration_msg(true);
                     classIdResource->set_auto_observable(true);
-                }
-
-                /* get device ID */
-                err = pal_getDeviceGuid(&guid);
-                if (err.error == ERR_NONE) {
-                    value = (uint8_t *) &guid;
-                    value_length = sizeof(arm_uc_guid_t);
-                } else {
-                    value = (uint8_t *) invalid_value;
-                    value_length = invalid_value_size;
-                }
-
-                /* Create Update resource /10255/0/5 */
-#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
-                deviceIdResource = deviceMetadataInstance->create_dynamic_resource(
-                                       RESOURCE_VALUE(5),
-                                       "DeviceId",
-                                       M2MResourceInstance::OPAQUE,
-                                       true);
-#else
-                deviceIdResource = deviceMetadataInstance->create_static_resource(
-                                       RESOURCE_VALUE(5),
-                                       "DeviceId",
-                                       M2MResourceInstance::OPAQUE,
-                                       value,
-                                       value_length);
-#endif
-                if (deviceIdResource) {
-                    deviceIdResource->set_operation(M2MBase::GET_ALLOWED);
-#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
-                    deviceIdResource->set_value(value, value_length);
-#endif
-                    deviceIdResource->publish_value_in_registration_msg(true);
-                    deviceIdResource->set_auto_observable(true);
                 }
             }
         }

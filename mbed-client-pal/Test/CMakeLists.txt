@@ -77,8 +77,6 @@ file(GLOB PAL_TEST_TIME_SRCS "${PAL_TESTS_SOURCE_DIR}/Time/*.c")
 
 file(GLOB PAL_TEST_TLS_SRCS "${PAL_TESTS_SOURCE_DIR}/TLS/*.c")
 
-file(GLOB_RECURSE PAL_TEST_CRYPTO_SRCS "${PAL_TESTS_SOURCE_DIR}/Crypto/*.c")
-
 file(GLOB PAL_TEST_DRBG_SRCS "${PAL_TESTS_SOURCE_DIR}/DRBG/*")
 
 file(GLOB PAL_TEST_UPDATE_SRCS "${PAL_TESTS_SOURCE_DIR}/Update/*")
@@ -105,8 +103,6 @@ file(GLOB PAL_TEST_RUNNER_FS_SRCS "${PAL_TESTS_RUNNER_DIR}/FileSystem/*.c")
 file(GLOB PAL_TEST_RUNNER_TIME_SRCS "${PAL_TESTS_RUNNER_DIR}/Time/*.c")
 
 file(GLOB PAL_TEST_RUNNER_TLS_SRCS "${PAL_TESTS_RUNNER_DIR}/TLS/*.c")
-
-file(GLOB PAL_TEST_RUNNER_CRYPTO_SRCS "${PAL_TESTS_RUNNER_DIR}/Crypto/*.c")
 
 file(GLOB PAL_TEST_RUNNER_DRBG_SRCS "${PAL_TESTS_RUNNER_DIR}/DRBG/*.c")
 
@@ -155,7 +151,6 @@ set (PAL_TEST_FLAGS
     -DPAL_TEST_NETWORK
     -DPAL_TEST_TLS
     -DPAL_TEST_TIME
-    -DPAL_TEST_CRYPTO
     -DPAL_TEST_FLASH
 )
 
@@ -220,11 +215,6 @@ CREATE_TEST_LIBRARY(TLSTests "${tls_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(TLSTests pal palunity platformCommon cloud_credentials)
 target_link_libraries(TLSTests pal palunity platformCommon cloud_credentials)
 
-set(crypto_test_src ${test_src}; ${PAL_TEST_RUNNER_CRYPTO_SRCS}; ${PAL_TEST_CRYPTO_SRCS})
-CREATE_TEST_LIBRARY(CryptoTests "${crypto_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(CryptoTests pal palunity platformCommon)
-target_link_libraries(CryptoTests pal palunity platformCommon)
-
 set(update_test_src ${test_src}; ${PAL_TEST_RUNNER_UPDATE_SRCS}; ${PAL_TEST_UPDATE_SRCS})
 CREATE_TEST_LIBRARY(UpdateTests "${update_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(UpdateTests pal palunity platformCommon)
@@ -244,5 +234,5 @@ target_link_libraries(SotpTests pal palunity platformCommon)
 set(all_test_src ${test_src}; ${PAL_TEST_RUNNER_FULL_SRCS})
 CREATE_TEST_LIBRARY(palTests "${all_test_src}" "${PAL_TEST_FLAGS}")
 add_dependencies(palTests pal palunity sanityTests platformCommon)
-target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests EntropyTests NetworkTests DRBGTests FileSystemTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
+target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests EntropyTests NetworkTests DRBGTests FileSystemTests TimeTests TLSTests UpdateTests FlashTests SotpTests)
 

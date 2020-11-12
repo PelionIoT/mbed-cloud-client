@@ -16,6 +16,7 @@
 
 
 #include "pal.h"
+#include "pal_Crypto.h"
 #include "pal_plat_rot.h"
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "sotp.h"

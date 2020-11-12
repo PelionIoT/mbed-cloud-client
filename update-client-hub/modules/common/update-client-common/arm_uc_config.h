@@ -28,8 +28,18 @@
 #define ARM_UC_ENABLE 1
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     #define ARM_UC_MULTICAST_ENABLE 1
+    #define ARM_UC_FEATURE_DELTA_PAAL 1
+    #define ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST 1
     #ifdef MBED_CLOUD_CLIENT_MULTICAST_BORDER_ROUTER
         #define ARM_UC_MULTICAST_BORDER_ROUTER_MODE
+    #else
+        #define ARM_UC_MULTICAST_NODE_MODE
+        #if !defined(MBED_CONF_UPDATE_CLIENT_DELTA_STORAGE_ADDRESS) || !defined (MBED_CONF_UPDATE_CLIENT_DELTA_STORAGE_SIZE)
+            #error "Delta feature with multicast updates requires storage address and size"
+        #endif
+        #if MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS > 1
+            #error "Multicast updates support only one update storage location (and separate delta storage location)"
+        #endif
     #endif
 #else
     #define ARM_UC_MULTICAST_ENABLE 0
@@ -40,6 +50,7 @@
 #define ARM_UC_FEATURE_DELTA_PAAL 0
 #endif
 
+#define ARM_UC_DELTA_SLOT_ID 1
 
 
 // Rest is only defined when update client is enabled

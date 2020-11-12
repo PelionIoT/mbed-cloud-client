@@ -17,7 +17,6 @@
 #include "pv_error_handling.h"
 #include "cs_der_keys_and_csrs.h"
 #include "cs_der_certs.h"
-#include "pal.h"
 #include "cs_utils.h"
 #include "mbedtls/pk.h"
 #include "fcc_malloc.h"
@@ -57,7 +56,7 @@ static kcm_status_e cs_init_and_set_pal_key_handle(const uint8_t *key_data, size
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_status_e kcm_free_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palGroupIndex_t pal_grp_idx;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((key_data == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid key pointer");
@@ -66,25 +65,25 @@ static kcm_status_e cs_init_and_set_pal_key_handle(const uint8_t *key_data, size
 
     //Create new key handler
     pal_status = pal_ECKeyNew(key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
 
     if (key_type == PAL_CHECK_PRIVATE_KEY) {
         //Parse der private key
         pal_status = pal_parseECPrivateKeyFromDER(key_data, key_data_size, *key_handle);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPrivateKeyFromDER failed ");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPrivateKeyFromDER failed ");
     } else {
         //Parse der public key
         pal_status = pal_parseECPublicKeyFromDER(key_data, key_data_size, *key_handle);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed ");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed ");
     }
 
     //retrieve key curve from key handle
     pal_status = pal_ECKeyGetCurve(*key_handle, &pal_grp_idx);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECKeyGetCurve failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECKeyGetCurve failed ");
 
     //Load the key curve
     pal_status = pal_ECGroupInitAndLoad(grp, pal_grp_idx);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECGroupInitAndLoad failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECGroupInitAndLoad failed ");
 
     return kcm_status;
 
@@ -101,7 +100,7 @@ static kcm_status_e der_key_verify(const uint8_t *der_key, size_t der_key_length
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_status_e kcm_free_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palECKeyHandle_t key_handle = NULLPTR;
     palCurveHandle_t grp = NULLPTR;
     bool verified = false;
@@ -116,7 +115,7 @@ static kcm_status_e der_key_verify(const uint8_t *der_key, size_t der_key_length
 
     //Perform key verification
     pal_status = pal_ECCheckKey(grp, key_handle, key_type, &verified);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF(((PAL_SUCCESS != pal_status) || (verified != true)), kcm_status = cs_error_handler(pal_status), exit, "pal_ECCheckKey failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF(((FCC_PAL_SUCCESS != pal_status) || (verified != true)), kcm_status = cs_error_handler(pal_status), exit, "pal_ECCheckKey failed ");
 
 exit:
     //Free curve handler and key handle
@@ -130,7 +129,7 @@ exit:
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 static kcm_status_e key_pair_generate(palECKeyHandle_t ec_key_handle, kcm_crypto_key_scheme_e curve_name, cs_key_handle_t key_h)
 {
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palGroupIndex_t pal_group_id;
     cs_key_pair_context_s* key_ctx;
 
@@ -150,16 +149,16 @@ static kcm_status_e key_pair_generate(palECKeyHandle_t ec_key_handle, kcm_crypto
 
     // Generate keys
     pal_status = pal_ECKeyGenerateKey(pal_group_id, ec_key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to generate keys");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to generate keys");
 
     // Save private key to priv_key_handle
     pal_status = pal_writePrivateKeyWithHandle((palKeyHandle_t)key_ctx->generated_priv_key_handle, ec_key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to write private key to out buffer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to write private key to out buffer");
 
     if (key_ctx->generated_pub_key_handle != 0) {
         // Save public key to pub_key_handle
         pal_status = pal_writePublicKeyWithHandle((palKeyHandle_t)key_ctx->generated_pub_key_handle, ec_key_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to write public key to out buffer");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to write public key to out buffer");
     }
 
     return KCM_STATUS_SUCCESS;
@@ -172,7 +171,7 @@ static kcm_status_e key_pair_generate(palECKeyHandle_t ec_key_handle, kcm_crypto
 kcm_status_e cs_pub_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     int mbdtls_result = 0;
     palECKeyHandle_t key_handle = NULLPTR;
     mbedtls_pk_context* localECKey;
@@ -186,10 +185,10 @@ kcm_status_e cs_pub_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_le
 
     //Create new key handler
     pal_status = pal_ECKeyNew(&key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
 
     pal_status = pal_parseECPublicKeyFromDER(der_key, der_key_length, key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed");
 
     localECKey = (mbedtls_pk_context*)key_handle;
     ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
@@ -209,7 +208,7 @@ exit:
 kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_length, uint8_t *der_key_data_out, size_t der_key_data_max_size, size_t *der_key_data_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     int mbdtls_result = 0;
     palECKeyHandle_t key_handle = NULLPTR;
     mbedtls_pk_context* localECKey;
@@ -223,7 +222,7 @@ kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_le
 
     //Create new key handler
     pal_status = pal_ECKeyNew(&key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
 
     localECKey = (mbedtls_pk_context*)key_handle;
 
@@ -240,7 +239,7 @@ kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_le
     SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_point_read_binary failed ");
 
     pal_status = pal_writePublicKeyToDer(key_handle, der_key_data_out, der_key_data_max_size, der_key_data_act_size_out);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_writePublicKeyToDer failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_writePublicKeyToDer failed ");
 
 exit:
     //Free key handler
@@ -254,7 +253,7 @@ exit:
 kcm_status_e cs_priv_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     int mbdtls_result = 0;
     palECKeyHandle_t key_handle = NULLPTR;
     mbedtls_pk_context* localECKey;
@@ -269,10 +268,10 @@ kcm_status_e cs_priv_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_l
 
     //Create new key handler
     pal_status = pal_ECKeyNew(&key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed ");
 
     pal_status = pal_parseECPrivateKeyFromDER(der_key, der_key_length, key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed ");
 
     localECKey = (mbedtls_pk_context*)key_handle;
     ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
@@ -319,7 +318,7 @@ kcm_status_e cs_ecdsa_verify(const uint8_t *der_pub_key, size_t der_pub_key_len,
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_status_e kcm_free_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palECKeyHandle_t key_handle = NULLPTR;
     palCurveHandle_t grp = NULLPTR;
     bool is_sign_verified = false;
@@ -337,7 +336,7 @@ kcm_status_e cs_ecdsa_verify(const uint8_t *der_pub_key, size_t der_pub_key_len,
 
     //Verify the signature
     pal_status = pal_ECDSAVerify(key_handle, (unsigned char*)hash_dgst, (uint32_t)hash_dgst_len, (unsigned char*)sign, signature_size, &is_sign_verified);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECDSAVerify failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECDSAVerify failed ");
     SA_PV_ERR_RECOVERABLE_GOTO_IF((is_sign_verified != true), kcm_status = KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED, exit, "pal_ECDSAVerify failed to verify signature ");
 
 exit:
@@ -353,7 +352,7 @@ kcm_status_e cs_ecdsa_sign(const uint8_t *der_priv_key, size_t der_priv_key_leng
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kcm_status_e kcm_free_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palECKeyHandle_t key_handle = NULLPTR;
     palCurveHandle_t grp = NULLPTR;
     palMDType_t md_type = PAL_SHA256;
@@ -373,7 +372,7 @@ kcm_status_e cs_ecdsa_sign(const uint8_t *der_priv_key, size_t der_priv_key_leng
     *signature_data_act_size_out = signature_data_max_size;
     //Sign on hash digest
     pal_status = pal_ECDSASign(grp, md_type, key_handle, (unsigned char*)hash_dgst, (uint32_t)hash_dgst_len, out_sign, signature_data_act_size_out);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECDSASign failed ");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECDSASign failed ");
 
 exit:
     //Free curve handler and key handle
@@ -413,12 +412,12 @@ kcm_status_e cs_verify_key_pair(const uint8_t *priv_key_data, size_t priv_key_da
 kcm_status_e cs_key_pair_generate(kcm_crypto_key_scheme_e curve_name, cs_key_handle_t key_h)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palECKeyHandle_t ec_key_handle = NULLPTR;
 
     // Create new key handler
     pal_status = pal_ECKeyNew(&ec_key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
 
     // Call to internal key_pair_generate
     kcm_status = key_pair_generate(ec_key_handle, curve_name, key_h);
@@ -439,7 +438,7 @@ static kcm_status_e csr_generate(palECKeyHandle_t priv_key_handle, const kcm_csr
                                  uint8_t *csr_buff_out, size_t csr_buff_max_size, size_t *csr_buff_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palx509CSRHandle_t x509CSR_handle = NULLPTR;
     palMDType_t pal_md_type;
     uint32_t pal_key_usage = 0;
@@ -456,11 +455,11 @@ static kcm_status_e csr_generate(palECKeyHandle_t priv_key_handle, const kcm_csr
 
     // Initialize x509 CSR handle 
     pal_status = pal_x509CSRInit(&x509CSR_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to initialize x509 CSR handle");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "Failed to initialize x509 CSR handle");
 
     // Set CSR Subject
     pal_status = pal_x509CSRSetSubject(x509CSR_handle, csr_params->subject);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR Subject");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR Subject");
 
     // Set MD algorithm to SHA256 for the signature
     switch (csr_params->md_type) {
@@ -471,11 +470,11 @@ static kcm_status_e csr_generate(palECKeyHandle_t priv_key_handle, const kcm_csr
             SA_PV_ERR_RECOVERABLE_GOTO_IF(true, kcm_status = KCM_CRYPTO_STATUS_INVALID_MD_TYPE, exit, "MD type not supported");
     }
     pal_status = pal_x509CSRSetMD(x509CSR_handle, pal_md_type);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set MD algorithm");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set MD algorithm");
 
     // Set keys into CSR
     pal_status = pal_x509CSRSetKey(x509CSR_handle, priv_key_handle, NULLPTR);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to Set keys into CSR");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to Set keys into CSR");
 
     // Set CSR key usage
     if (csr_params->key_usage != KCM_CSR_KU_NONE) {
@@ -492,7 +491,7 @@ static kcm_status_e csr_generate(palECKeyHandle_t priv_key_handle, const kcm_csr
             pal_key_usage |= PAL_X509_KU_KEY_AGREEMENT;
         }
         pal_status = pal_x509CSRSetKeyUsage(x509CSR_handle, pal_key_usage);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR key usage");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR key usage");
     }
 
     // Set CSR extended key usage
@@ -519,12 +518,12 @@ static kcm_status_e csr_generate(palECKeyHandle_t priv_key_handle, const kcm_csr
             pal_ext_key_usage |= PAL_X509_EXT_KU_OCSP_SIGNING;
         }
         pal_status = pal_x509CSRSetExtendedKeyUsage(x509CSR_handle, pal_ext_key_usage);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR extended key usage");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to set CSR extended key usage");
     }
 
     // Write the CSR to out buffer in DER format
     pal_status = pal_x509CSRWriteDER(x509CSR_handle, csr_buff_out, csr_buff_max_size, csr_buff_act_size_out);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to write the CSR to out buffer");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to write the CSR to out buffer");
 
 exit:
     //Free CSR handler
@@ -540,18 +539,18 @@ kcm_status_e cs_csr_generate(const kcm_key_handle_t priv_key_handle, const kcm_c
                              size_t csr_buff_max_size, size_t *csr_buff_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palECKeyHandle_t pal_ec_key_handle = NULLPTR;
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((priv_key_handle == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid private key handle");
 
     // Create new key handler
     pal_status = pal_ECKeyNew(&pal_ec_key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
 
     // Parse private key from DER format
     pal_status = pal_parseECPrivateKeyFromHandle((palKeyHandle_t)priv_key_handle, pal_ec_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to parse private key from DER format");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to parse private key from DER format");
 
     // Call to internal csr_generate
     kcm_status = csr_generate(pal_ec_key_handle, csr_params, csr_buff_out, csr_buff_max_size, csr_buff_act_size_out);
@@ -604,7 +603,7 @@ static kcm_status_e cs_generate_csr_from_certificate(const uint8_t *certificate,
                                                      size_t *csr_buff_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palx509CSRHandle_t pal_csr_handle = NULLPTR;
     palX509Handle_t pal_crt_handle = NULLPTR;
 
@@ -614,26 +613,26 @@ static kcm_status_e cs_generate_csr_from_certificate(const uint8_t *certificate,
 
     // Create CSR handle
     pal_status = pal_x509CSRInit(&pal_csr_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed intializing X509 CSR object");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed intializing X509 CSR object");
 
     // Set keys into CSR
     pal_status = pal_x509CSRSetKey(pal_csr_handle, pal_ec_key_handle, NULLPTR);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to Set keys into CSR");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to Set keys into CSR");
 
     // Create CSR from the given CRT
     pal_status = pal_x509CSRFromCertWriteDER(pal_crt_handle, pal_csr_handle, csr_buff_out, csr_buff_max_size, csr_buff_act_size_out);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed generating CSR from Certificate");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed generating CSR from Certificate");
 
 exit:
     //Free x509 CSR handle
     if (pal_csr_handle != NULLPTR) {
         pal_status = pal_x509CSRFree(&pal_csr_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status) && (kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free x509 CSR handle failed");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status) && (kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free x509 CSR handle failed");
     }
     //Free x509 CRT handle
     if (pal_crt_handle != NULLPTR) {
         pal_status = pal_x509Free(&pal_crt_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status) && (kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free x509 CRT handle failed");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status) && (kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free x509 CRT handle failed");
     }
 
     return kcm_status;
@@ -648,7 +647,7 @@ kcm_status_e cs_generate_keys_and_create_csr_from_certificate(const uint8_t *cer
                                                               size_t *csr_buff_act_size_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palECKeyHandle_t pal_ec_key_handle = NULLPTR;
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
@@ -660,7 +659,7 @@ kcm_status_e cs_generate_keys_and_create_csr_from_certificate(const uint8_t *cer
 
     // Create new key handle
     pal_status = pal_ECKeyNew(&pal_ec_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECKeyNew failed");
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
@@ -686,7 +685,7 @@ kcm_status_e cs_generate_keys_and_create_csr_from_certificate(const uint8_t *cer
 
     //Get EC handle from generated private key kcm handle
     pal_status = pal_parseECPrivateKeyFromHandle(ec_key_ctx->generated_priv_key_handle, pal_ec_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to parse key handle");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "Failed to parse key handle");
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
     //Generate csr from the certificate using generated private EC handle
@@ -714,7 +713,7 @@ exit:
     //Free key handle
     if (pal_ec_key_handle != NULLPTR) {
         pal_status = pal_ECKeyFree(&pal_ec_key_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status) && (kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status) && (kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed");
     }
     return kcm_status;
 }
@@ -734,11 +733,11 @@ kcm_status_e cs_key_pair_new(cs_key_handle_t *key_h, bool write_public_key)
     key_pair_context->generated_pub_key_handle = 0;
 
     pal_status = pal_newKeyHandle((palKeyHandle_t*)&(key_pair_context->generated_priv_key_handle), KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), free_and_exit, "Failed to get valid pal_priv_key_handle");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != FCC_PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), free_and_exit, "Failed to get valid pal_priv_key_handle");
 
     if (write_public_key == true) {
         pal_status = pal_newKeyHandle((palKeyHandle_t*)&(key_pair_context->generated_pub_key_handle), KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), free_and_exit, "Failed to get valid pal_pub_key_handle");
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != FCC_PAL_SUCCESS), kcm_status = cs_error_handler(pal_status), free_and_exit, "Failed to get valid pal_pub_key_handle");
     }
 
     *key_h = (cs_key_handle_t)key_pair_context;
@@ -775,7 +774,7 @@ kcm_status_e cs_asymmetric_sign(kcm_key_handle_t kcm_prv_key_handle, const uint8
                                 size_t hash_digest_size, uint8_t *signature_data_out, size_t signature_data_max_size, size_t *signature_data_act_size_out)
 {
 
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palECKeyHandle_t pal_ec_prv_key_handle = NULLPTR;
 
@@ -783,22 +782,22 @@ kcm_status_e cs_asymmetric_sign(kcm_key_handle_t kcm_prv_key_handle, const uint8
 
     //create pal EC Key handle for private key
     pal_status = pal_ECKeyNew(&pal_ec_prv_key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
 
     //parse private key from handle
     pal_status = pal_parseECPrivateKeyFromHandle((palKeyHandle_t)kcm_prv_key_handle, pal_ec_prv_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPrivateKeyFromHandle failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPrivateKeyFromHandle failed");
 
     //get output signature
     pal_status = pal_asymmetricSign(pal_ec_prv_key_handle, PAL_SHA256, hash_digest, hash_digest_size, signature_data_out, signature_data_max_size, signature_data_act_size_out);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_asymmetricSign failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_asymmetricSign failed");
 
 exit:
 
     //Free key handler
     if (pal_ec_prv_key_handle != NULLPTR) {
         pal_status = pal_ECKeyFree(&pal_ec_prv_key_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
     }
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
@@ -812,7 +811,7 @@ kcm_status_e  cs_asymmetric_verify(kcm_key_handle_t kcm_public_key_handle, const
                                    size_t hash_digest_size, const uint8_t *signature, size_t signature_len)
 {
 
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palECKeyHandle_t pal_ec_pub_key_handle = NULLPTR;
 
@@ -820,22 +819,22 @@ kcm_status_e  cs_asymmetric_verify(kcm_key_handle_t kcm_public_key_handle, const
 
     //create pal EC Key handle for public key
     pal_status = pal_ECKeyNew(&pal_ec_pub_key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
 
     //parse public key from handle
     pal_status = pal_parseECPublicKeyFromHandle((palKeyHandle_t)kcm_public_key_handle, pal_ec_pub_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromHandle failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromHandle failed");
 
     //verify the signature
     pal_status = pal_asymmetricVerify(pal_ec_pub_key_handle, PAL_SHA256, hash_digest, hash_digest_size, signature, signature_len);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_asymmetricVerify failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_asymmetricVerify failed");
 
 exit:
 
     //Free key handler
     if (pal_ec_pub_key_handle != NULLPTR) {
         pal_status = pal_ECKeyFree(&pal_ec_pub_key_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
     }
 
 
@@ -850,7 +849,7 @@ kcm_status_e cs_ecdh_key_agreement(kcm_key_handle_t kcm_private_key_handle, cons
                                    size_t peer_public_pub_key_size, uint8_t *shared_secret, size_t shared_secret_max_size, size_t *shared_secret_act_size_out)
 {
 
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     palECKeyHandle_t pal_ec_prv_key_handle = NULLPTR;
 
@@ -858,22 +857,22 @@ kcm_status_e cs_ecdh_key_agreement(kcm_key_handle_t kcm_private_key_handle, cons
 
     //create pal EC Key handle for private key
     pal_status = pal_ECKeyNew(&pal_ec_prv_key_handle);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((FCC_PAL_SUCCESS != pal_status), cs_error_handler(pal_status), "pal_ECKeyNew failed");
 
     //parse private key from handle
     pal_status = pal_parseECPrivateKeyFromHandle((palKeyHandle_t)kcm_private_key_handle, pal_ec_prv_key_handle);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECKeyNew failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECKeyNew failed");
 
     //calculate shared secret
     pal_status = pal_ECDHKeyAgreement(peer_public_key, peer_public_pub_key_size, pal_ec_prv_key_handle, shared_secret, shared_secret_max_size, shared_secret_act_size_out);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECDHKeyAgreement failed");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_ECDHKeyAgreement failed");
 
 exit:
 
     //Free key handler
     if (pal_ec_prv_key_handle != NULLPTR) {
         pal_status = pal_ECKeyFree(&pal_ec_prv_key_handle);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS && kcm_status == KCM_STATUS_SUCCESS), KCM_STATUS_ERROR, "Free key handle failed ");
     }
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();

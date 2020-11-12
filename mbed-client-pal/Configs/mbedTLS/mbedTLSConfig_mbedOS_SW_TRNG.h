@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2019 ARM Ltd.
+// Copyright 2018-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -111,10 +111,6 @@
 #ifndef MBEDTLS_ECP_C
     #define MBEDTLS_ECP_C
 #endif //MBEDTLS_ECP_C
-
-#ifndef MBEDTLS_ENTROPY_NV_SEED
-    #define MBEDTLS_ENTROPY_NV_SEED
-#endif //MBEDTLS_ENTROPY_NV_SEED
 
 #ifndef MBEDTLS_NO_PLATFORM_ENTROPY
     #define MBEDTLS_NO_PLATFORM_ENTROPY
@@ -247,6 +243,19 @@
     #define MBEDTLS_BASE64_C
 #endif // MBEDTLS_BASE64_C
 
+// Enable non-volatile entropy feature
+#ifndef MBEDTLS_ENTROPY_NV_SEED
+    #define MBEDTLS_ENTROPY_NV_SEED
+#endif
+
+// Non-volatile entropy source callback functions - Non PSA
+#ifndef MBEDTLS_PLATFORM_NV_SEED_READ_MACRO
+    #define MBEDTLS_PLATFORM_NV_SEED_READ_MACRO seed_read_from_kvs
+#endif
+#ifndef MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO
+    #define MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO seed_write_to_kvs
+#endif
+
 // Needed by provisioning
 #undef MBEDTLS_PEM_WRITE_C
 
@@ -342,6 +351,7 @@
 #undef MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
 
 // Need MBEDTLS_SSL_CONTEXT_SERIALIZATION and MBEDTLS_SSL_DTLS_CONNECTION_ID for CID feature
+// This requires Mbed TLS 2.18.0 or later.
 #define MBEDTLS_SSL_CONTEXT_SERIALIZATION
 #define MBEDTLS_SSL_DTLS_CONNECTION_ID
 

@@ -179,8 +179,9 @@ public:
      * this function once for each of the LWM2M server objects separately.
      * \param object_list Objects that contain information about the
      * client attempting to register to the LWM2M server.
+     * \param full_registration If True client will perform full registration and not just register update.
      */
-    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list) = 0;
+    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list, bool full_registration = false) = 0;
 
     /**
      * \brief Initiates the registration of a provided security object to the
@@ -193,7 +194,6 @@ public:
      * client attempting to register to the LWM2M server.
      */
     virtual void register_object(M2MSecurity *security_object, const M2MObjectList &object_list) = 0;
-
 
     /**
       * \brief Removes an object from M2MInterface.
@@ -370,25 +370,16 @@ public:
     /**
      * \brief Pauses client's timed functionality and closes network connection
      * to the Cloud. After successful call the operation is continued
-     * by calling resume().
+     * by calling register_object().
      *
      * \note This operation does not unregister client from the Cloud.
      * Closes the socket and removes interface from the interface list.
      */
     virtual void pause() = 0;
 
-    /**
-     * \brief Resumes client's timed functionality and network connection
-     * to the Cloud. Updates registration. Can be only called after
-     * a successful call to pause().
-     *
-     * \param iface A handler to the network interface.
-     * \param object_list Objects that contain information about the resources to
-     *  register to the LWM2M server.
-     */
-    virtual void resume(void *iface, const M2MBaseList &object_list) = 0;
-
     virtual nsdl_s* get_nsdl_handle() const = 0;
+
+    virtual uint16_t stagger_wait_time(bool boostrap) const = 0;
 };
 
 #endif // M2M_INTERFACE_H
