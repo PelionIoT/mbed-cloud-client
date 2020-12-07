@@ -41,10 +41,12 @@
 #include MBED_CLIENT_USER_CONFIG_FILE
 #endif
 
+#ifdef __cplusplus
 #if defined (__ICCARM__)
 #define m2m_deprecated
 #else
 #define m2m_deprecated __attribute__ ((deprecated))
+#endif
 #endif
 
 /**
@@ -55,6 +57,11 @@
 #ifndef MBED_CLOUD_CLIENT_ENDPOINT_TYPE
 #define MBED_CLOUD_CLIENT_ENDPOINT_TYPE             "default"
 #endif
+
+// internal client configuration
+#define MBED_CLOUD_CLIENT_PROFILE_FULL 1
+#define MBED_CLOUD_CLIENT_PROFILE_LITE 2
+#define MBED_CLOUD_CLIENT_PROFILE MBED_CLOUD_CLIENT_PROFILE_FULL
 
 /**
 * \def MBED_CLOUD_CLIENT_LIFETIME

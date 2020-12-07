@@ -39,6 +39,10 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_DELTA_PAAL = {
     .GetActiveFirmwareDetails   = ARM_UC_PAL_DeltaPaal_GetActiveDetails,
     .GetFirmwareDetails         = ARM_UC_PAL_DeltaPaal_GetFirmwareDetails,
     .GetInstallerDetails        = ARM_UC_PAL_DeltaPaal_GetInstallerDetails
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+    ,
+    .GetFirmwareStartAddress    = ARM_UC_PAL_DeltaPaal_GetFirmwareStartAddress
+#endif
 };
 
 #endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL)

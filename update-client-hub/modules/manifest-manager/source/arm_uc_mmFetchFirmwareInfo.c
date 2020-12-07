@@ -308,7 +308,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
             }
 
 
-#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE) || (defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)))
             //------------------------------------------------------------------------
             // Store vendor info
             ARM_UC_MM_SET_BUFFER(ctx->current_data, ctx->info->manifestBuffer);
@@ -317,7 +317,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
             if (err.error != 0) {
                 break;
             }
-
+#if (defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)))
             // Assuming here the deltaSize is always last in the VendorInfo, offset starts from 73
             // like defined in arm_uc_mmManifestVendorInfoElementsDescription
             // TODO: parse the whole DER/ASN1 structure from the vendorinfo -blob
@@ -330,7 +330,7 @@ arm_uc_error_t ARM_UC_mmFetchFirmwareInfoFSM(uint32_t event)
             deltaSize = ARM_UC_mmDerBuf2Uint64(&temp_buf);
             ctx->info->vendorInfo.deltaSize = (uint32_t)deltaSize;
             printf("ARM_UC_mmFetchFirmwareInfoFSM: vendorInfo.deltaSize: %" PRIu32 " \n", ctx->info->vendorInfo.deltaSize);
-
+#endif
 #endif
 
             ctx->info->cipherMode = ARM_UC_MM_CIPHERMODE_NONE;

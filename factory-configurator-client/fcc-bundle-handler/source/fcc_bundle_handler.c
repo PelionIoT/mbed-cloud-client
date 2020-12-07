@@ -320,13 +320,14 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
     *  If FCC_ENTROPY_NAME not in bundle (and user did not use the fcc_entropy_set()), 
     *  then device must have TRNG or storage functions will fail.
     */
+#ifndef FCC_NANOCLIENT_ENABLED
     fcc_status = fcc_bundle_process_rbp_buffer(&tcbor_top_map, FCC_ENTROPY_NAME, STORAGE_RBP_RANDOM_SEED_NAME);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_rbp_buffer failed for entropy");
 
     /* If RoT injection is expected (to derive storage key) it also must be done prior to storage calls */
     fcc_status = fcc_bundle_process_rbp_buffer(&tcbor_top_map, FCC_ROT_NAME, STORAGE_RBP_ROT_NAME);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_rbp_buffer failed for RoT");
-
+#endif
     /*
      * At this point we assume that if user expects to inject an entropy - it exists
      * in storage, and if not - device has TRNG and it is safe to call storage functions.

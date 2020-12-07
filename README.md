@@ -3,6 +3,6 @@ This repository contains Pelion Device Management Client: a library that connect
 
 The documentation is hosted [here](https://www.pelion.com/docs/device-management/current/welcome/index.html).
 
-You can report concerns about the documentation or this SW as issues to [this GitHub repository](https://github.com/ARMmbed/mbed-cloud-client/issues).
+You can report concerns about the documentation or this SW as issues to [this GitHub repository](https://github.com/PelionIoT/mbed-cloud-client/issues).
 
 

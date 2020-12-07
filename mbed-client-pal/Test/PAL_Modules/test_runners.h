@@ -37,10 +37,6 @@
 #define PAL_TEST_TLS 0
 #endif // PAL_TEST_TLS
 
-#ifndef PAL_TEST_CRYPTO
-#define PAL_TEST_CRYPTO 0
-#endif // PAL_TEST_CRYPTO
-
 #ifndef PAL_TEST_DRBG
 #define PAL_TEST_DRBG 0
 #endif // PAL_TEST_DRBG
@@ -101,8 +97,6 @@ void TEST_pal_time_GROUP_RUNNER(void);
 
 void TEST_pal_tls_GROUP_RUNNER(void);
 
-void TEST_pal_crypto_GROUP_RUNNER(void);
-
 void TEST_pal_drbg_GROUP_RUNNER(void);
 
 void TEST_pal_fileSystem_GROUP_RUNNER(void);
@@ -136,7 +130,6 @@ typedef enum _palTestModules_t
     PAL_TEST_MODULE_SOCKET,
     PAL_TEST_MODULE_TIME,
     PAL_TEST_MODULE_TLS,
-    PAL_TEST_MODULE_CRYPTO,
     PAL_TEST_MODULE_DRBG,
     PAL_TEST_MODULE_FILESYSTEM,
     PAL_TEST_MODULE_UPDATE,
@@ -174,7 +167,6 @@ typedef enum _palTestPlatformInit_t
 int palAllTestMain(void); // this will execute tests for all the other modules below
 int palFileSystemTestMain(void);
 int palNetworkTestMain(void);
-int palCryptoTestMain(void);
 int palDRBGTestMain(void);
 int palROTTestMain(void);
 int palEntropyTestMain(void);

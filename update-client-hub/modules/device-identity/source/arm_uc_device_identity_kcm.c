@@ -65,11 +65,10 @@ static arm_uc_error_t pal_kcm_internal_get_guid(arm_uc_guid_t *guid,
                                                 size_t key_length)
 {
     arm_uc_error_t result = (arm_uc_error_t){ARM_UC_DI_ERR_INVALID_PARAMETER};
-    if (guid && key) {
+    if (guid && key && key_length<=SIZE_OF_GUID) {
         uint8_t buffer[SIZE_OF_GUID] = { 0 };
         size_t value_length = 0;
         memset(guid, 0, SIZE_OF_GUID);
-
         kcm_status_e kcm_status = kcm_item_get_data((const uint8_t *) key,
                                                     key_length,
                                                     KCM_CONFIG_ITEM,
@@ -175,72 +174,22 @@ arm_uc_error_t pal_kcm_getClassGuid(arm_uc_guid_t *guid)
     return err;
 }
 
-/**
- * @brief Function for setting the device GUID.
- * @details The GUID is copied.
- * @param guid Pointer to a arm_uc_guid_t GUID.
- * @param copy Boolean value indicating whether the value should be copied or
- *             referenced.
- * @return Error code.
- */
-arm_uc_error_t pal_kcm_setDeviceGuid(const arm_uc_guid_t *guid)
-{
-    return pal_kcm_internal_set_guid(guid,
-                                     KEY_ENDPOINT_NAME,
-                                     sizeof(KEY_ENDPOINT_NAME) - 1);
-}
-
-/**
- * @brief Function for getting a pointer to the device GUID.
- * @param guid Pointer to a arm_uc_guid_t pointer.
- * @return Error code.
- */
-arm_uc_error_t pal_kcm_getDeviceGuid(arm_uc_guid_t *guid)
-{
-    return pal_kcm_internal_get_guid(guid,
-                                     KEY_ENDPOINT_NAME,
-                                     sizeof(KEY_ENDPOINT_NAME) - 1);
-}
-
 
 /**
  * @brief Check whether the three GUIDs provided are valid on the device.
  * @details
  * @param vendor_buffer Buffer pointer to the Vendor GUID.
  * @param class_buffer  Buffer pointer to the device class GUID.
- * @param device_buffer Buffer pointer to the device GUID.
  * @param isValid     Pointer to the boolean return value.
  * @return Error code.
  */
 arm_uc_error_t pal_kcm_deviceIdentityCheck(const arm_uc_buffer_t *vendor_buffer,
-                                           const arm_uc_buffer_t *class_buffer,
-                                           const arm_uc_buffer_t *device_buffer)
+                                           const arm_uc_buffer_t *class_buffer)
 {
     arm_uc_error_t result = { .code = MFST_ERR_NULL_PTR };
 
     uint8_t parameters_set = 0;
     uint8_t parameters_ok = 0;
-
-    /* check device - device is optional */
-    if (device_buffer &&
-            device_buffer->ptr &&
-            (device_buffer->size > 0)) {
-        parameters_set++;
-
-        arm_uc_guid_t guid = { 0 };
-
-        arm_uc_error_t retval = pal_kcm_getDeviceGuid(&guid);
-
-        if (retval.code == ERR_NONE) {
-            bool is_same = pal_kcm_internal_compare(&guid, device_buffer);
-
-            if (is_same) {
-                parameters_ok++;
-            } else {
-                result.code = MFST_ERR_GUID_DEVICE;
-            }
-        }
-    }
 
     /* check class - class is optional */
     if (class_buffer &&
@@ -302,8 +251,6 @@ const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_kcm = {
     .GetVendorGuid          = pal_kcm_getVendorGuid,
     .SetClassGuid           = pal_kcm_setClassGuid,
     .GetClassGuid           = pal_kcm_getClassGuid,
-    .SetDeviceGuid          = pal_kcm_setDeviceGuid,
-    .GetDeviceGuid          = pal_kcm_getDeviceGuid,
     .DeviceIdentityCheck    = pal_kcm_deviceIdentityCheck
 };
 

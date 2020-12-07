@@ -86,7 +86,6 @@
         <file category="source"  name="mbed-client/source/m2mcallbackstorage.cpp"/>
         <file category="source"  name="mbed-client/source/m2mdevice.cpp"/>
         <file category="source"  name="mbed-client/source/m2mendpoint.cpp"/>
-        <file category="source"  name="mbed-client/source/m2mfirmware.cpp"/>
         <file category="source"  name="mbed-client/source/m2minterfacefactory.cpp"/>
         <file category="source"  name="mbed-client/source/m2minterfaceimpl.cpp"/>
         <file category="source"  name="mbed-client/source/m2mnotificationhandler.cpp"/>

@@ -17,6 +17,8 @@
 #ifndef __FCC_TIME_PROFILING_H__
 #define __FCC_TIME_PROFILING_H__
 
+#ifdef FCC_TIME_PROFILING
+
 #include <inttypes.h>
 #include <stdbool.h>
 #include <string.h>
@@ -28,7 +30,7 @@ extern "C" {
 #endif
 
 
-#ifdef FCC_TIME_PROFILING
+
 
 extern uint64_t fcc_gen_timer;
 extern uint64_t fcc_bundle_timer;

@@ -17,83 +17,83 @@
 #include "pv_log.h"
 #include "cs_der_keys_and_csrs.h"
 #include "cs_der_certs.h"
-#include "pal.h"
+#include "pal_Crypto.h"
 #include "pv_error_handling.h"
 #include "key_slot_allocator.h"
 
 kcm_status_e cs_error_handler(palStatus_t pal_status)
 {
     switch (pal_status) {
-        case PAL_SUCCESS:
+        case FCC_PAL_SUCCESS:
             return KCM_STATUS_SUCCESS;
-        case PAL_ERR_NOT_SUPPORTED_CURVE:
+        case FCC_PAL_ERR_NOT_SUPPORTED_CURVE:
             return KCM_CRYPTO_STATUS_UNSUPPORTED_CURVE;
-        case PAL_ERR_INVALID_ARGUMENT:
+        case FCC_PAL_ERR_INVALID_ARGUMENT:
             return KCM_STATUS_INVALID_PARAMETER;
-        case PAL_ERR_CREATION_FAILED:
+        case FCC_PAL_ERR_CREATION_FAILED:
             return KCM_STATUS_OUT_OF_MEMORY;
-        case PAL_ERR_CERT_PARSING_FAILED:
+        case FCC_PAL_ERR_CERT_PARSING_FAILED:
             return KCM_CRYPTO_STATUS_PARSING_DER_CERT;
-        case PAL_ERR_X509_BADCERT_EXPIRED:
+        case FCC_PAL_ERR_X509_BADCERT_EXPIRED:
             return KCM_CRYPTO_STATUS_CERT_EXPIRED;
-        case PAL_ERR_X509_BADCERT_FUTURE:
+        case FCC_PAL_ERR_X509_BADCERT_FUTURE:
             return KCM_CRYPTO_STATUS_CERT_FUTURE;
-        case PAL_ERR_X509_BADCERT_BAD_MD:
+        case FCC_PAL_ERR_X509_BADCERT_BAD_MD:
             return KCM_CRYPTO_STATUS_CERT_MD_ALG;
-        case PAL_ERR_X509_BADCERT_BAD_PK:
+        case FCC_PAL_ERR_X509_BADCERT_BAD_PK:
             return KCM_CRYPTO_STATUS_CERT_PUB_KEY_TYPE;
-        case PAL_ERR_X509_BADCERT_NOT_TRUSTED:
+        case FCC_PAL_ERR_X509_BADCERT_NOT_TRUSTED:
             return KCM_CRYPTO_STATUS_CERT_NOT_TRUSTED;
-        case PAL_ERR_X509_BADCERT_BAD_KEY:
+        case FCC_PAL_ERR_X509_BADCERT_BAD_KEY:
             return KCM_CRYPTO_STATUS_CERT_PUB_KEY;
-        case PAL_ERR_PARSING_PUBLIC_KEY:
+        case FCC_PAL_ERR_PARSING_PUBLIC_KEY:
             return KCM_CRYPTO_STATUS_PARSING_DER_PUBLIC_KEY;
-        case PAL_ERR_PARSING_PRIVATE_KEY:
+        case FCC_PAL_ERR_PARSING_PRIVATE_KEY:
             return KCM_CRYPTO_STATUS_PARSING_DER_PRIVATE_KEY;
-        case PAL_ERR_PRIVATE_KEY_VARIFICATION_FAILED:
+        case FCC_PAL_ERR_PRIVATE_KEY_VARIFICATION_FAILED:
             return KCM_CRYPTO_STATUS_PRIVATE_KEY_VERIFICATION_FAILED;
-        case PAL_ERR_PUBLIC_KEY_VARIFICATION_FAILED:
+        case FCC_PAL_ERR_PUBLIC_KEY_VARIFICATION_FAILED:
              return KCM_CRYPTO_STATUS_PUBLIC_KEY_VERIFICATION_FAILED;
-        case PAL_ERR_PK_UNKNOWN_PK_ALG:
+        case FCC_PAL_ERR_PK_UNKNOWN_PK_ALG:
             return KCM_CRYPTO_STATUS_PK_UNKNOWN_PK_ALG;
-        case PAL_ERR_PK_KEY_INVALID_FORMAT:
+        case FCC_PAL_ERR_PK_KEY_INVALID_FORMAT:
             return KCM_CRYPTO_STATUS_PK_KEY_INVALID_FORMAT;
-        case PAL_ERR_PK_INVALID_PUBKEY_AND_ASN1_LEN_MISMATCH:
+        case FCC_PAL_ERR_PK_INVALID_PUBKEY_AND_ASN1_LEN_MISMATCH:
             return KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
-        case PAL_ERR_ECP_INVALID_KEY:
+        case FCC_PAL_ERR_ECP_INVALID_KEY:
             return KCM_CRYPTO_STATUS_ECP_INVALID_KEY;
-        case  PAL_ERR_PK_KEY_INVALID_VERSION:
+        case  FCC_PAL_ERR_PK_KEY_INVALID_VERSION:
             return KCM_CRYPTO_STATUS_PK_KEY_INVALID_VERSION;
-        case PAL_ERR_PK_PASSWORD_REQUIRED:
+        case FCC_PAL_ERR_PK_PASSWORD_REQUIRED:
             return KCM_CRYPTO_STATUS_PK_PASSWORD_REQUIRED;
-        case PAL_ERR_NO_MEMORY:
+        case FCC_PAL_ERR_NO_MEMORY:
             return KCM_STATUS_OUT_OF_MEMORY;
-        case PAL_ERR_BUFFER_TOO_SMALL:
+        case FCC_PAL_ERR_BUFFER_TOO_SMALL:
             return KCM_STATUS_INSUFFICIENT_BUFFER;
-        case PAL_ERR_INVALID_X509_ATTR:
+        case FCC_PAL_ERR_INVALID_X509_ATTR:
             return KCM_CRYPTO_STATUS_INVALID_X509_ATTR;
-        case PAL_ERR_PK_SIG_VERIFY_FAILED:
-        case PAL_ERR_FAILED_TO_VERIFY_SIGNATURE:
+        case FCC_PAL_ERR_PK_SIG_VERIFY_FAILED:
+        case FCC_PAL_ERR_FAILED_TO_VERIFY_SIGNATURE:
             return KCM_CRYPTO_STATUS_VERIFY_SIGNATURE_FAILED;
-        case PAL_ERR_FAILED_TO_COPY_KEYPAIR:
+        case FCC_PAL_ERR_FAILED_TO_COPY_KEYPAIR:
             return KCM_CRYPTO_STATUS_ECP_INVALID_KEY;
-        case PAL_ERR_FAILED_TO_COPY_GROUP:
+        case FCC_PAL_ERR_FAILED_TO_COPY_GROUP:
             return KCM_CRYPTO_STATUS_UNSUPPORTED_CURVE;
-        case PAL_ERR_INVALID_MD_TYPE:
+        case FCC_PAL_ERR_INVALID_MD_TYPE:
             return KCM_CRYPTO_STATUS_INVALID_MD_TYPE;
-        case PAL_ERR_FAILED_TO_WRITE_SIGNATURE:
+        case FCC_PAL_ERR_FAILED_TO_WRITE_SIGNATURE:
             return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_SIGNATURE;
-        case PAL_ERR_FAILED_TO_WRITE_PRIVATE_KEY:
+        case FCC_PAL_ERR_FAILED_TO_WRITE_PRIVATE_KEY:
             return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PRIVATE_KEY;
-        case PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY:
+        case FCC_PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY:
             return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_PUBLIC_KEY;
-        case PAL_ERR_CSR_WRITE_DER_FAILED:
+        case FCC_PAL_ERR_CSR_WRITE_DER_FAILED:
             return KCM_CRYPTO_STATUS_FAILED_TO_WRITE_CSR;
-        case PAL_ERR_X509_UNKNOWN_OID:
+        case FCC_PAL_ERR_X509_UNKNOWN_OID:
             return KCM_CRYPTO_STATUS_INVALID_OID;
-        case PAL_ERR_X509_INVALID_NAME:
+        case FCC_PAL_ERR_X509_INVALID_NAME:
             return KCM_CRYPTO_STATUS_INVALID_NAME_FORMAT;
-        case PAL_ERR_SET_EXTENSION_FAILED:
+        case FCC_PAL_ERR_SET_EXTENSION_FAILED:
             return KCM_CRYPTO_STATUS_SET_EXTENSION_FAILED;
         default:
            return  KCM_STATUS_ERROR;
@@ -121,7 +121,7 @@ kcm_status_e cs_check_cert_with_priv_handle(palX509Handle_t x509_cert, kcm_key_h
 
     // convert signature from raw to der
     pal_status = pal_convertRawSignatureToDer(raw_signature, act_raw_signature_size, der_signature, sizeof(der_signature), &act_der_signature_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), cs_error_handler(pal_status), "Failed converting signature from RAW to DER format");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS), cs_error_handler(pal_status), "Failed converting signature from RAW to DER format");
 
     kcm_status = cs_x509_cert_verify_der_signature(x509_cert, hash_digest, sizeof(hash_digest), der_signature, act_der_signature_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "cs_x509_cert_verify_der_signature failed");

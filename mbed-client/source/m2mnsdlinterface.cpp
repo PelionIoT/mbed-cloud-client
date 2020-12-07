@@ -42,10 +42,11 @@
 #include "mbed-client/m2mblockmessage.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/uriqueryparser.h"
-#include "mbed-trace/mbed_trace.h"
-#include "sn_grs.h"
 #include "mbed-client/m2minterfacefactory.h"
 #include "mbed-client/m2mdevice.h"
+#include "mbed-client/m2mconfig.h"
+#include "mbed-trace/mbed_trace.h"
+#include "sn_grs.h"
 #include "randLIB.h"
 #include "common_functions.h"
 #include "sn_nsdl_lib.h"
@@ -54,6 +55,7 @@
 #include "eventOS_event_timer.h"
 #include "eventOS_scheduler.h"
 #include "ns_hal_init.h"
+#include "m2mcallbackstorage.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -83,7 +85,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.6.0";
+const char *MCC_VERSION = "mccv=4.7.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -200,7 +202,6 @@ M2MNsdlInterface::M2MNsdlInterface(M2MNsdlObserver &observer, M2MConnectionHandl
   _waiting_for_bs_finish_ack(false),
   _download_retry_timer(*this),
   _download_retry_time(0),
-  _network_stagger_estimate(0),
   _network_rtt_estimate(10)                              // Use reasonable initialization value for the RTT estimate. Must be larger than 0.
 {
     tr_debug("M2MNsdlInterface::M2MNsdlInterface()");
@@ -483,7 +484,7 @@ bool M2MNsdlInterface::create_bootstrap_resource(sn_nsdl_addr_s *address)
                                                   _endpoint,
                                                   NULL);
         }
-        success = _bootstrap_id != 0;
+        success = _bootstrap_id > 0;
         tr_debug("M2MNsdlInterface::create_bootstrap_resource - _bootstrap_id %d", _bootstrap_id);
     }
     return success;
@@ -513,7 +514,7 @@ bool M2MNsdlInterface::send_register_message()
 
     // If URI parsing fails or there is no parameters, try again without parameters
     if (!success) {
-        success = sn_nsdl_register_endpoint(_nsdl_handle,_endpoint, NULL) != 0;
+        success = sn_nsdl_register_endpoint(_nsdl_handle, _endpoint, NULL) > 0;
     }
 
     return success;
@@ -603,7 +604,7 @@ void M2MNsdlInterface::send_request(DownloadType type,
                                       payload_ptr,
                                       data_request->download_type);
 
-    if (message_id == -4) {
+    if (message_id == SN_NSDL_RESEND_QUEUE_FULL) {
         data_request->resend = true;
     } else if (message_id <= 0) {
         ns_list_remove(&_request_context_list, data_request);
@@ -616,11 +617,12 @@ void M2MNsdlInterface::send_request(DownloadType type,
 bool M2MNsdlInterface::send_update_registration(const uint32_t lifetime)
 {
     tr_info("M2MNsdlInterface::send_update_registration( lifetime %" PRIu32 ")", lifetime);
+    assert(_nsdl_handle != NULL);
+
     bool success = false;
-    int32_t ret = 0;
+    bool lifetime_changed = true;
 
     _registration_timer.stop_timer();
-    bool lifetime_changed = true;
 
     // If new resources have been created after registration those must be created and published to the server.
     create_nsdl_list_structure(_base_list);
@@ -635,27 +637,19 @@ bool M2MNsdlInterface::send_update_registration(const uint32_t lifetime)
         set_endpoint_lifetime_buffer(lifetime);
     }
 
-    if (_nsdl_handle) {
-        if (!lifetime_changed) {
-            tr_debug("M2MNsdlInterface::send_update_registration - regular update");
-            ret = sn_nsdl_update_registration(_nsdl_handle, NULL, 0);
-        } else {
-            if (_endpoint && _endpoint->lifetime_ptr) {
-                tr_debug("M2MNsdlInterface::send_update_registration - new lifetime value");
-                ret = sn_nsdl_update_registration(_nsdl_handle,
-                                                      _endpoint->lifetime_ptr,
-                                                      _endpoint->lifetime_len);
-            }
-        }
+    int32_t ret = do_send_update_register(lifetime_changed);
+    if (ret == SN_NSDL_RESEND_QUEUE_FULL) {
+        tr_warn("M2MNsdlInterface::send_update_registration - resend queue full, try again after clearing the queue");
+        sn_nsdl_clear_coap_resending_queue(_nsdl_handle);
+        ret = do_send_update_register(lifetime_changed);
     }
 
-    if (ret >= 0) {
+    if (ret > 0) {
         success = true;
+        _registration_timer.start_timer(registration_time() * 1000,
+                                         M2MTimerObserver::Registration,
+                                         false);
     }
-
-    _registration_timer.start_timer(registration_time() * 1000,
-                                     M2MTimerObserver::Registration,
-                                     false);
 
     return success;
 }
@@ -668,19 +662,11 @@ bool M2MNsdlInterface::send_unregister_message()
         return true;
     }
 
-    bool success = false;
-    int32_t ret = 0;
+    if (sn_nsdl_unregister_endpoint(_nsdl_handle) > 0) {
+        return true;
+    }
 
-    ret = sn_nsdl_unregister_endpoint(_nsdl_handle);
-    if (ret == -4) {
-        tr_warn("Failed to send registration update. Clearing queue and retrying.");
-        sn_nsdl_clear_coap_resending_queue(_nsdl_handle);
-        ret = sn_nsdl_unregister_endpoint(_nsdl_handle);
-    }
-    if (ret >= 0) {
-        success = true;
-    }
-    return success;
+    return false;
 }
 
 // XXX: move these to common place, no need to copy these wrappers to multiple places:
@@ -862,6 +848,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                     if (base) {
                         base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, resp->type);
                     }
+                    remove_item_from_response_list(resp->uri_path, coap_header->msg_id);
                 }
 
                 _observer.registration_error(M2MInterface::NetworkError, true);
@@ -946,8 +933,9 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
     M2MBase *base = find_resource(resource_name);
 
     // Update current time resource when doing a GET to the device object.
+    String lifetime_res_uri_path = "3/0/13";
     if (received_coap_header->msg_code == COAP_MSG_CODE_REQUEST_GET &&
-        resource_name.compare(0, 1, "3") == 0) {
+        (strcmp((char*)base->uri_path(), lifetime_res_uri_path.c_str()) == 0)) {
         M2MDevice* dev = M2MInterfaceFactory::create_device();
         dev->set_resource_value(M2MDevice::CurrentTime, pal_osGetTime());
     }
@@ -1168,8 +1156,20 @@ uint8_t M2MNsdlInterface::resource_callback_handle_event(sn_coap_hdr_s *received
             (sn_nsdl_send_coap_message(_nsdl_handle, address, coap_response) == 0) ? result = 0 : result = 1;
         }
 
-        free(coap_response->payload_ptr);
-        coap_response->payload_ptr = NULL;
+        // If callback exists then payload_ptr ownsership is moved to the application
+        if (M2MCallbackStorage::get_association_item(*base, M2MCallbackAssociation::M2MResourceInstanceReadCallback)) {
+            // Notify application that message has been sent so it can release the memory
+            if (!result) {
+                if (!coap_response->options_list_ptr || !(coap_response->options_list_ptr->block2 & 0x08) || coap_response->options_list_ptr->block2 == -1) {
+                    base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_DELIVERED, M2MBase::DELAYED_RESPONSE);
+                }
+            } else {
+                base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, M2MBase::DELAYED_RESPONSE);
+            }
+        } else {
+            free(coap_response->payload_ptr);
+            coap_response->payload_ptr = NULL;
+        }
 
         // See if there any pending notification to be sent after resource is subscribed.
         if (subscribed) {
@@ -1336,7 +1336,7 @@ bool M2MNsdlInterface::observation_to_be_sent(M2MBase *object,
 }
 
 #ifndef DISABLE_DELAYED_RESPONSE
-void M2MNsdlInterface::send_delayed_response(M2MBase *base)
+void M2MNsdlInterface::send_delayed_response(M2MBase *base, sn_coap_msg_code_e code)
 {
     claim_mutex();
     tr_debug("M2MNsdlInterface::send_delayed_response()");
@@ -1355,7 +1355,7 @@ void M2MNsdlInterface::send_delayed_response(M2MBase *base)
                 memset(&coap_response,0,sizeof(sn_coap_hdr_s));
 
                 coap_response.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
-                coap_response.msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
+                coap_response.msg_code = code;
                 resource->get_delayed_token(coap_response.token_ptr,coap_response.token_len);
 
                 uint32_t length = 0;
@@ -2194,9 +2194,6 @@ void M2MNsdlInterface::handle_bootstrap_put_message(sn_coap_hdr_s *coap_header,
         M2MDevice* dev = M2MInterfaceFactory::create_device();
         // Not mandatory resource, that's why it must be created first
         M2MResource *res = dev->create_resource(M2MDevice::CurrentTime, 0);
-        if (res) {
-            res->set_auto_observable(true);
-        }
         object_type = M2MNsdlInterface::DEVICE;
         success = true;
     }
@@ -2697,7 +2694,7 @@ bool M2MNsdlInterface::parse_and_send_uri_query_parameters()
                 }
 
                 tr_debug("M2MNsdlInterface::parse_and_send_uri_query_parameters - uri params: %s", query_params);
-                msg_sent = sn_nsdl_register_endpoint(_nsdl_handle,_endpoint,query_params) != 0;
+                msg_sent = sn_nsdl_register_endpoint(_nsdl_handle,_endpoint,query_params) > 0;
             } else {
                 tr_error("M2MNsdlInterface::parse_and_send_uri_query_parameters - max uri param length reached (%lu)",
                           (unsigned long)query_len);
@@ -3017,9 +3014,18 @@ bool M2MNsdlInterface::send_next_notification_for_object(M2MObject& object, bool
                     reporter = (*resource_iterator)->report_handler();
                     if (reporter) {
                         // Auto obs token can't be cleared
-                        if (clear_token && !(*resource_iterator)->get_nsdl_resource()->auto_observable) {
-                            reporter->set_observation_token(NULL, 0);
-                            (*resource_iterator)->cancel_observation();
+                        if (clear_token) {
+                            if ((*resource_iterator)->get_nsdl_resource()->auto_observable) {
+                                sn_nsdl_dynamic_resource_parameters_s* res = (*resource_iterator)->get_nsdl_resource();
+                                // Do not send unnecessary notification since resource value is going to be part of registration message
+                                if (res->publish_value != 0) {
+                                    reporter->set_notification_in_queue(false);
+                                    reporter->set_notification_send_in_progress(false);
+                                }
+                            } else {
+                                reporter->set_observation_token(NULL, 0);
+                                (*resource_iterator)->cancel_observation();
+                            }
                         } else if (reporter->is_under_observation() &&
                                    (reporter->notification_in_queue() || reporter->notification_send_in_progress())) {
                             reporter->schedule_report(true);
@@ -3833,15 +3839,35 @@ bool M2MNsdlInterface::handle_delayed_response_store(const char* uri_path,
 }
 #endif
 
-void M2MNsdlInterface::update_network_stagger_estimate(uint16_t data_amount)
+
+uint16_t M2MNsdlInterface::estimate_stagger_data_amount(bool bootstrap, bool using_cid) const
 {
-    _network_stagger_estimate = pal_getStaggerEstimate(data_amount);
-    tr_info("M2MNsdlInterface::update_network_stagger_estimate() to %d", _network_stagger_estimate);
+    // The full TLS/DTLS handshake amounts to roughly 5 KiB data.
+    // Boostrap takes roughly 4 KiB.
+    // Registration goes to roughly 5 KiB.
+    // On top of this we need to calculate 300 byte overhead per packet in transit.
+    // ~30 for bootstrap, ~25 for registration. 10 for DTLS.
+    const static uint16_t bootstrap_amount = 4 + 9;
+    const static uint16_t registration_amount = 5 + 8;
+    const static uint16_t handshake = 8;
+
+    if (using_cid) {
+        // Bootstrap and registration handshake done, thus doing registration
+        return registration_amount;
+    }
+
+    if (bootstrap) {
+        // Doing bootstrap stagger
+        return bootstrap_amount + handshake;
+    } else {
+        // Doing register stagger
+        return registration_amount + handshake;
+    }
 }
 
-uint16_t M2MNsdlInterface::get_network_stagger_estimate()
+uint16_t M2MNsdlInterface::get_network_stagger_estimate(bool boostrap) const
 {
-    return _network_stagger_estimate;
+    return pal_getStaggerEstimate(estimate_stagger_data_amount(boostrap, _connection_handler.is_cid_available()));
 }
 
 void M2MNsdlInterface::update_network_rtt_estimate()
@@ -3853,4 +3879,21 @@ void M2MNsdlInterface::update_network_rtt_estimate()
 uint8_t M2MNsdlInterface::get_network_rtt_estimate()
 {
     return _network_rtt_estimate;
+}
+
+int32_t M2MNsdlInterface::do_send_update_register(bool lifetime_changed) const
+{
+    int32_t ret = SN_NSDL_FAILURE;
+    if (!lifetime_changed) {
+        tr_debug("M2MNsdlInterface::do_send_update_register - regular update");
+        ret = sn_nsdl_update_registration(_nsdl_handle, NULL, 0);
+    } else {
+        if (_endpoint && _endpoint->lifetime_ptr) {
+            tr_debug("M2MNsdlInterface::do_send_update_register - new lifetime value");
+            ret = sn_nsdl_update_registration(_nsdl_handle, _endpoint->lifetime_ptr, _endpoint->lifetime_len);
+        }
+    }
+
+    tr_debug("M2MNsdlInterface::do_send_update_register - return %" PRId32 "", ret);
+    return ret;
 }

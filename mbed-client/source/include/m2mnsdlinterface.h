@@ -442,14 +442,17 @@ public:
     */
     void calculate_new_coap_ping_send_time();
 
-    virtual void update_network_stagger_estimate(uint16_t data_amount);
-
-    virtual uint16_t get_network_stagger_estimate();
-
     virtual void update_network_rtt_estimate();
 
     virtual uint8_t get_network_rtt_estimate();
 
+
+    /**
+     * Helper method for estimating how much data client is going to transfer during registration/bootstrap.
+     */
+     virtual uint16_t estimate_stagger_data_amount(bool credentials_available, bool using_cid) const;
+
+     virtual uint16_t get_network_stagger_estimate(bool boostrap) const;
 
 protected: // from M2MTimerObserver
 
@@ -468,7 +471,7 @@ protected: // from M2MObservationHandler
 
     virtual void remove_object(M2MBase *object);
 #ifndef DISABLE_DELAYED_RESPONSE
-    virtual void send_delayed_response(M2MBase *base);
+    virtual void send_delayed_response(M2MBase *base, sn_coap_msg_code_e code = COAP_MSG_CODE_RESPONSE_CHANGED);
 #endif //DISABLE_DELAYED_RESPONSE
 
 #ifdef ENABLE_ASYNC_REST_RESPONSE
@@ -732,6 +735,8 @@ private:
     static M2MBase::Operation operation_for_message_code(sn_coap_msg_code_e code);
 #endif // ENABLE_ASYNC_REST_RESPONSE
 
+    int32_t do_send_update_register(bool lifetime_changed) const;
+
 private:
     M2MNsdlObserver                         &_observer;
     M2MBaseList                             _base_list;
@@ -763,7 +768,6 @@ private:
     bool                                    _waiting_for_bs_finish_ack;
     M2MTimer                                _download_retry_timer;
     uint32_t                                _download_retry_time;
-    uint16_t                                _network_stagger_estimate;
     uint8_t                                 _network_rtt_estimate;
 
 friend class Test_M2MNsdlInterface;

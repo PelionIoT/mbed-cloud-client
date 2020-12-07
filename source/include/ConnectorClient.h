@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -31,6 +31,7 @@
 #include "mbed-client/m2mtimerobserver.h"
 #include "mbed-client/m2mtimer.h"
 #include "include/CloudClientStorage.h"
+#include "mbed-cloud-client/MbedCloudClientConfig.h"
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 #define MBED_CLIENT_DISABLE_EST_FEATURE
@@ -145,6 +146,11 @@ public:
     void start_registration(M2MBaseList* client_objs);
 
     /**
+    *  \brief Starts full registration sequence from the Service Client.
+    */
+    void start_full_registration();
+
+    /**
     *  \brief Sends an update registration message to the LWM2M server.
     */
     void update_registration();
@@ -217,13 +223,16 @@ public:
    void bootstrap_again();
 #endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
-
    /**
    * \brief Returns the binding mode selected by the client
    * through the configuration.
    * \return Binding mode of the client.
    */
    M2MInterface::BindingMode transport_mode();
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    void external_update(uint32_t offset, uint32_t size);
+#endif
 
 public:
     // implementation of M2MInterfaceObserver:
@@ -283,10 +292,16 @@ public:
      */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type);
 
-#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+    /**
+     * \brief Resumes client's timed functionality and network connection
+     * to the Cloud. Updates registration. Can be only called after
+     * a successful call to pause().
+     *
+     */
+    void resume();
+
 protected: // from M2MTimerObserver
     virtual void timer_expired(M2MTimerObserver::Type type);
-#endif
 
 private:
     /**
@@ -438,6 +453,8 @@ private:
     M2MSecurity                         *_security;
     ConnectorClientEndpointInfo         _endpoint_info;
     M2MBaseList                         *_client_objs;
+    M2MTimer                            *_stagger_timer;
+    bool                                _do_full_registration;
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     M2MTimer                            *_rebootstrap_timer;
     uint16_t                            _rebootstrap_time;
@@ -480,6 +497,15 @@ public:
     * \param type, The type of the object.
     */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type) = 0;
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    /**
+    * \brief A callback indicating that new external firmware is available.
+    * \param start_address Location in storage where firmware candidate starts.
+    * \param firmware_size Size of the firmware.
+    */
+    virtual void external_update(uint32_t firmware_size, uint32_t size) = 0;
+#endif
 };
 
 #endif // !__CONNECTOR_CLIENT_H__

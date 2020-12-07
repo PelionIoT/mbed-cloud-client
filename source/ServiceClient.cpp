@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,15 +21,19 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-#include <inttypes.h>
 
 #include "include/ServiceClient.h"
 #include "include/CloudClientStorage.h"
 #include "include/UpdateClientResources.h"
 #include "factory_configurator_client.h"
 #include "mbed-client/m2mconstants.h"
+#include "mbed-client/m2mconfig.h"
 #include "mbed-trace/mbed_trace.h"
 #include "pal.h"
+#include "ns_hal_init.h"
+#include "fota/fota_app_ifs.h"
+#include "mbed-cloud-client/MbedCloudClientConfig.h"
+
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 #include "CertificateEnrollmentClient.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
@@ -38,16 +42,19 @@
 #include "DeviceSentryClient.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 
+#include "fota/fota.h"
+
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 #include "multicast.h"
+#include "update_client_hub_state_machine.h"
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-
 
 #if MBED_CLOUD_CLIENT_STL_API
 #include <string>
 #endif
 
 #include <assert.h>
+#include <inttypes.h>
 
 #define TRACE_GROUP "mClt"
 
@@ -69,6 +76,10 @@ ServiceClient::ServiceClient(ServiceClientCallback& callback)
   _event_generated(false),
   _state_engine_running(false),
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+  _uc_hub_tasklet_id(-1),
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+  _multicast_tasklet_id(-1),
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
   _setup_update_client(false),
 #endif
   _connector_client(this)
@@ -91,6 +102,44 @@ ServiceClient::~ServiceClient()
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 }
 
+bool ServiceClient::init()
+{
+    tr_debug("ServiceClient::init");
+    // The ns_hal_init() needs to be called by someone before create_interface(),
+    // as it will also initialize the tasklet.
+    ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+        if (_uc_hub_tasklet_id < 0) {
+            _uc_hub_tasklet_id = eventOS_event_handler_create(UpdateClient::event_handler, UpdateClient::UPDATE_CLIENT_EVENT_CREATE);
+            if (_uc_hub_tasklet_id < 0) {
+                tr_error("ServiceClient::init - failed to create uc hub event handler (%d)", _uc_hub_tasklet_id);
+                _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+                return false;
+            }
+        }
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+        if (_multicast_tasklet_id < 0) {
+            _multicast_tasklet_id = eventOS_event_handler_create(&arm_uc_multicast_tasklet, 0);
+            if (_multicast_tasklet_id < 0) {
+                tr_error("ServiceClient::init - failed to create multicast event handler (%d)", _multicast_tasklet_id);
+                _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+                return false;
+            }
+        }
+
+        if (ARM_UC_HUB_createEventHandler() < 0) {
+            tr_error("ServiceClient::init - failed to create uc hub multicast event handler");
+            _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+            return false;
+        }
+
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+
+#endif // MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+
+    return true;
+}
+
 void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 {
     tr_debug("ServiceClient::initialize_and_register");
@@ -102,8 +151,8 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         tr_debug("ServiceClient::initialize_and_register: update client supported");
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-        if (arm_uc_multicast_init(*_client_objs, _connector_client) != 0) {
-            _service_callback.error((int)MULTICAST_INIT_FAILED, "Multicast initialization failed");
+        if (arm_uc_multicast_init(*_client_objs, _connector_client, _multicast_tasklet_id) != MULTICAST_STATUS_SUCCESS) {
+            _service_callback.error((int)MULTICAST_STATUS_INIT_FAILED, "Multicast initialization failed");
             return;
         }
 #endif
@@ -161,13 +210,18 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 
             /* Initialize Update Client */
             FP1<void, int32_t> callback(this, &ServiceClient::update_error_callback);
-            UpdateClient::UpdateClient(callback, _connector_client.m2m_interface(), this);
+            UpdateClient::UpdateClient(callback, _connector_client.m2m_interface(), this, _uc_hub_tasklet_id);
         }
         // else branch is required for re-initialization.
         else {
             finish_initialization();
         }
 #else /* MBED_CLOUD_CLIENT_SUPPORT_UPDATE */
+#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+        int fota_res = fota_init(_connector_client.m2m_interface(), _client_objs);
+        assert(!fota_res);
+        (void)fota_res;
+#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
         finish_initialization();
 #endif /* MBED_CLOUD_CLIENT_SUPPORT_UPDATE */
     } else if (_current_state == State_Success) {
@@ -317,6 +371,9 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
 {
     tr_debug("ServiceClient::registration_process_result(): status: %d", status);
     if (status == ConnectorClient::State_Registration_Success) {
+ #if MBED_CLOUD_CLIENT_FOTA_ENABLE
+        fota_app_resume();
+#endif
         internal_event(State_Success);
     } else if(status == ConnectorClient::State_Registration_Failure ||
               status == ConnectorClient::State_Bootstrap_Failure){
@@ -329,7 +386,11 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
         internal_event(State_Unregister);
     }
     if (status == ConnectorClient::State_Registration_Updated) {
+#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+        fota_app_resume();
+#endif
         _service_callback.complete(ServiceClientCallback::Service_Client_Status_Register_Updated);
+
     }
 }
 
@@ -353,6 +414,14 @@ void ServiceClient::value_updated(M2MBase *base, M2MBase::BaseType type)
     tr_debug("ServiceClient::value_updated()");
     _service_callback.value_updated(base, type);
 }
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+void ServiceClient::external_update(uint32_t start_address, uint32_t firmware_size)
+{
+    tr_debug("ServiceClient::external_update()");
+    _service_callback.external_update(start_address, firmware_size);
+}
+#endif
 
 void ServiceClient::state_success()
 {
@@ -439,10 +508,6 @@ M2MDevice* ServiceClient::device_object_from_storage()
             res = instance->resource(DEVICE_DEVICE_TYPE);
             device_object->set_resource_value(M2MDevice::DeviceType, data);
         }
-        if(res) {
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
-        }
     }
 
     status = ccs_get_item(g_fcc_hardware_version_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
@@ -453,10 +518,6 @@ M2MDevice* ServiceClient::device_object_from_storage()
             res = instance->resource(DEVICE_HARDWARE_VERSION);
             device_object->set_resource_value(M2MDevice::HardwareVersion, data);
         }
-        if(res) {
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
-        }
     }
 
     status = ccs_get_item(KEY_DEVICE_SOFTWAREVERSION, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
@@ -466,10 +527,6 @@ M2MDevice* ServiceClient::device_object_from_storage()
         if (res == NULL) {
             res = instance->resource(DEVICE_SOFTWARE_VERSION);
             device_object->set_resource_value(M2MDevice::SoftwareVersion, data);
-        }
-        if(res) {
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
         }
     }
 
@@ -483,10 +540,6 @@ M2MDevice* ServiceClient::device_object_from_storage()
             res = instance->resource(DEVICE_MEMORY_TOTAL);
             device_object->set_resource_value(M2MDevice::MemoryTotal, value);
         }
-        if(res) {
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
-        }
         tr_debug("ServiceClient::device_object_from_storage() - setting memory total value %" PRIu32 " (%s)", value, tr_array(data, 4));
     }
 
@@ -497,10 +550,6 @@ M2MDevice* ServiceClient::device_object_from_storage()
         if (res == NULL) {
             res = instance->resource(DEVICE_CURRENT_TIME);
             device_object->set_resource_value(M2MDevice::CurrentTime, value);
-        }
-        if(res) {
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
         }
         tr_debug("ServiceClient::device_object_from_storage() - setting current time value %" PRIu32 " (%s)", value, tr_array(data, 4));
     }
@@ -513,10 +562,6 @@ M2MDevice* ServiceClient::device_object_from_storage()
             res = instance->resource(DEVICE_TIMEZONE);
             device_object->set_resource_value(M2MDevice::Timezone, data);
         }
-        if(res) {
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
-        }
     }
 
     status = ccs_get_item(g_fcc_offset_from_utc_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
@@ -526,10 +571,6 @@ M2MDevice* ServiceClient::device_object_from_storage()
         if (res == NULL) {
             res = instance->resource(DEVICE_UTC_OFFSET);
             device_object->set_resource_value(M2MDevice::UTCOffset, data);
-        }
-        if(res) {
-            res->publish_value_in_registration_msg(true);
-            res->set_auto_observable(true);
         }
     }
     String binding_mode;

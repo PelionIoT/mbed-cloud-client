@@ -272,6 +272,17 @@ typedef struct _ARM_UC_PAAL_UPDATE {
      */
     arm_uc_error_t (*GetInstallerDetails)(arm_uc_installer_details_t *details);
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+    /**
+     * @brief ARM_UCP_GetFirmwareStartAddress Get firmware candidate start address.
+     *
+     * @param location Storage location ID.
+     * @param start_address Address where firmware starts.
+     * @return Returns ERR_NONE if null details or paal_storage_implementation or return value from paal_storage_implementation->GetInstallerDetails(details);
+     */
+    arm_uc_error_t (*GetFirmwareStartAddress)(uint32_t location, uint32_t *start_address);
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+
 } ARM_UC_PAAL_UPDATE;
 
 #endif /* ARM_UC_PAAL_UPDATE_API_H */

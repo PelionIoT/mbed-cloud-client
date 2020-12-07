@@ -26,7 +26,7 @@
 #if defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
 #include "pal_sst.h"
 #endif
-#include "pal.h"
+#include "pal_Crypto.h"
 
 #ifdef __cplusplus
 extern "C" {

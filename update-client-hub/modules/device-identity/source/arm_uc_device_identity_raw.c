@@ -98,55 +98,16 @@ arm_uc_error_t pal_raw_getClassGuid(arm_uc_guid_t *guid)
     return err;
 }
 
-/**
- * @brief Function for setting the device GUID.
- * @details The GUID is copied.
- * @param guid Pointer to a arm_uc_guid_t GUID.
- * @param copy Boolean value indicating whether the value should be copied or
- *             referenced.
- * @return Error code.
- */
-arm_uc_error_t pal_raw_setDeviceGuid(const arm_uc_guid_t *guid)
-{
-    arm_uc_error_t err = {ERR_NONE};
-    if (guid == NULL) {
-        err.code = ARM_UC_DI_ERR_INVALID_PARAMETER;
-    }
-    if (err.error == ERR_NONE) {
-        memcpy(arm_uc_device_id_raw, guid, sizeof(arm_uc_guid_t));
-    }
-    return err;
-}
-
-/**
- * @brief Function for getting a pointer to the device GUID.
- * @param guid Pointer to a arm_uc_guid_t pointer.
- * @return Error code.
- */
-arm_uc_error_t pal_raw_getDeviceGuid(arm_uc_guid_t *guid)
-{
-    arm_uc_error_t err = {ERR_NONE};
-    if (guid == NULL) {
-        err.code = ARM_UC_DI_ERR_INVALID_PARAMETER;
-    }
-    if (err.error == ERR_NONE) {
-        memcpy(guid, arm_uc_device_id_raw, sizeof(arm_uc_guid_t));
-    }
-    return err;
-}
-
 
 /**
  * @brief Check whether the three GUIDs provided are valid on the device.
  * @details
  * @param vendor_buffer Buffer pointer to the Vendor GUID.
  * @param class_buffer  Buffer pointer to the device class GUID.
- * @param device_buffer Buffer pointer to the device GUID.
  * @return Error code.
  */
 arm_uc_error_t pal_raw_deviceIdentityCheck(const arm_uc_buffer_t *vendor_buffer,
-                                           const arm_uc_buffer_t *class_buffer,
-                                           const arm_uc_buffer_t *device_buffer)
+                                           const arm_uc_buffer_t *class_buffer)
 {
     // TODO is it correct to use Manifest Manager error codes
     arm_uc_error_t result = { .code = MFST_ERR_NULL_PTR };
@@ -159,30 +120,6 @@ arm_uc_error_t pal_raw_deviceIdentityCheck(const arm_uc_buffer_t *vendor_buffer,
         .size = sizeof(arm_uc_guid_t),
         .ptr = (uint8_t *) &guid
     };
-
-    /* check device - device is optional */
-    /* TODO: The meaning of Device ID is undefined. */
-#if 0
-    if (device_buffer &&
-            device_buffer->ptr &&
-            (device_buffer->size > 0)) {
-        parameters_set++;
-
-        arm_uc_error_t retval = pal_raw_getDeviceGuid(&guid);
-
-        if (retval.code == ERR_NONE) {
-
-            uint32_t rc = ARM_UC_BinCompareCT(&guid_buffer, device_buffer);
-            bool is_same = !rc;
-
-            if (is_same) {
-                parameters_ok++;
-            } else {
-                result.code = MFST_ERR_GUID_DEVICE;
-            }
-        }
-    }
-#endif
 
     /* check class - class is optional */
     if (class_buffer &&
@@ -243,8 +180,6 @@ const ARM_PAL_DEVICE_IDENTITY arm_uc_device_identity_raw = {
     .GetVendorGuid          = pal_raw_getVendorGuid,
     .SetClassGuid           = pal_raw_setClassGuid,
     .GetClassGuid           = pal_raw_getClassGuid,
-    .SetDeviceGuid          = pal_raw_setDeviceGuid,
-    .GetDeviceGuid          = pal_raw_getDeviceGuid,
     .DeviceIdentityCheck    = pal_raw_deviceIdentityCheck
 };
 

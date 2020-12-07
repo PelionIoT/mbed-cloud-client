@@ -28,12 +28,10 @@ extern "C" {
 #include <inttypes.h>
 #include <string.h>
 #include <stdbool.h>
-#include "pal.h"
 #include "mbed-trace/mbed_trace.h"
 
 #define __SA_PV_FILE__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
-extern palMutexID_t g_pv_logger_mutex;
 /**
 * Calls to mbed trace print function
 *

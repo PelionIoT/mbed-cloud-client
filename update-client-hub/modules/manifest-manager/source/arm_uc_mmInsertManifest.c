@@ -211,7 +211,6 @@ static arm_uc_error_t validateFirmwareApplicability(arm_uc_buffer_t *buffer)
 {
     arm_uc_buffer_t vendor_guid = {0};
     arm_uc_buffer_t class_guid  = {0};
-    arm_uc_buffer_t device_guid = {0};
 
     arm_uc_error_t err = {ERR_NONE};
     if (err.code == ERR_NONE) {
@@ -221,13 +220,9 @@ static arm_uc_error_t validateFirmwareApplicability(arm_uc_buffer_t *buffer)
         err = ARM_UC_mmGetClassGuid(buffer, &class_guid);
     }
     if (err.code == ERR_NONE) {
-        err = ARM_UC_mmGetDeviceGuid(buffer, &device_guid);
-    }
-    if (err.code == ERR_NONE) {
         err = pal_deviceIdentityCheck(
                   (vendor_guid.size != 0UL ? &vendor_guid : NULL),
-                  (class_guid.size != 0UL ? &class_guid : NULL),
-                  (device_guid.size != 0UL ? &device_guid : NULL)
+                  (class_guid.size != 0UL ? &class_guid : NULL)
               );
     }
 

@@ -500,6 +500,16 @@ arm_uc_error_t ARM_UC_Classic_PAL_GetInstallerDetails(arm_uc_installer_details_t
     return result;
 }
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+arm_uc_error_t ARM_UC_Classic_PAL_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address)
+{
+    (void)location;
+    arm_uc_error_t result = { .code = ERR_NONE };
+    *start_address = 0;
+    return result;
+}
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+
 const ARM_UC_PAAL_UPDATE ARM_UCP_FILESYSTEM = {
     .Initialize                 = ARM_UC_Classic_PAL_Initialize,
     .GetCapabilities            = ARM_UC_Classic_PAL_GetCapabilities,
@@ -511,7 +521,10 @@ const ARM_UC_PAAL_UPDATE ARM_UCP_FILESYSTEM = {
     .Activate                   = ARM_UC_Classic_PAL_Activate,
     .GetActiveFirmwareDetails   = ARM_UC_Classic_PAL_GetActiveFirmwareDetails,
     .GetFirmwareDetails         = ARM_UC_Classic_PAL_GetFirmwareDetails,
-    .GetInstallerDetails        = ARM_UC_Classic_PAL_GetInstallerDetails
+    .GetInstallerDetails        = ARM_UC_Classic_PAL_GetInstallerDetails,
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+    .GetFirmwareStartAddress    = ARM_UC_Classic_PAL_GetFirmwareStartAddress
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 };
 
 #endif /* ARM_UC_FEATURE_PAL_FILESYSTEM */

@@ -31,6 +31,11 @@
 #include "update-client-source-manager/arm_uc_source_manager.h"
 #include "update-client-control-center/arm_uc_control_center.h"
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+extern uint8_t multicast_delta_state;
+#endif
+#endif
 /**
  * @brief event handler registered with the firmware manager
  *        events drive state changes of the state machine
@@ -47,10 +52,15 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             /* Storage prepared for firmware. Await setup completion. */
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_AWAIT_FIRMWARE_SETUP) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_FIRMWARE_SETUP_DONE);
-#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
             } else if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST) {
                 break;
-#endif
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+            } else if (arm_uc_hub_state == ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA) {
+                multicast_delta_state = ARM_UC_HUB_STATE_MULTICAST_DELTA_READ;
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA);
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
             } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
@@ -61,17 +71,29 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             UC_HUB_TRACE("UCFM_EVENT_READ_DONE");
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST)
                 break;
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA) {
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA);
+                break;
+            }
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
             // in other states, this is an error
             ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
             break;
-#endif
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
         /* Firmware fragment written */
         case UCFM_EVENT_WRITE_DONE:
             UC_HUB_TRACE("UCFM_EVENT_WRITE_DONE");
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST)
                 break;
-#endif
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA) {
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA);
+                break;
+            }
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
             /* Firmware fragment stored */
 
             /* Fragment stored before network could finish,
@@ -107,6 +129,12 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
         case UCFM_EVENT_FINALIZE_DONE:
             UC_HUB_TRACE("UCFM_EVENT_FINALIZE_DONE");
 
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+            if (arm_uc_hub_state == ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA_FINALIZE) {
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA_FINALIZE);
+                break;
+            }
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
             /* Firmware stored and verified. */
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_FINALIZE_STORAGE) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_STORAGE_FINALIZED);
@@ -123,6 +151,10 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             /* Firmware activated. Reboot system. */
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_ACTIVATE_FIRMWARE) {
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PREP_REBOOT);
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_NODE_MODE)
+            } else if(arm_uc_hub_state == ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA_FINALIZE) {
+                ARM_UC_HUB_setState(ARM_UC_HUB_STATE_PREP_REBOOT);
+#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_NODE_MODE)
             } else {
                 /* Invalid state, abort and report error. */
                 ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_STATE, arm_uc_hub_state);
@@ -233,7 +265,7 @@ void ARM_UC_HUB_FirmwareManagerEventHandler(uintptr_t event)
             break;
 
         default:
-            UC_HUB_TRACE("Firmware Manager: Invalid Event: %" PRIu32, event);
+            UC_HUB_TRACE("Firmware Manager: Invalid Event: %" PRIuPTR, event);
 
             /* Invalid state, abort and report error. */
             ARM_UC_HUB_ErrorHandler(FIRM_ERR_INVALID_PARAMETER, arm_uc_hub_state);
@@ -460,7 +492,17 @@ void ARM_UC_HUB_ControlCenterEventHandler(uintptr_t event)
 
             if (arm_uc_hub_state == ARM_UC_HUB_STATE_WAIT_FOR_INSTALL_AUTHORIZATION) {
                 /* Installation approved. Set firmware as active image and reboot. */
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1) && defined(ARM_UC_MULTICAST_NODE_MODE)
+                if (ARM_UC_HUB_getIsMulticastUpdate()) {
+                    UC_HUB_TRACE("Wait OTA process to send activation command");
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST);
+                }
+                else {
+                    ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
+                }
+#else
                 ARM_UC_HUB_setState(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
+#endif
             }
             else {
                 UC_HUB_ERR_MSG("Ignoring install authorization granted event, invalid hub state: %d", arm_uc_hub_state);

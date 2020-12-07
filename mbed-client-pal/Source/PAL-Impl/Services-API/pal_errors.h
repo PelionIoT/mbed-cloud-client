@@ -144,6 +144,7 @@ typedef enum {
     PAL_ERR_TLS_PEER_CLOSE_NOTIFY =                         PAL_ERR_TLS_ERROR_BASE + 13,
     PAL_ERR_TLS_MULTIPLE_HANDSHAKE =                        PAL_ERR_TLS_ERROR_BASE + 14,
     PAL_ERR_TLS_TIMEOUT =                                   PAL_ERR_TLS_ERROR_BASE + 15,
+    PAL_ERR_TLS_SSL_VERSION_MISMATCH =                      PAL_ERR_TLS_ERROR_BASE + 16,
 
     //Update errors
     PAL_ERR_UPDATE_ERROR_BASE =                             PAL_ERR_MODULE_UPDATE_BASE,         /*! Generic error. */

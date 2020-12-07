@@ -290,7 +290,7 @@
  * 0 - filesystem is not used
  */
 #ifndef PAL_USE_FILESYSTEM
-    #define PAL_USE_FILESYSTEM 1
+    #define PAL_USE_FILESYSTEM 0
 #endif
 
 /*! \brief The number of file system partitions
@@ -511,7 +511,7 @@
 #define PAL_NOISE_SIZE_BITS (PAL_NOISE_SIZE_BYTES * CHAR_BIT) //!< Maximum number of bits for noise
 #define PAL_NOISE_BUFFER_LEN (PAL_NOISE_SIZE_BYTES / sizeof(int32_t)) //!< Length of the noise buffer
 
-// Disable SSL SESSION RESUME feature till CID support is fixed for UDP as well.
+// This requires Mbed TLS 2.19.0d1 or later.
 #ifndef PAL_USE_SSL_SESSION_RESUME
     #define PAL_USE_SSL_SESSION_RESUME 0
 #endif

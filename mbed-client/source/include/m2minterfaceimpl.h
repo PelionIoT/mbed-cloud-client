@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include "mbed-client/m2mtimer.h"
 #include "mbed-client/m2mconnectionhandler.h"
 #include "mbed-client/m2mconstants.h"
+#include "mbed-client/m2mconfig.h"
 
 //FORWARD DECLARATION
 class M2MConnectionSecurity;
@@ -108,16 +109,17 @@ public:
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
-     * @brief Initiates registration of the provided Security object to the
+     * \brief Initiates the registration of a provided security object to the
      * corresponding LWM2M server.
-     * @param security_object Security object which contains information
+     * \param security_object The security object that contains information
      * required for registering to the LWM2M server.
-     * If client wants to register to multiple LWM2M servers then it has call
-     * this function once for each of LWM2M server object separately.
-     * @param object_list Objects which contains information
-     * which the client want to register to the LWM2M server.
+     * If the client wants to register to multiple LWM2M servers, it must call
+     * this function once for each of the LWM2M server objects separately.
+     * \param object_list Objects that contain information about the
+     * client attempting to register to the LWM2M server.
+     * \param full_registration If True client will perform full registration and not just register update.
      */
-    virtual void register_object(M2MSecurity *security_object, const M2MBaseList &list);
+    virtual void register_object(M2MSecurity *security, const M2MBaseList &list, bool full_registration = false);
 
     /**
      * @brief Initiates registration of the provided Security object to the
@@ -304,27 +306,14 @@ public:
     /**
      * \brief Pauses client's timed functionality and closes network connection
      * to the Cloud. After successful call the operation is continued
-     * by calling resume().
+     * by calling register_object().
      *
      * \note This operation does not unregister client from the Cloud.
      * Closes the socket and removes interface from the interface list.
      */
     virtual void pause();
 
-    /**
-     * \brief Resumes client's timed functionality and network connection
-     * to the Cloud. Updates registration. Can be only called after
-     * a successful call to pause().
-     *
-     * \param iface A handler to the network interface.
-     */
-    virtual void resume(void *iface, const M2MBaseList &list);
-
     virtual nsdl_s* get_nsdl_handle() const;
-
-    virtual void wait_for_network_stagger_timeout();
-
-    virtual void update_network_latency_configurations_with_rtt();
 
 protected: // From M2MNsdlObserver
 
@@ -356,6 +345,8 @@ protected: // From M2MNsdlObserver
     virtual void coap_data_processed();
 
     virtual void value_updated(M2MBase *base);
+
+    virtual uint16_t stagger_wait_time(bool bootstrap) const;
 
 protected: // From M2MConnectionObserver
 
@@ -478,11 +469,6 @@ private: // state machine state functions
     void start_register_update(M2MUpdateRegisterData *data);
 
     /**
-     * When the client has resumed.
-     */
-    void state_resume(EventData *data);
-
-    /**
     * State enumeration order must match the order of state
     * method entries in the state map
     */
@@ -507,8 +493,7 @@ private: // state machine state functions
         STATE_COAP_DATA_RECEIVED, // 15
         STATE_PROCESSING_COAP_DATA,
         STATE_COAP_DATA_PROCESSED,
-        STATE_RESUME,
-        STATE_WAITING, // 20
+        STATE_WAITING,
         STATE_MAX_STATES
     };
 
@@ -571,15 +556,13 @@ private: // state machine state functions
      */
      void create_random_initial_reconnection_time();
 
-    /**
-     * Helper method for estimating how much data client is going to transfer during registration/bootstrap.
-     */
-     uint16_t estimate_stagger_data_amount(bool credentials_available);
+     void update_network_latency_configurations_with_rtt();
 
     enum ReconnectionState{
         None,
         WithUpdate,
-        Unregistration
+        Unregistration,
+        ClientPing
     };
 
 private:

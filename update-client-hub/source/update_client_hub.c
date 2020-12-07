@@ -337,29 +337,6 @@ arm_uc_error_t ARM_UC_SetClassId(const uint8_t *id, uint8_t length)
 }
 
 /**
- * @brief Function for setting the device ID.
- * @details The ID is copied to a 16 byte struct. Any data after the first
- *          16 bytes will be ignored.
- * @param id Pointer to ID.
- * @param length Length of ID.
- * @return Error code.
- */
-arm_uc_error_t ARM_UC_SetDeviceId(const uint8_t *id, uint8_t length)
-{
-    arm_uc_guid_t uuid = { 0 };
-
-    if (id) {
-        for (uint8_t index = 0;
-                (index < sizeof(arm_uc_guid_t) && (index < length));
-                index++) {
-            ((uint8_t *) uuid)[index] = id[index];
-        }
-    }
-
-    return pal_setDeviceGuid(&uuid);
-}
-
-/**
  * @brief Function for reporting the vendor ID.
  * @details 16 bytes are copied into the supplied buffer.
  * @param id Pointer to storage for ID. MUST be at least 16 bytes long.
@@ -409,36 +386,6 @@ arm_uc_error_t ARM_UC_GetClassId(uint8_t *id,
     }
     if (err.error == ERR_NONE) {
         err = pal_getClassGuid(&guid);
-    }
-    if (err.error == ERR_NONE) {
-        memcpy(id, guid, sizeof(arm_uc_guid_t));
-        if (id_size != NULL) {
-            *id_size = sizeof(arm_uc_guid_t);
-        }
-    }
-    return err;
-}
-
-/**
- * @brief Function for reporting the device ID.
- * @details 16 bytes are copied into the supplied buffer.
- * @param id Pointer to storage for ID. MUST be at least 16 bytes long.
- * @param id_max the size of the ID buffer
- * @param id_size pointer to a variable to receive the size of the ID
- *                written into the buffer (always 16).
- * @return Error code.
- */
-arm_uc_error_t ARM_UC_GetDeviceId(uint8_t *id,
-                                  const size_t id_max,
-                                  size_t *id_size)
-{
-    arm_uc_guid_t guid = {0};
-    arm_uc_error_t err = {ERR_NONE};
-    if (id_max < sizeof(arm_uc_guid_t)) {
-        err.code = ARM_UC_DI_ERR_SIZE;
-    }
-    if (err.error == ERR_NONE) {
-        err = pal_getDeviceGuid(&guid);
     }
     if (err.error == ERR_NONE) {
         memcpy(id, guid, sizeof(arm_uc_guid_t));

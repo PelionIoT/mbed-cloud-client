@@ -178,9 +178,20 @@
     #define PAL_USE_SECURE_TIME 1
 #endif
 
+// SSL session resume requires Mbed TLS 2.19.0d1 or later
+#ifndef PAL_USE_SSL_SESSION_RESUME
+#define PAL_USE_SSL_SESSION_RESUME 1
+#endif
+
 #ifndef PAL_DEFAULT_RTT_ESTIMATE
     #define PAL_DEFAULT_RTT_ESTIMATE 3
 #endif
+
+// Enable filesystem by default for linux platforms
+#ifndef PAL_USE_FILESYSTEM
+    #define PAL_USE_FILESYSTEM 1
+#endif
+
 
 // Sanity check for defined stack sizes
 #if (PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)

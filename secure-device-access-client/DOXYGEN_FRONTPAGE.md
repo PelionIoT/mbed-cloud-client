@@ -2,7 +2,7 @@
 
 This is the Doxygen-generated documentation for the Secure Device Access (SDA) client API. See the [Files](files.html) section to review documentation for specific APIs.
 
-See the [Secure Device Access documentation](https://www.pelion.com/docs/device-management/current/device-management/how-sda-works.html) for information about how Secure Device Access works.
+See the [Secure Device Access documentation](https://www.pelion.com/docs/device-management/latest/sda/index.html) for information about how Secure Device Access works.
 
 ## Integrating the Secure Device Access client API into your device application
 
@@ -23,7 +23,7 @@ To use Secure Device Access, your device application must call the Secure Device
         -# Verify that the list of scopes matches the requested operation.
         -# Perform the operation (in the application-specific manner) only if the verification is successful.
 
-        \note Your device application callback will have its own commands that are entirely specific to your application and IoT device.<
+        \note Your device application callback will have its own commands that are entirely specific to your application and IoT device.
 
 -# Send the response message over the transport medium to the SDA application, even if `sda_operation_process` failed with an error.
 -# Finalize Secure Device Access using `sda_finalize()`.

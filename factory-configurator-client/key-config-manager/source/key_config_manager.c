@@ -19,7 +19,10 @@
 #include "cs_der_certs.h"
 #include "cs_der_keys_and_csrs.h"
 #include "fcc_malloc.h"
+#ifndef FCC_NANOCLIENT_ENABLED
 #include "pal.h"
+#endif
+#include "pal_plat_Crypto.h"
 #include "cs_utils.h"
 #include "pv_macros.h"
 #include "key_slot_allocator.h"
@@ -35,12 +38,14 @@ kcm_status_e kcm_init(void)
 
     if (!g_kcm_initialized) {
         palStatus_t pal_status;
-
+#ifndef FCC_NANOCLIENT_ENABLED
         //Initialize PAL
         pal_status = pal_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed initializing PAL (%" PRIu32 ")", pal_status);
-
-
+#else
+       pal_status = pal_plat_DRBGInit();
+       SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS), KCM_STATUS_ERROR, "Failed initializing DRBG (%" PRIu32 ")", pal_status);
+#endif
         //Initialize back-end storage
         status = storage_init();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((status != KCM_STATUS_SUCCESS), status, "Failed initializing storage\n");
@@ -49,11 +54,11 @@ kcm_status_e kcm_init(void)
          * Do not initialize the time module inside pal_init since pal_initTime() uses storage functions.
          * At KCM init it is guaranteed that any entropy and RoT that should be injected - is already injected.
          */
+#ifndef FCC_NANOCLIENT_ENABLED
         pal_status = pal_initTime();
         SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed PAL time module (%" PRIu32 ")", pal_status);
+#endif
 
-
-        
         // Mark as "initialized"
         g_kcm_initialized = true;
     }
@@ -76,10 +81,14 @@ kcm_status_e kcm_finalize(void)
         if (kcm_status != KCM_STATUS_SUCCESS) {
             SA_PV_LOG_ERR("Failed finalizing storage\n");
         }
-
+#ifndef FCC_NANOCLIENT_ENABLED
         //Finalize PAL
         pal_destroy();
-
+#else
+        palStatus_t pal_status;
+        pal_status = pal_plat_DRBGDestroy();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS), KCM_STATUS_ERROR, "Failed to finalize DRBG (%" PRIu32 ")", pal_status);
+#endif
         // Mark as "not initialized"
         g_kcm_initialized = false;
     }
@@ -766,12 +775,13 @@ kcm_status_e kcm_generate_random(uint8_t *buffer, size_t buffer_size)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((buffer_size == 0), KCM_STATUS_INVALID_PARAMETER, "invalid buffer_size");
 
     pal_status = pal_osRandomBuffer(buffer,buffer_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == PAL_ERR_CTR_DRBG_NOT_SEEDED), KCM_CRYPTO_STATUS_ENTROPY_MISSING, "Failed generate random buffer (%" PRIu32 ")", pal_status);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_ERROR, "Failed generate random buffer (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status == FCC_PAL_ERR_CTR_DRBG_NOT_SEEDED), KCM_CRYPTO_STATUS_ENTROPY_MISSING, "Failed generate random buffer (%" PRIu32 ")", pal_status);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS), KCM_STATUS_ERROR, "Failed generate random buffer (%" PRIu32 ")", pal_status);
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
 }
+
 
 kcm_status_e kcm_ecdh_key_agreement(const uint8_t *private_key_name, size_t private_key_name_len, const uint8_t *peer_public_key, size_t peer_public_key_size,
                                     uint8_t *shared_secret, size_t shared_secret_max_size, size_t *shared_secret_act_size_out)

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -77,6 +77,15 @@ public:
     * \param type, The type of the object.
     */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type) = 0;
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    /**
+    * \brief A callback indicating that new external firmware is available.
+    * \param start_address Location in storage where firmware candidate starts.
+    * \param firmware_size Size of the firmware.
+    */
+    virtual void external_update(uint32_t start_address, uint32_t firmware_size) = 0;
+#endif
 };
 
 
@@ -127,6 +136,12 @@ public:
     *  \param client_objs, A list of objects to be registered to Cloud.
     */
     void initialize_and_register(M2MBaseList& reg_objs);
+
+    /**
+    *  \brief Initializes event OS tasklets
+    *  \return True if successful, false otherwise.
+    */
+    bool init();
 
     /**
     *  \brief Finished the initialization of MbedCloudClient.
@@ -237,6 +252,15 @@ protected :
     */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type);
 
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    /**
+    * \brief A callback indicating that new external firmware is available.
+    * \param start_address Location in storage where firmware candidate starts.
+    * \param firmware_size Size of the firmware.
+    */
+    virtual void external_update(uint32_t start_address, uint32_t firmware_size);
+#endif
+
     /**
      * \brief Redirects the state machine to the right function.
      * \param current_state, The current state to be set.
@@ -313,8 +337,12 @@ private:
     bool                            _event_generated;
     bool                            _state_engine_running;
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+    int8_t                          _uc_hub_tasklet_id;
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    int8_t                          _multicast_tasklet_id;
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     bool                            _setup_update_client;
-#endif
+#endif // MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     ConnectorClient                 _connector_client;
 };
 

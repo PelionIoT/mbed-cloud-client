@@ -14,8 +14,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
-
-#include "pal.h"
+#include "pv_error_handling.h"
 #include "pal_sst.h"
 #include "kvstore_global_api.h"
 #ifdef TARGET_LIKE_MBED
@@ -30,7 +29,7 @@
 #define STR(x) #x //stringification of the macro
 #define PAL_SST_KV_PREFIX "/" EXPANSION_STR(MBED_CONF_STORAGE_DEFAULT_KV) "/"
 
-#define TRACE_GROUP "PAL"
+#define TRACE_GROUP "SST"
 
 #ifndef TARGET_LIKE_MBED
 enum mbed_errors {
@@ -51,75 +50,64 @@ enum mbed_errors {
 };
 #endif
 
-static palStatus_t pal_sst_translate_error(int kv_status)
+#if MBED_MAJOR_VERSION > 5
+    // flag to save checking key existence
+    static bool g_is_device_rot_exist = false;
+#endif
+
+static kcm_status_e pal_sst_translate_error(int kv_status)
 {
-    palStatus_t pal_status;
+
+    kcm_status_e kcm_status;
 
     switch (kv_status) {
         case MBED_SUCCESS:
-            pal_status = PAL_SUCCESS;
+            kcm_status = KCM_STATUS_SUCCESS;
             break;
         case MBED_ERROR_ITEM_NOT_FOUND:
-            pal_status = PAL_ERR_SST_ITEM_NOT_FOUND;
+            kcm_status = KCM_STATUS_ITEM_NOT_FOUND;
             break;
-        case  MBED_ERROR_INVALID_SIZE:
-            pal_status = PAL_ERR_SST_INVALID_SIZE;
-            break;
+        case MBED_ERROR_INVALID_SIZE:
         case MBED_ERROR_NOT_READY:
-            pal_status = PAL_ERR_SST_NOT_READY;
+        case MBED_ERROR_WRITE_FAILED:
+        case MBED_ERROR_READ_FAILED:
+        case MBED_ERROR_INVALID_DATA_DETECTED:
+        case MBED_ERROR_FAILED_OPERATION:
+        case MBED_ERROR_RBP_AUTHENTICATION_FAILED:
+        case MBED_ERROR_AUTHENTICATION_FAILED:
+            kcm_status = KCM_STATUS_STORAGE_ERROR;
             break;
         case MBED_ERROR_WRITE_PROTECTED:
-            pal_status = PAL_ERR_SST_WRITE_PROTECTED;
-            break;
-        case MBED_ERROR_WRITE_FAILED:
-            pal_status = PAL_ERR_SST_WRITE_FAILED;
-            break;
-        case MBED_ERROR_READ_FAILED:
-            pal_status = PAL_ERR_SST_READ_FAILED;
-            break;
-        case MBED_ERROR_INVALID_DATA_DETECTED:
-            pal_status = PAL_ERR_SST_INVALID_DATA_DETECTED;
-            break;
-        case MBED_ERROR_FAILED_OPERATION:
-            pal_status = PAL_ERR_SST_FAILED_OPERATION;
+            kcm_status = KCM_STATUS_FILE_EXIST;
             break;
         case MBED_ERROR_INVALID_ARGUMENT:
-            pal_status = PAL_ERR_INVALID_ARGUMENT;
+            kcm_status = KCM_STATUS_INVALID_PARAMETER;
             break;
         case MBED_ERROR_MEDIA_FULL:
-            pal_status = PAL_ERR_SST_MEDIA_FULL;
-            break;
-        case MBED_ERROR_RBP_AUTHENTICATION_FAILED:
-            pal_status = PAL_ERR_SST_RBP_AUTHENTICATION_FAILED;
-            break;
-        case MBED_ERROR_AUTHENTICATION_FAILED:
-            pal_status = PAL_ERR_SST_AUTHENTICATION_FAILED;
+            kcm_status = KCM_STATUS_OUT_OF_MEMORY;
             break;
         default:
-            pal_status = PAL_ERR_SST_GENERIC_FAILURE;
+            kcm_status = KCM_STATUS_UNKNOWN_STORAGE_ERROR;
     }
 
-    if (pal_status == PAL_ERR_SST_ITEM_NOT_FOUND) {
-        PAL_LOG_DBG("kv_status: %" PRId16", pal_sst status: 0x%" PRIx32 "", kv_status, pal_status);
-    }
-    else if (pal_status != PAL_SUCCESS) {
-        PAL_LOG_DBG("kv_status: %" PRId16", pal_sst status: 0x%" PRIx32 "", kv_status, pal_status);
+    if (kcm_status != KCM_STATUS_SUCCESS) {
+        SA_PV_LOG_INFO("kv_status: %" PRId16", kcm_status: %u ", kv_status, kcm_status);
     }
 
-    return pal_status;
+    return kcm_status;
 }
 
 
-static palStatus_t pal_sst_build_complete_name(const char* item_name, char* complete_item_name)
+static kcm_status_e storage_sst_build_complete_name(const char* item_name, char* complete_item_name)
 {
 
-    PAL_VALIDATE_ARGUMENTS((NULL == item_name) || (NULL == complete_item_name));
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((NULL == item_name) || (NULL == complete_item_name)), KCM_STATUS_INVALID_PARAMETER, "Invalid item name");
 
     size_t item_name_length = strlen(item_name);
     size_t prefix_length = strlen(PAL_SST_KV_PREFIX);
     size_t total_length = prefix_length + item_name_length;
     if (total_length > KV_MAX_KEY_LENGTH) {
-        return PAL_ERR_SST_INVALID_SIZE;
+        return KCM_STATUS_FILE_NAME_TOO_LONG;
     }
 
     //copy prefix
@@ -131,32 +119,28 @@ static palStatus_t pal_sst_build_complete_name(const char* item_name, char* comp
     //null terminate
     complete_item_name[total_length] = '\0';
 
-    return PAL_SUCCESS;
+    return KCM_STATUS_SUCCESS;
 }
 
-palStatus_t pal_SSTSet(const char *itemName, const void *itemBuffer, size_t itemBufferSize, uint32_t SSTFlagsBitmap)
+kcm_status_e pal_SSTSet(const char *itemName, const void *itemBuffer, size_t itemBufferSize, uint32_t SSTFlagsBitmap)
 {
     int kv_status = MBED_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     uint32_t kv_flags = 0;
     char sst_complete_item_name[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
 
     //these bitmask is for unused bits in SSTFlagsBitmap.
     //only PAL_SST_WRITE_ONCE_FLAG, PAL_SST_CONFIDENTIALITY_FLAG and PAL_SST_REPLAY_PROTECTION_FLAG used
     uint32_t sst_flag_unused_bits_mask = ~(PAL_SST_WRITE_ONCE_FLAG | PAL_SST_CONFIDENTIALITY_FLAG | PAL_SST_REPLAY_PROTECTION_FLAG);
-	
-	PV_UNUSED_PARAM(sst_flag_unused_bits_mask);
-	
+
+    PV_UNUSED_PARAM(sst_flag_unused_bits_mask);
 
     //arguments validation
-    PAL_VALIDATE_ARGUMENTS((NULL == itemName) || ((NULL == itemBuffer) && (itemBufferSize > 0)) || ((SSTFlagsBitmap & sst_flag_unused_bits_mask) != 0));
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(((SSTFlagsBitmap & sst_flag_unused_bits_mask) != 0 ), KCM_STATUS_INVALID_PARAMETER, "Invalid flag");
 
     //allocate buffer for itemName + prefix and copy prefix to the new buffer
-    pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
-    if (pal_status != PAL_SUCCESS) {
-        PAL_LOG_ERR("pal_SSTSet: 0x%" PRIx32 "", pal_status);
-        return pal_status;
-    }
+    kcm_status = storage_sst_build_complete_name(itemName, sst_complete_item_name);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(kcm_status != KCM_STATUS_SUCCESS, kcm_status , "storage_sst_build_complete_name failed");
 
     //translate palSSTFlags to kv flags
     if (SSTFlagsBitmap & PAL_SST_WRITE_ONCE_FLAG) {
@@ -169,28 +153,32 @@ palStatus_t pal_SSTSet(const char *itemName, const void *itemBuffer, size_t item
         kv_flags |= KV_REQUIRE_REPLAY_PROTECTION_FLAG;
     }
 
+#if MBED_MAJOR_VERSION > 5
+    if (g_is_device_rot_exist == false) {
+        // auto generate rot
+        DeviceKey &devkey = DeviceKey::get_instance();
+        int kd_status = devkey.generate_root_of_trust();
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kd_status != DEVICEKEY_SUCCESS && kd_status != DEVICEKEY_ALREADY_EXIST), KCM_STATUS_ERROR, "generate_root_of_trust() - failed, status %d\n", kd_status);
+        g_is_device_rot_exist = true;
+    }
+#endif
+
     //call kv_set API
     kv_status = kv_set(sst_complete_item_name, itemBuffer, itemBufferSize, kv_flags);
 
     return pal_sst_translate_error(kv_status);
 }
 
-
-palStatus_t pal_SSTGet(const char *itemName, void *itemBuffer, size_t itemBufferSize, size_t *actualItemSize)
+kcm_status_e pal_SSTGet(const char *itemName, void *itemBuffer, size_t itemBufferSize, size_t *actualItemSize)
 {
     int kv_status = MBED_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     char sst_complete_item_name[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
 
-    //arguments validation
-    PAL_VALIDATE_ARGUMENTS((NULL == itemName) || ((NULL == itemBuffer) && (itemBufferSize > 0)) || (NULL == actualItemSize));
 
     //allocate buffer for itemName + prefix and copy prefix to the new buffer
-    pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
-    if (pal_status != PAL_SUCCESS) {
-        PAL_LOG_ERR("pal_SSTGet returned: 0x%" PRIx32 "", pal_status);
-        return pal_status;
-    }
+    kcm_status = storage_sst_build_complete_name(itemName, sst_complete_item_name);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(kcm_status != KCM_STATUS_SUCCESS, kcm_status, "storage_sst_build_complete_name failed");
 
     //call kv_get API
     kv_status = kv_get(sst_complete_item_name, itemBuffer, itemBufferSize, actualItemSize);
@@ -198,24 +186,17 @@ palStatus_t pal_SSTGet(const char *itemName, void *itemBuffer, size_t itemBuffer
     return pal_sst_translate_error(kv_status);
 }
 
-
-palStatus_t pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo)
+kcm_status_e pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo)
 {
 
     int kv_status = MBED_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     kv_info_t kv_info = { 0, 0 };
     char sst_complete_item_name[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
 
-    //arguments validation
-    PAL_VALIDATE_ARGUMENTS((NULL == itemName) || (NULL == palItemInfo));
-
     //allocate buffer for itemName + prefix and copy prefix to the new buffer
-    pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
-    if (pal_status != PAL_SUCCESS) {
-        PAL_LOG_ERR("pal_SSTGetInfo returned: 0x%" PRIx32 "", pal_status);
-        return pal_status;
-    }
+    kcm_status = storage_sst_build_complete_name(itemName, sst_complete_item_name);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(kcm_status != KCM_STATUS_SUCCESS, kcm_status, "storage_sst_build_complete_name failed");
 
     //call kv_get_info API
     kv_status = kv_get_info(sst_complete_item_name, &kv_info);
@@ -237,26 +218,19 @@ palStatus_t pal_SSTGetInfo(const char *itemName, palSSTItemInfo_t *palItemInfo)
 
     palItemInfo->itemSize = kv_info.size;
 
-    return PAL_SUCCESS;
+    return KCM_STATUS_SUCCESS;
 }
 
-
-palStatus_t pal_SSTRemove(const char *itemName)
+kcm_status_e pal_SSTRemove(const char *itemName)
 {
 
     int kv_status = MBED_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     char sst_complete_item_name[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
 
-    //arguments validation
-    PAL_VALIDATE_ARGUMENTS((NULL == itemName));
-
     //allocate buffer for itemName + prefix and copy prefix to the new buffer
-    pal_status = pal_sst_build_complete_name(itemName, sst_complete_item_name);
-    if (pal_status != PAL_SUCCESS) {
-        PAL_LOG_ERR("pal_SSTRemove returned: 0x%" PRIx32 "", pal_status);
-        return pal_status;
-    }
+    kcm_status = storage_sst_build_complete_name(itemName, sst_complete_item_name);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(kcm_status != KCM_STATUS_SUCCESS, kcm_status, "storage_sst_build_complete_name failed");
 
     //call kv_remove API
     kv_status = kv_remove(sst_complete_item_name);
@@ -264,22 +238,15 @@ palStatus_t pal_SSTRemove(const char *itemName)
     return pal_sst_translate_error(kv_status);
 }
 
-
-palStatus_t pal_SSTIteratorOpen(palSSTIterator_t *palSSTIterator, const char *itemPrefix)
+kcm_status_e pal_SSTIteratorOpen(palSSTIterator_t *palSSTIterator, const char *itemPrefix)
 {
     int kv_status = MBED_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
     char sst_complete_item_prefix[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
 
-    //arguments validation
-    PAL_VALIDATE_ARGUMENTS((NULL == palSSTIterator));
-
     //allocate buffer for itemName + prefix and copy prefix to the new buffer
-    pal_status = pal_sst_build_complete_name(itemPrefix, sst_complete_item_prefix);
-    if (pal_status != PAL_SUCCESS) {
-        PAL_LOG_ERR("pal_SSTIteratorOpen returned: 0x%" PRIx32 "", pal_status);
-        return pal_status;
-    }
+    kcm_status = storage_sst_build_complete_name(itemPrefix, sst_complete_item_prefix);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(kcm_status != KCM_STATUS_SUCCESS, kcm_status, "storage_sst_build_complete_name failed");
 
     //call kv_iterator_open API
     kv_status = kv_iterator_open((kv_iterator_t*)palSSTIterator, sst_complete_item_prefix);
@@ -287,14 +254,10 @@ palStatus_t pal_SSTIteratorOpen(palSSTIterator_t *palSSTIterator, const char *it
     return pal_sst_translate_error(kv_status);
 }
 
-
-palStatus_t pal_SSTIteratorNext(palSSTIterator_t palSSTIterator, char *itemName, size_t itemNameSize)
+kcm_status_e pal_SSTIteratorNext(palSSTIterator_t palSSTIterator, char *itemName, size_t itemNameSize)
 {
     int kv_status = MBED_SUCCESS;
     char sst_complete_item_name[KV_MAX_KEY_LENGTH + 1]; //extra byte for null termination
-
-    //arguments validation
-    PAL_VALIDATE_ARGUMENTS(((uintptr_t)NULL == palSSTIterator) || (NULL == itemName) || (0 == itemNameSize));
 
     //call kv_iterator_next API
     kv_status = kv_iterator_next((kv_iterator_t)palSSTIterator, sst_complete_item_name, itemNameSize + strlen(PAL_SST_KV_PREFIX));
@@ -305,15 +268,11 @@ palStatus_t pal_SSTIteratorNext(palSSTIterator_t palSSTIterator, char *itemName,
     //copy the returned value to the input buffer
     memcpy(itemName, sst_complete_item_name + strlen(PAL_SST_KV_PREFIX), itemNameSize);
 
-    return PAL_SUCCESS;
+    return KCM_STATUS_SUCCESS;
 }
 
-
-palStatus_t pal_SSTIteratorClose(palSSTIterator_t palSSTIterator)
+kcm_status_e pal_SSTIteratorClose(palSSTIterator_t palSSTIterator)
 {
-    //arguments validation
-    PAL_VALIDATE_ARGUMENTS(((uintptr_t)NULL == palSSTIterator));
-
     int kv_status = MBED_SUCCESS;
 
     //call kv_iterator_close API
@@ -322,28 +281,18 @@ palStatus_t pal_SSTIteratorClose(palSSTIterator_t palSSTIterator)
     return pal_sst_translate_error(kv_status);
 }
 
-
-palStatus_t pal_SSTReset()
+kcm_status_e pal_SSTReset()
 {
     int kv_status = MBED_SUCCESS;
 
     //call kv_reset API
     kv_status = kv_reset(PAL_SST_KV_PREFIX);
-    if (kv_status != MBED_SUCCESS) {
-        PAL_LOG_ERR("kv_reset() - failed, status %d\n", kv_status);
-        return pal_sst_translate_error(kv_status);
-    }
+    SA_PV_ERR_RECOVERABLE_RETURN_IF(kv_status != MBED_SUCCESS, pal_sst_translate_error(kv_status), "kv_reset failed");
+
 #if MBED_MAJOR_VERSION > 5
-    // generate new rot after storage error
-    DeviceKey &devkey = DeviceKey::get_instance();
-    int kd_status = devkey.generate_root_of_trust();
-    if (kd_status != DEVICEKEY_SUCCESS) {
-        PAL_LOG_ERR("generate_root_of_trust() - failed, status %d\n", kd_status);
-        return PAL_ERR_SST_FAILED_OPERATION;
-    }
+    // reset flag too
+    g_is_device_rot_exist = false;
 #endif
-    return PAL_SUCCESS;
+    return KCM_STATUS_SUCCESS;
 }
-
 #endif
-

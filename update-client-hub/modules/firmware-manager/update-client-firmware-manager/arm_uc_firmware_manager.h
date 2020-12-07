@@ -114,6 +114,8 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
      */
     arm_uc_error_t (*Read)(const arm_uc_buffer_t* output, uint32_t offset);
 
+    arm_uc_error_t (*ReadFromSlot)(const arm_uc_buffer_t* output, uint32_t location, uint32_t offset);
+
     /**
      * @brief Function for finalizing the current package.
      * @details Flushes all write buffers and initiates the hash validation.

@@ -66,6 +66,10 @@ void pal_osReboot(void)
     PAL_LOG_INFO("pal_osReboot (app)\n");
     pal_plat_osApplicationReboot();
 #else
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    PAL_LOG_INFO("Storing CID before reboot");
+    pal_store_cid();
+#endif
     PAL_LOG_INFO("pal_osReboot (os)\n");
     pal_plat_osReboot();
 #endif

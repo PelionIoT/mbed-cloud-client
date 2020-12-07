@@ -90,14 +90,17 @@ public:
 
         // typedef int(*read_resource_value_size_callback) (const M2MResourceBase& resource,
         // size_t *buffer_size, void *client_args);
-        M2MResourceBaseValueReadSizeCallback
+        M2MResourceBaseValueReadSizeCallback,
 
 #ifdef ENABLE_ASYNC_REST_RESPONSE
         // typedef bool(*handle_async_coap_request_cb) (const M2MBase& base,
         // M2MBase::Operation operation, const uint8_t *token, const uint8_t token_len,
         // const uint8_t *buffer, size_t buffer_size, void *client_args);
-        ,M2MBaseAsyncCoapRequestCallback
+        M2MBaseAsyncCoapRequestCallback,
 #endif // ENABLE_ASYNC_REST_RESPONSE
+
+        // typedef void(*outgoing_large_block_message_callback) (XXX);
+        M2MResourceInstanceReadCallback
     };
 
     /**

@@ -303,7 +303,8 @@ static void arm_uc_internal_event_handler(uintptr_t event)
             event_handler_finalize();
             break;
         case ARM_UC_PAAL_EVENT_READ_DONE:
-            if (ARM_UC_HUB_getState() == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST) {
+            if (ARM_UC_HUB_getState() == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST ||
+                ARM_UC_HUB_getState() == ARM_UC_HUB_STATE_PROCESS_MULTICAST_DELTA) {
                 event = UCFM_EVENT_READ_DONE;
                 arm_uc_signal_ucfm_handler(event);
             } else {
@@ -502,14 +503,21 @@ static arm_uc_error_t ARM_UCFM_WriteWithOffset(const arm_uc_buffer_t *fragment, 
     return ARM_UCFM_Write(fragment);
 }
 
+static arm_uc_error_t ARM_UCFM_ReadFromSlot(const arm_uc_buffer_t* output, uint32_t location, uint32_t offset)
+{
+    UC_FIRM_TRACE("ARM_UCFM_ReadFromSlot(%"PRIu32")", location);
+    arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
+    result = ARM_UCP_Read(location,
+                          offset,
+                          output);
+    UC_FIRM_TRACE("ARM_UCFM_ReadFromSlot returning %d", result.code);
+    return result;
+}
+
 static arm_uc_error_t ARM_UCFM_Read(arm_uc_buffer_t *buf, uint32_t offset)
 {
-    UC_FIRM_TRACE("ARM_UCFM_READ");
     arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
-    result = ARM_UCP_Read(package_configuration->package_id,
-                          offset,
-                          buf);
-    UC_FIRM_TRACE("ARM_UCFM_READ returning %d", result.code);
+    result = ARM_UCFM_ReadFromSlot(buf, package_configuration->package_id, offset);
     return result;
 }
 
@@ -620,6 +628,7 @@ ARM_UC_FIRMWARE_MANAGER_t ARM_UC_FirmwareManager = {
     .Write                    = ARM_UCFM_Write,
     .WriteWithOffset          = ARM_UCFM_WriteWithOffset,
     .Read                     = ARM_UCFM_Read,
+    .ReadFromSlot             = ARM_UCFM_ReadFromSlot,
     .Finalize                 = ARM_UCFM_Finalize,
     .Activate                 = ARM_UCFM_Activate,
     .GetActiveFirmwareDetails = ARM_UCFM_GetActiveFirmwareDetails,

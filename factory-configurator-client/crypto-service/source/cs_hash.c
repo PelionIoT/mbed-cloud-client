@@ -16,7 +16,7 @@
 
 #include "pv_error_handling.h"
 #include "cs_hash.h"
-#include "pal.h"
+#include "pal_Crypto.h"
 #include "cs_utils.h"
 #include "pv_macros.h"
 

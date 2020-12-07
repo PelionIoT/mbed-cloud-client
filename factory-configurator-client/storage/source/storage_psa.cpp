@@ -21,11 +21,9 @@
 #include "pv_error_handling.h"
 #include "storage_internal.h"
 #include "pv_macros.h"
+#include "pal_Crypto.h"
 #ifdef TARGET_LIKE_MBED
 #include "mbed.h"
-#if MBED_MAJOR_VERSION > 5
-#include "DeviceKey.h"
-#endif
 #if !(defined(TARGET_TFM) && (MBED_MAJOR_VERSION > 5))
 #include "psa/lifecycle.h"
 #endif
@@ -1161,13 +1159,6 @@ kcm_status_e storage_reset(void)
     */
     psa_status = mbed_psa_reboot_and_request_new_security_state(PSA_LIFECYCLE_ASSEMBLY_AND_TEST);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), KCM_STATUS_ERROR, "Failed for mbed_psa_reboot_and_request_new_security_state() (status %" PRIu32 ")", psa_status);
-
-#if MBED_MAJOR_VERSION > 5
-    // generate new rot after storage error
-    DeviceKey &devkey = DeviceKey::get_instance();
-    int kd_status = devkey.generate_root_of_trust();
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kd_status != DEVICEKEY_SUCCESS), KCM_STATUS_ERROR, "generate_root_of_trust() - failed, status %d\n", kd_status);
-#endif
 
 #endif
 

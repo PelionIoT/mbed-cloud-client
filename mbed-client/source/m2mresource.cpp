@@ -128,7 +128,7 @@ void M2MResource::set_delayed_response(bool delayed_response)
     _delayed_response = delayed_response;
 }
 
-bool M2MResource::send_delayed_post_response()
+bool M2MResource::send_delayed_post_response(sn_coap_msg_code_e code)
 {
     bool success = false;
     if(_delayed_response) {
@@ -137,7 +137,7 @@ bool M2MResource::send_delayed_post_response()
         // cause issues if the observation_handler is NULL. So do the check before dereferencing pointer.
         M2MObservationHandler* obs = observation_handler();
         if (obs) {
-            obs->send_delayed_response(this);
+            obs->send_delayed_response(this, code);
         }
     }
     return success;

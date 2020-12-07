@@ -23,7 +23,10 @@
 #include "key_config_manager.h"
 #include "factory_configurator_client.h"
 #include "fcc_defs.h"
+#ifndef FCC_NANOCLIENT_ENABLED
 #include "pal.h"
+#endif
+#include "pal_Crypto.h"
 
 #ifdef __cplusplus
 extern "C" {

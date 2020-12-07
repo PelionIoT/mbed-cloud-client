@@ -21,6 +21,7 @@
 #include <stdio.h> 
 #include <sys/sysinfo.h>
 #include <netinet/tcp.h>
+#include <stdlib.h>
 
 typedef enum {
     UDPV4, 

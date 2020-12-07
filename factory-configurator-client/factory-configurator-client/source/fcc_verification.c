@@ -224,7 +224,7 @@ static fcc_status_e verify_certificate_expiration(palX509Handle_t x509_cert, con
     size_t size_of_valid_from_attr = 0;
     size_t size_of_valid_until_attr = 0;
     uint64_t valid_from_attr = 0;
-    uint64_t time = 0;
+    uint64_t time;
     uint64_t diff_time = 60; //seconds. This value used to reduce time adjustment
     uint64_t valid_until_attr = 0;
 
@@ -246,9 +246,11 @@ static fcc_status_e verify_certificate_expiration(palX509Handle_t x509_cert, con
                                             &size_of_valid_until_attr);
     SA_PV_ERR_RECOVERABLE_GOTO_IF(kcm_status != KCM_STATUS_SUCCESS, fcc_status = FCC_STATUS_INVALID_CERT_ATTRIBUTE, exit, "Failed to get valid_until attribute");
 
-
+    time = 0;
     //Check device time
+#ifndef FCC_NANOCLIENT_ENABLED
     time = pal_osGetTime();
+#endif
     if (time == 0) {
         output_info_fcc_status = fcc_store_warning_info((const uint8_t*)certificate_name, size_of_certificate_name, g_fcc_cert_time_validity_warning_str);
         SA_PV_LOG_WARN("time is (%" PRIuMAX ") ", (uint64_t)time);
@@ -512,7 +514,7 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
     size_t srv_id_from_cert_buff_size = 0;
     uint8_t srv_id_from_storage_buff[FCC_CA_IDENTIFICATION_SIZE] = { 0 };
     size_t srv_id_from_storage_buff_size = 0;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     int result = 0;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
@@ -554,7 +556,7 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed to get ca id attribute");
 
         pal_status = storage_rbp_read(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, srv_id_from_storage_buff, sizeof(srv_id_from_storage_buff), &srv_id_from_storage_buff_size);
-        if (pal_status != PAL_SUCCESS || srv_id_from_storage_buff_size != srv_id_from_cert_buff_size) {
+        if (pal_status != FCC_PAL_SUCCESS || srv_id_from_storage_buff_size != srv_id_from_cert_buff_size) {
             output_info_fcc_status = fcc_store_warning_info((const uint8_t*)root_ca_cert_name, root_ca_cert_name_len, g_fcc_ca_identifier_warning_str);
             SA_PV_ERR_RECOVERABLE_GOTO_IF((output_info_fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_WARNING_CREATE_ERROR, store_error_and_exit, "Failed to create warning");
         }
@@ -636,7 +638,7 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     size_t chain_len = 0;
     size_t cert_num;
     palX509Handle_t x509_cert_handle = NULLPTR;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
 
     kcm_key_handle_t priv_key_h = 0;
     kcm_status_e kcm_close_status = KCM_STATUS_SUCCESS;
@@ -700,7 +702,7 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     // Note: Check only for production because old developer certificates may not include the extended key usage bit mask
     // check that device certificate has the X509_EXT_KU_CLIENT_AUTH bit set on
     pal_status = pal_x509CertCheckExtendedKeyUsage(x509_cert_handle, PAL_X509_EXT_KU_CLIENT_AUTH);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != PAL_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, close_chain, "Device certificate has no extended-key-usage V3 extension with X509_EXT_KU_CLIENT_AUTH bit set on");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != FCC_PAL_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, close_chain, "Device certificate has no extended-key-usage V3 extension with X509_EXT_KU_CLIENT_AUTH bit set on");
 #endif // MBED_CONF_APP_DEVELOPER_MODE
 
     //Compare device certificate's CN attribute with endpoint name
@@ -913,7 +915,7 @@ fcc_status_e fcc_check_time_synchronization()
 
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     fcc_status_e output_info_fcc_status = FCC_STATUS_SUCCESS;
-    uint64_t time = 0;
+    uint64_t time;
     uint8_t *parameter_name = (uint8_t*)g_fcc_device_time_zone_parameter_name;
     size_t size_of_parameter_name = strlen(g_fcc_device_time_zone_parameter_name);
     size_t item_size = 0;
@@ -924,7 +926,10 @@ fcc_status_e fcc_check_time_synchronization()
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     //Check device time
+    time = 0;
+#ifndef FCC_NANOCLIENT_ENABLED
     time = pal_osGetTime();
+#endif
     if (time == 0) {
         output_info_fcc_status = fcc_store_warning_info((const uint8_t*)g_fcc_current_time_parameter_name, strlen(g_fcc_current_time_parameter_name), g_fcc_item_not_set_warning_str);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((output_info_fcc_status != FCC_STATUS_SUCCESS), fcc_status = FCC_STATUS_WARNING_CREATE_ERROR, "Failed to create warning");

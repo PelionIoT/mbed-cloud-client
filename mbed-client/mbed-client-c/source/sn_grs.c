@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2011-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -31,6 +31,7 @@
 #include "source/include/sn_coap_protocol_internal.h"
 #include "sn_nsdl_lib.h"
 #include "sn_grs.h"
+#include "mbed-client/m2mconfig.h"
 
 /* Defines */
 #define WELLKNOWN_PATH_LEN              16
