@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
  * \brief File defining all the constants used across mbed-client.
  */
 
-#include <stdint.h>
 #include "m2mconfig.h"
+#include <stdint.h>
 
 const int MAX_VALUE_LENGTH = 256;
 const int BUFFER_LENGTH = 1152;

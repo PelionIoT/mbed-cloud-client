@@ -14,7 +14,6 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #include "storage_kcm.h"
@@ -23,6 +22,7 @@
 #include "pv_error_handling.h"
 #include "fcc_malloc.h"
 #include "pv_macros.h"
+#include "pal_Crypto.h"
 
 /*The function copies certificate chain or single certificate from source  to destination (inside storage)*/
 static kcm_status_e copy_certificate_chain(const uint8_t *item_name, size_t item_name_len, storage_item_prefix_type_e source_item_prefix_type, storage_item_prefix_type_e destination_item_prefix_type)
@@ -147,7 +147,7 @@ kcm_status_e storage_key_get_handle(
     kcm_key_handle_t *key_h_out)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
-    palStatus_t pal_status = PAL_SUCCESS;
+    palStatus_t pal_status = FCC_PAL_SUCCESS;
     palKeyHandle_t pal_key_handle;
     size_t key_size_out, key_size_out_actual;
 
@@ -171,7 +171,7 @@ kcm_status_e storage_key_get_handle(
 
     //allocate buffer for new key
     pal_status = pal_newKeyHandle(&pal_key_handle, key_size_out);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != PAL_SUCCESS), KCM_STATUS_OUT_OF_MEMORY, "Failed during pal_newKeyHandle");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS), KCM_STATUS_OUT_OF_MEMORY, "Failed during pal_newKeyHandle");
 
     // read the key
     kcm_status = storage_item_get_data(key_name, key_name_len, key_type, item_prefix_type, ((palCryptoBuffer_t*)pal_key_handle)->buffer, key_size_out, &key_size_out_actual);

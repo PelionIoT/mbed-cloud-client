@@ -93,7 +93,7 @@ arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t *buffer, uint64_t *val)
     *val = ARM_UC_mmDerBuf2Uint64(&field);
     return (arm_uc_error_t) {ERR_NONE};
 }
-#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE) || (defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)))
 arm_uc_error_t ARM_UC_mmGetVendorInfo(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val) {
     const int32_t fieldID = ARM_UC_MM_DER_MFST_VENDOR_INFO;
     int32_t rc = ARM_UC_mmDERGetSignedResourceValues(buffer, 1U, &fieldID, val);

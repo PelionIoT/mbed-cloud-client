@@ -37,7 +37,8 @@ public:
         QueueSleep,
         RetryTimer,
         BootstrapFlowTimer,
-        RegistrationFlowTimer
+        RegistrationFlowTimer,
+        StaggerWaitTimer
     }Type;
 
     /**

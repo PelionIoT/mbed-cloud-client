@@ -3,6 +3,11 @@ INCLUDE(CMakeForceCompiler)
 cmake_minimum_required (VERSION 3.5)
 SET(CMAKE_SYSTEM_NAME Generic)
 
+if (FOTA_ENABLE)
+  # using new FOTA implementation, disabling the old linking.
+  return()
+endif()
+
 SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 project(update-client)

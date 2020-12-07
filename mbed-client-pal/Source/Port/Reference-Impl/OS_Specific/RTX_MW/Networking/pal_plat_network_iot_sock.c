@@ -66,6 +66,7 @@ static void _receive_poll_thread(void *argument)
     int32_t sock = (int32_t)argument;
     int32_t status;
     uint32_t type;
+    uint32_t type_len = sizeof(type);
     bool connected = false;
 
     // Needed only in blocking mode.
@@ -76,7 +77,7 @@ static void _receive_poll_thread(void *argument)
         }
     }
 
-    iotSocketGetOpt(sock, IOT_SOCKET_SO_TYPE, &type, sizeof(type));
+    iotSocketGetOpt(sock, IOT_SOCKET_SO_TYPE, &type, &type_len);
 
     /* Continuously poll the network connection for events. */
     while (true) {

@@ -58,6 +58,14 @@
             "help": "Period for HTTP-resume actions after which resume gives up and terminates.",
             "macro_name": "ARM_UC_HTTP_RESUME_MAXIMUM_DOWNLOAD_TIME_SECS",
             "value": "(7*24*60*60)"
+        },
+        "delta-storage-address": {
+            "help": "When using address based storage (FlashIAP, Block Device), this is the starting address for delta storage. This config item is only for multicast update.",
+            "value": null
+        },
+        "delta-storage-size": {
+            "help": "Total storage allocated for delta image. This config item is only for multicast update.",
+            "value": null
         }
     }
 }

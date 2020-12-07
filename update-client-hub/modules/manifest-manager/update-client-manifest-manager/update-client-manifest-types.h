@@ -53,17 +53,16 @@ typedef struct manifest_guid_t {
     };
 } manifest_guid_t;
 
-#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE) || (defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)))
 /**
  * @brief The manifest_vendor_info_t struct
  * @details Contains the details about for example the delta image
  */
 struct manifest_vendor_info_t  {
     arm_uc_buffer_t     vendorBuffer;       // To store the whole octet stream
-    uint32_t            enumDeltaVariant; // 0 = reserved, 1=arm-stream-diff-lz4
-    arm_uc_buffer_t     preCursorHash;       ///< The hash of the delta image
-    arm_uc_buffer_t     deltaHash;       ///< The hash of the delta image
+#if (defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)))
     uint32_t            deltaSize;       ///< The size of the delta in bytes
+#endif
 };
 typedef struct manifest_vendor_info_t manifest_vendor_info_t;
 #endif
@@ -144,7 +143,7 @@ struct manifest_firmware_info_t {
     arm_uc_image_size_t installedSize; ///< The installed size of the firmware in bytes
     arm_uc_buffer_t     installedHash; ///< The installed hash of the firmware image
 #endif
-#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE) || (defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)))
     manifest_vendor_info_t vendorInfo;
 #endif
 

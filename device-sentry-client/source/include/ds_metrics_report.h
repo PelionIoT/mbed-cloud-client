@@ -35,8 +35,10 @@
 #define DS_METRIC_REPORT_V1 3
 #define DS_METRIC_GROUP_LABELS 4
 #define DS_METRIC_ACTIVE_DESTS 5
+#define DS_METRIC_POLICY_ID 6
 
-// Number of metrics groups. 
+// Number of device metrics groups (cpu, threads number, network, memory)
+// Note: for custom metrics see include files ds_custom_metrics_*.h
 #define DS_MAX_METRIC_NUMBER 4
 
 

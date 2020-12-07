@@ -43,7 +43,7 @@ arm_uc_error_t ARM_UC_mmGetClassGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *g
 arm_uc_error_t ARM_UC_mmGetDeviceGuid(arm_uc_buffer_t *buffer, arm_uc_buffer_t *guid);
 arm_uc_error_t ARM_UC_mmGetPrecursorDigest(arm_uc_buffer_t* buffer, arm_uc_buffer_t* val);
 arm_uc_error_t ARM_UC_mmGetTimestamp(arm_uc_buffer_t *buffer, uint64_t *val);
-#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0))
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE) || (defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1) && (!defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) || (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 0)))
 arm_uc_error_t ARM_UC_mmGetVendorInfo(arm_uc_buffer_t *buffer, arm_uc_buffer_t *val);
 #endif
 arm_uc_error_t ARM_UC_mmGetValidFrom(arm_uc_buffer_t *buffer, uint64_t *val);

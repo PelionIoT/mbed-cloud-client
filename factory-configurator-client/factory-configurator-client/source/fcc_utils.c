@@ -19,7 +19,6 @@
 #include "fcc_utils.h"
 #include "key_config_manager.h"
 #include "pv_error_handling.h"
-#include "pal_errors.h"
 
 fcc_status_e fcc_convert_kcm_to_fcc_status(kcm_status_e kcm_result)
 {
@@ -114,19 +113,19 @@ fcc_status_e fcc_convert_pal_to_fcc_status(palStatus_t pal_result)
 
     switch (pal_result) {
 
-        case PAL_ERR_INVALID_ARGUMENT:
+        case FCC_PAL_ERR_INVALID_ARGUMENT:
             fcc_status = FCC_STATUS_KCM_ERROR;
             break;   
-        case PAL_ERR_ITEM_EXIST:
+        case FCC_PAL_ERR_ITEM_EXIST:
             fcc_status = FCC_STATUS_KCM_FILE_EXIST_ERROR;
             break;
-        case PAL_ERR_ITEM_NOT_EXIST:
+        case FCC_PAL_ERR_ITEM_NOT_EXIST:
             fcc_status = FCC_STATUS_ITEM_NOT_EXIST;
             break;
-        case PAL_ERR_ENTROPY_EXISTS:
+        case FCC_PAL_ERR_ENTROPY_EXISTS:
             fcc_status = FCC_STATUS_ENTROPY_ERROR;
             break;
-        case PAL_ERR_NOT_SUPPORTED:
+        case FCC_PAL_ERR_NOT_SUPPORTED:
             fcc_status = FCC_STATUS_NOT_SUPPORTED;
             break;
         default:
@@ -137,5 +136,3 @@ fcc_status_e fcc_convert_pal_to_fcc_status(palStatus_t pal_result)
    
     return fcc_status;
 }
-
-

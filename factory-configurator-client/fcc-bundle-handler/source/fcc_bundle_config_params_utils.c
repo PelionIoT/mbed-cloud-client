@@ -76,11 +76,11 @@ fcc_status_e fcc_bundle_process_config_param_cb(CborValue *tcbor_val, void *extr
     if (strncmp(g_fcc_current_time_parameter_name, param_name, param_name_len) == 0) {
         // mbed.CurrentTime (expect unsigned integer)
         // set time
+#ifndef FCC_NANOCLIENT_ENABLED
         fcc_status = fcc_time_set(data64_val);
         SA_PV_ERR_RECOVERABLE_RETURN_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status, "failed to set time");
-
+#endif
     } else {
-
         // Special treat for mbed.UseBootstrap, mbed.MemoryTotalKB, mbed.FirstToClaim - store it as uint32_t
         if ((strncmp(g_fcc_use_bootstrap_parameter_name, param_name, param_name_len) == 0) ||
             (strncmp(g_fcc_memory_size_parameter_name, param_name, param_name_len) == 0) ||

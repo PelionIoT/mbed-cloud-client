@@ -22,9 +22,7 @@
 #include "mbed-client/m2mreportobserver.h"
 #include "mbed-client/functionpointer.h"
 #include "mbed-client/m2mstringbuffer.h"
-#ifdef ENABLE_ASYNC_REST_RESPONSE
 #include "mbed-client/coap_response.h"
-#endif
 #include "nsdl-c/sn_nsdl.h"
 #include "sn_coap_header.h"
 #include "nsdl-c/sn_nsdl_lib.h"
@@ -151,9 +149,7 @@ public:
         DELAYED_POST_RESPONSE,
         BLOCK_SUBSCRIBE,
         PING,
-#ifdef ENABLE_ASYNC_REST_RESPONSE
-        DELAYED_RESPONSE,
-#endif // ENABLE_ASYNC_REST_RESPONSE
+        DELAYED_RESPONSE
     } MessageType;
 
     enum MaxPathSize {

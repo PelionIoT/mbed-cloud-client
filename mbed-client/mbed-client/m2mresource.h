@@ -148,12 +148,13 @@ public:
      * \brief A trigger to send the delayed response for the POST request.
      * The delayed_response flag must be set before receiving the POST request
      * and the value of the resource must be updated before calling this function.
-     * This sends the post response with code 'COAP_MSG_CODE_RESPONSE_CHANGED'.
+     * This sends the post response with the code provided by caller.
      * Please use M2MBase::send_async_response_with_code method, if you are using
      * ENABLE_ASYNC_REST_RESPONSE flag, because this method will be deprecated.
+     * \param code Response code to be sent.
      * \return True if a response is sent, else false.
      */
-    bool send_delayed_post_response();
+    bool send_delayed_post_response(sn_coap_msg_code_e code = COAP_MSG_CODE_RESPONSE_CHANGED);
 
     /**
      * \brief Provides the value of the token of the delayed post response.
@@ -320,7 +321,6 @@ friend class Test_M2MServer;
 friend class Test_M2MReportHandler;
 friend class Test_M2MNsdlInterface;
 friend class Test_M2MInterfaceFactory;
-friend class Test_M2MFirmware;
 friend class Test_M2MTLVSerializer;
 friend class Test_M2MTLVDeserializer;
 friend class Test_M2MBase;

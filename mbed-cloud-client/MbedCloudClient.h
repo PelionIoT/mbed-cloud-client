@@ -42,6 +42,10 @@
 #include "ds_status.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
 
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+#include "multicast.h"
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+
 #if MBED_CLOUD_CLIENT_STL_API
 #include <map>
 #include <string>
@@ -200,8 +204,13 @@ public:
         /// Device Sentry error 0x0600 - 0x06ff. Defined in ds_status.h
         DeviceSentryErrorBase = DS_STATUS_RANGE_BASE,
         /// Device Sentry error.
-        DeviceSentryErrorEnd = DS_STATUS_RANGE_END
+        DeviceSentryErrorEnd = DS_STATUS_RANGE_END,
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+        /// Multicast error 0x0700 - 0x07ff. Defined in multicast.h
+        MulticastErrorBase = MULTICAST_STATUS_RANGE_BASE,
+        MulticastErrorEnd = MULTICAST_STATUS_RANGE_END
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 
     }Error;
 
@@ -492,6 +501,16 @@ public:
     void set_update_progress_handler(void (*handler)(uint32_t progress, uint32_t total));
 #endif
 
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    /**
+     * \brief Set the callback function that is called when there is a external firmware candidate available.
+     * \param fn Function pointer to the function that is called when firmware is downloaded and stored.
+     * \param start_address Location in storage where firmware candidate starts.
+     * \param firmware_size Size of the firmware.
+     */
+    void on_external_update(void(*fn)(uint32_t start_address, uint32_t firmware_size));
+#endif
+
     /**
      * @brief Return error description for the latest error code.
      * @return Error description string.
@@ -613,6 +632,15 @@ protected: // from ServiceClientCallback
     */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type);
 
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    /**
+    * \brief A callback indicating that new external firmware is available.
+    * \param start_address Location in storage where firmware candidate starts.
+    * \param firmware_size Size of the firmware.
+    */
+    virtual void external_update(uint32_t start_address, uint32_t firmware_size);
+#endif
+
 private:
 
     /**
@@ -636,6 +664,9 @@ private:
     FP1<void,int>                                   _on_error;
     const char                                      *_error_description;
     bool                                            _init_done;
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    FP2<void, uint32_t, uint32_t>                   _on_external_update;
+#endif
 
 #if MBED_CLOUD_CLIENT_STL_API
     // This API and functionality is being phased out, as it is wasting resources by

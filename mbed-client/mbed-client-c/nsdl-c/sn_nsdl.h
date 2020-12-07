@@ -28,9 +28,10 @@ extern "C" {
 #ifndef SN_NSDL_H_
 #define SN_NSDL_H_
 
-#define SN_NSDL_SUCCESS  0
-#define SN_NSDL_FAILURE (-1)
-#define SN_NSDL_RESEND_QUEUE_FULL (-2)
+#define SN_NSDL_SUCCESS                     0
+#define SN_NSDL_FAILURE                     -1
+#define SN_NSDL_MEMORY_ALLOCATION_FAILED    -2
+#define SN_NSDL_RESEND_QUEUE_FULL           -4 // Mapped into CoAP level error code
 
 #include "sn_coap_header.h"
 

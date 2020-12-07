@@ -118,6 +118,10 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_GetActiveDetails(arm_uc_firmware_details_t *d
 
 arm_uc_error_t ARM_UC_PAL_FlashIAP_GetInstallerDetails(arm_uc_installer_details_t *details);
 
+#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+arm_uc_error_t ARM_UC_PAL_FlashIAP_GetFirmwareStartAddress(uint32_t location, uint32_t *start_address);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

@@ -22,6 +22,8 @@
 #include "factory_configurator_client.h"
 #include "storage_kcm.h"
 
+
+#ifndef FCC_NANOCLIENT_ENABLED
 fcc_status_e fcc_bundle_process_rbp_buffer(CborValue *tcbor_top_map, const char *map_key_name, const char *rbp_item_name)
 {
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
@@ -62,6 +64,7 @@ exit:
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
     return fcc_status;
 }
+#endif
 
 fcc_status_e fcc_bundle_factory_disable( void )
 {

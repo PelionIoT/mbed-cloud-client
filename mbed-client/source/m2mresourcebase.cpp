@@ -36,6 +36,7 @@
 #include "include/m2mtlvserializer.h"
 #include "mbed-client/m2mblockmessage.h"
 #include "mbed-trace/mbed_trace.h"
+#include "sn_grs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -151,6 +152,8 @@ M2MResourceBase::~M2MResourceBase()
 
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueWriteCallback);
 
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceInstanceReadCallback);
+
 #ifndef DISABLE_BLOCK_MESSAGE
     delete _block_message_data;
 #endif
@@ -235,7 +238,11 @@ bool M2MResourceBase::set_value_float(float value)
 
     // Convert value to string
     /* write the float value to a decimal number string and copy it into a buffer allocated for caller */
+#if MBED_MINIMAL_PRINTF
+    uint32_t size = snprintf(buffer, REGISTRY_FLOAT_STRING_MAX_LEN, "%f", value);
+#else
     uint32_t size = snprintf(buffer, REGISTRY_FLOAT_STRING_MAX_LEN, "%e", value);
+#endif
 
     success = set_value((const uint8_t*)buffer, size);
 
@@ -453,12 +460,13 @@ int M2MResourceBase::read_resource_value(const M2MResourceBase &resource, void *
     tr_debug("M2MResourceBase::read_resource_value");
 
     M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(resource,
-                                                                            M2MCallbackAssociation::M2MResourceBaseValueReadCallback);
+                                                                            M2MCallbackAssociation::M2MResourceInstanceReadCallback);
 
     if (item) {
-        read_resource_value_callback callback = (read_resource_value_callback)item->_callback;
+        read_value_callback callback = (read_value_callback)item->_callback;
         assert(callback);
-        return (*callback)(resource, buffer, buffer_len, item->_client_args);
+        size_t total_size = 0;
+        return ((*callback)(resource, (uint8_t*&)buffer, *buffer_len, total_size, 0, item->_client_args) == COAP_RESPONSE_VALID) ? 0 : -1;
     } else {
         if (value_length() > *buffer_len) {
             return -1;
@@ -602,75 +610,75 @@ sn_coap_hdr_s* M2MResourceBase::handle_get_request(nsdl_s *nsdl,
     sn_coap_hdr_s *coap_response = sn_nsdl_build_response(nsdl,
                                                           received_coap_header,
                                                           msg_code);
-    if (received_coap_header) {
-        // process the GET if we have registered a callback for it
-        if ((operation() & M2MBase::GET_ALLOWED) != 0) {
-            if (coap_response) {
-                bool content_type_present = false;
-                if (received_coap_header->options_list_ptr &&
-                    received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
-                    content_type_present = true;
-                    coap_response->content_format = received_coap_header->options_list_ptr->accept;
-                    set_coap_content_type(coap_response->content_format);
-                }
-                if (!content_type_present) {
-                    if (resource_instance_type() == M2MResourceInstance::OPAQUE) {
-                        coap_response->content_format = sn_coap_content_format_e(COAP_CONTENT_OMA_OPAQUE_TYPE);
-                    } else {
-                        coap_response->content_format = sn_coap_content_format_e(COAP_CONTENT_OMA_PLAIN_TEXT_TYPE);
-                    }
-                }
-                // fill in the CoAP response payload
-                coap_response->payload_ptr = NULL;
-                uint32_t payload_len = 0;
-#ifndef DISABLE_BLOCK_MESSAGE
-                //If handler exists it means that resource value is stored in application side
-                if (block_message() && block_message()->is_block_message()) {
-                    outgoing_block_message_callback* outgoing_block_message_cb = (outgoing_block_message_callback*)M2MCallbackStorage::get_callback(*this,
-                                                                                    M2MCallbackAssociation::M2MResourceInstanceOutgoingBlockMessageCallback);
-                    if (outgoing_block_message_cb) {
-                        String name = "";
-                        if (received_coap_header->uri_path_ptr != NULL &&
-                            received_coap_header->uri_path_len > 0) {
-                            name.append_raw((char *)received_coap_header->uri_path_ptr, received_coap_header->uri_path_len);
-                        }
-                        (*outgoing_block_message_cb)(name, coap_response->payload_ptr, payload_len);
-                    }
-                } else {
-#endif
-                    if (coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE ||
-                        coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE_OLD) {
-                        coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), payload_len);
-                    } else {
-                        get_value(coap_response->payload_ptr,payload_len);
-                    }
-#ifndef DISABLE_BLOCK_MESSAGE
-                }
-#endif
-                tr_debug("M2MResourceBase::handle_get_request() - Request Content-type: %d", coap_response->content_format);
-                coap_response->payload_len = payload_len;
-                coap_response->options_list_ptr = sn_nsdl_alloc_options_list(nsdl, coap_response);
-                if (coap_response->options_list_ptr) {
-                    coap_response->options_list_ptr->max_age = max_age();
-                }
 
-                if (received_coap_header->options_list_ptr) {
-                    if(received_coap_header->options_list_ptr->observe != -1) {
-                        handle_observation(nsdl, *received_coap_header, *coap_response, observation_handler, msg_code);
-                    }
-                }
-            }
-        } else {
-            tr_error("M2MResourceBase::handle_get_request - Return COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED");
-            // Operation is not allowed.
-            msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
-        }
-    } else {
-        msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
+    if (!coap_response) {
+        tr_error("M2MResourceBase::handle_get_request() - failed to build response!");
+        return NULL;
     }
 
-    if (coap_response) {
-        coap_response->msg_code = msg_code;
+    if (received_coap_header && (operation() & M2MBase::GET_ALLOWED) != 0) {
+        bool content_type_present = false;
+        coap_response->payload_ptr = NULL;
+        size_t payload_len = 0;
+
+        if (received_coap_header->options_list_ptr &&
+            received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
+            coap_response->content_format = received_coap_header->options_list_ptr->accept;
+            set_coap_content_type(coap_response->content_format);
+        } else {
+            if (resource_instance_type() == M2MResourceInstance::OPAQUE) {
+                coap_response->content_format = sn_coap_content_format_e(COAP_CONTENT_OMA_OPAQUE_TYPE);
+            } else {
+                coap_response->content_format = sn_coap_content_format_e(COAP_CONTENT_OMA_PLAIN_TEXT_TYPE);
+            }
+        }
+
+        coap_response->options_list_ptr = sn_nsdl_alloc_options_list(nsdl, coap_response);
+        if (coap_response->options_list_ptr) {
+            coap_response->options_list_ptr->max_age = max_age();
+        } else {
+            tr_error("M2MResourceBase::handle_get_request() - failed to allocate coap options");
+            coap_response->msg_code = COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR;
+            return coap_response;
+        }
+#ifndef DISABLE_BLOCK_MESSAGE
+        outgoing_block_message_callback* outgoing_block_message_cb = (outgoing_block_message_callback*)M2MCallbackStorage::get_callback(*this,
+                                                                      M2MCallbackAssociation::M2MResourceInstanceOutgoingBlockMessageCallback);
+        if (outgoing_block_message_cb) {
+            String name = "";
+            if (received_coap_header->uri_path_ptr != NULL &&
+                received_coap_header->uri_path_len > 0) {
+                name.append_raw((char *)received_coap_header->uri_path_ptr, received_coap_header->uri_path_len);
+            }
+            (*outgoing_block_message_cb)(name, coap_response->payload_ptr, (uint32_t &)payload_len);
+        }
+#endif
+        // Read resource data from application
+        M2MCallbackAssociation* item = M2MCallbackStorage::get_association_item(*this, M2MCallbackAssociation::M2MResourceInstanceReadCallback);
+        if (item) {
+            read_data_from_application(item, nsdl, received_coap_header, coap_response, payload_len);
+        } else {
+            if (coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE ||
+                coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE_OLD) {
+                coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), (uint32_t &)payload_len);
+            } else {
+                get_value(coap_response->payload_ptr, (uint32_t &)payload_len);
+            }
+        }
+
+        tr_debug("M2MResourceBase::handle_get_request() - Request Content-type: %d", coap_response->content_format);
+
+        coap_response->payload_len = payload_len;
+        if (received_coap_header->options_list_ptr) {
+            if (received_coap_header->options_list_ptr->observe != -1) {
+                handle_observation(nsdl, *received_coap_header, *coap_response, observation_handler, msg_code);
+            }
+        }
+
+    } else {
+        tr_error("M2MResourceBase::handle_get_request - Return COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED");
+        // Operation is not allowed.
+        coap_response->msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
     }
 
     return coap_response;
@@ -825,7 +833,6 @@ bool M2MResourceBase::set_incoming_block_message_callback(incoming_block_message
                                             new_callback,
                                             M2MCallbackAssociation::M2MResourceInstanceIncomingBlockMessageCallback);
 }
-
 bool M2MResourceBase::set_outgoing_block_message_callback(outgoing_block_message_callback callback)
 {
     outgoing_block_message_callback *old_callback = (outgoing_block_message_callback*)M2MCallbackStorage::remove_callback(*this,
@@ -838,6 +845,16 @@ bool M2MResourceBase::set_outgoing_block_message_callback(outgoing_block_message
                                             M2MCallbackAssociation::M2MResourceInstanceOutgoingBlockMessageCallback);
 }
 #endif
+
+bool M2MResourceBase::set_read_resource_function(read_value_callback callback, void *client_args)
+{
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceInstanceReadCallback);
+
+    return M2MCallbackStorage::add_callback(*this,
+                                            (void*)callback,
+                                            M2MCallbackAssociation::M2MResourceInstanceReadCallback,
+                                            client_args);
+}
 
 bool M2MResourceBase::set_notification_sent_callback(notification_sent_callback callback)
 {
@@ -976,4 +993,58 @@ void M2MResourceBase::publish_value_in_registration_msg(bool publish_value)
         pub_value = (uint8_t)publish_value;
     }
     param->dynamic_resource_params->publish_value = pub_value;
+}
+
+void M2MResourceBase::read_data_from_application(M2MCallbackAssociation *item,
+                                                 nsdl_s *nsdl,
+                                                 const sn_coap_hdr_s *received_coap,
+                                                 sn_coap_hdr_s *coap_response,
+                                                 size_t &payload_len)
+{
+    tr_info("M2MResourceBase::read_data_from_application()");
+    read_value_callback callback = (read_value_callback)item->_callback;
+    assert(callback);
+
+    uint32_t block_number = 0;
+    uint16_t block_size = sn_coap_protocol_get_configured_blockwise_size(nsdl->grs->coap);
+    size_t total_size = 0;
+
+    if (received_coap->options_list_ptr && received_coap->options_list_ptr->block2 != -1) {
+        uint8_t block_temp = received_coap->options_list_ptr->block2 & 0x07;
+        /* Resolve block parameters */
+        block_size = 1u << (block_temp + 4);
+        block_number = received_coap->options_list_ptr->block2 >> 4;
+    }
+
+    // Get data from application
+    payload_len = block_size;
+    coap_response->msg_code = (sn_coap_msg_code_e) (*callback)(*this,
+                                                               coap_response->payload_ptr,
+                                                               payload_len,
+                                                               total_size,
+                                                               (block_number * block_size),
+                                                               item->_client_args);
+
+    if (coap_response->msg_code < COAP_RESPONSE_BAD_REQUEST) {
+        // Data must go as a blocks
+        if (total_size > block_size) {
+            coap_response->options_list_ptr->max_age = max_age();
+            coap_response->options_list_ptr->use_size2 = true;
+            coap_response->options_list_ptr->size2 = total_size;
+            coap_response->options_list_ptr->block2 = sn_coap_convert_block_size(block_size);
+
+            // Set block number into response
+            if (received_coap->options_list_ptr && received_coap->options_list_ptr->block2 != -1) {
+                uint8_t block_temp = coap_response->options_list_ptr->block2 & 0x07;
+                coap_response->options_list_ptr->block2 = (block_number << 4) | block_temp;
+            }
+
+            // Set more bit into response
+            if (total_size >= (block_number + 1) * block_size) {
+                coap_response->options_list_ptr->block2 |= 0x08;
+            }
+        }
+    } else {
+        payload_len = 0;
+    }
 }

@@ -262,20 +262,6 @@ arm_uc_error_t ARM_UC_GetClassId(uint8_t *id,
                                  size_t *id_size);
 
 /**
- * @brief Function for reporting the device ID.
- * @details 16 bytes are copied into the supplied buffer.
- * @param id Pointer to storage for ID. MUST be at least 16 bytes long.
- * @param id_max the size of the ID buffer
- * @param id_size pointer to a variable to receive the size of the ID
- *                written into the buffer (always 16).
- * @return Error code.
- */
-arm_uc_error_t ARM_UC_GetDeviceId(uint8_t *id,
-                                  const size_t id_max,
-                                  size_t *id_size);
-
-
-/**
  * @brief Delete any global allocations.
  */
 arm_uc_error_t ARM_UC_HUB_Uninitialize(void);

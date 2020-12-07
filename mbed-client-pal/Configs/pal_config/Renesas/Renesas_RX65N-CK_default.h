@@ -57,6 +57,11 @@
     #define PAL_USE_SECURE_TIME 1
 #endif
 
+// SSL session resume requires Mbed TLS 2.19.0d1 or later
+#ifndef PAL_USE_SSL_SESSION_RESUME
+#define PAL_USE_SSL_SESSION_RESUME 0
+#endif
+
 #ifndef SYS_CONF_SOTP
     #define SYS_CONF_SOTP   SYS_CONF_SOTP_DISABLED
 #endif

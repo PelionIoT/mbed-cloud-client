@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -1083,7 +1083,8 @@ void M2MBase::handle_observation(nsdl_s *nsdl,
     }
 
     if (!is_observable()) {
-        tr_error("M2MBase::handle_observation() - not observable!");
+        // Received subscription request for non-observable resource.
+        tr_warn("M2MBase::handle_observation() - %s - not observable!", uri_path());
         response_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
         return;
     }

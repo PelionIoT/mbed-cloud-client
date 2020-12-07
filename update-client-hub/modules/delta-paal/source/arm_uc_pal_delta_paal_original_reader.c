@@ -52,6 +52,17 @@
 static int flash_init_done = 0;
 #endif
 
+#ifdef __NANOSIMULATOR__
+void get_image_folder(char* path);
+
+char* getNanosimOriginalImageFolder()
+{
+    static char path[PAL_MAX_FILE_AND_FOLDER_LENGTH];
+    get_image_folder(path);
+    return path;
+}
+#endif
+
 /**
  * @brief arm_uc_deltapaal_original_reader - helper function to read bytes from original reader.
  * @param stream
@@ -107,9 +118,11 @@ int arm_uc_deltapaal_original_reader(void* buffer, uint64_t length, uint32_t off
 #if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
 #if defined(TARGET_X86_X64)
 #if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE==0)
-
-
+#ifdef __NANOSIMULATOR__
+                                                 getNanosimOriginalImageFolder(),
+#else
                                                  pal_imageGetFolder(),
+#endif
 #else
                                                  ORIG_FIRMWARE_DIR,
 #endif

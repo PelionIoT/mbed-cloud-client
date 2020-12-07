@@ -121,6 +121,11 @@
     #define PAL_USE_SECURE_TIME 1
 #endif
 
+// Disable SSL_SESSION_RESUME because freeRTOS version is having issues with CID
+#ifndef PAL_USE_SSL_SESSION_RESUME
+#define PAL_USE_SSL_SESSION_RESUME 0
+#endif
+
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     #define MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT 1
 #endif

@@ -105,56 +105,20 @@ arm_uc_error_t pal_getClassGuid(arm_uc_guid_t *class_guid)
 }
 
 /**
- * @brief Function for setting the device GUID.
- * @details The GUID is copied.
- * @param device_guid Pointer to a arm_uc_guid_t GUID.
- * @return Error code.
- */
-arm_uc_error_t pal_setDeviceGuid(const arm_uc_guid_t *device_guid)
-{
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-
-    if (arm_uc_device_identity) {
-        result = arm_uc_device_identity->SetDeviceGuid(device_guid);
-    }
-
-    return result;
-}
-
-/**
- * @brief Function for getting a pointer to the device GUID.
- * @param device_guid Pointer to a arm_uc_guid_t pointer.
- * @return Error code.
- */
-arm_uc_error_t pal_getDeviceGuid(arm_uc_guid_t *device_guid)
-{
-    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
-
-    if (arm_uc_device_identity) {
-        result = arm_uc_device_identity->GetDeviceGuid(device_guid);
-    }
-
-    return result;
-}
-
-/**
  * @brief Check whether the three GUIDs provided are valid on the device.
  * @details
  * @param vendor_guid Buffer pointer to the Vendor GUID.
  * @param class_guid  Buffer pointer to the device class GUID.
- * @param device_guid Buffer pointer to the device GUID.
  * @return Error code.
  */
 arm_uc_error_t pal_deviceIdentityCheck(const arm_uc_buffer_t *vendor_guid,
-                                       const arm_uc_buffer_t *class_guid,
-                                       const arm_uc_buffer_t *device_guid)
+                                       const arm_uc_buffer_t *class_guid)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
     if (arm_uc_device_identity) {
         result = arm_uc_device_identity->DeviceIdentityCheck(vendor_guid,
-                                                             class_guid,
-                                                             device_guid);
+                                                             class_guid);
     }
 
     return result;

@@ -128,6 +128,11 @@
     #define PAL_DEFAULT_RTT_ESTIMATE 8
 #endif
 
+// SSL session resume requires Mbed TLS 2.19.0d1 or later
+#ifndef PAL_USE_SSL_SESSION_RESUME
+#define PAL_USE_SSL_SESSION_RESUME 0
+#endif
+
 /* To relax some pal_init/pal_destroy tests when running unit tests from testapp.
  * Can be that unit test is not only instance that initializes pal. */
 #ifndef PAL_INITIALIZED_BEFORE_TESTS

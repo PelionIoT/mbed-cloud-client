@@ -31,8 +31,6 @@ int mbed_cloud_application_entrypoint(void)
     status = palFileSystemTestMain();
 #elif defined(PAL_UNIT_TEST_NETWORK)
     status = palNetworkTestMain();
-#elif defined(PAL_UNIT_TEST_CRYPTO)
-    status = palCryptoTestMain();
 #elif defined(PAL_UNIT_TEST_DRBG)
     status = palDRBGTestMain();
 #elif defined(PAL_UNIT_TEST_ROT)

@@ -25,7 +25,6 @@
 class M2MDevice;
 class M2MServer;
 class M2MInterfaceImpl;
-class M2MFirmware;
 
 /** \file m2minterfacefactory.h \brief header for M2MInterfaceFactory. */
 
@@ -94,14 +93,6 @@ public:
      * \return M2MDevice An object for managing other client operations.
      */
     static M2MDevice *create_device();
-
-    /**
-     * \brief Creates a firmware object for the mbed Client Inteface. With this, the
-     * client can manage the firmware resources used for the client operations
-     * such as Client Registration, Device Management and Information Reporting.
-     * \return M2MFirmware An object for managing other client operations.
-     */
-    static M2MFirmware *create_firmware() m2m_deprecated;
 
     /**
      * \brief Creates a generic object for the mbed Client Inteface. With this, the

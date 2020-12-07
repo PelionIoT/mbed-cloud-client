@@ -85,12 +85,14 @@ public:
     * @param String server address.
     * @param uint16_t Server port.
     * @param ServerType, Server Type to be resolved.
+    * @param is_server_ping Defines whether the call is for Server ping or not.
     * @return true if address is valid else false.
     */
     bool resolve_server_address(const String& server_address,
                                 const uint16_t server_port,
                                 M2MConnectionObserver::ServerType server_type,
-                                const M2MSecurity* security);
+                                const M2MSecurity* security,
+                                bool is_server_ping =false);
 
     /**
     * @brief Sends data, to the connected sent to server.
@@ -176,12 +178,21 @@ public:
      */
     void unregister_network_handler();
 
-#if 0
     /**
      * \brief Stores CID persistently for DTLS connections.
      */
     void store_cid();
-#endif
+
+    /**
+     * \brief Removes CID for DTLS connections.
+     */
+    void remove_cid();
+
+    /**
+     * \brief Status of CID availability in client.
+     * return true if CID is available else false.
+     */
+    bool is_cid_available();
 
 private:
 
@@ -331,6 +342,8 @@ private:
     send_data_list_t                            _linked_list_send_data;
 
     bool                                        _secure_connection;
+
+    bool                                        _is_server_ping;
 
     arm_event_storage_t                         _event;
 

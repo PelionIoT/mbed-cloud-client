@@ -25,6 +25,7 @@
 // Forward declarations
 
 class M2MBlockMessage;
+class M2MCallbackAssociation;
 
 typedef FP1<void,void*> execute_callback;
 typedef void(*execute_callback_2) (void *arguments);
@@ -96,6 +97,25 @@ public:
                                                 void *buffer,
                                                 size_t *buffer_size,
                                                 void *client_args);
+
+    /*
+     * \brief Type definition for a read resource value callback function.
+     * \param[in]       resource        Pointer to resource whose value should will be read.
+     * \param[out]      buffer          Pointer to value buffer.
+     * \param[in, out]  buffer_size     On input, tells the maximum size of bytes to read. On output, tells how many bytes have been written to buffer.
+     * \param[out]      total_size      Total size of the resource data.
+     * \param[in]       offset          Offset to read from in data.
+     * \param[in]       client_args     Client arguments.
+     * \return CoAP response code for the response.
+     */
+    typedef coap_response_code_e(*read_value_callback) (const M2MResourceBase& resource,
+                                                        uint8_t *&buffer,
+                                                        size_t &buffer_size,
+                                                        size_t &total_size,
+                                                        const size_t offset,
+                                                        void *client_args);
+
+
 
     /*
      * \brief Read resource value size callback function.
@@ -215,7 +235,14 @@ public:
      * \param client_args Client arguments.
      * \return True, if callback could be set, false otherwise.
      */
-    bool set_resource_read_callback(read_resource_value_callback callback, void *client_args);
+    bool set_resource_read_callback(read_resource_value_callback callback, void *client_args) m2m_deprecated;
+
+    /**
+     * @brief Sets the function that is executed when this object receives a GET request.
+     * \param client_args Client arguments.
+     * \return True, if callback could be set, false otherwise.
+     */
+    bool set_read_resource_function(read_value_callback callback, void *client_args);
 
     /**
      * \brief Sets the callback function that is executed when reading the resource value size.
@@ -435,7 +462,7 @@ public:
      * payload up to 64 KiB must be supplied in the single callback.
      * @param callback The function pointer that is called.
      */
-    bool set_outgoing_block_message_callback(outgoing_block_message_callback callback);
+    bool set_outgoing_block_message_callback(outgoing_block_message_callback callback) m2m_deprecated;
 
     /**
      * \brief Returns the block message object.
@@ -517,6 +544,9 @@ private:
 
     M2MResourceBase::ResourceType convert_data_type(M2MBase::DataType type) const;
 
+    void read_data_from_application(M2MCallbackAssociation *item, nsdl_s *nsdl, const sn_coap_hdr_s *received_coap,
+                                    sn_coap_hdr_s *coap_response, size_t &payload_len);
+
 private:
 
 #ifndef DISABLE_BLOCK_MESSAGE
@@ -533,7 +563,6 @@ private:
     friend class Test_M2MSecurity;
     friend class Test_M2MServer;
     friend class Test_M2MNsdlInterface;
-    friend class Test_M2MFirmware;
     friend class Test_M2MTLVSerializer;
     friend class Test_M2MTLVDeserializer;
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2011-2020 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 
 #include "ns_list.h"
 #include "sn_client_config.h"
+#include "mbed-client/m2mconfig.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -244,16 +245,16 @@ struct nsdl_s *sn_nsdl_init(uint8_t (*sn_nsdl_tx_cb)(struct nsdl_s *, sn_nsdl_ca
                             uint8_t (*sn_nsdl_auto_obs_token_cb)(struct nsdl_s *, const char *, uint8_t *));
 
 /**
- * \fn extern uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle, sn_nsdl_ep_parameters_s *endpoint_info_ptr, const char *uri_query_parameters);
+ * \fn extern int32_t sn_nsdl_register_endpoint(struct nsdl_s *handle, sn_nsdl_ep_parameters_s *endpoint_info_ptr, const char *uri_query_parameters);
  *
  * \brief Registers endpoint to mbed Device Server.
  * \param *handle               Pointer to nsdl-library handle
  * \param *endpoint_info_ptr    Contains endpoint information.
  * \param *uri_query_parameters Uri query parameters.
  *
- * \return registration message ID, 0 if failed
+ * \return registration message ID, < 0 if failed
  */
-extern uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
+extern int32_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
                                           sn_nsdl_ep_parameters_s *endpoint_info_ptr,
                                           const char *uri_query_parameters);
 
@@ -264,7 +265,7 @@ extern uint16_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
  *
  * \param *handle               Pointer to nsdl-library handle
  *
- * \return  unregistration message ID, 0 if failed
+ * \return  unregistration message ID, < 0 if failed
  */
 extern int32_t sn_nsdl_unregister_endpoint(struct nsdl_s *handle);
 
@@ -277,7 +278,7 @@ extern int32_t sn_nsdl_unregister_endpoint(struct nsdl_s *handle);
  * \param *lt_ptr   Pointer to lifetime value string in ascii form, eg. "1200"
  * \param lt_len    Length of the lifetime string
  *
- * \return  registration update message ID, <0 if failed
+ * \return  registration update message ID, < 0 if failed
  */
 extern int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint8_t lt_len);
 
@@ -290,7 +291,7 @@ extern int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_pt
  * \param *lt_ptr   Pointer to location value string , eg. "s322j4k"
  * \param lt_len    Length of the location string
  *
- * \return  success, <0 if failed
+ * \return  success, < 0 if failed
  */
 extern int8_t sn_nsdl_set_endpoint_location(struct nsdl_s *handle, uint8_t *location_ptr, uint8_t location_len);
 
@@ -529,9 +530,9 @@ extern int8_t sn_nsdl_destroy(struct nsdl_s *handle);
  *
  * \param   *handle Pointer to nsdl-library handle
  *
- * \return bootstrap message ID, 0 if failed
+ * \return bootstrap message ID, < 0 if failed
  */
-extern uint16_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle,
+extern int32_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle,
                                       sn_nsdl_addr_s *bootstrap_address_ptr,
                                       sn_nsdl_ep_parameters_s *endpoint_info_ptr,
                                       const char *uri_query_parameters);
@@ -804,7 +805,7 @@ extern uint8_t sn_nsdl_get_retransmission_count(struct nsdl_s *handle);
  *
  * \param   *handle Pointer to nsdl-library handle
  *
- * \return message ID, 0 if failed
+ * \return message ID, < 0 if failed
  */
 extern int32_t sn_nsdl_send_coap_ping(struct nsdl_s *handle);
 

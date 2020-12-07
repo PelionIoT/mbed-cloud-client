@@ -132,7 +132,7 @@ void FirmwareUpdateResource::Initialize(void)
             initialized = true;
 
 #if defined(ARM_UC_PROFILE_MBED_CLOUD_CLIENT) && (ARM_UC_PROFILE_MBED_CLOUD_CLIENT == 1)
-            updateObject->set_register_uri(false);
+            updateObject->set_register_uri(true);
 
 #endif
 
@@ -162,6 +162,7 @@ void FirmwareUpdateResource::Initialize(void)
 
                     /* The delayed response if for processing heavier loads */
                     resourcePackage->set_delayed_response(true);
+                    resourcePackage->set_register_uri(false);
 #endif
 
                 }
@@ -224,6 +225,7 @@ void FirmwareUpdateResource::Initialize(void)
                     resourceUpdate->set_operation(M2MBase::POST_ALLOWED);
                     resourceUpdate->set_execute_function(updateCallback);
                     resourceUpdate->set_delayed_response(true);
+                    resourceUpdate->set_register_uri(false);
                 }
 #endif
             }

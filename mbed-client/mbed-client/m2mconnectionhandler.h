@@ -82,12 +82,14 @@ public:
     * \param ServerType The server type to be resolved.
     * \param security The M2MSecurity object that determines which
     * type of secure connection is used by the socket.
+    * \param is_server_ping Defines whether the call is for Server ping or not.
     * \return True if the address is valid, else false.
     */
     bool resolve_server_address(const String& server_address,
                                 const uint16_t server_port,
                                 M2MConnectionObserver::ServerType server_type,
-                                const M2MSecurity* security);
+                                const M2MSecurity* security,
+                                bool is_server_ping = false);
 
     /**
     * \brief Sends data to the connected server.
@@ -149,12 +151,23 @@ public:
      */
     void unregister_network_handler();
 
-#if 0
     /**
      * \brief Stores CID persistently for DTLS connections.
      */
     void store_cid();
-#endif
+
+    /**
+     * \brief Removes CID for DTLS connections.
+     */
+    void remove_cid();
+
+    /**
+     * \brief Status of CID availability in client.
+     * return true if CID is available else false.
+     */
+    bool is_cid_available();
+
+
 
 private:
 

@@ -149,24 +149,6 @@ include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/secure-device-acce
 include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/sda-cose/sda-cose)
 include_directories(${SECURE_DEVICE_ACCESS_CLIENT_SOURCE_DIR}/cose-c/cose-c)
 
-# Update client
-
-SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)
-
-include_directories(${UPDATE_SOURCE_DIR})
-include_directories(${UPDATE_SOURCE_DIR}/source)
-include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue)
-include_directories(${UPDATE_SOURCE_DIR}/modules/common)
-include_directories(${UPDATE_SOURCE_DIR}/modules/control-center)
-include_directories(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed)
-include_directories(${UPDATE_SOURCE_DIR}/modules/monitor)
-include_directories(${UPDATE_SOURCE_DIR}/modules/multicast)
-include_directories(${UPDATE_SOURCE_DIR}/modules/paal)
-include_directories(${UPDATE_SOURCE_DIR}/modules/source)
-
-include_directories(${UPDATE_SOURCE_DIR}/modules/source-http)
-
-
 FILE(GLOB MBED_CLOUD_CLIENT_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
@@ -261,12 +243,87 @@ target_link_libraries(mbedclient palTLS nanostacklibservice nanostackeventloop m
 CREATE_LIBRARY(mbedCloudClient "${MBED_CLOUD_CLIENT_SRC}" "")
 
 # Create buld dependencies to ensure all the needed parts get build
-add_dependencies(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client update-client pal)
+add_dependencies(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client pal)
 
 # Add linking dependency for all the subcomponents of mbedCloudClient. This allows one to
 # just have "target_link_libraries(<client-application> mbedCloudClient)" and cmake will
 # automatically build all the submodules.
-target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client update-client pal)
+target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nanostacklibservice nanostackeventloop mbedclient certificate-enrollment-client device-sentry-client pal)
+
+option(FOTA_ENABLE "Enable FOTA client module (replaces update client)" OFF)
+option(MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK "dynamically link with libcurl" OFF)
+option(FOTA_COAP_DOWNLOAD "Force CoAP download for FOTA client" OFF)
+# Update client
+if (FOTA_ENABLE)
+    message("<<<< FOTA ENABLED >>>>")
+    SET(FOTA_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fota)
+
+    if (FOTA_COAP_DOWNLOAD)
+        message("<<<< FOTA over CoAP >>>>")
+        add_definitions(-DMBED_CLOUD_CLIENT_FOTA_DOWNLOAD=MBED_CLOUD_CLIENT_FOTA_COAP_DOWNLOAD)
+    endif()
+
+    # Generic definitions for FOTA, always enabled
+    add_definitions(-DMBED_CLOUD_CLIENT_FOTA_ENABLE=1)
+    add_definitions(-DFOTA_CUSTOM_CURR_FW_STRUCTURE=1)
+
+    # Fota trace enable
+    if (FOTA_TRACE)
+        add_definitions(-DFOTA_TRACE_ENABLE=1)
+        add_definitions(-DFOTA_TRACE_DBG=1)
+    endif()
+
+    include_directories(${FOTA_SOURCE_DIR})
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub/delta-tool-internal/include")
+
+    FILE(GLOB FOTA_SRC
+        "${FOTA_SOURCE_DIR}/*.c"
+        "${FOTA_SOURCE_DIR}/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub/delta-tool-internal/source/*.c"
+    )
+    message("FOTA sources = \n ${FOTA_SRC}")
+    target_sources(mbedCloudClient PRIVATE "${FOTA_SRC}")
+
+    target_compile_definitions(mbedCloudClient INTERFACE MBED_CLOUD_CLIENT_FOTA_ENABLE=1)
+
+    add_library(fota STATIC ${FOTA_SRC})
+
+    if (MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK)
+       include(FindPkgConfig)
+       pkg_check_modules(CURL libcurl REQUIRED)
+       message("curl include at: ${CURL_INCLUDE_DIRS}")
+       message("curl link: ${CURL_LIBRARIES}")
+       include_directories(SYSTEM ${CURL_LIBRARIES})
+       add_dependencies(fota ${CURL_LIBRARIES})
+       target_link_libraries(fota ${CURL_LIBRARIES})
+    else()
+       add_dependencies(fota libcurl)
+       target_link_libraries(fota libcurl)
+    endif()
+    add_dependencies(mbedCloudClient fota)
+    target_link_libraries(mbedCloudClient fota)
+else()
+    SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)
+
+    include_directories(${UPDATE_SOURCE_DIR})
+    include_directories(${UPDATE_SOURCE_DIR}/source)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/common)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/control-center)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/monitor)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/multicast)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/paal)
+    include_directories(${UPDATE_SOURCE_DIR}/modules/source)
+
+    include_directories(${UPDATE_SOURCE_DIR}/modules/source-http)
+
+    add_dependencies(mbedCloudClient  update-client)
+    target_link_libraries(mbedCloudClient update-client)
+endif()
+
+# Needed to link sources
+#set (SRC_LIBS ${SRC_LIBS} PARENT_SCOPE)
 
 ADDSUBDIRS()
 

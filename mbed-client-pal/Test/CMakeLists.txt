@@ -77,8 +77,6 @@ file(GLOB PAL_TEST_TIME_SRCS "${PAL_TESTS_SOURCE_DIR}/Time/*.c")
 
 file(GLOB PAL_TEST_TLS_SRCS "${PAL_TESTS_SOURCE_DIR}/TLS/*.c")
 
-file(GLOB_RECURSE PAL_TEST_CRYPTO_SRCS "${PAL_TESTS_SOURCE_DIR}/Crypto/*.c")
-
 file(GLOB PAL_TEST_DRBG_SRCS "${PAL_TESTS_SOURCE_DIR}/DRBG/*")
 
 file(GLOB PAL_TEST_UPDATE_SRCS "${PAL_TESTS_SOURCE_DIR}/Update/*")
@@ -105,8 +103,6 @@ file(GLOB PAL_TEST_RUNNER_FS_SRCS "${PAL_TESTS_RUNNER_DIR}/FileSystem/*.c")
 file(GLOB PAL_TEST_RUNNER_TIME_SRCS "${PAL_TESTS_RUNNER_DIR}/Time/*.c")
 
 file(GLOB PAL_TEST_RUNNER_TLS_SRCS "${PAL_TESTS_RUNNER_DIR}/TLS/*.c")
-
-file(GLOB PAL_TEST_RUNNER_CRYPTO_SRCS "${PAL_TESTS_RUNNER_DIR}/Crypto/*.c")
 
 file(GLOB PAL_TEST_RUNNER_DRBG_SRCS "${PAL_TESTS_RUNNER_DIR}/DRBG/*.c")
 
@@ -155,7 +151,6 @@ set (PAL_TEST_FLAGS
     -DPAL_TEST_NETWORK
     -DPAL_TEST_TLS
     -DPAL_TEST_TIME
-    -DPAL_TEST_CRYPTO
     -DPAL_TEST_FLASH
 )
 
@@ -175,74 +170,69 @@ target_compile_definitions(palunity PRIVATE ${PAL_TEST_FLAGS})
 
 set(sanity_test_src ${test_src}; ${PAL_TEST_RUNNER_SANITY_SRCS}; ${PAL_TEST_SANITY_SRCS})
 CREATE_TEST_LIBRARY(sanityTests "${sanity_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(sanityTests pal palunity platformCommon)
-target_link_libraries(sanityTests pal palunity platformCommon)
+add_dependencies(sanityTests pal palunity mbedTrace platformCommon)
+target_link_libraries(sanityTests pal palunity mbedTrace platformCommon)
 
 set(rtos_test_src ${test_src}; ${PAL_TEST_RUNNER_RTOS_SRCS}; ${PAL_TEST_RTOS_SRCS})
 CREATE_TEST_LIBRARY(RTOSTests "${rtos_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(RTOSTests pal palunity platformCommon)
-target_link_libraries(RTOSTests pal palunity platformCommon)
+add_dependencies(RTOSTests pal palunity mbedTrace platformCommon)
+target_link_libraries(RTOSTests pal palunity mbedTrace platformCommon)
 
 set(rot_test_src ${test_src}; ${PAL_TEST_RUNNER_ROT_SRCS}; ${PAL_TEST_ROT_SRCS})
 CREATE_TEST_LIBRARY(ROTTests "${rot_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(ROTTests pal palROT palunity platformCommon)
-target_link_libraries(ROTTests pal palROT palunity platformCommon)
+add_dependencies(ROTTests pal palROT palunity mbedTrace platformCommon)
+target_link_libraries(ROTTests pal palROT palunity mbedTrace platformCommon)
 
 set(entropy_test_src ${test_src}; ${PAL_TEST_RUNNER_ENTROPY_SRCS}; ${PAL_TEST_ENTROPY_SRCS})
 CREATE_TEST_LIBRARY(EntropyTests "${entropy_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(EntropyTests pal palunity platformCommon)
-target_link_libraries(EntropyTests pal palunity platformCommon)
+add_dependencies(EntropyTests pal palunity mbedTrace platformCommon)
+target_link_libraries(EntropyTests pal palunity mbedTrace platformCommon)
 
 set(network_test_src ${test_src}; ${PAL_TEST_RUNNER_NETWORK_SRCS}; ${PAL_TEST_NETWORK_SRCS})
 CREATE_TEST_LIBRARY(NetworkTests "${network_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(NetworkTests pal palunity platformCommon)
-target_link_libraries(NetworkTests pal palunity platformCommon)
+add_dependencies(NetworkTests pal palunity mbedTrace platformCommon)
+target_link_libraries(NetworkTests pal palunity mbedTrace platformCommon)
 
 set(drbg_test_src ${test_src}; ${PAL_TEST_RUNNER_DRBG_SRCS}; ${PAL_TEST_DRBG_SRCS})
 CREATE_TEST_LIBRARY(DRBGTests "${drbg_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(DRBGTests pal palunity platformCommon)
-target_link_libraries(DRBGTests pal palunity platformCommon)
+add_dependencies(DRBGTests pal palunity mbedTrace platformCommon)
+target_link_libraries(DRBGTests pal palunity mbedTrace platformCommon)
 
 set(fs_test_src ${test_src}; ${PAL_TEST_RUNNER_FS_SRCS}; ${PAL_TEST_FS_SRCS})
 CREATE_TEST_LIBRARY(FileSystemTests "${fs_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(FileSystemTests pal palunity platformCommon)
-target_link_libraries(FileSystemTests pal palunity platformCommon)
+add_dependencies(FileSystemTests pal palunity mbedTrace platformCommon)
+target_link_libraries(FileSystemTests pal palunity mbedTrace platformCommon)
 
 set(time_test_src ${test_src}; ${PAL_TEST_RUNNER_TIME_SRCS}; ${PAL_TEST_TIME_SRCS})
 CREATE_TEST_LIBRARY(TimeTests "${time_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(TimeTests pal palunity)
-target_link_libraries(TimeTests pal palunity)
+add_dependencies(TimeTests pal palunity mbedTrace platformCommon)
+target_link_libraries(TimeTests pal palunity mbedTrace platformCommon)
 
 add_library(cloud_credentials STATIC ${CLOUD_CREDENTIALS_SRC})
 
 set(tls_test_src ${test_src}; ${PAL_TEST_RUNNER_TLS_SRCS}; ${PAL_TEST_TLS_SRCS})
 CREATE_TEST_LIBRARY(TLSTests "${tls_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(TLSTests pal palunity platformCommon cloud_credentials)
-target_link_libraries(TLSTests pal palunity platformCommon cloud_credentials)
-
-set(crypto_test_src ${test_src}; ${PAL_TEST_RUNNER_CRYPTO_SRCS}; ${PAL_TEST_CRYPTO_SRCS})
-CREATE_TEST_LIBRARY(CryptoTests "${crypto_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(CryptoTests pal palunity platformCommon)
-target_link_libraries(CryptoTests pal palunity platformCommon)
+add_dependencies(TLSTests pal palunity mbedTrace platformCommon cloud_credentials)
+target_link_libraries(TLSTests pal palunity mbedTrace platformCommon cloud_credentials)
 
 set(update_test_src ${test_src}; ${PAL_TEST_RUNNER_UPDATE_SRCS}; ${PAL_TEST_UPDATE_SRCS})
 CREATE_TEST_LIBRARY(UpdateTests "${update_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(UpdateTests pal palunity platformCommon)
-target_link_libraries(UpdateTests pal palunity platformCommon)
+add_dependencies(UpdateTests pal palunity mbedTrace platformCommon)
+target_link_libraries(UpdateTests pal palunity mbedTrace platformCommon)
 
 set(flash_test_src ${test_src}; ${PAL_TEST_RUNNER_FLASH_SRCS}; ${PAL_TEST_FLASH_SRCS})
 CREATE_TEST_LIBRARY(FlashTests "${flash_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(FlashTests pal palunity platformCommon)
-target_link_libraries(FlashTests pal palunity platformCommon)
+add_dependencies(FlashTests pal palunity mbedTrace platformCommon)
+target_link_libraries(FlashTests pal palunity mbedTrace platformCommon)
 
 set(sotp_test_src ${test_src}; ${PAL_TEST_RUNNER_SOTP_SRCS}; ${PAL_TEST_SOTP_SRCS})
 CREATE_TEST_LIBRARY(SotpTests "${sotp_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(SotpTests pal palunity platformCommon)
-target_link_libraries(SotpTests pal palunity platformCommon)
+add_dependencies(SotpTests pal palunity mbedTrace platformCommon)
+target_link_libraries(SotpTests pal palunity mbedTrace platformCommon)
 
 # this combines all the test libraries and calls all of their TEST_pal_<module>_GROUP_RUNNER
 set(all_test_src ${test_src}; ${PAL_TEST_RUNNER_FULL_SRCS})
 CREATE_TEST_LIBRARY(palTests "${all_test_src}" "${PAL_TEST_FLAGS}")
-add_dependencies(palTests pal palunity sanityTests platformCommon)
-target_link_libraries(palTests pal palunity platformCommon sanityTests RTOSTests ROTTests EntropyTests NetworkTests DRBGTests FileSystemTests TimeTests TLSTests CryptoTests UpdateTests FlashTests SotpTests)
+add_dependencies(palTests pal palunity sanityTests mbedTrace platformCommon)
+target_link_libraries(palTests pal palunity mbedTrace platformCommon sanityTests RTOSTests ROTTests EntropyTests NetworkTests DRBGTests FileSystemTests TimeTests TLSTests UpdateTests FlashTests SotpTests)
 

@@ -49,6 +49,12 @@
             "options": [ "null", "1" ],
             "default": null,
             "value": null
+        },
+        "network-manager": {
+            "help": "Enable Network Manager feature",
+            "options": [ "null", "1" ],
+            "default": null,
+            "value": null
         }
     },
     "macros" : [

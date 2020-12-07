@@ -225,7 +225,6 @@ friend class Test_M2MNsdlInterface;
 friend class Test_M2MTLVSerializer;
 friend class Test_M2MTLVDeserializer;
 friend class Test_M2MDevice;
-friend class Test_M2MFirmware;
 friend class Test_M2MBase;
 friend class Test_M2MResource;
 friend class Test_M2MSecurity;

@@ -65,16 +65,17 @@ public:
     /**
      * \brief Initiatlizes the socket connection states.
      */
-    int init(const M2MSecurity *security, uint16_t security_instance_id);
+    int init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping);
 
     /**
      * \brief Connects the client to the server.
      * \param connHandler The ConnectionHandler object that maintains the socket.
+     * \param is_server_ping Defines whether the call is for Server ping or not.
      * \return Returns the state of the connection. Successful or not.
      *         If 2MConnectionHandler::CONNECTION_ERROR_WANTS_READ is returned
      *         this function must be called again later to continue the handshake.
      */
-    int connect(M2MConnectionHandler* connHandler);
+    int connect(M2MConnectionHandler* connHandler, bool is_server_ping);
 
     /**
      * \brief Sends data to the server.
@@ -128,6 +129,12 @@ public:
     int set_dtls_socket_callback(void(*foo)(void*), void *argument);
 
     void update_network_rtt_estimate(uint8_t rtt_estimate);
+
+    void store_cid();
+
+    void remove_cid();
+
+    bool is_cid_available();
 
 private:
 

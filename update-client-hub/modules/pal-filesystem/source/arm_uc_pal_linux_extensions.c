@@ -116,7 +116,7 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
                 // XXX TODO: Need to implement version query before any update has been processed.
                 //           In this version info is fetched only from header file which is created
                 //           during update process.
-                tr_err("No image header! pal_fsOpen returned status = %" PRIu32, status);
+                tr_info("pal_fsOpen returned status = %" PRIu32, status);
             }
 
             if (PAL_SUCCESS != status || ERR_NONE != result.code) {
