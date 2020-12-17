@@ -28,6 +28,7 @@
 #include "fota/fota_crypto_defs.h"
 #include "fota/fota_status.h"
 #include "fota/fota_internal.h"
+#include "fota/fota.h"
 #include "fota/fota_event_handler.h"
 #include "fota/fota_component_defs.h"
 #include "fota/fota_component_internal.h"

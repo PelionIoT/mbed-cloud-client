@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2020 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -933,6 +933,11 @@ static nm_status_t ws_stats_to_cbor(void *stats_ws, uint8_t *cbor_data, size_t *
     // asynch_rx_count
     if (encode_text_string(&map, CBOR_TAG_ASYNC_RX_CNT, sizeof(CBOR_TAG_ASYNC_RX_CNT) - 1)) {
         encode_uint32_value(&map, ws_stats->ws_mac_statistics.asynch_rx_count);
+    }
+
+    // pan_id
+    if (encode_text_string(&map, CBOR_TAG_PAN_ID, sizeof(CBOR_TAG_PAN_ID) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_common_id_statistics.pan_id);
     }
 
     // Close Map

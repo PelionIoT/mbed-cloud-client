@@ -56,7 +56,7 @@ static size_t get_bd_backend_file_size()
 int fota_bd_size(size_t *size)
 {
     assert(bd_backend);
-    *size = 0xFFFFFFFFUL;
+    *size = MBED_CLOUD_CLIENT_FOTA_STORAGE_SIZE;
     return FOTA_STATUS_SUCCESS;
 }
 

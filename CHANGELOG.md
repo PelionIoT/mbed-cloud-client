@@ -1,5 +1,7 @@
 ## Changelog for Pelion Device Management Client
 
+- Improved CID recovery in case the CID has expired. Client will now proceed with register-update instead of full registration.
+
 ### Release 4.7.0 (07.12.2020)
 
 #### Device Management Client

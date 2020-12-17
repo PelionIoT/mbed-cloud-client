@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota/fota_component_defs.h"
 #include "fota/fota_crypto_defs.h"
@@ -53,9 +53,11 @@ typedef int (*fota_component_curr_fw_get_digest)(uint8_t *buf);
 /**
  * Callback called handle post install.
  *
+ * \param[in] component_name name if the installed component
+ * \param[in] new_sem_ver new sem version of installed component
  * \return FOTA_STATUS_SUCCESS on success.
  */
-typedef int (*fota_component_post_install_handler_t)(const char *new_sem_ver);
+typedef int (*fota_component_post_install_handler_t)(const char *component_name, const char *new_sem_ver);
 
 /**
  * Component description info
@@ -103,13 +105,13 @@ int fota_component_version_int_to_semver(fota_component_version_t version, char 
 #if defined(TARGET_LIKE_LINUX)
 /**
  * Install MAIN component by overwriting current executable file
- * 
+ *
  * This function will overwrite the executable file and relaunch the process.
  * The API is expected to be called from fota_app_on_install_candidate() application
  * callback
- * 
+ *
  * \note This function does not vavlidate candidate file integrity or authenticity.
- * 
+ *
  * \param candidate_file_name candidate file name as found on file system.
  */
 int fota_component_install_main(const char *candidate_file_name);
@@ -120,5 +122,5 @@ int fota_component_install_main(const char *candidate_file_name);
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #endif // __FOTA_COMPONENT_H_

@@ -21,13 +21,13 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
+/**
  * Pelion FOTA block device initialize
  *
  * Block device is used for storing update candidate.
@@ -36,14 +36,14 @@ extern "C" {
  */
 int fota_bd_init(void);
 
-/*
+/**
  * Pelion FOTA block device deinitialize
  *
  * \return FOTA_STATUS_SUCCESS on success
  */
 int fota_bd_deinit(void);
 
-/*
+/**
  * Pelion FOTA block device size getter
  *
  * \param[out] size Block device size.
@@ -51,7 +51,7 @@ int fota_bd_deinit(void);
  */
 int fota_bd_size(size_t *size);
 
-/*
+/**
  * Pelion FOTA block device read.
  *
  * \param[out] buffer Destination buffer to be filled. The buffer size must be greater or equal to size argument.
@@ -62,7 +62,7 @@ int fota_bd_size(size_t *size);
  */
 int fota_bd_read(void *buffer, size_t addr, size_t size);
 
-/*
+/**
  * Pelion FOTA block device program.
  *
  * Programs block to a block device.
@@ -76,7 +76,7 @@ int fota_bd_read(void *buffer, size_t addr, size_t size);
  */
 int fota_bd_program(const void *buffer, size_t addr, size_t size);
 
-/*
+/**
  * Pelion FOTA block device erase.
  *
  * Erase blocks on a block device. Size must be a multiple of the erase block size.
@@ -87,7 +87,7 @@ int fota_bd_program(const void *buffer, size_t addr, size_t size);
  */
 int fota_bd_erase(size_t addr, size_t size);
 
-/*
+/**
  * Pelion FOTA block device get the size of a readable block.
  *
  * \param[out] read_size The size of a readable block in bytes.
@@ -95,7 +95,7 @@ int fota_bd_erase(size_t addr, size_t size);
  */
 int fota_bd_get_read_size(size_t *read_size);
 
-/*
+/**
  * Pelion FOTA block device get the size of a programmable block.
  *
  * \param[out] prog_size The size of a programmable block in bytes. A positive value on success 0 otherwise.
@@ -103,7 +103,7 @@ int fota_bd_get_read_size(size_t *read_size);
  */
 int fota_bd_get_program_size(size_t *prog_size);
 
-/*
+/**
  * Pelion FOTA block device get the size of a erasable block given address.
  *
  * \param[in]  addr Address of erasable block.
@@ -112,7 +112,7 @@ int fota_bd_get_program_size(size_t *prog_size);
  */
 int fota_bd_get_erase_size(size_t addr, size_t *erase_size);
 
-/*
+/**
  * Pelion FOTA block device get the value of storage when erased.
  *
  * \param[out] erase_value erase value if non negative.
@@ -121,9 +121,19 @@ int fota_bd_get_erase_size(size_t addr, size_t *erase_size);
  */
 int fota_bd_get_erase_value(int *erase_value);
 
+
+#if MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE == FOTA_CUSTOM_BD
+/**
+ * Custom BlockDevice instance getter
+ * 
+ * \return initialized BlockDevice instance
+ */
+mbed::BlockDevice *fota_bd_get_custom_bd();
+#endif  // MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE == FOTA_CUSTOM_BD
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #endif // __FOTA_BLOCK_DEVICE_H_

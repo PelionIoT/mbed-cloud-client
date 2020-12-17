@@ -28,6 +28,7 @@
 #include "fota/fota_crypto_defs.h"
 #include "fota/fota_status.h"
 #include "fota/fota_internal.h"
+#include "fota/fota.h"
 #include "fota/fota_event_handler.h"
 #include "fota/fota_component_defs.h"
 #ifdef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
@@ -40,13 +41,12 @@
 
 #include <stdlib.h>
 
+#define DEFAULT_INT_VAL -1
+
 static endpoint_t *endpoint = 0;
 #ifndef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
 static registry_t *registry;
-
-const int64_t default_int_val = -1;
 #endif
-
 
 static bool initialized = false;
 #ifndef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
@@ -55,6 +55,7 @@ static report_sent_callback_t g_on_failure_callback = NULL;
 #else
 static const char *manifest_res_id = "/10252/0/1";
 static const char *state_res_id = "/10252/0/2";
+static const char *update_result_res_id = "/10252/0/3";
 static const char *protocol_version_res_id = "/10255/0/0";
 static const char *vendor_id_res_id = "/10255/0/3";
 static const char *class_id_res_id = "/10255/0/4";
@@ -68,6 +69,12 @@ static uint32_t fota_class_id_size;
 static char main_comp_name[FOTA_COMPONENT_MAX_NAME_SIZE];
 static char main_comp_sem_ver[FOTA_COMPONENT_MAX_SEMVER_STR_SIZE];
 static int fota_state;
+// Value for this resource crosses the init/deinit calls (so it can be resent in
+// reg message after failures), hence initialized here.
+static int fota_update_result = DEFAULT_INT_VAL;
+
+static uint16_t update_result_aobs_id;
+
 #endif
 
 static registry_path_t execute_path = { 0 };
@@ -111,6 +118,24 @@ static registry_status_t got_manifest_callback(registry_callback_type_t type,
 #endif
                                               )
 {
+#ifdef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
+    if (path->resource_id == FOTA_SOURCE_UPDATE_RESULT_RESOURCE_ID) {
+        if (status == NOTIFICATION_STATUS_DELIVERED) {
+            // Reset current value of update result (default value is ignored)
+            fota_update_result = DEFAULT_INT_VAL;
+            return REGISTRY_STATUS_OK;
+        }
+        // keep current value of update result for possible later sending,
+        // return an arbitrary failure (not checked anyway by upper level)
+        return REGISTRY_STATUS_NO_MEMORY;
+    }
+    // Ignore this for all other resources (non manifest or update result)
+    if (path->resource_id != FOTA_SOURCE_PACKAGE_RESOURCE_ID) {
+        // Return success - error code is ignored for these cases anyway
+        return REGISTRY_STATUS_OK;
+    }
+#endif
+
     registry_status_t callback_status = REGISTRY_STATUS_OK;
     sn_coap_msg_code_e response = COAP_MSG_CODE_RESPONSE_CHANGED;
     fota_state_e fota_state;
@@ -130,7 +155,7 @@ static registry_status_t got_manifest_callback(registry_callback_type_t type,
 
             registry_set_path(&res_path, FOTA_SOURCE_PACKAGE_OBJECT_ID, 0, FOTA_SOURCE_STATE_RESOURCE_ID,
                               0, REGISTRY_PATH_RESOURCE);
-            if (REGISTRY_STATUS_OK != registry_set_value_int(registry, &res_path, default_int_val)) {
+            if (REGISTRY_STATUS_OK != registry_set_value_int(registry, &res_path, DEFAULT_INT_VAL)) {
                 FOTA_DBG_ASSERT(!"registry_set_value_int failed");
             }
 
@@ -139,6 +164,8 @@ static registry_status_t got_manifest_callback(registry_callback_type_t type,
             if (REGISTRY_STATUS_OK != registry_set_value_empty(registry, &res_path, true)) {
                 FOTA_DBG_ASSERT(!"registry_set_value_empty failed");
             }
+#else
+            fota_update_result = DEFAULT_INT_VAL;
 #endif
 
             memcpy(&execute_token, token, sizeof(execute_token));
@@ -274,6 +301,15 @@ static int get_fota_resources(endpoint_t *endpoint, register_resource_t **res)
     if (!curr) {
         return -1;
     }
+
+    curr->next = endpoint_create_register_resource_int(endpoint, update_result_res_id, true, fota_update_result);
+    curr = curr->next;
+    if (!curr) {
+        return -1;
+    }
+
+    // Need to save this for later for dynamic reporting of update result
+    update_result_aobs_id = curr->aobs_id;
 
     curr->next = endpoint_create_register_resource_int(endpoint, protocol_version_res_id, true, FOTA_MCCP_PROTOCOL_VERSION);
     curr = curr->next;
@@ -426,7 +462,7 @@ int fota_source_init(
     // Create update result resource /10252/0/3
     registry_set_path(&path, FOTA_SOURCE_PACKAGE_OBJECT_ID, 0, FOTA_SOURCE_UPDATE_RESULT_RESOURCE_ID,
                       0, REGISTRY_PATH_RESOURCE);
-    if (REGISTRY_STATUS_OK != registry_set_value_int(registry, &path, default_int_val) ||
+    if (REGISTRY_STATUS_OK != registry_set_value_int(registry, &path, DEFAULT_INT_VAL) ||
             REGISTRY_STATUS_OK != registry_set_auto_observable_parameter(registry, &path, true)) {
         goto fail;
     }
@@ -609,7 +645,12 @@ int fota_source_report_update_result(int result)
 #ifndef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
     return report_int(result, FOTA_SOURCE_UPDATE_RESULT_RESOURCE_ID, NULL, NULL);  // 10252/0/3
 #else
-    // result isn't actually being reported, so just pretend it was successful
+    fota_update_result = result;
+    registry_path_t path = {FOTA_SOURCE_PACKAGE_OBJECT_ID, 0, FOTA_SOURCE_UPDATE_RESULT_RESOURCE_ID, 0, REGISTRY_PATH_RESOURCE};
+    int ret = endpoint_send_notification_int(endpoint, &path, update_result_aobs_id, result);
+    if (ret != NOTIFICATION_STATUS_SENT) {
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
     return FOTA_STATUS_SUCCESS;
 #endif
 }

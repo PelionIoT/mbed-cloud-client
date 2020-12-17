@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,5 +63,5 @@ int fota_nvm_remove(cloud_client_param key, ccs_item_type_e item_type);
 #ifdef __cplusplus
 }
 #endif
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #endif //__FOTA_NVM_INT_H_

@@ -251,13 +251,20 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
         if (ctx->header_info.flags & FOTA_HEADER_ENCRYPTED_FLAG) {
-            uint8_t fw_key[FOTA_ENCRYPT_KEY_SIZE];
+            uint8_t fw_key[FOTA_ENCRYPT_KEY_SIZE] = {0};
+            uint8_t zero_key[FOTA_ENCRYPT_KEY_SIZE] = {0};
+            size_t volatile loop_check;
 
             ret = fota_nvm_fw_encryption_key_get(fw_key);
             if (ret) {
                 FOTA_TRACE_ERROR("FW encryption key get failed. ret %d", ret);
                 goto fail;
             }
+
+            // safely check that read key is non zero
+            FOTA_FI_SAFE_COND((fota_fi_memcmp(fw_key, zero_key, FOTA_ENCRYPT_KEY_SIZE, &loop_check)
+                               && (loop_check == FOTA_ENCRYPT_KEY_SIZE)), FOTA_STATUS_INTERNAL_ERROR,
+                              "Invalid encryption key read");
 
             ret = fota_encrypt_decrypt_start(&ctx->enc_ctx, fw_key, FOTA_ENCRYPT_KEY_SIZE);
             memset(fw_key, 0, sizeof(fw_key));

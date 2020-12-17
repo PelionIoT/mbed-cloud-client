@@ -20,15 +20,14 @@
 
 #ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
 #if defined(TARGET_LIKE_LINUX)
-#if defined(FOTA_CUSTOM_CURR_FW_STRUCTURE) || (FOTA_CUSTOM_CURR_FW_STRUCTURE)
+#if FOTA_CUSTOM_CURR_FW_STRUCTURE
 
 #define TRACE_GROUP "FOTA"
 
+#include <stdlib.h>
 #include <errno.h>
 #include "fota/fota_curr_fw.h"
 #include "fota/fota_status.h"
-
-#include <cstdlib>
 
 extern char *program_invocation_name;
 
@@ -71,12 +70,12 @@ int fota_curr_fw_get_digest(uint8_t *buf)
     return FOTA_STATUS_SUCCESS;
 }
 
-int fota_curr_fw_read_header(fota_header_info_t *header_info)
+int fota_curr_fw_read_header_from_file(fota_header_info_t *header_info, const char *file_name)
 {
     int status = FOTA_STATUS_INTERNAL_ERROR;
     size_t bytes_read = 0;
 
-    FILE *fs = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME, "r");
+    FILE *fs = fopen(file_name, "r");
     if (!fs) {
         FOTA_TRACE_ERROR("Failed to open current header file");
         return status;
@@ -104,6 +103,11 @@ cleanup:
     return status;
 }
 
+int fota_curr_fw_read_header(fota_header_info_t *header_info)
+{
+    return fota_curr_fw_read_header_from_file(header_info, MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME);
+}
+
 uint8_t *fota_curr_fw_get_app_start_addr(void)
 {
     return 0;
@@ -114,6 +118,6 @@ uint8_t *fota_curr_fw_get_app_header_addr(void)
     return 0;
 }
 
-#endif  // defined(FOTA_CUSTOM_CURR_FW_STRUCTURE) || (FOTA_CUSTOM_CURR_FW_STRUCTURE)
+#endif  // FOTA_CUSTOM_CURR_FW_STRUCTURE
 #endif  // defined(TARGET_LIKE_LINUX)
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

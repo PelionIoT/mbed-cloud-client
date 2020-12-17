@@ -21,7 +21,7 @@
 
 #include "fota/fota_config.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota/fota_status.h"
 #include "fota/fota_header_info.h"
@@ -203,6 +203,6 @@ int fota_app_on_install_candidate(const char *candidate_fs_name, const manifest_
 }
 #endif
 
-#endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif  // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // __FOTA_APP_IFS_H_

@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota_header_info.h"
 
@@ -43,7 +43,7 @@ uint8_t *fota_curr_fw_get_app_start_addr(void);
  */
 uint8_t *fota_curr_fw_get_app_header_addr(void);
 
-#if defined(FOTA_CUSTOM_CURR_FW_STRUCTURE) && (FOTA_CUSTOM_CURR_FW_STRUCTURE)
+#if FOTA_CUSTOM_CURR_FW_STRUCTURE
 /**
  * Read header of current firmware.
  *
@@ -59,7 +59,7 @@ static inline int fota_curr_fw_read_header(fota_header_info_t *header_info)
     uint8_t *header_in_curr_fw = (uint8_t *)fota_curr_fw_get_app_header_addr();
     return fota_deserialize_header(header_in_curr_fw, fota_get_header_size(), header_info);
 }
-#endif
+#endif  // FOTA_CUSTOM_CURR_FW_STRUCTURE
 
 /**
  * Read from current firmware.
@@ -83,6 +83,6 @@ int fota_curr_fw_get_digest(uint8_t *buf);
 #ifdef __cplusplus
 }
 #endif
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // __FOTA_CURR_FW_H_

@@ -708,13 +708,10 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
     } else if (return_value == M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY ||
                return_value == M2MConnectionHandler::SSL_HANDSHAKE_ERROR   ||
                return_value == M2MConnectionHandler::SOCKET_READ_ERROR     ||
-               return_value == M2MConnectionHandler::SOCKET_TIMEOUT) {
+               return_value == M2MConnectionHandler::SOCKET_TIMEOUT        ||
+               return_value == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
         tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - retcode %d", return_value);
         _observer.socket_error(return_value, true);
-        close_socket();
-    } else if (return_value == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
-        tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - MEMORY_ALLOCATION_FAILED");
-        _observer.socket_error(return_value, false);
         close_socket();
     } else {
         tr_debug("M2MConnectionHandlerPimpl::receive_handshake_handler() - waiting next event");

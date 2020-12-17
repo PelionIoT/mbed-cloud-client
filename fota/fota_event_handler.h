@@ -20,7 +20,7 @@
 
 #include "fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,6 +80,6 @@ void fota_event_handler_defer_with_result_ignore_busy(
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // FOTA_FOTA_EVENT_HANDLER_H_

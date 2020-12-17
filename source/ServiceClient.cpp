@@ -375,9 +375,10 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
         fota_app_resume();
 #endif
         internal_event(State_Success);
-    } else if(status == ConnectorClient::State_Registration_Failure ||
-              status == ConnectorClient::State_Bootstrap_Failure){
+    } else if(status == ConnectorClient::State_Registration_Failure){
         internal_event(State_Failure); // XXX: the status should be saved to eg. event object
+    } else if (status == ConnectorClient::State_Bootstrap_Failure){
+           internal_event(State_Bootstrap);
     }
     if(status == ConnectorClient::State_Bootstrap_Success) {
         internal_event(State_Register);

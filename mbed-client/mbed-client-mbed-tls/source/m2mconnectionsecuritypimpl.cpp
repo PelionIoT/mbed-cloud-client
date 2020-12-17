@@ -278,6 +278,8 @@ int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, b
         return M2MConnectionHandler::SSL_HANDSHAKE_ERROR;
     } else if (ret == PAL_ERR_TIMEOUT_EXPIRED || ret == PAL_ERR_TLS_TIMEOUT) {
         return M2MConnectionHandler::SOCKET_TIMEOUT;
+    } else if (ret == PAL_ERR_NO_MEMORY) {
+        return M2MConnectionHandler::MEMORY_ALLOCATION_FAILED;
     } else {
         // All other errors will result in reconnection.
         return M2MConnectionHandler::SOCKET_READ_ERROR;
