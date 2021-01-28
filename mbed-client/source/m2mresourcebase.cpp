@@ -1025,7 +1025,7 @@ void M2MResourceBase::read_data_from_application(M2MCallbackAssociation *item,
                                                                (block_number * block_size),
                                                                item->_client_args);
 
-    if (coap_response->msg_code < COAP_RESPONSE_BAD_REQUEST) {
+    if (coap_response->msg_code < COAP_MSG_CODE_RESPONSE_BAD_REQUEST) {
         // Data must go as a blocks
         if (total_size > block_size) {
             coap_response->options_list_ptr->max_age = max_age();

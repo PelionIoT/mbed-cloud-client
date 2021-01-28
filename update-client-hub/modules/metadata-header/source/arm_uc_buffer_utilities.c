@@ -15,9 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-
+#include "update-client-common/arm_uc_config.h"
 #include "update-client-metadata-header/arm_uc_buffer_utilities.h"
 
+#ifndef MBED_CLOUD_CLIENT_FOTA_ENABLE
 
 uint32_t arm_uc_crc32(const uint8_t *buffer, uint32_t length)
 {
@@ -113,3 +114,5 @@ uint32_t ARM_UC_BinCompareCT(const arm_uc_buffer_t *a, const arm_uc_buffer_t *b)
     // Reduce to 0 or 1 in constant time
     return (result | -result) >> 31;
 }
+
+#endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

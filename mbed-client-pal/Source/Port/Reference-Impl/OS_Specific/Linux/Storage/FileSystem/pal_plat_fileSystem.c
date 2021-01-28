@@ -368,6 +368,10 @@ PAL_PRIVATE palStatus_t pal_plat_fsCpFile(const char *pathNameSrc,  char *pathNa
     if (src_fd == 0)
     {
         ret = pal_plat_errorTranslation(errno);
+        if (ret == PAL_SUCCESS)
+        {
+            ret = PAL_ERR_FS_ERROR;
+        }
     }
     else
     {
@@ -377,6 +381,10 @@ PAL_PRIVATE palStatus_t pal_plat_fsCpFile(const char *pathNameSrc,  char *pathNa
         if (dst_fd == 0)
         {
             ret = pal_plat_errorTranslation(errno);
+            if (ret == PAL_SUCCESS)
+            {
+                ret = PAL_ERR_FS_ERROR;
+            }
         }
         else
         {

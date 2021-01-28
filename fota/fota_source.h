@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +65,6 @@ void fota_source_send_manifest_received_ack(void);
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // __FOTA_SOURCE_H_

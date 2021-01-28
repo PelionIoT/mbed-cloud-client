@@ -125,11 +125,11 @@ ds_status_e ds_plat_thread_stats_get(uint32_t *thread_count_out)
     size_t line_len = 0;
     // read 1 line from the open file
     ssize_t read_chars = getline(&line, &line_len, fp); // getline always puts \0 at the end
- 
-    fclose (fp);
+
+    pclose (fp);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((read_chars == -1), DS_STATUS_ERROR, "Failed to read %s output", command);
- 
+
     unsigned int threads_num; // the number of light weight threads in system
 
     int items_scanned = sscanf(line, "%u", &threads_num);

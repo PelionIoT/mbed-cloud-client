@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota/fota_header_info.h"
 #include "fota/fota_crypto_defs.h"
@@ -146,6 +146,6 @@ int fota_candidate_erase(void);
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // __FOTA_CANDIDATE_H_

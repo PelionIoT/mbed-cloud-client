@@ -30,6 +30,7 @@
 #include "fota_platform_linux.h"
 #include "fota_crypto.h"
 #include "fota_curr_fw.h"
+#include "fota_curr_fw_linux.h"
 #include "fota_component_internal.h"
 
 #define TRACE_GROUP "FOTA"
@@ -84,7 +85,8 @@ int fota_linux_candidate_iterate(fota_candidate_iterate_callback_info *info)
                 return FOTA_STATUS_INTERNAL_ERROR;
             }
 
-            FILE *fd = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME, "wb");
+            // Use temporary file to ensure resilience of header file modification
+            FILE *fd = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME, "wb");
             if (!fd) {
                 FOTA_TRACE_ERROR("Failed to open header file for update");
                 return FOTA_STATUS_INTERNAL_ERROR;
@@ -97,6 +99,11 @@ int fota_linux_candidate_iterate(fota_candidate_iterate_callback_info *info)
             }
 
             (void)fclose(fd);
+
+            if (rename(MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME,
+                       MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME)) {
+                return FOTA_STATUS_INTERNAL_ERROR;
+            }
 
             return FOTA_STATUS_SUCCESS;
         }
@@ -111,9 +118,32 @@ int fota_linux_candidate_iterate(fota_candidate_iterate_callback_info *info)
 int fota_linux_init()
 {
     int status = FOTA_STATUS_INTERNAL_ERROR;
+    FILE *fs;
+
+    // Check if temporary file exists. If so, use it as our file (as it can only exist
+    // if update was interrupted before rename operation was interrupted).
+    fs = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME, "r");
+    if (fs) {
+        fclose(fs);
+        fota_header_info_t header_info;
+
+        FOTA_TRACE_DEBUG("Found temporary header file");
+        status = fota_curr_fw_read_header_from_file(&header_info,
+                                                    MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME);
+        if (status) {
+            // invalid temp header file, can't do anything with it
+            remove(MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME);
+            FOTA_TRACE_DEBUG("Illegal temporary header file. Removed.");
+        } else {
+            int ret = rename(MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME,
+                             MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME);
+            FOTA_ASSERT(!ret);
+            FOTA_TRACE_DEBUG("Using temporary header file");
+        }
+    }
 
     // Check first whether file exists, if exists skip header creation part
-    FILE *fs = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME, "r");
+    fs = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME, "r");
     if (!fs) {
         fota_header_info_t header_info = {0};
 
@@ -122,6 +152,8 @@ int fota_linux_init()
             FOTA_TRACE_ERROR("Invalid initial version " INIT_MAIN_VERSION);
             FOTA_ASSERT(!status);
         }
+
+        status = FOTA_STATUS_INTERNAL_ERROR;
 
         // Write valid header information into file
         fs = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME, "w");

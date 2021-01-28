@@ -250,6 +250,9 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
         	status =  PAL_ERR_TLS_SSL_VERSION_MISMATCH;
         	break;
 #endif
+        case PAL_ERR_NO_MEMORY:
+            status = PAL_ERR_NO_MEMORY;
+            break;
         default:
             PAL_LOG_ERR("SSL handshake return code -0x%" PRIx32 ".", -error);
             status = PAL_ERR_GENERIC_FAILURE;
@@ -1229,6 +1232,7 @@ PAL_PRIVATE int palBIOSend(palTLSSocketHandle_t socket, const unsigned char *buf
                                                                                       //memory at this point of time. In this case we translate the error to WANT_WRITE
                                                                                       //in order to let the Network module retry to allocate the memory.
                                                                                       //In case of real out of memory the handshake timeout will break the handshake process.
+            return status;
         }
 
         if (0 != sentDataSize)

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2018-2020 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,24 +16,31 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#ifndef __FOTA_PLATFORM_LINUX_H_
-#define __FOTA_PLATFORM_LINUX_H_
+#ifndef __FOTA_CURR_FW_LINUX_H_
+#define __FOTA_CURR_FW_LINUX_H_
 
 #include "fota/fota_base.h"
 
-#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+
+#include "fota_header_info.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "fota_candidate.h"
-
-int fota_linux_candidate_iterate(fota_candidate_iterate_callback_info *info);
-int fota_linux_init();
+/**
+ * Read header from given file.
+ *
+ * \param[in] header_info Header info structure.
+ * \param[in] file_name   File name.
+ * \return FOTA_STATUS_SUCCESS on success.
+ */
+int fota_curr_fw_read_header_from_file(fota_header_info_t *header_info, const char *file_name);
 
 #ifdef __cplusplus
 }
 #endif
-#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-#endif // __FOTA_PLATFORM_LINUX_H_
+#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+
+#endif // __FOTA_CURR_FW_LINUX_H_

@@ -379,9 +379,12 @@ void ota_timer_expired(uint8_t timer_id)
         }
     } else if (timer_id == OTA_CHECKSUM_CALCULATING_TIMER) {
         ota_manage_whole_fw_checksum_calculating();
-    } else if (timer_id == OTA_MULTICAST_MESSAGE_SENT_TIMER) {
+    } else if (timer_id == OTA_MULTICAST_MANIFEST_MSG_SENT_TIMER) {
         ota_send_estimated_resend_time(OTA_ONE_FRAGMENT_WAITTIME_SECS);
         ota_delete_process(ota_parameters.ota_session_id);
+    } else if (timer_id == OTA_MULTICAST_MSG_SENT_TIMER) {
+        ota_send_estimated_resend_time(OTA_ONE_FRAGMENT_WAITTIME_SECS);
+        ota_process_finished_fptr(ota_parameters.ota_session_id);
     } else if (timer_id == OTA_FIRMWARE_READY_TIMER) {
         ota_firmware_ready_fptr();
     } else {
@@ -504,7 +507,7 @@ static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length
     }
 
     tr_info("ota_border_router_manage_command - command id: %d, command type: %d, version: %d", command_id, command_type, multicast_version);
-
+    tr_info("ota_border_router_manage_command - session %s", tr_array(session_id, OTA_SESSION_ID_SIZE));
     if (ota_add_new_process(session_id) != OTA_OK) {
         tr_err("ota_border_router_manage_command - session already exists or not able to create!");
         return status;
@@ -1716,10 +1719,9 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
         ota_fw_delivering = true;
         ota_fw_deliver_current_fragment_id = 1;
     } else if (command == OTA_CMD_MANIFEST) {
-        ota_start_timer(OTA_MULTICAST_MESSAGE_SENT_TIMER, OTA_MULTICAST_INTERVAL, 0);
+        ota_start_timer(OTA_MULTICAST_MANIFEST_MSG_SENT_TIMER, OTA_MULTICAST_INTERVAL, 0);
     } else {
-        ota_start_timer(OTA_MULTICAST_MESSAGE_SENT_TIMER, OTA_MULTICAST_INTERVAL, 0);
-        ota_process_finished_fptr(ota_parameters.ota_session_id);
+        ota_start_timer(OTA_MULTICAST_MSG_SENT_TIMER, OTA_MULTICAST_INTERVAL, 0);
     }
 
     return OTA_OK;
@@ -1727,6 +1729,7 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
 
 static void ota_send_estimated_resend_time(uint32_t resend_time_in_secs)
 {
+    tr_info("ota_send_estimated_resend_time - time: %"PRIu32" seconds, session: %s", resend_time_in_secs, tr_array(ota_parameters.ota_session_id, OTA_SESSION_ID_SIZE));
     uint8_t payload[21];
     payload[0] = 1; // Version info
     memcpy(payload + 1, ota_parameters.ota_session_id, OTA_SESSION_ID_SIZE); // Session id
@@ -1736,7 +1739,7 @@ static void ota_send_estimated_resend_time(uint32_t resend_time_in_secs)
 
 static void ota_send_error(ota_error_code_e error)
 {
-    tr_info("ota_send_error() - error code %d", error);
+    tr_info("ota_send_error() - error code: %d, session %s", error, tr_array(ota_parameters.ota_session_id, OTA_SESSION_ID_SIZE));
     uint8_t payload[18];
     payload[0] = 1; // Version info
     memcpy(payload + 1, ota_parameters.ota_session_id, OTA_SESSION_ID_SIZE); // Session id

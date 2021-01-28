@@ -46,15 +46,16 @@ static fota_component_desc_t comp_table[FOTA_NUM_COMPONENTS];
 #define MAX_VER 999
 
 //num is between 0 and 999 (MAX_VER)
-static char *append_number_to_string(char *str, uint_fast16_t num, char trail) {
+static char *append_number_to_string(char *str, uint_fast16_t num, char trail)
+{
     if (num > 100) {
-        char p = '0' + num/100;
+        char p = '0' + num / 100;
         *str++ = p;
     }
     if (num > 10) {
-        *str++ = '0' + (num%100)/10;
+        *str++ = '0' + (num % 100) / 10;
     }
-    *str++ = '0' + (num%10);
+    *str++ = '0' + (num % 10);
     *str++ = trail;
     return str;
 }
@@ -187,7 +188,7 @@ int fota_component_install_main(const char *candidate_file_name)
     struct stat statbuf;
 
     FOTA_TRACE_INFO("Installing MAIN component");
-    
+
     // get current file permissions
     if (stat(program_invocation_name, &statbuf) == 0) {
         file_mode = statbuf.st_mode & 0x1FF;

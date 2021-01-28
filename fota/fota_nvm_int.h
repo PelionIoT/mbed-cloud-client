@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,12 +41,14 @@ typedef uint8_t ccs_item_type_e;
 
 #else  // (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL)
 
+#include "fcc_defs.h"
+
 typedef const char * cloud_client_param;
 
-#define UPDATE_VENDOR_ID                        "pelion_wCfgParam_mbed.VendorId" // "FWVendorId"
-#define UPDATE_CLASS_ID                         "pelion_wCfgParam_mbed.ClassId" // "FWClassId"
-#define UPDATE_CERTIFICATE                      "pelion_wCrtae_mbed.UpdateAuthCert" // "FWUpdateCert"
-#define UPDATE_PUBKEY                           "pelion_wCrtae_mbed.UpdatePubKey"
+#define UPDATE_VENDOR_ID                        g_fcc_vendor_id_name
+#define UPDATE_CLASS_ID                         g_fcc_class_id_name
+#define UPDATE_CERTIFICATE                      g_fcc_update_authentication_certificate_name
+#define UPDATE_PUBKEY                           "FOTA_UPDATE_PUB_KEY"
 #define FOTA_ENCRYPT_KEY                        "FOTA_ENCRYPT_KEY" // "FTEncryptKey"
 #define FOTA_SALT_KEY                           "FOTA_SALT_KEY" // ""FTSaltKey"
 #define FOTA_MANIFEST_KEY                       "FOTA_MANIFEST_KEY" // ""FTManKey"
@@ -63,5 +65,5 @@ int fota_nvm_remove(cloud_client_param key, ccs_item_type_e item_type);
 #ifdef __cplusplus
 }
 #endif
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #endif //__FOTA_NVM_INT_H_

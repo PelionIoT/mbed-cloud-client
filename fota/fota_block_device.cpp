@@ -45,10 +45,7 @@ static bool initialized = false;
 
 static mbed::BlockDevice *bd = 0;
 
-#if (MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE == FOTA_CUSTOM_BD)
-// In custom BD case, the user code should supply this function, returning the desired block device
-mbed::BlockDevice *fota_bd_get_custom_bd();
-#elif (MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE == FOTA_INTERNAL_FLASH_BD)
+#if (MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE == FOTA_INTERNAL_FLASH_BD)
 mbed::BlockDevice *fota_bd_get_custom_bd()
 {
     if (!bd) {

@@ -48,12 +48,12 @@
 
 #define TRACE_GROUP "MULTICAST"
 
-#if !defined(TARGET_LIKE_MBED) || defined(ARM_UC_MULTICAST_NODE_MODE)
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
 #include "net_rpl.h"
 #include "ws_management_api.h"
 #else
 extern "C" {
-    #include "ws_bbr_api.h"
+#include "ws_bbr_api.h"
 };
 #endif
 
@@ -78,40 +78,40 @@ static void             arm_uc_multicast_request_timer(uint8_t timer_id, uint32_
 static void             arm_uc_multicast_cancel_timer(uint8_t timer_id);
 static ota_error_code_e arm_uc_multicast_store_new_ota_process(uint8_t *ota_session_id);
 static ota_error_code_e arm_uc_multicast_remove_stored_ota_process(uint8_t *ota_session_id);
-static ota_error_code_e arm_uc_multicast_store_parameters(ota_parameters_t* ota_parameters);
-static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t* ota_parameters);
-static uint32_t         arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t* from);
-static uint32_t         arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t* to);
+static ota_error_code_e arm_uc_multicast_store_parameters(ota_parameters_t *ota_parameters);
+static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t *ota_parameters);
+static uint32_t         arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *from);
+static uint32_t         arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *to);
 static void             arm_uc_multicast_send_update_fw_cmd_received_info(uint32_t delay);
-static int8_t           arm_uc_multicast_socket_send(ota_ip_address_t* destination, uint16_t count, uint8_t* payload);
+static int8_t           arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload);
 static uint16_t         arm_uc_multicast_update_resource_value(ota_resource_types_e type, uint8_t *payload_ptr, uint16_t payload_len);
 static bool             arm_uc_multicast_create_static_resources(M2MBaseList &list);
-static uint8_t          arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char* payload);
-static void             arm_uc_multicast_socket_callback(void*);
+static uint8_t          arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char *payload);
+static void             arm_uc_multicast_socket_callback(void *);
 static bool             arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port);
-static ota_error_code_e arm_uc_multicast_manifest_received(uint8_t* payload_ptr, uint32_t payload_len);
+static ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len);
 static void             arm_uc_multicast_firmware_ready();
-static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t* ota_parameters);
+static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_parameters);
 static void             arm_uc_multicast_process_finished(uint8_t *session_id);
 static bool             read_dodag_info(char *dodag_address);
 static void             arm_uc_multicast_send_event(arm_uc_hub_state_t state);
-static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t* addr);
+static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr);
 
 palSocket_t                 arm_uc_multicast_socket;
 palSocket_t                 arm_uc_multicast_missing_frag_socket;
 static int8_t               arm_uc_multicast_tasklet_id = -1;
-static int8_t               arm_uc_multicast_interface_id;
-static M2MObject*           arm_uc_multicast_object = NULL;
-static M2MResource*         multicast_netid_res = NULL;
-static M2MResource*         multicast_connected_nodes_res = NULL;
-static M2MResource*         multicast_ready_res = NULL;
-static M2MResource*         multicast_status_res = NULL;
-static M2MResource*         multicast_session_res = NULL;
-static M2MResource*         multicast_command_res = NULL;
-static M2MResource*         multicast_estimated_total_time_res = NULL;
-static M2MResource*         multicast_estimated_resend_time_res = NULL;
-static M2MResource*         multicast_error_res = NULL;
-static ConnectorClient*     arm_uc_multicast_m2m_client;
+static int8_t               arm_uc_multicast_interface_id = -1;
+static M2MObject           *arm_uc_multicast_object = NULL;
+static M2MResource         *multicast_netid_res = NULL;
+static M2MResource         *multicast_connected_nodes_res = NULL;
+static M2MResource         *multicast_ready_res = NULL;
+static M2MResource         *multicast_status_res = NULL;
+static M2MResource         *multicast_session_res = NULL;
+static M2MResource         *multicast_command_res = NULL;
+static M2MResource         *multicast_estimated_total_time_res = NULL;
+static M2MResource         *multicast_estimated_resend_time_res = NULL;
+static M2MResource         *multicast_error_res = NULL;
+static ConnectorClient     *arm_uc_multicast_m2m_client;
 static const uint8_t        arm_uc_multicast_address[16] = {0xff, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}; // MPL multicast socket IP address
 static const uint8_t        arm_uc_multicast_link_local_multicast_address[16] = {0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}; // Link local multicast socket IP addres
 static arm_event_storage_t  arm_uc_multicast_event;
@@ -168,7 +168,7 @@ static ota_config_func_pointers_t arm_uc_ota_function_pointers = {
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_dodag_id_res = {
     0,                  // max_age
-    (char*)"0",
+    (char *)"0",
     &ota_dodag_id_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::STRING,
@@ -180,7 +180,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_dodag_id_res = {
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_connected_nodes_res = {
     0,                  // max_age
-    (char*)"1",
+    (char *)"1",
     &ota_connected_nodes_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::INTEGER,
@@ -192,7 +192,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_connected_nodes_res 
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_ready_for_multicast_res = {
     0,                  // max_age
-    (char*)"2",
+    (char *)"2",
     &ota_ready_for_multicast_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::INTEGER,
@@ -204,7 +204,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_ready_for_multicast_
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_status_res = {
     0,                  // max_age
-    (char*)"3",
+    (char *)"3",
     &ota_status_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::OPAQUE,
@@ -216,7 +216,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_status_res = {
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_session_res = {
     0,                  // max_age
-    (char*)"4",
+    (char *)"4",
     &ota_session_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::OPAQUE,
@@ -228,7 +228,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_session_res = {
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_command_res = {
     0,                  // max_age
-    (char*)"5",
+    (char *)"5",
     &ota_command_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::OPAQUE,
@@ -240,7 +240,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_ota_command_res = {
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_estimated_total_time_res = {
     0,                  // max_age
-    (char*)"6",
+    (char *)"6",
     &ota_estimated_total_time_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::OPAQUE,
@@ -252,7 +252,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_estimated_total_time_res
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_estimated_resend_time_res = {
     0,                  // max_age
-    (char*)"7",
+    (char *)"7",
     &ota_estimated_resend_time_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::OPAQUE,
@@ -264,7 +264,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_estimated_resend_time_re
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_error_res = {
     0,                  // max_age
-    (char*)"8",
+    (char *)"8",
     &ota_error_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::OPAQUE,
@@ -276,7 +276,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_error_res = {
 
 const static M2MBase::lwm2m_parameters arm_uc_multicast_fragment_size_res = {
     0,                  // max_age
-    (char*)"9",
+    (char *)"9",
     &ota_fragment_size_dyn_params,
     M2MBase::Resource,  // base_type
     M2MBase::INTEGER,
@@ -286,7 +286,7 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_fragment_size_res = {
     false               // read_write_callback_set
 };
 
-multicast_status_e arm_uc_multicast_init(M2MBaseList& list, ConnectorClient& client, const int8_t tasklet_id)
+multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &client, const int8_t tasklet_id)
 {
     tr_debug("arm_uc_multicast_init");
 
@@ -319,9 +319,7 @@ multicast_status_e arm_uc_multicast_init(M2MBaseList& list, ConnectorClient& cli
 
     if (arm_uc_multicast_get_parent_addr(arm_uc_multicast_ota_config.unicast_socket_addr.address_tbl) != OTA_OK) {
         tr_error("arm_uc_multicast_init - failed to read parent address");
-#ifndef __NANOSIMULATOR__
         return MULTICAST_STATUS_INIT_FAILED;
-#endif // #ifndef __NANOSIMULATOR__
     }
 
     arm_uc_multicast_ota_config.device_type = OTA_DEVICE_TYPE_NODE;
@@ -357,7 +355,7 @@ static void arm_uc_multicast_socket_callback(void *port)
     palStatus_t status;
     uint8_t recv_buffer[RECEIVE_BUFFER_SIZE];
 
-    palSocketAddress_t address = { 0 , { 0 } };
+    palSocketAddress_t address = { 0, { 0 } };
     palSocketLength_t addrlen = 0;
 
     // Read from the right socket
@@ -413,7 +411,7 @@ void arm_uc_multicast_tasklet(struct arm_event_s *event)
         ota_firmware_pulled();
     } else if (ARM_UC_OTA_MULTICAST_EXTERNAL_UPDATE_EVENT == event->event_type) {
         tr_info("arm_uc_multicast_tasklet - external update");
-        arm_uc_firmware_address_t *address = (arm_uc_firmware_address_t*)event->data_ptr;
+        arm_uc_firmware_address_t *address = (arm_uc_firmware_address_t *)event->data_ptr;
         arm_uc_multicast_m2m_client->external_update(address->start_address, address->size);
         arm_uc_multicast_process_finished(stored_ota_parameters.ota_session_id);
         ota_delete_session(stored_ota_parameters.ota_session_id);
@@ -501,7 +499,7 @@ static ota_error_code_e arm_uc_multicast_remove_stored_ota_process(uint8_t *ota_
  *            Return value:
  *              -Ok/error status code of performing function
  */
-static ota_error_code_e arm_uc_multicast_store_parameters(ota_parameters_t* ota_parameters)
+static ota_error_code_e arm_uc_multicast_store_parameters(ota_parameters_t *ota_parameters)
 {
     tr_debug("arm_uc_multicast_store_parameters");
     assert(memcmp(stored_ota_parameters.ota_session_id, ota_parameters->ota_session_id, OTA_SESSION_ID_SIZE) == 0);
@@ -509,10 +507,10 @@ static ota_error_code_e arm_uc_multicast_store_parameters(ota_parameters_t* ota_
     memcpy(stored_ota_parameters.ota_session_id, ota_parameters->ota_session_id, OTA_SESSION_ID_SIZE);
     stored_ota_parameters.device_type = ota_parameters->device_type;
     stored_ota_parameters.ota_state = ota_parameters->ota_state;
-    if (stored_ota_parameters.fragments_bitmask_length != ota_parameters->fragments_bitmask_length){
+    if (stored_ota_parameters.fragments_bitmask_length != ota_parameters->fragments_bitmask_length) {
         free(stored_ota_parameters.fragments_bitmask_ptr);
         if (ota_parameters->fragments_bitmask_length > 0) {
-            stored_ota_parameters.fragments_bitmask_ptr = (uint8_t*)malloc(ota_parameters->fragments_bitmask_length);
+            stored_ota_parameters.fragments_bitmask_ptr = (uint8_t *)malloc(ota_parameters->fragments_bitmask_length);
             memcpy(stored_ota_parameters.fragments_bitmask_ptr, ota_parameters->fragments_bitmask_ptr, ota_parameters->fragments_bitmask_length);
         } else {
             stored_ota_parameters.fragments_bitmask_ptr = 0;
@@ -528,7 +526,8 @@ static ota_error_code_e arm_uc_multicast_store_parameters(ota_parameters_t* ota_
 #if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
     stored_ota_parameters.pull_url_length = ota_parameters->pull_url_length;
     if (stored_ota_parameters.pull_url_length) {
-        stored_ota_parameters.pull_url_ptr = (uint8_t*)malloc(stored_ota_parameters.pull_url_length);
+        free(stored_ota_parameters.pull_url_ptr);
+        stored_ota_parameters.pull_url_ptr = (uint8_t *)malloc(stored_ota_parameters.pull_url_length);
         if (stored_ota_parameters.pull_url_ptr) {
             memcpy(stored_ota_parameters.pull_url_ptr, ota_parameters->pull_url_ptr, stored_ota_parameters.pull_url_length);
         } else {
@@ -555,7 +554,7 @@ static ota_error_code_e arm_uc_multicast_store_parameters(ota_parameters_t* ota_
  *            Return value:
  *              -Ok/error status code of performing function
  */
-static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t* ota_parameters)
+static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t *ota_parameters)
 {
     tr_debug("arm_uc_multicast_read_parameters");
     memcpy(ota_parameters->ota_session_id, stored_ota_parameters.ota_session_id, OTA_SESSION_ID_SIZE);
@@ -570,8 +569,8 @@ static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t* ota_p
 
     ota_parameters->ota_state = stored_ota_parameters.ota_state;
     ota_parameters->fragments_bitmask_length = stored_ota_parameters.fragments_bitmask_length;
-    if (stored_ota_parameters.fragments_bitmask_length > 0)	{
-        ota_parameters->fragments_bitmask_ptr = (uint8_t*)malloc(ota_parameters->fragments_bitmask_length);
+    if (stored_ota_parameters.fragments_bitmask_length > 0) {
+        ota_parameters->fragments_bitmask_ptr = (uint8_t *)malloc(ota_parameters->fragments_bitmask_length);
         memcpy(ota_parameters->fragments_bitmask_ptr, stored_ota_parameters.fragments_bitmask_ptr, ota_parameters->fragments_bitmask_length);
     } else {
         ota_parameters->fragments_bitmask_ptr = 0;
@@ -580,7 +579,7 @@ static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t* ota_p
 #if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
     ota_parameters->pull_url_length = stored_ota_parameters.pull_url_length;
     if (ota_parameters->pull_url_length) {
-        ota_parameters->pull_url_ptr = (uint8_t*)malloc(ota_parameters->pull_url_length);
+        ota_parameters->pull_url_ptr = (uint8_t *)malloc(ota_parameters->pull_url_length);
         if (ota_parameters->pull_url_ptr) {
             memcpy(ota_parameters->pull_url_ptr, stored_ota_parameters.pull_url_ptr, ota_parameters->pull_url_length);
         } else {
@@ -608,7 +607,7 @@ static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t* ota_p
  *            Return value:
  *              -Written byte count
  */
-static uint32_t arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t* from)
+static uint32_t arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *from)
 {
     tr_debug("arm_uc_multicast_write_fw_bytes, offset %" PRIu32 ", bytes %" PRIu32 "", offset, count);
 
@@ -640,7 +639,7 @@ static uint32_t arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_
  *            Return value:
  *              -Read byte count
  */
-static uint32_t arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t* to)
+static uint32_t arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *to)
 {
     tr_debug("arm_uc_multicast_read_fw_bytes, offset %" PRIu32 ", count %" PRIu32 "", offset, count);
     assert(memcmp(stored_ota_parameters.ota_session_id, ota_session_id, OTA_SESSION_ID_SIZE) == 0);
@@ -696,12 +695,12 @@ static void arm_uc_multicast_send_update_fw_cmd_received_info(uint32_t delay)
  *              -Socket TX process busy: -4
  *              -Packet too short: -6
  */
-static int8_t arm_uc_multicast_socket_send(ota_ip_address_t* destination, uint16_t count, uint8_t* payload)
+static int8_t arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload)
 {
     tr_debug("arm_uc_multicast_socket_send");
 
     size_t sent;
-    palSocketAddress_t pal_addr = { 0 , { 0 } };
+    palSocketAddress_t pal_addr = { 0, { 0 } };
     palSocket_t socket;
 
     if (destination->port == OTA_SOCKET_MULTICAST_PORT) {
@@ -784,7 +783,7 @@ static uint16_t arm_uc_multicast_update_resource_value(ota_resource_types_e type
     return status;
 }
 
-static bool arm_uc_multicast_create_static_resources(M2MBaseList& list)
+static bool arm_uc_multicast_create_static_resources(M2MBaseList &list)
 {
     M2MObjectInstance *object_inst = NULL;
 
@@ -847,9 +846,12 @@ static bool arm_uc_multicast_create_static_resources(M2MBaseList& list)
         multicast_netid_res = object_inst->create_static_resource(&arm_uc_multicast_dodag_id_res, M2MResourceInstance::STRING);
         if (multicast_netid_res) {
             char addr[45] = {0};
-            read_dodag_info(addr);
-            multicast_netid_res->set_value((const unsigned char*)addr, strlen(addr));
-            multicast_netid_res->publish_value_in_registration_msg(true);
+            if (read_dodag_info(addr)) {
+                multicast_netid_res->set_value((const unsigned char *)addr, strlen(addr));
+                multicast_netid_res->publish_value_in_registration_msg(true);
+            } else {
+                return false;
+            }
         } else {
             tr_error("arm_uc_multicast_create_static_resources - failed to create multicast_netid_res!");
             return false;
@@ -896,7 +898,7 @@ static bool arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port)
                                                 true,
                                                 0,
                                                 arm_uc_multicast_socket_callback,
-                                                (void*)((intptr_t)port),
+                                                (void *)((intptr_t)port),
                                                 socket);
 
     if (PAL_SUCCESS != status) {
@@ -947,8 +949,8 @@ bool arm_uc_multicast_interface_configure(int8_t interface_id)
 
 static bool read_dodag_info(char *address)
 {
-// Border router API not available in simulator env since we are using quite old nanomesh6-rel branch
-#if !defined(TARGET_LIKE_MBED) || defined(ARM_UC_MULTICAST_NODE_MODE)
+
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
     rpl_dodag_info_t dodag_info;
     if (rpl_read_dodag_info(&dodag_info, arm_uc_multicast_interface_id)) {
         ip6tos(dodag_info.dodag_id, address);
@@ -971,7 +973,7 @@ static bool read_dodag_info(char *address)
 #endif
 }
 
-static uint8_t arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char* payload)
+static uint8_t arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char *payload)
 {
     sn_coap_hdr_s *resp;
 
@@ -992,7 +994,7 @@ static uint8_t arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coa
     return 0; // TODO! Check return code
 }
 
-static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t* ota_parameters)
+static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_parameters)
 {
     tr_info("arm_uc_multicast_start_received");
     ota_error_code_e return_value = OTA_OK;
@@ -1069,7 +1071,7 @@ static void arm_uc_multicast_process_finished(uint8_t */*session_id*/)
 }
 
 static void arm_uc_multicast_send_event(arm_uc_hub_state_t state)
-{    
+{
     arm_uc_hub_state = state;
     uint16_t start_time = 0;
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
@@ -1083,7 +1085,7 @@ static void arm_uc_multicast_send_event(arm_uc_hub_state_t state)
     eventOS_event_timer_request(ARM_UC_HUB_EVENT_TIMER, ARM_UC_HUB_EVENT_TIMER, arm_uc_multicast_tasklet_id, start_time * 1000);
 }
 
-ota_error_code_e arm_uc_multicast_manifest_received(uint8_t* payload_ptr, uint32_t payload_len)
+ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len)
 {
     ARM_UC_HUB_setManifest(payload_ptr, payload_len);
     arm_uc_multicast_send_event(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
@@ -1097,7 +1099,7 @@ void arm_uc_multicast_firmware_ready()
 }
 
 
-static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t* addr)
+static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr)
 {
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
     // Get the parent address for unicast

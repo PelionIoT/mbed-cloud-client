@@ -48,9 +48,7 @@
 #include "update-client-paal/arm_uc_paal_update_api.h"
 #define TRACE_GROUP  "UCPI"
 
-#if defined(TARGET_LIKE_MBED)
-static int flash_init_done = 0;
-#endif
+
 
 #ifdef __NANOSIMULATOR__
 void get_image_folder(char* path);
@@ -62,7 +60,6 @@ char* getNanosimOriginalImageFolder()
     return path;
 }
 #endif
-
 /**
  * @brief arm_uc_deltapaal_original_reader - helper function to read bytes from original reader.
  * @param stream
@@ -80,6 +77,10 @@ int arm_uc_deltapaal_original_reader(void* buffer, uint64_t length, uint32_t off
     uint32_t appStart = MBED_CONF_APP_APPLICATION_START_ADDRESS;
 
     int32_t status = ARM_UC_FLASHIAP_SUCCESS;
+	
+#if defined(TARGET_LIKE_MBED)
+    static int flash_init_done = 0;
+#endif
 
     if (!flash_init_done) {
         status = arm_uc_flashiap_init();

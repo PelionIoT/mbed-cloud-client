@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2020 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -575,6 +575,7 @@ nm_status_t nm_res_get_ws_stats(uint8_t **datap, size_t *length)
 
     memcpy(ws_stats.ws_common_id_statistics.global_addr, stack_state_info.global_addr, sizeof(stack_state_info.global_addr));
     memcpy(ws_stats.ws_common_id_statistics.link_local_addr, stack_state_info.link_local_addr, sizeof(stack_state_info.link_local_addr));
+    ws_stats.ws_common_id_statistics.pan_id = stack_state_info.pan_id;
 
     *datap = (uint8_t *)nm_dyn_mem_alloc(WS_STAT_MAX_BUF);
     if (*datap == NULL) {

@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota/fota_component.h"
 
@@ -51,6 +51,6 @@ int fota_component_version_semver_to_int(const char *sem_ver, fota_component_ver
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // __FOTA_COMPONENT_INTERNAL_H_

@@ -348,8 +348,18 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
             if(M2MTLVDeserializer::Post == operation) {
                 error = M2MTLVDeserializer::NotAllowed;
             } else if(M2MTLVDeserializer::Put == operation) {
-                error = M2MTLVDeserializer::NotFound;
+                // Create a new Resource Instance
+                M2MResourceInstance *res_instance = resource.get_parent_object_instance().create_dynamic_resource_instance(
+                    resource.name(),
+                    "",
+                    resource.resource_instance_type(),
+                    true,
+                    til._id);
+                if(res_instance) {
+                    res_instance->set_operation(M2MBase::GET_PUT_DELETE_ALLOWED);
+                }
             }
+
         }
     } else {
         error = M2MTLVDeserializer::NotValid;
@@ -411,39 +421,31 @@ bool M2MTLVDeserializer::is_resource_instance(const uint8_t *tlv, uint32_t offse
 
 bool M2MTLVDeserializer::set_resource_instance_value(M2MResourceBase *res, const uint8_t *tlv, const uint32_t size)
 {
-    bool success = true;
+    bool success = false;
     switch (res->resource_instance_type()) {
         case M2MResourceBase::INTEGER:
         case M2MResourceBase::BOOLEAN:
         case M2MResourceBase::TIME:
         {
             int64_t value = String::convert_array_to_integer(tlv, size);
-            if (!res->set_value(value)) {
-                success = false;
-            }
+            success = res->set_value(value);
             break;
         // Todo! implement conversion for other types as well
         }
         case M2MResourceBase::STRING:
         case M2MResourceBase::OPAQUE:
         case M2MResourceBase::OBJLINK:
-            if (!res->set_value(tlv, size)) {
-                success = false;
-            }
+            success = res->set_value(tlv, size);
             break;
         case M2MResourceBase::FLOAT:
         {
             uint32_t value = common_read_32_bit(tlv);
-            if (!res->set_value_float(*(float*)&value)) {
-                success = false;
-            }
+            success = res->set_value_float(*(float*)&value);
             break;
         }
         default:
-            success = false;
             break;
     }
-
     return success;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -85,7 +85,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.7.0";
+const char *MCC_VERSION = "mccv=4.7.1";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -932,12 +932,14 @@ uint8_t M2MNsdlInterface::resource_callback(struct nsdl_s *nsdl_handle,
 
     M2MBase *base = find_resource(resource_name);
 
-    // Update current time resource when doing a GET to the device object.
-    String lifetime_res_uri_path = "3/0/13";
-    if (received_coap_header->msg_code == COAP_MSG_CODE_REQUEST_GET &&
-        (strcmp((char*)base->uri_path(), lifetime_res_uri_path.c_str()) == 0)) {
-        M2MDevice* dev = M2MInterfaceFactory::create_device();
-        dev->set_resource_value(M2MDevice::CurrentTime, pal_osGetTime());
+    if (base) {
+        // Update current time resource when doing a GET to the device object.
+        String lifetime_res_uri_path = "3/0/13";
+        if (received_coap_header->msg_code == COAP_MSG_CODE_REQUEST_GET &&
+            (strcmp((char*)base->uri_path(), lifetime_res_uri_path.c_str()) == 0)) {
+            M2MDevice* dev = M2MInterfaceFactory::create_device();
+            dev->set_resource_value(M2MDevice::CurrentTime, pal_osGetTime());
+        }
     }
 
 #ifdef ENABLE_ASYNC_REST_RESPONSE
@@ -1647,12 +1649,10 @@ bool M2MNsdlInterface::create_nsdl_resource_structure(M2MResource *res,
                         return false;
                     }
                 }
-                // Register the main Resource as well along with ResourceInstances
-                success = create_nsdl_resource(res);
             }
-        } else {
-            success = create_nsdl_resource(res);
         }
+        // Register the main Resource as well along with ResourceInstances
+        success = create_nsdl_resource(res);
     }
     return success;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -250,11 +250,15 @@ static coap_response_code_e resource_read_requested(const M2MResourceBase &resou
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
+        if (status != NM_STATUS_SUCCESS) {
+            return COAP_RESPONSE_INTERNAL_SERVER_ERROR;
+        }
     }
 
-    if (status != NM_STATUS_SUCCESS || !res_data) {
+    if (!res_data) {
         return COAP_RESPONSE_INTERNAL_SERVER_ERROR;
     }
+
     total_size = len;
 
     // Adjust last package size
