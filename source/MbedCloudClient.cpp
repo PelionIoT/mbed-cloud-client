@@ -308,6 +308,7 @@ void MbedCloudClient::complete(ServiceClientCallbackStatus status)
     } else if (status == Service_Client_Status_Register_Updated) {
         _on_registration_updated.call();
     }
+    // ToDo: should we have some handling for Service_Client_Status_Failure    
 }
 
 void MbedCloudClient::error(int error, const char *reason)

@@ -16,6 +16,11 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "mbed-cloud-client/MbedCloudClientConfig.h"
+
+#define TRACE_GROUP "uccc"
+
+#if !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 // Needed for PRIu64 on FreeRTOS
 #include <stdio.h>
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
@@ -55,7 +60,7 @@
 #define tr_info(...) { printf(__VA_ARGS__); printf("\r\n"); }
 #else
 #include "mbed-trace/mbed_trace.h"
-#define TRACE_GROUP "uccc"
+
 #endif
 
 /* To be removed once update storage is defined in user config file.
@@ -368,6 +373,73 @@ int UpdateClient::getClassId(uint8_t* buffer, size_t buffer_size_max, size_t* va
         return CCS_STATUS_SUCCESS;
     }
     return CCS_STATUS_KEY_DOESNT_EXIST;
+}
+#endif
+#else 
+
+#include "include/CloudClientStorage.h"
+#include "include/UpdateClient.h"
+#include "fota/fota_base.h"
+#include "fota/fota_app_ifs.h"
+#include "fota/fota_nvm.h"
+#include "fota/fota_shim_layer.h"
+
+void UpdateClient::UpdateClient(FP1<void, int32_t> callback, M2MInterface *m2mInterface, ServiceClient *service, const int8_t tasklet_id)
+{
+}
+
+void UpdateClient::populate_object_list(M2MBaseList& list)
+{
+}
+void UpdateClient::event_handler(arm_event_s* event)
+{
+}
+
+void UpdateClient::set_update_authorize_handler(void (*handler)(int32_t request))
+{
+    fota_shim_set_auth_handler(handler);
+}
+
+void UpdateClient::set_update_authorize_priority_handler(void (*handler)(int32_t request, uint64_t priority))
+{
+    fota_shim_set_auth_handler(handler);
+}
+
+void UpdateClient::update_authorize(int32_t request)
+{
+    fota_app_authorize_update();
+}
+
+void UpdateClient::update_reject(int32_t request, int32_t reason)
+{
+    fota_app_reject_update(reason);
+}
+
+int UpdateClient::getVendorId(uint8_t* buffer, size_t buffer_size_max, size_t* value_size)
+{
+    FOTA_ASSERT(buffer_size_max >= FOTA_GUID_SIZE);
+    int ret = fota_nvm_get_vendor_id(buffer);
+    if (!ret) {
+        return CCS_STATUS_KEY_DOESNT_EXIST;
+    }
+    *value_size = FOTA_GUID_SIZE;
+    return CCS_STATUS_SUCCESS;
+}
+
+int UpdateClient::getClassId(uint8_t* buffer, size_t buffer_size_max, size_t* value_size)
+{
+    FOTA_ASSERT(buffer_size_max >= FOTA_GUID_SIZE);
+    int ret = fota_nvm_get_class_id(buffer);
+    if (!ret) {
+        return CCS_STATUS_KEY_DOESNT_EXIST;
+    }
+    *value_size = FOTA_GUID_SIZE;
+    return CCS_STATUS_SUCCESS;
+}
+
+void UpdateClient::set_update_progress_handler(void (*handler)(uint32_t progress, uint32_t total))
+{
+    fota_shim_set_progress_handler(handler);
 }
 
 #endif

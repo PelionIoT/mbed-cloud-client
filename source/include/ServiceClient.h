@@ -336,13 +336,13 @@ private:
     StartupMainState                _current_state;
     bool                            _event_generated;
     bool                            _state_engine_running;
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+#if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
     int8_t                          _uc_hub_tasklet_id;
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     int8_t                          _multicast_tasklet_id;
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     bool                            _setup_update_client;
-#endif // MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+#endif // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
     ConnectorClient                 _connector_client;
 };
 

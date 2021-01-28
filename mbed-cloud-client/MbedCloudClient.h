@@ -163,7 +163,7 @@ public:
         /// Client recovers automatically.
         ConnectDnsResolvingFailed               = M2MInterface::DnsResolvingFailed,
 
-        /// Not used.
+        /// Failed to save credentials to storage.
         ConnectorFailedToStoreCredentials       = M2MInterface::FailedToStoreCredentials,
 
         /// Failed to read credentials from storage.

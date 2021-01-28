@@ -208,9 +208,6 @@ ccs_status_e ccs_get_item(const char* key,
         return CCS_STATUS_KEY_DOESNT_EXIST;
     } else if (kcm_status != KCM_STATUS_SUCCESS) {
         tr_error("CloudClientStorage::ccs_get_item [%s] kcm get error %d", key, kcm_status);
-        if (kcm_status == KCM_STATUS_ITEM_NOT_FOUND) {
-            return CCS_STATUS_KEY_DOESNT_EXIST;
-        }
         return CCS_STATUS_ERROR;
     }
 

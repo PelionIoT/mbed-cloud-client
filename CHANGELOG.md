@@ -1,5 +1,14 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.7.1 (28.01.2021)
+
+- Improved CID recovery in case the CID has expired. Client now proceeds with register-update instead of full registration.
+- Fixed coverity issues.
+
+#### Device Management Update client
+
+- Fixed a logical issue in update client logic which prevented further updates after it received a manifest with an invalid signature.
+
 ### Release 4.7.0 (07.12.2020)
 
 #### Device Management Client
@@ -752,4 +761,3 @@ Using PAL for asyncronous handling of DNS enables firmware update with mesh.
 ### Release 1.3.0 (27.3.2018)
 
 * Initial public release.
-

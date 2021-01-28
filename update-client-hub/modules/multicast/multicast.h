@@ -19,6 +19,9 @@
 #ifndef ARM_UC_MULTICAST_H
 #define ARM_UC_MULTICAST_H
 
+#include "eventOS_event.h"
+#include "eventOS_event_timer.h"
+
 #define ARM_UC_OTA_MULTICAST_UC_HUB_EVENT           1
 #define ARM_UC_OTA_MULTICAST_TIMER_EVENT            2
 #define ARM_UC_OTA_MULTICAST_DL_DONE_EVENT          3
@@ -54,27 +57,8 @@ typedef struct  arm_uc_firmware_address {
 } arm_uc_firmware_address_t;
 
 #ifdef __cplusplus
-
-#include "m2minterface.h"
-#include "ConnectorClient.h"
-#include "eventOS_event.h"
-#include "eventOS_event_timer.h"
-
-/**
- *  @brief Initialize multicast resources and infrastructure.
- *
- *  @param registration_list Mbed Cloud Client resource objects list
- *  @param client Handle for ConnectorClient
- *  @param tasklet_id Event handler id
- *  @return MULTICAST_STATUS_SUCCESS on success, or some error if failed
- */
-multicast_status_e arm_uc_multicast_init(M2MBaseList& list, ConnectorClient &client, const int8_t tasklet_id);
-
-/**
- * @brief Finalizes multicast resources.
- *
- */
-void arm_uc_multicast_deinit();
+extern "C" {
+#endif
 
 /**
  *  @brief Set mesh interface id.
@@ -85,11 +69,35 @@ void arm_uc_multicast_deinit();
 bool arm_uc_multicast_interface_configure(int8_t interface_id);
 
 /**
+ * @brief Finalizes multicast resources.
+ *
+ */
+void arm_uc_multicast_deinit();
+
+/**
  *  @brief Event handler callback
  *
  *  @param event Event to process.
  */
 void arm_uc_multicast_tasklet(struct arm_event_s *event);
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+#include "m2minterface.h"
+#include "ConnectorClient.h"
+
+/**
+ *  @brief Initialize multicast resources and infrastructure.
+ *
+ *  @param registration_list Mbed Cloud Client resource objects list
+ *  @param client Handle for ConnectorClient
+ *  @param tasklet_id Event handler id
+ *  @return MULTICAST_STATUS_SUCCESS on success, or some error if failed
+ */
+multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &client, const int8_t tasklet_id);
 
 #endif // __cplusplus
 

@@ -21,7 +21,7 @@
 
 #include "fota/fota_config.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 // TODO: move to delta -  when integrated
 #if !defined(MBED_CLOUD_CLIENT_FOTA_DELTA_BLOCK_SIZE)
@@ -30,6 +30,7 @@
 
 
 #include "fota/fota_status.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,15 +50,24 @@ int fota_init(void *m2m_interface, void *resource_list);
 
 /*
  * Deinitialize Pelion FOTA component.
+ * This method must not be called when FOTA is active
  *
  * \return FOTA_STATUS_SUCCESS on success
  */
 int fota_deinit(void);
 
+
+/*
+ * Tell if FOTA update is active
+ *
+ * \return true if FOTA update is active
+ */
+bool fota_is_active_update(void);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif  // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // __FOTA_H_

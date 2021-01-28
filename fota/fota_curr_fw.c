@@ -26,7 +26,7 @@
 #include "fota/fota_status.h"
 #include <stdio.h>
 
-#if !defined(FOTA_CUSTOM_CURR_FW_STRUCTURE) || (!FOTA_CUSTOM_CURR_FW_STRUCTURE)
+#if !FOTA_CUSTOM_CURR_FW_STRUCTURE
 #if defined(__MBED__)
 // Bootloader and application have different defines
 #if !defined(APPLICATION_ADDR)
@@ -110,6 +110,6 @@ int fota_curr_fw_get_digest(uint8_t *buf)
     return FOTA_STATUS_SUCCESS;
 }
 
-#endif // !defined(FOTA_CUSTOM_CURR_FW_STRUCTURE) || (!FOTA_CUSTOM_CURR_FW_STRUCTURE)
+#endif // !FOTA_CUSTOM_CURR_FW_STRUCTURE
 
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

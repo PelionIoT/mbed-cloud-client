@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota/fota_crypto_defs.h"
 #include "fota/fota_component_defs.h"
@@ -32,14 +32,13 @@ extern "C" {
 #endif
 
 // These checks are only relevant when FOTA is enabled (unlike this header file)
-#ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
+
 #if !defined(MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION)
 #error MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION expected to be set in fota_config.h
 #endif
 
 #if !defined(FOTA_HEADER_HAS_CANDIDATE_READY)
 #error FOTA_HEADER_HAS_CANDIDATE_READY expected to be set in fota_config.h
-#endif
 #endif
 
 #define FOTA_FW_HEADER_MAGIC ((uint32_t)(0x5c0253a3))
@@ -124,5 +123,5 @@ int fota_serialize_header(const fota_header_info_t *header_info, uint8_t *header
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #endif // __FOTA_HEADER_INFO_H_

@@ -23,6 +23,9 @@
 
 #include "mbed-client/m2minterface.h"
 #include "update-client-hub/update_client_public.h"
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#include "fota/fota_shim_layer.h"
+#endif
 #include "eventOS_scheduler.h"
 #include "eventOS_event.h"
 

@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota/fota_manifest.h"
 #include "fota/fota_app_ifs.h"
@@ -76,7 +76,6 @@ typedef struct {
 
 fota_context_t *fota_get_context(void);
 
-bool fota_is_active_update(void);
 int  fota_is_ready(uint8_t *data, size_t size, fota_state_e *fota_state);
 
 void fota_on_manifest(uint8_t *data, size_t size);
@@ -90,5 +89,5 @@ void fota_on_resume(int32_t status);
 }
 #endif
 
-#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #endif // __FOTA_INTERNAL_H_

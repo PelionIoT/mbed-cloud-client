@@ -349,7 +349,7 @@ STATIC sotp_result_e write_record(uint8_t area, uint32_t offset, uint16_t type, 
     // If min prog size is larger than the header size - allocate new buffer containing the header and the amount of data to fill the page
     if (min_prog_size > sizeof(header)) {
         prog_buf = page_buf;
-        memcpy(page_buf, &header, min_prog_size);
+        memcpy(page_buf, &header, sizeof(header));
         if (data_len) {
             // The amount of data to copy is page_size - sizeof(header) (to fill page) but no more than the data length
             copy_size = (uint32_t)PAL_MIN(data_len, min_prog_size - sizeof(header));

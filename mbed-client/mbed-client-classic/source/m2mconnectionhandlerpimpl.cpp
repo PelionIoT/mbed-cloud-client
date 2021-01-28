@@ -567,7 +567,7 @@ void M2MConnectionHandlerPimpl::send_socket_data()
     }
 
     // Loop until all the data is sent
-    for (; out_data->offset < out_data->data_len; out_data->offset += bytes_sent) {
+    while (out_data->offset < out_data->data_len) {
         // Secure send
         if (_socket_state == ESocketStateSecureConnection) {
             // TODO! Change the send_message API to take bytes_sent as a out param like the pal send API's.
@@ -619,6 +619,12 @@ void M2MConnectionHandlerPimpl::send_socket_data()
                 break;
             }
         }
+        int new_offset = out_data->offset + bytes_sent;
+        if (new_offset >= out_data->data_len) {	
+            break;	
+        } else {
+            out_data->offset += bytes_sent;
+        }
     }
 
     free(out_data->data);
@@ -637,8 +643,7 @@ void M2MConnectionHandlerPimpl::send_socket_data()
         close_socket();
     } else {
         _observer.data_sent();
-    }
-
+    }    
 }
 
 bool M2MConnectionHandlerPimpl::start_listening_for_data()
@@ -708,13 +713,10 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
     } else if (return_value == M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY ||
                return_value == M2MConnectionHandler::SSL_HANDSHAKE_ERROR   ||
                return_value == M2MConnectionHandler::SOCKET_READ_ERROR     ||
-               return_value == M2MConnectionHandler::SOCKET_TIMEOUT) {
+               return_value == M2MConnectionHandler::SOCKET_TIMEOUT        ||
+               return_value == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
         tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - retcode %d", return_value);
         _observer.socket_error(return_value, true);
-        close_socket();
-    } else if (return_value == M2MConnectionHandler::MEMORY_ALLOCATION_FAILED) {
-        tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - MEMORY_ALLOCATION_FAILED");
-        _observer.socket_error(return_value, false);
         close_socket();
     } else {
         tr_debug("M2MConnectionHandlerPimpl::receive_handshake_handler() - waiting next event");

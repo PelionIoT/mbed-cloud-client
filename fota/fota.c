@@ -259,7 +259,7 @@ int fota_install_verify(const fota_component_desc_t *comp_desc, unsigned int com
             return ret;
         }
 
-        ret = comp_desc->desc_info.component_post_install_cb(nvm_semver);
+        ret = comp_desc->desc_info.component_post_install_cb(comp_desc->name, nvm_semver);
         if (ret) {
             FOTA_TRACE_ERROR("Failed to verify installation %d", ret);
             return ret;
@@ -478,6 +478,10 @@ int fota_deinit(void)
 
     FOTA_TRACE_DEBUG("fota_deinit");
 
+#if !defined(FOTA_UNIT_TEST)
+    FOTA_ASSERT(!fota_ctx);
+#endif
+
     update_cleanup();
     fota_component_clean();
     fota_source_deinit();
@@ -492,7 +496,7 @@ static int init_encryption(void)
 {
     int ret = FOTA_STATUS_NOT_FOUND;
 
-    uint8_t fw_key[FOTA_ENCRYPT_KEY_SIZE];
+    uint8_t fw_key[FOTA_ENCRYPT_KEY_SIZE] = {0};
 
 #if (MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME)
     if (fota_ctx->resume_state == FOTA_RESUME_STATE_STARTED) {
@@ -508,15 +512,28 @@ static int init_encryption(void)
 #endif
 
     if (ret) {
-        if (fota_gen_random(fw_key, sizeof(fw_key))) {
-            FOTA_TRACE_ERROR("Unable to generate random FW key. ret %d", ret);
-            return ret;
-        }
+        for (;;) {
+            uint8_t zero_key[FOTA_ENCRYPT_KEY_SIZE] = {0};
+            size_t volatile loop_check;
 
-        ret = fota_nvm_fw_encryption_key_set(fw_key);
-        if (ret) {
-            FOTA_TRACE_ERROR("Unable to set FW key. ret %d", ret);
-            return ret;
+            if (fota_gen_random(fw_key, sizeof(fw_key))) {
+                FOTA_TRACE_ERROR("Unable to generate random FW key. ret %d", ret);
+                return ret;
+            }
+            // safely check that generated key is non zero
+            FOTA_FI_SAFE_COND((fota_fi_memcmp(fw_key, zero_key, FOTA_ENCRYPT_KEY_SIZE, &loop_check)
+                               && (loop_check == FOTA_ENCRYPT_KEY_SIZE)), FOTA_STATUS_INTERNAL_ERROR,
+                              "Zero encryption key - retry");
+
+            ret = fota_nvm_fw_encryption_key_set(fw_key);
+            if (ret) {
+                FOTA_TRACE_ERROR("Unable to set FW key. ret %d", ret);
+                return ret;
+            }
+            break;
+
+fail:
+            ;// retry here if zero
         }
 
         FOTA_TRACE_DEBUG("New FOTA key saved");

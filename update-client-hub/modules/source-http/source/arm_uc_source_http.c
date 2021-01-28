@@ -17,6 +17,7 @@
 // ----------------------------------------------------------------------------
 
 #include "update-client-common/arm_uc_config.h"
+#include "update-client-hub/modules/source-http-socket/source/arm_uc_http_socket_private.h"
 
 #if defined(ARM_UC_FEATURE_FW_SOURCE_HTTP) && (ARM_UC_FEATURE_FW_SOURCE_HTTP == 1)
 

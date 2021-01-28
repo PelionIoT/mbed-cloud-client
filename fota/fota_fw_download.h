@@ -21,7 +21,7 @@
 
 #include "fota/fota_base.h"
 
-#if MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #include "fota/fota_status.h"
 
@@ -69,6 +69,6 @@ void fota_download_deinit(void **download_handle);
 }
 #endif
 
-#endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif  // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #endif // __FOTA_FW_DOWNLAD_H_

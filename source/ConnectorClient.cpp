@@ -48,12 +48,13 @@
 
 #define TRACE_GROUP "mClt"
 
-#define INTERNAL_ENDPOINT_PARAM     "&iep="
-#define DEFAULT_ENDPOINT            "endpoint"
-#define INTERFACE_ERROR             "Client interface is not created. Restart"
-#define CREDENTIAL_ERROR            "Failed to read credentials from storage"
-#define DEVICE_NOT_PROVISIONED      "Device not provisioned"
-#define CONNECTOR_ERROR_NO_MEMORY   "Not enough memory to store LWM2M credentials"
+#define INTERNAL_ENDPOINT_PARAM                    "&iep="
+#define DEFAULT_ENDPOINT                           "endpoint"
+#define INTERFACE_ERROR                            "Client interface is not created. Restart"
+#define CREDENTIAL_ERROR                           "Failed to read credentials from storage"
+#define DEVICE_NOT_PROVISIONED                     "Device not provisioned"
+#define CONNECTOR_ERROR_NO_MEMORY                  "Not enough memory to store LWM2M credentials"
+#define CONNECTOR_ERROR_FAILED_TO_STORE_CREDENTIAL "Failed to store LWM2M credentials"
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #define ERROR_EST_ENROLLMENT_REQUEST_FAILED   "EST enrollment request failed"
@@ -509,7 +510,6 @@ void ConnectorClient::state_bootstrap_success()
 void ConnectorClient::state_bootstrap_failure()
 {
     assert(_callback != NULL);
-    // maybe some additional canceling and/or leanup is needed here?
     _callback->registration_process_result(State_Bootstrap_Failure);
 }
 
@@ -1032,7 +1032,6 @@ void ConnectorClient::bootstrap_data_ready(M2MSecurity *security_object)
         // This will also update the address in case of first to claim
         ccs_status_e status = set_bootstrap_credentials(security_object);
         if (status != CCS_STATUS_SUCCESS) {
-            // TODO: what now?
             tr_error("ConnectorClient::bootstrap_data_ready - could not store bootstrap credentials");
         }
 
@@ -1040,7 +1039,6 @@ void ConnectorClient::bootstrap_data_ready(M2MSecurity *security_object)
         if (is_first_to_claim()) {
             status = clear_first_to_claim();
             if (status != CCS_STATUS_SUCCESS) {
-                // TODO: what now?
                 tr_error("ConnectorClient::bootstrap_data_ready - couldn't clear first to claim flag!");
             }
         }
@@ -1067,11 +1065,16 @@ void ConnectorClient::bootstrap_data_ready(M2MSecurity *security_object)
             tr_info("ConnectorClient::bootstrap_data_ready() - Storing lwm2m credentials");
             status = set_connector_credentials(security_object);
         }
-
         if (status != CCS_STATUS_SUCCESS) {
+            tr_err("Failed to store lwm2m credentials: %d", status);
             internal_event(State_Bootstrap_Failure);
             //Failed to store credentials, bootstrap failed
-            _callback->connector_error(M2MInterface::MemoryFail, CONNECTOR_ERROR_NO_MEMORY); // Translated to error code ConnectMemoryConnectFail
+            if (status == CCS_STATUS_MEMORY_ERROR) {
+                _callback->connector_error(M2MInterface::MemoryFail, CONNECTOR_ERROR_NO_MEMORY); // Translated to error code ConnectMemoryConnectFail
+            } else
+            {
+                _callback->connector_error(M2MInterface::FailedToStoreCredentials, CONNECTOR_ERROR_FAILED_TO_STORE_CREDENTIAL); // Translated to error code ConnectorFailedToStoreCredentials
+            }
             return;
         } else {
             tr_info("ConnectorClient::bootstrap_data_ready - set_credentials status %d", status);
@@ -1231,9 +1234,9 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
 #endif
         ccs_delete_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM);
         status = ccs_set_item(g_fcc_lwm2m_server_uri_name,
-                              (const uint8_t*)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).c_str(),
-                              (size_t)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).size(),
-                              CCS_CONFIG_ITEM);
+                             (const uint8_t*)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).c_str(),
+                             (size_t)security->resource_value_string(M2MSecurity::M2MServerUri, m2m_id).size(),
+                             CCS_CONFIG_ITEM);
     }
 
     M2MDevice *device = M2MInterfaceFactory::create_device();

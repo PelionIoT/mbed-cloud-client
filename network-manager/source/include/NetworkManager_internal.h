@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2020 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -136,6 +136,7 @@ typedef struct {
     uint8_t rpl_dodag_id[16];
     uint8_t instance_id;
     uint8_t version;
+    uint16_t pan_id;
 } ws_common_id_statistics_t;
 
 /* Wi-Sun RPL Statistics */

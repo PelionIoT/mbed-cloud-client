@@ -65,6 +65,7 @@ static void arm_uc_get_next_fragment();
 // The hub uses a double buffer system to speed up firmware download and storage
 #define BUFFER_SIZE_MAX (ARM_UC_BUFFER_SIZE / 2) //  define size of the double buffers
 static uint8_t message[BUFFER_SIZE_MAX];
+// Keep the same initalization values for front_buffer in ARM_UC_HUB_setState function in `case ARM_UC_HUB_STATE_IDLE`, where front_buffer initialzed again. 
 static arm_uc_buffer_t front_buffer = {
     .size_max = BUFFER_SIZE_MAX,
     .size = 0,
@@ -75,7 +76,7 @@ union {
     manifest_firmware_info_t fwinfo;
     uint8_t data[BUFFER_SIZE_MAX];
 } message2;
-
+// Keep the same initalization values for back_buffer in ARM_UC_HUB_setState function in `case ARM_UC_HUB_STATE_IDLE`,where back_buffer initialzed again. 
 static arm_uc_buffer_t back_buffer = {
     .size_max = BUFFER_SIZE_MAX,
     .size = 0,
@@ -106,12 +107,14 @@ static ARM_UCFM_Setup_t arm_uc_hub_firmware_config = { UCFM_MODE_UNINIT };
 
 // buffer to store the decoded firmware key
 #define PLAIN_FIRMWARE_KEY_SIZE 16
+#if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
 static uint8_t plainFirmwareKey[PLAIN_FIRMWARE_KEY_SIZE];
 static arm_uc_buffer_t arm_uc_hub_plain_key = {
     .size_max = PLAIN_FIRMWARE_KEY_SIZE,
     .size     = PLAIN_FIRMWARE_KEY_SIZE,
     .ptr      = plainFirmwareKey
 };
+#endif
 
 static arm_uc_mmContext_t manifestManagerContext = { 0 };
 arm_uc_mmContext_t *pManifestManagerContext = &manifestManagerContext;
@@ -254,11 +257,13 @@ static void arm_uc_hub_debug_output()
         }
         printf("\r\n");
 
+#if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
         printf("Decrypted Firmware Symmetric Key(16): ");
         for (unsigned i = 0; i < 16; i++) {
             printf("%02" PRIx8, arm_uc_hub_plain_key.ptr[i]);
         }
         printf("\r\n");
+#endif
 
         printf("fwinfo->initVector\r\n");
         for (unsigned i = 0; i < 16; i++) {
@@ -485,6 +490,20 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
             /*****************************************************************/
             case ARM_UC_HUB_STATE_IDLE:
                 UC_HUB_TRACE("ARM_UC_UPDATE_STATE_IDLE");
+
+                /*Restore initial values of front_buffer and back_buffers.
+                If we get here after update failure, the `ptr` members of the structures may point to the same variable - `message2`
+                and cause data corruption during next update session.
+                This state could be a result of value swapping of these two structures that performed at ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD state.
+                We should ignore leftovers of the previous update session state and use initialized values of these variables. 
+                !!! Keep the same values in static initializer of front_buffer and of back_buffers :  `static arm_uc_buffer_t front_buffer = {`
+                and  `static arm_uc_buffer_t back_buffer = {` where these buffers defined*/
+                front_buffer.ptr = message;
+                front_buffer.size_max = BUFFER_SIZE_MAX;
+                front_buffer.size = 0;
+                back_buffer.ptr = message2.data;
+                back_buffer.size = 0;
+                back_buffer.size_max = BUFFER_SIZE_MAX;
 
                 /* signal monitor that device has entered IDLE state */
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_IDLE);
@@ -884,7 +903,7 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                     arm_uc_hub_firmware_details.size = fwinfo->size;
                     /* copy hash */
                     memcpy(arm_uc_hub_firmware_details.hash,
-                           &fwinfo->hash,
+                           fwinfo->hash.ptr,
                            ARM_UC_SHA256_SIZE);
                 }
 #endif // ARM_UC_MULTICAST_NODE_MODE
