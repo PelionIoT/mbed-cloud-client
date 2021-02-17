@@ -27,6 +27,7 @@
 #include <errno.h>
 #include "fota/fota_block_device.h"
 #include "fota/fota_status.h"
+#include "fota_platform_linux.h"
 
 #include <stdio.h>
 #include <assert.h>
@@ -44,7 +45,7 @@ static size_t get_bd_backend_file_size()
 {
     struct stat st;
 
-    if (stat(MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME, &st) == 0) {
+    if (stat(fota_linux_get_update_storage_file_name(), &st) == 0) {
         return (st.st_size);
     } else {
         FOTA_TRACE_ERROR("stat failed: %s", strerror(errno));
@@ -63,18 +64,17 @@ int fota_bd_size(size_t *size)
 int fota_bd_init(void)
 {
     if (!bd_backend) {
-        bd_backend = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME, "rb+");
+        bd_backend = fopen(fota_linux_get_update_storage_file_name(), "rb+");
         if (NULL == bd_backend) {
-            bd_backend = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME, "wb+");
+            bd_backend = fopen(fota_linux_get_update_storage_file_name(), "wb+");
             if (NULL == bd_backend) {
                 FOTA_TRACE_ERROR("fopen failed: %s", strerror(errno));
-                FOTA_TRACE_ERROR("Failed to initialize BlockDevice - failed to create file %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
+                FOTA_TRACE_ERROR("Failed to initialize BlockDevice - failed to create file %s", fota_linux_get_update_storage_file_name());
                 return FOTA_STATUS_STORAGE_WRITE_FAILED;
             }
         }
     }
 
-    FOTA_TRACE_DEBUG("FOTA BlockDevice init file is %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
     return FOTA_STATUS_SUCCESS;
 }
 
@@ -83,14 +83,11 @@ int fota_bd_deinit(void)
     if (bd_backend) {
         if (fclose(bd_backend)) {
             FOTA_TRACE_ERROR("fclose failed: %s", strerror(errno));
-            FOTA_TRACE_ERROR("Failed to deinit BlockDevice - failed to close %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
-        } else {
-            FOTA_TRACE_DEBUG("Closed FOTA BlockDevice file %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
+            FOTA_TRACE_ERROR("Failed to deinit BlockDevice - failed to close %s", fota_linux_get_update_storage_file_name());
         }
         bd_backend = NULL;
     }
 
-    FOTA_TRACE_DEBUG("FOTA BlockDevice deinit file is %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
     return FOTA_STATUS_SUCCESS;
 }
 
@@ -158,7 +155,7 @@ int fota_bd_erase(size_t addr, size_t size)
         bytes_written = fwrite(erase_buff, 1, size_to_write, bd_backend);
         if (bytes_written != size_to_write) {
             FOTA_TRACE_ERROR("fwrite failed: %s", strerror(errno));
-            FOTA_TRACE_ERROR("Write failed BlockDevice - file %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
+            FOTA_TRACE_ERROR("Write failed BlockDevice - file %s", fota_linux_get_update_storage_file_name());
             return FOTA_STATUS_STORAGE_WRITE_FAILED;
         }
         erase_size -= size_to_write;

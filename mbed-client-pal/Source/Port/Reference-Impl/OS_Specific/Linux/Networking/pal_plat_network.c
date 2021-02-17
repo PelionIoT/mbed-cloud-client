@@ -208,6 +208,14 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 
     const struct timespec timeout_zero = {0, 0};
 
+    // After execv call, signal handler does not return and SIGIO/SIGUSR1 might be blocked in certain cases
+    // We need to unblock SIG* to get it working again.
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGIO);
+    sigaddset(&set, SIGUSR1);
+    sigprocmask(SIG_UNBLOCK, &set, NULL);
+
     // Initialize the signal handler. SIG_IGN and SIG_DFL do not work
     s.sa_handler = sigusr2;
     sigemptyset(&s.sa_mask);

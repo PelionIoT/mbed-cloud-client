@@ -60,6 +60,20 @@ int fota_event_handler_defer_with_data(
     fota_deferred_data_callabck_t cb, uint8_t *data, size_t size);
 
 /*
+ * Defer execution of a FOTA callback with a data buffer after a given time
+ *
+ * The deferred callback will run in its own time slot
+ *
+ * /param cb[in] callback function pointer to be deferred
+ * /param data[in] deferred callback input data pointer
+ * /param size[in] deferred callback input data size
+ * /param in_ms[in] time to wait in milliseconds
+ * \return FOTA_STATUS_SUCCESS on success.
+ */
+int fota_event_handler_defer_with_data_in_ms(
+    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size, size_t in_ms);
+
+/*
  * Defer execution of a FOTA callback with error details
  * /param cb callback function pointer to be deferred
  * /status a status code

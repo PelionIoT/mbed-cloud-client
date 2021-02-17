@@ -49,7 +49,7 @@ int fota_source_init(
     const uint8_t *class_id, uint32_t class_id_size,
     const uint8_t *curr_fw_digest, uint32_t curr_fw_digest_size,
     uint64_t curr_fw_version,
-    fota_source_state_e source_state);
+    fota_source_state_e source_state, int update_result);
 
 int fota_source_add_component(unsigned int comp_id, const char *name, const char *sem_ver);
 
@@ -60,6 +60,7 @@ typedef void (*report_sent_callback_t)(void);
 int fota_source_report_state(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure);
 int fota_source_report_update_result(int result);
 void fota_source_send_manifest_received_ack(void);
+void fota_source_enable_auto_observable_resources_reporting(bool enable);
 
 #ifdef __cplusplus
 }

@@ -32,11 +32,20 @@ extern "C" {
 /**
  * Read header from given file.
  *
- * \param[in] header_info Header info structure.
+ * \param[out] header_info Header info structure.
  * \param[in] file_name   File name.
  * \return FOTA_STATUS_SUCCESS on success.
  */
 int fota_curr_fw_read_header_from_file(fota_header_info_t *header_info, const char *file_name);
+
+/**
+ * Write header to given file.
+ *
+ * \param[in] header_info Header info structure.
+ * \param[in] file_name   File name.
+ * \return FOTA_STATUS_SUCCESS on success.
+ */
+int fota_curr_fw_write_header_to_file(fota_header_info_t *header_info, const char *file_name);
 
 #ifdef __cplusplus
 }

@@ -671,7 +671,7 @@ void pal_store_cid()
                                  strlen(kcm_session_item_name),
                                  KCM_CONFIG_ITEM);
 
-    uint8_t *context = NULL;
+    const uint8_t *context = NULL;
     size_t size = 0;
     context = pal_plat_get_cid(&size);
 
@@ -906,4 +906,12 @@ void pal_setDTLSSocketCallback(palTLSConfHandle_t palTLSConf, palSocketCallback_
     //palSocket_t depend on the library (socket or bio pointer)
     palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
     pal_plat_SetDTLSSocketCallback(palTLSConfCtx->platTlsConfHandle, callback, argument);
+}
+
+void pal_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len)
+{
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+    palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
+    pal_plat_set_cid_value(palTLSCtx->platTlsHandle, data_ptr, data_len);
+#endif
 }

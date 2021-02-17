@@ -51,6 +51,7 @@ static M2MObject *g_component_lwm2m_object = NULL;  // /14
 
 static report_sent_callback_t g_on_sent_callback = NULL;
 static report_sent_callback_t g_on_failure_callback = NULL;
+static bool auto_observable_reporting_enabled;
 
 typedef struct {
     size_t max_frag_size;
@@ -229,7 +230,7 @@ int fota_source_init(
     const uint8_t *class_id, uint32_t class_id_size,
     const uint8_t *curr_fw_digest, uint32_t curr_fw_digest_size,
     uint64_t curr_fw_version,
-    fota_source_state_e source_state)
+    fota_source_state_e source_state, int update_result)
 {
     if (g_m2m) {
         return FOTA_STATUS_SUCCESS;
@@ -290,8 +291,8 @@ int fota_source_init(
     FOTA_ASSERT(g_update_result_resource);
     g_update_result_resource->set_operation(M2MBase::GET_ALLOWED);
     g_update_result_resource->set_message_delivery_status_cb(notification_status, NULL);
-    g_update_result_resource->set_value(-1);
-    g_update_result_resource->publish_value_in_registration_msg(false);
+    g_update_result_resource->set_value(update_result);
+    g_update_result_resource->publish_value_in_registration_msg(true);
     g_update_result_resource->set_auto_observable(true);
 
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 1)
@@ -382,6 +383,7 @@ int fota_source_init(
     m2m_object_list->push_back(g_component_lwm2m_object);
 #endif
 
+    fota_source_enable_auto_observable_resources_reporting(true);
     return FOTA_STATUS_SUCCESS;
 }
 
@@ -431,6 +433,14 @@ int fota_source_deinit(void)
 
 static int report_int(M2MResource *resource, int value, report_sent_callback_t on_sent, report_sent_callback_t on_failure)
 {
+    // Auto observable resources reporting not enabled - call the on sent callback ourselves here
+    if (!auto_observable_reporting_enabled) {
+        if (on_sent) {
+            on_sent();
+        }
+        return FOTA_STATUS_SUCCESS;
+    }
+
     FOTA_DBG_ASSERT(!g_on_sent_callback);
     FOTA_DBG_ASSERT(!g_on_failure_callback);
 
@@ -516,6 +526,11 @@ int fota_source_firmware_request_fragment(const char *uri, size_t offset)
     );
 
     return FOTA_STATUS_SUCCESS;
+}
+
+void fota_source_enable_auto_observable_resources_reporting(bool enable)
+{
+    auto_observable_reporting_enabled = enable;
 }
 
 #endif  // (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL)

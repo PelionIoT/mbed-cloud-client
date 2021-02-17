@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,7 +20,7 @@
 
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE) && defined(FOTA_SHIM_LAYER)
 
-#define TRACE_GROUP "FSHM"
+#define TRACE_GROUP "FOTA"
 
 #include "fota/fota_app_ifs.h"
 
@@ -87,14 +87,14 @@ int fota_app_on_complete(int32_t status)
     Note: the authorization call can be postponed and called later.
     This doesn't affect the performance of the Cloud Client.
 */
-int fota_app_on_install_authorization(uint32_t token)
+int fota_app_on_install_authorization()
 {
     if (priority_auth_handler) {
         priority_auth_handler(ARM_UCCC_REQUEST_INSTALL, 0);
     } else if (auth_handler) {
         auth_handler(ARM_UCCC_REQUEST_INSTALL);
     } else {
-        fota_app_authorize_update();
+        fota_app_authorize();
         FOTA_APP_PRINT("Install authorization granted");
     }
     return FOTA_STATUS_SUCCESS;
@@ -111,7 +111,6 @@ int fota_app_on_install_authorization(uint32_t token)
     This doesn't affect the performance of the Cloud Client.
 */
 int fota_app_on_download_authorization(
-    uint32_t token,
     const manifest_firmware_info_t *candidate_info,
     fota_component_version_t curr_fw_version
 )
@@ -144,12 +143,12 @@ int fota_app_on_download_authorization(
         }
         FOTA_APP_PRINT("---------------------------------------------------");
         FOTA_APP_PRINT("Download authorization granted");
-        fota_app_authorize_update();
+        fota_app_authorize();
         /* Application can reject an update in the following way
-            fota_app_reject(token, 127);
+            fota_app_reject(127);
             Reason error code will be logged.
         Alternatively application can defer the update by calling
-            fota_app_defer(token);
+            fota_app_defer();
         Deferred update will be restarted on next boot or by calling fota_app_resume() API.
 
         */
@@ -157,13 +156,4 @@ int fota_app_on_download_authorization(
     return FOTA_STATUS_SUCCESS;
 }
 
-#if (MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE == FOTA_CUSTOM_BD)
-
-#include "BlockDevice.h"
-
-mbed::BlockDevice *fota_bd_get_custom_bd(){
-    return mbed::BlockDevice::get_default_instance();
-}
-
-#endif
 #endif  // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE) && defined(FOTA_SHIM_LAYER)

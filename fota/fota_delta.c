@@ -27,8 +27,8 @@
 
 #include "fota/fota_status.h"
 #include "fota/fota_header_info.h"
-#include "bspatch.h"
-#include "bspatch_private.h" //For bspatch_stream
+#include "bspatch/bspatch.h"
+#include "bspatch/bspatch_private.h" //For bspatch_stream
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -120,11 +120,10 @@ int fota_delta_start(fota_delta_ctx_t **ctx, fota_component_curr_fw_read curr_fw
 {
     FOTA_DBG_ASSERT(ctx);
 
-    fota_delta_ctx_t *delta_ctx = (fota_delta_ctx_t *) malloc(sizeof(fota_delta_ctx_t));
+    fota_delta_ctx_t *delta_ctx = (fota_delta_ctx_t *) calloc(1, sizeof(fota_delta_ctx_t));
     if (!delta_ctx) {
         return FOTA_STATUS_OUT_OF_MEMORY;
     }
-    memset(delta_ctx, 0, sizeof(*delta_ctx));
     delta_ctx->next_event_to_post = EBSAPI_START_PATCH_PROCESSING;
     delta_ctx->bspatch_read_patch_buffer_remaining = 0;
     delta_ctx->bspatch_read_patch_buffer_length = 0;

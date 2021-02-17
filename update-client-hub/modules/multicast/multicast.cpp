@@ -46,6 +46,8 @@
 #include "otaLIB.h"
 #include "otaLIB_resources.h"
 
+// including UC defines TRACE_GROUP already
+#undef TRACE_GROUP
 #define TRACE_GROUP "MULTICAST"
 
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
@@ -86,7 +88,6 @@ static void             arm_uc_multicast_send_update_fw_cmd_received_info(uint32
 static int8_t           arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload);
 static uint16_t         arm_uc_multicast_update_resource_value(ota_resource_types_e type, uint8_t *payload_ptr, uint16_t payload_len);
 static bool             arm_uc_multicast_create_static_resources(M2MBaseList &list);
-static uint8_t          arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char *payload);
 static void             arm_uc_multicast_socket_callback(void *);
 static bool             arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port);
 static ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len);
@@ -437,6 +438,14 @@ void arm_uc_multicast_tasklet(struct arm_event_s *event)
     }
 }
 
+void arm_uc_multicast_network_connected()
+{
+    char addr[45] = {0};
+    if (multicast_netid_res && read_dodag_info(addr)) {
+        multicast_netid_res->set_value((const unsigned char *)addr, strlen(addr));
+    }
+}
+
 // Start of otaLIB callback functions
 /*
  * request_timer_fptr() Function pointer for requesting timer event
@@ -486,6 +495,7 @@ static ota_error_code_e arm_uc_multicast_store_new_ota_process(uint8_t *ota_sess
 static ota_error_code_e arm_uc_multicast_remove_stored_ota_process(uint8_t *ota_session_id)
 {
     tr_debug("arm_uc_multicast_remove_stored_ota_process");
+    (void)ota_session_id;
 
     stored_ota_parameters.ota_process_count = 0;
     memset(stored_ota_parameters.ota_session_id, 0, OTA_SESSION_ID_SIZE);
@@ -973,27 +983,6 @@ static bool read_dodag_info(char *address)
 #endif
 }
 
-static uint8_t arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char *payload)
-{
-    sn_coap_hdr_s *resp;
-
-    resp = sn_nsdl_build_response(handle, coap, msg_code);
-    if (resp) {
-        resp->payload_ptr = (uint8_t *)payload;
-        resp->payload_len = strlen(payload);
-    } else {
-        tr_error("arm_uc_multicast_send_coap_response - failed to create response");
-    }
-
-    if (sn_nsdl_send_coap_message(handle, address, resp) != 0) {
-        tr_error("arm_uc_multicast_send_coap_response - failed to send response");
-    }
-
-    sn_nsdl_release_allocated_coap_msg_mem(handle, resp);
-
-    return 0; // TODO! Check return code
-}
-
 static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_parameters)
 {
     tr_info("arm_uc_multicast_start_received");
@@ -1081,14 +1070,15 @@ static void arm_uc_multicast_send_event(arm_uc_hub_state_t state)
     }
 #endif
 
-    tr_info("arm_uc_multicast_send_event, sending state %d after %"PRIu32" seconds", state, start_time);
+    tr_info("arm_uc_multicast_send_event, sending state %d after %" PRIu32 " seconds", state, start_time);
     eventOS_event_timer_request(ARM_UC_HUB_EVENT_TIMER, ARM_UC_HUB_EVENT_TIMER, arm_uc_multicast_tasklet_id, start_time * 1000);
 }
 
 ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len)
 {
-    ARM_UC_HUB_setManifest(payload_ptr, payload_len);
-    arm_uc_multicast_send_event(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
+    if(ARM_UC_HUB_setManifest(payload_ptr, payload_len)) {
+        arm_uc_multicast_send_event(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
+    }
 
     return OTA_OK;
 }
@@ -1098,18 +1088,19 @@ void arm_uc_multicast_firmware_ready()
     arm_uc_multicast_send_event(ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
 }
 
-
 static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr)
 {
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
     // Get the parent address for unicast
-    ws_stack_info_t stack_info = {0};
+    ws_stack_info_t stack_info = {};
     if (ws_stack_info_get(arm_uc_multicast_interface_id, &stack_info)) {
         return OTA_NOT_FOUND;
     }
 
     memcpy(addr, stack_info.parent, 16);
     tr_info("arm_uc_multicast_get_parent_addr - parent address: %s", trace_ipv6(addr));
+#else
+    (void)addr;
 #endif
 
     return OTA_OK;

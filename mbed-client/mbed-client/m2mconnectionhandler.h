@@ -167,7 +167,12 @@ public:
      */
     bool is_cid_available();
 
-
+    /**
+     * \brief Internal test function. Set CID for current tls session.
+     * \param data_ptr CID
+     * \param data_len length of the CID
+     */
+    void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
 
 private:
 

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2020 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -381,10 +381,8 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
         fota_app_resume();
 #endif
         internal_event(State_Success);
-    } else if (status == ConnectorClient::State_Registration_Failure) {
+    } else if (status == ConnectorClient::State_Registration_Failure || status == ConnectorClient::State_Bootstrap_Failure) {
         internal_event(State_Failure);
-    } else if (status == ConnectorClient::State_Bootstrap_Failure) {
-           internal_event(State_Bootstrap);
     } else if (status == ConnectorClient::State_Bootstrap_Success) {
         internal_event(State_Register);
     } else if (status == ConnectorClient::State_Unregistered) {
@@ -407,6 +405,19 @@ void ServiceClient::connector_error(M2MInterface::Error error, const char *reaso
     else if (_current_state == State_Bootstrap) {
         registration_process_result(ConnectorClient::State_Bootstrap_Failure);
     }
+    // Client is in State_Failure and failing to bootstrap on InvalidCertificates.
+    // Factory reset the credentials to clear invalid/broken certificates and try again.
+    else if (_current_state == State_Failure && (error == M2MInterface::InvalidCertificates
+                                              || error == M2MInterface::FailedToStoreCredentials
+                                              || error == M2MInterface::FailedToReadCredentials)) {
+        _connector_client.factory_reset_credentials();
+        _connector_client.bootstrap_again();
+    }
+    // Client is in State Failure and fails bootstrap in invalid parameters.
+    // Try to recover with rebootstrapping.
+    else if (_current_state == State_Failure && error == M2MInterface::InvalidParameters) {
+        _connector_client.bootstrap_again();
+    }
 #endif
     else {
         internal_event(State_Failure);
@@ -425,6 +436,13 @@ void ServiceClient::external_update(uint32_t start_address, uint32_t firmware_si
 {
     tr_debug("ServiceClient::external_update()");
     _service_callback.external_update(start_address, firmware_size);
+}
+
+void ServiceClient::network_status_changed(bool connected)
+{
+    if (connected) {
+        arm_uc_multicast_network_connected();
+    }
 }
 #endif
 

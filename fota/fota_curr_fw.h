@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2018-2021 ARM Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -30,22 +30,31 @@ extern "C" {
 #endif
 
 /**
- * Return a pointer to application start.
+ * @file fota_curr_fw.h
+ *  \brief FOTA requires access to the currently installed firmware (FW) and the FW metadata header.
+ * By default, on non-Mbed-OS targets, the FOTA library assumes a custom FW layout structure and expects that the application will implement the current FW interfaces described in this file.
+ * If the FW image and the FW header reside in a memory mapped flash, you can define the ::FOTA_CUSTOM_CURR_FW_STRUCTURE=0 macro, in which case, the application only has to implement these functions:
+ *     uint8_t *fota_curr_fw_get_app_start_addr(void)
+ *     uint8_t *fota_curr_fw_get_app_header_addr(void)
+ */
+
+/**
+ * Returns a pointer to the application start.
  *
- * \return Pointer to application start.
+ * \return Pointer to the application start.
  */
 uint8_t *fota_curr_fw_get_app_start_addr(void);
 
 /**
- * Return a pointer to header start.
+ * Returns a pointer to the header start.
  *
- * \return Pointer to header start.
+ * \return Pointers to the header start.
  */
 uint8_t *fota_curr_fw_get_app_header_addr(void);
 
-#if FOTA_CUSTOM_CURR_FW_STRUCTURE
+#if FOTA_CUSTOM_CURR_FW_STRUCTURE || defined(TARGET_LIKE_LINUX)
 /**
- * Read header of current firmware.
+ * Reads the header of the current firmware.
  *
  * \param[in] header_info Header info structure.
  * \return FOTA_STATUS_SUCCESS on success.
@@ -53,7 +62,7 @@ uint8_t *fota_curr_fw_get_app_header_addr(void);
 int fota_curr_fw_read_header(fota_header_info_t *header_info);
 #else
 
-// Default read header implementation
+// Default read header implementation.
 static inline int fota_curr_fw_read_header(fota_header_info_t *header_info)
 {
     uint8_t *header_in_curr_fw = (uint8_t *)fota_curr_fw_get_app_header_addr();
@@ -62,21 +71,21 @@ static inline int fota_curr_fw_read_header(fota_header_info_t *header_info)
 #endif  // FOTA_CUSTOM_CURR_FW_STRUCTURE
 
 /**
- * Read from current firmware.
+ * Read from the current firmware.
  *
  * \param[out] buf       Buffer to read into.
- * \param[in]  offset    Offset in firmware.
- * \param[in]  size      Size to read (bytes).
+ * \param[in]  offset    Offset in the firmware.
+ * \param[in]  size      Size to read in bytes.
  * \param[out] num_read  Number of read bytes.
- * \return FOTA_STATUS_SUCCESS on success.
+ * \return ::FOTA_STATUS_SUCCESS on success.
  */
 int fota_curr_fw_read(uint8_t *buf, size_t offset, size_t size, size_t *num_read);
 
 /**
- * Read digest from current firmware.
+ * Read the digest from the current firmware.
  *
  * \param[out]  buf     Buffer to read into.
- * \return FOTA_STATUS_SUCCESS on success.
+ * \return ::FOTA_STATUS_SUCCESS on success.
  */
 int fota_curr_fw_get_digest(uint8_t *buf);
 

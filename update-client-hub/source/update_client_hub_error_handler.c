@@ -383,6 +383,11 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
             TRACE_ARGS("ARM_UC_HUB_ERR_NOT_AVAILABLE");
             error_external = ARM_UC_ERROR_CONNECTION;
             break;
+        case HUB_ERR_PRECURSOR_MISMATCH:
+            TRACE_ARGS("HUB_ERR_PRECURSOR_MISMATCH");
+            error_external = ARM_UC_WARNING_ROLLBACK_PROTECTION;
+            error_monitor = ARM_UC_UPDATE_RESULT_MANIFEST_WRONG_DELTA_PRECURSOR;
+            break;
         /* LWM2M source */
         case HUB_ERR_CONNECTION:
             TRACE_ARGS("HUB_ERR_CONNECTION");
@@ -396,6 +401,7 @@ void ARM_UC_HUB_ErrorHandler(int32_t error, arm_uc_hub_state_t state)
                the state to "idle" directly to prevent this.*/
             next_state = ARM_UC_HUB_STATE_IDLE;
             break;
+
 
         default:
             UC_HUB_ERR_MSG("Unexpected error!");

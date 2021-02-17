@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -454,6 +454,13 @@ public:
 
      virtual uint16_t get_network_stagger_estimate(bool boostrap) const;
 
+    /**
+     * \brief Internal test function. Set CID for current tls session.
+     * \param data_ptr CID
+     * \param data_len length of the CID
+     */
+    void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
+
 protected: // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type);
@@ -600,11 +607,12 @@ private:
 
     /**
      * @brief Handle bootstrap errors.
+     * @param error, M2MInterface error code for the failure.
      * @param reason, Reason for Bootstrap failure.
      * @param wait, True if need to wait that ACK has been sent.
      *              False if reconnection can start immediately.
     */
-    void handle_bootstrap_error(const char *reason, bool wait);
+    void handle_bootstrap_error(M2MInterface::Error error, const char *reason, bool wait);
 
     void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE

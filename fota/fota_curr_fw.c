@@ -26,7 +26,10 @@
 #include "fota/fota_status.h"
 #include <stdio.h>
 
-#if !FOTA_CUSTOM_CURR_FW_STRUCTURE
+// Non Linux target here means an embedded target.
+// Note that MBED (mbed-os) targets are a subset of embedded targets.
+// MBED targets don't have custom FW structure. Embedded ones that aren't MBED based - do.
+#if !FOTA_CUSTOM_CURR_FW_STRUCTURE && !defined(TARGET_LIKE_LINUX)
 #if defined(__MBED__)
 // Bootloader and application have different defines
 #if !defined(APPLICATION_ADDR)
@@ -110,6 +113,6 @@ int fota_curr_fw_get_digest(uint8_t *buf)
     return FOTA_STATUS_SUCCESS;
 }
 
-#endif // !FOTA_CUSTOM_CURR_FW_STRUCTURE
+#endif // !FOTA_CUSTOM_CURR_FW_STRUCTURE && !defined(TARGET_LIKE_LINUX)
 
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

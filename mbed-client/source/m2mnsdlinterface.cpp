@@ -85,7 +85,7 @@
 #define TRACE_GROUP "mClt"
 #define MAX_QUERY_COUNT 10
 
-const char *MCC_VERSION = "mccv=4.7.1";
+const char *MCC_VERSION = "mccv=4.7.2-multicast";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -1974,13 +1974,15 @@ M2MInterface::Error M2MNsdlInterface::interface_error(const sn_coap_hdr_s &coap_
 {
     M2MInterface::Error error;
     switch(coap_header.msg_code) {
-        case COAP_MSG_CODE_RESPONSE_BAD_REQUEST:
         case COAP_MSG_CODE_RESPONSE_BAD_OPTION:
         case COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_INCOMPLETE:
         case COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED:
         case COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE:
         case COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT:
             error = M2MInterface::InvalidParameters;
+            break;
+        case COAP_MSG_CODE_RESPONSE_BAD_REQUEST:
+            error = M2MInterface::InvalidCertificates;
             break;
         case COAP_MSG_CODE_RESPONSE_UNAUTHORIZED:
         case COAP_MSG_CODE_RESPONSE_FORBIDDEN:
@@ -2254,7 +2256,7 @@ void M2MNsdlInterface::handle_bootstrap_put_message(sn_coap_hdr_s *coap_header,
                 snprintf(buffer, sizeof(buffer), ERROR_REASON_20, resource_name.c_str());
             }
         }
-        handle_bootstrap_error(buffer, true);
+        handle_bootstrap_error(M2MInterface::BootstrapFailed, buffer, true);
     }
 }
 
@@ -2430,7 +2432,7 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
             sn_nsdl_release_allocated_coap_msg_mem(_nsdl_handle, coap_response);
         }
 
-        handle_bootstrap_error(buffer, true);
+        handle_bootstrap_error(M2MInterface::BootstrapFailed, buffer, true);
     }
 
     // Send a event which is responsible of sending the final response
@@ -2474,7 +2476,7 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_n
                 snprintf(buffer, sizeof(buffer), ERROR_REASON_22, desc);
             }
 
-            handle_bootstrap_error(buffer, true);
+            handle_bootstrap_error(M2MInterface::BootstrapFailed, buffer, true);
         }
     }
 }
@@ -2519,7 +2521,7 @@ void M2MNsdlInterface::handle_bootstrap_delete(sn_coap_hdr_s *coap_header,sn_nsd
         }
     }
     if (!coap_response || COAP_MSG_CODE_RESPONSE_DELETED != msg_code) {
-        handle_bootstrap_error(buffer, true);
+        handle_bootstrap_error(M2MInterface::BootstrapFailed, buffer, true);
     }
 }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -2600,17 +2602,18 @@ bool M2MNsdlInterface::validate_security_object()
 }
 
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-void M2MNsdlInterface::handle_bootstrap_error(const char *reason, bool wait)
+void M2MNsdlInterface::handle_bootstrap_error(M2MInterface::Error error, const char *reason, bool wait)
 {
-    tr_error("M2MNsdlInterface::handle_bootstrap_error(%s)",reason);
+    tr_error("M2MNsdlInterface::handle_bootstrap_error (%d) (%s)", error, reason);
     _identity_accepted = false;
 
     if (wait) {
         _observer.bootstrap_error_wait(reason);
     } else {
-        _observer.bootstrap_error(reason);
+        _observer.bootstrap_error(error, reason);
     }
 }
+
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
 const String& M2MNsdlInterface::endpoint_name() const
@@ -3367,7 +3370,7 @@ void M2MNsdlInterface::handle_bootstrap_response(const sn_coap_hdr_s *coap_heade
         const char* error = coap_error(*coap_header);
         snprintf(buffer, sizeof(buffer), "%s:%.*s", error, coap_header->payload_len, coap_header->payload_ptr);
 #endif
-        handle_bootstrap_error(buffer, false);
+        handle_bootstrap_error(error_code, buffer, false);
     } else {
         _identity_accepted = true;
     }
@@ -3492,7 +3495,7 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
             _observer.bootstrap_wait();
             if (coap_header->coap_status == COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED ||
                 coap_header->coap_status == COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED) {
-                handle_bootstrap_error(ERROR_REASON_28, false);
+                handle_bootstrap_error(M2MInterface::BootstrapFailed, ERROR_REASON_28, false);
             } else {
                 tr_debug("M2MNsdlInterface::handle_empty_ack - sending finish event - status %d", coap_header->coap_status);
                 if (!_event.data.event_data) {
@@ -3544,7 +3547,7 @@ void M2MNsdlInterface::handle_bootstrap_finish_ack(uint16_t msg_id)
         char buffer[MAX_ALLOWED_ERROR_STRING_LENGTH];
         const char *desc = "message id does not match";
         snprintf(buffer, sizeof(buffer), ERROR_REASON_22, desc);
-        handle_bootstrap_error(buffer, false);
+        handle_bootstrap_error(M2MInterface::BootstrapFailed, buffer, false);
     }
 }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -3896,4 +3899,9 @@ int32_t M2MNsdlInterface::do_send_update_register(bool lifetime_changed) const
 
     tr_debug("M2MNsdlInterface::do_send_update_register - return %" PRId32 "", ret);
     return ret;
+}
+
+void M2MNsdlInterface::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
+{
+    _connection_handler.set_cid_value(data_ptr, data_len);
 }

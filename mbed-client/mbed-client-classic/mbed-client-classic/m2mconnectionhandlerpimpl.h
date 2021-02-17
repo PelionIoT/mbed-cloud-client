@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015 - 2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -26,11 +26,16 @@
 #include "mbed-client/m2mconnectionsecurity.h"
 #include "nsdl-c/sn_nsdl.h"
 #include "pal.h"
-
+#if (PAL_DNS_API_VERSION == 2)
+#include "mbed-client/m2mtimerobserver.h"
+#endif
 
 class M2MConnectionSecurity;
 class M2MConnectionHandler;
 class M2MSecurity;
+#if (PAL_DNS_API_VERSION == 2)
+class M2MTimer;
+#endif
 
 /**
  * @brief M2MConnectionHandlerPimpl.
@@ -38,7 +43,11 @@ class M2MSecurity;
  */
 
 
+#if (PAL_DNS_API_VERSION == 2)
+class M2MConnectionHandlerPimpl :  public M2MTimerObserver {
+#else
 class M2MConnectionHandlerPimpl {
+#endif
 public:
 
     enum SocketEvent {
@@ -194,6 +203,20 @@ public:
      */
     bool is_cid_available();
 
+    /**
+     * \brief Internal test function. Set CID for current tls session.
+     * \param data_ptr CID
+     * \param data_len length of the CID
+     */
+    void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
+
+#if (PAL_DNS_API_VERSION == 2)
+    /**
+    * \brief stop _dns_fallback_timer
+    */
+    void stop_dns_fallback_timer();
+#endif
+
 private:
 
     /**
@@ -243,6 +266,14 @@ private:
     * @brief Init event structure.
     */
     void initialize_event(arm_event_storage_t *event);
+
+#if (PAL_DNS_API_VERSION == 2)
+    /**
+    * \brief Indicates that the timer has expired.
+    * \param type The type of the timer that has expired.
+    */
+    void timer_expired(M2MTimerObserver::Type type);
+#endif
 
 public:
 
@@ -329,6 +360,7 @@ private:
     palSocketLength_t                           _socket_address_len;
 #else
     palDNSQuery_t                               _handler_async_DNS;
+    M2MTimer                                    *_dns_fallback_timer;
 #endif
     volatile palSocketAddress_t                 _socket_address;
     static int8_t                               _tasklet_id;
@@ -338,17 +370,11 @@ private:
     // asynchronous events and callbacks. Note: the state may be accessed from
     // event sender and receiver threads.
     SocketState                                 _socket_state;
-
     send_data_list_t                            _linked_list_send_data;
-
     bool                                        _secure_connection;
-
     bool                                        _is_server_ping;
-
     arm_event_storage_t                         _event;
-
     arm_event_storage_t                         _socket_callback_event;
-
 friend class Test_M2MConnectionHandlerPimpl;
 friend class Test_M2MConnectionHandlerPimpl_mbed;
 friend class Test_M2MConnectionHandlerPimpl_classic;

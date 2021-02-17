@@ -1561,4 +1561,13 @@ void pal_plat_set_cid(const uint8_t* context, const size_t length)
         PAL_LOG_ERR("pal_plat_set_cid - cid set failed, too long %lu (max was %d)", length, SSL_SESSION_STORE_SIZE);
     }
 }
+
+void pal_plat_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len)
+{
+    assert(data_len <= MBEDTLS_SSL_CID_OUT_LEN_MAX);
+
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+    memcpy(localTLSCtx->tlsCtx.transform_out->out_cid, data_ptr, data_len);
+    localTLSCtx->tlsCtx.transform_out->out_cid_len = data_len;
+}
 #endif // PAL_USE_SSL_SESSION_RESUME

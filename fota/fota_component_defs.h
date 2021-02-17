@@ -29,6 +29,8 @@
 
 #define FOTA_COMPONENT_MAX_NAME_SIZE       9
 #define FOTA_COMPONENT_MAX_SEMVER_STR_SIZE 12
+
+#define FOTA_COMPONENT_MAIN_COMP_NUM       0
 #define FOTA_COMPONENT_MAIN_COMPONENT_NAME "MAIN"
 
 typedef uint64_t fota_component_version_t;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -315,6 +315,13 @@ public:
 
     virtual nsdl_s* get_nsdl_handle() const;
 
+    /**
+     * \brief Internal test function. Set CID for current tls session.
+     * \param data_ptr CID
+     * \param data_len length of the CID
+     */
+    virtual void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
+
 protected: // From M2MNsdlObserver
 
     virtual void coap_message_ready(uint8_t *data_ptr,
@@ -339,7 +346,7 @@ protected: // From M2MNsdlObserver
 
     virtual void bootstrap_error_wait(const char *reason);
 
-    virtual void bootstrap_error(const char *reason);
+    virtual void bootstrap_error(M2MInterface::Error error, const char *reason);
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     virtual void coap_data_processed();

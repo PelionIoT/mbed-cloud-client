@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2020 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -30,6 +30,7 @@
 #include "mbed-trace/mbed_trace.h"
 #include "factory_configurator_client.h"
 #include "key_config_manager.h"
+#include "storage_kcm.h"
 #include "mbed-client/uriqueryparser.h"
 #include "randLIB.h"
 #include "m2mtimer.h"
@@ -1139,6 +1140,15 @@ void ConnectorClient::value_updated(M2MBase *base, M2MBase::BaseType type)
     _callback->value_updated(base, type);
 }
 
+void ConnectorClient::network_status_changed(bool connected)
+{
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    _callback->network_status_changed(connected);
+#else
+    (void)connected;
+#endif
+}
+
 bool ConnectorClient::connector_credentials_available()
 {
     if (ccs_check_item(g_fcc_lwm2m_server_uri_name, CCS_CONFIG_ITEM) != CCS_STATUS_SUCCESS) {
@@ -1522,6 +1532,12 @@ void ConnectorClient::resume()
     _stagger_timer->start_timer(delay * 1000, M2MTimerObserver::StaggerWaitTimer);
 }
 
+void ConnectorClient::factory_reset_credentials()
+{
+    tr_warn("Factory resetting credentials due to unrecoverable bootstrap failures.");
+    (void) storage_factory_reset();
+}
+
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 void ConnectorClient::bootstrap_again()
 {
@@ -1552,6 +1568,7 @@ void ConnectorClient::bootstrap_again()
         _rebootstrap_time = MAX_REBOOTSTRAP_TIMEOUT;
     }
 
-    _callback->connector_error(M2MInterface::SecureConnectionFailed, CONNECTOR_BOOTSTRAP_AGAIN);
+    _callback->connector_error(M2MInterface::BootstrapFailed, CONNECTOR_BOOTSTRAP_AGAIN);
 }
+
 #endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 - 2017 ARM Limited. All rights reserved.
+ * Copyright (c) 2015 - 2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -23,21 +23,23 @@
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2msecurity.h"
 #include "mbed-client/m2mconnectionhandler.h"
-
+#if (PAL_DNS_API_VERSION == 2)
+#include "mbed-client/m2mtimer.h"
+#endif
 #include "pal.h"
-
 #include "eventOS_scheduler.h"
-
 #include "eventOS_event_timer.h"
-
 #include "mbed-trace/mbed_trace.h"
-
 #include <stdlib.h> // free() and malloc()
 
 #define TRACE_GROUP "mClt"
 
 #if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
 #error "For async PAL DNS only API v2 or greater is supported on Mbed."
+#endif
+
+#if (PAL_DNS_API_VERSION == 2)
+#define DNS_FALLBACK_TIMEOUT 600000
 #endif
 
 extern "C" void network_status_event(palNetworkStatus_t status, void *client_arg)
@@ -174,7 +176,9 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler* base,
         return;
     }
 #endif
-
+#if (PAL_DNS_API_VERSION == 2)
+    _dns_fallback_timer = new M2MTimer(*this);
+#endif
     if (PAL_SUCCESS != pal_init()) {
         tr_error("PAL init failed.");
     }
@@ -202,6 +206,7 @@ M2MConnectionHandlerPimpl::~M2MConnectionHandlerPimpl()
     if ( _handler_async_DNS > 0) {
         pal_cancelAddressInfoAsync(_handler_async_DNS);
     }
+    delete _dns_fallback_timer;
 #endif
 
     close_socket();
@@ -240,7 +245,7 @@ extern "C" void address_resolver_cb(const char* url, palSocketAddress_t* address
 {
     tr_debug("M2MConnectionHandlerPimpl::address_resolver callback");
     M2MConnectionHandlerPimpl* instance = (M2MConnectionHandlerPimpl*)callbackArgument;
-
+    instance->stop_dns_fallback_timer();
     if (PAL_SUCCESS != status) {
         tr_error("M2MConnectionHandlerPimpl::address_resolver callback failed with %" PRIx32, status);
         instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsError);
@@ -264,6 +269,9 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
        _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
     }
     else {
+        tr_debug("M2MConnectionHandlerPimpl::address_resolver start _dns_fallback_timer");
+        _dns_fallback_timer->stop_timer();
+        _dns_fallback_timer->start_timer(DNS_FALLBACK_TIMEOUT, M2MTimerObserver::DnsQueryFallback, true);
         ret = true;
     }
 #else // #if (PAL_DNS_API_VERSION == 0)
@@ -964,6 +972,11 @@ bool M2MConnectionHandlerPimpl::is_cid_available()
     return _security_impl->is_cid_available();
 }
 
+void M2MConnectionHandlerPimpl::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
+{
+    _security_impl->set_cid_value(data_ptr, data_len);
+}
+
 void M2MConnectionHandlerPimpl::interface_event(palNetworkStatus_t status)
 {
     if (!_event.data.event_data) {
@@ -992,3 +1005,25 @@ void M2MConnectionHandlerPimpl::initialize_event(arm_event_storage_t *event)
     event->link.next = NULL;
     event->link.prev = NULL;
 }
+#if (PAL_DNS_API_VERSION == 2)
+void M2MConnectionHandlerPimpl::stop_dns_fallback_timer()
+{
+    _dns_fallback_timer->stop_timer();
+}
+
+void M2MConnectionHandlerPimpl::timer_expired(M2MTimerObserver::Type type)
+{
+    switch (type)
+    {
+    case M2MTimerObserver::DnsQueryFallback:
+        tr_warn("DNS Query Fallback timer expired!");
+        if ( _handler_async_DNS > 0) {
+            pal_cancelAddressInfoAsync(_handler_async_DNS);
+        }
+        send_event(ESocketDnsError);
+        break;
+    default:
+        break;
+    }
+}
+#endif

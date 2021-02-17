@@ -81,6 +81,12 @@ void arm_uc_multicast_deinit();
  */
 void arm_uc_multicast_tasklet(struct arm_event_s *event);
 
+/**
+ *  @brief Called to indicate network status is changed (back) to connected, so netid should be
+ *         re-set to corresponding resource.
+ */
+void arm_uc_multicast_network_connected();
+
 #ifdef __cplusplus
 }
 #endif

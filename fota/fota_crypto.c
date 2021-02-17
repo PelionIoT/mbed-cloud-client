@@ -76,42 +76,38 @@ typedef struct fota_encrypt_context_s {
 
 #define FOTA_TRACE_TLS_ERR(err) FOTA_TRACE_DEBUG("mbedTLS error %d", err)
 
+#define FOTA_DERIVE_KEY_BITS 128
+
 #if FOTA_KEY_FORCE_DERIVATION
-static int derive_key(uint8_t *key, uint32_t key_size)
+
+static int derive_key(uint8_t *key)
 {
-    static const uint8_t derivation_param[] = "DeriveParam";
-    uint8_t sha256_buf[FOTA_CRYPTO_HASH_SIZE];
     int ret;
     int flow_control = 0;
     FOTA_DBG_ASSERT(key);
-    FOTA_DBG_ASSERT(key_size >= FOTA_ENCRYPT_KEY_SIZE);
-    FOTA_DBG_ASSERT(key_size <= FOTA_CRYPTO_HASH_SIZE);
+
     // We will only be using 128 bits secret key for key derivation.
-    // Larger input keys will be truncated to 128 bit length */
-    ret = mbedtls_sha256_ret(derivation_param, sizeof(derivation_param), sha256_buf, 0);
-    if (ret) {
-        FOTA_TRACE_TLS_ERR(ret);
-        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
-    }
-    flow_control++;
+    // Larger input keys will be truncated to 128 bit length
     mbedtls_aes_context ctx = {0};
     mbedtls_aes_init(&ctx);
-    ret = mbedtls_aes_setkey_enc(&ctx, key, key_size * 8);
+    ret = mbedtls_aes_setkey_enc(&ctx, key, FOTA_DERIVE_KEY_BITS);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         mbedtls_aes_free(&ctx);
         return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
     }
+
     flow_control++;
-    /* Encrypting only first 128 bits, the reset is discarded */
-    ret = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, sha256_buf, key);
+    // Encrypting only first 128 bits, the reset is discarded, using precalculated hash
+    ret = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, (const unsigned char*)"36CCD50EA09710CDDC9967E307FF0D6B", key);
     mbedtls_aes_free(&ctx);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
     }
-    flow_control++;
-    return (flow_control == 3) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
+
+    flow_control++;	
+    return (flow_control == 2) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
 }
 
 #endif // FOTA_KEY_FORCE_DERIVATION
@@ -123,11 +119,16 @@ int fota_encrypt_decrypt_start(fota_encrypt_context_t **ctx, const uint8_t *key,
 
     *ctx = NULL;
 
+    const uint8_t* key_to_use = key;
+
 #if FOTA_KEY_FORCE_DERIVATION
-    ret = derive_key(key, key_size);
+    uint8_t derived_key[key_size];
+    memcpy(derived_key, key_to_use, key_size);
+    ret = derive_key(derived_key);
     if (ret) {
         return ret;
     }
+    key_to_use = derived_key;
 #endif
 
     fota_encrypt_context_t *enc_ctx = (fota_encrypt_context_t *) malloc(sizeof(fota_encrypt_context_t));
@@ -138,7 +139,7 @@ int fota_encrypt_decrypt_start(fota_encrypt_context_t **ctx, const uint8_t *key,
     mbedtls_ccm_init(&enc_ctx->ccm_ctx);
     enc_ctx->iv = 0;
 
-    ret = mbedtls_ccm_setkey(&enc_ctx->ccm_ctx, MBEDTLS_CIPHER_ID_AES, key, key_size * 8);
+    ret = mbedtls_ccm_setkey(&enc_ctx->ccm_ctx, MBEDTLS_CIPHER_ID_AES, key_to_use, FOTA_DERIVE_KEY_BITS);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         mbedtls_ccm_free(&enc_ctx->ccm_ctx);
@@ -188,8 +189,7 @@ int fota_encrypt_data(
     }
     flow_control++;
     fota_encryption_iv_increment(ctx);
-    flow_control++;
-    return (3 == flow_control) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
+    return (2 == flow_control) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
 }
 
 int fota_decrypt_data(

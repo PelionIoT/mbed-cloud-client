@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ void M2MInterfaceImpl::bootstrap(M2MSecurity *security)
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_received
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_processing_coap_data
         TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_coap_data_processed
-        TRANSITION_MAP_ENTRY (EVENT_IGNORED)                // state_waiting
+        TRANSITION_MAP_ENTRY (STATE_BOOTSTRAP)              // state_waiting
     END_TRANSITION_MAP(&data)
     if(_event_ignored) {
         _event_ignored = false;
@@ -482,7 +482,7 @@ void M2MInterfaceImpl::bootstrap_error_wait(const char *reason)
     internal_event(STATE_BOOTSTRAP_ERROR_WAIT);
 }
 
-void M2MInterfaceImpl::bootstrap_error(const char *reason)
+void M2MInterfaceImpl::bootstrap_error(M2MInterface::Error error, const char *reason)
 {
     tr_error("M2MInterfaceImpl::bootstrap_error(%s)", reason);
     _bootstrapped = false;
@@ -491,9 +491,14 @@ void M2MInterfaceImpl::bootstrap_error(const char *reason)
 
     set_error_description(reason);
 
-    _observer.error(M2MInterface::BootstrapFailed);
-
+    _observer.error(error);
     internal_event(STATE_IDLE);
+
+    if (error == M2MInterface::InvalidParameters || error == M2MInterface::InvalidCertificates) {
+        // These failures are not recoverable on this level. Requires recovery on higher level.
+        return;
+    }
+
     _reconnecting = true;
     _connection_handler.stop_listening();
 
@@ -535,7 +540,7 @@ void M2MInterfaceImpl::data_available(uint8_t* data,
 {
     tr_debug("M2MInterfaceImpl::data_available");
     if(_reconnection_state == M2MInterfaceImpl::ClientPing) {
-        tr_debug("M2MInterfaceImpl::data_available() : Ping success, remove CID");
+        tr_info("M2MInterfaceImpl::data_available() : Ping success, remove CID");
         //   Lwm2m server has responded so it implies that CID has expired and
         //   thats why message sending had failed so delete CID and re-do connection with full handshake
         if (_nsdl_interface.is_registered()) {
@@ -729,7 +734,7 @@ void M2MInterfaceImpl::data_sent()
     if (_current_state == STATE_BOOTSTRAP_ERROR_WAIT) {
         // bootstrap_error to be called only after we have sent the last ACK.
         // Otherwise client will goto reconnection mode before ACK has sent.
-        bootstrap_error(error_description());
+        bootstrap_error(BootstrapFailed, error_description());
     } else if (_current_state != STATE_BOOTSTRAP_WAIT) {
         internal_event(STATE_COAP_DATA_SENT);
     }
@@ -744,8 +749,8 @@ void M2MInterfaceImpl::data_sent()
 void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
 {
     if (M2MTimerObserver::QueueSleep == type) {
-        if (_reconnecting) {
-            tr_debug("M2MInterfaceImpl::timer_expired() - reconnection ongoing, continue sleep timer");
+        if (_reconnecting || _nsdl_interface.is_update_register_ongoing()) {
+            tr_debug("M2MInterfaceImpl::timer_expired() - reconnection ongoing or update register ongoing, continue sleep timer");
 #if (PAL_USE_SSL_SESSION_RESUME == 0)
             _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
                                            M2MTimerObserver::QueueSleep);
@@ -778,7 +783,7 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         tr_debug("M2MInterfaceImpl::timer_expired() - bootstrap");
         _bootstrapped = false;
-        bootstrap_error(ERROR_REASON_23);
+        bootstrap_error(BootstrapFailed, ERROR_REASON_23);
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     } else if (M2MTimerObserver::RegistrationFlowTimer == type) {
         tr_debug("M2MInterfaceImpl::timer_expired() - register");
@@ -1128,13 +1133,12 @@ void M2MInterfaceImpl::state_update_registration(EventData *data)
 void M2MInterfaceImpl::pause()
 {
     tr_debug("M2MInterfaceImpl::pause()");
-    _connection_handler.claim_mutex();
     if (_binding_mode == M2MInterface::UDP || _binding_mode == M2MInterface::UDP_QUEUE) {
         _connection_handler.store_cid();
     }
     _connection_handler.unregister_network_handler();
     _connection_handler.force_close();
-
+    _connection_handler.claim_mutex();
     _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
     _retry_timer.stop_timer();
     _reconnecting = false;
@@ -1496,8 +1500,11 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
                 _reconnection_time = rand_time;
             }
         }
+        _observer.network_status_changed(true);
+
     } else {
         tr_info("M2MInterfaceImpl::network_interface_status_change - disconnected");
+        _observer.network_status_changed(false);
     }
 }
 
@@ -1532,4 +1539,9 @@ nsdl_s* M2MInterfaceImpl::get_nsdl_handle() const
 uint16_t M2MInterfaceImpl::stagger_wait_time(bool bootstrap) const
 {
     return _nsdl_interface.get_network_stagger_estimate(bootstrap);
+}
+
+void M2MInterfaceImpl::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
+{
+    _nsdl_interface.set_cid_value(data_ptr, data_len);
 }

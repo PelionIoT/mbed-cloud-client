@@ -47,6 +47,8 @@ int fota_component_name_to_id(const char *name, unsigned int *comp_id);
 // Semantic version translation
 int fota_component_version_semver_to_int(const char *sem_ver, fota_component_version_t *version);
 
+bool fota_component_is_internal_component(unsigned int comp_id);
+
 #ifdef __cplusplus
 }
 #endif

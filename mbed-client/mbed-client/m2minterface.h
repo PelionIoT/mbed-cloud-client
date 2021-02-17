@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -97,6 +97,7 @@ public:
         AlreadyExists,
         BootstrapFailed,
         InvalidParameters,
+        InvalidCertificates,
         NotRegistered,
         Timeout,
         NetworkError,
@@ -381,6 +382,13 @@ public:
     virtual nsdl_s* get_nsdl_handle() const = 0;
 
     virtual uint16_t stagger_wait_time(bool boostrap) const = 0;
+
+    /**
+     * \brief Internal test function. Set CID for current tls session.
+     * \param data_ptr CID
+     * \param data_len length of the CID
+     */
+    virtual void set_cid_value(const uint8_t *data_ptr, const size_t data_len) = 0;
 };
 
 #endif // M2M_INTERFACE_H

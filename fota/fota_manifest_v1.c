@@ -28,6 +28,7 @@
 
 #include "fota/fota_status.h"
 #include "fota/fota_manifest.h"
+#include "fota/fota_component_defs.h"
 #include "fota/fota_crypto.h"
 #include "fota/fota_crypto_asn_extra.h"
 #include "fota/fota_nvm.h"
@@ -501,6 +502,8 @@ int fota_manifest_parse(
     FOTA_DBG_ASSERT(fw_info);
 
     memset(fw_info, 0, sizeof(*fw_info));
+    // In V1 manifest we always get the main component
+    strcpy(fw_info->component_name, FOTA_COMPONENT_MAIN_COMPONENT_NAME);
     int ret = FOTA_STATUS_MANIFEST_MALFORMED;  // used by FOTA_FI_SAFE_COND
     int fota_sig_status = FOTA_STATUS_MANIFEST_MALFORMED;  // must be set to error
     int tmp_status;  // reusable status

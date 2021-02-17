@@ -259,6 +259,8 @@ protected :
     * \param firmware_size Size of the firmware.
     */
     virtual void external_update(uint32_t start_address, uint32_t firmware_size);
+
+    virtual void network_status_changed(bool connected);
 #endif
 
     /**

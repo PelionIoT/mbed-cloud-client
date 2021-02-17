@@ -26,7 +26,6 @@
 #include "fota/fota_status.h"
 #include "fota/fota_block_device.h"
 #include "fota/fota_crypto.h"
-#include "fota/fota_block_device.h"
 #include "fota/fota_nvm.h"
 #include <stdlib.h>
 #include <inttypes.h>
@@ -106,15 +105,24 @@ int fota_candidate_read_candidate_ready_header(size_t *addr, uint32_t bd_read_si
         goto end;
     }
 
-    // Advance read address for next calls
-    *addr += FOTA_ALIGN_UP(chunk_size, bd_prog_size);
-
     memcpy(header, aligned_read_buf, sizeof(fota_candidate_ready_header_t));
     if (header->magic != FOTA_CANDIDATE_READY_MAGIC) {
+#if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION < 3)
+        // This code is practically available for testing only, as fota_candidate code is not called on legacy bootloaders.
+        // In case of a legacy header, if we don't have magic, this probably means that the candidate ready header is
+        // missing for the main component.
+        FOTA_TRACE_DEBUG("Probably main component on a legacy device");
+        strcpy(header->comp_name, FOTA_COMPONENT_MAIN_COMPONENT_NAME);
+        ret = FOTA_STATUS_SUCCESS;
+#else
         FOTA_TRACE_INFO("No image found on storage");
         ret = FOTA_STATUS_NOT_FOUND;
+#endif
         goto end;
     }
+
+    // Advance read address for next calls
+    *addr += FOTA_ALIGN_UP(chunk_size, bd_prog_size);
 
 end:
     if (chunk_size > sizeof(read_buf)) {
@@ -174,12 +182,11 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
     uint32_t alloc_size, block_size;
 
     if (!ctx) {
-        ctx = (candidate_contex_t *) malloc(sizeof(candidate_contex_t));
+        ctx = (candidate_contex_t *) calloc(1, sizeof(candidate_contex_t));
         if (!ctx) {
             FOTA_TRACE_ERROR("FOTA candidate_contex_t - allocation failed");
             return FOTA_STATUS_OUT_OF_MEMORY;
         }
-        memset(ctx, 0, sizeof(candidate_contex_t));
 
         ret = fota_bd_get_read_size(&ctx->bd_read_size);
         if (ret) {

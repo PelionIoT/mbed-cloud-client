@@ -41,11 +41,6 @@ void fota_shim_set_auth_handler(auth_handler_t handler);
 void fota_shim_set_auth_handler(priority_auth_handler_t handler);
 void fota_shim_set_progress_handler(progress_handler_t handler);
 
-#else
-
-#define fota_shim_set_auth_handler(handler) (void)(handler)
-#define fota_shim_set_progress_handler(handler) (void)(handler)
-
 #endif  // FOTA_SHIM_LAYER
 
 #endif  // __FOTA_SHIM_LAYER_H_

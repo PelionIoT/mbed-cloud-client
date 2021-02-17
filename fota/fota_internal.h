@@ -29,6 +29,7 @@
 #include "fota/fota_header_info.h"
 #include "fota/fota_crypto.h"
 #include "fota/fota_component.h"
+#include "fota/fota_multicast.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +48,9 @@ typedef enum {
     FOTA_RESUME_STATE_STARTED,
     FOTA_RESUME_STATE_ONGOING,
 } fota_resume_state_e;
+
+// Internal component for BR downloader (must start with '%' as it's internal)
+#define FOTA_MULTICAST_BR_INT_COMP_NAME "%MC_BR"
 
 typedef struct {
     manifest_firmware_info_t *fw_info;
@@ -72,6 +76,17 @@ typedef struct {
     uint32_t candidate_header_size;
     fota_resume_state_e resume_state;
     void *download_handle;
+#if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
+    // Tells that this is a Multicast BR mode update on a BR (unlike unicast update to the BR itself)
+    bool mc_br_update;
+    fota_multicast_br_post_action_callback_t mc_br_post_action_callback;
+#endif
+#if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE)
+    bool mc_node_update;
+    bool mc_node_update_activated;
+    fota_multicast_node_post_action_callback_t mc_node_post_action_callback;
+    uint8_t *mc_node_frag_buf;
+#endif
 } fota_context_t;
 
 fota_context_t *fota_get_context(void);

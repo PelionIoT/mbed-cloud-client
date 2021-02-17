@@ -5,3 +5,4 @@
 delta-tool-internal/bsdiff/*
 delta-tool-internal/*.sh
 delta-tool-internal/test_data/*
+delta-tool-internal/source/*

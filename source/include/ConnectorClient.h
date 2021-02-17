@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2020 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -235,6 +235,13 @@ public:
 #endif
 
 public:
+
+    /**
+     * \brief Performs factory reset of credentials on continued bootstrap failures.
+     */
+    void factory_reset_credentials();
+
+public:
     // implementation of M2MInterfaceObserver:
 
     /**
@@ -291,6 +298,13 @@ public:
      * \param type, The type of the object.
      */
     virtual void value_updated(M2MBase *base, M2MBase::BaseType type);
+
+    /**
+     * \brief A callback indicating network status is changed.
+     * \param connected true for connected, false for disconnected.
+     */
+    virtual void network_status_changed(bool connected);
+
 
     /**
      * \brief Resumes client's timed functionality and network connection
@@ -505,6 +519,8 @@ public:
     * \param firmware_size Size of the firmware.
     */
     virtual void external_update(uint32_t firmware_size, uint32_t size) = 0;
+
+    virtual void network_status_changed(bool connected) = 0;
 #endif
 };
 
