@@ -29,4 +29,7 @@ message ("cose = [[${cose}]]")
 message ("*********************************************************************")
 
 CREATE_LIBRARY(cose "${cose}" "")
+if (${OS_BRAND} MATCHES "Zephyr")
+	target_link_libraries(cose PUBLIC ${TLS_LIBRARY})
+endif()
 ADDSUBDIRS()

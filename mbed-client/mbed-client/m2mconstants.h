@@ -66,9 +66,6 @@ const uint32_t HANDSHAKE_TIMEOUT_MSECS = (30 * 60 * 1000);
 // Different query parameter values
 #define QUERY_VALUE_TRUE "true"
 
-// just a helper for "String default_value = "";" pattern
-extern const String EMPTY;
-
 //LWM2MOBJECT NAME/ID
 #define M2M_SECURITY_ID  "0"
 #define M2M_SERVER_ID  "1"
@@ -223,6 +220,8 @@ extern const String EMPTY;
 
 #define RESPONSE_RANDOM_FACTOR  1.5   /**< Resending random factor, value is specified in IETF CoAP specification */
 
+#define DEFAULT_M2MVERSION "1.0"
+
 // TLV serializer / deserializer
 const uint8_t TYPE_RESOURCE = 0xC0;
 const uint8_t TYPE_MULTIPLE_RESOURCE = 0x80;
@@ -241,7 +240,5 @@ const uint8_t COAP_CONTENT_OMA_TLV_TYPE_OLD = 99;
 const uint16_t COAP_CONTENT_OMA_TLV_TYPE = 11542;
 const uint16_t COAP_CONTENT_OMA_JSON_TYPE = 11543;
 const uint8_t COAP_CONTENT_OMA_OPAQUE_TYPE = 42;
-
-const uint16_t MAX_UNINT_16_COUNT = 65535;
 
 #endif // M2MCONSTANTS_H

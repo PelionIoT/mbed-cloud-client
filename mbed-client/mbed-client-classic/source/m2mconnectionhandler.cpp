@@ -109,3 +109,8 @@ bool M2MConnectionHandler::is_cid_available()
 {
     return _private_impl->is_cid_available();
 }
+
+void M2MConnectionHandler::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
+{
+    _private_impl->set_cid_value(data_ptr, data_len);
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ public :
     * bootstrapping.
     * @param reason, Error string explaining the failure reason
     */
-    virtual void bootstrap_error(const char *reason) = 0;
+    virtual void bootstrap_error(M2MInterface::Error error, const char *reason) = 0;
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**

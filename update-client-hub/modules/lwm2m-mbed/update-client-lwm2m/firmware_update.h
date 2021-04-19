@@ -36,6 +36,7 @@ bool firmware_update_initialize(registry_t *registry);
 void firmware_update_add_notification_callback(void (*cb)(void));
 
 bool firmware_update_send_state(registry_t *registry, int64_t state);
+uint8_t firmware_update_get_state(registry_t *registry);
 
 bool firmware_update_send_update_result(registry_t *registry, int64_t updateResult);
 

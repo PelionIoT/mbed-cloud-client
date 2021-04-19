@@ -20,5 +20,6 @@
 nm_status_t nm_res_manager_create(void *cloud_client_info);
 nm_status_t nm_res_manager_get(void *resource_object);
 nm_status_t nm_res_manager_set(void *resource_data);
+void nm_manager_res_refresh(void);
 
 #endif /* NM_RESOURCE_MANAGER_H_ */

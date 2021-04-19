@@ -34,6 +34,7 @@ extern "C" {
 #endif
 
 typedef enum {
+    CCS_STATUS_KEY_EXISTS = -5,
     CCS_STATUS_MEMORY_ERROR = -4,
     CCS_STATUS_VALIDATION_FAIL = -3,
     CCS_STATUS_KEY_DOESNT_EXIST = -2,

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -26,7 +26,10 @@
 #include "fota/fota_status.h"
 #include <stdio.h>
 
-#if !FOTA_CUSTOM_CURR_FW_STRUCTURE
+// Non Linux target here means an embedded target.
+// Note that MBED (mbed-os) targets are a subset of embedded targets.
+// MBED targets don't have custom FW structure. Embedded ones that aren't MBED based - do.
+#if !FOTA_CUSTOM_CURR_FW_STRUCTURE && !defined(TARGET_LIKE_LINUX)
 #if defined(__MBED__)
 // Bootloader and application have different defines
 #if !defined(APPLICATION_ADDR)
@@ -74,6 +77,12 @@ uint8_t *fota_curr_fw_get_app_header_addr(void)
 }
 #endif // defined(__MBED__)
 
+int fota_curr_fw_read_header(fota_header_info_t *header_info)
+{
+    uint8_t *header_in_curr_fw = (uint8_t *)fota_curr_fw_get_app_header_addr();
+    return fota_deserialize_header(header_in_curr_fw, fota_get_header_size(), header_info);
+}
+
 int fota_curr_fw_read(uint8_t *buf, size_t offset, size_t size, size_t *num_read)
 {
     fota_header_info_t header_info;
@@ -110,6 +119,6 @@ int fota_curr_fw_get_digest(uint8_t *buf)
     return FOTA_STATUS_SUCCESS;
 }
 
-#endif // !FOTA_CUSTOM_CURR_FW_STRUCTURE
+#endif // !FOTA_CUSTOM_CURR_FW_STRUCTURE && !defined(TARGET_LIKE_LINUX)
 
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

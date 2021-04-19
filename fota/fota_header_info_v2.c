@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -24,14 +24,17 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2)
 
 #include "fota/fota_status.h"
 #include "fota/fota_header_info.h"
 #include "fota/fota_crypto.h"
+#include "fota/fota_device_key.h"
 #include "mbedtls/md.h"
 #include "CloudClientStorage.h"
+
 
 #define ARM_UC_HEADER_VERSION_V2          (2)
 #define ARM_UC_HEADER_VERSION_OFFSET_V2   (4)
@@ -59,7 +62,6 @@
 
 #define ARM_UC_DEVICE_HMAC_KEY "StorageEnc256HMACSHA256SIGNATURE"
 #define ARM_UC_DEVICE_HMAC_KEY_SIZE (sizeof(ARM_UC_DEVICE_HMAC_KEY) - 1)
-
 
 size_t arm_uc_crc32(const uint8_t *buffer, size_t length)
 {
@@ -150,12 +152,14 @@ static int fota_hmac_sha256(const uint8_t *key, size_t key_size,
     return ret;
 }
 
-int fota_get_device_key_256Bit(uint8_t key_buf_hmac[ARM_UC_DEVICE_KEY_SIZE])
+#if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)
+
+static int fota_get_device_key_256Bit(uint8_t key_buf_hmac[ARM_UC_DEVICE_KEY_SIZE])
 {
     int ret = FOTA_STATUS_INTERNAL_ERROR;
 
 #ifdef __MBED__
-    ret = mbed_cloud_client_get_rot_128bit(key_buf_hmac, ARM_UC_ROT_SIZE);
+    ret = fota_get_device_key_128bit((uint8_t*)key_buf_hmac, (uint32_t)ARM_UC_ROT_SIZE);
 #else
     ret = FOTA_STATUS_SUCCESS;
     memset(key_buf_hmac, 0x27, ARM_UC_ROT_SIZE);
@@ -170,8 +174,6 @@ int fota_get_device_key_256Bit(uint8_t key_buf_hmac[ARM_UC_DEVICE_KEY_SIZE])
                             key_buf_hmac);
     return ret;
 }
-
-#if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)
 
 static int serialize_header_v2_external(const fota_header_info_t *header_info, uint8_t *header_buf, size_t header_buf_size)
 {
@@ -285,8 +287,6 @@ int fota_serialize_header(const fota_header_info_t *header_info, uint8_t *header
 #endif
 }
 
-#ifdef FOTA_COMPLETE_TEST
-
 static int deserialize_header_v2_external(const uint8_t *buffer, size_t buffer_size, fota_header_info_t *header_info)
 {
     FOTA_DBG_ASSERT(fota_get_header_size() <= buffer_size);
@@ -308,8 +308,7 @@ static int deserialize_header_v2_external(const uint8_t *buffer, size_t buffer_s
     return FOTA_STATUS_SUCCESS;
 }
 
-#endif
-
+#if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL != 1)
 static int deserialize_header_v2_internal(const uint8_t *buffer, size_t buffer_size, fota_header_info_t *header_info)
 {
     FOTA_DBG_ASSERT(fota_get_header_size() <= buffer_size);
@@ -341,24 +340,17 @@ static int deserialize_header_v2_internal(const uint8_t *buffer, size_t buffer_s
 
     return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
 }
+#endif
 
 int fota_deserialize_header(const uint8_t *buffer, size_t buffer_size, fota_header_info_t *header_info)
 {
-#ifdef FOTA_COMPLETE_TEST
-    /* for unitests*/
 #if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)
     return deserialize_header_v2_external(buffer, buffer_size, header_info);
 #else
     return deserialize_header_v2_internal(buffer, buffer_size, header_info);
 #endif
-
-#else
-    return deserialize_header_v2_internal(buffer, buffer_size, header_info);
-
-#endif
-
 }
 
-#endif
+#endif //MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2 
 
-#endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE
+#endif // MBED_CLOUD_CLIENT_FOTA_ENABLE

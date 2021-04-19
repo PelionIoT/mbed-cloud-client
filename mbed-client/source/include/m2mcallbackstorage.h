@@ -25,8 +25,7 @@ class M2MCallbackStorage;
 typedef m2m::Vector<M2MCallbackAssociation> M2MCallbackAssociationList;
 
 // XXX: this should not be visible for client code
-class M2MCallbackAssociation
-{
+class M2MCallbackAssociation {
 public:
 
     // Types of callbacks stored as "void*" in the _callback variable.
@@ -50,25 +49,6 @@ public:
 
         // typedef FP3<void, const String &, uint8_t *&, uint32_t &> outgoing_block_message_callback;
         M2MResourceInstanceOutgoingBlockMessageCallback,
-
-        // class M2MResourceCallback
-        M2MResourceInstanceM2MResourceCallback,
-
-        // typedef FP0<void> notification_sent_callback;
-        M2MResourceInstanceNotificationSentCallback,
-
-        // typedef void(*notification_sent_callback_2) (void);
-        M2MResourceInstanceNotificationSentCallback2,
-
-        // typedef FP2<void, const uint16_t, const M2MResourceBase::NotificationStatus> notification_status_callback;
-        M2MResourceInstanceNotificationStatusCallback,
-
-        // typedef void(*notification_status_callback_2) (const uint16_t msg_id, const M2MResourceBase::NotificationStatus status);
-        M2MResourceInstanceNotificationStatusCallback2,
-
-        // typedef void(*notification_delivery_status_cb) (const M2MBase& base,
-        // const M2MBase::NotificationDeliveryStatus status, void *client_args);
-        M2MBaseNotificationDeliveryStatusCallback,
 
         //typedef void(*message_delivery_status_cb) (const M2MBase& base,
         //                                           const MessageDeliveryStatus status,
@@ -132,8 +112,7 @@ public:
 };
 
 
-class M2MCallbackStorage
-{
+class M2MCallbackStorage {
 public:
 
     ~M2MCallbackStorage();
@@ -155,7 +134,7 @@ public:
     static void remove_callbacks(const M2MBase &object);
 
     // remove callback if one exists, return old value of it
-    static void* remove_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
+    static void *remove_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
 
     // XXX: needed for protecting the vector during iteration, but that would add a dependency on PAL here
     // void lock();
@@ -166,20 +145,20 @@ public:
 
     static bool does_callback_exist(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
 
-    static void* get_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
+    static void *get_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
 
-    static M2MCallbackAssociation* get_association_item(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
+    static M2MCallbackAssociation *get_association_item(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
     // XXX: this is actually not needed unless the client has multiple callbacks per object and type.
-    inline const M2MCallbackAssociationList& get_callbacks() const;
+    inline const M2MCallbackAssociationList &get_callbacks() const;
 
 private:
     bool does_callback_exist(const M2MBase &object, void *callback, M2MCallbackAssociation::M2MCallbackType type) const;
     void do_remove_callbacks(const M2MBase &object);
-    void* do_remove_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
+    void *do_remove_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type);
     bool do_add_callback(const M2MBase &object, void *callback, M2MCallbackAssociation::M2MCallbackType type, void *client_args);
-    void* do_get_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type) const;
+    void *do_get_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type) const;
 
-    M2MCallbackAssociation* do_get_association_item(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type) const;
+    M2MCallbackAssociation *do_get_association_item(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type) const;
 
 private:
 
@@ -199,7 +178,7 @@ private:
     M2MCallbackAssociationList _callbacks;
 };
 
-inline const M2MCallbackAssociationList& M2MCallbackStorage::get_callbacks() const
+inline const M2MCallbackAssociationList &M2MCallbackStorage::get_callbacks() const
 {
     return _callbacks;
 }

@@ -196,23 +196,6 @@ static bool get_int_array_from_stream(CborValue *main_value, const char *str_nam
     return true;
 }
 
-static bool get_simple_value_from_stream(CborValue *main_value, const char *str_name, CborValue *map_value, uint8_t *s_val)
-{
-    if (cbor_value_map_find_value(main_value, str_name, map_value) != CborNoError) {
-        tr_debug("Finding simple type in map fail");
-        return false;
-    }
-    if (cbor_value_is_simple_type(map_value) != true) {
-        tr_debug("Value is not simple type");
-        return false;
-    }
-    if (cbor_value_get_simple_type(map_value, s_val) != CborNoError) {
-        tr_debug("Get simple type fail");
-        return false;
-    }
-    return true;
-}
-
 static nm_status_t update_app_config(void *st_app, uint8_t *cbor_data, size_t len)
 {
     /* this is a place holder for application configuration to update ,as this configuration yet to decide */
@@ -234,7 +217,6 @@ static nm_status_t update_ws_config(void *st_app, uint8_t *cbor_data, size_t len
 
     size_t array_length = 0;
     uint32_t int_value = 0;
-    uint8_t s_val = 0;
     char *temp_buffer = NULL;
     nm_ws_config_t *ws_cfg = (nm_ws_config_t *)st_app;
 
@@ -257,38 +239,33 @@ static nm_status_t update_ws_config(void *st_app, uint8_t *cbor_data, size_t len
     }
 
     // Finding channel_mask
-    if (get_int_array_from_stream(&main_value, CBOR_TAG_CH_MASK, &map_value, ws_cfg->channel_mask, &array_length) == false) {
-        tr_warn("Could not get Channel Mask Array length");
+    if (get_int_array_from_stream(&main_value, CBOR_TAG_CH_MASK, &map_value, ws_cfg->channel_mask, &array_length) == true) {
+        tr_debug("Received Channel Mask Array length: %d", array_length);
     }
 
     // Finding Regulatory_domain
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_REG_DOMAIN, &map_value, &s_val) == true) {
-        ws_cfg->reg_op.regulatory_domain = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_REG_DOMAIN, &map_value, &int_value) == true) {
+        ws_cfg->reg_op.regulatory_domain = (uint8_t)int_value;
     }
 
     // Finding operating_class
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_OP_CLASS, &map_value, &s_val) == true) {
-        ws_cfg->reg_op.operating_class = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_OP_CLASS, &map_value, &int_value) == true) {
+        ws_cfg->reg_op.operating_class = (uint8_t)int_value;
     }
 
     // Finding operating_mode
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_OP_MODE, &map_value, &s_val) == true) {
-        ws_cfg->reg_op.operating_mode = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_OP_MODE, &map_value, &int_value) == true) {
+        ws_cfg->reg_op.operating_mode = (uint8_t)int_value;
     }
 
     // Finding network_size
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_NW_SIZE, &map_value, &s_val) == true) {
-        ws_cfg->network_size = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_NW_SIZE, &map_value, &int_value) == true) {
+        ws_cfg->network_size = (uint8_t)int_value;
     }
 
     // Finding uc_channel_function
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_UC_FUNC, &map_value, &s_val) == true) {
-        ws_cfg->uc_ch_config.uc_channel_function = (mesh_channel_function_t)s_val;
-    }
-
-    // Finding bc_channel_function
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_BC_FUNC, &map_value, &s_val) == true) {
-        ws_cfg->bc_ch_config.bc_channel_function = (mesh_channel_function_t)s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_UC_FUNC, &map_value, &int_value) == true) {
+        ws_cfg->uc_ch_config.uc_channel_function = (mesh_channel_function_t)int_value;
     }
 
     // Finding uc_fixed_channel
@@ -297,13 +274,13 @@ static nm_status_t update_ws_config(void *st_app, uint8_t *cbor_data, size_t len
     }
 
     // Finding uc_dwell_interval
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_UC_DWELL, &map_value, &s_val) == true) {
-        ws_cfg->uc_ch_config.uc_dwell_interval = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_UC_DWELL, &map_value, &int_value) == true) {
+        ws_cfg->uc_ch_config.uc_dwell_interval = (uint8_t)int_value;
     }
 
     // Finding bc_channel_function
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_BC_FUNC, &map_value, &s_val) == true) {
-        ws_cfg->bc_ch_config.bc_channel_function = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_BC_FUNC, &map_value, &int_value) == true) {
+        ws_cfg->bc_ch_config.bc_channel_function = (mesh_channel_function_t)int_value;
     }
 
     // Finding bc_fixed_channel
@@ -312,8 +289,8 @@ static nm_status_t update_ws_config(void *st_app, uint8_t *cbor_data, size_t len
     }
 
     // Finding bc_dwell_interval
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_BC_DWELL, &map_value, &s_val) == true) {
-        ws_cfg->bc_ch_config.bc_dwell_interval = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_BC_DWELL, &map_value, &int_value) == true) {
+        ws_cfg->bc_ch_config.bc_dwell_interval = (uint8_t)int_value;
     }
 
     // Finding broadcast_interval
@@ -332,8 +309,8 @@ static nm_status_t update_ws_config(void *st_app, uint8_t *cbor_data, size_t len
     }
 
     // Finding disc_trickle_k
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_TRICKLE_CONST, &map_value, &s_val) == true) {
-        ws_cfg->timing_param.disc_trickle_k = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_TRICKLE_CONST, &map_value, &int_value) == true) {
+        ws_cfg->timing_param.disc_trickle_k = (uint8_t)int_value;
     }
 
     // Finding pan_timeout
@@ -347,8 +324,8 @@ static nm_status_t update_ws_config(void *st_app, uint8_t *cbor_data, size_t len
     }
 
     // Finding device_min_sens
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_DEV_MIN_SENS, &map_value, &s_val) == true) {
-        ws_cfg->device_min_sens = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_DEV_MIN_SENS, &map_value, &int_value) == true) {
+        ws_cfg->device_min_sens = (uint8_t)int_value;
     }
 
     /* This parameters going to update from binary only */
@@ -364,7 +341,6 @@ static nm_status_t update_br_config(void *st_app, uint8_t *cbor_data, size_t len
     CborValue map_value;
 
     uint32_t int_value = 0;
-    uint8_t s_val = 0;
     nm_br_config_t *br_cfg = (nm_br_config_t *)st_app;
 
     if (cbor_parser_init(cbor_data, len, 0, &parser, &main_value) != CborNoError) {
@@ -377,18 +353,18 @@ static nm_status_t update_br_config(void *st_app, uint8_t *cbor_data, size_t len
     }
 
     // Finding dio_interval_min
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_DIO_INTERVAL_MIN, &map_value, &s_val) == true) {
-        br_cfg->rpl_config.dio_interval_min = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_DIO_INTERVAL_MIN, &map_value, &int_value) == true) {
+        br_cfg->rpl_config.dio_interval_min = (uint8_t)int_value;
     }
 
     // Finding dio_interval_doublings
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_DIO_INTERVAL_DOUBLING, &map_value, &s_val) == true) {
-        br_cfg->rpl_config.dio_interval_doublings = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_DIO_INTERVAL_DOUBLING, &map_value, &int_value) == true) {
+        br_cfg->rpl_config.dio_interval_doublings = (uint8_t)int_value;
     }
 
     // Finding dio_redundancy_constant
-    if (get_simple_value_from_stream(&main_value, CBOR_TAG_DIO_REDUNDANCY_CONST, &map_value, &s_val) == true) {
-        br_cfg->rpl_config.dio_redundancy_constant = s_val;
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_DIO_REDUNDANCY_CONST, &map_value, &int_value) == true) {
+        br_cfg->rpl_config.dio_redundancy_constant = (uint8_t)int_value;
     }
 
     // Finding pan_id
@@ -446,15 +422,6 @@ static bool encode_text_string(CborEncoder *map, const char *str_name, size_t le
 {
     if (cbor_encode_text_string(map, str_name, len)) {
         tr_warn("Failed adding string in map");
-        return false;
-    }
-    return true;
-}
-
-static bool encode_simple_type(CborEncoder *map, uint8_t s_value)
-{
-    if (cbor_encode_simple_value(map, s_value)) {
-        tr_warn("Failed adding simple value in map");
         return false;
     }
     return true;
@@ -584,52 +551,52 @@ static nm_status_t ws_config_to_cbor(void *ws_cfg, uint8_t *cbor_data, size_t *l
 
     // regulatory_domain
     if (encode_text_string(&map, CBOR_TAG_REG_DOMAIN, sizeof(CBOR_TAG_REG_DOMAIN) - 1)) {
-        encode_simple_type(&map, st_cfg->reg_op.regulatory_domain);
+        encode_uint32_value(&map, (uint32_t)st_cfg->reg_op.regulatory_domain);
     }
 
     // operating_class
     if (encode_text_string(&map, CBOR_TAG_OP_CLASS, sizeof(CBOR_TAG_OP_CLASS) - 1)) {
-        encode_simple_type(&map, st_cfg->reg_op.operating_class);
+        encode_uint32_value(&map, (uint32_t)st_cfg->reg_op.operating_class);
     }
 
     // operating_mode
     if (encode_text_string(&map, CBOR_TAG_OP_MODE, sizeof(CBOR_TAG_OP_MODE) - 1)) {
-        encode_simple_type(&map, st_cfg->reg_op.operating_mode);
+        encode_uint32_value(&map, (uint32_t)st_cfg->reg_op.operating_mode);
     }
 
     // network_size
     if (encode_text_string(&map, CBOR_TAG_NW_SIZE, sizeof(CBOR_TAG_NW_SIZE) - 1)) {
-        encode_simple_type(&map, st_cfg->network_size);
+        encode_uint32_value(&map, (uint32_t)st_cfg->network_size);
     }
 
     // uc_channel_function
     if (encode_text_string(&map, CBOR_TAG_UC_FUNC, sizeof(CBOR_TAG_UC_FUNC) - 1)) {
-        encode_simple_type(&map, st_cfg->uc_ch_config.uc_channel_function);
+        encode_uint32_value(&map, (uint32_t)st_cfg->uc_ch_config.uc_channel_function);
     }
 
     // uc_fixed_channel
     if (encode_text_string(&map, CBOR_TAG_UC_FIX, sizeof(CBOR_TAG_UC_FIX) - 1)) {
-        encode_uint32_value(&map, st_cfg->uc_ch_config.uc_fixed_channel);
+        encode_uint32_value(&map, (uint32_t)st_cfg->uc_ch_config.uc_fixed_channel);
     }
 
     // uc_dwell_interval
     if (encode_text_string(&map, CBOR_TAG_UC_DWELL, sizeof(CBOR_TAG_UC_DWELL) - 1)) {
-        encode_simple_type(&map, st_cfg->uc_ch_config.uc_dwell_interval);
+        encode_uint32_value(&map, (uint32_t)st_cfg->uc_ch_config.uc_dwell_interval);
     }
 
     // bc_channel_function
     if (encode_text_string(&map, CBOR_TAG_BC_FUNC, sizeof(CBOR_TAG_BC_FUNC) - 1)) {
-        encode_simple_type(&map, st_cfg->bc_ch_config.bc_channel_function);
+        encode_uint32_value(&map, (uint32_t)st_cfg->bc_ch_config.bc_channel_function);
     }
 
     // bc_fixed_channel
     if (encode_text_string(&map, CBOR_TAG_BC_FIX, sizeof(CBOR_TAG_BC_FIX) - 1)) {
-        encode_uint32_value(&map, st_cfg->bc_ch_config.bc_fixed_channel);
+        encode_uint32_value(&map, (uint32_t)st_cfg->bc_ch_config.bc_fixed_channel);
     }
 
     // bc_dwell_interval
     if (encode_text_string(&map, CBOR_TAG_BC_DWELL, sizeof(CBOR_TAG_BC_DWELL) - 1)) {
-        encode_simple_type(&map, st_cfg->bc_ch_config.bc_dwell_interval);
+        encode_uint32_value(&map, (uint32_t)st_cfg->bc_ch_config.bc_dwell_interval);
     }
 
     // bc_interval
@@ -639,32 +606,32 @@ static nm_status_t ws_config_to_cbor(void *ws_cfg, uint8_t *cbor_data, size_t *l
 
     // disc_trickle_imin
     if (encode_text_string(&map, CBOR_TAG_TRICKLE_IMIN, sizeof(CBOR_TAG_TRICKLE_IMIN) - 1)) {
-        encode_uint32_value(&map, st_cfg->timing_param.disc_trickle_imin);
+        encode_uint32_value(&map, (uint32_t)st_cfg->timing_param.disc_trickle_imin);
     }
 
     // disc_trickle_imax
     if (encode_text_string(&map, CBOR_TAG_TRICKLE_IMAX, sizeof(CBOR_TAG_TRICKLE_IMAX) - 1)) {
-        encode_uint32_value(&map, st_cfg->timing_param.disc_trickle_imax);
+        encode_uint32_value(&map, (uint32_t)st_cfg->timing_param.disc_trickle_imax);
     }
 
     // disc_trickle_k
     if (encode_text_string(&map, CBOR_TAG_TRICKLE_CONST, sizeof(CBOR_TAG_TRICKLE_CONST) - 1)) {
-        encode_simple_type(&map, st_cfg->timing_param.disc_trickle_k);
+        encode_uint32_value(&map, (uint32_t)st_cfg->timing_param.disc_trickle_k);
     }
 
     // pan_timeout
     if (encode_text_string(&map, CBOR_TAG_PAN_TIMEOUT, sizeof(CBOR_TAG_PAN_TIMEOUT) - 1)) {
-        encode_uint32_value(&map, st_cfg->timing_param.pan_timeout);
+        encode_uint32_value(&map, (uint32_t)st_cfg->timing_param.pan_timeout);
     }
 
     // ws_delay
     if (encode_text_string(&map, CBOR_TAG_WS_DELAY, sizeof(CBOR_TAG_WS_DELAY) - 1)) {
-        encode_uint32_value(&map, st_cfg->delay);
+        encode_uint32_value(&map, (uint32_t)st_cfg->delay);
     }
 
     // device_min_sens
     if (encode_text_string(&map, CBOR_TAG_DEV_MIN_SENS, sizeof(CBOR_TAG_DEV_MIN_SENS) - 1)) {
-        encode_simple_type(&map, st_cfg->device_min_sens);
+        encode_uint32_value(&map, (uint32_t)st_cfg->device_min_sens);
     }
 
     // Close Map
@@ -704,27 +671,27 @@ static nm_status_t br_config_to_cbor(void *br_cfg, uint8_t *cbor_data, size_t *l
 
     // dio_interval_min
     if (encode_text_string(&map, CBOR_TAG_DIO_INTERVAL_MIN, sizeof(CBOR_TAG_DIO_INTERVAL_MIN) - 1)) {
-        encode_simple_type(&map, st_cfg->rpl_config.dio_interval_min);
+        encode_uint32_value(&map, (uint32_t)st_cfg->rpl_config.dio_interval_min);
     }
 
     // dio_interval_doublings
     if (encode_text_string(&map, CBOR_TAG_DIO_INTERVAL_DOUBLING, sizeof(CBOR_TAG_DIO_INTERVAL_DOUBLING) - 1)) {
-        encode_simple_type(&map, st_cfg->rpl_config.dio_interval_doublings);
+        encode_uint32_value(&map, (uint32_t)st_cfg->rpl_config.dio_interval_doublings);
     }
 
     // dio_redundancy_constant
     if (encode_text_string(&map, CBOR_TAG_DIO_REDUNDANCY_CONST, sizeof(CBOR_TAG_DIO_REDUNDANCY_CONST) - 1)) {
-        encode_simple_type(&map, st_cfg->rpl_config.dio_redundancy_constant);
+        encode_uint32_value(&map, (uint32_t)st_cfg->rpl_config.dio_redundancy_constant);
     }
 
     // pan_id
     if (encode_text_string(&map, CBOR_TAG_PAN_ID, sizeof(CBOR_TAG_PAN_ID) - 1)) {
-        encode_uint32_value(&map, st_cfg->pan_id);
+        encode_uint32_value(&map, (uint32_t)st_cfg->pan_id);
     }
 
     // br_delay
     if (encode_text_string(&map, CBOR_TAG_BR_DELAY, sizeof(CBOR_TAG_BR_DELAY) - 1)) {
-        encode_uint32_value(&map, st_cfg->delay);
+        encode_uint32_value(&map, (uint32_t)st_cfg->delay);
     }
 
     // Close Map
@@ -912,12 +879,12 @@ static nm_status_t ws_stats_to_cbor(void *stats_ws, uint8_t *cbor_data, size_t *
 
     // instance_id
     if (encode_text_string(&map, CBOR_TAG_WS_RPL_INSTANCE_ID, sizeof(CBOR_TAG_WS_RPL_INSTANCE_ID) - 1)) {
-        encode_simple_type(&map, ws_stats->ws_common_id_statistics.instance_id);
+        encode_uint32_value(&map, (uint32_t)ws_stats->ws_common_id_statistics.instance_id);
     }
 
     // rpl_ver
     if (encode_text_string(&map, CBOR_TAG_WS_RPL_VER, sizeof(CBOR_TAG_WS_RPL_VER) - 1)) {
-        encode_simple_type(&map, ws_stats->ws_common_id_statistics.resource_version);
+        encode_uint32_value(&map, (uint32_t)ws_stats->ws_common_id_statistics.version);
     }
 
     // rpl_total_memory
@@ -937,7 +904,7 @@ static nm_status_t ws_stats_to_cbor(void *stats_ws, uint8_t *cbor_data, size_t *
 
     // pan_id
     if (encode_text_string(&map, CBOR_TAG_PAN_ID, sizeof(CBOR_TAG_PAN_ID) - 1)) {
-        encode_uint32_value(&map, ws_stats->ws_common_id_statistics.pan_id);
+        encode_uint32_value(&map, (uint32_t)ws_stats->ws_common_id_statistics.pan_id);
     }
 
     // Close Map
@@ -1056,7 +1023,7 @@ static nm_status_t br_stats_to_cbor(void *stats_br, uint8_t *cbor_data, size_t *
 
     // device_count
     if (encode_text_string(&map, CBOR_TAG_DEVICE_COUNT, sizeof(CBOR_TAG_DEVICE_COUNT) - 1)) {
-        encode_uint32_value(&map, br_stats->device_count);
+        encode_uint32_value(&map, (uint32_t)br_stats->device_count);
     }
 
     // global_addr_northbound
@@ -1106,12 +1073,12 @@ static nm_status_t node_stats_to_cbor(void *stats_ni, uint8_t *cbor_data, size_t
 
     // curent_rank
     if (encode_text_string(&map, CBOR_TAG_CURRENT_RANK, sizeof(CBOR_TAG_CURRENT_RANK) - 1)) {
-        encode_uint32_value(&map, node_stats->routing_info.curent_rank);
+        encode_uint32_value(&map, (uint32_t)node_stats->routing_info.curent_rank);
     }
 
     // primary_parent_rank
     if (encode_text_string(&map, CBOR_TAG_PRIMARY_PARENT_RANK, sizeof(CBOR_TAG_PRIMARY_PARENT_RANK) - 1)) {
-        encode_uint32_value(&map, node_stats->routing_info.primary_parent_rank);
+        encode_uint32_value(&map, (uint32_t)node_stats->routing_info.primary_parent_rank);
     }
 
     // primary_parent address
@@ -1121,12 +1088,12 @@ static nm_status_t node_stats_to_cbor(void *stats_ni, uint8_t *cbor_data, size_t
 
     // etx_1st_parent
     if (encode_text_string(&map, CBOR_TAG_ETX1ST_PARENT, sizeof(CBOR_TAG_ETX1ST_PARENT) - 1)) {
-        encode_uint32_value(&map, node_stats->routing_info.etx_1st_parent);
+        encode_uint32_value(&map, (uint32_t)node_stats->routing_info.etx_1st_parent);
     }
 
     // etx_2nd_parent
     if (encode_text_string(&map, CBOR_TAG_ETX2ND_PARENT, sizeof(CBOR_TAG_ETX2ND_PARENT) - 1)) {
-        encode_uint32_value(&map, node_stats->routing_info.etx_2nd_parent);
+        encode_uint32_value(&map, (uint32_t)node_stats->routing_info.etx_2nd_parent);
     }
 
     // Close Map
@@ -1165,12 +1132,12 @@ static nm_status_t radio_stats_to_cbor(void *stats_rq, uint8_t *cbor_data, size_
 
     // rssi_in
     if (encode_text_string(&map, CBOR_TAG_RSSI_IN, sizeof(CBOR_TAG_RSSI_IN) - 1)) {
-        encode_simple_type(&map, radio_stats->rssi_in);
+        encode_uint32_value(&map, (uint32_t)radio_stats->rssi_in);
     }
 
     // rssi_out
     if (encode_text_string(&map, CBOR_TAG_RSSI_OUT, sizeof(CBOR_TAG_RSSI_OUT) - 1)) {
-        encode_simple_type(&map, radio_stats->rssi_out);
+        encode_uint32_value(&map, (uint32_t)radio_stats->rssi_out);
     }
 
     // Close Map

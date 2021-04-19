@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2020 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -50,9 +50,11 @@
 
 #include "fota/fota.h"
 
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
 #include "multicast.h"
+#if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #include "update_client_hub_state_machine.h"
+#endif
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 
 #if MBED_CLOUD_CLIENT_STL_API
@@ -83,11 +85,11 @@ ServiceClient::ServiceClient(ServiceClientCallback& callback)
   _state_engine_running(false),
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
   _uc_hub_tasklet_id(-1),
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-  _multicast_tasklet_id(-1),
-#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
   _setup_update_client(false),
 #endif
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
+  _multicast_tasklet_id(-1),
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
   _connector_client(this)
 {
 }
@@ -96,9 +98,12 @@ ServiceClient::~ServiceClient()
 {
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
     ARM_UC_HUB_Uninitialize();
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-    arm_uc_multicast_deinit();
 #endif
+#ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
+    fota_deinit();
+#endif
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
+    arm_uc_multicast_deinit();
 #endif
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
     CertificateEnrollmentClient::finalize();
@@ -123,25 +128,26 @@ bool ServiceClient::init()
                 return false;
             }
         }
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-        if (_multicast_tasklet_id < 0) {
-            _multicast_tasklet_id = eventOS_event_handler_create(&arm_uc_multicast_tasklet, 0);
-            if (_multicast_tasklet_id < 0) {
-                tr_error("ServiceClient::init - failed to create multicast event handler (%d)", _multicast_tasklet_id);
-                _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
-                return false;
-            }
-        }
-
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
         if (ARM_UC_HUB_createEventHandler() < 0) {
             tr_error("ServiceClient::init - failed to create uc hub multicast event handler");
             _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
             return false;
         }
-
-#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-
+#endif // SERVICE_CLIENT_SUPPORT_MULTICAST
 #endif // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
+    if (_multicast_tasklet_id < 0) {
+        _multicast_tasklet_id = eventOS_event_handler_create(&arm_uc_multicast_tasklet, 0);
+        if (_multicast_tasklet_id < 0) {
+            tr_error("ServiceClient::init - failed to create multicast event handler (%d)", _multicast_tasklet_id);
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+            _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+#endif
+            return false;
+        }
+    }
+#endif // SERVICE_CLIENT_SUPPORT_MULTICAST
 
     return true;
 }
@@ -156,7 +162,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
         tr_debug("ServiceClient::initialize_and_register: update client supported");
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
         if (arm_uc_multicast_init(*_client_objs, _connector_client, _multicast_tasklet_id) != MULTICAST_STATUS_SUCCESS) {
             _service_callback.error((int)MULTICAST_STATUS_INIT_FAILED, "Multicast initialization failed");
             return;
@@ -224,6 +230,12 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
         }
 #else // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
+        if (arm_uc_multicast_init(*_client_objs, _connector_client, _multicast_tasklet_id) != MULTICAST_STATUS_SUCCESS) {
+            _service_callback.error((int)MULTICAST_STATUS_INIT_FAILED, "Multicast initialization failed");
+            return;
+        }
+#endif // SERVICE_CLIENT_SUPPORT_MULTICAST
         int fota_res = fota_init(_connector_client.m2m_interface(), _client_objs);
         assert(!fota_res);
         (void)fota_res;
@@ -381,10 +393,8 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
         fota_app_resume();
 #endif
         internal_event(State_Success);
-    } else if (status == ConnectorClient::State_Registration_Failure) {
+    } else if (status == ConnectorClient::State_Registration_Failure || status == ConnectorClient::State_Bootstrap_Failure) {
         internal_event(State_Failure);
-    } else if (status == ConnectorClient::State_Bootstrap_Failure) {
-           internal_event(State_Bootstrap);
     } else if (status == ConnectorClient::State_Bootstrap_Success) {
         internal_event(State_Register);
     } else if (status == ConnectorClient::State_Unregistered) {
@@ -407,6 +417,19 @@ void ServiceClient::connector_error(M2MInterface::Error error, const char *reaso
     else if (_current_state == State_Bootstrap) {
         registration_process_result(ConnectorClient::State_Bootstrap_Failure);
     }
+    // Client is in State_Failure and failing to bootstrap on InvalidCertificates.
+    // Factory reset the credentials to clear invalid/broken certificates and try again.
+    else if (_current_state == State_Failure && (error == M2MInterface::InvalidCertificates
+                                              || error == M2MInterface::FailedToStoreCredentials
+                                              || error == M2MInterface::FailedToReadCredentials)) {
+        _connector_client.factory_reset_credentials();
+        _connector_client.bootstrap_again();
+    }
+    // Client is in State Failure and fails bootstrap in invalid parameters.
+    // Try to recover with rebootstrapping.
+    else if (_current_state == State_Failure && error == M2MInterface::InvalidParameters) {
+        _connector_client.bootstrap_again();
+    }
 #endif
     else {
         internal_event(State_Failure);
@@ -425,6 +448,13 @@ void ServiceClient::external_update(uint32_t start_address, uint32_t firmware_si
 {
     tr_debug("ServiceClient::external_update()");
     _service_callback.external_update(start_address, firmware_size);
+}
+
+void ServiceClient::network_status_changed(bool connected)
+{
+    if (connected) {
+        arm_uc_multicast_network_connected();
+    }
 }
 #endif
 

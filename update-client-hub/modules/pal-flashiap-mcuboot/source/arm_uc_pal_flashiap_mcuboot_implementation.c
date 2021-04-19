@@ -59,11 +59,6 @@
 #define MBED_CONF_UPDATE_CLIENT_STORAGE_LOCATIONS 1
 #endif
 
-/* MCUBOOT trailer size, depends on slot size, page size, and optional encryption. */
-#ifndef MBED_CONF_UPDATE_CLIENT_MCUBOOT_TRAILER_SIZE
-#define MBED_CONF_UPDATE_CLIENT_MCUBOOT_TRAILER_SIZE 0
-#endif
-
 /* consistency check */
 #if (MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE == 0)
 #error Update client storage page cannot be zero.
@@ -81,12 +76,12 @@
 #error Update client buffer must be divisible by the block page size
 #endif
 
-/* Check if trailer size has been set */
-#if MBED_CONF_UPDATE_CLIENT_MCUBOOT_TRAILER_SIZE
-#error Custom trailers currently not supported. \
-       Configure MCUBOOT to work without trailers or \
-       use imgtool.py to create signed images with padded trailers.
+#if SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE < IMAGE_HEADER_SIZE
+#error SN_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE must be larger than \
+       or equal to MCUBOOTs header size, IMAGE_HEADER_SIZE.
 #endif
+
+#define PAGE_MINUS_ONE (MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE - 1)
 
 /**
  * Calculate buffer size for storing activation header.
@@ -96,13 +91,73 @@
 #define MCUBOOT_HEADER_BUFFER_SIZE MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE
 #else
 /* round up buffer size and aling to page size */
-#define PAGE_MINUS_ONE (MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE - 1)
 #define HEADER_PLUS_PAGE_MINUS_ONE (IMAGE_HEADER_SIZE + PAGE_MINUS_ONE)
 #define PAGES_PER_HEADER (HEADER_PLUS_PAGE_MINUS_ONE / MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE)
 #define MCUBOOT_HEADER_BUFFER_SIZE (PAGES_PER_HEADER * MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE)
 #endif
 
-static uint8_t arm_uc_pal_flashiap_mcuboot_header[MCUBOOT_HEADER_BUFFER_SIZE] = { 0 };
+/* align buffer to 4-byte word boundary */
+#define MCUBOOT_HEADER_BUFFER_WORDS ((MCUBOOT_HEADER_BUFFER_SIZE + 3) / 4)
+
+static uint32_t arm_uc_pal_flashiap_mcuboot_header[MCUBOOT_HEADER_BUFFER_WORDS] = { 0 };
+
+/**
+ * Calculate buffer size for storing image trailer. The buffer is used to
+ * ensure page alignment when writing from the end of the flash.
+ */
+#define IMAGE_TRAILER_SIZE (8 + 16)
+
+#if IMAGE_TRAILER_SIZE < MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE
+#define MCUBOOT_TRAILER_BUFFER_SIZE MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE
+#else
+#define TRAILER_PLUS_PLAGE_MINUS_ONE (IMAGE_TRAILER_SIZE + PAGE_MINUS_ONE)
+#define PAGES_PER_TRAILER (TRAILER_PLUS_PLAGE_MINUS_ONE / MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE)
+#define MCUBOOT_TRAILER_BUFFER_SIZE  (PAGES_PER_TRAILER * MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE)
+#endif
+
+/* align buffer to 4-byte word boundary */
+#define MCUBOOT_TRAILER_BUFFER_WORDS ((MCUBOOT_TRAILER_BUFFER_SIZE + 3) / 4)
+
+/**
+ * Trailer magic, settings, and offsets.
+ */
+#define IMAGE_OK_CONFIRMED 0x01
+#define IMAGE_OK_NOT_CONFIRMED 0xFF
+#define IMAGE_OK_OFFSET 6
+#define BOOT_IMG_MAGIC_0_OFFSET 4
+#define BOOT_IMG_MAGIC_1_OFFSET 3
+#define BOOT_IMG_MAGIC_2_OFFSET 2
+#define BOOT_IMG_MAGIC_3_OFFSET 1
+
+#define BOOT_IMG_MAGIC_0 0xF395C277
+#define BOOT_IMG_MAGIC_1 0x7FEFD260
+#define BOOT_IMG_MAGIC_2 0x0F505235
+#define BOOT_IMG_MAGIC_3 0x8079B62C
+
+/**
+ * MCUBOOT will by default only test a new firmware image and unless the user
+ * application marks the new image as permanent, MCUBOOT will revert the
+ * application back to its original image. During development, the user can
+ * set MBED_CONF_UPDATE_CLIENT_MCUBOOT_DEFAULT_PERMANENT=1 and all firmware
+ * images will automatically be set as permanent. This prevents accidentally
+ * reverting back to a previous image when doing application development.
+ */
+#if defined(MBED_CONF_UPDATE_CLIENT_MCUBOOT_DEFAULT_PERMANENT) \
+        && (MBED_CONF_UPDATE_CLIENT_MCUBOOT_DEFAULT_PERMANENT == 1)
+#define DEFAULT_IMAGE_OK IMAGE_OK_CONFIRMED
+#else
+#define DEFAULT_IMAGE_OK IMAGE_OK_NOT_CONFIRMED
+#endif
+
+/**
+ * When using Zephyr, get the storage size from the devicetree.
+ */
+#if defined(__ZEPHYR__)
+#include <devicetree.h>
+#include <storage/flash_map.h>
+#undef MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE
+#define MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE FLASH_AREA_SIZE(image_1)
+#endif
 
 /**
  * Transfer firmare details across function calls.
@@ -132,10 +187,10 @@ static void arm_uc_pal_flashiap_signal_internal(uint32_t event)
  */
 static uint32_t arm_uc_pal_flashiap_align_to_sector(uint32_t addr, int8_t round_down)
 {
-    uint32_t sector_start_addr = arm_uc_flashiap_get_flash_start();
+    uint32_t sector_start_addr = arm_uc_flashiap_candidate_get_flash_start();
 
     /* check the address is pointing to internal flash */
-    if ((addr > sector_start_addr + arm_uc_flashiap_get_flash_size()) ||
+    if ((addr > sector_start_addr + arm_uc_flashiap_candidate_get_flash_size()) ||
             (addr < sector_start_addr)) {
         return ARM_UC_FLASH_INVALID_SIZE;
     }
@@ -145,7 +200,7 @@ static uint32_t arm_uc_pal_flashiap_align_to_sector(uint32_t addr, int8_t round_
        drastically different sizes */
     uint32_t sector_size = ARM_UC_FLASH_INVALID_SIZE;
     while (sector_start_addr < addr) {
-        sector_size = arm_uc_flashiap_get_sector_size(sector_start_addr);
+        sector_size = arm_uc_flashiap_candidate_get_sector_size(sector_start_addr);
         if (sector_size != ARM_UC_FLASH_INVALID_SIZE) {
             sector_start_addr += sector_size;
         } else {
@@ -169,7 +224,7 @@ static uint32_t arm_uc_pal_flashiap_align_to_sector(uint32_t addr, int8_t round_
  */
 static uint32_t arm_uc_pal_flashiap_round_up_to_page_size(uint32_t size)
 {
-    uint32_t page_size = arm_uc_flashiap_get_page_size();
+    uint32_t page_size = arm_uc_flashiap_candidate_get_page_size();
 
     if (size != 0) {
         size = ((size - 1) / page_size + 1) * page_size;
@@ -250,9 +305,10 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Initialize(void (*callback)(uint32_t)
 {
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    int32_t status = arm_uc_flashiap_init();
+    int32_t active = arm_uc_flashiap_active_init();
+    int32_t candidate = arm_uc_flashiap_candidate_init();
 
-    if (status == ARM_UC_FLASHIAP_SUCCESS) {
+    if ((active == ARM_UC_FLASHIAP_SUCCESS) && (candidate == ARM_UC_FLASHIAP_SUCCESS)) {
         arm_uc_pal_flashiap_callback = callback;
         arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_INITIALIZE_DONE);
 
@@ -301,7 +357,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Prepare(uint32_t slot_id,
 
         uint32_t slot_addr = ARM_UC_FLASH_INVALID_SIZE;
         uint32_t slot_size = ARM_UC_FLASH_INVALID_SIZE;
-        uint32_t trailer_size = MBED_CONF_UPDATE_CLIENT_MCUBOOT_TRAILER_SIZE;
+        uint32_t trailer_size = MCUBOOT_TRAILER_BUFFER_SIZE;
 
         /* find slot start address */
         result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id, &slot_addr, &slot_size);
@@ -315,13 +371,13 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Prepare(uint32_t slot_id,
             while (erase_addr < slot_addr + slot_size) {
 
                 /* account for changing sector sizes */
-                uint32_t sector_size = arm_uc_flashiap_get_sector_size(erase_addr);
+                uint32_t sector_size = arm_uc_flashiap_candidate_get_sector_size(erase_addr);
                 UC_PAAL_TRACE("erase: addr %" PRIX32 " size %" PRIX32,
                               erase_addr, sector_size);
 
                 /* erase single sector */
                 if (sector_size != ARM_UC_FLASH_INVALID_SIZE) {
-                    int32_t status = arm_uc_flashiap_erase(erase_addr, sector_size);
+                    int32_t status = arm_uc_flashiap_candidate_erase(erase_addr, sector_size);
                     if (status == ARM_UC_FLASHIAP_SUCCESS) {
                         erase_addr += sector_size;
                     } else {
@@ -406,7 +462,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Write(uint32_t slot_id,
         }
 
         /* find physical address of the write */
-        uint32_t page_size = arm_uc_flashiap_get_page_size();
+        uint32_t page_size = arm_uc_flashiap_candidate_get_page_size();
         uint32_t physical_address = slot_addr + write_offset;
 
         /* if last chunk, pad out to page_size aligned size */
@@ -421,12 +477,18 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Write(uint32_t slot_id,
                           physical_address, write_size);
 
             /* write pages */
-            int status = arm_uc_flashiap_program(write_buffer,
-                                                 physical_address,
-                                                 write_size);
+            int status = ARM_UC_FLASHIAP_FAIL;
+
+            if (write_size) {
+                status = arm_uc_flashiap_candidate_program(write_buffer,
+                                                           physical_address,
+                                                           write_size);
+            } else {
+                status = ARM_UC_FLASHIAP_SUCCESS;
+            }
 
             if (status != ARM_UC_FLASHIAP_SUCCESS) {
-                UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed");
+                UC_PAAL_ERR_MSG("arm_uc_flashiap_candidate_program failed");
             } else {
                 result.code = ERR_NONE;
                 arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_WRITE_DONE);
@@ -501,9 +563,9 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Read(uint32_t slot_id,
         UC_PAAL_TRACE("reading addr %" PRIX32 " size %" PRIX32,
                       physical_address, read_size);
 
-        int status = arm_uc_flashiap_read(buffer->ptr,
-                                          physical_address,
-                                          read_size);
+        int status = arm_uc_flashiap_candidate_read(buffer->ptr,
+                                                    physical_address,
+                                                    read_size);
 
         if (status == ARM_UC_FLASHIAP_SUCCESS) {
             result.code = ERR_NONE;
@@ -523,7 +585,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Read(uint32_t slot_id,
             arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_READ_DONE);
         } else {
             result.code = ERR_INVALID_PARAMETER;
-            UC_PAAL_ERR_MSG("arm_uc_flashiap_read failed");
+            UC_PAAL_ERR_MSG("arm_uc_flashiap_candidate_read failed");
         }
     } else {
         result.code = ERR_INVALID_PARAMETER;
@@ -558,14 +620,17 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Activate(uint32_t slot_id)
     arm_uc_error_t result = arm_uc_pal_flashiap_get_slot_addr_size(slot_id, &slot_addr, &slot_size);
 
     /**
-     * Get active images's MCUBOOT header hash.
+     * Get active images's MCUBOOT header hash and total size.
      */
     arm_uc_hash_t header_hash_active = { 0 };
+    uint32_t total_size = 0;
 
     if (result.error == ERR_NONE) {
         result = arm_uc_pal_flashiap_mcuboot_get_hash_from_header(
+                        arm_uc_flashiap_active_read,
                         MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS,
-                        &header_hash_active);
+                        &header_hash_active,
+                        &total_size);
     }
 
     /**
@@ -589,7 +654,8 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Activate(uint32_t slot_id)
                                header_cache->ih_img_size;
 
         /* search TLV for hash */
-        result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address,
+        result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(arm_uc_flashiap_candidate_read,
+                                                               tlv_address,
                                                                &header_hash_candidate);
 
         /**
@@ -599,11 +665,12 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Activate(uint32_t slot_id)
         if ((result.error != ERR_NONE) && header_cache->ih_protect_tlv_size) {
 
             tlv_address += header_cache->ih_protect_tlv_size;
-            result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address,
+            result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(arm_uc_flashiap_candidate_read,
+                                                                   tlv_address,
                                                                    &header_hash_candidate);
         }
 
-        if (result.error ==  ERR_NONE) {
+        if (result.error == ERR_NONE) {
             /**
              * Write details to KCM.
              * The active header hash is used to identify which key-value pair to replace.
@@ -617,21 +684,59 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_Activate(uint32_t slot_id)
     }
 
     /**
-     * Final step in activation, write MCUBOOT header.
+     * Write MCUBOOT trailer.
      */
-    UC_PAAL_TRACE("write activation header");
+    UC_PAAL_TRACE("write MCUBOOT trailer");
+
+    /**
+     * MCUBOOT will look for a trailer at the end of the candiate storage slot.
+     *
+     * If the trailer magic is good and the IMAGE_OK flag is unset, MCUBOOT will
+     * perform a test update, which will be reverted on the next boot unless the
+     * user application marks the image as permanent.
+     *
+     * If the trailer magic is good and the IMAGE_OK flag is set, MCUBOOT will
+     * perform a permanent update, which won't be reverted.
+     *
+     * https://github.com/mcu-tools/mcuboot/blob/master/docs/design.md
+     */
+    uint32_t trailer_buffer[MCUBOOT_TRAILER_BUFFER_WORDS] = { 0 };
+
+    trailer_buffer[MCUBOOT_TRAILER_BUFFER_WORDS - IMAGE_OK_OFFSET] = DEFAULT_IMAGE_OK;
+
+    trailer_buffer[MCUBOOT_TRAILER_BUFFER_WORDS - BOOT_IMG_MAGIC_0_OFFSET] = BOOT_IMG_MAGIC_0;
+    trailer_buffer[MCUBOOT_TRAILER_BUFFER_WORDS - BOOT_IMG_MAGIC_1_OFFSET] = BOOT_IMG_MAGIC_1;
+    trailer_buffer[MCUBOOT_TRAILER_BUFFER_WORDS - BOOT_IMG_MAGIC_2_OFFSET] = BOOT_IMG_MAGIC_2;
+    trailer_buffer[MCUBOOT_TRAILER_BUFFER_WORDS - BOOT_IMG_MAGIC_3_OFFSET] = BOOT_IMG_MAGIC_3;
 
     /* MCUBOOT header buffer is checked for alignment at compile time */
-    int status = arm_uc_flashiap_program(arm_uc_pal_flashiap_mcuboot_header,
-                                         slot_addr,
-                                         MCUBOOT_HEADER_BUFFER_SIZE);
+    int status = arm_uc_flashiap_candidate_program((uint8_t*) trailer_buffer,
+                                                   slot_addr + slot_size - sizeof(trailer_buffer),
+                                                   sizeof(trailer_buffer));
 
     if (status == ARM_UC_FLASHIAP_SUCCESS) {
-        result.code = ERR_NONE;
 
-        arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
+        /**
+         * Final step in activation, write MCUBOOT header.
+         */
+        UC_PAAL_TRACE("write activation header");
+
+        /* MCUBOOT header buffer is checked for alignment at compile time */
+        status = arm_uc_flashiap_candidate_program((uint8_t*) arm_uc_pal_flashiap_mcuboot_header,
+                                                   slot_addr,
+                                                   sizeof(arm_uc_pal_flashiap_mcuboot_header));
+
+        if (status == ARM_UC_FLASHIAP_SUCCESS) {
+            result.code = ERR_NONE;
+
+            arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_ACTIVATE_DONE);
+
+        } else {
+            UC_PAAL_ERR_MSG("unable to write MCUBOOT header");
+            result.code = FIRM_ERR_ACTIVATE;
+        }
     } else {
-        UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed");
+        UC_PAAL_ERR_MSG("unable to write MCUBOOT trailer");
         result.code = FIRM_ERR_ACTIVATE;
     }
 
@@ -678,24 +783,53 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Mcuboot_GetActiveDetails(arm_uc_firmware_deta
 
     if (details) {
 
-        /* parse MCUBOOT header and get hash from TLV struct */
+        /* parse MCUBOOT header and get hash from TLV struct and total size */
         arm_uc_hash_t header_hash = { 0 };
+        uint32_t total_size = 0;
 
-        arm_uc_pal_flashiap_mcuboot_get_hash_from_header(MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS,
-                                                         &header_hash);
+        arm_uc_pal_flashiap_mcuboot_get_hash_from_header(arm_uc_flashiap_active_read,
+                                                         MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS,
+                                                         &header_hash,
+                                                         &total_size);
 
         /* use MCUBOOT hash to lookup firmware details in KCM */
         result = arm_uc_pal_flashiap_mcuboot_get_kcm_details(&header_hash, details);
 
-        /* if no details were found in KCM, use hash from MCUBOOT header */
+        /* if no details were found in KCM */
         if (result.error != ERR_NONE) {
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+            /* calculate hash from active image */
+            result = arm_uc_pal_flashiap_mcuboot_calculate_hash(arm_uc_flashiap_active_read,
+                                                                MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS,
+                                                                total_size,
+                                                                &(details->hash));
+
+            /* on success */
+            if (result.error == ERR_NONE) {
+
+                details->size = total_size;
+
+                /**
+                 * Write details to KCM. The first parameter is supposed to be
+                 * the active image hash so that the details can be written in
+                 * the opposite slot, using the second parameter as key. Since
+                 * both slots are empty, passing in the same hash as both
+                 * parameters lets the function operate as intended.
+                 */
+                result = arm_uc_pal_flashiap_mcuboot_set_kcm_details(&header_hash,
+                                                                     &header_hash,
+                                                                     details);
+            }
+#else
+            /* use hash from MCUBOOT header */
             memcpy(details->hash, &header_hash, sizeof(arm_uc_hash_t));
             result.code = ERR_NONE;
+#endif
         }
 
-#if ARM_UC_SOURCE_MANAGER_TRACE_ENABLE
-        printf("[TRACE][SRCE] manifest hash: ");
+#if ARM_UC_PAAL_TRACE_ENABLE
+        printf("[TRACE][SRCE] image hash: ");
         for (size_t index = 0; index < sizeof(arm_uc_hash_t); index++) {
             printf("%02X", details->hash[index]);
         }

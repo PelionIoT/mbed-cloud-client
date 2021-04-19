@@ -451,7 +451,8 @@ static CborError value_to_pretty(FILE *out, CborValue *it, int flags, int recurs
     case CborSimpleType: {
         /* simple types can't fail and can't have overlong encoding */
         uint8_t simple_type;
-        cbor_value_get_simple_type(it, &simple_type);
+        if (cbor_value_get_simple_type(it, &simple_type)!= CborNoError)
+            return CborErrorInternalError;
         if (fprintf(out, "simple(%" PRIu8 ")", simple_type) < 0)
             return CborErrorIO;
         break;
@@ -469,7 +470,8 @@ static CborError value_to_pretty(FILE *out, CborValue *it, int flags, int recurs
 
     case CborBooleanType: {
         bool val;
-        cbor_value_get_boolean(it, &val);       /* can't fail */
+        if(cbor_value_get_boolean(it, &val)!= CborNoError)
+            return CborErrorInternalError;
         if (fprintf(out, val ? "true" : "false") < 0)
             return CborErrorIO;
         break;

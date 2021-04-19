@@ -281,35 +281,65 @@ void msg_delivery_handle(const M2MBase &base,
     tr_debug("Received MessageDeliveryStatus: %d, MessageType: %d", status, type);
     if (status == M2MBase::MESSAGE_STATUS_DELIVERED || status == M2MBase::MESSAGE_STATUS_SEND_FAILED) {
         if (obj == ws_config) {
-            nm_dyn_mem_free(ws_config_buf);
-            tr_debug("ws_config data Memory freed");
+            if (ws_config_buf != NULL) {
+                nm_dyn_mem_free(ws_config_buf);
+                ws_config_buf = NULL;
+                tr_debug("ws_config data Memory freed");
+            }
         } else if (obj == br_config) {
-            nm_dyn_mem_free(br_config_buf);
-            tr_debug("br_config data Memory freed");
+            if (br_config_buf != NULL) {
+                nm_dyn_mem_free(br_config_buf);
+                br_config_buf = NULL;
+                tr_debug("br_config data Memory freed");
+            }
         } else if (obj == app_stats) {
-            nm_dyn_mem_free(app_stats_buf);
-            tr_debug("Application data Memory freed");
+            if (app_stats_buf != NULL) {
+                nm_dyn_mem_free(app_stats_buf);
+                app_stats_buf = NULL;
+                tr_debug("Application data Memory freed");
+            }
         } else if (obj == nm_stats) {
-            nm_dyn_mem_free(nm_stat_buf);
-            tr_debug("nm_stat data Memory freed");
+            if (nm_stat_buf != NULL) {
+                nm_dyn_mem_free(nm_stat_buf);
+                nm_stat_buf = NULL;
+                tr_debug("nm_stat data Memory freed");
+            }
         } else if (obj == ws_stats) {
-            nm_dyn_mem_free(ws_stats_buf);
-            tr_debug("ws_stats data Memory freed");
+            if (ws_stats_buf != NULL) {
+                nm_dyn_mem_free(ws_stats_buf);
+                ws_stats_buf = NULL;
+                tr_debug("ws_stats data Memory freed");
+            }
         } else if (obj == ch_noise) {
-            nm_dyn_mem_free(ch_noise_buf);
-            tr_debug("ch_noise data Memory freed");
+            if (ch_noise_buf != NULL) {
+                nm_dyn_mem_free(ch_noise_buf);
+                ch_noise_buf = NULL;
+                tr_debug("ch_noise data Memory freed");
+            }
         } else if (obj == br_stats) {
-            nm_dyn_mem_free(br_stats_buf);
-            tr_debug("br_stats data Memory freed");
+            if (br_stats_buf != NULL) {
+                nm_dyn_mem_free(br_stats_buf);
+                br_stats_buf = NULL;
+                tr_debug("br_stats data Memory freed");
+            }
         } else if (obj == routing_table) {
-            nm_dyn_mem_free(routing_table_buf);
-            tr_debug("routing_table data Memory freed");
+            if (routing_table_buf != NULL) {
+                nm_dyn_mem_free(routing_table_buf);
+                routing_table_buf = NULL;
+                tr_debug("routing_table data Memory freed");
+            }
         } else if (obj == node_stats) {
-            nm_dyn_mem_free(node_stats_buf);
-            tr_debug("node_stats data Memory freed");
+            if (node_stats_buf != NULL) {
+                nm_dyn_mem_free(node_stats_buf);
+                node_stats_buf = NULL;
+                tr_debug("node_stats data Memory freed");
+            }
         } else if (obj == radio_stats) {
-            nm_dyn_mem_free(radio_stats_buf);
-            tr_debug("radio_stats data Memory freed");
+            if (radio_stats_buf != NULL) {
+                nm_dyn_mem_free(radio_stats_buf);
+                radio_stats_buf = NULL;
+                tr_debug("radio_stats data Memory freed");
+            }
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
@@ -342,36 +372,44 @@ nm_status_t nm_res_manager_create(void *obj_list)
     app_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 3, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     app_stats->set_message_delivery_status_cb(msg_delivery_handle, app_stats);
     app_stats->set_read_resource_function(resource_read_requested, app_stats);
+    app_stats->set_observable(true);
 
     nm_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 4, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     nm_stats->set_message_delivery_status_cb(msg_delivery_handle, nm_stats);
     nm_stats->set_read_resource_function(resource_read_requested, nm_stats);
+    nm_stats->set_observable(true);
 
     ws_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 5, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     ws_stats->set_message_delivery_status_cb(msg_delivery_handle, ws_stats);
     ws_stats->set_read_resource_function(resource_read_requested, ws_stats);
+    ws_stats->set_observable(true);
 
     ch_noise = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 10, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     ch_noise->set_message_delivery_status_cb(msg_delivery_handle, ch_noise);
     ch_noise->set_read_resource_function(resource_read_requested, ch_noise);
+    ch_noise->set_observable(true);
 
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_BORDER_ROUTER) {
         br_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 6, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         br_stats->set_message_delivery_status_cb(msg_delivery_handle, br_stats);
         br_stats->set_read_resource_function(resource_read_requested, br_stats);
+        br_stats->set_observable(true);
 
         routing_table = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 9, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         routing_table->set_message_delivery_status_cb(msg_delivery_handle, routing_table);
         routing_table->set_read_resource_function(resource_read_requested, routing_table);
+        routing_table->set_observable(true);
     }
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_ROUTER) {
         node_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 7, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         node_stats->set_message_delivery_status_cb(msg_delivery_handle, node_stats);
         node_stats->set_read_resource_function(resource_read_requested, node_stats);
+        node_stats->set_observable(true);
 
         radio_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 8, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         radio_stats->set_message_delivery_status_cb(msg_delivery_handle, radio_stats);
         radio_stats->set_read_resource_function(resource_read_requested, radio_stats);
+        radio_stats->set_observable(true);
     }
     return NM_STATUS_SUCCESS;
 }
@@ -387,39 +425,134 @@ nm_status_t nm_res_manager_get(void *resource_object)
         return NM_STATUS_FAIL;
     }
 
-    if (res_obj == ws_config) {
-        if (nm_res_get_ws_config_from_kvstore(&buf, &len) == NM_STATUS_SUCCESS) {
-            tr_info("Setting value of resource ws_config [len = %u] in Cloud Client", len);
+    if (res_obj == app_stats) {
+        if (nm_res_get_app_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource app_stats [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Wi-SUN Configuration resource to Cloud Client");
-                nm_dyn_mem_free(buf);
+                tr_warn("FAILED to set APP Statistics resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
-            tr_info("Wi-SUN Configuration resource value Set to Cloud Client");
+            tr_info("APP Statistics resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to retrieve Wi-SUN Configuration from KVStore");
+        tr_warn("FAILED to fetch APP Statistics");
         return NM_STATUS_FAIL;
     }
 
-    if (res_obj == br_config) {
-        if (nm_res_get_br_config_from_kvstore(&buf, &len) == NM_STATUS_SUCCESS) {
-            tr_info("Setting value of resource br_config [len = %u] in Cloud Client", len);
+    if (res_obj == nm_stats) {
+        if (nm_res_get_nm_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource nm_stats [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set BR Configuration resource to Cloud Client");
-                nm_dyn_mem_free(buf);
+                tr_warn("FAILED to set General Network Statistics resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
-            tr_info("BR Configuration resource value Set to Cloud Client");
+            tr_info("General Network Statistics resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to retrieve BR Configuration from KVStore");
+        tr_warn("FAILED to fetch General Network Statistics");
         return NM_STATUS_FAIL;
     }
+
+    if (res_obj == ws_stats) {
+        if (nm_res_get_ws_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource ws_stats [len = %u] in Cloud Client", len);
+            print_stream(buf, len);
+            if (res_obj->set_value(buf, len) != true) {
+                tr_warn("FAILED to set Wi-SUN common Statistics resource to Cloud Client");
+                return NM_STATUS_FAIL;
+            }
+            tr_info("Wi-SUN common Statistics resource value Set to Cloud Client");
+            nm_dyn_mem_free(buf);
+            return NM_STATUS_SUCCESS;
+        }
+        tr_warn("FAILED to fetch Wi-SUN common Statistics");
+        return NM_STATUS_FAIL;
+    }
+
+    if (res_obj == br_stats) {
+        if (nm_res_get_br_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource br_stats [len = %u] in Cloud Client", len);
+            print_stream(buf, len);
+            if (res_obj->set_value(buf, len) != true) {
+                tr_warn("FAILED to set Border router Statistics resource to Cloud Client");
+                return NM_STATUS_FAIL;
+            }
+            tr_info("Border router Statistics resource value Set to Cloud Client");
+            nm_dyn_mem_free(buf);
+            return NM_STATUS_SUCCESS;
+        }
+        tr_warn("FAILED to fetch Border router Statistics");
+        return NM_STATUS_FAIL;
+    }
+
+    if (res_obj == node_stats) {
+        if (nm_res_get_node_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource node_stats [len = %u] in Cloud Client", len);
+            print_stream(buf, len);
+            if (res_obj->set_value(buf, len) != true) {
+                tr_warn("FAILED to set Node Statistics resource to Cloud Client");
+                return NM_STATUS_FAIL;
+            }
+            tr_info("Node Statistics resource value Set to Cloud Client");
+            nm_dyn_mem_free(buf);
+            return NM_STATUS_SUCCESS;
+        }
+        tr_warn("FAILED to fetch Node Statistics");
+        return NM_STATUS_FAIL;
+    }
+
+    if (res_obj == radio_stats) {
+        if (nm_res_get_radio_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource radio_stats [len = %u] in Cloud Client", len);
+            print_stream(buf, len);
+            if (res_obj->set_value(buf, len) != true) {
+                tr_warn("FAILED to set Radio Statistics resource to Cloud Client");
+                return NM_STATUS_FAIL;
+            }
+            tr_info("Radio Statistics resource value Set to Cloud Client");
+            nm_dyn_mem_free(buf);
+            return NM_STATUS_SUCCESS;
+        }
+        tr_warn("FAILED to fetch Radio Statistics");
+        return NM_STATUS_FAIL;
+    }
+
+    if (res_obj == routing_table) {
+        if (nm_res_get_routing_table(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource routing_table [len = %u] in Cloud Client", len);
+            print_stream(buf, len);
+            if (res_obj->set_value(buf, len) != true) {
+                tr_warn("FAILED to set Routing Table resource to Cloud Client");
+                return NM_STATUS_FAIL;
+            }
+            tr_info("Routing Table resource value Set to Cloud Client");
+            /* Do not need to free buf pointer. We may use the same memory next time */
+            return NM_STATUS_SUCCESS;
+        }
+        tr_warn("FAILED to fetch Routing Table");
+        return NM_STATUS_FAIL;
+    }
+
+    if (res_obj == ch_noise) {
+        if (nm_res_get_ch_noise_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource ch_noise [len = %u] in Cloud Client", len);
+            print_stream(buf, len);
+            if (res_obj->set_value(buf, len) != true) {
+                tr_warn("FAILED to set Channel noise resource to Cloud Client");
+                return NM_STATUS_FAIL;
+            }
+            tr_info("Channel noise resource value Set to Cloud Client");
+            nm_dyn_mem_free(buf);
+            return NM_STATUS_SUCCESS;
+        }
+        tr_warn("FAILED to fetch Channel noise");
+        return NM_STATUS_FAIL;
+    }
+
     return NM_STATUS_FAIL;
 }
 
@@ -456,6 +589,21 @@ nm_status_t nm_res_manager_set(void *resource_data)
 
     /* To-Do :: Implement for other resources */
     return NM_STATUS_FAIL;
+}
+
+void nm_manager_res_refresh(void)
+{
+    nm_post_event(NM_EVENT_RESOURCE_GET, 0, app_stats);
+    nm_post_event(NM_EVENT_RESOURCE_GET, 0, nm_stats);
+    nm_post_event(NM_EVENT_RESOURCE_GET, 0, ws_stats);
+    nm_post_event(NM_EVENT_RESOURCE_GET, 0, ch_noise);
+    if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_BORDER_ROUTER) {
+        nm_post_event(NM_EVENT_RESOURCE_GET, 0, br_stats);
+        nm_post_event(NM_EVENT_RESOURCE_GET, 0, routing_table);
+    } else if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_ROUTER) {
+        nm_post_event(NM_EVENT_RESOURCE_GET, 0, node_stats);
+        nm_post_event(NM_EVENT_RESOURCE_GET, 0, radio_stats);
+    }
 }
 
 #endif    //MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER && (MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER == 1)

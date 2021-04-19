@@ -263,7 +263,7 @@ arm_uc_error_t ARM_UC_ControlCenter_Reject(arm_uc_request_t request, arm_uc_reje
     UC_CONT_TRACE("ARM_UC_ControlCenter_Reject: %d", (int) request);
 
     arm_uc_error_t result = (arm_uc_error_t) { ERR_INVALID_PARAMETER };
-    arm_uc_control_center_event_t arm_uccc_event;
+    arm_uc_control_center_event_t arm_uccc_event = ARM_UCCC_EVENT_UNAVAILABLE_DOWNLOAD;
 
     switch (request) {
         case ARM_UCCC_REQUEST_DOWNLOAD:
@@ -391,6 +391,19 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportState(arm_uc_monitor_state_t state)
     ARM_UC_ControlCenter_Notification_Handler();
 #endif
     return result;
+}
+
+uint8_t ARM_UC_ControlCenter_CheckState(arm_uc_monitor_state_t state)
+{
+    UC_CONT_TRACE("ARM_UC_ControlCenter_CheckState: %d", (int) state);
+    if (arm_uc_monitor_struct) {
+        arm_uc_monitor_state_t current_state = arm_uc_monitor_struct->GetState();
+        if (current_state == state)
+        {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /**

@@ -492,10 +492,10 @@ private:
      * @param[out] offset_from_start     Offset from start of erase unit.
      * @param[out] dist_to_end           Distance to end of erase unit.
      *
-     * @returns offset in erase unit.
+     * @returns 0 for success, nonzero for failure.
      */
-    void offset_in_erase_unit(uint8_t area, uint32_t offset, uint32_t &offset_from_start,
-                              uint32_t &dist_to_end);
+    int offset_in_erase_unit(uint8_t area, uint32_t offset, uint32_t &offset_from_start,
+                             uint32_t &dist_to_end);
 
     /**
      * @brief Check whether erase unit is erased (from offset until end of unit).

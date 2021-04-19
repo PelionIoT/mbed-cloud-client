@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -44,7 +44,7 @@
 
 #define FOTA_IMAGE_DER_SIGNATURE_SIZE 72  // DER encoded signature max size
 
-#if defined(FOTA_USE_UPDATE_X509)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_X509_PUBLIC_KEY_FORMAT)
 static inline int der_encode_signature_helper(
     const mbedtls_mpi *r, const mbedtls_mpi *s,
     uint8_t *buffer, size_t buffer_size, size_t *bytes_written)
@@ -101,7 +101,7 @@ cleanup:
 
     return ret;
 }
-#endif // FOTA_USE_UPDATE_X509
+#endif // #if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT==FOTA_X509_PUBLIC_KEY_FORMAT)
 
 /*
  * DeltaMetadata ::= SEQUENCE {
@@ -344,10 +344,10 @@ int parse_manifest_internal(
         is_delta = true;
     } else
 #endif
-    if (payload_format_value != FOTA_MANIFEST_PAYLOAD_FORMAT_RAW) {
-        FOTA_TRACE_ERROR("error unsupported payload format %d - ", payload_format_value);
-        return FOTA_STATUS_MANIFEST_PAYLOAD_UNSUPPORTED;
-    }
+        if (payload_format_value != FOTA_MANIFEST_PAYLOAD_FORMAT_RAW) {
+            FOTA_TRACE_ERROR("error unsupported payload format %d - ", payload_format_value);
+            return FOTA_STATUS_MANIFEST_PAYLOAD_UNSUPPORTED;
+        }
 
     FOTA_MANIFEST_TRACE_DEBUG("Parse Manifest:installed-signature @%d",  p - input_data);
     tls_status = mbedtls_asn1_get_tag(
@@ -506,7 +506,7 @@ int fota_manifest_parse(
     }
 #if !defined(FOTA_TEST_MANIFEST_BYPASS_VALIDATION)
 
-#if defined(FOTA_USE_UPDATE_X509)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT==FOTA_X509_PUBLIC_KEY_FORMAT)
     // signature in manifest schema v3 is a raw signature,
     // When using mbedtls_pk is used DER encoded signature is expected
     uint8_t der_encoded_sig[FOTA_IMAGE_DER_SIGNATURE_SIZE];
@@ -522,12 +522,14 @@ int fota_manifest_parse(
     fota_sig_status = fota_verify_signature(
                           signed_data_ptr, signed_data_size,
                           der_encoded_sig, der_encoded_sig_size);
-#else  // defined(FOTA_USE_UPDATE_X509)
+#elif (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT==FOTA_RAW_PUBLIC_KEY_FORMAT)
 
     fota_sig_status = fota_verify_signature(
                           signed_data_ptr, signed_data_size,
                           p, len);
-#endif  // defined(FOTA_USE_UPDATE_X509)
+#else
+#error public key format not supported
+#endif  // MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT
     FOTA_FI_SAFE_COND(
         fota_sig_status == FOTA_STATUS_SUCCESS,
         fota_sig_status,

@@ -20,7 +20,6 @@
 
 #define TRACE_GROUP "uccc"
 
-#if !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 // Needed for PRIu64 on FreeRTOS
 #include <stdio.h>
 // Note: this macro is needed on armcc to get the the limit macros like UINT16_MAX
@@ -38,7 +37,7 @@
 #include MBED_CLOUD_CLIENT_USER_CONFIG_FILE
 #endif
 
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+#if !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE) && defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) 
 #include "update-client-hub/update_client_hub.h"
 
 #include "update-client-source-http/arm_uc_source_http.h"
@@ -374,8 +373,7 @@ int UpdateClient::getClassId(uint8_t* buffer, size_t buffer_size_max, size_t* va
     }
     return CCS_STATUS_KEY_DOESNT_EXIST;
 }
-#endif
-#else 
+#elif  defined(MBED_CLOUD_CLIENT_FOTA_ENABLE) && defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE)
 
 #include "include/CloudClientStorage.h"
 #include "include/UpdateClient.h"
@@ -407,12 +405,12 @@ void UpdateClient::set_update_authorize_priority_handler(void (*handler)(int32_t
 
 void UpdateClient::update_authorize(int32_t request)
 {
-    fota_app_authorize_update();
+    fota_app_authorize();
 }
 
 void UpdateClient::update_reject(int32_t request, int32_t reason)
 {
-    fota_app_reject_update(reason);
+    fota_app_reject(reason);
 }
 
 int UpdateClient::getVendorId(uint8_t* buffer, size_t buffer_size_max, size_t* value_size)
@@ -442,4 +440,5 @@ void UpdateClient::set_update_progress_handler(void (*handler)(uint32_t progress
     fota_shim_set_progress_handler(handler);
 }
 
-#endif
+#endif //if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE) && if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE)
+

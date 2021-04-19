@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -108,6 +108,8 @@ private:
      */
     void request_event_in(int32_t delay_ms);
 
+    void set_event_id();
+
 private:
     M2MTimerObserver&   _observer;
     uint64_t            _interval;
@@ -128,6 +130,8 @@ private:
     bool                _single_shot : 1;
 
     static int8_t       _tasklet_id;
+    uint8_t             _event_id;
+    static uint8_t      _next_event_id;
 
     friend class M2MTimer;
     friend class Test_M2MTimerPimpl_classic;

@@ -46,6 +46,8 @@ typedef enum nm_event_type_e {
     NM_EVENT_RESOURCE_SET,
     NM_EVENT_APPLY_WS_CONFIG_AFTER_DELAY,
     NM_EVENT_APPLY_BR_CONFIG_AFTER_DELAY,
+    NM_EVENT_STATS_REFRESH_TIMEOUT,
+    NM_EVENT_RESOURCE_GET,
     NM_EVENT_TYPE_MAX = 0xff // Must fit in a uint8_t (field in the arm_event_s struct)
 } nm_event_t;
 

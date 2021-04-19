@@ -21,6 +21,9 @@ SET(KVSTORE_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/securestore/SecureStore.cpp
 )
 add_library(kvstore STATIC "${KVSTORE_SRCS}")
+if (${OS_BRAND} MATCHES "Zephyr")
+        target_link_libraries(kvstore PUBLIC ${TLS_LIBRARY})
+endif()
 
 endif()
 

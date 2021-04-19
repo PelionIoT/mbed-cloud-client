@@ -28,8 +28,8 @@
 #include <stdint.h>
 #include <varint.h>
 
-unsigned char TOP_BIT_ON_BYTE = (128);
-unsigned char TOP_BIT_OFF_BYTE = (127);
+const unsigned char TOP_BIT_ON_BYTE = (128);
+const unsigned char TOP_BIT_OFF_BYTE = (127);
 
 // return 0 if decode completed otherwise 1 negative on error
 var_int_op_code decode_unsigned_varint(unsigned char varIntByte, uint64_t* varIntValue, int count)
@@ -70,7 +70,7 @@ int encode_unsigned_varint(uint64_t value, unsigned char *buf, uint32_t BUFF_SIZ
         if (pos >= BUFF_SIZE_MAX) {
             return ERR_BUFFER_TOO_SMALL;  // protecting buf from overwrite
         }
-        buf[pos] = (char) value;
+        buf[pos] = (unsigned char) value;
         value >>= 7;
         if (value > 0) {
             buf[pos] |= TOP_BIT_ON_BYTE;
@@ -99,7 +99,7 @@ int encode_signed_varint(int64_t value, unsigned char *buf, uint32_t BUFF_SIZE_M
         if (pos >= BUFF_SIZE_MAX) {
             return ERR_BUFFER_TOO_SMALL;  // protecting buf from overwrite
         }
-        buf[pos] = (char) value;
+        buf[pos] = (unsigned char) value;
         value >>= 7;
         if (value > 0) {
             buf[pos] |= TOP_BIT_ON_BYTE;

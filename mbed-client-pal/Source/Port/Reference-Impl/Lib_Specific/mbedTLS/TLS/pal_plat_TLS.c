@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016-2020 ARM Ltd.
+ * Copyright 2016-2021 Pelion.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,14 @@ typedef mbedtls_ssl_config platTlsConfigurationContext;
 //size_t id_len;              /*!< session id length  */
 //unsigned char id[32];       /*!< session identifier */
 //unsigned char master[48];   /*!< the master secret  */
+
+#ifndef MBEDTLS_SSL_DTLS_CONNECTION_ID
+#error "MBEDTLS_SSL_DTLS_CONNECTION_ID must be defined with PAL_USE_SSL_SESSION_RESUME"
+#endif
+
+#ifndef MBEDTLS_SSL_CONTEXT_SERIALIZATION
+#error "MBEDTLS_SSL_CONTEXT_SERIALIZATION must be defined with PAL_USE_SSL_SESSION_RESUME"
+#endif
 
 #define SSL_SESSION_STORE_SIZE 2048
 
@@ -287,6 +295,12 @@ palStatus_t pal_plat_initTLSLibrary(void)
     }
     else
     {
+        /**
+         * Clean buffer before initialization. Some platform implementations
+         * does not handle mutex initialization correctly when buffers are
+         * dirty.
+         */
+        memset(g_entropy, 0, sizeof(mbedtls_entropy_context));
         mbedtls_entropy_init(g_entropy);
         g_entropyInitiated = false;
     }
@@ -1560,5 +1574,16 @@ void pal_plat_set_cid(const uint8_t* context, const size_t length)
     } else {
         PAL_LOG_ERR("pal_plat_set_cid - cid set failed, too long %lu (max was %d)", length, SSL_SESSION_STORE_SIZE);
     }
+}
+
+void pal_plat_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len)
+{
+    assert(data_len <= MBEDTLS_SSL_CID_OUT_LEN_MAX);
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+#ifdef MBEDTLS_SSL_DTLS_CONNECTION_ID
+    memcpy(localTLSCtx->tlsCtx.transform_out->out_cid, data_ptr, data_len);
+    localTLSCtx->tlsCtx.transform_out->out_cid_len = data_len;
+    pal_plat_saveSslSessionBuffer(palTLSHandle);
+#endif
 }
 #endif // PAL_USE_SSL_SESSION_RESUME

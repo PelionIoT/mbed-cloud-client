@@ -72,7 +72,6 @@ typedef struct {
     uint32_t crc;
 } reserved_trailer_t;
 
-static const uint32_t work_buf_size = 64;
 static const uint32_t initial_crc = 0xFFFFFFFF;
 static const uint32_t initial_max_keys = 16;
 
@@ -143,11 +142,6 @@ TDBStore::TDBStore(BlockDevice *bd) : _ram_table(0), _max_keys(0),
     for (int i = 0; i < _max_open_iterators; i++) {
         _iterator_table[i] = { 0 };
     }
-
-    /* Minimum space required by Reserved area and master record */
-    assert(bd->size()
-                >= (align_up(RESERVED_AREA_SIZE + sizeof(reserved_trailer_t), _prog_size)
-                    + record_size(master_rec_key, sizeof(master_record_data_t))));
 }
 
 TDBStore::~TDBStore()
@@ -303,7 +297,7 @@ int TDBStore::read_record(uint8_t area, uint32_t offset, char *key,
                 user_key_ptr[key_size] = '\0';
             } else {
                 dest_buf = _work_buf;
-                chunk_size = std::min(key_size, work_buf_size);
+                chunk_size = std::min(key_size, _prog_size);
             }
         } else {
             // This means that we're on the data part
@@ -313,13 +307,13 @@ int TDBStore::read_record(uint8_t area, uint32_t offset, char *key,
             // 3. After actual part is finished - read to work buffer
             // 4. Copy data flag not set - read to work buffer
             if (curr_data_offset < data_offset) {
-                chunk_size = std::min((size_t)work_buf_size, (size_t)(data_offset - curr_data_offset));
+                chunk_size = std::min((size_t)_prog_size, (size_t)(data_offset - curr_data_offset));
                 dest_buf = _work_buf;
             } else if (copy_data && (curr_data_offset < data_offset + actual_data_size)) {
                 chunk_size = actual_data_size;
                 dest_buf = static_cast<uint8_t *>(data_buf);
             } else {
-                chunk_size = std::min(work_buf_size, total_size);
+                chunk_size = std::min(_prog_size, total_size);
                 dest_buf = _work_buf;
             }
         }
@@ -800,17 +794,19 @@ int TDBStore::copy_record(uint8_t from_area, uint32_t from_offset, uint32_t to_o
                           uint32_t &to_next_offset)
 {
     int ret;
-    record_header_t header;
+    record_header_t *header = (record_header_t *) _work_buf;
     uint32_t total_size;
     uint16_t chunk_size;
 
-    ret = read_area(from_area, from_offset, sizeof(header), &header);
+    memset(_work_buf, 0, _prog_size);
+
+    ret = read_area(from_area, from_offset, sizeof(record_header_t), header);
     if (ret) {
         return ret;
     }
 
     total_size = align_up(sizeof(record_header_t), _prog_size) +
-                 align_up(header.key_size + header.data_size, _prog_size);;
+                 align_up(header->key_size + header->data_size, _prog_size);;
 
 
     ret = check_erase_before_write(1 - from_area, to_offset, total_size);
@@ -819,7 +815,7 @@ int TDBStore::copy_record(uint8_t from_area, uint32_t from_offset, uint32_t to_o
     }
 
     chunk_size = align_up(sizeof(record_header_t), _prog_size);
-    ret = write_area(1 - from_area, to_offset, chunk_size, &header);
+    ret = write_area(1 - from_area, to_offset, chunk_size, header);
     if (ret) {
         return ret;
     }
@@ -829,7 +825,7 @@ int TDBStore::copy_record(uint8_t from_area, uint32_t from_offset, uint32_t to_o
     total_size -= chunk_size;
 
     while (total_size) {
-        chunk_size = std::min(total_size, work_buf_size);
+        chunk_size = std::min(total_size, _prog_size);
         ret = read_area(from_area, from_offset, chunk_size, _work_buf);
         if (ret) {
             return ret;
@@ -870,7 +866,7 @@ int TDBStore::garbage_collection()
         reserved_size = _master_record_offset;
 
         while (reserved_size) {
-            chunk_size = std::min(work_buf_size, reserved_size);
+            chunk_size = std::min(_prog_size, reserved_size);
             ret = read_area(_active_area, to_offset, chunk_size, _work_buf);
             if (ret) {
                 return ret;
@@ -1049,7 +1045,7 @@ int TDBStore::init()
     }
 
     _prog_size = _bd->get_program_size();
-    _work_buf = new uint8_t[work_buf_size];
+    _work_buf = new uint8_t[_prog_size];
     _key_buf = new char[MAX_KEY_SIZE];
     _inc_set_handle = new inc_set_handle_t;
     memset(_inc_set_handle, 0, sizeof(inc_set_handle_t));
@@ -1440,7 +1436,7 @@ int TDBStore::do_reserved_data_get(void *reserved_data, size_t reserved_data_buf
     offset = 0;
 
     while (actual_size) {
-        uint32_t chunk = std::min(work_buf_size, (uint32_t) actual_size);
+        uint32_t chunk = std::min(_prog_size, (uint32_t) actual_size);
         ret = read_area(_active_area, offset, chunk, buf + offset);
         if (ret) {
             return ret;
@@ -1474,16 +1470,18 @@ int TDBStore::reserved_data_get(void *reserved_data, size_t reserved_data_buf_si
     return ret;
 }
 
-
-void TDBStore::offset_in_erase_unit(uint8_t area, uint32_t offset,
-                                    uint32_t &offset_from_start, uint32_t &dist_to_end)
+int TDBStore::offset_in_erase_unit(uint8_t area, uint32_t offset,
+                                   uint32_t &offset_from_start, uint32_t &dist_to_end)
 {
     uint32_t bd_offset = _area_params[area].address + offset;
     if (!_variant_bd_erase_unit_size) {
         uint32_t eu_size = _buff_bd->get_erase_size();
+        if (!eu_size) {
+            return MBED_ERROR_NOT_READY;
+        }
         offset_from_start = bd_offset % eu_size;
         dist_to_end = eu_size - offset_from_start;
-        return;
+        return MBED_SUCCESS;
     }
 
     uint32_t agg_offset = 0;
@@ -1492,18 +1490,23 @@ void TDBStore::offset_in_erase_unit(uint8_t area, uint32_t offset,
     }
     offset_from_start = bd_offset - agg_offset;
     dist_to_end = _buff_bd->get_erase_size(agg_offset) - offset_from_start;
+
+    return MBED_SUCCESS;
 }
 
 int TDBStore::is_erase_unit_erased(uint8_t area, uint32_t offset, bool &erased)
 {
     uint32_t offset_from_start, dist;
-    offset_in_erase_unit(area, offset, offset_from_start, dist);
+    int ret = offset_in_erase_unit(area, offset, offset_from_start, dist);
+    if (ret) {
+        return MBED_ERROR_READ_FAILED;
+    }
     uint8_t buf[sizeof(record_header_t)], blanks[sizeof(record_header_t)];
     memset(blanks, _buff_bd->get_erase_value(), sizeof(blanks));
 
     while (dist) {
         uint32_t chunk = std::min(dist, (uint32_t) sizeof(buf));
-        int ret = read_area(area, offset, chunk, buf);
+        ret = read_area(area, offset, chunk, buf);
         if (ret) {
             return MBED_ERROR_READ_FAILED;
         }

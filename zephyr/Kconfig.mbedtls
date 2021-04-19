@@ -1,0 +1,23 @@
+# Copyright (c) 2021 Pelion IoT
+# SPDX-License-Identifier: Apache-2.0
+
+menu "Mbed TLS options"
+
+config PELION_MBEDTLS_FILE
+    bool "Built-in Mbed TLS, configuration from file"
+    select MBEDTLS
+
+if PELION_MBEDTLS_FILE
+    config MBEDTLS_CFG_FILE
+        string "Use built-in Mbed TLS with configuration file"
+        default "config-tls-pelion.h" if PELION_MBEDTLS_FILE
+endif
+
+config PELION_MBEDTLS_LIB_NAME
+    string
+    default "mbedTLS" if MBEDTLS
+    help
+      This option allows to specify one or more mbedtls library files to be
+      linked with Pelion. Separate multiple values with space " ".
+
+endmenu

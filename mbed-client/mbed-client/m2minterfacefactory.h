@@ -17,6 +17,7 @@
 #define M2M_INTERFACE_FACTORY_H
 
 #include <stdlib.h>
+#include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2msecurity.h"
 #include "mbed-client/m2mresource.h"
 #include "mbed-client/m2minterfaceobserver.h"
@@ -57,6 +58,7 @@ public:
      * \param stack The underlying network stack to be used for the connection,
      * default is LwIP_IPv4.
      * \param context_address The context address for M2M-HTTP, not used currently.
+     * \param version  Version of the LwM2M Enabler that the LwM2M Client supports.
      * \return M2MInterfaceImpl An object for managing other client operations.
      */
     static M2MInterface *create_interface(M2MInterfaceObserver &observer,
@@ -67,7 +69,8 @@ public:
                                               const String &domain = "",
                                               M2MInterface::BindingMode mode = M2MInterface::NOT_SET,
                                               M2MInterface::NetworkStack stack = M2MInterface::LwIP_IPv4,
-                                              const String &context_address = "");
+                                              const String &context_address = "",
+                                              const String &version = DEFAULT_M2MVERSION);
 
     /**
      * \brief Creates a security object for the mbed Client Inteface. With this, the

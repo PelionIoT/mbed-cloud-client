@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2020-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -125,7 +125,7 @@ static ota_error_code_e (*ota_get_parent_addr_fptr)(uint8_t*);
 // * * * Function prototypes * * *
 static ota_error_code_e ota_manage_start_command(uint16_t payload_length, uint8_t *payload_ptr);
 static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length, uint8_t *payload_ptr);
-static ota_error_code_e ota_parse_start_command_parameters(uint8_t *payload_ptr);
+static void             ota_parse_start_command_parameters(uint8_t *payload_ptr);
 static void             ota_manage_fragment_command(uint16_t payload_length, uint8_t *payload_ptr);
 static void             ota_manage_abort_command(uint16_t payload_length, uint8_t *payload_ptr);
 static void             ota_manage_end_fragments_command(uint16_t payload_length, uint8_t *payload_ptr);

@@ -292,12 +292,19 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
             /* If dynamic resource, go to callback */
             if (resource_temp_ptr->static_resource_parameters->mode == SN_GRS_DYNAMIC) {
                 /* Check accesses */
-                if (((coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_GET) && !(resource_temp_ptr->access & SN_GRS_GET_ALLOWED))          ||
+                if ((coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_PUT) && ((resource_temp_ptr->access & SN_GRS_PUT_ALLOWED) ||
+                    ((resource_temp_ptr->access & SN_GRS_GET_ALLOWED) && coap_packet_ptr->payload_len == 0))) {
+                    // PUT and PUT allowed OR special case: WRITE-ATTRIBUTE (COAP PUT) to GET resource. In this case there can't be any any payload.
+                    status = COAP_MSG_CODE_EMPTY;
+                }
+                else if (((coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_GET) && !(resource_temp_ptr->access & SN_GRS_GET_ALLOWED))    ||
                         ((coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_POST) && !(resource_temp_ptr->access & SN_GRS_POST_ALLOWED))   ||
                         ((coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_PUT) && !(resource_temp_ptr->access & SN_GRS_PUT_ALLOWED))     ||
                         ((coap_packet_ptr->msg_code == COAP_MSG_CODE_REQUEST_DELETE) && !(resource_temp_ptr->access & SN_GRS_DELETE_ALLOWED))) {
                     status = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
-                } else {
+                }
+
+                if (status == COAP_MSG_CODE_EMPTY) {
                     /* Do not call null pointer.. */
                     if (resource_temp_ptr->sn_grs_dyn_res_callback != NULL) {
                         resource_temp_ptr->sn_grs_dyn_res_callback(nsdl_handle, coap_packet_ptr, src_addr_ptr, SN_NSDL_PROTOCOL_COAP);

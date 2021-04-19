@@ -118,6 +118,13 @@ set(PAL_NETWORKING_SRCS
     ${PAL_MODULES_SOURCE_DIR}/Networking/pal_network.c
     ${PAL_PORT_SOURCE_DIR}/Networking/${NETWORK_STACK}/pal_plat_network.c
 )
+if (${OS_BRAND} MATCHES "Zephyr")
+    set(PAL_NETWORKING_SRCS
+        ${PAL_NETWORKING_SRCS}
+        ${PAL_PORT_SOURCE_DIR}/Networking/${NETWORK_STACK}/fd_work_poll.c
+        ${PAL_PORT_SOURCE_DIR}/Networking/${NETWORK_STACK}/fd_work_poll_polling.c
+    )
+endif()
 
 set(PAL_TLS_SRCS
     ${PAL_MODULES_SOURCE_DIR}/TLS/pal_TLS.c
@@ -227,6 +234,16 @@ target_link_libraries(palDRBG palRTOS)
 add_library(palTime STATIC "${PAL_TIME_SRCS}")
 add_dependencies(palTime fccstorage)
 target_link_libraries(palTime fccstorage)
+
+# Create Platform module internally if files are part of PAL implementation
+if (EXISTS ${PAL_PORT_SOURCE_DIR}/Platform)
+  file(GLOB PLATFORM_SRCS
+    ${PAL_PORT_SOURCE_DIR}/Platform/*.c
+    ${PAL_PORT_SOURCE_DIR}/Platform/*.cpp
+  )
+  add_library(PLATFORM_LIBS STATIC ${PLATFORM_SRCS})
+  target_include_directories(PLATFORM_LIBS PUBLIC ${PAL_PORT_SOURCE_DIR}/Platform)
+endif()
 
 # Create the main PAL library
 add_library(pal STATIC "${PAL_SRCS}")

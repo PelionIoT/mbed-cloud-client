@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2020-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -16,6 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "multicast_config.h"
+
+#if defined(LIBOTA_ENABLED) && (LIBOTA_ENABLED)
+
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -27,10 +31,7 @@
 #include "mbed-trace/mbed_trace.h"
 #include "sn_nsdl_lib.h"
 #include "sn_grs.h"
-#include "update-client-common/arm_uc_config.h"
 #include "multicast.h"
-
-#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 
 #include "libota.h"
 
@@ -41,6 +42,7 @@ static void ota_get_state(char *ota_state_ptr);
 static bool check_session(uint8_t *payload_ptr, uint16_t *payload_index);
 static uint16_t fragment_size = OTA_DEFAULT_FRAGMENT_SIZE;
 static void create_multicast_header(const uint8_t command);
+static void modify_reboot_delay_from_socket(uint32_t modification);
 
 // Buffer for sending multicast message
 typedef struct {
@@ -50,21 +52,26 @@ typedef struct {
 
 static ota_multicast_buffer_t socket_buf = {0, 0};
 
+static uint8_t resend_counter = 0;
+static size_t resend_payload_size = 0;
+
 // OTA library calculates checksum by OTA_CHECKSUM_CALCULATING_BYTE_COUNT bytes at a time and then generates event with
 // OTA_CHECKSUM_CALCULATING_INTERVAL time for avoiding interrupting other operations for too long time
 #define OTA_CHECKSUM_CALCULATING_BYTE_COUNT                 512 // In bytes
 #define OTA_CHECKSUM_CALCULATING_INTERVAL                   10  // In milliseconds
+#define CRITICAL_MESSAGE_SEND_COUNT                         3   // How many times critical messages are sent (manifest, start and activate)
 
-#ifdef MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK
+#if defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK) || defined(__NANOSIMULATOR__)
 #define OTA_MISSING_FRAGMENTS_REQUESTING_TIMEOUT_START      5   // After this random timeout, device will send request for its missing fragments.
 #define OTA_FRAGMENTS_REQUEST_SERVICE_TIMEOUT_START         5   // After this random timeout, device will start sending fragments to requester.
 #define OTA_TIMER_RANDOM_WINDOW                             5   // Random window for timer.
 #define OTA_NOTIFICATION_TIMER_DELAY                        2   // This is start time in seconds for random timeout, which OTA library uses for sending ack to backend.
+#define OTA_ONE_FRAGMENT_WAITTIME_SECS                      300 // After this timeout service will fail the campaign if nodes are not in correct state and threshold is not met
+
 #define OTA_MULTICAST_INTERVAL                              10  // Delay between multicast messages
-#define OTA_MISSING_FRAGMENT_WAITTIME_HOURS                 1
 #define OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT               120 /* After this timeout, device will start requesting its missing fragments.
                                                                     This is needed if node did not receive END FRAGMENT command. */
-#define OTA_ONE_FRAGMENT_WAITTIME_SECS                      300 // After this timeout service will fail the campaign if nodes are not in correct state and threshold is not met
+
 #else
 // * * * Timer random timeout values (values are seconds) * * *
 #define OTA_MISSING_FRAGMENTS_REQUESTING_TIMEOUT_START      30  // After this random timeout, device will send request for its missing fragments.
@@ -79,20 +86,19 @@ static ota_multicast_buffer_t socket_buf = {0, 0};
 #define OTA_MULTICAST_INTERVAL MBED_CLOUD_CLIENT_MULTICAST_INTERVAL
 #endif
 
-#ifndef MBED_CLOUD_CLIENT_MULTICAST_MISSING_FRAGMENT_WAIT_TIME_HOURS
-#define OTA_MISSING_FRAGMENT_WAITTIME_HOURS 24
-#else
-#define OTA_MISSING_FRAGMENT_WAITTIME_HOURS MBED_CLOUD_CLIENT_MULTICAST_MISSING_FRAGMENT_WAIT_TIME_HOURS
-#endif
-
-#if (OTA_MISSING_FRAGMENT_WAITTIME_HOURS < 1) || (OTA_MISSING_FRAGMENT_WAITTIME_HOURS > 120)
-#error "Multicast missing fragment wait time must be 1-120 hours inclusive! (defined via MBED_CLOUD_CLIENT_MULTICAST_MISSING_FRAGMENT_WAIT_TIME_HOURS)"
-#endif
-
 #define OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT               1800 /* After this timeout, device will start requesting its missing fragments.
                                                                     This is needed if node did not receive END FRAGMENT command. */
 
 #endif // MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK
+
+// Set resend delays based on expiration times, trying to spread out the traffic as much as possible to give
+// nodes as much time as possible to recover from whatever has caused them to miss the first multicast transmission.
+// For manifest and activate, the delay can be based on the reported wait time of the one fragment transmission.
+#define OTA_RESEND_DELAY                                    (OTA_ONE_FRAGMENT_WAITTIME_SECS / CRITICAL_MESSAGE_SEND_COUNT)
+// For START, the delay must be based on the missing fragments timer to avoid nodes that received the first START
+// going into missing fragments requesting state.
+#define OTA_START_RESEND_DELAY                              (OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT / CRITICAL_MESSAGE_SEND_COUNT)
+
 
 void ota_lib_reset()
 {
@@ -332,7 +338,22 @@ void ota_timer_expired(uint8_t timer_id)
         }
     } else if (ota_lib_config_data.device_type == OTA_DEVICE_TYPE_BORDER_ROUTER && timer_id == OTA_FRAGMENTS_DELIVERING_TIMER) {
         if (ota_fw_delivering) {
-            if (ota_fw_deliver_current_fragment_id <= ota_parameters.fw_fragment_count) {
+            if (resend_counter < (CRITICAL_MESSAGE_SEND_COUNT - 1)) {
+                resend_counter++;
+                // resend the START by trusting that socket_buf still holds the same data as initially
+                // put there by START sender.
+                tr_info("Sending START command %" PRIu8 ". time.", resend_counter + 1);
+                ota_socket_send_fptr(&ota_lib_config_data.mpl_multicast_socket_addr, resend_payload_size, socket_buf.ptr);
+                if (resend_counter < (CRITICAL_MESSAGE_SEND_COUNT - 1)) {
+                    // use longer delay while we're coming back to resend loop
+                    ota_start_timer(OTA_FRAGMENTS_DELIVERING_TIMER, OTA_START_RESEND_DELAY, 0);
+                } else {
+                    // use shorter delay when we're actually starting fragments sending
+                    // this way the nodes have (OTA_START_RESEND_DELAY-OTA_MULTICAST_INTERVAL) time to
+                    // receive at least one fragment to prevent premature missing fragments requesting phase
+                    ota_start_timer(OTA_FRAGMENTS_DELIVERING_TIMER, OTA_MULTICAST_INTERVAL, 0);
+                }
+            } else if (ota_fw_deliver_current_fragment_id <= ota_parameters.fw_fragment_count) {
                 if (ota_deliver_one_fragment(ota_fw_deliver_current_fragment_id, ota_lib_config_data.mpl_multicast_socket_addr) == OTA_OK) {
                     ota_fw_deliver_current_fragment_id++;
                 }
@@ -380,16 +401,65 @@ void ota_timer_expired(uint8_t timer_id)
     } else if (timer_id == OTA_CHECKSUM_CALCULATING_TIMER) {
         ota_manage_whole_fw_checksum_calculating();
     } else if (timer_id == OTA_MULTICAST_MANIFEST_MSG_SENT_TIMER) {
-        ota_send_estimated_resend_time(OTA_ONE_FRAGMENT_WAITTIME_SECS);
-        ota_delete_process(ota_parameters.ota_session_id);
+        resend_counter++;
+        if (resend_counter == 1) {
+            // initial sending was just done. just set wait time and re-trigger a bit longer timer
+            ota_send_estimated_resend_time(OTA_ONE_FRAGMENT_WAITTIME_SECS);
+
+            // Delete process here as that will also signal readiness for next multicast session
+            // back to service.
+            ota_delete_process(ota_parameters.ota_session_id);
+        } else {
+            tr_info("Sending manifest command %" PRIu8 ". time.", resend_counter);
+            // resend the manifest by trusting that socket_buf still holds the same data as initially
+            // put there by manifest sender.
+            ota_socket_send_fptr(&ota_lib_config_data.mpl_multicast_socket_addr, resend_payload_size, socket_buf.ptr);
+        }
+        if (resend_counter < CRITICAL_MESSAGE_SEND_COUNT) {
+            ota_start_timer(OTA_MULTICAST_MANIFEST_MSG_SENT_TIMER, OTA_RESEND_DELAY, 0);
+        }
     } else if (timer_id == OTA_MULTICAST_MSG_SENT_TIMER) {
-        ota_send_estimated_resend_time(OTA_ONE_FRAGMENT_WAITTIME_SECS);
-        ota_process_finished_fptr(ota_parameters.ota_session_id);
+        // activate was sent
+        resend_counter++;
+
+        if (resend_counter == 1) {
+            // initial sending was just done. just set wait time and re-trigger a bit longer timer
+            ota_send_estimated_resend_time(OTA_ONE_FRAGMENT_WAITTIME_SECS);
+            // Clear everything for new processes
+            ota_process_finished_fptr(ota_parameters.ota_session_id);
+        } else {
+            tr_info("Sending activate command %" PRIu8 ". time.", resend_counter);
+            // resend the activate by trusting that socket_buf still holds the same data as initially
+            // put there by activate sender, but modify the reboot delay accordingly.
+            modify_reboot_delay_from_socket(OTA_RESEND_DELAY);
+            ota_socket_send_fptr(&ota_lib_config_data.mpl_multicast_socket_addr, resend_payload_size, socket_buf.ptr);
+        }
+        if (resend_counter < CRITICAL_MESSAGE_SEND_COUNT) {
+            // still have resends to do, so schedule new timer
+            ota_start_timer(OTA_MULTICAST_MSG_SENT_TIMER, OTA_RESEND_DELAY, 0);
+        }
     } else if (timer_id == OTA_FIRMWARE_READY_TIMER) {
         ota_firmware_ready_fptr();
     } else {
         tr_err("Unsupported timer ID: %d", timer_id);
     }
+}
+
+static void modify_reboot_delay_from_socket(uint32_t modification)
+{
+    // Only matches for activate message...
+    uint8_t *delay_ptr = &socket_buf.ptr[18];
+
+    uint32_t delay = common_read_32_bit(delay_ptr);
+    if (modification < delay) {
+        delay -= modification;
+    } else {
+        // Modification asking to zero out or put negative delay which is not possible...
+        // Just leave the delay be, but write error logs.
+        tr_error("modify_delay_from_socket: asking to put negative delay...");
+        tr_error("delay from socket: %" PRIu32 ", asked modification: %" PRIu32 ".", delay, modification);
+    }
+    common_write_32_bit(delay, delay_ptr);
 }
 
 static ota_error_code_e ota_manage_start_command(uint16_t payload_length, uint8_t *payload_ptr)
@@ -408,8 +478,10 @@ static ota_error_code_e ota_manage_start_command(uint16_t payload_length, uint8_
     uint8_t device_type = payload_ptr[OTA_START_CMD_DEVICE_TYPE_INDEX];
 
     if (ota_parameters.device_type == device_type) {
-        tr_err("Node received START command with same Device type OTA process already created --> START command is ignored!");
-        return status;
+        tr_debug("Node received START command with same Device type OTA process already created --> START command is ignored!");
+        // This is quite normal now that BR keeps re-sending START a couple of times.
+        // Lets just return OK...
+        return OTA_OK;
     }
 
     if (device_type != ota_lib_config_data.device_type) {
@@ -422,55 +494,49 @@ static ota_error_code_e ota_manage_start_command(uint16_t payload_length, uint8_
         return status;
     }
 
-    status = ota_parse_start_command_parameters(payload_ptr);
+    ota_parse_start_command_parameters(payload_ptr);
+    ota_parameters.fragments_bitmask_length = (ota_parameters.fw_segment_count * OTA_FRAGMENTS_REQ_BITMASK_LENGTH);
 
-    if (status == OTA_OK) {
-       ota_parameters.fragments_bitmask_length = (ota_parameters.fw_segment_count * OTA_FRAGMENTS_REQ_BITMASK_LENGTH);
+    tr_info("Bitmask length as bytes for received fragments: %u", ota_parameters.fragments_bitmask_length);
 
-        tr_info("Bitmask length as bytes for received fragments: %u", ota_parameters.fragments_bitmask_length);
+    ota_parameters.fragments_bitmask_ptr = ota_malloc_fptr(ota_parameters.fragments_bitmask_length);
 
-        ota_parameters.fragments_bitmask_ptr = ota_malloc_fptr(ota_parameters.fragments_bitmask_length);
+    if (ota_parameters.fragments_bitmask_ptr != NULL) {
+        ota_init_fragments_bit_mask(0x00);
+        ota_start_timer(OTA_FALLBACK_TIMER, OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT, 0);
+        ota_parameters.ota_state = OTA_STATE_STARTED;
 
-        if (ota_parameters.fragments_bitmask_ptr != NULL) {
-            ota_init_fragments_bit_mask(0x00);
-            ota_start_timer(OTA_FALLBACK_TIMER, OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT, 0);
-            ota_parameters.ota_state = OTA_STATE_STARTED;
+        tr_info("State changed to \"OTA STARTED\"");
 
-            tr_info("State changed to \"OTA STARTED\"");
+        status = ota_store_parameters_fptr(&ota_parameters);
 
-            status = ota_store_parameters_fptr(&ota_parameters);
-
-            if (status != OTA_OK) {
-                tr_err("Storing OTA parameters failed, status: %d", status);
-                ota_delete_process(ota_parameters.ota_session_id);
-                return status;
-            }
-
-            ota_free_fptr(socket_buf.ptr);
-            socket_buf.ptr = ota_malloc_fptr(ota_parameters.fw_fragment_byte_count + OTA_FRAGMENT_CMD_LENGTH);
-            if (!socket_buf.ptr) {
-                tr_err("ota_manage_start_command - failed to allocate buffer for multicast messages!");
-                return OTA_PARAMETER_FAIL;
-            }
-            socket_buf.size = ota_parameters.fw_fragment_byte_count + OTA_FRAGMENT_CMD_LENGTH;
-
-            ota_update_status_resource();
-
-            if (ota_parameters.device_type == ota_lib_config_data.device_type) {
-                ota_own_device_type = true;
-            }
-
-            ota_start_received_fptr(&ota_parameters);
-
-        } else {
-            tr_err("Memory allocation failed for received fragments bitmask!!! (%u bytes)",
-                   ota_parameters.fragments_bitmask_length);
+        if (status != OTA_OK) {
+            tr_err("Storing OTA parameters failed, status: %d", status);
             ota_delete_process(ota_parameters.ota_session_id);
             return status;
         }
+
+        ota_free_fptr(socket_buf.ptr);
+        socket_buf.ptr = ota_malloc_fptr(ota_parameters.fw_fragment_byte_count + OTA_FRAGMENT_CMD_LENGTH);
+        if (!socket_buf.ptr) {
+            tr_err("ota_manage_start_command - failed to allocate buffer for multicast messages!");
+            return OTA_PARAMETER_FAIL;
+        }
+        socket_buf.size = ota_parameters.fw_fragment_byte_count + OTA_FRAGMENT_CMD_LENGTH;
+
+        ota_update_status_resource();
+
+        if (ota_parameters.device_type == ota_lib_config_data.device_type) {
+            ota_own_device_type = true;
+        }
+
+        ota_start_received_fptr(&ota_parameters);
+
     } else {
-        tr_err("Failed to parse START parameters!");
-        ota_delete_process(session_id);
+        tr_err("Memory allocation failed for received fragments bitmask!!! (%u bytes)",
+               ota_parameters.fragments_bitmask_length);
+        ota_delete_process(ota_parameters.ota_session_id);
+        return status;
     }
 
     tr_info("OTA process count: %u", ota_parameters.ota_process_count);
@@ -512,6 +578,10 @@ static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length
         tr_err("ota_border_router_manage_command - session already exists or not able to create!");
         return status;
     }
+
+    // Cancel potentially still ongoing manifest or activate resending here always
+    ota_cancel_timer_fptr(OTA_MULTICAST_MANIFEST_MSG_SENT_TIMER);
+    ota_cancel_timer_fptr(OTA_MULTICAST_MSG_SENT_TIMER);
 
     switch (command_id) {
         case OTA_CMD_ACTIVATE:
@@ -561,7 +631,13 @@ static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length
                     status = ota_start_received_fptr(&ota_parameters);
                     if (status == OTA_OK) {
                         tr_info("State changed to \"OTA STARTED\"");
-                        ota_send_estimated_resend_time((OTA_MISSING_FRAGMENT_WAITTIME_HOURS * 3600) + (OTA_MULTICAST_INTERVAL * ota_parameters.fw_fragment_count));
+                        // Report to server the estimate for full multicast process.
+                        // Initial multicast-phase + enough time to do fragment requests from nodes.
+                        // Doubling the estimate is for the fragment request time.
+                        uint32_t start_sending_duration = OTA_START_RESEND_DELAY * (CRITICAL_MESSAGE_SEND_COUNT - 1);
+                        uint32_t multicasting_duration = OTA_MULTICAST_INTERVAL * ota_parameters.fw_fragment_count;
+                        uint32_t resend_time = start_sending_duration + (2 * multicasting_duration) + OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT;
+                        ota_send_estimated_resend_time(resend_time);
                         ota_parameters.ota_state = OTA_STATE_STARTED;
                         status = ota_store_parameters_fptr(&ota_parameters);
                         if (status == OTA_OK) {
@@ -586,10 +662,9 @@ static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length
     return status;
 }
 
-static ota_error_code_e ota_parse_start_command_parameters(uint8_t *payload_ptr)
+static void ota_parse_start_command_parameters(uint8_t *payload_ptr)
 {
     tr_debug("ota_parse_start_command_parameters");
-    ota_error_code_e returned_status = OTA_OK;
     uint16_t payload_index = OTA_CMD_PROCESS_ID_INDEX;
 
     uint8_t session_id[OTA_SESSION_ID_SIZE];
@@ -624,11 +699,7 @@ static ota_error_code_e ota_parse_start_command_parameters(uint8_t *payload_ptr)
 
     payload_index += 4;
 
-    if (returned_status == OTA_OK) {
-        memcpy(ota_parameters.whole_fw_checksum_tbl, &payload_ptr[payload_index], OTA_WHOLE_FW_CHECKSUM_LENGTH);
-    }
-
-    return returned_status;
+    memcpy(ota_parameters.whole_fw_checksum_tbl, &payload_ptr[payload_index], OTA_WHOLE_FW_CHECKSUM_LENGTH);
 }
 
 static void ota_manage_fragment_command(uint16_t payload_length, uint8_t *payload_ptr)
@@ -1477,7 +1548,7 @@ uint8_t ota_fragment_size_command(struct nsdl_s *handle_ptr, sn_coap_hdr_s *coap
                 if (value >= OTA_MIN_FRAGMENT_SIZE &&
                     value <= OTA_MAX_MULTICAST_MESSAGE_SIZE &&
                     value <= ARM_UC_HUB_BUFFER_SIZE_MAX &&
-                    value % MBED_CONF_UPDATE_CLIENT_STORAGE_PAGE == 0) {
+                    value % LIBOTA_FRAGMENT_SIZE_DIVISOR == 0) {
                     coap_response_code = COAP_MSG_CODE_RESPONSE_CHANGED;
                     tr_info("ota_fragment_size_command - fragment size set to %d", value);
                     // New value is taken into use when new multicast process is started by border router
@@ -1499,7 +1570,7 @@ uint8_t ota_fragment_size_command(struct nsdl_s *handle_ptr, sn_coap_hdr_s *coap
         // Free the block message from the CoAP list, data copied into a resource
         sn_nsdl_remove_coap_block(handle_ptr, address_ptr, coap_ptr->payload_len, coap_ptr->payload_ptr);
 #else
-       handle_ptr->sn_nsdl_free(coap_ptr->payload_ptr);
+        handle_ptr->sn_nsdl_free(coap_ptr->payload_ptr);
 #endif
     }
 
@@ -1654,6 +1725,7 @@ static void ota_delete_process(uint8_t *session_id)
     ota_cancel_timer_fptr(OTA_FALLBACK_TIMER);
     ota_cancel_timer_fptr(OTA_FIRMWARE_READY_TIMER);
     ota_cancel_timer_fptr(OTA_END_FRAGMENTS_TIMER);
+    ota_cancel_timer_fptr(OTA_MULTICAST_MANIFEST_MSG_SENT_TIMER);
 }
 
 void ota_firmware_pulled()
@@ -1684,6 +1756,7 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
 
             memcpy(socket_buf.ptr + 17, &payload_ptr[MULTICAST_CMD_SESSION_ID_INDEX + 16], payload_length - MULTICAST_CMD_SESSION_ID_INDEX + 16);
             multicast_payload_len = payload_length - MULTICAST_CMD_SESSION_ID_INDEX + 16 + 5;
+            tr_debug("Sending manifest command 1. time.");
             break;
 
         case OTA_CMD_FIRMWARE:
@@ -1695,19 +1768,32 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
             common_write_32_bit(ota_parameters.fw_total_byte_count, &socket_buf.ptr[22]); // FW total size
             memcpy(&socket_buf.ptr[26], ota_parameters.whole_fw_checksum_tbl, OTA_WHOLE_FW_CHECKSUM_LENGTH); // FW hash
             multicast_payload_len = OTA_START_CMD_LENGTH;
+            tr_debug("Sending START command 1. time.");
             break;
 
-        case OTA_CMD_ACTIVATE:
+        case OTA_CMD_ACTIVATE: {
             create_multicast_header(OTA_CMD_ACTIVATE);
 
             socket_buf.ptr[17] = OTA_DEVICE_TYPE_NODE; // Device type
-            common_write_32_bit(common_read_32_bit(&payload_ptr[19]), &socket_buf.ptr[18]); // FW fragment size
+            uint32_t reboot_delay = common_read_32_bit(&payload_ptr[19]);
+            if (reboot_delay < OTA_ONE_FRAGMENT_WAITTIME_SECS) {
+                tr_warn("Given activation delay was too short: %" PRIu32 ". Changed it to minimum %" PRIu32 ".", reboot_delay, OTA_ONE_FRAGMENT_WAITTIME_SECS);
+                reboot_delay = OTA_ONE_FRAGMENT_WAITTIME_SECS;
+            }
+
+            common_write_32_bit(reboot_delay, &socket_buf.ptr[18]); // Reboot delay
             multicast_payload_len = 22;
+
+            tr_debug("Sending activate command with reboot delay %" PRIu32 "s.", reboot_delay);
+            }
             break;
 
         default:
             break;
     }
+
+    resend_counter = 0;
+    resend_payload_size = multicast_payload_len;
 
     if (ota_socket_send_fptr(&ota_lib_config_data.mpl_multicast_socket_addr, multicast_payload_len, socket_buf.ptr) != OTA_OK) {
         tr_error("ota_send_multicast_command - failed to send multicast message!");
@@ -1715,12 +1801,13 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
     }
 
     if (command == OTA_CMD_FIRMWARE) {
-        ota_start_timer(OTA_FRAGMENTS_DELIVERING_TIMER, OTA_MULTICAST_INTERVAL, 0);
+        ota_start_timer(OTA_FRAGMENTS_DELIVERING_TIMER, OTA_START_RESEND_DELAY, 0);
         ota_fw_delivering = true;
         ota_fw_deliver_current_fragment_id = 1;
     } else if (command == OTA_CMD_MANIFEST) {
         ota_start_timer(OTA_MULTICAST_MANIFEST_MSG_SENT_TIMER, OTA_MULTICAST_INTERVAL, 0);
     } else {
+        // OTA_CMD_ACTIVATE
         ota_start_timer(OTA_MULTICAST_MSG_SENT_TIMER, OTA_MULTICAST_INTERVAL, 0);
     }
 

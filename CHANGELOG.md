@@ -1,5 +1,55 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.8.0 (19.04.2021)
+
+#### Device Management Client
+
+- Client internal timers were not using event_ids correctly. Previously, if there were two timers running at the same time, cancel might have stopped the wrong timer.
+- Added fallback timer for asynchronous DNS requests (`PAL_DNS_API_VERSION` = 2). The client waits 10 minutes for a response to DNS query before aborting the request and raising a DNS error event.
+- Improved client bootstrap recovery handling.
+- The client doesn't go sleep if update register, unregistering or reconnecting is ongoing.
+- Added LwM2M version as part of the registration message.
+- Added API to get M2MServer instance.
+- tinycbor: Removed the default usage of asserts in input validation. Instead of asserting, the library returns an error if an invalid cbor input is given. Introduced a new `TINYCBOR_USE_ASSERT` flag to save on code size. This saves approximately 200 bytes.
+- Deprecated the `MBED_CLIENT_USER_CONFIG_FILE` macro. An application only needs to use `MBED_CLOUD_CLIENT_USER_CONFIG_FILE`.
+- Allow Write-Attributes to GET resource.
+- Parent resource of resource-instance also set observable flag. Now also parent resource can be observed.
+- Added API `m2mbase::set_confirmable(bool confirmable)` to choose whether notification is sent as a confirmable or non-confirmable way. By default, the confirmable message type is used.
+- M2MDevice now accepts PUT/POST requests, and you can also observe it.
+- Fixed an issue which can cause a crash if there is a lot of network traffic during the `pause()` call.
+- Don't report notification sending timeout to the application. Notification sending can't fail after the message has been created because it has its own queue for resending.
+- Removed deprecated notification delivery status APIs. Use `M2MBase::set_message_delivery_status_cb` instead.
+- Changed default content type from `COAP_CONTENT_OMA_TLV_TYPE_OLD` to` COAP_CONTENT_OMA_TLV_TYPE`.
+- Deprecated `kcm_ecdh_key_agreement()` API for psa configuration, due to `psa_set_key_enrollment_algorithm()` API deprecation in mbed-crypto.
+
+#### Device Management Update client
+
+Add precursor hash check to delta updates. Delta updates generated against wrong original firmware now fail faster.
+- Mesh update: Critical messages are now sent multiple times to improve success rate for Mesh campaigns.
+
+  <span class="notes">**Note:** Due to the multiple message sending, the minimum configurable activate delay is 60min. The border router enforces the minimum value by silently reverting to 60min delay, but longer delays remain unchanged.</span>
+
+- Fixed handling of duplicate messages during the failed bootstrap recovery phase. Client was failing internally with a `NotAllowed` error instead of proceeding to bootstrap.
+
+#### Device Management Update client next generation (FOTA)
+
+- Fixed a bug that prevented update running successfully after devices were provisioned in the production flow.
+- Fixed Linux compilation with "Client URL" (CURL) dynamic linkage.
+- Fixed update flow when the update candidate version is 0.0.10.
+- Changed FOTA application interface APIs:
+   - `fota_app_on_install_authorization(uint32 token)` -> `fota_app_on_install_authorization()` (removed token).
+   - `fota_app_on_download_authorization(uint32_t token, ...)` -> `fota_app_on_download_authorization(...)` (removed token).
+   - `fota_app_authorize_update()` -> `fota_app_authorize()` (reverted to the deprecated API).
+   - `fota_app_reject_update()` -> `fota_app_reject()` (reverted to the deprecated API).
+   - `fota_app_defer_update()` -> `fota_app_defer()` (reverted to the deprecated API).
+- On Linux targets, all FOTA related files (candidate, header and so on) were moved to the the configuration directory (PAL/KVstore).
+- Require defining `MBED_CLOUD_CLIENT_FOTA_LINUX_SINGLE_MAIN_FILE` in Linux MCCE, Testapp or any Linux app that has a single file update.
+
+### Platform Adaptation Layer (PAL)
+
+- [Linux] Fix async sockets after reboot done with execv. After reboot with execv signal, the handler doesn't return, and signals might be blocked. Because the signal mask is inherited, you need to explicitly unblock SIGIO and SIGUSR1.
+- Added a compile-time check to require the mandatory Mbed TLS flags are defined when the Connection ID feature (`PAL_USE_SSL_SESSION_RESUME`) is enabled.
+
 ### Release 4.7.1 (28.01.2021)
 
 - Improved CID recovery in case the CID has expired. Client now proceeds with register-update instead of full registration.
@@ -8,6 +58,7 @@
 #### Device Management Update client
 
 - Fixed a logical issue in update client logic which prevented further updates after it received a manifest with an invalid signature.
+
 
 ### Release 4.7.0 (07.12.2020)
 

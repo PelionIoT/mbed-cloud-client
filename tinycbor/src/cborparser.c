@@ -342,19 +342,22 @@ static CborError advance_internal(CborValue *it)
  * point values (SinglePrecisionFloat == Value32Bit and DoublePrecisionFloat ==
  * Value64Bit).
  */
-uint64_t _cbor_value_decode_int64_internal(const CborValue *value)
+CborError _cbor_value_decode_int64_internal(const CborValue *value, uint64_t *int_value)
 {
-    cbor_assert(value->flags & CborIteratorFlag_IntegerValueTooLarge ||
-                value->type == CborFloatType || value->type == CborDoubleType);
+    cbor_assert(value && (value->flags & CborIteratorFlag_IntegerValueTooLarge ||
+                value->type == CborFloatType || value->type == CborDoubleType));
 
     /* since the additional information can only be Value32Bit or Value64Bit,
      * we just need to test for the one bit those two options differ */
     cbor_assert((*value->ptr & SmallValueMask) == Value32Bit || (*value->ptr & SmallValueMask) == Value64Bit);
-    if ((*value->ptr & 1) == (Value32Bit & 1))
-        return get32(value->ptr + 1);
+    if ((*value->ptr & 1) == (Value32Bit & 1)){
+        *int_value = get32(value->ptr + 1);
+         return CborNoError;
+    }
 
     cbor_assert((*value->ptr & SmallValueMask) == Value64Bit);
-    return get64(value->ptr + 1);
+    *int_value = get64(value->ptr + 1);
+    return CborNoError;
 }
 
 /**
@@ -465,8 +468,7 @@ CborError cbor_value_validate_basic(const CborValue *it)
  */
 CborError cbor_value_advance_fixed(CborValue *it)
 {
-    cbor_assert(it->type != CborInvalidType);
-    cbor_assert(is_fixed_type(it->type));
+    cbor_assert(is_fixed_type(it->type) && it->type != CborInvalidType);
     if (!it->remaining)
         return CborErrorAdvancePastEOF;
     return advance_internal(it);
@@ -515,7 +517,8 @@ static CborError advance_recursive(CborValue *it, int nestingLevel)
  */
 CborError cbor_value_advance(CborValue *it)
 {
-    cbor_assert(it->type != CborInvalidType);
+
+    cbor_assert(it && it->type != CborInvalidType);
     if (!it->remaining)
         return CborErrorAdvancePastEOF;
     return advance_recursive(it, CBOR_PARSER_MAX_RECURSIONS);
@@ -1031,7 +1034,11 @@ CborError cbor_value_leave_container(CborValue *it, const CborValue *recursed)
 CborError cbor_value_get_int64_checked(const CborValue *value, int64_t *result)
 {
     cbor_assert(cbor_value_is_integer(value));
-    uint64_t v = _cbor_value_extract_int64_helper(value);
+    uint64_t v;
+    if (_cbor_value_extract_int64_helper(value, &v) != CborNoError)
+    {
+        return CborErrorInternalError;
+    }
 
     /* Check before converting, as the standard says (C11 6.3.1.3 paragraph 3):
      * "[if] the new type is signed and the value cannot be represented in it; either the
@@ -1070,7 +1077,10 @@ CborError cbor_value_get_int64_checked(const CborValue *value, int64_t *result)
 CborError cbor_value_get_int_checked(const CborValue *value, int *result)
 {
     cbor_assert(cbor_value_is_integer(value));
-    uint64_t v = _cbor_value_extract_int64_helper(value);
+    uint64_t v;
+    if (_cbor_value_extract_int64_helper(value,&v) != CborNoError){
+        return CborErrorInternalError ;
+    }
 
     /* Check before converting, as the standard says (C11 6.3.1.3 paragraph 3):
      * "[if] the new type is signed and the value cannot be represented in it; either the
@@ -1195,7 +1205,7 @@ static inline void prepare_string_iteration(CborValue *it)
 
 CBOR_INTERNAL_API_CC CborError _cbor_value_prepare_string_iteration(CborValue *it)
 {
-    cbor_assert((it->flags & CborIteratorFlag_IteratingStringChunks) == 0);
+    cbor_assert(it && ((it->flags & CborIteratorFlag_IteratingStringChunks) == 0));
     prepare_string_iteration(it);
 
     /* are we at the end? */

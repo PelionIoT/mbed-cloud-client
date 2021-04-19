@@ -26,28 +26,86 @@
 
 #include "key_config_manager.h"
 
+#include "mbedtls/md.h"
+
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdio.h>
 
 #define TRACE_GROUP  "UCPI"
 
+/**
+ * Default size is a trade-off between estimated available stack size
+ * and reducing the number of reads from flash.
+ */
+#ifdef MBED_CONF_UPDATE_CLIENT_MCUBOOT_BUFFER_SIZE
+#define MCUBOOT_BUFFER_SIZE MBED_CONF_UPDATE_CLIENT_MCUBOOT_BUFFER_SIZE
+#else
+#define MCUBOOT_BUFFER_SIZE 256
+#endif
+
 /*****************************************************************************/
 /* MCUBOOT header and TLV functions                                          */
 /*****************************************************************************/
+
+/**
+ * @brief      Get total image size.
+ *
+ * @param[in]  flash_reader Function pointer to internal or external flash reader.
+ * @param      address      Address in flash where TLV struct begins.
+ * @param      tlv_size     Pointer to size_t for storing total image size.
+ *
+ * @return     ERR_NONE     Success, the hash-struct has been populated.
+ *             ERR_INVALID_PARAMETER Failure, unable to find hash at address.
+ */
+static arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_tlv_size(arm_uc_reader_p flash_reader,
+                                                               uint32_t address,
+                                                               uint32_t* tlv_size)
+{
+    UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_get_tlv_size");
+
+    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+
+    if (tlv_size) {
+
+        /* get main TLV struct */
+        image_tlv_info_t tlv_info = { 0 };
+
+        int status = flash_reader((uint8_t*) &tlv_info, address, sizeof(image_tlv_info_t));
+
+        /* check for header magic */
+        if ((status == ARM_UC_FLASHIAP_SUCCESS) &&
+            ((tlv_info.it_magic == IMAGE_TLV_INFO_MAGIC) ||
+             (tlv_info.it_magic == IMAGE_TLV_PROT_INFO_MAGIC))) {
+
+            UC_PAAL_TRACE("magic: %" PRIX16, tlv_info.it_magic);
+            UC_PAAL_TRACE("size: %" PRIX16, tlv_info.it_tlv_tot);
+
+            /* return total TLV size */
+            *tlv_size = tlv_info.it_tlv_tot;
+            UC_PAAL_TRACE("tlv_size: %" PRIX32, *tlv_size);
+
+            result.code = ERR_NONE;
+        }
+    }
+
+    return result;
+}
 
 /**
  * @brief      Get hash from MCUBOOT TLV struct.
  *
  *             This function reads the hash directly from the TLV struct.
  *
- * @param[in]  address      Address in flash where TLV struct begins.
+ * @param[in]  flash_reader Function pointer to internal or external flash reader.
+ * @param      address      Address in flash where TLV struct begins.
  * @param      header_hash  Pointer to hash-struct to be filed.
  *
  * @return     ERR_NONE     Success, the hash-struct has been populated.
  *             ERR_INVALID_PARAMETER Failure, unable to find hash at address.
  */
-arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
+arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(arm_uc_reader_p flash_reader,
+                                                             uint32_t address,
                                                              arm_uc_hash_t* header_hash)
 {
     UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv");
@@ -59,9 +117,7 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
         /* get main TLV struct */
         image_tlv_info_t tlv_info = { 0 };
 
-        int status = arm_uc_flashiap_read((uint8_t*) &tlv_info,
-                                          address,
-                                          sizeof(image_tlv_info_t));
+        int status = flash_reader((uint8_t*) &tlv_info, address, sizeof(image_tlv_info_t));
 
         /* check for header magic */
         if ((status == ARM_UC_FLASHIAP_SUCCESS) &&
@@ -80,9 +136,9 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
                 /* read TLV record */
                 image_tlv_t record;
 
-                status = arm_uc_flashiap_read((uint8_t*) &record,
-                                              address,
-                                              sizeof(image_tlv_t));
+                status = flash_reader((uint8_t*) &record,
+                                      address,
+                                      sizeof(image_tlv_t));
 
                 if (status == ARM_UC_FLASHIAP_SUCCESS) {
 
@@ -92,13 +148,13 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
                     if (record.it_type == IMAGE_TLV_SHA256) {
 
                         /* read hash into struct */
-                        status = arm_uc_flashiap_read((uint8_t*) header_hash,
-                                                      address + sizeof(image_tlv_t),
-                                                      sizeof(arm_uc_hash_t));
+                        status = flash_reader((uint8_t*) header_hash,
+                                              address + sizeof(image_tlv_t),
+                                              sizeof(arm_uc_hash_t));
 
                         if (status == ARM_UC_FLASHIAP_SUCCESS) {
 
-#if ARM_UC_SOURCE_MANAGER_TRACE_ENABLE
+#if ARM_UC_PAAL_TRACE_ENABLE
                             printf("[TRACE][SRCE] MCUBOOT hash: ");
                             for (size_t index = 0; index < sizeof(arm_uc_hash_t); index++) {
                                 printf("%02X", (*header_hash)[index]);
@@ -135,23 +191,26 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
  *
  * @param[in]  address      Address in flash where MCUBOOT header begins.
  * @param      header_hash  Pointer to hash-struct to be filled.
+ * @param      total_size   Pointer to size_t for storing total, signed image size.
  *
  * @return     ERR_NONE     Success, the hash-struct has been populated.
  *             ERR_INVALID_PARAMETER Failure, unable to find hash at address.
  */
-arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(uint32_t address,
-                                                                arm_uc_hash_t* header_hash)
+arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(arm_uc_reader_p flash_reader,
+                                                                uint32_t address,
+                                                                arm_uc_hash_t* header_hash,
+                                                                uint32_t* total_size)
 {
     UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_get_hash_from_header");
 
     arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
 
-    if (header_hash) {
+    if (header_hash && total_size) {
 
         /* get MCUBOOT header */
         image_header_t header = { 0 };
 
-        int status = arm_uc_flashiap_read((uint8_t*) &header, address, sizeof(image_header_t));
+        int status = flash_reader((uint8_t*) &header, address, sizeof(image_header_t));
 
         /* check for header magic */
         if ((status == ARM_UC_FLASHIAP_SUCCESS) && (header.ih_magic == IMAGE_MAGIC)) {
@@ -163,10 +222,12 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(uint32_t address
             UC_PAAL_TRACE("prot: %" PRIX16, header.ih_protect_tlv_size);
 
             /* find address for TLV */
-            uint32_t tlv_address = address + header.ih_hdr_size + header.ih_img_size;
+            uint32_t offset = header.ih_hdr_size + header.ih_img_size;
 
             /* search protected TLV first */
-            result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address, header_hash);
+            result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(flash_reader,
+                                                                   address + offset,
+                                                                   header_hash);
 
             /**
              * If hash wasn't found, assume we just searched the optional protected TLV.
@@ -174,8 +235,26 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(uint32_t address
              */
             if ((result.error != ERR_NONE) && header.ih_protect_tlv_size) {
 
-                tlv_address += header.ih_protect_tlv_size;
-                result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(tlv_address, header_hash);
+                offset += header.ih_protect_tlv_size;
+                result = arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(flash_reader,
+                                                                       address + offset,
+                                                                       header_hash);
+            }
+
+            /**
+             * Find remaining TLV and return full, signed image size.
+             */
+            if (result.error == ERR_NONE) {
+
+                uint32_t tlv_size = 0;
+                result = arm_uc_pal_flashiap_mcuboot_get_tlv_size(flash_reader,
+                                                                  address + offset,
+                                                                  &tlv_size);
+
+                /* total size is offset + latest TLV size */
+                if (result.error == ERR_NONE) {
+                    *total_size = offset + tlv_size;
+                }
             }
         } else {
             UC_PAAL_TRACE("no header at address: %" PRIX32, address);
@@ -185,6 +264,76 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(uint32_t address
     return result;
 }
 
+/**
+ * @brief      Calculate hash directly from stored image.
+ *
+ * @param[in]  flash_reader Function pointer to internal or external flash reader.
+ * @param      address      Address in flash where MCUBOOT header begins.
+ * @param      total_size   uint32_t with total, signed image size.
+ * @param      header_hash  Pointer to hash-struct to be filled.
+ *
+ * @return     ERR_NONE     Success, the hash-struct has been populated.
+ *             ERR_INVALID_PARAMETER Failure, unable to find hash at address.
+ */
+arm_uc_error_t arm_uc_pal_flashiap_mcuboot_calculate_hash(arm_uc_reader_p flash_reader,
+                                                          uint32_t address,
+                                                          uint32_t total_size,
+                                                          arm_uc_hash_t* header_hash)
+{
+    UC_PAAL_TRACE("arm_uc_pal_flashiap_mcuboot_calculate_hash");
+
+    arm_uc_error_t result = { .code = ERR_INVALID_PARAMETER };
+
+    if (header_hash) {
+
+        /* use Mbed TLS to calculate firmware's SHA256 hash */
+        mbedtls_md_context_t context = { 0 };
+        const mbedtls_md_info_t* md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+
+        mbedtls_md_init(&context);
+        mbedtls_md_setup(&context, md_info, 0);
+        mbedtls_md_starts(&context);
+
+        /* use flash read to calculate hash one fragment at a time
+         * to support off-chip storage.
+         */
+        uint8_t buffer[MCUBOOT_BUFFER_SIZE] = { 0 };
+        uint32_t offset = 0;
+        int status = ARM_UC_FLASHIAP_SUCCESS;
+
+        while ((offset < total_size) && (status == ARM_UC_FLASHIAP_SUCCESS)) {
+
+            uint32_t actual_size = MCUBOOT_BUFFER_SIZE;
+            uint32_t remaining = total_size - offset;
+
+            /* limit the last fragment's read size */
+            if (MCUBOOT_BUFFER_SIZE > remaining) {
+                actual_size = remaining;
+            }
+
+            /* read fragment into buffer */
+            status = flash_reader((uint8_t*) buffer,
+                                  address + offset,
+                                  actual_size);
+
+            /* update hash calculation with fragment */
+            if (status == ARM_UC_FLASHIAP_SUCCESS) {
+                mbedtls_md_update(&context, buffer, actual_size);
+            }
+
+            /* move to next fragment */
+            offset += actual_size;
+        }
+
+        mbedtls_md_finish(&context, (uint8_t*) header_hash);
+
+        if (status == ARM_UC_FLASHIAP_SUCCESS) {
+            result.code = ERR_NONE;
+        }
+    }
+
+    return result;
+}
 
 /*****************************************************************************/
 /* KCM getting and setting firmware details                                  */

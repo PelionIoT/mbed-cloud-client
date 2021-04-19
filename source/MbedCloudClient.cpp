@@ -213,12 +213,10 @@ const ConnectorClientEndpointInfo *MbedCloudClient::endpoint_info() const
     return _client.connector_client().endpoint_info();
 }
 
-#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
 M2MInterface *MbedCloudClient::get_m2m_interface()
 {
     return _client.connector_client().m2m_interface();
 }
-#endif
 
 void MbedCloudClient::set_queue_sleep_handler(callback_handler handler)
 {

@@ -392,6 +392,15 @@ const uint8_t* pal_plat_get_cid(size_t *size);
  *
   */
 void pal_plat_set_cid(const uint8_t* context, const size_t length);
+
+/**
+ * \brief Internal test function. Set CID for current tls session.
+ * \param[in] palTLSHandle: The TLS context.
+ * \param[in] data_ptr: CID
+ * \param[in] data_len: length of the CID
+ */
+void pal_plat_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len);
+
 #endif //PAL_USE_SSL_SESSION_RESUME
 #endif //_PAL_PLAT_TLS_H_
 

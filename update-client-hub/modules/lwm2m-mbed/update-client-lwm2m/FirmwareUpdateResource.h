@@ -49,6 +49,7 @@ int32_t addNotificationCallback(void (*notification_handler)(void));
 
 /* Send state for resource /10252/0/2, State */
 int32_t sendState(arm_ucs_lwm2m_state_t state);
+int32_t getState();
 
 /* Send result for resource /10252/0/3, Update Result */
 int32_t sendUpdateResult(arm_ucs_lwm2m_result_t result);

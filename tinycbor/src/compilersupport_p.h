@@ -62,17 +62,14 @@
 #  define inline    CBOR_INLINE
 #endif
 
-#ifdef NDEBUG
-/*
- *uncomment the original define statement once cn-cbor is replaced by tinycbor.
- *currently, the original statement causes link error in non gcc compiler
- *
- * #  define cbor_assert(cond)     do { if (!(cond)) unreachable(); } while (0)
- *
- */
-#  define cbor_assert(cond)     assert(cond) //temporary
-#else
-#  define cbor_assert(cond)     assert(cond)
+#ifdef TINYCBOR_USE_ASSERT
+#define cbor_assert(cond)     assert(cond)
+#else //TINYCBOR_USE_ASSERT
+#define cbor_assert(cond) { \
+    if (!(cond)) { \
+        return CborErrorInternalError;  \
+    } \
+}
 #endif
 
 #ifndef STRINGIFY

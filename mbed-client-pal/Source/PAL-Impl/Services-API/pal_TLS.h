@@ -329,4 +329,12 @@ void pal_enableSslSessionStoring(palTLSConfHandle_t palTLSConf, bool enable);
  */
 void pal_setDTLSSocketCallback(palTLSConfHandle_t palTLSConf, palSocketCallback_f callback, void *argument);
 
+/**
+ * \brief Internal test function. Set CID for current tls session.
+ * @param palTLSHandle: The TLS context.
+ * @param data_ptr: CID
+ * @param data_len: length of the CID
+ */
+void pal_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len);
+
 #endif // _PAL_DTLS_H_

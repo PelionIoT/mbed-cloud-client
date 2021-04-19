@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -170,8 +170,8 @@ public:
         /// No internal recovery mechanism. Actions needed on the application side.
         ConnectorFailedToReadCredentials        = M2MInterface::FailedToReadCredentials,
 
-        /// Not used.
-        ConnectorInvalidCredentials,
+        /// Client is unable to bootstrap due to certificate issue (Bad Request).
+        ConnectorInvalidCredentials             = M2MInterface::InvalidCertificates,
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         UpdateWarningNoActionRequired           = UpdateClient::WarningBase, // Range reserved for Update Error from 0x0400 - 0x04FF
         UpdateWarningCertificateNotFound        = UpdateClient::WarningCertificateNotFound,
@@ -417,13 +417,11 @@ public:
      */
     const ConnectorClientEndpointInfo *endpoint_info() const;
 
-#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     /**
      * \brief Returns pointer to the M2MInterface object in use.
      * \return M2MInterface pointer.
      */
     M2MInterface *get_m2m_interface();
-#endif
 
     /**
      * \brief Set the function that is called for indicating that Device Management Client

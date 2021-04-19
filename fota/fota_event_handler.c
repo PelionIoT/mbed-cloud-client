@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include "mbed-client-libservice/ns_types.h"
 #include "nanostack-event-loop/eventOS_event.h"
+#include "nanostack-event-loop/eventOS_event_timer.h"
 #include "fota/fota_status.h"
 #include "fota/fota_event_handler.h"
 
@@ -116,8 +117,8 @@ void fota_event_handler_deinit(void)
     //nothing to de-register - eventOS does not have a method for destroying handlers
 }
 
-int fota_event_handler_defer_with_data(
-    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size)
+static int fota_event_handler_defer_with_data_(
+    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size, size_t in_ms)
 {
     FOTA_ASSERT(!g_ctx.is_pending_event);
     g_ctx.is_pending_event = true;
@@ -140,9 +141,31 @@ int fota_event_handler_defer_with_data(
     g_ctx.event_storage.data.event_type  = FOTA_EVENT_EXECUTE_WITH_BUFFER;
     g_ctx.event_storage.data.data_ptr = (void *)&g_ctx;
 
-    eventOS_event_send_user_allocated(&g_ctx.event_storage);
+    if (in_ms) {
+        arm_event_t event = { 0 };
+        event.data_ptr = g_ctx.event_storage.data.data_ptr;
+        event.sender = g_tasklet_id;
+        event.receiver = g_ctx.event_storage.data.receiver;
+        event.event_type = g_ctx.event_storage.data.event_type;
+        event.priority = g_ctx.event_storage.data.priority;
+        eventOS_event_timer_request_in(&event, eventOS_event_timer_ms_to_ticks(in_ms));
+    } else {
+        eventOS_event_send_user_allocated(&g_ctx.event_storage);
+    }
 
     return FOTA_STATUS_SUCCESS;
+}
+
+int fota_event_handler_defer_with_data(
+    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size)
+{
+    return fota_event_handler_defer_with_data_(cb, data, size, 0);
+}
+
+int fota_event_handler_defer_with_data_in_ms(
+    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size, size_t in_ms)
+{
+    return fota_event_handler_defer_with_data_(cb, data, size, in_ms);
 }
 
 void fota_event_handler_defer_with_result(

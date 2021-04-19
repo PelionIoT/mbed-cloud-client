@@ -64,7 +64,8 @@ typedef struct image_tlv_info {
  * MCUBOOT Image trailer TLV format. All fields in little endian.
  */
 typedef struct image_tlv {
-    uint16_t it_type;   /* IMAGE_TLV_[...]. */
+    uint8_t it_type;   /* IMAGE_TLV_[...]. */
+    uint8_t _pad;
     uint16_t it_len;    /* Data length (not including TLV header). */
 } image_tlv_t;
 
@@ -82,18 +83,22 @@ typedef struct image_tlv {
 #define SLOT_B_NAME ((const uint8_t*) "UC_B")
 #define SLOT_B_SIZE (4)
 
+typedef int32_t (*arm_uc_reader_p)(uint8_t *, uint32_t, uint32_t);
+
 /**
  * @brief      Get hash from MCUBOOT TLV struct.
  *
  *             This function reads the hash directly from the TLV struct.
  *
- * @param[in]  address      Address in flash where TLV struct begins.
+ * @param[in]  flash_reader Function pointer to internal or external flash reader.
+ * @param      address      Address in flash where TLV struct begins.
  * @param      header_hash  Pointer to hash-struct to be filed.
  *
  * @return     ERR_NONE     Success, the hash-struct has been populated.
  *             ERR_INVALID_PARAMETER Failure, unable to find hash at address.
  */
-arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
+arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(arm_uc_reader_p flash_reader,
+                                                             uint32_t address,
                                                              arm_uc_hash_t* header_hash);
 
 /**
@@ -102,14 +107,34 @@ arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_tlv(uint32_t address,
  *             This function uses the MCUBOOT header to find the address
  *             for the TLV struct where the hash is stored.
  *
- * @param[in]  address      Address in flash where MCUBOOT header begins.
+ * @param[in]  flash_reader Function pointer to internal or external flash reader.
+ * @param      address      Address in flash where MCUBOOT header begins.
+ * @param      header_hash  Pointer to hash-struct to be filled.
+ * @param      total_size   Pointer to uint32_t for storing total, signed image size.
+ *
+ * @return     ERR_NONE     Success, the hash-struct has been populated.
+ *             ERR_INVALID_PARAMETER Failure, unable to find hash at address.
+ */
+arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(arm_uc_reader_p flash_reader,
+                                                                uint32_t address,
+                                                                arm_uc_hash_t* header_hash,
+                                                                uint32_t* total_size);
+
+/**
+ * @brief      Calculate hash directly from stored image.
+ *
+ * @param[in]  flash_reader Function pointer to internal or external flash reader.
+ * @param      address      Address in flash where MCUBOOT header begins.
+ * @param      total_size   uint32_t with total, signed image size.
  * @param      header_hash  Pointer to hash-struct to be filled.
  *
  * @return     ERR_NONE     Success, the hash-struct has been populated.
  *             ERR_INVALID_PARAMETER Failure, unable to find hash at address.
  */
-arm_uc_error_t arm_uc_pal_flashiap_mcuboot_get_hash_from_header(uint32_t address,
-                                                                arm_uc_hash_t* header_hash);
+arm_uc_error_t arm_uc_pal_flashiap_mcuboot_calculate_hash(arm_uc_reader_p flash_reader,
+                                                          uint32_t address,
+                                                          uint32_t total_size,
+                                                          arm_uc_hash_t* header_hash);
 
 /**
  * @brief      Get firmware details stored in KCM.

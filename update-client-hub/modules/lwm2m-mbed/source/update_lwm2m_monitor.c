@@ -29,6 +29,7 @@ static ARM_MONITOR_CAPABILITIES get_capabilities(void);
 static arm_uc_error_t initialize(void (*notification_handler)(void));
 static arm_uc_error_t destroy(void);
 static arm_uc_error_t send_state(arm_uc_monitor_state_t an_update_state);
+static arm_uc_monitor_state_t get_state();
 static arm_uc_error_t send_update_result(arm_uc_monitor_result_t an_update_result);
 static arm_uc_error_t send_name(arm_uc_buffer_t *name);
 static arm_uc_error_t send_version(uint64_t version);
@@ -42,6 +43,7 @@ static const ARM_UPDATE_MONITOR lwm2m_monitor = {
     .Uninitialize         = destroy,
 
     .SendState            = send_state,
+    .GetState             = get_state,
     .SendUpdateResult     = send_update_result,
     .SendName             = send_name,
     .SendVersion          = send_version,
@@ -132,6 +134,11 @@ static arm_uc_error_t send_state(arm_uc_monitor_state_t an_update_state)
     }
 
     return result;
+}
+
+static arm_uc_monitor_state_t get_state()
+{
+    return (arm_uc_monitor_state_t)firmware_update_get_state(ARM_UCS_LWM2M_SOURCE_registry_get());
 }
 
 /**

@@ -51,5 +51,8 @@ message ("secure-device-access-client = [[${secure-device-access-client}]]")
 message ("*********************************************************************")
 
 CREATE_LIBRARY(secure-device-access-client "${secure-device-access-client}" "")
+if (${OS_BRAND} MATCHES "Zephyr")
+	target_link_libraries(secure-device-access-client PUBLIC ${TLS_LIBRARY})
+endif()
 
 ADDSUBDIRS()

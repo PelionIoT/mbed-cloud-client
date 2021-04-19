@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -20,33 +20,38 @@
 #include "eventOS_event_timer.h"
 #include "eventOS_scheduler.h"
 
+#include "mbed-trace/mbed_trace.h"
+
 #include <assert.h>
 #include <string.h>
 
 
-#define MBED_CLIENT_TIMER_TASKLET_INIT_EVENT 0 // Tasklet init occurs always when generating a tasklet
+#define MBED_CLIENT_TIMER_TASKLET_INIT_EVENT 0
 #define MBED_CLIENT_TIMER_EVENT 10
 
+#define TRACE_GROUP "tmer"
+
 int8_t M2MTimerPimpl::_tasklet_id = -1;
+uint8_t M2MTimerPimpl::_next_event_id = (uint8_t)M2MTimerObserver::TypeNotUsed + 1;
 
 extern "C" void tasklet_func(arm_event_s *event)
 {
     // skip the init event as there will be a timer event after
     if (event->event_type == MBED_CLIENT_TIMER_EVENT) {
-
-        M2MTimerPimpl* timer = (M2MTimerPimpl*)event->data_ptr;
-        assert(timer);
-        timer->handle_timer_event(*event);
+        if (event->data_ptr) {
+            M2MTimerPimpl* timer = (M2MTimerPimpl*)event->data_ptr;
+            timer->handle_timer_event(*event);
+        } else {
+            tr_debug("M2MTimerPimpl:tasklet_func event->data_ptr == NULL: event->event_id: %d",event->event_id);
+        }
     }
 }
 
+
 void M2MTimerPimpl::handle_timer_event(const arm_event_s &event)
 {
-    // Clear the reference to timer event which is now received and handled.
-    // This avoids the useless work from canceling a event if the timer is restarted
-    // and also lets the assertions verify the object state correctly.
     _timer_event = NULL;
-
+    assert(_event_id == event.event_id);
     if (get_still_left_time() > 0) {
         start_still_left_timer();
     } else {
@@ -64,15 +69,14 @@ M2MTimerPimpl::M2MTimerPimpl(M2MTimerObserver& observer)
   _type(M2MTimerObserver::Notdefined),
   _status(0),
   _dtls_type(false),
-  _single_shot(true)
+  _single_shot(true),
+  _event_id(-1)
 {
     eventOS_scheduler_mutex_wait();
-
     if (_tasklet_id < 0) {
         _tasklet_id = eventOS_event_handler_create(tasklet_func, MBED_CLIENT_TIMER_TASKLET_INIT_EVENT);
         assert(_tasklet_id >= 0);
     }
-
     eventOS_scheduler_mutex_release();
 }
 
@@ -126,12 +130,12 @@ void M2MTimerPimpl::start()
     } else {
         wait_time = _interval;
     }
-
     request_event_in(wait_time);
 }
 
 void M2MTimerPimpl::request_event_in(int32_t delay_ms)
 {
+    set_event_id();
     // init struct to zero to avoid hassle when new fields are added to it
     arm_event_t event = { 0 };
 
@@ -140,6 +144,7 @@ void M2MTimerPimpl::request_event_in(int32_t delay_ms)
     event.event_type = MBED_CLIENT_TIMER_EVENT;
     event.data_ptr = this;
     event.priority = ARM_LIB_MED_PRIORITY_EVENT;
+    event.event_id = _event_id;
 
     // check first, that there is no timer event still pending
     assert(_timer_event == NULL);
@@ -153,14 +158,35 @@ void M2MTimerPimpl::request_event_in(int32_t delay_ms)
     // If application requires large number of timers, the
     // MBED_CLIENT_EVENT_LOOP_SIZE needs to be at least 1 KiB.
     assert(_timer_event != NULL);
+    if (_timer_event == NULL) {
+        tr_error("M2MTimerPimpl _timer_event allocation failed");
+    }
+}
+
+void M2MTimerPimpl::set_event_id()
+{
+    // If timer is not single shot, use type as event_id
+    if (!_single_shot) {
+        _event_id = (uint8_t)(_type & 0xF);
+    } else {
+        _event_id = _next_event_id;
+        _next_event_id++;
+        // check that event_ids wont over lap timer types
+        // _next_event_id will overflow and it is ok. 
+        // when it's value change from 225 -> 0. this will set it to M2MTimerObserver::TypeNotUsed + 1
+        if (_next_event_id <= (uint8_t)M2MTimerObserver::TypeNotUsed) {
+            _next_event_id = (uint8_t)M2MTimerObserver::TypeNotUsed + 1;
+        }
+    }
 }
 
 void M2MTimerPimpl::cancel()
 {
-    // NULL event is ok to cancel
-    eventOS_cancel(_timer_event);
-
-    _timer_event = NULL;
+    if (_timer_event) {
+        eventOS_event_timer_cancel(_event_id, _tasklet_id);
+        _timer_event->data.data_ptr = NULL;
+        _timer_event = NULL;
+    }
 }
 
 void M2MTimerPimpl::stop_timer()

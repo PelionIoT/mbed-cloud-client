@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2020-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -22,7 +22,7 @@
 #include "eventOS_event.h"
 #include "eventOS_event_timer.h"
 
-#define ARM_UC_OTA_MULTICAST_UC_HUB_EVENT           1
+#define ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT    1
 #define ARM_UC_OTA_MULTICAST_TIMER_EVENT            2
 #define ARM_UC_OTA_MULTICAST_DL_DONE_EVENT          3
 #define ARM_UC_OTA_MULTICAST_EXTERNAL_UPDATE_EVENT  4
@@ -42,7 +42,13 @@
 #define MULTICAST_STATUS_RANGE_BASE 0x0700
 #define MULTICAST_STATUS_RANGE_END 0x07ff
 
+#ifdef ARM_UC_BUFFER_SIZE
+// UCHub case this is used as UChub injection buffer size and max value check for fragment size
 #define ARM_UC_HUB_BUFFER_SIZE_MAX (ARM_UC_BUFFER_SIZE / 2) //  define size of the double buffers
+#else
+// Fota case this is only used as max value check for fragment size
+#define ARM_UC_HUB_BUFFER_SIZE_MAX 1024
+#endif
 
 typedef enum {
     MULTICAST_STATUS_SUCCESS = 0,
@@ -50,6 +56,10 @@ typedef enum {
     MULTICAST_STATUS_INIT_FAILED,
     MULTICAST_MAX_STATUS = MULTICAST_STATUS_RANGE_END
 } multicast_status_e;
+
+typedef enum {
+    MULTICAST_FOTA_EVENT_MANIFEST_RECEIVED = 1
+} multicast_fota_event;
 
 typedef struct  arm_uc_firmware_address {
     uint32_t start_address;
@@ -80,6 +90,12 @@ void arm_uc_multicast_deinit();
  *  @param event Event to process.
  */
 void arm_uc_multicast_tasklet(struct arm_event_s *event);
+
+/**
+ *  @brief Called to indicate network status is changed (back) to connected, so netid should be
+ *         re-set to corresponding resource.
+ */
+void arm_uc_multicast_network_connected();
 
 #ifdef __cplusplus
 }

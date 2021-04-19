@@ -34,8 +34,8 @@ struct nsdl_s;
 struct sn_nsdl_addr_;
 typedef sn_nsdl_addr_ sn_nsdl_addr_s;
 
-typedef FP1<void, const char*> value_updated_callback;
-typedef void(*value_updated_callback2) (const char* object_name);
+typedef FP1<void, const char *> value_updated_callback;
+typedef void(*value_updated_callback2)(const char *object_name);
 class M2MObservationHandler;
 class M2MReportHandler;
 
@@ -64,7 +64,7 @@ public:
         ObjectInstance = 0x2,
         ResourceInstance = 0x3
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-        ,ObjectDirectory = 0x4
+        , ObjectDirectory = 0x4
 #endif
     } BaseType;
 
@@ -90,7 +90,7 @@ public:
         Static,
         Dynamic,
         Directory
-    }Mode;
+    } Mode;
 
     /**
      * \brief Enum defining a resource data type.
@@ -103,7 +103,7 @@ public:
         OPAQUE,
         TIME,
         OBJLINK
-    }DataType;
+    } DataType;
 
     /**
      * \brief Enum defining an operation that can be
@@ -126,11 +126,17 @@ public:
         GET_POST_DELETE_ALLOWED     = 0x0D,
         PUT_POST_DELETE_ALLOWED     = 0x0E,
         GET_PUT_POST_DELETE_ALLOWED = 0x0F
-    }Operation;
+    } Operation;
 
     /**
      * \brief Enum defining an status codes that can happen when
      * sending confirmable message.
+     *
+     * \note When non-confirmable type is selected using `set_confirmable(false)` then only following MessageDeliveryStatuses are valid:
+     *  MESSAGE_STATUS_BUILD_ERROR
+     *  MESSAGE_STATUS_SENT
+     *  MESSAGE_STATUS_SUBSCRIBED
+     *  MESSAGE_STATUS_UNSUBSCRIBED
     */
     typedef enum {
         MESSAGE_STATUS_INIT = 0,           // Initial state.
@@ -162,17 +168,10 @@ public:
         MAX_PATH_SIZE_4 = (MAX_NAME_SIZE + MAX_INSTANCE_SIZE + 1 + 1)
     };
 
-    // The setter for this callback (set_notification_delivery_status_cb()) is in m2m_deprecated
-    // category, but it can not be used here as then the GCC will scream for the declaration of
-    // setter, not just from references of it.
-    typedef void(*notification_delivery_status_cb) (const M2MBase& base,
-                                                    const NotificationDeliveryStatus status,
-                                                    void *client_args);
-
-    typedef void(*message_delivery_status_cb) (const M2MBase& base,
-                                               const MessageDeliveryStatus status,
-                                               const MessageType type,
-                                               void *client_args);
+    typedef void(*message_delivery_status_cb)(const M2MBase &base,
+                                              const MessageDeliveryStatus status,
+                                              const MessageType type,
+                                              void *client_args);
 
 #ifdef ENABLE_ASYNC_REST_RESPONSE
     /**
@@ -203,7 +202,7 @@ public:
          *  \brief Parameter identifier.
          */
         union {
-            char*               name; //for backwards compatibility
+            char               *name; //for backwards compatibility
             uint16_t            instance_id; // XXX: this is not properly aligned now, need to reorder these after the elimination is done
         } identifier;
         sn_nsdl_dynamic_resource_parameters_s *dynamic_resource_params;
@@ -216,8 +215,8 @@ public:
                                                  its own similar, independent flag.
 
                                                  \note This also serves as a read-only flag. */
-       bool                 identifier_int_type;
-       bool                 read_write_callback_set; /**< \brief If set, all the read and write operations are handled in callbacks
+        bool                 identifier_int_type;
+        bool                 read_write_callback_set; /**< \brief If set, all the read and write operations are handled in callbacks
                                                          and the resource value is not stored anymore in M2MResourceBase. */
     } lwm2m_parameters_s;
 
@@ -227,10 +226,10 @@ protected:
     M2MBase();
 
     // Prevents the use of assignment operator.
-    M2MBase& operator=( const M2MBase& /*other*/ );
+    M2MBase &operator=(const M2MBase & /*other*/);
 
     // Prevents the use of copy constructor
-    M2MBase( const M2MBase& /*other*/ );
+    M2MBase(const M2MBase & /*other*/);
 
     /**
      * \brief Constructor
@@ -251,7 +250,7 @@ protected:
             bool multiple_instance,
             M2MBase::DataType type = M2MBase::OBJLINK);
 
-    M2MBase(const lwm2m_parameters_s* s);
+    M2MBase(const lwm2m_parameters_s *s);
 
 public:
 
@@ -284,7 +283,7 @@ public:
      * \brief Returns the interface description of the object.
      * \return The interface description of the object.
      */
-    const char* interface_description() const;
+    const char *interface_description() const;
 #endif
 #if !defined(DISABLE_RESOURCE_TYPE) || defined(RESOURCE_ATTRIBUTES_LIST)
     /**
@@ -303,7 +302,7 @@ public:
      * \brief Returns the resource type of the object.
      * \return The resource type of the object.
      */
-    const char* resource_type() const;
+    const char *resource_type() const;
 #endif
 #endif
 
@@ -332,6 +331,19 @@ public:
     void set_auto_observable(bool auto_observable);
 
     /**
+     * \brief Sets how the notification is sent. By default confirmable CoAP message type is used.
+     *
+     * \note When non-confirmable type is selected then only following MessageDeliveryStatuses are valid:
+     *  MESSAGE_STATUS_BUILD_ERROR
+     *  MESSAGE_STATUS_SENT
+     *  MESSAGE_STATUS_SUBSCRIBED
+     *  MESSAGE_STATUS_UNSUBSCRIBED
+     *
+     * \param confirmable True means confirmable message, False means non-confirmable message.
+     */
+    void set_confirmable(bool confirmable);
+
+    /**
      * \brief Adds the observation level for the object.
      * \param observation_level The level of observation.
      */
@@ -355,7 +367,7 @@ public:
      * \brief Returns the Observation Handler object.
      * \return M2MObservationHandler object.
     */
-    virtual M2MObservationHandler* observation_handler() const = 0;
+    virtual M2MObservationHandler *observation_handler() const = 0;
 
     /**
      * \brief Sets the observation handler
@@ -391,7 +403,7 @@ public:
      * \brief Returns the object name.
      * \return The name of the object.
      */
-    const char* name() const;
+    const char *name() const;
 
     /**
      * \brief Returns the object name in integer.
@@ -409,7 +421,7 @@ public:
      * \brief Returns the path of the object.
      * \return The path of the object (eg. 3/0/1).
      */
-    const char* uri_path() const;
+    const char *uri_path() const;
 
     /**
      * \brief Returns the CoAP content type of the object.
@@ -439,7 +451,7 @@ public:
      * \brief Returns the mode of the resource.
      * \return The mode of the resource.
      */
-     Mode mode() const;
+    Mode mode() const;
 
     /**
      * \brief Returns the observation number.
@@ -471,7 +483,7 @@ public:
      * observation callbacks.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
      */
-    virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler = NULL);
     /**
@@ -483,7 +495,7 @@ public:
      * \param execute_value_updated True executes the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
      */
-    virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler,
                                               bool &execute_value_updated);
@@ -497,24 +509,16 @@ public:
      * \param execute_value_updated True executes the "value_updated" callback.
      * \return sn_coap_hdr_s  The message that needs to be sent to server.
      */
-    virtual sn_coap_hdr_s* handle_post_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
                                                M2MObservationHandler *observation_handler,
                                                bool &execute_value_updated,
                                                sn_nsdl_addr_s *address = NULL);
 
     /**
-     * \brief Executes the function that is set in "set_notification_delivery_status_cb".
-     * Note: the setter for this callback is marked as m2m_deprecated, but there is no point
-     * having it here, as then the code will always give warnings. This simply must be there
-     * until the set_notification_delivery_status_cb() is removed.
-     */
-    void send_notification_delivery_status(const M2MBase& object, const NotificationDeliveryStatus status);
-
-    /**
      * \brief Executes the function that is set in "set_message_delivery_status_cb".
      */
-    void send_message_delivery_status(const M2MBase& object, const MessageDeliveryStatus status, const MessageType type);
+    void send_message_delivery_status(const M2MBase &object, const MessageDeliveryStatus status, const MessageType type);
 
     /**
      * \brief Sets whether this resource is published to server or not.
@@ -560,7 +564,7 @@ public:
      * @brief Calls the function that is set in the "set_value_updated_function".
      * @param name The name of the object.
      */
-    void execute_value_updated(const String& name);
+    void execute_value_updated(const String &name);
 
     /**
      * @brief Returns length of the object name.
@@ -572,13 +576,13 @@ public:
      * @brief Returns the resource information.
      * @return Resource information.
      */
-    sn_nsdl_dynamic_resource_parameters_s* get_nsdl_resource() const;
+    sn_nsdl_dynamic_resource_parameters_s *get_nsdl_resource() const;
 
     /**
      * @brief Returns the resource structure.
      * @return Resource structure.
      */
-    M2MBase::lwm2m_parameters_s* get_lwm2m_parameters() const;
+    M2MBase::lwm2m_parameters_s *get_lwm2m_parameters() const;
 
 #ifdef ENABLE_ASYNC_REST_RESPONSE
     /**
@@ -592,7 +596,7 @@ public:
      */
     bool send_async_response_with_code(const uint8_t *payload,
                                        size_t payload_len,
-                                       const uint8_t* token,
+                                       const uint8_t *token,
                                        const uint8_t token_len,
                                        coap_response_code_e code = COAP_RESPONSE_CHANGED);
 
@@ -621,13 +625,6 @@ public:
     void set_notification_msgid(uint16_t msgid) m2m_deprecated;
 
     /**
-     * @brief Sets the function that is executed when notification message state changes.
-     * @param callback The function pointer that is called.
-     * @param client_args The argument which is passed to the callback function.
-     */
-    bool set_notification_delivery_status_cb(notification_delivery_status_cb callback, void *client_args) m2m_deprecated;
-
-    /**
      * @brief Sets the function that is executed when message state changes.
      * Currently this is used to track notifications and delayed response delivery statuses.
      * @param callback The function pointer that is called.
@@ -636,13 +633,13 @@ public:
     bool set_message_delivery_status_cb(message_delivery_status_cb callback, void *client_args);
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-    static char* create_path(const M2MEndpoint &parent, const char *name);
+    static char *create_path(const M2MEndpoint &parent, const char *name);
 #endif
-    static char* create_path(const M2MObject &parent, const char *name);
-    static char* create_path(const M2MObject &parent, uint16_t object_instance);
-    static char* create_path(const M2MResource &parent, uint16_t resource_instance);
-    static char* create_path(const M2MResource &parent, const char *name);
-    static char* create_path(const M2MObjectInstance &parent, const char *name);
+    static char *create_path(const M2MObject &parent, const char *name);
+    static char *create_path(const M2MObject &parent, uint16_t object_instance);
+    static char *create_path(const M2MResource &parent, uint16_t resource_instance);
+    static char *create_path(const M2MResource &parent, const char *name);
+    static char *create_path(const M2MObjectInstance &parent, const char *name);
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
 
@@ -678,7 +675,7 @@ protected: // from M2MReportObserver
      * \brief Memory allocation required for libCoap.
      * \param size The size of memory to be reserved.
     */
-    static void* memory_alloc(uint32_t size);
+    static void *memory_alloc(uint32_t size);
 
     /**
      * \brief Memory free functions required for libCoap.
@@ -691,7 +688,7 @@ protected: // from M2MReportObserver
      * is functionally equivalent with strdup().
      * \param source The source string to copy, may not be NULL.
     */
-    static char* alloc_string_copy(const char* source);
+    static char *alloc_string_copy(const char *source);
 
     /**
      * \brief Allocate (size + 1) amount of memory, copy size bytes into
@@ -699,30 +696,30 @@ protected: // from M2MReportObserver
      * \param source The source string to copy, may not be NULL.
      * \param size The size of memory to be reserved.
     */
-    static uint8_t* alloc_string_copy(const uint8_t* source, uint32_t size);
+    static uint8_t *alloc_string_copy(const uint8_t *source, uint32_t size);
 
     /**
      * \brief Allocate (size) amount of memory, copy size bytes into it.
      * \param source The source buffer to copy, may not be NULL.
      * \param size The size of memory to be reserved.
     */
-    static uint8_t* alloc_copy(const uint8_t* source, uint32_t size);
+    static uint8_t *alloc_copy(const uint8_t *source, uint32_t size);
 
     // validate string length to be [min_length..max_length]
     static bool validate_string_length(const String &string, size_t min_length, size_t max_length);
-    static bool validate_string_length(const char* string, size_t min_length, size_t max_length);
+    static bool validate_string_length(const char *string, size_t min_length, size_t max_length);
 
     /**
      * \brief Create Report Handler object.
      * \return M2MReportHandler object.
     */
-    M2MReportHandler* create_report_handler();
+    M2MReportHandler *create_report_handler();
 
     /**
      * \brief Returns the Report Handler object.
      * \return M2MReportHandler object.
     */
-    M2MReportHandler* report_handler() const;
+    M2MReportHandler *report_handler() const;
 
     static bool build_path(StringBuffer<MAX_PATH_SIZE> &buffer, const char *s1, uint16_t i1, const char *s2, uint16_t i2);
 
@@ -732,7 +729,7 @@ protected: // from M2MReportObserver
 
     static bool build_path(StringBuffer<MAX_PATH_SIZE_4> &buffer, const char *s1, uint16_t i1);
 
-    static char* stringdup(const char* s);
+    static char *stringdup(const char *s);
 
     /**
      * \brief Delete the resource structures owned by this object. Note: this needs
@@ -741,12 +738,6 @@ protected: // from M2MReportObserver
      * implementation of the pure virtual method.
      */
     void free_resources();
-
-    /**
-     * \brief Returns notification send status.
-     * \return Notification status.
-     */
-    NotificationDeliveryStatus get_notification_delivery_status() const m2m_deprecated;
 
     /**
      * \brief Clears the notification send status to initial state.
@@ -805,8 +796,10 @@ protected: // from M2MReportObserver
 
     /**
      * \brief Cancels the ongoing observation.
+     *
+     * \param status Delivery status to be sent to application
      */
-    void cancel_observation();
+    void cancel_observation(M2MBase::MessageDeliveryStatus status = M2MBase::MESSAGE_STATUS_UNSUBSCRIBED);
 
     /**
      * \brief Start the observation.
@@ -842,16 +835,16 @@ private:
 
     static bool is_integer(const char *value);
 
-    static char* create_path_base(const M2MBase &parent, const char *name);
+    static char *create_path_base(const M2MBase &parent, const char *name);
 
     lwm2m_parameters_s          *_sn_resource;
     M2MReportHandler            *_report_handler; // TODO: can be broken down to smaller classes with inheritance.
 
-friend class Test_M2MBase;
-friend class Test_M2MObject;
-friend class M2MNsdlInterface;
-friend class M2MInterfaceFactory;
-friend class M2MObject;
+    friend class Test_M2MBase;
+    friend class Test_M2MObject;
+    friend class M2MNsdlInterface;
+    friend class M2MInterfaceFactory;
+    friend class M2MObject;
 };
 
 #endif // M2M_BASE_H

@@ -39,6 +39,8 @@
 
 #ifdef MBED_CLIENT_USER_CONFIG_FILE
 #include MBED_CLIENT_USER_CONFIG_FILE
+#warning MBED_CLIENT_USER_CONFIG_FILE macro is deprecated. \
+            Please use only MBED_CLOUD_CLIENT_USER_CONFIG_FILE.
 #endif
 
 #ifdef __cplusplus

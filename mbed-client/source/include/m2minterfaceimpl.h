@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -68,6 +68,7 @@ private:
      * @param mode Binding mode of the client, default is UDP
      * @param stack Network stack to be used for connection, default is LwIP_IPv4.
      * @param context_address Context address, default is empty.
+     * @param version Version of the LwM2M Enabler that the LwM2M Client supports.
      */
     M2MInterfaceImpl(M2MInterfaceObserver& observer,
                      const String &endpoint_name,
@@ -77,7 +78,8 @@ private:
                      const String &domain = "",
                      BindingMode mode = M2MInterface::NOT_SET,
                      M2MInterface::NetworkStack stack = M2MInterface::LwIP_IPv4,
-                     const String &context_address = "");
+                     const String &context_address = "",
+                     const String &version = "");
 
 public:
 
@@ -315,6 +317,19 @@ public:
 
     virtual nsdl_s* get_nsdl_handle() const;
 
+    /**
+     * @brief Returns M2MServer handle.
+     * @return M2MServer handle
+     */
+    virtual M2MServer* get_m2mserver() const;
+
+    /**
+     * \brief Internal test function. Set CID for current tls session.
+     * \param data_ptr CID
+     * \param data_len length of the CID
+     */
+    virtual void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
+
 protected: // From M2MNsdlObserver
 
     virtual void coap_message_ready(uint8_t *data_ptr,
@@ -339,7 +354,7 @@ protected: // From M2MNsdlObserver
 
     virtual void bootstrap_error_wait(const char *reason);
 
-    virtual void bootstrap_error(const char *reason);
+    virtual void bootstrap_error(M2MInterface::Error error, const char *reason);
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     virtual void coap_data_processed();

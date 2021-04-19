@@ -170,6 +170,7 @@
     ENUM_AUTO(HUB_ERR_ROLLBACK_PROTECTION)\
     ENUM_AUTO(ARM_UC_HUB_ERR_NOT_AVAILABLE)\
     ENUM_AUTO(HUB_ERR_CONNECTION)\
+    ENUM_AUTO(HUB_ERR_PRECURSOR_MISMATCH)\
     ENUM_AUTO(HUB_ERR_LAST)\
 
 #define ARM_UC_EQ_ERR_LIST\
@@ -225,7 +226,7 @@ typedef union arm_uc_error_code arm_uc_error_t;
 #define ARM_UC_ERROR_MATCHES(VAR,CODE)  ((VAR).code == CODE)
 
 #define ARM_UC_CLEAR_ERROR(ERR)         ((ERR).code = (ERR_NONE))
-#define ARM_UC_INIT_ERROR(VAR, CODE)    arm_uc_error_t (VAR) = arm_uc_code_to_error( CODE )
+#define ARM_UC_INIT_ERROR(VAR, CODE)    arm_uc_error_t VAR = arm_uc_code_to_error( CODE )
 #define ARM_UC_GET_ERROR(VAR)           ((VAR).code)
 
 #if ARM_UC_ERROR_TRACE_ENABLE

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2020 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -33,6 +33,19 @@
 
 #if MBED_CLOUD_CLIENT_STL_API
 #include <string>
+#endif
+
+
+// TODO: selection for whether multicast is enabled or not is still probably not working in all cases...
+#if defined(MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE) && defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE)
+#define SERVICE_CLIENT_SUPPORT_MULTICAST
+#endif
+
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#include "fota/fota_config.h"
+#if MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT != FOTA_MULTICAST_UNSUPPORTED
+#define SERVICE_CLIENT_SUPPORT_MULTICAST
+#endif
 #endif
 
 class M2MSecurity;
@@ -259,6 +272,8 @@ protected :
     * \param firmware_size Size of the firmware.
     */
     virtual void external_update(uint32_t start_address, uint32_t firmware_size);
+
+    virtual void network_status_changed(bool connected);
 #endif
 
     /**
@@ -338,11 +353,11 @@ private:
     bool                            _state_engine_running;
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
     int8_t                          _uc_hub_tasklet_id;
-#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-    int8_t                          _multicast_tasklet_id;
-#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     bool                            _setup_update_client;
 #endif // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
+    int8_t                          _multicast_tasklet_id;
+#endif // SERVICE_CLIENT_SUPPORT_MULTICAST
     ConnectorClient                 _connector_client;
 };
 

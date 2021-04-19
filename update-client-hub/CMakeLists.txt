@@ -129,6 +129,8 @@ FILE(GLOB UPDATE_SRC
     "${UPDATE_SOURCE_DIR}/modules/pal-flashiap-mcuboot/source/*.cpp"
     "${UPDATE_SOURCE_DIR}/modules/pal-blockdevice/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/pal-blockdevice/source/*.cpp"
+    "${UPDATE_SOURCE_DIR}/modules/delta-paal/source/*.c"
+    "${UPDATE_SOURCE_DIR}/delta-tool-internal/source/*.c"
 )
 endif()
 

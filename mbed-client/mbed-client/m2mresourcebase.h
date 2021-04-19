@@ -27,11 +27,11 @@
 class M2MBlockMessage;
 class M2MCallbackAssociation;
 
-typedef FP1<void,void*> execute_callback;
-typedef void(*execute_callback_2) (void *arguments);
+typedef FP1<void, void *> execute_callback;
+typedef void(*execute_callback_2)(void *arguments);
 
 typedef FP0<void> notification_sent_callback;
-typedef void(*notification_sent_callback_2) (void);
+typedef void(*notification_sent_callback_2)(void);
 
 #ifndef DISABLE_BLOCK_MESSAGE
 typedef FP1<void, M2MBlockMessage *> incoming_block_message_callback;
@@ -46,22 +46,11 @@ class M2MResource;
  */
 class M2MResourceBase : public M2MBase {
 
-friend class M2MObjectInstance;
-friend class M2MResource;
-friend class M2MResourceInstance;
+    friend class M2MObjectInstance;
+    friend class M2MResource;
+    friend class M2MResourceInstance;
 
 public:
-
-    typedef enum {
-        INIT = 0,   // Initial state.
-        SENT,       // Notification created/sent but not received ACK yet.
-        DELIVERED   // Received ACK from server.
-    } NotificationStatus;
-
-    typedef FP2<void, const uint16_t, const M2MResourceBase::NotificationStatus> notification_status_callback;
-
-    typedef void(*notification_status_callback_2) (const uint16_t msg_id,
-                                                   const M2MResourceBase::NotificationStatus status);
 
     /**
      * An enum defining a resource type that can be
@@ -83,7 +72,7 @@ public:
      * \param value Pointer to value buffer containing new value, ownership is transferred to callback function
      * \param value_length Length of value buffer
      */
-    typedef void(*value_set_callback) (const M2MResourceBase *resource, uint8_t *value, const uint32_t value_length);
+    typedef void(*value_set_callback)(const M2MResourceBase *resource, uint8_t *value, const uint32_t value_length);
 
     /*
      * \brief Read resource value callback function.
@@ -93,10 +82,10 @@ public:
      * \param client_args Client arguments
      * \return Error code, 0 on success otherwise < 0
      */
-    typedef int(*read_resource_value_callback) (const M2MResourceBase& resource,
-                                                void *buffer,
-                                                size_t *buffer_size,
-                                                void *client_args);
+    typedef int(*read_resource_value_callback)(const M2MResourceBase &resource,
+                                               void *buffer,
+                                               size_t *buffer_size,
+                                               void *client_args);
 
     /*
      * \brief Type definition for a read resource value callback function.
@@ -108,12 +97,12 @@ public:
      * \param[in]       client_args     Client arguments.
      * \return CoAP response code for the response.
      */
-    typedef coap_response_code_e(*read_value_callback) (const M2MResourceBase& resource,
-                                                        uint8_t *&buffer,
-                                                        size_t &buffer_size,
-                                                        size_t &total_size,
-                                                        const size_t offset,
-                                                        void *client_args);
+    typedef coap_response_code_e(*read_value_callback)(const M2MResourceBase &resource,
+                                                       uint8_t *&buffer,
+                                                       size_t &buffer_size,
+                                                       size_t &total_size,
+                                                       const size_t offset,
+                                                       void *client_args);
 
 
 
@@ -124,9 +113,9 @@ public:
      * \param client_args Client arguments
      * \return Error code, 0 on success otherwise < 0
      */
-    typedef int(*read_resource_value_size_callback) (const M2MResourceBase& resource,
-                                                     size_t *buffer_size,
-                                                     void *client_args);
+    typedef int(*read_resource_value_size_callback)(const M2MResourceBase &resource,
+                                                    size_t *buffer_size,
+                                                    void *client_args);
 
     /*
      * \brief Set resource value callback function.
@@ -136,18 +125,18 @@ public:
      * \param client_args Client arguments
      * \return error code, True if value storing completed otherwise False
      */
-    typedef bool(*write_resource_value_callback) (const M2MResourceBase& resource,
-                                                  const uint8_t *buffer,
-                                                  const size_t buffer_size,
-                                                  void *client_args);
+    typedef bool(*write_resource_value_callback)(const M2MResourceBase &resource,
+                                                 const uint8_t *buffer,
+                                                 const size_t buffer_size,
+                                                 void *client_args);
 
 protected: // Constructor and destructor are private
-           // which means that these objects can be created or
-           // deleted only through a function provided by the M2MObjectInstance.
+    // which means that these objects can be created or
+    // deleted only through a function provided by the M2MObjectInstance.
 
     M2MResourceBase(
-                        const lwm2m_parameters_s* s,
-                        M2MBase::DataType type);
+        const lwm2m_parameters_s *s,
+        M2MBase::DataType type);
     /**
      * \brief A constructor for creating a resource.
      * \param resource_name The name of the resource.
@@ -159,13 +148,13 @@ protected: // Constructor and destructor are private
      *        otherwise handled in mbed-client-c.
      */
     M2MResourceBase(
-                        const String &resource_name,
-                        M2MBase::Mode mode,
-                        const String &resource_type,
-                        M2MBase::DataType type,
-                        char* path,
-                        bool external_blockwise_store,
-                        bool multiple_instance);
+        const String &resource_name,
+        M2MBase::Mode mode,
+        const String &resource_type,
+        M2MBase::DataType type,
+        char *path,
+        bool external_blockwise_store,
+        bool multiple_instance);
 
     /**
      * \brief A Constructor for creating a resource.
@@ -181,24 +170,24 @@ protected: // Constructor and destructor are private
      *        otherwise handled in mbed-client-c.
      */
     M2MResourceBase(
-                        const String &resource_name,
-                        M2MBase::Mode mode,
-                        const String &resource_type,
-                        M2MBase::DataType type,
-                        const uint8_t *value,
-                        const uint8_t value_length,
-                        char* path,
-                        bool external_blockwise_store,
-                        bool multiple_instance);
+        const String &resource_name,
+        M2MBase::Mode mode,
+        const String &resource_type,
+        M2MBase::DataType type,
+        const uint8_t *value,
+        const uint8_t value_length,
+        char *path,
+        bool external_blockwise_store,
+        bool multiple_instance);
 
     // Prevents the use of default constructor.
     M2MResourceBase();
 
     // Prevents the use of assignment operator.
-    M2MResourceBase& operator=( const M2MResourceBase& /*other*/ );
+    M2MResourceBase &operator=(const M2MResourceBase & /*other*/);
 
     // Prevents the use of copy constructor
-    M2MResourceBase( const M2MResourceBase& /*other*/ );
+    M2MResourceBase(const M2MResourceBase & /*other*/);
 
     /**
      * Destructor
@@ -268,7 +257,7 @@ public:
      * \param buffer_len[IN/OUT] Buffer size
      * \return Error code, 0 on success otherwise < 0
      */
-    int read_resource_value(const M2MResourceBase& resource, void *buffer, size_t *buffer_len);
+    int read_resource_value(const M2MResourceBase &resource, void *buffer, size_t *buffer_len);
 
     /**
      * \brief Executes the function that is set in "set_resource_read_size_callback".
@@ -277,7 +266,7 @@ public:
      * \param buffer_len[OUT] Buffer size
      * \return Error code, 0 on success otherwise < 0
      */
-    int read_resource_value_size(const M2MResourceBase& resource, size_t *buffer_len);
+    int read_resource_value_size(const M2MResourceBase &resource, size_t *buffer_len);
 
     /**
      * \brief Executes the function that is set in "set_resource_write_callback".
@@ -286,7 +275,7 @@ public:
      * \param buffer_size Size of the data.
      * \return True if storing succeeded otherwise False.
      */
-    bool write_resource_value(const M2MResourceBase& resource, const uint8_t *buffer, const size_t buffer_size);
+    bool write_resource_value(const M2MResourceBase &resource, const uint8_t *buffer, const size_t buffer_size);
 
     /**
      * \brief Sets a value of a given resource.
@@ -377,7 +366,7 @@ public:
      * \brief Returns the value pointer of the object.
      * \return The value pointer of the object.
      */
-    uint8_t* value() const;
+    uint8_t *value() const;
 
     /**
      * \brief Returns the length of the value pointer.
@@ -415,7 +404,7 @@ public:
      * observation callbacks.
      * \return sn_coap_hdr_s The message that needs to be sent to the server.
      */
-    virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler = NULL);
     /**
@@ -427,7 +416,7 @@ public:
      * \param execute_value_updated True will execute the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to the server.
      */
-    virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler,
                                               bool &execute_value_updated);
@@ -442,9 +431,9 @@ public:
      * \brief Returns the name of the object where the resource exists.
      * \return Object name.
     */
-    virtual const char* object_name() const = 0;
+    virtual const char *object_name() const = 0;
 
-    virtual M2MResource& get_parent_resource() const = 0;
+    virtual M2MResource &get_parent_resource() const = 0;
 
 #ifndef DISABLE_BLOCK_MESSAGE
     /**
@@ -468,58 +457,9 @@ public:
      * \brief Returns the block message object.
      * \return Block message.
     */
-    M2MBlockMessage* block_message() const;
+    M2MBlockMessage *block_message() const;
 
 #endif
-
-    /**
-     * @brief Sets the function that is executed when this object receives
-     * response(Empty ACK) for notification message.
-     * @param callback The function pointer that is called.
-     */
-    bool set_notification_sent_callback(notification_sent_callback callback) m2m_deprecated;
-
-    /**
-     * @brief Sets the function that is executed when this object receives
-     * response(Empty ACK) for notification message.
-     * @param callback The function pointer that is called.
-     */
-    bool set_notification_sent_callback(notification_sent_callback_2 callback) m2m_deprecated;
-
-    /**
-     * @brief Sets the function that is executed when this object receives
-     * response(Empty ACK) for notification message.
-     * @param callback The function pointer that is called.
-     */
-    bool set_notification_status_callback(notification_status_callback callback) m2m_deprecated;
-
-    /**
-     * @brief Sets the function that is executed when this object receives
-     * response(Empty ACK) for notification message.
-     * @param callback The function pointer that is called.
-     */
-    bool set_notification_status_callback(notification_status_callback_2 callback);
-
-    /**
-     * \brief Executes the function that is set in "set_notification_sent_callback".
-     */
-    void notification_sent();
-
-    /**
-     * \brief Executes the function that is set in "set_notification_status_callback".
-     */
-    void notification_status(const uint16_t msg_id, NotificationStatus status);
-
-    /**
-     * \brief Returns notification send status.
-     * \return Notification status.
-     */
-    M2MResourceBase::NotificationStatus notification_status() const;
-
-    /**
-     * \brief Clears the notification send status to initial state.
-     */
-    void clear_notification_status();
 
     /**
      * @brief Set the status whether resource value will be part of registration message.     *
@@ -540,7 +480,7 @@ private:
 
     void report_value_change();
 
-    bool has_value_changed(const uint8_t* value, const uint32_t value_len);
+    bool has_value_changed(const uint8_t *value, const uint32_t value_len);
 
     M2MResourceBase::ResourceType convert_data_type(M2MBase::DataType type) const;
 
@@ -552,8 +492,6 @@ private:
 #ifndef DISABLE_BLOCK_MESSAGE
     M2MBlockMessage     *_block_message_data;
 #endif
-
-    NotificationStatus    _notification_status : 2;
 
     friend class Test_M2MResourceInstance;
     friend class Test_M2MResource;
