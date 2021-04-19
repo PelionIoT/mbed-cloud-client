@@ -132,7 +132,13 @@ void ARM_UC_HUB_setExternalDownload(manifest_firmware_info_t *fw_info);
 #if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
 void ARM_UC_HUB_setMulticastTaskletId(const int8_t tasklet_id);
 int8_t ARM_UC_HUB_createEventHandler();
-void ARM_UC_HUB_setManifest(uint8_t* buf, uint32_t len);
+/**
+ * Set manifest that was received through multicast.
+ * @return 1 set was successfull, caller should set state next
+ *         0 set was unnecessary, as state machine is already waiting for multicasting
+ *           and same manifest was already inserted
+ */
+int8_t ARM_UC_HUB_setManifest(uint8_t* buf, uint32_t len);
 bool ARM_UC_HUB_getIsMulticastUpdate();
 #endif
 

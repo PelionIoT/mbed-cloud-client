@@ -164,6 +164,13 @@ palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t i
  */
 palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Addr_t ipV6Addr);
 
+/*! \brief Set a NAT64 address from an IPv4 address data structure and set `addressType` as IPv6.
+ * @param[in,out] address The address data structure to configure.
+ * @param[in] ipV4Addr The address value to set.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ */
+palStatus_t pal_setSockAddrNAT64Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr);
+
 /*! \brief Get a port from an address data structure.
  * @param[in] address The address data structure to query.
  * @param[out] port The port to get.

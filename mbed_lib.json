@@ -55,6 +55,12 @@
             "options": [ "null", "1" ],
             "default": null,
             "value": null
+        },
+        "observable-timer": {
+            "help": "Enable observable timer for statistic resource in Network Manager",
+            "options": [ "null", "1" ],
+            "default": null,
+            "value": null
         }
     },
     "macros" : [

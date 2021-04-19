@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -47,14 +47,13 @@ const int UNDEFINED_MSG_ID = -1;
  * Class which interacts between mbed Client C++ Library and mbed-client-c library.
  */
 class M2MNsdlInterface : public M2MTimerObserver,
-                         public M2MObservationHandler
-{
+    public M2MObservationHandler {
 private:
     // Prevents the use of assignment operator by accident.
-    M2MNsdlInterface& operator=( const M2MNsdlInterface& /*other*/ );
+    M2MNsdlInterface &operator=(const M2MNsdlInterface & /*other*/);
 
     // Prevents the use of copy constructor by accident
-    M2MNsdlInterface( const M2MNsdlInterface& /*other*/ );
+    M2MNsdlInterface(const M2MNsdlInterface & /*other*/);
 
 public:
 
@@ -109,18 +108,15 @@ public:
      * @param domain, Domain of the client.
      * @param mode, Binding mode of the client, default is UDP
      * @param context_address, Context address default is empty.
+     * @param version, Version of the LwM2M Enabler that the LwM2M Client supports.
     */
     void create_endpoint(const String &endpoint_name,
                          const String &endpoint_type,
                          const int32_t life_time,
                          const String &domain,
                          const uint8_t mode,
-                         const String &context_address);
-
-    /**
-     * @brief Deletes the endpoint.
-    */
-    void delete_endpoint();
+                         const String &context_address,
+                         const String &version);
 
     /**
      * @brief Updates endpoint name.
@@ -162,7 +158,7 @@ public:
      * @param port M2MServer port.
      * @param address_type IP Address type.
     */
-    void set_server_address(uint8_t* address,
+    void set_server_address(uint8_t *address,
                             uint8_t address_length,
                             const uint16_t port,
                             sn_nsdl_addr_type_e address_type);
@@ -217,7 +213,7 @@ public:
      * @brief Memory Allocation required for libCoap.
      * @param size, Size of memory to be reserved.
     */
-    static void* memory_alloc(uint32_t size);
+    static void *memory_alloc(uint32_t size);
 
     /**
      * @brief Memory free functions required for libCoap
@@ -235,7 +231,7 @@ public:
     * @param address, server address where data has to be sent.
     * @return 1 if successful else 0.
     */
-    uint8_t send_to_server_callback(struct nsdl_s * nsdl_handle,
+    uint8_t send_to_server_callback(struct nsdl_s *nsdl_handle,
                                     sn_nsdl_capab_e protocol,
                                     uint8_t *data,
                                     uint16_t data_len,
@@ -249,7 +245,7 @@ public:
     * @param address, Server address from where the data is received.
     * @return 1 if successful else 0.
     */
-    uint8_t received_from_server_callback(struct nsdl_s * nsdl_handle,
+    uint8_t received_from_server_callback(struct nsdl_s *nsdl_handle,
                                           sn_coap_hdr_s *coap_header,
                                           sn_nsdl_addr_s *address);
 
@@ -263,8 +259,8 @@ public:
     * @return 1 if successful else 0.
     */
     uint8_t resource_callback(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coap,
-                               sn_nsdl_addr_s *address,
-                               sn_nsdl_capab_e nsdl_capab);
+                              sn_nsdl_addr_s *address,
+                              sn_nsdl_capab_e nsdl_capab);
 
     /**
      * @brief Callback from event loop for handling CoAP messages received from server for the resources
@@ -297,13 +293,19 @@ public:
      * @brief Returns nsdl handle.
      * @return ndsl handle
      */
-    nsdl_s* get_nsdl_handle() const;
+    nsdl_s *get_nsdl_handle() const;
+
+    /**
+     * @brief Returns M2MServer handle.
+     * @return M2MServer handle
+     */
+    M2MServer *get_m2mserver() const;
 
     /**
      * @brief Get endpoint name
      * @return endpoint name
      */
-    const String& endpoint_name() const;
+    const String &endpoint_name() const;
 
     /**
      * @brief Get internal endpoint name
@@ -350,7 +352,7 @@ public:
      * @brief Returns security object.
      * @return M2MSecurity object, contains lwm2m server information.
      */
-    M2MSecurity* get_security_object();
+    M2MSecurity *get_security_object();
 
     /**
      * @brief Returns auto-observation token.
@@ -450,9 +452,16 @@ public:
     /**
      * Helper method for estimating how much data client is going to transfer during registration/bootstrap.
      */
-     virtual uint16_t estimate_stagger_data_amount(bool credentials_available, bool using_cid) const;
+    virtual uint16_t estimate_stagger_data_amount(bool credentials_available, bool using_cid) const;
 
-     virtual uint16_t get_network_stagger_estimate(bool boostrap) const;
+    virtual uint16_t get_network_stagger_estimate(bool boostrap) const;
+
+    /**
+     * \brief Internal test function. Set CID for current tls session.
+     * \param data_ptr CID
+     * \param data_len length of the CID
+     */
+    void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
 
 protected: // from M2MTimerObserver
 
@@ -465,7 +474,7 @@ protected: // from M2MObservationHandler
                                         const m2m::Vector<uint16_t> &changed_instance_ids,
                                         bool send_object = false);
 
-    virtual void resource_to_be_deleted(M2MBase* base);
+    virtual void resource_to_be_deleted(M2MBase *base);
 
     virtual void value_updated(M2MBase *base);
 
@@ -478,7 +487,7 @@ protected: // from M2MObservationHandler
     virtual void send_asynchronous_response(M2MBase *base,
                                             const uint8_t *payload,
                                             size_t payload_len,
-                                            const uint8_t* token,
+                                            const uint8_t *token,
                                             const uint8_t token_len,
                                             coap_response_code_e code);
 #endif //ENABLE_ASYNC_REST_RESPONSE
@@ -492,7 +501,7 @@ private:
         SECURITY = 0x00,
         SERVER   = 0x01,
         DEVICE   = 0x02
-    }ObjectType;
+    } ObjectType;
 
     /**
     * @brief Initializes all the nsdl library component to be usable.
@@ -526,20 +535,20 @@ private:
 
     uint32_t registration_time() const;
 
-    M2MBase* find_resource(const String &object) const;
+    M2MBase *find_resource(const String &object) const;
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-    M2MBase* find_resource(const M2MEndpoint *endpoint,
-                                             const String &object_name) const;
+    M2MBase *find_resource(const M2MEndpoint *endpoint,
+                           const String &object_name) const;
 #endif
 
-    M2MBase* find_resource(const M2MObject *object,
+    M2MBase *find_resource(const M2MObject *object,
                            const String &object_instance) const;
 
-    M2MBase* find_resource(const M2MObjectInstance *object_instance,
+    M2MBase *find_resource(const M2MObjectInstance *object_instance,
                            const String &resource_instance) const;
 
-    M2MBase* find_resource(const M2MResource *resource,
+    M2MBase *find_resource(const M2MResource *resource,
                            const String &object_name,
                            const String &resource_instance) const;
 
@@ -567,7 +576,7 @@ private:
      * @param source Source string to copy, may not be NULL.
      * @param size The size of memory to be reserved.
     */
-    static uint8_t* alloc_string_copy(const uint8_t* source, uint16_t size);
+    static uint8_t *alloc_string_copy(const uint8_t *source, uint16_t size);
 
     /**
      * @brief Utility method to convert given lifetime int to ascii
@@ -582,14 +591,14 @@ private:
      * @param coap_header, Received CoAP message
      * @param address, Server address
     */
-    void handle_bootstrap_finished(sn_coap_hdr_s *coap_header,sn_nsdl_addr_s *address);
+    void handle_bootstrap_finished(sn_coap_hdr_s *coap_header, sn_nsdl_addr_s *address);
 
     /**
      * @brief Handle bootstrap delete message.
      * @param coap_header, Received CoAP message
      * @param address, Server address
     */
-    void handle_bootstrap_delete(sn_coap_hdr_s *coap_header,sn_nsdl_addr_s *address);
+    void handle_bootstrap_delete(sn_coap_hdr_s *coap_header, sn_nsdl_addr_s *address);
 
     /**
      * @brief Parse bootstrap TLV message.
@@ -600,11 +609,12 @@ private:
 
     /**
      * @brief Handle bootstrap errors.
+     * @param error, M2MInterface error code for the failure.
      * @param reason, Reason for Bootstrap failure.
      * @param wait, True if need to wait that ACK has been sent.
      *              False if reconnection can start immediately.
     */
-    void handle_bootstrap_error(const char *reason, bool wait);
+    void handle_bootstrap_error(M2MInterface::Error error, const char *reason, bool wait);
 
     void handle_bootstrap_response(const sn_coap_hdr_s *coap_header);
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -654,7 +664,7 @@ private:
 
     bool lifetime_value_changed() const;
 
-    void execute_notification_delivery_status_cb(M2MBase* object, int32_t msgid);
+    void execute_notification_delivery_status_cb(M2MBase *object, int32_t msgid);
 
     bool is_response_to_request(const sn_coap_hdr_s *coap_header,
                                 struct request_context_s &get_data);
@@ -663,10 +673,10 @@ private:
 
     void free_response_list();
 
-    void remove_item_from_response_list(const char* uri_path, const int32_t msg_id);
+    void remove_item_from_response_list(const char *uri_path, const int32_t msg_id);
 
 #if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
-    void remove_items_from_response_list_for_uri(const char* uri_path);
+    void remove_items_from_response_list_for_uri(const char *uri_path);
 #endif
     /**
      * @brief Send next notification for object, return true if notification sent, false
@@ -675,18 +685,18 @@ private:
      * @param clear_token, Flag to indicate whether observation token should be cleared.
      * @return True if notification sent, false otherwise or if send already in progress
      */
-    bool send_next_notification_for_object(M2MObject& object, bool clear_token);
+    bool send_next_notification_for_object(M2MObject &object, bool clear_token);
 
-    static char* parse_uri_query_parameters(char* uri);
+    static char *parse_uri_query_parameters(char *uri);
 
     void send_coap_ping();
 
     void send_empty_ack(const sn_coap_hdr_s *header, sn_nsdl_addr_s *address);
 
-    struct M2MNsdlInterface::nsdl_coap_data_s* create_coap_event_data(sn_coap_hdr_s *received_coap_header,
-                                                  sn_nsdl_addr_s *address,
-                                                  struct nsdl_s *nsdl_handle,
-                                                  uint8_t coap_msg_code = COAP_MSG_CODE_EMPTY);
+    struct M2MNsdlInterface::nsdl_coap_data_s *create_coap_event_data(sn_coap_hdr_s *received_coap_header,
+                                                                      sn_nsdl_addr_s *address,
+                                                                      struct nsdl_s *nsdl_handle,
+                                                                      uint8_t coap_msg_code = COAP_MSG_CODE_EMPTY);
 
     void handle_register_response(const sn_coap_hdr_s *coap_header);
 
@@ -712,15 +722,15 @@ private:
 
     void store_to_response_list(const char *uri, int32_t msg_id, M2MBase::MessageType type);
 
-    struct coap_response_s* find_response(int32_t msg_id);
+    struct coap_response_s *find_response(int32_t msg_id);
 
 #if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
-    struct coap_response_s* find_delayed_response(const char* uri_path,
+    struct coap_response_s *find_delayed_response(const char *uri_path,
                                                   const M2MBase::MessageType type,
                                                   int32_t message_id = UNDEFINED_MSG_ID);
 
-    bool handle_delayed_response_store(const char* uri_path,
-                                       sn_coap_hdr_s* received_coap,
+    bool handle_delayed_response_store(const char *uri_path,
+                                       sn_coap_hdr_s *received_coap,
                                        sn_nsdl_addr_s *address,
                                        const M2MBase::MessageType message_type);
 #endif
@@ -770,7 +780,7 @@ private:
     uint32_t                                _download_retry_time;
     uint8_t                                 _network_rtt_estimate;
 
-friend class Test_M2MNsdlInterface;
+    friend class Test_M2MNsdlInterface;
 
 };
 

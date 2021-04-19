@@ -150,4 +150,8 @@ add_dependencies(factory-configurator-client fccstorage key-config-manager pal t
 # automatically build all the submodules.
 target_link_libraries(factory-configurator-client fccstorage key-config-manager pal tinycbor)
 
+if (${OS_BRAND} MATCHES "Zephyr")
+    target_link_libraries(crypto-service PUBLIC ${TLS_LIBRARY})
+endif()
+
 ADDSUBDIRS()

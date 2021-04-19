@@ -20,6 +20,11 @@
 #if defined(ARM_UC_FEATURE_PAL_FILESYSTEM) && (ARM_UC_FEATURE_PAL_FILESYSTEM == 1)
 #if defined(TARGET_IS_PC_LINUX)
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+#include "arm_uc_crypto.h"
+#include "update-client-delta-paal/arm_uc_pal_delta_paal_original_reader.h"
+#endif
+
 #include "update-client-pal-filesystem/arm_uc_pal_extensions.h"
 
 #include "update-client-metadata-header/arm_uc_metadata_header_v2.h"
@@ -36,6 +41,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+#include <sys/stat.h>
+#endif
+
 #ifndef MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS
 #define MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS 0
 #endif
@@ -51,12 +60,42 @@ static palImageId_t arm_ucex_activate_image_id;
 #define PAL_UPDATE_ACTIVATE_SCRIPT "./activate_script"
 #endif
 
+#define ORIG_FILENAME_MAX_PATH PAL_MAX_FILE_AND_FOLDER_LENGTH
+
 // IMAGE_HEADER_FILENAME_UPDATE points to filename/path where the
 // active firmware metadata header is to be found.
 // At the end of update the above activate-script should copy the
 // new metadata header to this path so that new version
 // gets reported to the cloud in next bootup
 #define IMAGE_HEADER_FILENAME_UPDATE    "header.bin"
+
+/**
+ * Return file size of original firmware.
+ * @return ERR_NONE if success, otherwise error
+ */
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+static int original_file_stat(uint64_t* file_size)
+{
+    arm_uc_error_t result;
+    char file_path[ORIG_FILENAME_MAX_PATH] = { 0 };
+
+    result = arm_uc_delta_paal_construct_original_image_file_path(file_path, ORIG_FILENAME_MAX_PATH);
+
+    if (result.error != ERR_NONE) {
+        UC_PAAL_ERR_MSG("arm_uc_pal_linux_internal_file_path failed with %d\n", result.error);
+        return ERR_UNSPECIFIED;
+    }
+    struct stat buf;
+
+    int stat_res = stat(file_path, &buf);
+
+    if (stat_res == 0) {
+        *file_size = buf.st_size;
+        return ERR_NONE;
+    }
+    return ERR_UNSPECIFIED;
+}
+#endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
 
 arm_uc_error_t pal_ext_imageInitAPI(void (*callback)(uintptr_t))
 {
@@ -122,6 +161,73 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
             if (PAL_SUCCESS != status || ERR_NONE != result.code) {
                 // Zero the details
                 memset(details, 0, sizeof(arm_uc_firmware_details_t));
+
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+                // Attempt to calculate hash for currently running executable to satisfy
+                // delta payload precursor check.
+                int64_t f_size;
+                int stat_res = original_file_stat(&f_size);
+                if (stat_res == ERR_NONE) {
+                    arm_uc_mdHandle_t mdHandle = { 0 };
+                    arm_uc_error_t res = ARM_UC_cryptoHashSetup(&mdHandle, ARM_UC_CU_SHA256);
+                    if (res.error == ERR_NONE) {
+                        // buffer
+                        uint8_t data_buf[ARM_UC_SHA256_SIZE];
+
+                        // arm buffer
+                        arm_uc_buffer_t buffer;
+                        buffer.size = 0;
+                        buffer.size_max = ARM_UC_SHA256_SIZE;
+                        buffer.ptr = data_buf;
+
+                        // reading offset
+                        size_t offset = 0;
+
+                        // reading length
+                        uint64_t len;
+
+                        // trim to max of file size
+                        if (f_size < ARM_UC_SHA256_SIZE) {
+                            len = f_size;
+                        } else {
+                            len = ARM_UC_SHA256_SIZE;
+                        }
+
+                        // read original file
+                        while(len > 0 && arm_uc_deltapaal_original_reader(buffer.ptr, len, offset) == ERR_NONE) {
+                            // update hash
+                            buffer.size = len;
+                            ARM_UC_cryptoHashUpdate(&mdHandle, &buffer);
+
+                            // update offset
+                            offset += len;
+
+                            // trim next read to file size if necessary
+                            if (f_size - offset < ARM_UC_SHA256_SIZE) {
+                                len = f_size - offset;
+                            } else {
+                                len = ARM_UC_SHA256_SIZE;
+                            }
+                        }
+
+                        // get hash to buffer
+                        ARM_UC_cryptoHashFinish(&mdHandle, &buffer);
+
+                        if (offset == 0) {
+                            tr_warn("Original reader failed with first read => keep zero hash");
+                        }
+                        else {
+                            // copy hash to otherwise zeroed details
+                            memcpy(details->hash, buffer.ptr, ARM_UC_SHA256_SIZE);
+                        }
+                    } else {
+                        tr_warn("ARM_UC_cryptoHashSetup failed with %" PRIu32, res.error);
+                    }
+                }
+                else {
+                    tr_warn("arm_uc_deltapaal_original_stat failed with %d", stat_res);
+                }
+#endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
             }
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
         } else {

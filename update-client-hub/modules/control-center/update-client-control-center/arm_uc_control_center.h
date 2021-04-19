@@ -148,6 +148,11 @@ arm_uc_error_t ARM_UC_ControlCenter_ReportProgress(uint32_t progress, uint32_t t
 arm_uc_error_t ARM_UC_ControlCenter_ReportState(arm_uc_monitor_state_t state);
 
 /**
+ * return 1 if current state is state
+ */
+uint8_t ARM_UC_ControlCenter_CheckState(arm_uc_monitor_state_t state);
+
+/**
  * @brief Set update result.
  * @details Update Client call for informing the Control Center about the
  *          latest update result. The Control Center will send this to the monitor.

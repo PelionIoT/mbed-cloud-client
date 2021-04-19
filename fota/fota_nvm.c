@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -61,7 +61,17 @@ int fota_nvm_get(cloud_client_param key, uint8_t *buffer, size_t buffer_size, si
 
 int fota_nvm_set(cloud_client_param key, const uint8_t *buffer, size_t buffer_size, ccs_item_type_e item_type)
 {
+    // the ccs is wrapper over the KCM
+    // KCM returns an error if the same item is stored twice
+    // In case the item already exists, item must be deleted first.
     ccs_status_e result = ccs_set_item(key, buffer, buffer_size, item_type);
+    if (result == CCS_STATUS_KEY_EXISTS) {
+        result = ccs_delete_item(key, item_type);
+        if (result == CCS_STATUS_SUCCESS) {
+            result = ccs_set_item(key, buffer, buffer_size, item_type);
+        }
+    }
+
     return map_store_result(result);
 }
 
@@ -98,7 +108,7 @@ int fota_nvm_remove(cloud_client_param key, ccs_item_type_e item_type)
 #endif  // (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL)
 
 
-#if !defined(FOTA_USE_EXTERNAL_FW_KEY)
+#if !defined(FOTA_KEY_ENCRYPTION_EXTERNAL_STORAGE)
 int fota_nvm_fw_encryption_key_get(uint8_t buffer[FOTA_ENCRYPT_KEY_SIZE])
 {
     size_t bytes_read;
@@ -116,11 +126,11 @@ int fota_nvm_fw_encryption_key_delete(void)
 {
     return fota_nvm_remove(FOTA_ENCRYPT_KEY, CCS_SYMMETRIC_KEY_ITEM);
 }
-#endif  // !defined(FOTA_USE_EXTERNAL_FW_KEY)
+#endif  // !defined(FOTA_KEY_ENCRYPTION_EXTERNAL_STORAGE)
 /******************************************************************************************************/
 /*                        Update x509 Certificate                                                     */
 /******************************************************************************************************/
-#if defined(FOTA_USE_UPDATE_X509)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_X509_PUBLIC_KEY_FORMAT)
 
 #if defined(MBED_CLOUD_DEV_UPDATE_CERT)
 
@@ -182,12 +192,12 @@ int fota_nvm_get_update_certificate(uint8_t *buffer, size_t size, size_t *bytes_
 }
 
 #endif  // !defined(FOTA_USE_EXTERNAL_CERT)
-#endif  // defined(FOTA_USE_UPDATE_X509)
+#endif  // (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT==FOTA_X509_PUBLIC_KEY_FORMAT)
 
 /******************************************************************************************************/
 /*                        Update public key                                                           */
 /******************************************************************************************************/
-#if defined(FOTA_USE_UPDATE_RAW_PUBLIC_KEY)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT)
 #if defined(MBED_CLOUD_DEV_UPDATE_RAW_PUBLIC_KEY)
 
 extern const uint8_t arm_uc_update_public_key[];
@@ -236,7 +246,7 @@ int fota_nvm_get_update_public_key(uint8_t buffer[FOTA_UPDATE_RAW_PUBLIC_KEY_SIZ
 #endif  // !defined(FOTA_USE_EXTERNAL_UPDATE_RAW_PUBLIC_KEY)
 
 
-#endif  // defined(FOTA_USE_UPDATE_RAW_PUBLIC_KEY)§
+#endif  // #if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT)
 
 /******************************************************************************************************/
 /*                        VENDOR and CLASS IDs                                                        */

@@ -40,6 +40,7 @@ ARM_MONITOR_CAPABILITIES ARM_UCS_LWM2M_MONITOR_GetCapabilities(void);
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_Initialize(void (*notification_handler)(void));
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_Uninitialize(void);
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendState(arm_uc_monitor_state_t state);
+arm_uc_monitor_state_t ARM_UCS_LWM2M_MONITOR_GetState();
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendUpdateResult(arm_uc_monitor_result_t updateResult);
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendName(arm_uc_buffer_t *name);
 arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendVersion(uint64_t version);

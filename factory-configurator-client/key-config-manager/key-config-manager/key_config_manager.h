@@ -638,6 +638,33 @@ extern "C" {
     */
     kcm_status_e kcm_generate_random(uint8_t *buffer, size_t buffer_size);
 
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    /* Computes a shared secret using the elliptic curve Diffie-Hellman algorithm.
+    *
+    *    @param[in] private_key_name                            The private key name to fetch from storage.
+    *    @param[in] private_key_name_len                        The length of the private key name.
+    *    @param[in] peer_public_key                             The public key from a peer in DER format.
+    *    @param[in] peer_public_key_size                        The length of the public key from a peer.
+    *    @param[out] shared_secret                              A pointer to the output shared secret buffer.
+    *    @param[in] shared_secret_max_size                      The size of the shared secret buffer. Must be at least ::KCM_EC_SECP256R1_SHARED_SECRET_SIZE bytes.
+    *    @param[out] shared_secret_act_size_out                 The actual size of the shared secret buffer.
+    *
+    *    @returns
+    *        KCM_STATUS_SUCCESS on success.
+    *        KCM_STATUS_INVALID_PARAMETER if one of the parameters is illegal.
+    *        One of the ::kcm_status_e errors otherwise.
+    *
+    */
+    kcm_status_e kcm_ecdh_key_agreement(
+        const uint8_t              *private_key_name,
+        size_t                      private_key_name_len,
+        const uint8_t               *peer_public_key,
+        size_t                      peer_public_key_size,
+        uint8_t                     *shared_secret,
+        size_t                      shared_secret_max_size,
+        size_t                      *shared_secret_act_size_out);
+#else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
     /* Computes a shared secret using the elliptic curve Diffie-Hellman algorithm.
     *
     * A few limitations to consider:
@@ -656,6 +683,8 @@ extern "C" {
     *        KCM_STATUS_SUCCESS on success.
     *        KCM_STATUS_INVALID_PARAMETER if one of the parameters is illegal.
     *        One of the ::kcm_status_e errors otherwise.
+    *
+    * \deprecated for PSA configuration, due to `psa_set_key_enrollment_algorithm()` API deprecation in mbed-crypto that is used by `kcm_ecdh_key_agreement`.
     */
     kcm_status_e kcm_ecdh_key_agreement(
         const uint8_t              *private_key_name,
@@ -665,6 +694,8 @@ extern "C" {
         uint8_t                     *shared_secret,
         size_t                      shared_secret_max_size,
         size_t                      *shared_secret_act_size_out);
+
+#endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
 #ifdef __cplusplus
 }

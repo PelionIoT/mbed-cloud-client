@@ -237,8 +237,10 @@ ccs_status_e ccs_set_item(const char* key,
     if (kcm_status == KCM_CRYPTO_STATUS_PRIVATE_KEY_VERIFICATION_FAILED) {
         tr_error("CloudClientStorage::ccs_set_item kcm validation error");
         return CCS_STATUS_VALIDATION_FAIL;
-    }
-    else if (kcm_status != KCM_STATUS_SUCCESS) {
+    } else if (kcm_status == KCM_STATUS_FILE_EXIST) {
+        tr_debug("CloudClientStorage:ccs_set_item item already exists error");
+        return CCS_STATUS_KEY_EXISTS;
+    } else if (kcm_status != KCM_STATUS_SUCCESS) {
         tr_debug("CloudClientStorage::ccs_set_item kcm [%s] error %d", key, kcm_status);
         return CCS_STATUS_ERROR;
     }

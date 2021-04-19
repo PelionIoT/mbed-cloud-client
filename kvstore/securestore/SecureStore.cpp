@@ -749,6 +749,7 @@ int SecureStore::init()
 #endif /* MBEDTLS_PLATFORM_C */
 
     _entropy = new mbedtls_entropy_context;
+    memset(_entropy, 0, sizeof(mbedtls_entropy_context));
     mbedtls_entropy_init(static_cast<mbedtls_entropy_context *>(_entropy));
 
     _scratch_buf = new uint8_t[scratch_buf_size];

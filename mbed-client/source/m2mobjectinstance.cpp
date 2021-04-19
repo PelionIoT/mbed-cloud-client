@@ -39,39 +39,39 @@
 #define BUFFER_SIZE 10
 #define TRACE_GROUP "mClt"
 
-M2MObjectInstance::M2MObjectInstance(M2MObject& parent,
+M2MObjectInstance::M2MObjectInstance(M2MObject &parent,
                                      const String &resource_type,
                                      char *path,
                                      bool external_blockwise_store)
-: M2MBase("",
-          M2MBase::Dynamic,
+    : M2MBase("",
+              M2MBase::Dynamic,
 #ifndef DISABLE_RESOURCE_TYPE
-          resource_type,
+              resource_type,
 #endif
-          path,
-          external_blockwise_store,
-          false),
-  _parent(parent)
+              path,
+              external_blockwise_store,
+              false),
+      _parent(parent)
 {
     M2MBase::set_base_type(M2MBase::ObjectInstance);
-    M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
+    M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
     M2MBase::set_operation(M2MBase::GET_ALLOWED);
 }
 
-M2MObjectInstance::M2MObjectInstance(M2MObject& parent, const lwm2m_parameters_s* static_res)
-: M2MBase(static_res), _parent(parent)
+M2MObjectInstance::M2MObjectInstance(M2MObject &parent, const lwm2m_parameters_s *static_res)
+    : M2MBase(static_res), _parent(parent)
 {
-    M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
+    M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
     M2MBase::set_operation(M2MBase::GET_ALLOWED);
 }
 
 M2MObjectInstance::~M2MObjectInstance()
 {
-    if(!_resource_list.empty()) {
-        M2MResource* res = NULL;
+    if (!_resource_list.empty()) {
+        M2MResource *res = NULL;
         M2MResourceList::const_iterator it;
         it = _resource_list.begin();
-        for (; it!=_resource_list.end(); it++ ) {
+        for (; it != _resource_list.end(); it++) {
             //Free allocated memory for resources.
             res = *it;
             delete res;
@@ -83,7 +83,7 @@ M2MObjectInstance::~M2MObjectInstance()
 }
 
 // TBD, ResourceType to the base class struct?? TODO!
-M2MResource* M2MObjectInstance::create_static_resource(const lwm2m_parameters_s* static_res,
+M2MResource *M2MObjectInstance::create_static_resource(const lwm2m_parameters_s *static_res,
                                                        M2MResourceInstance::ResourceType type)
 {
     tr_debug("M2MObjectInstance::create_static_resource(lwm2m_parameters_s resource_name %s)", static_res->identifier.name);
@@ -91,12 +91,12 @@ M2MResource* M2MObjectInstance::create_static_resource(const lwm2m_parameters_s*
     if (validate_string_length(static_res->identifier.name, 1, MAX_ALLOWED_STRING_LENGTH) == false) {
         return res;
     }
-    if(!resource(static_res->identifier.name)) {
+    if (!resource(static_res->identifier.name)) {
         res = new M2MResource(*this, static_res, convert_resource_type(type));
-        if(res) {
+        if (res) {
             res->add_observation_level(observation_level());
             //if (multiple_instance) {
-                //res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
+            //res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
             //}
             _resource_list.push_back(res);
             set_changed();
@@ -105,7 +105,7 @@ M2MResource* M2MObjectInstance::create_static_resource(const lwm2m_parameters_s*
     return res;
 }
 
-M2MResource* M2MObjectInstance::create_static_resource(const String &resource_name,
+M2MResource *M2MObjectInstance::create_static_resource(const String &resource_name,
                                                        const String &resource_type,
                                                        M2MResourceInstance::ResourceType type,
                                                        const uint8_t *value,
@@ -113,22 +113,22 @@ M2MResource* M2MObjectInstance::create_static_resource(const String &resource_na
                                                        bool multiple_instance,
                                                        bool external_blockwise_store)
 {
-    tr_debug("M2MObjectInstance::create_static_resource(resource_name %s)",resource_name.c_str());
+    tr_debug("M2MObjectInstance::create_static_resource(resource_name %s)", resource_name.c_str());
     M2MResource *res = NULL;
     if (validate_string_length(resource_name, 1, MAX_ALLOWED_STRING_LENGTH) == false) {
         return res;
     }
-    if(!resource(resource_name)) {
+    if (!resource(resource_name)) {
         char *path = create_path(*this, resource_name.c_str());
 
         if (path) {
             res = new M2MResource(*this, resource_name, M2MBase::Static, resource_type, convert_resource_type(type),
                                   value, value_length, path,
                                   multiple_instance, external_blockwise_store);
-            if(res) {
+            if (res) {
                 res->add_observation_level(observation_level());
                 if (multiple_instance) {
-                    res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
+                    res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
                 }
                 _resource_list.push_back(res);
                 set_changed();
@@ -138,7 +138,7 @@ M2MResource* M2MObjectInstance::create_static_resource(const String &resource_na
     return res;
 }
 
-M2MResource* M2MObjectInstance::create_dynamic_resource(const lwm2m_parameters_s* static_res,
+M2MResource *M2MObjectInstance::create_dynamic_resource(const lwm2m_parameters_s *static_res,
                                                         M2MResourceInstance::ResourceType type,
                                                         bool observable)
 {
@@ -148,12 +148,13 @@ M2MResource* M2MObjectInstance::create_dynamic_resource(const lwm2m_parameters_s
     if (validate_string_length(static_res->identifier.name, 1, MAX_ALLOWED_STRING_LENGTH) == false) {
         return res;
     }
-    if(!resource(static_res->identifier.name)) {
+    if (!resource(static_res->identifier.name)) {
         res = new M2MResource(*this, static_res, convert_resource_type(type));
-        if(res) {
+        if (res) {
             //if (multiple_instance) { // TODO!
-              //  res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
+            //  res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
             //}
+            res->set_observable(observable);
             res->add_observation_level(observation_level());
             _resource_list.push_back(res);
             set_changed();
@@ -162,7 +163,7 @@ M2MResource* M2MObjectInstance::create_dynamic_resource(const lwm2m_parameters_s
     return res;
 }
 
-M2MResource* M2MObjectInstance::create_dynamic_resource(const uint16_t resource_name,
+M2MResource *M2MObjectInstance::create_dynamic_resource(const uint16_t resource_name,
                                                         const char *resource_type,
                                                         M2MResourceInstance::ResourceType type,
                                                         bool observable,
@@ -174,30 +175,30 @@ M2MResource* M2MObjectInstance::create_dynamic_resource(const uint16_t resource_
     String resource_type_str;
     resource_type_str.append(resource_type, strlen(resource_type));
     return create_dynamic_resource(resource_name_str, resource_type_str,
-        type, observable, multiple_instance, external_blockwise_store);
+                                   type, observable, multiple_instance, external_blockwise_store);
 }
 
-M2MResource* M2MObjectInstance::create_dynamic_resource(const String &resource_name,
-                                                const String &resource_type,
-                                                M2MResourceInstance::ResourceType type,
-                                                bool observable,
-                                                bool multiple_instance,
-                                                bool external_blockwise_store)
+M2MResource *M2MObjectInstance::create_dynamic_resource(const String &resource_name,
+                                                        const String &resource_type,
+                                                        M2MResourceInstance::ResourceType type,
+                                                        bool observable,
+                                                        bool multiple_instance,
+                                                        bool external_blockwise_store)
 {
-    tr_debug("M2MObjectInstance::create_dynamic_resource(resource_name %s)",resource_name.c_str());
+    tr_debug("M2MObjectInstance::create_dynamic_resource(resource_name %s)", resource_name.c_str());
     M2MResource *res = NULL;
     if (validate_string_length(resource_name, 1, MAX_ALLOWED_STRING_LENGTH) == false) {
         return res;
     }
-    if(!resource(resource_name)) {
+    if (!resource(resource_name)) {
         char *path = create_path(*this, resource_name.c_str());
         if (path) {
             res = new M2MResource(*this, resource_name, M2MBase::Dynamic, resource_type, convert_resource_type(type),
                                   observable, path,
                                   multiple_instance, external_blockwise_store);
-            if(res) {
+            if (res) {
                 if (multiple_instance) {
-                    res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE_OLD);
+                    res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
                 }
                 res->add_observation_level(observation_level());
                 _resource_list.push_back(res);
@@ -208,7 +209,7 @@ M2MResource* M2MObjectInstance::create_dynamic_resource(const String &resource_n
     return res;
 }
 
-M2MResourceInstance* M2MObjectInstance::create_static_resource_instance(const String &resource_name,
+M2MResourceInstance *M2MObjectInstance::create_static_resource_instance(const String &resource_name,
                                                                         const String &resource_type,
                                                                         M2MResourceInstance::ResourceType type,
                                                                         const uint8_t *value,
@@ -216,14 +217,14 @@ M2MResourceInstance* M2MObjectInstance::create_static_resource_instance(const St
                                                                         uint16_t instance_id,
                                                                         bool external_blockwise_store)
 {
-    tr_debug("M2MObjectInstance::create_static_resource_instance(resource_name %s)",resource_name.c_str());
+    tr_debug("M2MObjectInstance::create_static_resource_instance(resource_name %s)", resource_name.c_str());
     M2MResourceInstance *instance = NULL;
     if (validate_string_length(resource_name, 1, MAX_ALLOWED_STRING_LENGTH) == false) {
 
         return instance;
     }
     M2MResource *res = resource(resource_name);
-    if(!res) {
+    if (!res) {
         char *path = create_path(*this, resource_name.c_str());
         if (path) {
             res = new M2MResource(*this, resource_name, M2MBase::Static, resource_type, convert_resource_type(type),
@@ -236,13 +237,13 @@ M2MResourceInstance* M2MObjectInstance::create_static_resource_instance(const St
             res->set_register_uri(false);
         }
     }
-    if(res && res->supports_multiple_instances()&& (res->resource_instance(instance_id) == NULL)) {
+    if (res && res->supports_multiple_instances() && (res->resource_instance(instance_id) == NULL)) {
         char *path = M2MBase::create_path(*res, instance_id);
         if (path) {
             instance = new M2MResourceInstance(*res, "", M2MBase::Static, resource_type, convert_resource_type(type),
                                                value, value_length,
-                                               path, external_blockwise_store,true);
-            if(instance) {
+                                               path, external_blockwise_store, true);
+            if (instance) {
                 instance->set_operation(M2MBase::GET_ALLOWED);
                 instance->set_instance_id(instance_id);
                 res->add_resource_instance(instance);
@@ -252,26 +253,27 @@ M2MResourceInstance* M2MObjectInstance::create_static_resource_instance(const St
     return instance;
 }
 
-M2MResourceInstance* M2MObjectInstance::create_dynamic_resource_instance(const String &resource_name,
+M2MResourceInstance *M2MObjectInstance::create_dynamic_resource_instance(const String &resource_name,
                                                                          const String &resource_type,
                                                                          M2MResourceInstance::ResourceType type,
                                                                          bool observable,
                                                                          uint16_t instance_id,
                                                                          bool external_blockwise_store)
 {
-    tr_debug("M2MObjectInstance::create_dynamic_resource_instance(resource_name %s)",resource_name.c_str());
+    tr_debug("M2MObjectInstance::create_dynamic_resource_instance(resource_name %s)", resource_name.c_str());
     M2MResourceInstance *instance = NULL;
     if (validate_string_length(resource_name, 1, MAX_ALLOWED_STRING_LENGTH) == false) {
         return instance;
     }
     M2MResource *res = resource(resource_name);
-    if(!res) {
+    if (!res) {
         char *path = create_path(*this, resource_name.c_str());
         if (path) {
             res = new M2MResource(*this, resource_name, M2MBase::Dynamic, resource_type, convert_resource_type(type),
                                   false, path, true, external_blockwise_store);
             _resource_list.push_back(res);
             res->set_register_uri(false);
+            res->set_observable(observable);
             res->set_operation(M2MBase::GET_ALLOWED);
         }
     }
@@ -279,8 +281,8 @@ M2MResourceInstance* M2MObjectInstance::create_dynamic_resource_instance(const S
         char *path = create_path(*res, instance_id);
         if (path) {
             instance = new M2MResourceInstance(*res, "", M2MBase::Dynamic, resource_type, convert_resource_type(type),
-                                               path, external_blockwise_store,true);
-            if(instance) {
+                                               path, external_blockwise_store, true);
+            if (instance) {
                 instance->set_operation(M2MBase::GET_ALLOWED);
                 instance->set_observable(observable);
                 instance->set_instance_id(instance_id);
@@ -302,13 +304,13 @@ bool M2MObjectInstance::remove_resource(const char *resource_name)
     tr_debug("M2MObjectInstance::remove_resource(resource_name %s)", resource_name);
 
     bool success = false;
-    if(!_resource_list.empty()) {
-         M2MResource* res = NULL;
-         M2MResourceList::const_iterator it;
-         it = _resource_list.begin();
-         int pos = 0;
-         for ( ; it != _resource_list.end(); it++, pos++ ) {
-             if(strcmp((*it)->name(), resource_name) == 0) {
+    if (!_resource_list.empty()) {
+        M2MResource *res = NULL;
+        M2MResourceList::const_iterator it;
+        it = _resource_list.begin();
+        int pos = 0;
+        for (; it != _resource_list.end(); it++, pos++) {
+            if (strcmp((*it)->name(), resource_name) == 0) {
                 // Resource found and deleted.
                 res = *it;
                 delete res;
@@ -316,8 +318,8 @@ bool M2MObjectInstance::remove_resource(const char *resource_name)
                 set_changed();
                 success = true;
                 break;
-             }
-         }
+            }
+        }
     }
     return success;
 }
@@ -329,19 +331,19 @@ bool M2MObjectInstance::remove_resource_instance(const String &resource_name,
              resource_name.c_str(), inst_id);
     bool success = false;
     M2MResource *res = resource(resource_name);
-    if(res) {
+    if (res) {
         const M2MResourceInstanceList &list = res->resource_instances();
         M2MResourceInstanceList::const_iterator it;
         it = list.begin();
-        for ( ; it != list.end(); it++) {
-            if((*it)->instance_id() == inst_id) {
+        for (; it != list.end(); it++) {
+            if ((*it)->instance_id() == inst_id) {
                 success = res->remove_resource_instance(inst_id);
-                if(res->resource_instance_count() == 0) {
+                if (res->resource_instance_count() == 0) {
                     M2MResourceList::const_iterator itr;
                     itr = _resource_list.begin();
                     int pos = 0;
-                    for ( ; itr != _resource_list.end(); itr++, pos++ ) {
-                        if(strcmp((*itr)->name(),resource_name.c_str()) == 0) {
+                    for (; itr != _resource_list.end(); itr++, pos++) {
+                        if (strcmp((*itr)->name(), resource_name.c_str()) == 0) {
                             delete res;
                             _resource_list.erase(pos);
                             set_changed();
@@ -356,26 +358,26 @@ bool M2MObjectInstance::remove_resource_instance(const String &resource_name,
     return success;
 }
 
-M2MResource* M2MObjectInstance::resource(const uint16_t resource_id) const
+M2MResource *M2MObjectInstance::resource(const uint16_t resource_id) const
 {
     StringBuffer<6> res_id; // 65535 + \0
     res_id.append_int(resource_id);
     return resource(res_id.c_str());
 }
 
-M2MResource* M2MObjectInstance::resource(const String &resource_name) const
+M2MResource *M2MObjectInstance::resource(const String &resource_name) const
 {
     return resource(resource_name.c_str());
 }
 
-M2MResource* M2MObjectInstance::resource(const char *resource_name) const
+M2MResource *M2MObjectInstance::resource(const char *resource_name) const
 {
     M2MResource *res = NULL;
-    if(!_resource_list.empty()) {
+    if (!_resource_list.empty()) {
         M2MResourceList::const_iterator it;
         it = _resource_list.begin();
-        for (; it!=_resource_list.end(); it++ ) {
-            if(strcmp((*it)->name(), resource_name) == 0) {
+        for (; it != _resource_list.end(); it++) {
+            if (strcmp((*it)->name(), resource_name) == 0) {
                 res = *it;
                 break;
             }
@@ -384,7 +386,7 @@ M2MResource* M2MObjectInstance::resource(const char *resource_name) const
     return res;
 }
 
-const M2MResourceList& M2MObjectInstance::resources() const
+const M2MResourceList &M2MObjectInstance::resources() const
 {
     return _resource_list;
 }
@@ -392,11 +394,11 @@ const M2MResourceList& M2MObjectInstance::resources() const
 uint16_t M2MObjectInstance::resource_count() const
 {
     uint16_t count = 0;
-    if(!_resource_list.empty()) {
+    if (!_resource_list.empty()) {
         M2MResourceList::const_iterator it;
         it = _resource_list.begin();
-        for ( ; it != _resource_list.end(); it++ ) {
-            if((*it)->supports_multiple_instances()) {
+        for (; it != _resource_list.end(); it++) {
+            if ((*it)->supports_multiple_instances()) {
                 count += (*it)->resource_instance_count();
             } else {
                 count++;
@@ -406,7 +408,7 @@ uint16_t M2MObjectInstance::resource_count() const
     return count;
 }
 
-uint16_t M2MObjectInstance::resource_count(const String& resource) const
+uint16_t M2MObjectInstance::resource_count(const String &resource) const
 {
 
     return resource_count(resource.c_str());
@@ -415,12 +417,12 @@ uint16_t M2MObjectInstance::resource_count(const String& resource) const
 uint16_t M2MObjectInstance::resource_count(const char *resource) const
 {
     uint16_t count = 0;
-    if(!_resource_list.empty()) {
+    if (!_resource_list.empty()) {
         M2MResourceList::const_iterator it;
         it = _resource_list.begin();
-        for ( ; it != _resource_list.end(); it++ ) {
-            if(strcmp((*it)->name(), resource) == 0) {
-                if((*it)->supports_multiple_instances()) {
+        for (; it != _resource_list.end(); it++) {
+            if (strcmp((*it)->name(), resource) == 0) {
+                if ((*it)->supports_multiple_instances()) {
                     count += (*it)->resource_instance_count();
                 } else {
                     count++;
@@ -431,7 +433,7 @@ uint16_t M2MObjectInstance::resource_count(const char *resource) const
     return count;
 }
 
-M2MObservationHandler* M2MObjectInstance::observation_handler() const
+M2MObservationHandler *M2MObjectInstance::observation_handler() const
 {
     // XXX: need to check the flag too
     return _parent.observation_handler();
@@ -446,10 +448,10 @@ void M2MObjectInstance::set_observation_handler(M2MObservationHandler *handler)
 void M2MObjectInstance::add_observation_level(M2MBase::Observation observation_level)
 {
     M2MBase::add_observation_level(observation_level);
-    if(!_resource_list.empty()) {
+    if (!_resource_list.empty()) {
         M2MResourceList::const_iterator it;
         it = _resource_list.begin();
-        for ( ; it != _resource_list.end(); it++ ) {
+        for (; it != _resource_list.end(); it++) {
             (*it)->add_observation_level(observation_level);
         }
     }
@@ -458,25 +460,25 @@ void M2MObjectInstance::add_observation_level(M2MBase::Observation observation_l
 void M2MObjectInstance::remove_observation_level(M2MBase::Observation observation_level)
 {
     M2MBase::remove_observation_level(observation_level);
-    if(!_resource_list.empty()) {
+    if (!_resource_list.empty()) {
         M2MResourceList::const_iterator it;
         it = _resource_list.begin();
-        for ( ; it != _resource_list.end(); it++ ) {
-           (*it)->remove_observation_level(observation_level);
+        for (; it != _resource_list.end(); it++) {
+            (*it)->remove_observation_level(observation_level);
         }
     }
 }
 
-sn_coap_hdr_s* M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
+sn_coap_hdr_s *M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
                                                      sn_coap_hdr_s *received_coap_header,
                                                      M2MObservationHandler *observation_handler)
 {
     tr_info("M2MObjectInstance::handle_get_request()");
     sn_coap_msg_code_e msg_code = COAP_MSG_CODE_RESPONSE_CONTENT;
-    sn_coap_hdr_s * coap_response = sn_nsdl_build_response(nsdl,
-                                                           received_coap_header,
-                                                           msg_code);
-    uint8_t * data = NULL;
+    sn_coap_hdr_s *coap_response = sn_nsdl_build_response(nsdl,
+                                                          received_coap_header,
+                                                          msg_code);
+    uint8_t *data = NULL;
     uint32_t  data_length = 0;
 
     if (received_coap_header) {
@@ -496,21 +498,21 @@ sn_coap_hdr_s* M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
                 // Check if preferred content type is supported
                 if (content_type_present) {
                     if (coap_response->content_format != COAP_CONTENT_OMA_TLV_TYPE_OLD &&
-                        coap_response->content_format != COAP_CONTENT_OMA_TLV_TYPE) {
+                            coap_response->content_format != COAP_CONTENT_OMA_TLV_TYPE) {
                         is_content_type_supported = false;
                     }
                 }
 
                 if (is_content_type_supported) {
                     if (!content_type_present &&
-                       (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
-                        M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
+                            (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
+                             M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
                         coap_response->content_format = sn_coap_content_format_e(M2MBase::coap_content_type());
                     }
 
                     // fill in the CoAP response payload
                     if (COAP_CONTENT_OMA_TLV_TYPE == coap_response->content_format  ||
-                        COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_response->content_format) {
+                            COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_response->content_format) {
                         set_coap_content_type(coap_response->content_format);
                         data = M2MTLVSerializer::serialize(_resource_list, data_length);
                     }
@@ -525,7 +527,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
                         }
 
                         if (received_coap_header->options_list_ptr) {
-                            if(received_coap_header->options_list_ptr->observe != -1) {
+                            if (received_coap_header->options_list_ptr->observe != -1) {
                                 handle_observation(nsdl, *received_coap_header, *coap_response, observation_handler, msg_code);
                             }
                         }
@@ -545,46 +547,46 @@ sn_coap_hdr_s* M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
     } else {
         msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
     }
-    if(coap_response) {
+    if (coap_response) {
         coap_response->msg_code = msg_code;
     }
     return coap_response;
 }
 
-sn_coap_hdr_s* M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
+sn_coap_hdr_s *M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
                                                      sn_coap_hdr_s *received_coap_header,
                                                      M2MObservationHandler *observation_handler,
                                                      bool &/*execute_value_updated*/)
 {
     tr_info("M2MObjectInstance::handle_put_request()");
     sn_coap_msg_code_e msg_code = COAP_MSG_CODE_RESPONSE_CHANGED; // 2.04
-    sn_coap_hdr_s * coap_response = sn_nsdl_build_response(nsdl,
-                                                           received_coap_header,
-                                                           msg_code);;
-    if(received_coap_header) {
+    sn_coap_hdr_s *coap_response = sn_nsdl_build_response(nsdl,
+                                                          received_coap_header,
+                                                          msg_code);;
+    if (received_coap_header) {
         uint16_t coap_content_type = 0;
         bool content_type_present = false;
 
-        if(received_coap_header->content_format != COAP_CT_NONE) {
+        if (received_coap_header->content_format != COAP_CT_NONE) {
             content_type_present = true;
             set_coap_content_type(received_coap_header->content_format);
-            if(coap_response) {
+            if (coap_response) {
                 coap_content_type = received_coap_header->content_format;
             }
         }
-        if(received_coap_header->options_list_ptr &&
-           received_coap_header->options_list_ptr->uri_query_ptr) {
-            char *query = (char*)alloc_string_copy(received_coap_header->options_list_ptr->uri_query_ptr,
+        if (received_coap_header->options_list_ptr &&
+                received_coap_header->options_list_ptr->uri_query_ptr) {
+            char *query = (char *)alloc_string_copy(received_coap_header->options_list_ptr->uri_query_ptr,
                                                     received_coap_header->options_list_ptr->uri_query_len);
-            if (query){
+            if (query) {
                 tr_info("M2MObjectInstance::handle_put_request() - query %s", query);
                 // if anything was updated, re-initialize the stored notification attributes
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
-                if (!handle_observation_attribute(query)){
+                if (!handle_observation_attribute(query)) {
                     tr_debug("M2MObjectInstance::handle_put_request() - Invalid query");
                     msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
                 } else {
-                    msg_code =COAP_MSG_CODE_RESPONSE_CHANGED;
+                    msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
                 }
 #else
                 msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST; // 4.00
@@ -592,26 +594,26 @@ sn_coap_hdr_s* M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
                 free(query);
             }
         } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {
-            if(!content_type_present &&
-               (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
-                M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
+            if (!content_type_present &&
+                    (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
+                     M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
                 coap_content_type = M2MBase::coap_content_type();
             }
 
             tr_debug("M2MObjectInstance::handle_put_request() - Request Content-type: %d", coap_content_type);
 
-            if(COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||
-               COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_content_type ) {
+            if (COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||
+                    COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_content_type) {
                 set_coap_content_type(coap_content_type);
                 M2MTLVDeserializer::Error error = M2MTLVDeserializer::None;
-                if(received_coap_header->payload_ptr) {
+                if (received_coap_header->payload_ptr) {
                     error = M2MTLVDeserializer::deserialize_resources(
                                 received_coap_header->payload_ptr,
                                 received_coap_header->payload_len, *this,
                                 M2MTLVDeserializer::Put);
-                    switch(error) {
+                    switch (error) {
                         case M2MTLVDeserializer::None:
-                            if(observation_handler) {
+                            if (observation_handler) {
                                 observation_handler->value_updated(this);
                             }
                             msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
@@ -631,7 +633,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
                     }
                 }
             } else {
-                msg_code =COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT;
+                msg_code = COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT;
             } // if(COAP_CONTENT_OMA_TLV_TYPE == coap_content_type)
         } else {
             // Operation is not allowed.
@@ -639,15 +641,15 @@ sn_coap_hdr_s* M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
             msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
         }
     } else {
-       msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
+        msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
     }
-    if(coap_response) {
+    if (coap_response) {
         coap_response->msg_code = msg_code;
     }
     return coap_response;
 }
 
-sn_coap_hdr_s* M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
+sn_coap_hdr_s *M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
                                                       sn_coap_hdr_s *received_coap_header,
                                                       M2MObservationHandler *observation_handler,
                                                       bool &execute_value_updated,
@@ -655,30 +657,30 @@ sn_coap_hdr_s* M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
 {
     tr_info("M2MObjectInstance::handle_post_request()");
     sn_coap_msg_code_e msg_code = COAP_MSG_CODE_RESPONSE_CHANGED; // 2.04
-    sn_coap_hdr_s * coap_response = sn_nsdl_build_response(nsdl,
-                                                           received_coap_header,
-                                                           msg_code);
-    if(received_coap_header) {
+    sn_coap_hdr_s *coap_response = sn_nsdl_build_response(nsdl,
+                                                          received_coap_header,
+                                                          msg_code);
+    if (received_coap_header) {
         if ((operation() & M2MBase::POST_ALLOWED) != 0) {
             uint16_t coap_content_type = 0;
             bool content_type_present = false;
-            if(received_coap_header->content_format != COAP_CT_NONE) {
+            if (received_coap_header->content_format != COAP_CT_NONE) {
                 set_coap_content_type(received_coap_header->content_format);
                 content_type_present = true;
-                if(coap_response) {
+                if (coap_response) {
                     coap_content_type = received_coap_header->content_format;
                 }
             }
-            if(!content_type_present &&
-               (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
-                M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
+            if (!content_type_present &&
+                    (M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE ||
+                     M2MBase::coap_content_type() == COAP_CONTENT_OMA_TLV_TYPE_OLD)) {
                 coap_content_type = M2MBase::coap_content_type();
             }
 
             tr_debug("M2MObjectInstance::handle_post_request() - Request Content-type: %d", coap_content_type);
 
-            if(COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||
-               COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_content_type) {
+            if (COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||
+                    COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_content_type) {
                 set_coap_content_type(coap_content_type);
                 M2MTLVDeserializer::Error error = M2MTLVDeserializer::None;
                 error = M2MTLVDeserializer::deserialize_resources(
@@ -686,29 +688,29 @@ sn_coap_hdr_s* M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
                             received_coap_header->payload_len, *this,
                             M2MTLVDeserializer::Post);
 
-                uint16_t instance_id = M2MTLVDeserializer::instance_id(received_coap_header->payload_ptr);
-                switch(error) {
+                switch (error) {
                     case M2MTLVDeserializer::None:
-                        if(observation_handler) {
+                        if (observation_handler) {
                             execute_value_updated = true;
                         }
                         coap_response->options_list_ptr = sn_nsdl_alloc_options_list(nsdl, coap_response);
 
                         if (coap_response->options_list_ptr) {
 
+                            uint16_t instance_id = M2MTLVDeserializer::instance_id(received_coap_header->payload_ptr);
                             StringBuffer<MAX_PATH_SIZE_3> obj_name;
-                            if(!build_path(obj_name, _parent.name(), M2MBase::instance_id(), instance_id)) {
+                            if (!build_path(obj_name, _parent.name(), M2MBase::instance_id(), instance_id)) {
                                 msg_code = COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR;
                                 break;
                             }
 
                             coap_response->options_list_ptr->location_path_len = obj_name.get_size();
                             coap_response->options_list_ptr->location_path_ptr =
-                              alloc_string_copy((uint8_t*)obj_name.c_str(),
-                                                coap_response->options_list_ptr->location_path_len);
+                                alloc_string_copy((uint8_t *)obj_name.c_str(),
+                                                  coap_response->options_list_ptr->location_path_len);
                             // todo: handle allocation error
                         }
-                        msg_code = COAP_MSG_CODE_RESPONSE_CREATED;
+                        msg_code = COAP_MSG_CODE_RESPONSE_CHANGED;
                         break;
                     case M2MTLVDeserializer::NotAllowed:
                         msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
@@ -726,7 +728,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
                         break;
                 }
             } else {
-                msg_code =COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT;
+                msg_code = COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT;
             } // if(COAP_CONTENT_OMA_TLV_TYPE == coap_content_type)
         } else {
             // Operation is not allowed.
@@ -736,7 +738,7 @@ sn_coap_hdr_s* M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
     } else {
         msg_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;
     }
-    if(coap_response) {
+    if (coap_response) {
         coap_response->msg_code = msg_code;
     }
     return coap_response;
@@ -745,14 +747,14 @@ sn_coap_hdr_s* M2MObjectInstance::handle_post_request(nsdl_s *nsdl,
 void M2MObjectInstance::notification_update(M2MBase::Observation observation_level)
 {
     tr_debug("M2MObjectInstance::notification_update() - level(%d)", observation_level);
-    if((M2MBase::O_Attribute & observation_level) == M2MBase::O_Attribute) {
+    if ((M2MBase::O_Attribute & observation_level) == M2MBase::O_Attribute) {
         tr_debug("M2MObjectInstance::notification_update() - object callback");
         _parent.notification_update(instance_id());
     }
-    if((M2MBase::OI_Attribute & observation_level) == M2MBase::OI_Attribute) {
+    if ((M2MBase::OI_Attribute & observation_level) == M2MBase::OI_Attribute) {
         tr_debug("M2MObjectInstance::notification_update() - object instance callback");
         M2MReportHandler *report_handler = M2MBase::report_handler();
-        if(report_handler && is_under_observation()) {
+        if (report_handler && is_under_observation()) {
             report_handler->set_notification_trigger();
         }
 
@@ -767,7 +769,7 @@ M2MBase *M2MObjectInstance::get_parent() const
 M2MBase::DataType M2MObjectInstance::convert_resource_type(M2MResourceInstance::ResourceType type)
 {
     M2MBase::DataType data_type = M2MBase::OBJLINK;
-    switch(type) {
+    switch (type) {
         case M2MResourceInstance::STRING:
             data_type = M2MBase::STRING;
             break;

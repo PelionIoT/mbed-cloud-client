@@ -16,10 +16,13 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#include "update-client-common/arm_uc_config.h"
+
+#if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE == 1)
+
 #include "update-client-common/arm_uc_hw_plat.h"
 #include "update-client-common/arm_uc_utilities.h"
 #include "update-client-common/arm_uc_error.h"
-#include "update-client-common/arm_uc_config.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -50,3 +53,5 @@ void arm_uc_plat_reboot(void)
     while (1); /* wait until reset */
 #endif
 }
+
+#endif

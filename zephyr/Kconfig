@@ -1,0 +1,35 @@
+# Copyright (c) 2021 Pelion IoT
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig PELION_CLIENT
+    bool "Pelion Device Management Client Library"
+
+    depends on NEWLIB_LIBC
+    depends on CPLUSPLUS
+    depends on LIB_CPLUSPLUS
+
+    select REBOOT
+    select MPU_ALLOW_FLASH_WRITE
+    select PELION_SOURCES
+
+if PELION_CLIENT
+
+config PELION_SOURCES
+    bool "Build Pelion client from sources"
+    help
+      Build Pelion client from sources.
+
+config APP_LINK_WITH_PELION_CLIENT
+    bool "Link application with Pelion client"
+    depends on PELION_SOURCES
+    default y
+    help
+      Request Zephyr to link the Pelion client library with the application.
+
+if PELION_SOURCES
+rsource "Kconfig.client"
+rsource "Kconfig.mbedtls"
+rsource "Kconfig.pal"
+endif
+
+endif

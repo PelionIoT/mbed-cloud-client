@@ -64,23 +64,24 @@ static void arm_uc_get_next_fragment();
 
 // The hub uses a double buffer system to speed up firmware download and storage
 #define BUFFER_SIZE_MAX (ARM_UC_BUFFER_SIZE / 2) //  define size of the double buffers
-static uint8_t message[BUFFER_SIZE_MAX];
-// Keep the same initalization values for front_buffer in ARM_UC_HUB_setState function in `case ARM_UC_HUB_STATE_IDLE`, where front_buffer initialzed again. 
+#define BUFFER_SIZE_WORD ((BUFFER_SIZE_MAX + 3) / 4) // round up to 4 byte word
+static uint32_t message[BUFFER_SIZE_WORD]; // use 32-bit array to ensure word alignment in RAM
+// Keep the same initalization values for front_buffer in ARM_UC_HUB_setState function in `case ARM_UC_HUB_STATE_IDLE`, where front_buffer initialzed again.
 static arm_uc_buffer_t front_buffer = {
     .size_max = BUFFER_SIZE_MAX,
     .size = 0,
-    .ptr = message
+    .ptr = (uint8_t*) message
 };
 
 union {
     manifest_firmware_info_t fwinfo;
-    uint8_t data[BUFFER_SIZE_MAX];
+    uint32_t data[BUFFER_SIZE_WORD]; // use 32-bit array to ensure word alignment in RAM
 } message2;
-// Keep the same initalization values for back_buffer in ARM_UC_HUB_setState function in `case ARM_UC_HUB_STATE_IDLE`,where back_buffer initialzed again. 
+// Keep the same initalization values for back_buffer in ARM_UC_HUB_setState function in `case ARM_UC_HUB_STATE_IDLE`,where back_buffer initialzed again.
 static arm_uc_buffer_t back_buffer = {
     .size_max = BUFFER_SIZE_MAX,
     .size = 0,
-    .ptr = message2.data
+    .ptr = (uint8_t*) message2.data
 };
 
 // Update priority is recieved from Manifest that will be overrun once we get to install request
@@ -177,6 +178,7 @@ static int8_t ota_lib_tasklet_id = -1;
 static bool multicast_update = false;
 
 static arm_event_storage_t _event;
+uint8_t inserted_manifest_hash[ARM_UC_SHA256_SIZE];
 
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
 static bool multicast_delta = false;
@@ -495,13 +497,13 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 If we get here after update failure, the `ptr` members of the structures may point to the same variable - `message2`
                 and cause data corruption during next update session.
                 This state could be a result of value swapping of these two structures that performed at ARM_UC_HUB_STATE_STORE_AND_DOWNLOAD state.
-                We should ignore leftovers of the previous update session state and use initialized values of these variables. 
+                We should ignore leftovers of the previous update session state and use initialized values of these variables.
                 !!! Keep the same values in static initializer of front_buffer and of back_buffers :  `static arm_uc_buffer_t front_buffer = {`
                 and  `static arm_uc_buffer_t back_buffer = {` where these buffers defined*/
-                front_buffer.ptr = message;
+                front_buffer.ptr = (uint8_t*) message;
                 front_buffer.size_max = BUFFER_SIZE_MAX;
                 front_buffer.size = 0;
-                back_buffer.ptr = message2.data;
+                back_buffer.ptr = (uint8_t*) message2.data;
                 back_buffer.size = 0;
                 back_buffer.size_max = BUFFER_SIZE_MAX;
 
@@ -583,8 +585,20 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_MANIFEST_INSERT_DONE:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_MANIFEST_INSERT_DONE");
+#ifdef ARM_UC_MULTICAST_NODE_MODE
+                if (ARM_UC_ControlCenter_CheckState(ARM_UC_UPDATE_STATE_DOWNLOADING_UPDATE)) {
+                    // monitor is already in state 4 so need to report something else first
+                    ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_PROCESSING_MANIFEST);
+                    new_state = ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE;
+                }
+                else {
+                    // normal case, monitor is idle at this point so we can skip state 3
+                    new_state = ARM_UC_HUB_STATE_MANIFEST_COMPLETE;
+                }
+#else
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_PROCESSING_MANIFEST);
                 new_state = ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE;
+#endif
                 break;
 
             case ARM_UC_HUB_STATE_MANIFEST_AWAIT_MONITOR_REPORT_DONE:
@@ -622,6 +636,30 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
                 }
                 /* only continue if timestamp is newer than active version */
                 else if (fwinfo->timestamp > arm_uc_active_details.version) {
+#if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
+#if defined(ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST) && (ARM_UC_FEATURE_DELTA_PAAL_NEWMANIFEST == 1)
+                    // new delta manifest format in use
+                    if(ARM_UC_mmCheckFormatUint32(&fwinfo->format, ARM_UC_MM_FORMAT_BSDIFF_STREAM)) {
+                        // this is delta update, check if precursor hash was given in manifest and if so,
+                        // check that it matches
+                        if (fwinfo->precursor.ptr) {
+                            // precursor is set, check length and content
+                            if (fwinfo->precursor.size != ARM_UC_SHA256_SIZE ||
+                                memcmp(fwinfo->precursor.ptr, arm_uc_active_details.hash, ARM_UC_SHA256_SIZE) != 0) {
+                                // precursor hash doesn't match
+                                UC_HUB_ERR_MSG("Precursor hash mismatch.");
+                                /* signal warning through external handler */
+                                ARM_UC_HUB_ErrorHandler(HUB_ERR_PRECURSOR_MISMATCH,
+                                                        ARM_UC_HUB_STATE_CHECK_VERSION);
+
+                                /* set new state */
+                                new_state = ARM_UC_HUB_STATE_IDLE;
+                                break; // case
+                            }
+                        }
+                    }
+#endif
+#endif
                     /* set new state */
                     new_state = ARM_UC_HUB_STATE_PREPARE_FIRMWARE_SETUP;
                 } else {
@@ -810,7 +848,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 #endif
 
                 /* Set new state */
+#ifdef ARM_UC_MULTICAST_NODE_MODE
+                new_state = ARM_UC_HUB_STATE_REQUEST_DOWNLOAD_AUTHORIZATION;
+#else
                 new_state = ARM_UC_HUB_STATE_DOWNLOAD_AUTHORIZATION_MONITOR_REPORT;
+#endif
                 break;
 
             /*****************************************************************/
@@ -1111,8 +1153,12 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 #endif
                 /* set state to downloaded when the full size of the firmware has been fetched. */
                 UC_HUB_TRACE("Setting Monitor State: ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE");
+#ifdef ARM_UC_MULTICAST_NODE_MODE
+                new_state = ARM_UC_HUB_STATE_FINALIZE_STORAGE;
+#else
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_DOWNLOADED_UPDATE);
                 new_state = ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_MONITOR_REPORT_DONE;
+#endif
                 break;
 
             case ARM_UC_HUB_STATE_AWAIT_LAST_FRAGMENT_MONITOR_REPORT_DONE:
@@ -1251,8 +1297,11 @@ void ARM_UC_HUB_setState(arm_uc_hub_state_t new_state)
 
             case ARM_UC_HUB_STATE_PREP_REBOOT:
                 UC_HUB_TRACE("ARM_UC_HUB_STATE_PREP_REBOOT");
-
+#ifdef ARM_UC_MULTICAST_NODE_MODE
+                new_state = ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER;
+#else
                 ARM_UC_ControlCenter_ReportState(ARM_UC_UPDATE_STATE_REBOOTING);
+#endif
                 break;
 
             case ARM_UC_HUB_STATE_INITIALIZE_REBOOT_TIMER:
@@ -1424,15 +1473,45 @@ void ARM_UC_HUB_setMulticastTaskletId(const int8_t tasklet_id)
     ota_lib_tasklet_id = tasklet_id;
 }
 
-void ARM_UC_HUB_setManifest(uint8_t* buf, uint32_t len)
+int8_t ARM_UC_HUB_setManifest(uint8_t* buf, uint32_t len)
 {
+    arm_uc_mdHandle_t mdHandle = { 0 };
+    arm_uc_buffer_t tempHash = { 0 };
+    uint8_t buffer[ARM_UC_SHA256_SIZE];
+
+    arm_uc_error_t result = ARM_UC_cryptoHashSetup(&mdHandle, ARM_UC_CU_SHA256);
+    if (result.code == ERR_NONE) {
+
+        // update hash using tempHash as container for given manifest
+        tempHash.ptr = buf;
+        tempHash.size_max = len;
+        tempHash.size = len;
+        ARM_UC_cryptoHashUpdate(&mdHandle, &tempHash);
+
+        // then fetch the hash using tempHash as container for internal buffer
+        tempHash.ptr = buffer;
+        tempHash.size_max = ARM_UC_SHA256_SIZE;
+        ARM_UC_cryptoHashFinish(&mdHandle, &tempHash);
+
+        if (memcmp(inserted_manifest_hash, buffer, ARM_UC_SHA256_SIZE) == 0 &&
+            ARM_UC_HUB_getState() == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST) {
+            // inserted manifest hash matches the one we're getting re-inserted here
+            // and state is waiting for multicast so everything should be set already
+            // => no need to re-initialize and re-send notifications
+            UC_HUB_TRACE("ARM_UC_HUB_setManifest - skipping re-initialization; already in correct state with same manifest");
+            return 0;
+        }
+    }
+
     if (len <= front_buffer.size_max) {
         memcpy(front_buffer.ptr, buf, len);
         front_buffer.size = len;
         multicast_update = true;
+        memcpy(inserted_manifest_hash, buffer, ARM_UC_SHA256_SIZE);
     } else {
         UC_HUB_TRACE("ARM_UC_HUB_setManifest - manifest does not fit into buffer");
     }
+    return 1;
 }
 
 bool ARM_UC_HUB_getIsMulticastUpdate()

@@ -32,35 +32,40 @@ enum {
 
 #define ARM_UC_FLASH_INVALID_SIZE 0xFFFFFFFF
 
+/*****************************************************************************/
+/* Flash functions for active  firmware partition.                           */
+/*****************************************************************************/
+
+/** Initialize a flash IAP device
+ *
+ *  Should be called once per lifetime of the object.
+ *  @return 0 on success or a negative error code on failure
+ */
+int32_t arm_uc_flashiap_active_init(void);
+
+/** Read data from a flash device.
+ *
+ *  This method invokes memcpy - reads number of bytes from the address
+ *
+ *  @param buffer   Buffer to write to
+ *  @param address  Flash address to begin reading from
+ *  @param size     Size to read in bytes
+ *  @return         0 on success, negative error code on failure
+ */
+int32_t arm_uc_flashiap_active_read(uint8_t *buffer,
+                                    uint32_t address,
+                                    uint32_t size);
+
+/*****************************************************************************/
+/* Flash functions for active firmware partition, used for delta updates.    */
+/*****************************************************************************/
+
 /** Initialize a flash IAP device
  *
  *  Should be called once per lifetime of the object.
  *  @return 0 on success or a negative error code on failure
  */
 int32_t arm_uc_flashiap_init(void);
-
-/** Erase sectors
- *
- *  The state of an erased sector is undefined until it has been programmed
- *
- *  @param address  Address of a sector to begin erasing, must be a multiple of the sector size
- *  @param size     Size to erase in bytes, must be a multiple of the sector size
- *  @return         0 on success, negative error code on failure
- */
-int32_t arm_uc_flashiap_erase(uint32_t address, uint32_t size);
-
-/** Program data to pages
- *
- *  The sectors must have been erased prior to being programmed
- *
- *  @param buffer   Buffer of data to be written
- *  @param address  Address of a page to begin writing to, must be a multiple of program and sector sizes
- *  @param size     Size to write in bytes, must be a multiple of program and sector sizes
- *  @return         0 on success, negative error code on failure
- */
-int32_t arm_uc_flashiap_program(const uint8_t *buffer,
-                                uint32_t address,
-                                uint32_t size);
 
 /** Read data from a flash device.
  *
@@ -75,11 +80,58 @@ int32_t arm_uc_flashiap_read(uint8_t *buffer,
                              uint32_t address,
                              uint32_t size);
 
+/*****************************************************************************/
+/* Flash functions for candidate firmware partition.                         */
+/*****************************************************************************/
+
+/** Initialize a flash IAP device
+ *
+ *  Should be called once per lifetime of the object.
+ *  @return 0 on success or a negative error code on failure
+ */
+int32_t arm_uc_flashiap_candidate_init(void);
+
+/** Erase sectors
+ *
+ *  The state of an erased sector is undefined until it has been programmed
+ *
+ *  @param address  Address of a sector to begin erasing, must be a multiple of the sector size
+ *  @param size     Size to erase in bytes, must be a multiple of the sector size
+ *  @return         0 on success, negative error code on failure
+ */
+int32_t arm_uc_flashiap_candidate_erase(uint32_t address, uint32_t size);
+
+/** Program data to pages
+ *
+ *  The sectors must have been erased prior to being programmed
+ *
+ *  @param buffer   Buffer of data to be written
+ *  @param address  Address of a page to begin writing to, must be a multiple of program and sector sizes
+ *  @param size     Size to write in bytes, must be a multiple of program and sector sizes
+ *  @return         0 on success, negative error code on failure
+ */
+int32_t arm_uc_flashiap_candidate_program(const uint8_t *buffer,
+                                          uint32_t address,
+                                          uint32_t size);
+
+/** Read data from a flash device.
+ *
+ *  This method invokes memcpy - reads number of bytes from the address
+ *
+ *  @param buffer   Buffer to write to
+ *  @param address  Flash address to begin reading from
+ *  @param size     Size to read in bytes
+ *  @return         0 on success, negative error code on failure
+ */
+int32_t arm_uc_flashiap_candidate_read(uint8_t *buffer,
+                                       uint32_t address,
+                                       uint32_t size);
+
 /** Get the program page size
  *
  *  @return Size of a program page in bytes
  */
-uint32_t arm_uc_flashiap_get_page_size(void);
+uint32_t arm_uc_flashiap_candidate_get_page_size(void);
 
 /** Get the sector size at the defined address
  *
@@ -89,20 +141,20 @@ uint32_t arm_uc_flashiap_get_page_size(void);
  *  @param address  Address of or inside the sector to query
  *  @return         Size of a sector in bytes
  */
-uint32_t arm_uc_flashiap_get_sector_size(uint32_t address);
+uint32_t arm_uc_flashiap_candidate_get_sector_size(uint32_t address);
 
 /** Get the flash size
  *
  *  @return         Size of the flash in bytes
  */
-uint32_t arm_uc_flashiap_get_flash_size(void);
+uint32_t arm_uc_flashiap_candidate_get_flash_size(void);
 
 
 /** Get the flash start address
  *
  *  @return         Start address of the flash
  */
-uint32_t arm_uc_flashiap_get_flash_start(void);
+uint32_t arm_uc_flashiap_candidate_get_flash_start(void);
 #ifdef __cplusplus
 }
 #endif

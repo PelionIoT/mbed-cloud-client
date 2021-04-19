@@ -198,6 +198,42 @@ palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Ad
 
 #endif
 
+#if (PAL_SUPPORT_NAT64 && PAL_SUPPORT_IP_V6)
+palStatus_t pal_setSockAddrNAT64Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr)
+{
+    PAL_VALIDATE_ARGUMENTS((NULL == address) || (NULL == ipV4Addr));
+
+    pal_socketAddressInternal6_t* innerAddr = (pal_socketAddressInternal6_t*)address;
+    innerAddr->pal_sin6_family = PAL_AF_INET6;
+
+    innerAddr->pal_sin6_addr[0] = 0x00;
+    innerAddr->pal_sin6_addr[1] = 0x64;
+    innerAddr->pal_sin6_addr[2] = 0xFF;
+    innerAddr->pal_sin6_addr[3] = 0x9B;
+
+    innerAddr->pal_sin6_addr[4] = 0x00;
+    innerAddr->pal_sin6_addr[5] = 0x00;
+    innerAddr->pal_sin6_addr[6] = 0x00;
+    innerAddr->pal_sin6_addr[7] = 0x00;
+
+    innerAddr->pal_sin6_addr[8] = 0x00;
+    innerAddr->pal_sin6_addr[9] = 0x00;
+    innerAddr->pal_sin6_addr[10] = 0x00;
+    innerAddr->pal_sin6_addr[11] = 0x00;
+
+    innerAddr->pal_sin6_addr[12] = ipV4Addr[0];
+    innerAddr->pal_sin6_addr[13] = ipV4Addr[1];
+    innerAddr->pal_sin6_addr[14] = ipV4Addr[2];
+    innerAddr->pal_sin6_addr[15] = ipV4Addr[3];
+
+    return PAL_SUCCESS;
+}
+#else
+palStatus_t pal_setSockAddrNAT64Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr)
+{
+    return PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+}
+#endif
 
 palStatus_t pal_getSockAddrPort(const palSocketAddress_t* address, uint16_t* port)
 {

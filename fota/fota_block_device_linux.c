@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -27,9 +27,9 @@
 #include <errno.h>
 #include "fota/fota_block_device.h"
 #include "fota/fota_status.h"
+#include "fota_platform_linux.h"
 
 #include <stdio.h>
-#include <assert.h>
 #include <sys/stat.h>
 
 #define BD_ERASE_VALUE 0x0
@@ -38,133 +38,159 @@
 #define BD_PROGRAM_SIZE 0x1
 #define BD_ERASE_BUFFER_SIZE 0x1000
 
-static FILE *bd_backend = NULL;
-
 static size_t get_bd_backend_file_size()
 {
     struct stat st;
 
-    if (stat(MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME, &st) == 0) {
+    if (stat(fota_linux_get_update_storage_file_name(), &st) == 0) {
         return (st.st_size);
     } else {
         FOTA_TRACE_ERROR("stat failed: %s", strerror(errno));
-        assert(0);
+        FOTA_ASSERT(0);
         return 0;
     }
 }
 
+static FILE *get_bd_backend(void)
+{
+    FILE *bd_backend = fopen(fota_linux_get_update_storage_file_name(), "rb+");
+    FOTA_ASSERT(bd_backend);
+    return bd_backend;
+}
+
 int fota_bd_size(size_t *size)
 {
-    assert(bd_backend);
     *size = MBED_CLOUD_CLIENT_FOTA_STORAGE_SIZE;
     return FOTA_STATUS_SUCCESS;
 }
 
 int fota_bd_init(void)
 {
-    if (!bd_backend) {
-        bd_backend = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME, "rb+");
+    FILE *bd_backend = fopen(fota_linux_get_update_storage_file_name(), "rb+");
+    if (NULL == bd_backend) {
+        bd_backend = fopen(fota_linux_get_update_storage_file_name(), "wb+");
         if (NULL == bd_backend) {
-            bd_backend = fopen(MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME, "wb+");
-            if (NULL == bd_backend) {
-                FOTA_TRACE_ERROR("fopen failed: %s", strerror(errno));
-                FOTA_TRACE_ERROR("Failed to initialize BlockDevice - failed to create file %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
-                return FOTA_STATUS_STORAGE_WRITE_FAILED;
-            }
+            FOTA_TRACE_ERROR("fopen failed: %s", strerror(errno));
+            FOTA_TRACE_ERROR("Failed to initialize BlockDevice - failed to create file %s", fota_linux_get_update_storage_file_name());
+            return FOTA_STATUS_STORAGE_WRITE_FAILED;
         }
     }
+    fclose(bd_backend);
 
-    FOTA_TRACE_DEBUG("FOTA BlockDevice init file is %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
     return FOTA_STATUS_SUCCESS;
 }
 
 int fota_bd_deinit(void)
 {
-    if (bd_backend) {
-        if (fclose(bd_backend)) {
-            FOTA_TRACE_ERROR("fclose failed: %s", strerror(errno));
-            FOTA_TRACE_ERROR("Failed to deinit BlockDevice - failed to close %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
-        } else {
-            FOTA_TRACE_DEBUG("Closed FOTA BlockDevice file %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
-        }
-        bd_backend = NULL;
-    }
-
-    FOTA_TRACE_DEBUG("FOTA BlockDevice deinit file is %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
     return FOTA_STATUS_SUCCESS;
 }
 
 int fota_bd_read(void *buffer, size_t addr, size_t size)
 {
-    assert(bd_backend);
-
+    size_t bytes_read;
     size_t file_size = get_bd_backend_file_size();
-    size_t read_addr = MIN(file_size, addr);
+    int ret;
 
-    if (fseek(bd_backend, read_addr, SEEK_SET)) {
-        FOTA_TRACE_ERROR("fseek failed: %s", strerror(errno));
+    if (addr + size > file_size) {
+        FOTA_TRACE_ERROR("Read failed: addr %ld, size %ld file size %ld", addr, size, file_size);
         return FOTA_STATUS_STORAGE_READ_FAILED;
     }
 
-    size_t bytes_read = fread(buffer, 1, size, bd_backend);
+    FILE *bd_backend = get_bd_backend();
+
+    if (fseek(bd_backend, addr, SEEK_SET)) {
+        FOTA_TRACE_ERROR("fseek failed: %s", strerror(errno));
+        ret = FOTA_STATUS_STORAGE_READ_FAILED;
+        goto end;
+    }
+
+    bytes_read = fread(buffer, 1, size, bd_backend);
     memset(buffer + bytes_read, BD_ERASE_VALUE, size - bytes_read);
-    return FOTA_STATUS_SUCCESS;
+    ret = FOTA_STATUS_SUCCESS;
+
+end:
+    fclose(bd_backend);
+    return ret;
 }
 
 int fota_bd_program(const void *buffer, size_t addr, size_t size)
 {
-    assert(bd_backend);
+    size_t bytes_written;
+    size_t file_size = get_bd_backend_file_size();
+    int ret;
+
+    if (addr + size > file_size) {
+        FOTA_TRACE_ERROR("Program failed: addr %ld, size %ld file size %ld", addr, size, file_size);
+        return FOTA_STATUS_STORAGE_WRITE_FAILED;
+    }
+
+    FILE *bd_backend = get_bd_backend();
 
     if (fseek(bd_backend, addr, SEEK_SET)) {
         FOTA_TRACE_ERROR("fseek failed: %s", strerror(errno));
-        return FOTA_STATUS_STORAGE_WRITE_FAILED;
+        ret = FOTA_STATUS_STORAGE_WRITE_FAILED;
+        goto end;
     }
 
-    size_t bytes_written = fwrite(buffer, 1, size, bd_backend);
+    bytes_written = fwrite(buffer, 1, size, bd_backend);
     if (bytes_written != size) {
         FOTA_TRACE_ERROR("fwrite failed: %s", strerror(errno));
-        return FOTA_STATUS_STORAGE_WRITE_FAILED;
+        ret = FOTA_STATUS_STORAGE_WRITE_FAILED;
+        goto end;
     }
 
-    return FOTA_STATUS_SUCCESS;
+    ret = FOTA_STATUS_SUCCESS;
+
+end:
+    fclose(bd_backend);
+    return ret;
 }
 
 int fota_bd_erase(size_t addr, size_t size)
 {
-    assert(bd_backend);
+    int ret;
+    size_t erase_size;
+    uint8_t erase_buff[BD_ERASE_BUFFER_SIZE];
+
+    if (addr + size > MBED_CLOUD_CLIENT_FOTA_STORAGE_SIZE) {
+        FOTA_TRACE_ERROR("Erase failed: addr %ld, size %ld storage size %ld", addr, size, MBED_CLOUD_CLIENT_FOTA_STORAGE_SIZE);
+        return FOTA_STATUS_STORAGE_WRITE_FAILED;
+    }
 
     size_t file_size = get_bd_backend_file_size();
 
     if (addr >= file_size) {
-        return FOTA_STATUS_SUCCESS;
+        size += addr - file_size;
+        addr = file_size;
     }
+
+    FILE *bd_backend = get_bd_backend();
 
     if (fseek(bd_backend, addr, SEEK_SET)) {
         FOTA_TRACE_ERROR("fseek failed: %s", strerror(errno));
-        return FOTA_STATUS_STORAGE_WRITE_FAILED;
+        ret = FOTA_STATUS_STORAGE_WRITE_FAILED;
+        goto end;
     }
 
-    size_t erase_size = size;
-    if ((addr + size) > file_size) {
-        erase_size = file_size - addr;
-    }
-
-    uint8_t erase_buff[BD_ERASE_BUFFER_SIZE];
     memset(erase_buff, BD_ERASE_VALUE, sizeof(erase_buff));
-    size_t bytes_written = 0;
-    size_t size_to_write;
+    erase_size = size;
     while (erase_size) {
-        size_to_write = MIN(sizeof(erase_buff), erase_size);
-        bytes_written = fwrite(erase_buff, 1, size_to_write, bd_backend);
+        size_t size_to_write = MIN(sizeof(erase_buff), erase_size);
+        size_t bytes_written = fwrite(erase_buff, 1, size_to_write, bd_backend);
         if (bytes_written != size_to_write) {
             FOTA_TRACE_ERROR("fwrite failed: %s", strerror(errno));
-            FOTA_TRACE_ERROR("Write failed BlockDevice - file %s", MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
-            return FOTA_STATUS_STORAGE_WRITE_FAILED;
+            FOTA_TRACE_ERROR("Write failed BlockDevice - file %s", fota_linux_get_update_storage_file_name());
+            ret = FOTA_STATUS_STORAGE_WRITE_FAILED;
+            goto end;
         }
         erase_size -= size_to_write;
     }
 
-    return FOTA_STATUS_SUCCESS;
+    ret = FOTA_STATUS_SUCCESS;
+
+end:
+    fclose(bd_backend);
+    return ret;
 }
 
 int fota_bd_get_read_size(size_t *read_size)

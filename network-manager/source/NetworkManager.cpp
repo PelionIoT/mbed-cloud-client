@@ -32,6 +32,12 @@
 #define TRACE_GROUP "NM  "
 
 static int8_t nm_handler_id = -1;
+// Refresh time interval in minutes
+#if defined MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER && (MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER != 0)
+static int32_t stats_refresh_interval = MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER * 60 * 1000; /* Milli Seconds */
+#else
+static int32_t stats_refresh_interval = 0;
+#endif
 
 nm_status_t nm_post_event(nm_event_t event_type, uint8_t event_id, void *data)
 {
@@ -76,6 +82,11 @@ static void nm_event_handler(arm_event_s *event)
 {
     switch (event->event_type) {
         case NM_EVENT_INIT:
+#if defined MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER && (MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER != 0)
+                nm_post_timeout_event(NM_EVENT_STATS_REFRESH_TIMEOUT, stats_refresh_interval);
+#else
+                tr_debug("Observable timer event not posted");
+#endif
             break;
         case NM_EVENT_RESOURCE_SET:
             tr_info("Resource Set Event Received");
@@ -90,6 +101,21 @@ static void nm_event_handler(arm_event_s *event)
         case NM_EVENT_APPLY_BR_CONFIG_AFTER_DELAY:
             tr_info("Applying br_config after delay");
             apply_br_config_to_nannostack();
+            break;
+        case NM_EVENT_STATS_REFRESH_TIMEOUT:
+#if defined MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER && (MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER != 0)
+            tr_info("Statistics Resource Refresh Timeout");
+            nm_manager_res_refresh();
+            nm_post_timeout_event(NM_EVENT_STATS_REFRESH_TIMEOUT, stats_refresh_interval);
+#else
+            tr_warn("NM_EVENT_STATS_REFRESH_TIMEOUT should not occurred");
+#endif
+            break;
+        case NM_EVENT_RESOURCE_GET:
+            tr_info("Resource Get Event Received");
+            if (nm_res_manager_get(event->data_ptr) == NM_STATUS_FAIL) {
+                tr_warn("FAILED to get resource value");
+            }
             break;
         default:
             tr_warn("UNEXPECTED Event %d", event->event_type);

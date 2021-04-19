@@ -1,0 +1,14 @@
+# Copyright (c) 2021 Pelion IoT
+# SPDX-License-Identifier: Apache-2.0
+
+menu "PAL options"
+
+config PELION_PAL_SUPPORT_NAT64
+    bool "Automatic NAT64 address support on IPv6 networks"
+    default y
+    help
+      Help IPv6 devices behind NAT64 use public DNS servers by converting
+      IPv4 addresses to IPv6 using default NAT64 prefix. Only comes into
+      effect when an IPv6-only device receives an IPv4 address from the DNS
+      server.
+endmenu

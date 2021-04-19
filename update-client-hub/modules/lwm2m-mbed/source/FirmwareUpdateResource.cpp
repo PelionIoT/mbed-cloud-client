@@ -500,6 +500,14 @@ int32_t FirmwareUpdateResource::sendState(arm_ucs_lwm2m_state_t state)
     return result;
 }
 
+int32_t FirmwareUpdateResource::getState()
+{
+    if(resourceState != NULL) {
+        return (int32_t)resourceState->get_value_int();
+    }
+    return 0;
+}
+
 /* Send result for resource /10252/0/3, Update Result */
 int32_t FirmwareUpdateResource::sendUpdateResult(arm_ucs_lwm2m_result_t updateResult)
 {

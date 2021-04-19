@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 - 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2015 - 2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -109,10 +109,9 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 
     if (_sec_mode == M2MConnectionSecurity::DTLS) {
         // convert to milliseconds and scale to reasonable range based on the network latency
-        // This produces backoff for five attempts.
 
         uint32_t dtls_min = _network_rtt_estimate * 1000;
-        uint32_t dtls_max = _network_rtt_estimate * 1000 * 16;
+        uint32_t dtls_max = _network_rtt_estimate * 1000 * 5;
 
         pal_setHandShakeTimeOut(_conf, dtls_min, dtls_max);
     }
@@ -255,7 +254,7 @@ int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, b
 {
     palStatus_t ret = PAL_SUCCESS;
     if(is_server_ping) {
-        tr_debug("M2MConnectionSecurityPimpl::connect is SERVER PING");
+        tr_info("M2MConnectionSecurityPimpl::connect is SERVER PING");
         ret = pal_handShake_ping(_ssl);
     } else {
         tr_debug("M2MConnectionSecurityPimpl::connect is normal HANDSHAKE");
@@ -389,4 +388,9 @@ void M2MConnectionSecurityPimpl::remove_cid()
 bool M2MConnectionSecurityPimpl::is_cid_available()
 {
     return pal_is_cid_available();
+}
+
+void M2MConnectionSecurityPimpl::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
+{
+    pal_set_cid_value(_ssl, data_ptr, data_len);
 }

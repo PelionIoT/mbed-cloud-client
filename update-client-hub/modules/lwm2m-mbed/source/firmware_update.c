@@ -269,6 +269,19 @@ bool firmware_update_send_state(registry_t *registry, int64_t state)
     return (REGISTRY_STATUS_OK == registry_set_value_int(registry, &path, state));
 }
 
+uint8_t firmware_update_get_state(registry_t *registry)
+{
+    registry_path_t path;
+
+    UC_SRCE_TRACE("firmware_update_get_state()");
+
+    registry_set_path(&path, 10252, 0, 2, 0, REGISTRY_PATH_RESOURCE);
+    int64_t value;
+    registry_get_value_int(registry, &path, &value)
+
+    return (uint8_t)value;
+}
+
 /* Send result for resource /10252/0/3, Update Result */
 bool firmware_update_send_update_result(registry_t *registry, int64_t updateResult)
 {

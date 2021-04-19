@@ -428,7 +428,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Write(uint32_t slot_id,
                                                  physical_address,
                                                  write_size);
             if (status != ARM_UC_FLASHIAP_SUCCESS) {
-                UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed");
+                UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed: %" PRIi32, status);
             } else {
                 result.code = ERR_NONE;
                 arm_uc_pal_flashiap_signal_internal(ARM_UC_PAAL_EVENT_WRITE_DONE);
@@ -560,7 +560,7 @@ arm_uc_error_t ARM_UC_PAL_FlashIAP_Activate(uint32_t slot_id)
                                                  slot_addr,
                                                  hdr_size);
         if (status != ARM_UC_FLASHIAP_SUCCESS) {
-            UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed failed");
+            UC_PAAL_ERR_MSG("arm_uc_flashiap_program failed failed: %" PRIi32, status);
             result.code = (int16_t)FIRM_ERR_ACTIVATE;
         }
     } else {

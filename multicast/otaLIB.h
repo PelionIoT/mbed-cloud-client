@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2020-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -147,7 +147,8 @@ typedef enum ota_resource_types
     MULTICAST_SESSION_ID,
     MULTICAST_NODE_COUNT,
     MULTICAST_ESTIMATED_TOTAL_TIME,
-    MULTICAST_ESTIMATED_RESEND_TIME
+    MULTICAST_ESTIMATED_RESEND_TIME,
+    MULTICAST_NETWORK_ID
 } ota_resource_types_e;
 
 /*!

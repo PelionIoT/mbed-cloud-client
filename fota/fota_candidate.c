@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -26,12 +26,9 @@
 #include "fota/fota_status.h"
 #include "fota/fota_block_device.h"
 #include "fota/fota_crypto.h"
-#include "fota/fota_block_device.h"
 #include "fota/fota_nvm.h"
 #include <stdlib.h>
 #include <inttypes.h>
-
-#define MIN_FRAG_SIZE 128
 
 typedef struct {
     size_t bd_read_size;
@@ -106,15 +103,24 @@ int fota_candidate_read_candidate_ready_header(size_t *addr, uint32_t bd_read_si
         goto end;
     }
 
-    // Advance read address for next calls
-    *addr += FOTA_ALIGN_UP(chunk_size, bd_prog_size);
-
     memcpy(header, aligned_read_buf, sizeof(fota_candidate_ready_header_t));
     if (header->magic != FOTA_CANDIDATE_READY_MAGIC) {
+#if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION < 3)
+        // This code is practically available for testing only, as fota_candidate code is not called on legacy bootloaders.
+        // In case of a legacy header, if we don't have magic, this probably means that the candidate ready header is
+        // missing for the main component.
+        FOTA_TRACE_DEBUG("Probably main component on a legacy device");
+        strcpy(header->comp_name, FOTA_COMPONENT_MAIN_COMPONENT_NAME);
+        ret = FOTA_STATUS_SUCCESS;
+#else
         FOTA_TRACE_INFO("No image found on storage");
         ret = FOTA_STATUS_NOT_FOUND;
+#endif
         goto end;
     }
+
+    // Advance read address for next calls
+    *addr += FOTA_ALIGN_UP(chunk_size, bd_prog_size);
 
 end:
     if (chunk_size > sizeof(read_buf)) {
@@ -151,7 +157,6 @@ int fota_candidate_read_header(size_t *addr, uint32_t bd_read_size, uint32_t bd_
     }
 
     int ret = fota_bd_read(header_buf, *addr, read_size);
-    *addr += FOTA_ALIGN_UP(header_size, bd_prog_size);
 
     if (ret) {
         goto end;
@@ -162,6 +167,11 @@ int fota_candidate_read_header(size_t *addr, uint32_t bd_read_size, uint32_t bd_
         goto end;
     }
 
+    if (header_size < header->external_header_size + offsetof(fota_header_info_t, internal_header_barrier)){
+        *addr += FOTA_ALIGN_UP(header->external_header_size + offsetof(fota_header_info_t, internal_header_barrier), bd_prog_size);
+    } else {
+        *addr += FOTA_ALIGN_UP(header_size, bd_prog_size);
+    }
 end:
     free(header_buf);
     return ret;
@@ -174,12 +184,11 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
     uint32_t alloc_size, block_size;
 
     if (!ctx) {
-        ctx = (candidate_contex_t *) malloc(sizeof(candidate_contex_t));
+        ctx = (candidate_contex_t *) calloc(1, sizeof(candidate_contex_t));
         if (!ctx) {
             FOTA_TRACE_ERROR("FOTA candidate_contex_t - allocation failed");
             return FOTA_STATUS_OUT_OF_MEMORY;
         }
-        memset(ctx, 0, sizeof(candidate_contex_t));
 
         ret = fota_bd_get_read_size(&ctx->bd_read_size);
         if (ret) {
@@ -234,9 +243,13 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
         if (ctx->header_info.flags & (FOTA_HEADER_ENCRYPTED_FLAG | FOTA_HEADER_SUPPORT_RESUME_FLAG)) {
             block_size = ctx->header_info.block_size;
         } else {
-            block_size = MIN_FRAG_SIZE;
+            block_size = MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE;
         }
         block_size = FOTA_ALIGN_UP(block_size, ctx->bd_read_size);
+
+        // A very large install alignment size can be supported, but requires much extra logic.
+        // Enlarging block size should take care of it instead.
+        FOTA_ASSERT(block_size % install_alignment == 0);
 
         // Block checker can be different here and have different sizes:
         // Tag (8 bytes) in encrypted case, checksum (2 bytes) in non-encrypted case (with resume support).
@@ -267,7 +280,7 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
                               "Invalid encryption key read");
 
             ret = fota_encrypt_decrypt_start(&ctx->enc_ctx, fw_key, FOTA_ENCRYPT_KEY_SIZE);
-            memset(fw_key, 0, sizeof(fw_key));
+            fota_fi_memset(fw_key, 0, sizeof(fw_key));
             if (ret) {
                 FOTA_TRACE_ERROR("Decrypt start failed. ret %d", ret);
                 goto fail;
@@ -282,14 +295,14 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
 
     ctx->curr_addr = ctx->data_start_addr;
     ctx->bytes_completed = 0;
+    ctx->frag_extra_bytes = 0;
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
     if (ctx->header_info.flags & FOTA_HEADER_ENCRYPTED_FLAG) {
         fota_encryption_stream_reset(ctx->enc_ctx);
     }
 #endif
 
-    // Install alignment of zero is just like an alignment of 1 (i.e. no limitation)
-    ctx->install_alignment = install_alignment ? install_alignment : 1;
+    ctx->install_alignment = install_alignment;
     free(ctx->fragment_buf);
 
     alloc_size = ctx->effective_block_size + ctx->block_checker_size;
@@ -319,7 +332,6 @@ static int fota_candidate_extract_fragment(uint8_t **buf, size_t *actual_size, b
     int ret;
 
     FOTA_DBG_ASSERT(ctx);
-
 
     // Move extra bytes from last time from end to beginning of buffer
     if (!*ignore) {
@@ -414,7 +426,16 @@ int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const cha
 
     FOTA_ASSERT(handler);
 
-    ret = fota_candidate_extract_start(force_encrypt, expected_comp_name, 0);
+    // Make sure previous context is cleared (relevant mainly in tests)
+    cleanup();
+
+    // Install alignment of zero is just like an alignment of 1 (i.e. no limitation)
+    install_alignment = install_alignment ? install_alignment : 1;
+
+    // Validation phase
+
+    // Can use install alignment of 1 here, as this is just validation, no installation yet
+    ret = fota_candidate_extract_start(force_encrypt, expected_comp_name, 1);
     if (ret) {
         goto fail;
     }
@@ -471,7 +492,6 @@ int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const cha
     // Start iteration phase
 
     actual_size = 0;
-    ctx->frag_extra_bytes = 0;
     ignore = false;
 
     ret = fota_candidate_extract_start(force_encrypt, expected_comp_name, install_alignment);
@@ -518,7 +538,6 @@ int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const cha
     ret = handler(&cb_info);
     if (ret) {
         FOTA_TRACE_ERROR("Candidate user handler failed on finish, ret %d", ret);
-        goto fail;
     }
 
 fail:

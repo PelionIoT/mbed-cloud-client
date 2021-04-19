@@ -16,7 +16,10 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#if defined(ATOMIC_QUEUE_USE_PAL) && !defined(TARGET_LIKE_MBED)
+/**
+ * Use critical implementation below when explicitly defined.
+ */
+#if defined(ATOMIC_QUEUE_USE_PAL)
 
 #include <stdint.h>
 #include <assert.h>

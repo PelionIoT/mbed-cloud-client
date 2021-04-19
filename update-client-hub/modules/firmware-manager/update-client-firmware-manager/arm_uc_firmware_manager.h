@@ -112,7 +112,7 @@ typedef struct _ARM_UC_FIRMWARE_MANAGER {
     /**
      * @brief Function for reading a package fragment from the storage.
      */
-    arm_uc_error_t (*Read)(const arm_uc_buffer_t* output, uint32_t offset);
+    arm_uc_error_t (*Read)(arm_uc_buffer_t* output, uint32_t offset);
 
     arm_uc_error_t (*ReadFromSlot)(const arm_uc_buffer_t* output, uint32_t location, uint32_t offset);
 

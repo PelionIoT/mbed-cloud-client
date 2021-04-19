@@ -103,6 +103,11 @@ arm_uc_error_t ARM_UCS_LWM2M_MONITOR_SendState(arm_uc_monitor_state_t an_update_
     return result;
 }
 
+arm_uc_monitor_state_t ARM_UCS_LWM2M_MONITOR_GetState()
+{
+    return (arm_uc_monitor_state_t)FirmwareUpdateResource::getState();
+}
+
 /**
  * @brief Send update result.
  * @details From the OMA LWM2M Technical Specification:

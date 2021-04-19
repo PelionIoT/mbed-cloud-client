@@ -33,6 +33,8 @@ M2MServer::M2MServer()
     _server_instance = object_instance();
 
     if(_server_instance) {
+        _server_instance->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
+        _server_instance->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
 
         M2MResource* res = _server_instance->create_dynamic_resource(SERVER_SHORT_SERVER_ID,
                                                                      OMA_RESOURCE_TYPE,
@@ -60,7 +62,7 @@ M2MServer::M2MServer()
                                                         M2MResourceInstance::STRING,
                                                         true);
         if(res) {
-            res->set_operation(M2MBase::GET_ALLOWED);
+            res->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
         }
         res = _server_instance->create_dynamic_resource(SERVER_REGISTRATION_UPDATE,
                                                         OMA_RESOURCE_TYPE,

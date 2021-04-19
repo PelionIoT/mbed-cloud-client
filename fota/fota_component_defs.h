@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -27,8 +27,11 @@
 #endif
 #endif
 
+#define FOTA_COMPONENT_SEMVER_BIT         ((uint64_t)1 << 55)
 #define FOTA_COMPONENT_MAX_NAME_SIZE       9
 #define FOTA_COMPONENT_MAX_SEMVER_STR_SIZE 12
+
+#define FOTA_COMPONENT_MAIN_COMP_NUM       0
 #define FOTA_COMPONENT_MAIN_COMPONENT_NAME "MAIN"
 
 typedef uint64_t fota_component_version_t;

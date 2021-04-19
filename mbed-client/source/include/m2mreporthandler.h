@@ -59,12 +59,12 @@ typedef union low_step_u {
  */
 class M2MReportHandler
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
-        : public M2MTimerObserver
+    : public M2MTimerObserver
 #endif
 {
 private:
     // Prevents the use of assignment operator by accident.
-    M2MReportHandler& operator=( const M2MReportHandler& /*other*/ );
+    M2MReportHandler &operator=(const M2MReportHandler & /*other*/);
 
 public:
 
@@ -125,8 +125,8 @@ public:
      * @return true if required attributes are present else false.
      */
     bool parse_notification_attribute(const char *query,
-                                              M2MBase::BaseType type,
-                                              M2MResourceInstance::ResourceType resource_type = M2MResourceInstance::OPAQUE);
+                                      M2MBase::BaseType type,
+                                      M2MResourceInstance::ResourceType resource_type = M2MResourceInstance::OPAQUE);
 #endif
 
     /**
@@ -257,6 +257,20 @@ public:
      */
     void wait_to_report(M2MResourceBase *m2mresourcebase);
 
+    /**
+     * @brief Sets how the notification is sent. By default confirmable message type is used.
+     *
+     * @param confirmable True means confirmable message, False means non-confirmable message.
+     */
+    void set_confirmable(bool confirmable);
+
+    /**
+     * @brief Returns whether notification message is confirmable or non-confirmable.
+     *
+     * @return Is notification confirmable or non-confirmable message.
+     */
+    bool is_confirmable() const;
+
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     /**
      * @brief Start the pmin and pmax timers without setting object under observation
@@ -266,15 +280,15 @@ public:
 protected : // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type =
-                               M2MTimerObserver::Notdefined);
+                                   M2MTimerObserver::Notdefined);
 #endif
 
 private:
 
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
-    bool set_notification_attribute(const char* option,
-            M2MBase::BaseType type,
-            M2MResourceInstance::ResourceType resource_type);
+    bool set_notification_attribute(const char *option,
+                                    M2MBase::BaseType type,
+                                    M2MResourceInstance::ResourceType resource_type);
 #endif
 
     /**
@@ -319,7 +333,7 @@ private:
      * \param source The source data to copy, may not be NULL.
      * \param size The size of memory to be reserved.
     */
-    static uint8_t* alloc_copy(const uint8_t* source, uint32_t size);
+    static uint8_t *alloc_copy(const uint8_t *source, uint32_t size);
 
     /**
      * \brief New value is ready to be sent.
@@ -366,9 +380,10 @@ private:
     bool                        _pmin_quiet_period : 1;
 #endif
     bool                        _waiting_to_report;
+    bool                        _confirmable;
     M2MResourceBase             *_resource_base;
-friend class Test_M2MReportHandler;
-friend class Test_M2MResourceInstance;
+    friend class Test_M2MReportHandler;
+    friend class Test_M2MResourceInstance;
 };
 
 #endif // M2MREPORTHANDLER_H

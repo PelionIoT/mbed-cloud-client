@@ -94,6 +94,8 @@ typedef struct _ARM_UPDATE_MONITOR {
      */
     arm_uc_error_t (*SendState)(arm_uc_monitor_state_t state);
 
+    arm_uc_monitor_state_t (*GetState)();
+
     /**
      * @brief Send update result.
      * @details From the OMA LWM2M Technical Specification:

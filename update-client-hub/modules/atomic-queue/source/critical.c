@@ -16,9 +16,11 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-// This critical section implementation is generic for mbed OS targets,
-// except Nordic ones
-#if defined(TARGET_LIKE_MBED) && !defined(TARGET_NRF51)
+/**
+ * This critical section implementation is generic for mbed OS targets,
+ * except Nordic ones and when PAL is explicitly selected.
+ */
+#if defined(TARGET_LIKE_MBED) && !defined(TARGET_NRF51) && !defined(ATOMIC_QUEUE_USE_PAL)
 
 #include <stdint.h>                  // uint32_t, UINT32_MAX
 #include <stddef.h>                  // NULL

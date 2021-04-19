@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -32,19 +32,19 @@
 #include "mbedtls/aes.h"
 #include "mbedtls/platform_util.h"
 
-#if defined(FOTA_USE_UPDATE_RAW_PUBLIC_KEY) && defined(MBEDTLS_USE_TINYCRYPT)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_USE_TINYCRYPT)
 #include "tinycrypt/ecc.h"
 #include "tinycrypt/ecc_dsa.h"
 #include "fota/fota_nvm.h"
 #endif
 
-#if defined(FOTA_USE_UPDATE_RAW_PUBLIC_KEY) && defined(MBEDTLS_ECDSA_C)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_ECDSA_C)
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecp.h"
 #include "mbedtls/bignum.h"
 #endif
 
-#if defined(FOTA_USE_UPDATE_X509)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_X509_PUBLIC_KEY_FORMAT)
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/x509.h"
 #endif
@@ -56,6 +56,10 @@
 
 #if defined(MBEDTLS_SSL_CONF_RNG)
 #include "shared_rng.h"
+#endif
+
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_DERIVATION == FOTA_ENCRYPT_KEY_HMAC_DERIVATION)
+#include "mbedtls/md.h"
 #endif
 
 #include <stdlib.h>
@@ -76,45 +80,74 @@ typedef struct fota_encrypt_context_s {
 
 #define FOTA_TRACE_TLS_ERR(err) FOTA_TRACE_DEBUG("mbedTLS error %d", err)
 
-#if FOTA_KEY_FORCE_DERIVATION
-static int derive_key(uint8_t *key, uint32_t key_size)
+#define FOTA_DERIVE_KEY_BITS 128
+
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_DERIVATION == FOTA_ENCRYPT_KEY_ECB_DERIVATION || MBED_CLOUD_CLIENT_FOTA_KEY_DERIVATION == FOTA_ENCRYPT_KEY_HMAC_DERIVATION)
+#if !defined(FOTA_USE_EXTERNAL_SECRET_DERIVATION_STRING)
+// Building the input :
+// 01 - i
+// FOTA - Label
+// 00 - separator
+// ranadom value - Context
+// [L]2 - key lenght
+const unsigned char* fota_get_derivation_string(void)
 {
-    static const uint8_t derivation_param[] = "DeriveParam";
-    uint8_t sha256_buf[FOTA_CRYPTO_HASH_SIZE];
+    return (const unsigned char*)"01FOTA00563be98a94fd0dc0651c0a80";
+}
+#endif
+#endif
+
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_DERIVATION == FOTA_ENCRYPT_KEY_HMAC_DERIVATION)
+// Key derivation according to NIST Special Publication 800-108
+// Using KDF in Counter Mode
+// For i = 1 to n, do
+// K(i) := PRF (KI, [i]2 || Label || 0x00 || Context || [L]2)
+// We have only one iteration here, key size is 128 bits
+static int derive_key(uint8_t *key)
+{
+    uint8_t key_buf_hmac[FOTA_CRYPTO_HASH_SIZE];
+
+    if (mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), (const unsigned char *) key, FOTA_ENCRYPT_KEY_SIZE,
+                        fota_get_derivation_string(), 0x10, key_buf_hmac) == 0) {
+        fota_fi_memcpy(key, key_buf_hmac, FOTA_ENCRYPT_KEY_SIZE);
+        return FOTA_STATUS_SUCCESS;
+    }
+
+    return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+}
+#endif // FOTA_ENCRYPT_KEY_HMAC_DERIVATION
+
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_DERIVATION == FOTA_ENCRYPT_KEY_ECB_DERIVATION)
+static int derive_key(uint8_t *key)
+{
     int ret;
     int flow_control = 0;
     FOTA_DBG_ASSERT(key);
-    FOTA_DBG_ASSERT(key_size >= FOTA_ENCRYPT_KEY_SIZE);
-    FOTA_DBG_ASSERT(key_size <= FOTA_CRYPTO_HASH_SIZE);
+
     // We will only be using 128 bits secret key for key derivation.
-    // Larger input keys will be truncated to 128 bit length */
-    ret = mbedtls_sha256_ret(derivation_param, sizeof(derivation_param), sha256_buf, 0);
-    if (ret) {
-        FOTA_TRACE_TLS_ERR(ret);
-        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
-    }
-    flow_control++;
+    // Larger input keys will be truncated to 128 bit length
     mbedtls_aes_context ctx = {0};
     mbedtls_aes_init(&ctx);
-    ret = mbedtls_aes_setkey_enc(&ctx, key, key_size * 8);
+    ret = mbedtls_aes_setkey_enc(&ctx, key, FOTA_DERIVE_KEY_BITS);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         mbedtls_aes_free(&ctx);
         return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
     }
+
     flow_control++;
-    /* Encrypting only first 128 bits, the reset is discarded */
-    ret = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, sha256_buf, key);
+    // Encrypting only first 128 bits, the reset is discarded, using precalculated hash
+    ret = mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_ENCRYPT, fota_get_derivation_string(), key);
     mbedtls_aes_free(&ctx);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
     }
-    flow_control++;
-    return (flow_control == 3) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
-}
 
-#endif // FOTA_KEY_FORCE_DERIVATION
+    flow_control++;
+    return (flow_control == 2) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
+}
+#endif // FOTA_ENCRYPT_KEY_ECB_DERIVATION
 
 int fota_encrypt_decrypt_start(fota_encrypt_context_t **ctx, const uint8_t *key, uint32_t key_size)
 {
@@ -123,12 +156,17 @@ int fota_encrypt_decrypt_start(fota_encrypt_context_t **ctx, const uint8_t *key,
 
     *ctx = NULL;
 
-#if FOTA_KEY_FORCE_DERIVATION
-    ret = derive_key(key, key_size);
+    const uint8_t *key_to_use = key;
+
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_DERIVATION == FOTA_ENCRYPT_KEY_ECB_DERIVATION || MBED_CLOUD_CLIENT_FOTA_KEY_DERIVATION == FOTA_ENCRYPT_KEY_HMAC_DERIVATION)
+    uint8_t derived_key[key_size];
+    fota_fi_memcpy(derived_key, key_to_use, key_size);
+    ret = derive_key(derived_key);
     if (ret) {
         return ret;
     }
-#endif
+    key_to_use = derived_key;
+#endif // FOTA_ENCRYPT_KEY_ECB_DERIVATION || FOTA_DEVICE_KEYFORCE_DERIVATION
 
     fota_encrypt_context_t *enc_ctx = (fota_encrypt_context_t *) malloc(sizeof(fota_encrypt_context_t));
     if (!enc_ctx) {
@@ -138,7 +176,7 @@ int fota_encrypt_decrypt_start(fota_encrypt_context_t **ctx, const uint8_t *key,
     mbedtls_ccm_init(&enc_ctx->ccm_ctx);
     enc_ctx->iv = 0;
 
-    ret = mbedtls_ccm_setkey(&enc_ctx->ccm_ctx, MBEDTLS_CIPHER_ID_AES, key, key_size * 8);
+    ret = mbedtls_ccm_setkey(&enc_ctx->ccm_ctx, MBEDTLS_CIPHER_ID_AES, key_to_use, FOTA_DERIVE_KEY_BITS);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         mbedtls_ccm_free(&enc_ctx->ccm_ctx);
@@ -188,8 +226,7 @@ int fota_encrypt_data(
     }
     flow_control++;
     fota_encryption_iv_increment(ctx);
-    flow_control++;
-    return (3 == flow_control) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
+    return (2 == flow_control) ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_ERROR;
 }
 
 int fota_decrypt_data(
@@ -349,7 +386,7 @@ int fota_fi_memcmp(const uint8_t *ptr1, const uint8_t *ptr2, size_t num, volatil
 }
 #endif // #if FOTA_FI_MITIGATION_ENABLE
 
-#if defined(FOTA_USE_UPDATE_RAW_PUBLIC_KEY) && defined(MBEDTLS_USE_TINYCRYPT)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_USE_TINYCRYPT)
 int fota_verify_signature_prehashed(
     const uint8_t *data_digest,
     const uint8_t *sig, size_t sig_len
@@ -382,7 +419,7 @@ fail:
 }
 #endif
 
-#if defined(FOTA_USE_UPDATE_RAW_PUBLIC_KEY) && defined(MBEDTLS_ECDSA_C)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_ECDSA_C)
 int fota_verify_signature_prehashed(
     const uint8_t *data_digest,
     const uint8_t *sig, size_t sig_len
@@ -484,7 +521,7 @@ fail:
 }
 #endif
 
-#if defined(FOTA_USE_UPDATE_X509)
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_X509_PUBLIC_KEY_FORMAT)
 int fota_verify_signature_prehashed(
     const uint8_t *data_digest,
     const uint8_t *sig, size_t sig_len
@@ -573,7 +610,7 @@ fail:
     free(update_crt_data);
     return fota_status;
 }
-#endif  // defined(FOTA_USE_UPDATE_X509)
+#endif // #if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_X509_PUBLIC_KEY_FORMAT)
 
 int fota_verify_signature(
     const uint8_t *signed_data, size_t signed_data_size,

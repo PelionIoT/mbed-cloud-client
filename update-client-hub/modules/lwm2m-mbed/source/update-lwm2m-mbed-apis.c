@@ -1,3 +1,4 @@
+
 // ----------------------------------------------------------------------------
 // Copyright 2016-2019 ARM Ltd.
 //
@@ -29,6 +30,7 @@ const ARM_UPDATE_MONITOR ARM_UCS_LWM2M_MONITOR = {
     .Uninitialize         = ARM_UCS_LWM2M_MONITOR_Uninitialize,
 
     .SendState            = ARM_UCS_LWM2M_MONITOR_SendState,
+    .GetState             = ARM_UCS_LWM2M_MONITOR_GetState,
     .SendUpdateResult     = ARM_UCS_LWM2M_MONITOR_SendUpdateResult,
     .SendName             = ARM_UCS_LWM2M_MONITOR_SendName,
     .SendVersion          = ARM_UCS_LWM2M_MONITOR_SendVersion,

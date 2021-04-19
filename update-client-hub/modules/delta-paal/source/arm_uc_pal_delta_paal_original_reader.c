@@ -48,8 +48,6 @@
 #include "update-client-paal/arm_uc_paal_update_api.h"
 #define TRACE_GROUP  "UCPI"
 
-
-
 #ifdef __NANOSIMULATOR__
 void get_image_folder(char* path);
 
@@ -60,6 +58,41 @@ char* getNanosimOriginalImageFolder()
     return path;
 }
 #endif
+
+arm_uc_error_t arm_uc_delta_paal_construct_original_image_file_path(char* buffer, size_t buffer_length)
+{
+#if !defined(TARGET_LIKE_MBED)
+    /* construct firmware file path */
+    return arm_uc_pal_linux_internal_file_path(buffer,
+                                               buffer_length,
+#if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
+#if defined(TARGET_X86_X64)
+#if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE==0)
+#ifdef __NANOSIMULATOR__
+                                               getNanosimOriginalImageFolder(),
+#else
+                                               pal_imageGetFolder(),
+#endif
+#else
+                                               ORIG_FIRMWARE_DIR,
+#endif
+#else                                          // For Yocto Linux devices, expect original firmware
+                                               //  .tar-package (with same name original_image.bin
+                                               // is done in Prepare-script into /mnt/root/original_image.bin
+                                               "/mnt/root",
+#endif // TARGET_X86_X64
+#else
+                                               pal_imageGetFolder(),
+#endif // ARM_UC_FEATURE_PAL_LINUX
+                                               "original_image",
+                                               NULL);
+#else
+    arm_uc_error_t result;
+    return result;
+#endif
+}
+
+
 /**
  * @brief arm_uc_deltapaal_original_reader - helper function to read bytes from original reader.
  * @param stream
@@ -113,30 +146,7 @@ int arm_uc_deltapaal_original_reader(void* buffer, uint64_t length, uint32_t off
         .ptr      = buffer
     };
 
-    /* construct firmware file path */
-    result = arm_uc_pal_linux_internal_file_path(file_path,
-                                                 ORIG_FILENAME_MAX_PATH,
-#if defined(ARM_UC_FEATURE_PAL_LINUX) && (ARM_UC_FEATURE_PAL_LINUX == 1)
-#if defined(TARGET_X86_X64)
-#if !defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) || (ARM_UC_PROFILE_MBED_CLIENT_LITE==0)
-#ifdef __NANOSIMULATOR__
-                                                 getNanosimOriginalImageFolder(),
-#else
-                                                 pal_imageGetFolder(),
-#endif
-#else
-                                                 ORIG_FIRMWARE_DIR,
-#endif
-#else                                                 // For Yocto Linux devices, expect original firmware
-                                                 //  .tar-package (with same name original_image.bin
-                                                 // is done in Prepare-script into /mnt/root/original_image.bin
-                                                 "/mnt/root",
-#endif // TARGET_X86_X64
-#else
-                                                 pal_imageGetFolder(),
-#endif // ARM_UC_FEATURE_PAL_LINUX
-                                                 "original_image",
-                                                 NULL);
+    result = arm_uc_delta_paal_construct_original_image_file_path(file_path, ORIG_FILENAME_MAX_PATH);
 
     if (result.error != ERR_NONE) {
         UC_PAAL_ERR_MSG("arm_uc_pal_linux_internal_file_path failed with %d\n", result.error);

@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -28,9 +28,29 @@ extern "C" {
 #endif
 
 #include "fota_candidate.h"
+#include "fota_header_info.h"
+
+#if defined(MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR)
+// This could also have been implemented with the functions below, however it's implemented with defines due to a surreal bug
+// in unitests, clobbering the pointer to the internal string when called from a different module.
+#define fota_linux_get_header_file_name() MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR "/" MBED_CLOUD_CLIENT_FOTA_LINUX_HEADER_FILENAME
+#define fota_linux_get_temp_header_file_name() MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR "/" MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME
+#define fota_linux_get_update_storage_file_name() MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR "/" MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME
+#define fota_linux_get_candidate_file_name() MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR "/" MBED_CLOUD_CLIENT_FOTA_LINUX_CANDIDATE_FILENAME
+#else
+const char *fota_linux_get_header_file_name(void);
+const char *fota_linux_get_temp_header_file_name(void);
+const char *fota_linux_get_update_storage_file_name(void);
+const char *fota_linux_get_candidate_file_name(void);
+#endif
 
 int fota_linux_candidate_iterate(fota_candidate_iterate_callback_info *info);
+int fota_linux_update_curr_fw_header(fota_header_info_t *header_info);
+int fota_linux_get_curr_fw_size(size_t *size);
+int fota_linux_get_curr_fw_digest(size_t fw_size, uint8_t *digest);
+
 int fota_linux_init();
+void fota_linux_deinit();
 
 #ifdef __cplusplus
 }

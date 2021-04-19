@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2019 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -44,13 +44,15 @@ static M2MInterface *g_m2m = NULL;
 static M2MResource *g_manifest_resource = NULL;  // /10252/0/1
 static M2MResource *g_state_resource = NULL;  // /10252/0/2
 static M2MResource *g_update_result_resource = NULL;  // /10252/0/3
-
+static M2MObject *g_lwm2m_manifest_object = NULL; //10252
+static M2MObject *g_lwm2m_dev_metadata_object = NULL; //10255
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 0)
 static M2MObject *g_component_lwm2m_object = NULL;  // /14
 #endif
 
 static report_sent_callback_t g_on_sent_callback = NULL;
 static report_sent_callback_t g_on_failure_callback = NULL;
+static bool auto_observable_reporting_enabled;
 
 typedef struct {
     size_t max_frag_size;
@@ -246,11 +248,11 @@ int fota_source_init(
 
     g_m2m = (M2MInterface *)m2m_interface;
 
-    M2MObject *lwm2m_object = M2MInterfaceFactory::create_object("10252");
-    FOTA_ASSERT(lwm2m_object);
+    g_lwm2m_manifest_object = M2MInterfaceFactory::create_object("10252");//Manifest
+    FOTA_ASSERT(g_lwm2m_manifest_object);
 
     // Create first (and only) instance /10252/0
-    M2MObjectInstance *lwm2m_object_instance = lwm2m_object->create_object_instance();
+    M2MObjectInstance *lwm2m_object_instance = g_lwm2m_manifest_object->create_object_instance();
     FOTA_ASSERT(lwm2m_object_instance);
 
     // Create package resource /10252/0/1
@@ -291,19 +293,16 @@ int fota_source_init(
     g_update_result_resource->set_operation(M2MBase::GET_ALLOWED);
     g_update_result_resource->set_message_delivery_status_cb(notification_status, NULL);
     g_update_result_resource->set_value(-1);
-    g_update_result_resource->publish_value_in_registration_msg(false);
+    g_update_result_resource->publish_value_in_registration_msg(true);
     g_update_result_resource->set_auto_observable(true);
 
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 1)
-    M2MResource *pkg_name_resource = NULL;  // /10252/0/5
-    M2MResource *pkg_version_resource = NULL;  // /10252/0/6
-
     // Create package name resource /10252/0/5
     FOTA_DBG_ASSERT(curr_fw_digest_size == FOTA_CRYPTO_HASH_SIZE);
 
     bin_to_hex_string(curr_fw_digest, FOTA_CRYPTO_HASH_SIZE, str_digest, FOTA_CRYPTO_HASH_SIZE * 2 + 1);
 
-    pkg_name_resource = lwm2m_object_instance->create_dynamic_resource(
+    M2MResource *pkg_name_resource = lwm2m_object_instance->create_dynamic_resource(
                             "5",
                             "PkgName",
                             M2MResourceInstance::STRING,
@@ -313,10 +312,12 @@ int fota_source_init(
     pkg_name_resource->set_operation(M2MBase::GET_ALLOWED);
     pkg_name_resource->set_value(str_digest, curr_fw_digest_size);
     pkg_name_resource->publish_value_in_registration_msg(true);
+#endif
 
+#if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 1 || MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION < 3)
     // Create package version resource /10252/0/6
     FOTA_TRACE_DEBUG("Announcing version is %" PRIu64, curr_fw_version);
-    pkg_version_resource = lwm2m_object_instance->create_dynamic_resource(
+    M2MResource *pkg_version_resource = lwm2m_object_instance->create_dynamic_resource(
                                "6",
                                "PkgVersion",
                                M2MResourceInstance::INTEGER,
@@ -328,13 +329,13 @@ int fota_source_init(
     pkg_version_resource->publish_value_in_registration_msg(true);
 #endif
 
-    m2m_object_list->push_back(lwm2m_object);
+    m2m_object_list->push_back(g_lwm2m_manifest_object);
 
-    lwm2m_object = M2MInterfaceFactory::create_object("10255");
-    FOTA_ASSERT(lwm2m_object);
+    g_lwm2m_dev_metadata_object = M2MInterfaceFactory::create_object("10255");//Device Metadata
+    FOTA_ASSERT(g_lwm2m_dev_metadata_object);
 
     // Create first (and only) instance /10255/0
-    lwm2m_object_instance = lwm2m_object->create_object_instance();
+    lwm2m_object_instance = g_lwm2m_dev_metadata_object->create_object_instance();
     FOTA_ASSERT(lwm2m_object_instance);
 
     // Create protocol supported resource  /10255/0/0
@@ -372,16 +373,17 @@ int fota_source_init(
     resource->set_value(class_id, class_id_size);
     resource->publish_value_in_registration_msg(true);
 
-    m2m_object_list->push_back(lwm2m_object);
+    m2m_object_list->push_back(g_lwm2m_dev_metadata_object);
 
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 0)
     // Create
     g_component_lwm2m_object = M2MInterfaceFactory::create_object("14");
-    FOTA_ASSERT(lwm2m_object);
+    FOTA_ASSERT(g_component_lwm2m_object );
 
     m2m_object_list->push_back(g_component_lwm2m_object);
 #endif
 
+    fota_source_enable_auto_observable_resources_reporting(true);
     return FOTA_STATUS_SUCCESS;
 }
 
@@ -419,7 +421,12 @@ int fota_source_deinit(void)
     g_manifest_resource = NULL;
     g_state_resource = NULL;
     g_update_result_resource = NULL;
+    delete g_lwm2m_manifest_object;
+    delete g_lwm2m_dev_metadata_object;
+    g_lwm2m_manifest_object = NULL;
+    g_lwm2m_dev_metadata_object = NULL;
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 0)
+    delete g_component_lwm2m_object;
     g_component_lwm2m_object = NULL;
 #endif
     g_on_sent_callback = NULL;
@@ -431,6 +438,14 @@ int fota_source_deinit(void)
 
 static int report_int(M2MResource *resource, int value, report_sent_callback_t on_sent, report_sent_callback_t on_failure)
 {
+    // Auto observable resources reporting not enabled - call the on sent callback ourselves here
+    if (!auto_observable_reporting_enabled) {
+        if (on_sent) {
+            on_sent();
+        }
+        return FOTA_STATUS_SUCCESS;
+    }
+
     FOTA_DBG_ASSERT(!g_on_sent_callback);
     FOTA_DBG_ASSERT(!g_on_failure_callback);
 
@@ -516,6 +531,11 @@ int fota_source_firmware_request_fragment(const char *uri, size_t offset)
     );
 
     return FOTA_STATUS_SUCCESS;
+}
+
+void fota_source_enable_auto_observable_resources_reporting(bool enable)
+{
+    auto_observable_reporting_enabled = enable;
 }
 
 #endif  // (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL)

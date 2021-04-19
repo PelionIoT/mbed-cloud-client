@@ -21,6 +21,7 @@
 
 #include "pal.h"
 #include "pal_time.h"
+#include "pal_plat_rtos.h"
 #include "pal_plat_time.h"
 #include "storage_kcm.h"
 #include <stdlib.h>

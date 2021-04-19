@@ -110,6 +110,7 @@ include_directories(${FACTORY_CLIENT_SOURCE_DIR}/storage)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/storage/storage)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/storage/source/include)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/key-config-manager)
+include_directories(${FACTORY_CLIENT_SOURCE_DIR}/key-config-manager/key-config-manager)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/key-config-manager/source/include)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/utils)
 include_directories(${FACTORY_CLIENT_SOURCE_DIR}/utils/utils)
@@ -279,7 +280,6 @@ if (FOTA_ENABLE)
 
     # Generic definitions for FOTA, always enabled
     add_definitions(-DMBED_CLOUD_CLIENT_FOTA_ENABLE=1)
-    add_definitions(-DFOTA_CUSTOM_CURR_FW_STRUCTURE=1)
 
     # Fota trace enable
     if (FOTA_TRACE)
@@ -288,12 +288,11 @@ if (FOTA_ENABLE)
     endif()
 
     include_directories(${FOTA_SOURCE_DIR})
-    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub/delta-tool-internal/include")
 
     FILE(GLOB FOTA_SRC
         "${FOTA_SOURCE_DIR}/*.c"
         "${FOTA_SOURCE_DIR}/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub/delta-tool-internal/source/*.c"
+        "${FOTA_SOURCE_DIR}/bspatch/*.c"
     )
     message("FOTA sources = \n ${FOTA_SRC}")
     target_sources(mbedCloudClient PRIVATE "${FOTA_SRC}")

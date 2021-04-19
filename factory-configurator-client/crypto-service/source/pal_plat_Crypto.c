@@ -1180,6 +1180,12 @@ palStatus_t pal_plat_CtrDRBGInit(palCtrDrbgCtxHandle_t* ctx)
     }
     else
     {
+        /**
+         * Clean buffer before initialization. Some platform implementations
+         * does not handle mutex initialization correctly when buffers are
+         * dirty.
+         */
+        memset(palCtrDrbgCtx, 0, sizeof(palCtrDrbgCtx_t));
         mbedtls_ctr_drbg_init(&palCtrDrbgCtx->ctrDrbgCtx);
         mbedtls_entropy_init(&palCtrDrbgCtx->entropy);
         *ctx = (palCtrDrbgCtxHandle_t)palCtrDrbgCtx;

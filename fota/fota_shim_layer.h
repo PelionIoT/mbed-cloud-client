@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018-2020 ARM Ltd.
+// Copyright 2019-2021 Pelion Ltd.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -40,11 +40,6 @@ typedef void (*progress_handler_t)(uint32_t progress, uint32_t total);
 void fota_shim_set_auth_handler(auth_handler_t handler);
 void fota_shim_set_auth_handler(priority_auth_handler_t handler);
 void fota_shim_set_progress_handler(progress_handler_t handler);
-
-#else
-
-#define fota_shim_set_auth_handler(handler) (void)(handler)
-#define fota_shim_set_progress_handler(handler) (void)(handler)
 
 #endif  // FOTA_SHIM_LAYER
 

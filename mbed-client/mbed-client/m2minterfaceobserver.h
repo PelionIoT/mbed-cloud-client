@@ -88,6 +88,12 @@ public:
      */
     virtual void bootstrap_data_ready(M2MSecurity */*security_object*/) { }
 
+    /**
+     * \brief A callback indicating network status is changed.
+     * \param connected true for connected, false for disconnected.
+     */
+    virtual void network_status_changed(bool connected) = 0;
+
 };
 
 #endif // M2M_INTERFACE_OBSERVER_H

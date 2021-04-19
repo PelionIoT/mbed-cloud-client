@@ -42,7 +42,8 @@ M2MInterface* M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
                                                     const String &domain,
                                                     M2MInterface::BindingMode mode,
                                                     M2MInterface::NetworkStack stack,
-                                                    const String &context_address)
+                                                    const String &context_address,
+                                                    const String &version)
 {
     tr_debug("M2MInterfaceFactory::create_interface - IN");
     tr_info("M2MInterfaceFactory::create_interface - parameters endpoint name : %s",endpoint_name.c_str());
@@ -51,6 +52,7 @@ M2MInterface* M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
     tr_info("M2MInterfaceFactory::create_interface - parameters Listen Port : %d",listen_port);
     tr_info("M2MInterfaceFactory::create_interface - parameters Binding Mode : %d",(int)mode);
     tr_info("M2MInterfaceFactory::create_interface - parameters NetworkStack : %d",(int)stack);
+    tr_info("M2MInterfaceFactory::create_interface - parameters version : %s",version.c_str());
     M2MInterfaceImpl *interface = NULL;
 
 
@@ -68,14 +70,22 @@ M2MInterface* M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
         }
     }
 
+    bool version_valid = true;
+    if(!version.empty()) {
+        if(version.size() > MAX_ALLOWED_STRING_LENGTH){
+            version_valid = false;
+        }
+    }
+
     if(((life_time == -1) || (life_time >= MINIMUM_REGISTRATION_TIME)) &&
        !endpoint_name.empty() && (endpoint_name.size() <= MAX_ALLOWED_STRING_LENGTH) &&
-       endpoint_type_valid && domain_valid) {
+       endpoint_type_valid && domain_valid && version_valid) {
         tr_debug("M2MInterfaceFactory::create_interface - Creating M2MInterfaceImpl");
         interface = new M2MInterfaceImpl(observer, endpoint_name,
                                          endpoint_type, life_time,
                                          listen_port, domain, mode,
-                                         stack, context_address);
+                                         stack, context_address,
+                                         version);
 
     }
     tr_debug("M2MInterfaceFactory::create_interface - OUT");

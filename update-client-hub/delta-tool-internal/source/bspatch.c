@@ -319,6 +319,9 @@ int bspatch_allocWorkingBuffers(struct bspatch_stream* stream)
 
     uint32_t diff2 = (uint64_t)allignedAdress-(uint64_t)stream->bufferForCompressedData;
     stream->bufferForCompressedData = allignedAdress;
+
+    (void)diff1;  // diff1 may be unused if logs are disabled.
+    (void)diff2;  // diff2 may be unused if logs are disabled.
     log("align extra1 %u align extra2 %u", diff1, diff2);
 
     if ((stream->bufferForCompressedData + stream->max_deCompressBuffer)

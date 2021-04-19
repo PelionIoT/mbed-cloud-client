@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2020-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -15,6 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
+
+#include "multicast_config.h"
+
+#if defined(LIBOTA_ENABLED) && (LIBOTA_ENABLED)
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -41,11 +45,11 @@
 #include "update-client-common/arm_uc_config.h"
 #include "randLIB.h"
 
-#if defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
-
 #include "otaLIB.h"
 #include "otaLIB_resources.h"
 
+// including UC defines TRACE_GROUP already
+#undef TRACE_GROUP
 #define TRACE_GROUP "MULTICAST"
 
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
@@ -62,17 +66,8 @@ extern "C" {
 #define MULTICAST_OBJECT_ID                 "33458"
 #define RECEIVE_BUFFER_SIZE                 1200  // Max radio packet size
 
-static ARM_UCFM_Setup_t arm_uc_multicast_fwmanager_configuration;
-static arm_uc_firmware_details_t arm_uc_multicast_fwmanager_firmware_details;
 static bool arm_uc_multicast_manifest_rejected = false;
 static bool arm_uc_multicast_send_in_progress = false;
-static arm_uc_buffer_t arm_uc_multicast_fwmanager_hashbuf;
-static uint8_t arm_uc_multicast_fwmanager_buffer[ARM_UC_HUB_BUFFER_SIZE_MAX];
-static arm_uc_buffer_t arm_uc_multicast_fwmanager_armbuffer = {
-    .size_max = ARM_UC_HUB_BUFFER_SIZE_MAX,
-    .size = 0,
-    .ptr = arm_uc_multicast_fwmanager_buffer
-};
 
 static void             arm_uc_multicast_request_timer(uint8_t timer_id, uint32_t timeout);
 static void             arm_uc_multicast_cancel_timer(uint8_t timer_id);
@@ -86,7 +81,6 @@ static void             arm_uc_multicast_send_update_fw_cmd_received_info(uint32
 static int8_t           arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload);
 static uint16_t         arm_uc_multicast_update_resource_value(ota_resource_types_e type, uint8_t *payload_ptr, uint16_t payload_len);
 static bool             arm_uc_multicast_create_static_resources(M2MBaseList &list);
-static uint8_t          arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char *payload);
 static void             arm_uc_multicast_socket_callback(void *);
 static bool             arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port);
 static ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len);
@@ -94,8 +88,10 @@ static void             arm_uc_multicast_firmware_ready();
 static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_parameters);
 static void             arm_uc_multicast_process_finished(uint8_t *session_id);
 static bool             read_dodag_info(char *dodag_address);
-static void             arm_uc_multicast_send_event(arm_uc_hub_state_t state);
 static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr);
+static void             arm_uc_multicast_update_client_event(uintptr_t event_data);
+static void             arm_uc_multicast_update_client_init();
+static void             arm_uc_multicast_update_client_external_update_event(struct arm_event_s *event);
 
 palSocket_t                 arm_uc_multicast_socket;
 palSocket_t                 arm_uc_multicast_missing_frag_socket;
@@ -286,9 +282,18 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_fragment_size_res = {
     false               // read_write_callback_set
 };
 
+
+/************************************************/
+/* Multicast API                                */
+/************************************************/
 multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &client, const int8_t tasklet_id)
 {
     tr_debug("arm_uc_multicast_init");
+
+    if (tasklet_id < 0) {
+        tr_error("Trying to pass invalid tasklet_id for arm_uc_multicast_init");
+        return MULTICAST_STATUS_INIT_FAILED;
+    }
 
     arm_uc_multicast_tasklet_id = tasklet_id;
     arm_uc_multicast_m2m_client = &client;
@@ -333,7 +338,7 @@ multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &cli
         return MULTICAST_STATUS_INIT_FAILED;
     }
 
-    ARM_UC_HUB_setMulticastTaskletId(arm_uc_multicast_tasklet_id);
+    arm_uc_multicast_update_client_init();
 
     return MULTICAST_STATUS_SUCCESS;
 }
@@ -347,6 +352,108 @@ void arm_uc_multicast_deinit()
     arm_uc_multicast_object = NULL;
 }
 
+void arm_uc_multicast_tasklet(struct arm_event_s *event)
+{
+    if (ARM_UC_OTA_MULTICAST_TIMER_EVENT == event->event_type) {
+        ota_timer_expired(event->event_id);
+    } else if (ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT == event->event_type) {
+        arm_uc_multicast_update_client_event(event->event_data);
+    } else if (ARM_UC_OTA_MULTICAST_DL_DONE_EVENT == event->event_type) {
+        tr_info("arm_uc_multicast_tasklet - download completed");
+        ota_firmware_pulled();
+    } else if (ARM_UC_OTA_MULTICAST_EXTERNAL_UPDATE_EVENT == event->event_type) {
+        tr_info("arm_uc_multicast_tasklet - external update");
+        arm_uc_multicast_update_client_external_update_event(event);
+    } else if (ARM_UC_OTA_DELETE_SESSION_EVENT == event->event_type) {
+        ota_delete_session(stored_ota_parameters.ota_session_id);
+        memset(stored_ota_parameters.ota_session_id, 0, OTA_SESSION_ID_SIZE);
+        stored_ota_parameters.ota_process_count = 0;
+    } else if (ARM_UC_OTA_FULL_REG_EVENT == event->event_type) {
+        arm_uc_multicast_m2m_client->start_full_registration();
+    } else if (ARM_UC_HUB_EVENT_TIMER == event->event_type) {
+        arm_uc_multicast_event.data.event_data = arm_uc_hub_state;
+        arm_uc_multicast_event.data.event_type = ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT;
+        arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+        arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
+        eventOS_event_send_user_allocated(&arm_uc_multicast_event);
+    } else {
+        tr_error("arm_uc_multicast_tasklet - unknown event!");
+    }
+}
+
+void arm_uc_multicast_network_connected()
+{
+    char addr[45] = {0};
+    if (read_dodag_info(addr)) {
+        if(arm_uc_multicast_update_resource_value(MULTICAST_NETWORK_ID, reinterpret_cast<unsigned char*>(addr), strlen(addr)) == 2) {
+            // return value 2 means value actually changed from previous, so in netid case we need to trigger full
+            // registration to update device directory
+            tr_info("dodag info changed during network global up. triggering full register.");
+            eventOS_event_timer_request(0, ARM_UC_OTA_FULL_REG_EVENT, arm_uc_multicast_tasklet_id, 20000);
+        }
+    }
+}
+
+bool arm_uc_multicast_interface_configure(int8_t interface_id)
+{
+    tr_info("arm_uc_multicast_interface_configure - interface id %d", interface_id);
+
+    arm_uc_multicast_interface_id = interface_id;
+    return true;
+}
+
+/************************************************/
+/* Network api implementations                  */
+/************************************************/
+static bool read_dodag_info(char *address)
+{
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    rpl_dodag_info_t dodag_info;
+    if (rpl_read_dodag_info(&dodag_info, arm_uc_multicast_interface_id)) {
+        ip6tos(dodag_info.dodag_id, address);
+        tr_debug("read_dodag_info - id address: %s", address);
+        return true;
+    } else {
+        tr_error("read_dodag_info - DODAG ID not found");
+        return false;
+    }
+#else
+    bbr_information_t bbr_info = {};
+    if (ws_bbr_info_get(arm_uc_multicast_interface_id, &bbr_info) == 0) {
+        ip6tos(bbr_info.dodag_id, address);
+        tr_debug("read_dodag_info - address: %s", address);
+        return true;
+    } else {
+        tr_error("read_dodag_info - DODAG ID not found");
+        return false;
+    }
+#endif
+}
+
+static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr)
+{
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    // Get the parent address for unicast
+    ws_stack_info_t stack_info = {};
+    if (ws_stack_info_get(arm_uc_multicast_interface_id, &stack_info)) {
+        return OTA_NOT_FOUND;
+    }
+
+    memcpy(addr, stack_info.parent, 16);
+    tr_info("arm_uc_multicast_get_parent_addr - parent address: %s", trace_ipv6(addr));
+#else
+    (void)addr;
+#endif
+
+    return OTA_OK;
+}
+
+/************************************************/
+/* Socket API implementation                    */
+/*  - opening sockets                           */
+/*  - sending data                              */
+/*  - callback                                  */
+/************************************************/
 static void arm_uc_multicast_socket_callback(void *port)
 {
     tr_debug("arm_uc_multicast_socket_callback - port % " PRIdPTR "", (intptr_t)port);
@@ -400,44 +507,110 @@ static void arm_uc_multicast_socket_callback(void *port)
     }
 }
 
-void arm_uc_multicast_tasklet(struct arm_event_s *event)
+/*
+ * socket_send_fptr() Function pointer for sending data to socket
+ *            Parameters:
+ *              -Sent destination address
+ *              -Sent payload length
+ *            Return value:
+ *              -Success: 0
+ *              -Invalid socket ID: -1
+ *              -Socket memory allocation fail: -2
+ *              -TCP state not established: -3
+ *              -Socket TX process busy: -4
+ *              -Packet too short: -6
+ */
+static int8_t arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload)
 {
-    if (ARM_UC_OTA_MULTICAST_TIMER_EVENT == event->event_type) {
-        ota_timer_expired(event->event_id);
-    } else if (ARM_UC_OTA_MULTICAST_UC_HUB_EVENT == event->event_type) {
-        ARM_UC_HUB_setState((arm_uc_hub_state_t)event->event_data);
-    } else if (ARM_UC_OTA_MULTICAST_DL_DONE_EVENT == event->event_type) {
-        tr_info("arm_uc_multicast_tasklet - download completed");
-        ota_firmware_pulled();
-    } else if (ARM_UC_OTA_MULTICAST_EXTERNAL_UPDATE_EVENT == event->event_type) {
-        tr_info("arm_uc_multicast_tasklet - external update");
-        arm_uc_firmware_address_t *address = (arm_uc_firmware_address_t *)event->data_ptr;
-        arm_uc_multicast_m2m_client->external_update(address->start_address, address->size);
-        arm_uc_multicast_process_finished(stored_ota_parameters.ota_session_id);
-        ota_delete_session(stored_ota_parameters.ota_session_id);
-        memset(stored_ota_parameters.ota_session_id, 0, OTA_SESSION_ID_SIZE);
-        stored_ota_parameters.ota_process_count = 0;
+    tr_debug("arm_uc_multicast_socket_send");
 
-        // Give some time to report UC hub state
-        eventOS_event_timer_request(0, ARM_UC_OTA_FULL_REG_EVENT, arm_uc_multicast_tasklet_id, 20000);
-    } else if (ARM_UC_OTA_DELETE_SESSION_EVENT == event->event_type) {
-        ota_delete_session(stored_ota_parameters.ota_session_id);
-        memset(stored_ota_parameters.ota_session_id, 0, OTA_SESSION_ID_SIZE);
-        stored_ota_parameters.ota_process_count = 0;
-    } else if (ARM_UC_OTA_FULL_REG_EVENT == event->event_type) {
-        arm_uc_multicast_m2m_client->start_full_registration();
-    } else if (ARM_UC_HUB_EVENT_TIMER == event->event_type) {
-        arm_uc_multicast_event.data.event_data = arm_uc_hub_state;
-        arm_uc_multicast_event.data.event_type = ARM_UC_OTA_MULTICAST_UC_HUB_EVENT;
-        arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
-        arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
-        eventOS_event_send_user_allocated(&arm_uc_multicast_event);
+    size_t sent;
+    palSocketAddress_t pal_addr = { 0, { 0 } };
+    palSocket_t socket;
+
+    if (destination->port == OTA_SOCKET_MULTICAST_PORT) {
+        socket = arm_uc_multicast_socket;
     } else {
-        tr_error("arm_uc_multicast_tasklet - unknown event!");
+        socket = arm_uc_multicast_missing_frag_socket;
     }
+
+    tr_info("arm_uc_multicast_socket_send - address %s ", trace_ipv6(destination->address_tbl));
+
+    palIpV6Addr_t addr;
+    memcpy(addr, destination->address_tbl, 16);
+    if (pal_setSockAddrIPV6Addr(&pal_addr, addr) != PAL_SUCCESS) {
+        tr_error("arm_uc_multicast_socket_send - failed to set pal_setSockAddrIPV6Addr");
+        return -1;
+    }
+
+    if (pal_setSockAddrPort(&pal_addr, destination->port) != PAL_SUCCESS) {
+        tr_error("arm_uc_multicast_socket_send - failed to set pal_setSockAddrPort");
+        return -1;
+    }
+
+    arm_uc_multicast_send_in_progress = true;
+
+    return pal_sendTo(socket, payload, count, &pal_addr, sizeof(pal_addr), &sent);
 }
 
-// Start of otaLIB callback functions
+static bool arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port)
+{
+    palStatus_t status;
+    palSocketAddress_t bind_address;
+    palIpV6Addr_t interface_address6;
+
+    memset(&bind_address, 0, sizeof(palSocketAddress_t));
+    memset(&interface_address6, 0, sizeof(interface_address6));
+
+    status = pal_asynchronousSocketWithArgument(PAL_AF_INET6,
+                                                PAL_SOCK_DGRAM,
+                                                true,
+                                                0,
+                                                arm_uc_multicast_socket_callback,
+                                                (void *)((intptr_t)port),
+                                                socket);
+
+    if (PAL_SUCCESS != status) {
+        tr_error("arm_uc_multicast_open_socket error : %" PRIx32, status);
+        return false;
+    }
+
+    status = pal_setSockAddrIPV6Addr(&bind_address, interface_address6);
+    if (PAL_SUCCESS != status) {
+        tr_error("arm_uc_multicast_open_socket - pal_setSockAddrIPV6Addr err: %" PRIx32, status);
+        return false;
+    }
+
+    status = pal_setSockAddrPort(&bind_address, port);
+    if (PAL_SUCCESS != status) {
+        tr_error("arm_uc_multicast_open_socket - setSockAddrPort err: %" PRIx32, status);
+        return false;
+    }
+
+    status = pal_bind(*socket, &bind_address, sizeof(bind_address));
+    if (PAL_SUCCESS != status) {
+        tr_error("arm_uc_multicast_open_socket - pal_bind err: %" PRIx32, status);
+        return false;
+    }
+
+    status = pal_setSocketOptionsWithLevel(*socket,
+                                           PAL_SOL_IPPROTO_IPV6,
+                                           PAL_SO_IPV6_MULTICAST_HOPS,
+                                           &multicast_hops,
+                                           sizeof(multicast_hops));
+    if (PAL_SUCCESS != status) {
+        tr_error("arm_uc_multicast_open_socket - pal_setSocketOptionsWithLevel err: %" PRIx32, status);
+        return false;
+    }
+
+    tr_info("arm_uc_multicast_open_socket - opened OTA socket (port=%u)", port);
+
+    return true;
+}
+
+/************************************************/
+/* Timer implementation                         */
+/************************************************/
 /*
  * request_timer_fptr() Function pointer for requesting timer event
  *            Parameters:
@@ -447,7 +620,8 @@ void arm_uc_multicast_tasklet(struct arm_event_s *event)
 static void arm_uc_multicast_request_timer(uint8_t timer_id, uint32_t timeout)
 {
     tr_info("arm_uc_multicast_request_timer - id %" PRIu8 ", timeout %" PRIu32 "(ms)", timer_id, timeout);
-    eventOS_event_timer_request(timer_id, ARM_UC_OTA_MULTICAST_TIMER_EVENT, arm_uc_multicast_tasklet_id, timeout);
+    int8_t res = eventOS_event_timer_request(timer_id, ARM_UC_OTA_MULTICAST_TIMER_EVENT, arm_uc_multicast_tasklet_id, timeout);
+    assert(res == 0);
 }
 
 /*
@@ -457,9 +631,15 @@ static void arm_uc_multicast_request_timer(uint8_t timer_id, uint32_t timeout)
  */
 static void arm_uc_multicast_cancel_timer(uint8_t timer_id)
 {
+    tr_info("arm_uc_multicast_cancel_timer - id %" PRIu8, timer_id);
     eventOS_event_timer_cancel(timer_id, arm_uc_multicast_tasklet_id);
 }
 
+
+/************************************************/
+/* otaLIB state storing implementation          */
+/*  - currently stored to RAM                   */
+/************************************************/
 /*
  * store_new_ota_process_fptr() Function pointer for storing new OTA process to storage
  *            Parameters:
@@ -486,6 +666,7 @@ static ota_error_code_e arm_uc_multicast_store_new_ota_process(uint8_t *ota_sess
 static ota_error_code_e arm_uc_multicast_remove_stored_ota_process(uint8_t *ota_session_id)
 {
     tr_debug("arm_uc_multicast_remove_stored_ota_process");
+    (void)ota_session_id;
 
     stored_ota_parameters.ota_process_count = 0;
     memset(stored_ota_parameters.ota_session_id, 0, OTA_SESSION_ID_SIZE);
@@ -597,136 +778,11 @@ static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t *ota_p
     return OTA_OK;
 }
 
-/*
- * write_fw_bytes_fptr() Function pointer for writing firmware bytes to storage
- *            Parameters:
- *              -OTA process ID
- *              -Byte offset (tells where data to be written)
- *              -To be written data byte count
- *              -Data pointer to be written data
- *            Return value:
- *              -Written byte count
- */
-static uint32_t arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *from)
-{
-    tr_debug("arm_uc_multicast_write_fw_bytes, offset %" PRIu32 ", bytes %" PRIu32 "", offset, count);
-
-    assert(memcmp(stored_ota_parameters.ota_session_id, ota_session_id, OTA_SESSION_ID_SIZE) == 0);
-    assert(stored_ota_parameters.ota_process_count == 1);
-    assert(stored_ota_parameters.fw_fragment_byte_count != 0);
-
-    arm_uc_buffer_t buffer;
-    buffer.size_max = stored_ota_parameters.fw_fragment_byte_count;
-    buffer.size = count;
-    buffer.ptr = from;
-
-    arm_uc_error_t retval = ARM_UC_FirmwareManager.WriteWithOffset(&buffer, offset);
-    if (retval.code != ERR_NONE) {
-        tr_error("arm_uc_multicast_write_fw_bytes, write operation failed!");
-        count = 0;
-    }
-
-    return count;
-}
-
-/*
- * read_fw_bytes_fptr() Function pointer for reading firmware bytes from storage
- *            Parameters:
- *              -OTA process ID
- *              -Byte offset (tells where data is to read)
- *              -Data byte count to be read
- *              -Data pointer to data to be read
- *            Return value:
- *              -Read byte count
- */
-static uint32_t arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *to)
-{
-    tr_debug("arm_uc_multicast_read_fw_bytes, offset %" PRIu32 ", count %" PRIu32 "", offset, count);
-    assert(memcmp(stored_ota_parameters.ota_session_id, ota_session_id, OTA_SESSION_ID_SIZE) == 0);
-    assert(stored_ota_parameters.ota_process_count == 1);
-
-    if (ARM_UC_HUB_getState() == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST) {
-        arm_uc_buffer_t buffer;
-        buffer.size_max = count;
-        buffer.size = count;
-        buffer.ptr = to;
-        arm_uc_error_t ret = ARM_UC_FirmwareManager.Read(&buffer, offset);
-        if (ret.code != ERR_NONE) {
-            tr_error("ARM_UC_FirmwareManager.Read failed with %" PRId32 " ", ret.code);
-            count = 0;
-        }
-    } else {
-        tr_warn("arm_uc_multicast_read_fw_bytes - uc hub not in correct state");
-        count = 0;
-    }
-
-    return count;
-}
-
-/*
- * send_update_fw_cmd_received_info_fptr() Function pointer for telling to application that firmware image can be taken in use
- *                                                  NOTE: OTA user (backend) must remove OTA process from data storage with DELETE command
- *            Parameters:
- *              -OTA process ID
- *              -Delay time in seconds before taking new firmware in use
- */
-static void arm_uc_multicast_send_update_fw_cmd_received_info(uint32_t delay)
-{
-    tr_info("arm_uc_multicast_send_update_fw_cmd_received_info");
-    if (!arm_uc_multicast_manifest_rejected) {
-        ARM_UC_HUB_setRebootDelay(delay);
-        arm_uc_multicast_send_event(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
-    } else {
-        tr_info("arm_uc_multicast_send_update_fw_cmd_received_info - manifest rejected, skip activation!");
-        arm_uc_multicast_send_event(ARM_UC_HUB_STATE_IDLE);
-    }
-}
-
-/*
- * socket_send_fptr() Function pointer for sending data to socket
- *            Parameters:
- *              -Sent destination address
- *              -Sent payload length
- *            Return value:
- *              -Success: 0
- *              -Invalid socket ID: -1
- *              -Socket memory allocation fail: -2
- *              -TCP state not established: -3
- *              -Socket TX process busy: -4
- *              -Packet too short: -6
- */
-static int8_t arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload)
-{
-    tr_debug("arm_uc_multicast_socket_send");
-
-    size_t sent;
-    palSocketAddress_t pal_addr = { 0, { 0 } };
-    palSocket_t socket;
-
-    if (destination->port == OTA_SOCKET_MULTICAST_PORT) {
-        socket = arm_uc_multicast_socket;
-    } else {
-        socket = arm_uc_multicast_missing_frag_socket;
-    }
-
-    tr_info("arm_uc_multicast_socket_send - address %s ", trace_ipv6(destination->address_tbl));
-
-    palIpV6Addr_t addr;
-    memcpy(addr, destination->address_tbl, 16);
-    if (pal_setSockAddrIPV6Addr(&pal_addr, addr) != PAL_SUCCESS) {
-        tr_error("arm_uc_multicast_socket_send - failed to set pal_setSockAddrIPV6Addr");
-        return -1;
-    }
-
-    if (pal_setSockAddrPort(&pal_addr, destination->port) != PAL_SUCCESS) {
-        tr_error("arm_uc_multicast_socket_send - failed to set pal_setSockAddrPort");
-        return -1;
-    }
-
-    arm_uc_multicast_send_in_progress = true;
-
-    return pal_sendTo(socket, payload, count, &pal_addr, sizeof(pal_addr), &sent);
-}
+/************************************************/
+/* Lwm2m integration                            */
+/*  - create resources                          */
+/*  - set resource values                       */
+/************************************************/
 
 /*
  * coap_send_notif_fptr() Function pointer for sending notifications via CoAP
@@ -740,12 +796,13 @@ static int8_t arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16
  *              -Observe number len
  *              -Observation message type (confirmable or non-confirmable)
  *            Return value:
- *              -Success, observation messages message ID: !0
+ *              -Success, perform full register: 2
+ *              -Success: 1
  *              -Failure: 0
  */
 static uint16_t arm_uc_multicast_update_resource_value(ota_resource_types_e type, uint8_t *payload_ptr, uint16_t payload_len)
 {
-    int status = 1;
+    int status = 0;
     switch (type) {
         case MULTICAST_STATUS:
             status = multicast_status_res->set_value(payload_ptr, payload_len);
@@ -774,6 +831,22 @@ static uint16_t arm_uc_multicast_update_resource_value(ota_resource_types_e type
         case MULTICAST_ESTIMATED_RESEND_TIME:
             if (multicast_estimated_resend_time_res) {
                 status = multicast_estimated_resend_time_res->set_value(payload_ptr, payload_len);
+            }
+            break;
+        case MULTICAST_NETWORK_ID:
+            if (multicast_netid_res) {
+                const String old_value = multicast_netid_res->get_value_string();
+                if (old_value.length() != payload_len ||
+                        memcmp(old_value.c_str(), payload_ptr, payload_len) != 0) {
+                    status = multicast_netid_res->set_value(payload_ptr, payload_len);
+                    if (status) {
+                        status = 2;
+                    }
+                } else {
+                    // value didn't actually change so no need to update anything really.
+                    // just return success
+                    status = 1;
+                }
             }
             break;
         default:
@@ -884,114 +957,119 @@ static bool arm_uc_multicast_create_static_resources(M2MBaseList &list)
     return true;
 }
 
-static bool arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port)
-{
-    palStatus_t status;
-    palSocketAddress_t bind_address;
-    palIpV6Addr_t interface_address6;
+/************************************************/
+/* Update client integration for UCHub          */
+/*  - handlers for reading/writing the firmware */
+/*  - setting manifest                          */
+/*  - activation of new firmware                */
+/************************************************/
 
-    memset(&bind_address, 0, sizeof(palSocketAddress_t));
-    memset(&interface_address6, 0, sizeof(interface_address6));
+#if defined(MULTICAST_UCHUB_INTEGRATION)
 
-    status = pal_asynchronousSocketWithArgument(PAL_AF_INET6,
-                                                PAL_SOCK_DGRAM,
-                                                true,
-                                                0,
-                                                arm_uc_multicast_socket_callback,
-                                                (void *)((intptr_t)port),
-                                                socket);
+static void arm_uc_multicast_send_event(arm_uc_hub_state_t state);
 
-    if (PAL_SUCCESS != status) {
-        tr_error("arm_uc_multicast_open_socket error : %" PRIx32, status);
-        return false;
-    }
 
-    status = pal_setSockAddrIPV6Addr(&bind_address, interface_address6);
-    if (PAL_SUCCESS != status) {
-        tr_error("arm_uc_multicast_open_socket - pal_setSockAddrIPV6Addr err: %" PRIx32, status);
-        return false;
-    }
-
-    status = pal_setSockAddrPort(&bind_address, port);
-    if (PAL_SUCCESS != status) {
-        tr_error("arm_uc_multicast_open_socket - setSockAddrPort err: %" PRIx32, status);
-        return false;
-    }
-
-    status = pal_bind(*socket, &bind_address, sizeof(bind_address));
-    if (PAL_SUCCESS != status) {
-        tr_error("arm_uc_multicast_open_socket - pal_bind err: %" PRIx32, status);
-        return false;
-    }
-
-    status = pal_setSocketOptionsWithLevel(*socket,
-                                           PAL_SOL_IPPROTO_IPV6,
-                                           PAL_SO_IPV6_MULTICAST_HOPS,
-                                           &multicast_hops,
-                                           sizeof(multicast_hops));
-    if (PAL_SUCCESS != status) {
-        tr_error("arm_uc_multicast_open_socket - pal_setSocketOptionsWithLevel err: %" PRIx32, status);
-        return false;
-    }
-
-    tr_info("arm_uc_multicast_open_socket - opened OTA socket (port=%u)", port);
-
-    return true;
-}
-
-bool arm_uc_multicast_interface_configure(int8_t interface_id)
-{
-    tr_info("arm_uc_multicast_interface_configure - interface id %d", interface_id);
-
-    arm_uc_multicast_interface_id = interface_id;
-    return true;
-}
-
-static bool read_dodag_info(char *address)
-{
 
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
-    rpl_dodag_info_t dodag_info;
-    if (rpl_read_dodag_info(&dodag_info, arm_uc_multicast_interface_id)) {
-        ip6tos(dodag_info.dodag_id, address);
-        tr_debug("read_dodag_info - id address: %s", address);
-        return true;
-    } else {
-        tr_error("read_dodag_info - DODAG ID not found");
-        return false;
-    }
-#else
-    bbr_information_t bbr_info = {0};
-    if (ws_bbr_info_get(arm_uc_multicast_interface_id, &bbr_info) == 0) {
-        ip6tos(bbr_info.dodag_id, address);
-        tr_debug("read_dodag_info - address: %s", address);
-        return true;
-    } else {
-        tr_error("read_dodag_info - DODAG ID not found");
-        return false;
-    }
+static ARM_UCFM_Setup_t arm_uc_multicast_fwmanager_configuration;
+static arm_uc_firmware_details_t arm_uc_multicast_fwmanager_firmware_details;
+static arm_uc_buffer_t arm_uc_multicast_fwmanager_hashbuf;
+static uint8_t arm_uc_multicast_fwmanager_buffer[ARM_UC_HUB_BUFFER_SIZE_MAX];
+static arm_uc_buffer_t arm_uc_multicast_fwmanager_armbuffer = {
+    .size_max = ARM_UC_HUB_BUFFER_SIZE_MAX,
+    .size = 0,
+    .ptr = arm_uc_multicast_fwmanager_buffer
+};
 #endif
+
+static void arm_uc_multicast_update_client_init()
+{
+    ARM_UC_HUB_setMulticastTaskletId(arm_uc_multicast_tasklet_id);
 }
 
-static uint8_t arm_uc_multicast_send_coap_response(struct nsdl_s *handle, sn_coap_hdr_s *coap, sn_coap_msg_code_e msg_code, sn_nsdl_addr_s *address, const char *payload)
+/*
+ * write_fw_bytes_fptr() Function pointer for writing firmware bytes to storage
+ *            Parameters:
+ *              -OTA process ID
+ *              -Byte offset (tells where data to be written)
+ *              -To be written data byte count
+ *              -Data pointer to be written data
+ *            Return value:
+ *              -Written byte count
+ */
+static uint32_t arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *from)
 {
-    sn_coap_hdr_s *resp;
+    tr_debug("arm_uc_multicast_write_fw_bytes, offset %" PRIu32 ", bytes %" PRIu32 "", offset, count);
 
-    resp = sn_nsdl_build_response(handle, coap, msg_code);
-    if (resp) {
-        resp->payload_ptr = (uint8_t *)payload;
-        resp->payload_len = strlen(payload);
+    assert(memcmp(stored_ota_parameters.ota_session_id, ota_session_id, OTA_SESSION_ID_SIZE) == 0);
+    assert(stored_ota_parameters.ota_process_count == 1);
+    assert(stored_ota_parameters.fw_fragment_byte_count != 0);
+
+    arm_uc_buffer_t buffer;
+    buffer.size_max = stored_ota_parameters.fw_fragment_byte_count;
+    buffer.size = count;
+    buffer.ptr = from;
+
+    arm_uc_error_t retval = ARM_UC_FirmwareManager.WriteWithOffset(&buffer, offset);
+    if (retval.code != ERR_NONE) {
+        tr_error("arm_uc_multicast_write_fw_bytes, write operation failed!");
+        count = 0;
+    }
+
+    return count;
+}
+
+/*
+ * read_fw_bytes_fptr() Function pointer for reading firmware bytes from storage
+ *            Parameters:
+ *              -OTA process ID
+ *              -Byte offset (tells where data is to read)
+ *              -Data byte count to be read
+ *              -Data pointer to data to be read
+ *            Return value:
+ *              -Read byte count
+ */
+static uint32_t arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *to)
+{
+    tr_debug("arm_uc_multicast_read_fw_bytes, offset %" PRIu32 ", count %" PRIu32 "", offset, count);
+    assert(memcmp(stored_ota_parameters.ota_session_id, ota_session_id, OTA_SESSION_ID_SIZE) == 0);
+    assert(stored_ota_parameters.ota_process_count == 1);
+
+    if (ARM_UC_HUB_getState() == ARM_UC_HUB_STATE_WAIT_FOR_MULTICAST) {
+        arm_uc_buffer_t buffer;
+        buffer.size_max = count;
+        buffer.size = count;
+        buffer.ptr = to;
+        arm_uc_error_t ret = ARM_UC_FirmwareManager.Read(&buffer, offset);
+        if (ret.code != ERR_NONE) {
+            tr_error("ARM_UC_FirmwareManager.Read failed with %" PRId32 " ", ret.code);
+            count = 0;
+        }
     } else {
-        tr_error("arm_uc_multicast_send_coap_response - failed to create response");
+        tr_warn("arm_uc_multicast_read_fw_bytes - uc hub not in correct state");
+        count = 0;
     }
 
-    if (sn_nsdl_send_coap_message(handle, address, resp) != 0) {
-        tr_error("arm_uc_multicast_send_coap_response - failed to send response");
+    return count;
+}
+
+/*
+ * send_update_fw_cmd_received_info_fptr() Function pointer for telling to application that firmware image can be taken in use
+ *                                                  NOTE: OTA user (backend) must remove OTA process from data storage with DELETE command
+ *            Parameters:
+ *              -OTA process ID
+ *              -Delay time in seconds before taking new firmware in use
+ */
+static void arm_uc_multicast_send_update_fw_cmd_received_info(uint32_t delay)
+{
+    tr_info("arm_uc_multicast_send_update_fw_cmd_received_info");
+    if (!arm_uc_multicast_manifest_rejected) {
+        ARM_UC_HUB_setRebootDelay(delay);
+        arm_uc_multicast_send_event(ARM_UC_HUB_STATE_INSTALL_AUTHORIZED);
+    } else {
+        tr_info("arm_uc_multicast_send_update_fw_cmd_received_info - manifest rejected, skip activation!");
+        arm_uc_multicast_send_event(ARM_UC_HUB_STATE_IDLE);
     }
-
-    sn_nsdl_release_allocated_coap_msg_mem(handle, resp);
-
-    return 0; // TODO! Check return code
 }
 
 static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_parameters)
@@ -1081,14 +1159,15 @@ static void arm_uc_multicast_send_event(arm_uc_hub_state_t state)
     }
 #endif
 
-    tr_info("arm_uc_multicast_send_event, sending state %d after %"PRIu32" seconds", state, start_time);
+    tr_info("arm_uc_multicast_send_event, sending state %d after %" PRIu32 " seconds", state, start_time);
     eventOS_event_timer_request(ARM_UC_HUB_EVENT_TIMER, ARM_UC_HUB_EVENT_TIMER, arm_uc_multicast_tasklet_id, start_time * 1000);
 }
 
 ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len)
 {
-    ARM_UC_HUB_setManifest(payload_ptr, payload_len);
-    arm_uc_multicast_send_event(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
+    if(ARM_UC_HUB_setManifest(payload_ptr, payload_len)) {
+        arm_uc_multicast_send_event(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
+    }
 
     return OTA_OK;
 }
@@ -1098,21 +1177,301 @@ void arm_uc_multicast_firmware_ready()
     arm_uc_multicast_send_event(ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
 }
 
-
-static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr)
+void arm_uc_multicast_update_client_event(uintptr_t event_data)
 {
-#if defined(ARM_UC_MULTICAST_NODE_MODE)
-    // Get the parent address for unicast
-    ws_stack_info_t stack_info = {0};
-    if (ws_stack_info_get(arm_uc_multicast_interface_id, &stack_info)) {
-        return OTA_NOT_FOUND;
-    }
+    ARM_UC_HUB_setState((arm_uc_hub_state_t)event_data);
+}
 
-    memcpy(addr, stack_info.parent, 16);
-    tr_info("arm_uc_multicast_get_parent_addr - parent address: %s", trace_ipv6(addr));
+void arm_uc_multicast_update_client_external_update_event(struct arm_event_s *event)
+{
+    arm_uc_firmware_address_t *address = (arm_uc_firmware_address_t *)event->data_ptr;
+    arm_uc_multicast_m2m_client->external_update(address->start_address, address->size);
+    arm_uc_multicast_process_finished(stored_ota_parameters.ota_session_id);
+    ota_delete_session(stored_ota_parameters.ota_session_id);
+    memset(stored_ota_parameters.ota_session_id, 0, OTA_SESSION_ID_SIZE);
+    stored_ota_parameters.ota_process_count = 0;
+
+    // Give some time to report UC hub state
+    eventOS_event_timer_request(0, ARM_UC_OTA_FULL_REG_EVENT, arm_uc_multicast_tasklet_id, 20000);
+}
+
+#endif // defined(MULTICAST_UCHUB_INTEGRATION)
+
+/************************************************/
+/* Update client integration for Fota           */
+/*  - handlers for reading/writing the firmware */
+/*  - setting manifest                          */
+/*  - activation of new firmware                */
+/************************************************/
+#if defined(MULTICAST_FOTA_INTEGRATION)
+
+#include "fota_multicast.h"
+#include "fota_status.h"
+#if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+static fota_multicast_br_image_params fota_br_image_params;
 #endif
 
-    return OTA_OK;
+// fota callback declarations
+void arm_uc_multicast_fota_multicast_node_post_update_fw_action_callback(int result);
+void arm_uc_multicast_fota_multicast_node_post_manifest_received_action_callback(int result);
+void arm_uc_multicast_fota_multicast_br_post_start_received_action_callback(int result);
+
+
+static void arm_uc_multicast_update_client_init()
+{
+    arm_uc_multicast_manifest_rejected = true;
 }
+
+/*
+ * write_fw_bytes_fptr() Function pointer for writing firmware bytes to storage
+ *            Type: socket callback
+ *            Valid for: Node
+ *            Parameters:
+ *              -OTA process ID
+ *              -Byte offset (tells where data to be written)
+ *              -To be written data byte count
+ *              -Data pointer to be written data
+ *            Return value:
+ *              -Written byte count
+ */
+static uint32_t arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *from)
+{
+    tr_debug("arm_uc_multicast_write_fw_bytes, offset %" PRIu32 ", bytes %" PRIu32 "", offset, count);
+
+    assert(memcmp(stored_ota_parameters.ota_session_id, ota_session_id, OTA_SESSION_ID_SIZE) == 0);
+    assert(stored_ota_parameters.ota_process_count == 1);
+    assert(stored_ota_parameters.fw_fragment_byte_count != 0);
+    int result = FOTA_STATUS_SUCCESS;
+
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    result = fota_multicast_node_write_image_fragment(from, offset, count);
+#else
+    (void)from;
+    tr_error("Unexpected call to arm_uc_multicast_write_fw_bytes");
+#endif
+
+    return (result == FOTA_STATUS_SUCCESS) ? count : 0;
+}
+
+/*
+ * read_fw_bytes_fptr() Function pointer for reading firmware bytes from storage
+ *            Type: event queue callback
+ *            Valid for: Node,BR
+ *            Parameters:
+ *              -OTA process ID
+ *              -Byte offset (tells where data is to read)
+ *              -Data byte count to be read
+ *              -Data pointer to data to be read
+ *            Return value:
+ *              -Read byte count
+ */
+static uint32_t arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *to)
+{
+    tr_debug("arm_uc_multicast_read_fw_bytes, offset %" PRIu32 ", count %" PRIu32 "", offset, count);
+    assert(memcmp(stored_ota_parameters.ota_session_id, ota_session_id, OTA_SESSION_ID_SIZE) == 0);
+    assert(stored_ota_parameters.ota_process_count == 1);
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    int result = fota_multicast_node_read_image_fragment(to, offset, count);
+    return (result == FOTA_STATUS_SUCCESS) ? count : 0;
+#endif
+#if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+    int result = fota_multicast_br_read_from_image(to, offset, count);
+    return (result == FOTA_STATUS_SUCCESS) ? count : 0;
+#endif
+    return count;
+}
+
+/*
+ * send_update_fw_cmd_received_info_fptr() Function pointer for telling to application that firmware image can be taken in use
+ *                                                  NOTE: OTA user (backend) must remove OTA process from data storage with DELETE command
+ *            Type: socket callback
+ *            Valid for: Node
+ *            Parameters:
+ *              -Delay time in seconds before taking new firmware in use
+ */
+static void arm_uc_multicast_send_update_fw_cmd_received_info(uint32_t delay)
+{
+    tr_info("arm_uc_multicast_send_update_fw_cmd_received_info");
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    fota_multicast_node_on_activate(delay, arm_uc_multicast_fota_multicast_node_post_update_fw_action_callback);
+#else
+    (void)delay;
+    tr_error("Unexpected call to arm_uc_multicast_send_update_fw_cmd_received_info!");
+#endif
+}
+
+/*
+ * start_received_fptr() Function pointer for telling to Update client that firmware multicasting is about to start.
+ *                         Nodes should prepare Update client so it can receive write calls for received fragments.
+ *                         Border router should initiate firmware download and signal back to libota with ota_firmware_pulled
+ *                           when it's fully downloaded and Update client is ready to receive read calls.
+ *            Type: resource callback (BR), socket callback (Node)
+ *            Valid for: Node,BR
+ *            Parameters:
+ *              -Parameters for upcoming multicasting
+ */
+static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_parameters)
+{
+    tr_info("arm_uc_multicast_start_received");
+    ota_error_code_e return_value = OTA_OK;
+
+#if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+    if (ota_parameters->pull_url_length && ota_parameters->pull_url_length <= FOTA_MANIFEST_URI_SIZE) {
+        tr_info("arm_uc_multicast_start_received - Received pull url: %.*s", ota_parameters->pull_url_length, ota_parameters->pull_url_ptr);
+        memcpy(fota_br_image_params.uri, ota_parameters->pull_url_ptr, ota_parameters->pull_url_length);
+        fota_br_image_params.payload_size = ota_parameters->fw_total_byte_count;
+        memcpy(fota_br_image_params.payload_digest, ota_parameters->whole_fw_checksum_tbl, OTA_WHOLE_FW_CHECKSUM_LENGTH);
+        arm_uc_multicast_event.data.data_ptr = NULL;
+        arm_uc_multicast_event.data.event_data = MULTICAST_FOTA_EVENT_MANIFEST_RECEIVED;
+        arm_uc_multicast_event.data.event_id = 0;
+        arm_uc_multicast_event.data.sender = 0;
+        arm_uc_multicast_event.data.event_type = ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT;
+        arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+        arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
+        // defer handling this in Fota to give Mbed client time to respond to the POST request this comes from
+        eventOS_event_send_user_allocated(&arm_uc_multicast_event);
+    } else {
+        return_value = OTA_PARAMETER_FAIL;
+    }
+#else
+    int result = fota_multicast_node_set_fragment_size(ota_parameters->fw_fragment_byte_count);
+
+    if (result != FOTA_STATUS_SUCCESS) {
+        return OTA_PARAMETER_FAIL;
+    }
+
+    if (arm_uc_multicast_manifest_rejected) {
+        result = fota_multicast_node_get_ready_for_image(ota_parameters->fw_total_byte_count);
+        if (result != FOTA_STATUS_SUCCESS) {
+            return_value = OTA_PARAMETER_FAIL;
+        }
+    }
+
+#endif // defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+
+    return return_value;
+}
+
+/*
+ * process_finished_fptr() Function pointer for telling to Update client that process is finished and resources
+ *                           can be freed to receive new updates.
+ *            Type: event queue callback
+ *            Valid for: BR
+ */
+static void arm_uc_multicast_process_finished(uint8_t */*session_id*/)
+{
+    tr_info("arm_uc_multicast_process_finished");
+}
+
+/*
+ * manifest_received_fptr() Function pointer for telling to Update client that firmware manifest has been received
+ *            Type: socket callback
+ *            Valid for: Node
+ *            Parameters:
+ *              -Pointer to payload with manifest contents
+ *              -Length of manifest payload
+ */
+ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len)
+{
+    int result = FOTA_STATUS_SUCCESS;
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    result = fota_multicast_node_on_manifest(payload_ptr, payload_len, arm_uc_multicast_fota_multicast_node_post_manifest_received_action_callback);
+#else
+    (void)payload_ptr;
+    (void)payload_len;
+    tr_error("Unexpected call to arm_uc_multicast_manifest_received!");
+#endif
+    return (result == FOTA_STATUS_SUCCESS) ? OTA_OK : OTA_PARAMETER_FAIL;
+}
+
+/*
+ * firmware_ready_fptr() Function pointer for telling to Update client that firmware image has been fully received
+ *            Type: event queue callback
+ *            Valid for: Node
+ */
+void arm_uc_multicast_firmware_ready()
+{
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+    fota_multicast_node_on_image_ready();
+#endif
+}
+
+/*
+ * Fota callback after firmware has been activated with fota_multicast_node_on_activate.
+ */
+void arm_uc_multicast_fota_multicast_node_post_update_fw_action_callback(int result)
+{
+    (void)result;
+    // for next update, set arm_uc_multicast_manifest_rejected = true so if node misses
+    //  manifest alltogether it knows to call the fota_multicast_node_get_ready_for_image
+    arm_uc_multicast_manifest_rejected = true;
+}
+
+/*
+ * Fota callback after manifest has been succesfully inserted with fota_multicast_node_on_manifest.
+ */
+void arm_uc_multicast_fota_multicast_node_post_manifest_received_action_callback(int result)
+{
+    if (result != FOTA_STATUS_SUCCESS) {
+        tr_error("Error setting manifest to fota: %d", result);
+        arm_uc_multicast_manifest_rejected = true;
+    }
+    else {
+        tr_debug("Manifest set to fota.");
+        arm_uc_multicast_manifest_rejected = false;
+    }
+}
+
+/*
+ * Fota callback after firmware has been downloaded with fota_multicast_br_on_image_request.
+ */
+void arm_uc_multicast_fota_multicast_br_post_start_received_action_callback(int result)
+{
+    if (result == FOTA_STATUS_SUCCESS) {
+        arm_uc_multicast_event.data.data_ptr = NULL;
+        arm_uc_multicast_event.data.event_data = 0;
+        arm_uc_multicast_event.data.event_id = 0;
+        arm_uc_multicast_event.data.sender = 0;
+        arm_uc_multicast_event.data.event_type = ARM_UC_OTA_MULTICAST_DL_DONE_EVENT;
+        arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+        arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
+
+        eventOS_event_send_user_allocated(&arm_uc_multicast_event);
+    }
+    else {
+        // TODO: abort libota?
+    }
+}
+
+/*
+ * Event queue callback for decoupling libota callbacks and Update client process
+ */
+void arm_uc_multicast_update_client_event(uintptr_t event_data)
+{
+#if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+    multicast_fota_event fota_event = (multicast_fota_event)event_data;
+    switch(fota_event) {
+        case MULTICAST_FOTA_EVENT_MANIFEST_RECEIVED:
+            // TODO: check error code?
+            fota_multicast_br_on_image_request(&fota_br_image_params, arm_uc_multicast_fota_multicast_br_post_start_received_action_callback);
+            break;
+        default:
+            tr_error("Unknown event in arm_uc_multicast_update_client_event! (%d)", (int)fota_event);
+            break;
+    }
+#else
+    (void)event_data;
+    tr_error("Unexpected call to arm_uc_multicast_update_client_event!");
+#endif
+}
+
+void arm_uc_multicast_update_client_external_update_event(struct arm_event_s *event)
+{
+    // to keep the event handler generic, should never get called in fota case as external update is
+    // handled with component update
+    (void)event;
+}
+
+#endif // defined(MULTICAST_FOTA_INTEGRATION)
 
 #endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
