@@ -24,16 +24,16 @@
 #include "mbed-client/m2minterface.h"
 #include "mbed-client/m2mconnectionobserver.h"
 #include "mbed-client/m2mconnectionsecurity.h"
+#include "mbed-client/m2mconnectionhandler.h"
 #include "nsdl-c/sn_nsdl.h"
 #include "pal.h"
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 #include "mbed-client/m2mtimerobserver.h"
 #endif
 
 class M2MConnectionSecurity;
-class M2MConnectionHandler;
 class M2MSecurity;
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 class M2MTimer;
 #endif
 
@@ -43,7 +43,7 @@ class M2MTimer;
  */
 
 
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 class M2MConnectionHandlerPimpl :  public M2MTimerObserver {
 #else
 class M2MConnectionHandlerPimpl {
@@ -51,13 +51,14 @@ class M2MConnectionHandlerPimpl {
 public:
 
     enum SocketEvent {
-        ESocketIdle          = 0x00,
-        ESocketCallback      = 0x02,
-        ESocketConnect       = 0x04,
-        ESocketSend          = 0x08,
-        ESocketDnsResolved   = 0x10,
-        ESocketDnsError      = 0x20,
-        ESocketClose         = 0x40
+        ESocketIdle             = 0x00,
+        ESocketCallback         = 0x02,
+        ESocketConnect          = 0x04,
+        ESocketSend             = 0x08,
+        ESocketDnsResolved      = 0x10,
+        ESocketDnsError         = 0x20,
+        ESocketAlreadyConnected = 0x40,
+        ESocketClose            = 0x80
     };
 
     // NOTE! Check that these values does not overlap with the SocketEvent values
@@ -69,15 +70,15 @@ public:
     /**
     * @brief Constructor
     */
-    M2MConnectionHandlerPimpl(M2MConnectionHandler* base, M2MConnectionObserver &observer,
-                              M2MConnectionSecurity* sec,
+    M2MConnectionHandlerPimpl(M2MConnectionHandler *base, M2MConnectionObserver &observer,
+                              M2MConnectionSecurity *sec,
                               M2MInterface::BindingMode mode,
                               M2MInterface::NetworkStack /*stack*/);
 
     /**
     * @brief Destructor
     */
-    ~M2MConnectionHandlerPimpl();
+    virtual ~M2MConnectionHandlerPimpl();
 
     void start_timer(void);
 
@@ -97,11 +98,11 @@ public:
     * @param is_server_ping Defines whether the call is for Server ping or not.
     * @return true if address is valid else false.
     */
-    bool resolve_server_address(const String& server_address,
+    bool resolve_server_address(const String &server_address,
                                 const uint16_t server_port,
                                 M2MConnectionObserver::ServerType server_type,
-                                const M2MSecurity* security,
-                                bool is_server_ping =false);
+                                const M2MSecurity *security,
+                                bool is_server_ping = false);
 
     /**
     * @brief Sends data, to the connected sent to server.
@@ -188,6 +189,12 @@ public:
     void unregister_network_handler();
 
     /**
+     * \brief Set socket priority.
+     * \return true if socket option was set correctly.
+     */
+    bool set_socket_priority(M2MConnectionHandler::SocketPriority priority);
+
+    /**
      * \brief Stores CID persistently for DTLS connections.
      */
     void store_cid();
@@ -210,11 +217,18 @@ public:
      */
     void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
 
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
     /**
     * \brief stop _dns_fallback_timer
     */
     void stop_dns_fallback_timer();
+#if (PAL_DNS_API_VERSION == 3)
+    /**
+     * \brief Set palAddressInfo_t. Used from callback address_resolver_cb.
+     * \param addrInfo pointer to palAddressInfo_t object
+     */
+    void set_address_info(palAddressInfo_t *addrInfo);
+#endif
 #endif
 
 private:
@@ -267,7 +281,7 @@ private:
     */
     void initialize_event(arm_event_storage_t *event);
 
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
     /**
     * \brief Indicates that the timer has expired.
     * \param type The type of the timer that has expired.
@@ -295,13 +309,16 @@ private:
     /**
      * @brief Get first item from the queue list.
      */
-    send_data_queue_s* get_item_from_list();
+    send_data_queue_s *get_item_from_list();
 
     /**
      * @brief Add queue data back to list.
      */
-    void add_item_to_list(send_data_queue_s* data);
-
+    void add_item_to_list(send_data_queue_s *data);
+#if (PAL_DNS_API_VERSION == 3)
+private:
+    void free_address_info();
+#endif
 private:
     enum SocketState {
 
@@ -358,7 +375,12 @@ private:
     uint32_t                                    _net_iface;
 #if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
     palSocketLength_t                           _socket_address_len;
-#else
+#elif (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
+#if (PAL_DNS_API_VERSION == 3)
+    uint16_t                                    _current_address_info;
+    uint16_t                                    _address_info_count;
+    palAddressInfo_t                            *_address_info;
+#endif
     palDNSQuery_t                               _handler_async_DNS;
     M2MTimer                                    *_dns_fallback_timer;
 #endif
@@ -375,10 +397,10 @@ private:
     bool                                        _is_server_ping;
     arm_event_storage_t                         _event;
     arm_event_storage_t                         _socket_callback_event;
-friend class Test_M2MConnectionHandlerPimpl;
-friend class Test_M2MConnectionHandlerPimpl_mbed;
-friend class Test_M2MConnectionHandlerPimpl_classic;
-friend class M2MConnection_TestObserver;
+    friend class Test_M2MConnectionHandlerPimpl;
+    friend class Test_M2MConnectionHandlerPimpl_mbed;
+    friend class Test_M2MConnectionHandlerPimpl_classic;
+    friend class M2MConnection_TestObserver;
 };
 
 #endif //M2M_CONNECTION_HANDLER_PIMPL_H__

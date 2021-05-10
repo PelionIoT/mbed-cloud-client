@@ -230,7 +230,31 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
  */
 palStatus_t pal_plat_getAddressInfo(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength);
 
-#elif (PAL_DNS_API_VERSION == 2)
+#elif (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
+#if (PAL_DNS_API_VERSION == 3)
+/*! \brief This function puts the palSocketAddress_t from the given index in palAddressInfo_t to the given addr
+ * @param[in] addrInfo The palAddressInfo_t which (if any) palSocketAddress_t is get.
+ * @param[in] index Index of the address in addrInfo to fetch.
+ * @param[out] addr palSocketAddress_t is put to this instance is any if found.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ */
+palStatus_t pal_plat_getDNSAddress(palAddressInfo_t *addrInfo, uint16_t index, palSocketAddress_t *addr);
+
+/*! \brief Return the number of dns addresses in the given addrInfo
+ * @param[in] addrInfo The palAddressInfo_t to be used for countung dns addresses.
+ * \return Number of DNS addresses in the given addrInfo.
+ */
+int pal_plat_getDNSCount(palAddressInfo_t *addrInfo);
+
+/*! \brief Free the given addrInfo.
+ * @param[in] addrInfo OS specific palAddressInfo_t which holds dns addresses.
+ */
+void pal_plat_freeAddrInfo(palAddressInfo_t* addrInfo);
+
+/*! \brief This function free's the thread used in pal_getAddressInfoAsync
+*/
+palStatus_t pal_plat_free_addressinfoAsync(palDNSQuery_t queryHandle);
+#endif
 
 /*! \brief This function translates a hostname to a `palSocketAddress_t` that can be used with PAL sockets.
  * @param[in] info address of `pal_asyncAddressInfo_t`.
@@ -242,7 +266,7 @@ palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo_t* info);
  */
 palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
 #else
-    #error "Please specify the platform PAL_DNS_API_VERSION 0, 1, or 2."
+    #error "Please specify the platform PAL_DNS_API_VERSION 0, 1, 2 or 3."
 #endif //  PAL_DNS_API_VERSION
 
 #endif // PAL_NET_DNS_SUPPORT

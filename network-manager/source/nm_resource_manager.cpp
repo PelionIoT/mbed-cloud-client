@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pelion. All rights reserved.
+ * Copyright (c) 2020-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -530,7 +530,7 @@ nm_status_t nm_res_manager_get(void *resource_object)
                 return NM_STATUS_FAIL;
             }
             tr_info("Routing Table resource value Set to Cloud Client");
-            /* Do not need to free buf pointer. We may use the same memory next time */
+            nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
         tr_warn("FAILED to fetch Routing Table");

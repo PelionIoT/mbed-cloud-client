@@ -798,8 +798,9 @@ protected: // from M2MReportObserver
      * \brief Cancels the ongoing observation.
      *
      * \param status Delivery status to be sent to application
+     * \param notify Whether application is notified or not
      */
-    void cancel_observation(M2MBase::MessageDeliveryStatus status = M2MBase::MESSAGE_STATUS_UNSUBSCRIBED);
+    void cancel_observation(M2MBase::MessageDeliveryStatus status = M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, bool notify = true);
 
     /**
      * \brief Start the observation.

@@ -491,18 +491,23 @@ palStatus_t pal_getAddressInfoAsync(const char* hostname,
     }
     return status;
 }
-#elif (PAL_DNS_API_VERSION == 2)
-#ifndef TARGET_LIKE_MBED
+
+#elif (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
+#if !defined(TARGET_LIKE_MBED) && (PAL_DNS_API_VERSION == 2)
 #error "PAL_DNS_API_VERSION 2 is only supported with mbed-os"
 #endif
 palStatus_t pal_getAddressInfoAsync(const char* hostname,
-                                     palSocketAddress_t* address,
-                                     palGetAddressInfoAsyncCallback_t callback,
-                                     void* callbackArgument,
-                                     palDNSQuery_t* queryHandle)
+#if (PAL_DNS_API_VERSION == 2)
+                                    palSocketAddress_t* address,
+#endif
+                                    palGetAddressInfoAsyncCallback_t callback,
+                                    void* callbackArgument,
+                                    palDNSQuery_t* queryHandle)
 {
-    PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == address) || (NULL == callback))
-
+    PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == callback))
+#if (PAL_DNS_API_VERSION == 2)
+    PAL_VALIDATE_ARGUMENTS (NULL == address)
+#endif
     palStatus_t status;
 
     pal_asyncAddressInfo_t* info = (pal_asyncAddressInfo_t*)malloc(sizeof(pal_asyncAddressInfo_t));
@@ -511,7 +516,9 @@ palStatus_t pal_getAddressInfoAsync(const char* hostname,
     }
     else {
         info->hostname = (char*)hostname;
+#if (PAL_DNS_API_VERSION == 2)
         info->address = address;
+#endif
         info->callback = callback;
         info->callbackArgument = callbackArgument;
         info->queryHandle = queryHandle;
@@ -528,6 +535,29 @@ palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
     return pal_plat_cancelAddressInfoAsync(queryHandle);
 }
 
+#if (PAL_DNS_API_VERSION == 3)
+palStatus_t pal_getDNSAddress(palAddressInfo_t *addrInfo, uint16_t index, palSocketAddress_t *addr)
+{
+    PAL_VALIDATE_ARGUMENTS ((NULL == addrInfo) || (NULL == addr))
+    PAL_VALIDATE_ARGUMENTS (pal_getDNSCount(addrInfo) <= index)
+    return pal_plat_getDNSAddress(addrInfo, index, addr);
+}
+
+int pal_getDNSCount(palAddressInfo_t *addrInfo)
+{
+    return pal_plat_getDNSCount(addrInfo);
+}
+
+void pal_freeAddrInfo(palAddressInfo_t* addrInfo)
+{
+    pal_plat_freeAddrInfo(addrInfo);
+}
+
+palStatus_t pal_free_addressinfoAsync(palDNSQuery_t handle)
+{
+    return pal_plat_free_addressinfoAsync(handle);
+}
+#endif
 #endif //  PAL_DNS_API_VERSION
 #endif // PAL_NET_DNS_SUPPORT
 

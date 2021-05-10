@@ -22,7 +22,7 @@
 #ifndef FCC_NANOCLIENT_ENABLED
 #include "pal.h"
 #endif
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #include "cs_utils.h"
 #include "pv_macros.h"
 #include "key_slot_allocator.h"

@@ -1655,7 +1655,7 @@ void fota_on_authorize(int32_t status)
     FOTA_ASSERT(
         (fota_ctx->state == FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION) ||
         (fota_ctx->state == FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION)
-    )
+    );
 
     if (fota_ctx->state == FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION) {
         FOTA_TRACE_INFO("Install authorization granted.");

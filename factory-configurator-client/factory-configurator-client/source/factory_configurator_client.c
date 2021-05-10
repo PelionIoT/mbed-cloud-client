@@ -25,7 +25,7 @@
 #ifndef FCC_NANOCLIENT_ENABLED
 #include "pal.h"
 #endif
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #include "fcc_utils.h"
 
 /**

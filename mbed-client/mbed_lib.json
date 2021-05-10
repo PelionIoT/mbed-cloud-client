@@ -20,6 +20,7 @@
         "disable-delayed-response": null,
         "disable-block-message": null,
         "memory-optimized-api": null,
-        "enable-observation-parameters" : 1
+        "enable-observation-parameters" : 1,
+        "bootstrap-piggybacked-response" : null
     }
 }

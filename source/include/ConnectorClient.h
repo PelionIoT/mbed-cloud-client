@@ -43,15 +43,6 @@
 
 class ConnectorClientCallback;
 
-#if MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION
-// We should not really pollute application's namespace with std by having this in
-// a public header file.
-// But as as removal of the next line may break existing applications, which build due to this
-// leakage, we need to maintain the old behavior for a while and just allow one to remove it.
-using namespace std;
-#endif
-
-
 /**
  * \brief ConnectorClientEndpointInfo
  * A structure that contains the needed endpoint information to register with the Cloud service.
@@ -83,7 +74,7 @@ public:
  */
 class ConnectorClient : public M2MInterfaceObserver
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-        , public M2MTimerObserver
+    , public M2MTimerObserver
 #endif
 {
 
@@ -108,7 +99,9 @@ public:
         State_Registration_Success,
         State_Registration_Failure,
         State_Registration_Updated,
-        State_Unregistered
+        State_Unregistered,
+        State_Alert_Mode,
+        State_Paused
     };
 
 public:
@@ -117,7 +110,7 @@ public:
     *  \brief Constructor.
     *  \param callback, A callback for the status from ConnectorClient.
     */
-    ConnectorClient(ConnectorClientCallback* callback);
+    ConnectorClient(ConnectorClientCallback *callback);
 
     /**
     *  \brief Destructor.
@@ -143,7 +136,7 @@ public:
     *  \brief Starts the registration sequence from the Service Client.
     *  \param client_objs, A list of objects implementing the M2MBase interface to be registered with Cloud.
     */
-    void start_registration(M2MBaseList* client_objs);
+    void start_registration(M2MBaseList *client_objs);
 
     /**
     *  \brief Starts full registration sequence from the Service Client.
@@ -159,7 +152,7 @@ public:
      * \brief Returns the M2MInterface handler.
      * \return M2MInterface, Handled for M2MInterface.
     */
-    M2MInterface * m2m_interface();
+    M2MInterface *m2m_interface();
 
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
@@ -189,46 +182,46 @@ public:
      * \brief Returns pointer to the ConnectorClientEndpointInfo object.
      * \return ConnectorClientEndpointInfo pointer.
     */
-   const ConnectorClientEndpointInfo *endpoint_info() const;
+    const ConnectorClientEndpointInfo *endpoint_info() const;
 
-   /**
-    * \brief Returns KCM Certificate chain handle pointer.
-    * \return KCM Certificate chain handle pointer.
-    */
-   void *certificate_chain_handle() const;
+    /**
+     * \brief Returns KCM Certificate chain handle pointer.
+     * \return KCM Certificate chain handle pointer.
+     */
+    void *certificate_chain_handle() const;
 
-   /**
-    * \brief Sets the KCM certificate chain handle pointer.
-    * \param cert_handle KCM Certificate chain handle.
-    */
-   void set_certificate_chain_handle(void *cert_handle);
+    /**
+     * \brief Sets the KCM certificate chain handle pointer.
+     * \param cert_handle KCM Certificate chain handle.
+     */
+    void set_certificate_chain_handle(void *cert_handle);
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
-   static void est_enrollment_result(est_enrollment_result_e result,
-                                     cert_chain_context_s *cert_chain,
-                                     void *context);
+    static void est_enrollment_result(est_enrollment_result_e result,
+                                      cert_chain_context_s *cert_chain,
+                                      void *context);
 
-   /**
-    * \brief Get reference to the EST client instance.
-   */
-   const EstClient &est_client() const;
+    /**
+     * \brief Get reference to the EST client instance.
+    */
+    const EstClient &est_client() const;
 #endif /* MBED_CLIENT_DISABLE_EST_FEATURE */
 
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-   /**
-   * \brief Starts bootstrap sequence again.
-   * This will clean the old LwM2M credentials.
-   *
-   */
-   void bootstrap_again();
+    /**
+    * \brief Starts bootstrap sequence again.
+    * This will clean the old LwM2M credentials.
+    *
+    */
+    void bootstrap_again();
 #endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
-   /**
-   * \brief Returns the binding mode selected by the client
-   * through the configuration.
-   * \return Binding mode of the client.
-   */
-   M2MInterface::BindingMode transport_mode();
+    /**
+    * \brief Returns the binding mode selected by the client
+    * through the configuration.
+    * \return Binding mode of the client.
+    */
+    M2MInterface::BindingMode transport_mode();
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     void external_update(uint32_t offset, uint32_t size);
@@ -284,7 +277,7 @@ public:
      * \param server_object, An object containing information about the LWM2M server.
      * The client maintains the object.
      */
-    virtual void registration_updated(M2MSecurity *security_object, const M2MServer & server_object);
+    virtual void registration_updated(M2MSecurity *security_object, const M2MServer &server_object);
 
     /**
      * \brief A callback indicating that there was an error during the operation.
@@ -305,6 +298,9 @@ public:
      */
     virtual void network_status_changed(bool connected);
 
+    virtual void paused();
+
+    virtual void alert_mode();
 
     /**
      * \brief Resumes client's timed functionality and network connection
@@ -456,9 +452,15 @@ private:
     */
     void init_security_object();
 
+    /**
+    * \brief Bootstrap performed.
+    *
+    */
+    bool bootstrapped();
+
 private:
     // A callback to be called after the sequence is complete.
-    ConnectorClientCallback*            _callback;
+    ConnectorClientCallback            *_callback;
     StartupSubStateRegistration         _current_state;
     bool                                _event_generated;
     bool                                _state_engine_running;

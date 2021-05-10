@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2020-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -123,12 +123,45 @@ static void nm_event_handler(arm_event_s *event)
     }
 }
 
+nm_error_t NetworkManager::configure_factory_mac_address(void *mesh_iface, void *backhaul_iface)
+{
+    if (nm_mesh_configure_factory_mac_address((NetworkInterface *)mesh_iface) == NM_STATUS_FAIL) {
+        tr_error("Could not configure Factory MAC Address on Mesh Interface");
+        return NM_ERROR_UNKNOWN;
+    }
+
+    if (nm_backhaul_configure_factory_mac_address((NetworkInterface *)backhaul_iface) == NM_STATUS_FAIL) {
+        tr_error("Could not configure Factory MAC Address on Backhaul Interface");
+        return NM_ERROR_UNKNOWN;
+    }
+
+    return NM_ERROR_NONE;
+}
+
+nm_error_t NetworkManager::configure_factory_mac_address(void *mesh_iface)
+{
+    if (nm_mesh_configure_factory_mac_address((NetworkInterface *)mesh_iface) == NM_STATUS_FAIL) {
+        tr_error("Could not configure Factory MAC Address on Mesh Interface");
+        return NM_ERROR_UNKNOWN;
+    }
+
+    return NM_ERROR_NONE;
+}
+
 nm_error_t NetworkManager::reg_and_config_iface(void *mesh_iface, void *backhaul_iface, void *br_iface)
 {
     register_interfaces((NetworkInterface *)mesh_iface, (NetworkInterface *)backhaul_iface, (WisunBorderRouter *)br_iface);
 
+    if (nm_factory_configure_mesh_iface() == NM_STATUS_FAIL) {
+        tr_error("Could not SET Factory Configuration on Mesh Interface");
+        return NM_ERROR_UNKNOWN;
+    }
     if (nm_configure_mesh_iface() == NM_STATUS_FAIL) {
         tr_error("Could not configure Mesh Interface");
+        return NM_ERROR_UNKNOWN;
+    }
+    if (nm_factory_configure_border_router() == NM_STATUS_FAIL) {
+        tr_error("Could not SET Factory Configuration on BR Interface");
         return NM_ERROR_UNKNOWN;
     }
     if (nm_configure_border_router() == NM_STATUS_FAIL) {
@@ -143,6 +176,10 @@ nm_error_t NetworkManager::reg_and_config_iface(void *mesh_iface)
 {
     register_interfaces((NetworkInterface *)mesh_iface, NULL, NULL);
 
+    if (nm_factory_configure_mesh_iface() == NM_STATUS_FAIL) {
+        tr_error("Could not SET Factory Configuration on Mesh Interface");
+        return NM_ERROR_UNKNOWN;
+    }
     if (nm_configure_mesh_iface() == NM_STATUS_FAIL) {
         tr_error("Could not configure Mesh Interface");
         return NM_ERROR_UNKNOWN;

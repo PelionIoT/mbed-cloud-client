@@ -353,6 +353,7 @@ private:
     friend class Test_M2MResourceInstance;
     friend class Test_M2MReportHandler;
     friend class TestFactory;
+    friend class Test_M2MInterfaceImpl;
 };
 
 inline M2MObject& M2MObjectInstance::get_parent_object() const

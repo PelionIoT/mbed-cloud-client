@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 ARM Limited. All rights reserved.
+ * Copyright (c) 2020-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -31,6 +31,29 @@ typedef enum nm_error {
  */
 class NetworkManager {
 public:
+
+    /**
+     * \brief Reads MAC addresses from factory configuration and set on Mesh interface and Backhaul interface.
+     *
+     * Function reads the MAC addresses from factory configuration and set on Mesh interface and Backhaul interface.
+     *
+     * \param mesh_iface Instance of Mesh interface.
+     * \param backhaul_iface Instance of Backhaul interface.
+     * \return NM_ERROR_NONE on success.
+     * \return NM_ERROR_UNKNOWN in case of failure.
+     * */
+    nm_error_t configure_factory_mac_address(void *mesh_iface, void *backhaul_iface);
+
+    /**
+     * \brief Reads MAC address from factory configuration and set on Mesh interface.
+     *
+     * Function reads the MAC address from factory configuration and set on Mesh interface.
+     *
+     * \param mesh_iface Instance of mesh interface.
+     * \return NM_ERROR_NONE on success.
+     * \return NM_ERROR_UNKNOWN in case of failure.
+     * */
+    nm_error_t configure_factory_mac_address(void *mesh_iface);
 
     /**
      * \brief Registers the interfaces into Network manager and configures them with latest configuration.

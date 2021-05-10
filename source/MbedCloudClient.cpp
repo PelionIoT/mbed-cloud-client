@@ -18,7 +18,6 @@
 
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 #include "mbed-cloud-client/MbedCloudClient.h"
-#include "mbed-cloud-client/SimpleM2MResource.h"
 #include "pal.h"
 
 #include "mbed-trace/mbed_trace.h"
@@ -34,10 +33,10 @@
 #define TRACE_GROUP "mClt"
 
 MbedCloudClient::MbedCloudClient()
-:_client(*this),
- _value_callback(NULL),
- _error_description(NULL),
- _init_done(false)
+    : _client(*this),
+      _value_callback(NULL),
+      _error_description(NULL),
+      _init_done(false)
 {
 }
 
@@ -45,18 +44,39 @@ MbedCloudClient::MbedCloudClient(void(*on_registered_cb)(void),
                                  void(*on_unregistered_cb)(void),
                                  void(*on_error_cb)(int)
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
-                                 ,void(*on_update_authorize_cb)(int32_t request),
+                                 , void(*on_update_authorize_cb)(int32_t request),
                                  void(*on_update_progress_cb)(uint32_t progress, uint32_t total)
 #endif
                                 )
 
-:_client(*this),
- _value_callback(NULL),
- _error_description(NULL),
- _init_done(false)
+    : _client(*this),
+      _value_callback(NULL),
+      _error_description(NULL),
+      _init_done(false)
 {
     this->on_registered(on_registered_cb);
     this->on_unregistered(on_unregistered_cb);
+    this->on_error(on_error_cb);
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+    this->set_update_authorize_handler(on_update_authorize_cb);
+    this->set_update_progress_handler(on_update_progress_cb);
+#endif
+}
+
+MbedCloudClient::MbedCloudClient(void(*on_status_changed_cb)(int),
+                                 void(*on_error_cb)(int)
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+                                 , void(*on_update_authorize_cb)(int32_t request),
+                                 void(*on_update_progress_cb)(uint32_t progress, uint32_t total)
+#endif
+                                )
+
+    : _client(*this),
+      _value_callback(NULL),
+      _error_description(NULL),
+      _init_done(false)
+{
+    this->on_status_changed(on_status_changed_cb);
     this->on_error(on_error_cb);
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     this->set_update_authorize_handler(on_update_authorize_cb);
@@ -69,23 +89,23 @@ MbedCloudClient::~MbedCloudClient()
     _object_list.clear();
 }
 
-void MbedCloudClient::add_objects(const M2MObjectList& object_list)
+void MbedCloudClient::add_objects(const M2MObjectList &object_list)
 {
-    if(!object_list.empty()) {
+    if (!object_list.empty()) {
         M2MObjectList::const_iterator it;
         it = object_list.begin();
-        for (; it!= object_list.end(); it++) {
-            _object_list.push_back((M2MBase*)*it);
+        for (; it != object_list.end(); it++) {
+            _object_list.push_back((M2MBase *)*it);
         }
     }
 }
 
-void MbedCloudClient::add_objects(const M2MBaseList& base_list)
+void MbedCloudClient::add_objects(const M2MBaseList &base_list)
 {
-    if(!base_list.empty()) {
+    if (!base_list.empty()) {
         M2MBaseList::const_iterator it;
         it = base_list.begin();
-        for (; it!= base_list.end(); it++) {
+        for (; it != base_list.end(); it++) {
             _object_list.push_back(*it);
         }
     }
@@ -101,7 +121,7 @@ void MbedCloudClient::remove_object(M2MBase *object)
     int index;
     tr_debug("MbedCloudClient::remove_object %p", object);
     for (it = _object_list.begin(), index = 0; it != _object_list.end(); it++, index++) {
-        if(*it == object) {
+        if (*it == object) {
             found_index = index;
             break;
         }
@@ -134,18 +154,9 @@ bool MbedCloudClient::init()
     return _init_done;
 }
 
-bool MbedCloudClient::setup(void* iface)
+bool MbedCloudClient::setup(void *iface)
 {
     tr_debug("MbedCloudClient setup()");
-
-    // Add objects to list
-#if MBED_CLOUD_CLIENT_STL_API
-    map<string, M2MObject*>::iterator it;
-    for (it = _objects.begin(); it != _objects.end(); it++)
-    {
-        _object_list.push_back((M2MBase*)it->second);
-    }
-#endif
 
     if (!init()) {
         return false;
@@ -167,6 +178,11 @@ void MbedCloudClient::on_registered(void(*fn)(void))
 void MbedCloudClient::on_error(void(*fn)(int))
 {
     _on_error = fn;
+}
+
+void MbedCloudClient::on_status_changed(void(*fn)(int))
+{
+    _on_status_changed = fn;
 }
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
@@ -248,20 +264,6 @@ void MbedCloudClient::set_entropy_callback(entropy_cb callback)
     }
 }
 
-#if MBED_CLOUD_CLIENT_STL_API
-bool MbedCloudClient::set_device_resource_value(M2MDevice::DeviceResource resource,
-                                                const std::string &value)
-{
-    return _client.set_device_resource_value(resource, value);
-}
-
-void MbedCloudClient::register_update_callback(string route,
-                                               SimpleM2MResourceBase* resource)
-{
-    _update_values[route] = resource;
-}
-#endif // MBED_CLOUD_CLIENT_STL_API
-
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
 void MbedCloudClient::set_update_authorize_handler(void (*handler)(int32_t request))
 {
@@ -294,19 +296,25 @@ const char *MbedCloudClient::error_description() const
     return _error_description;
 }
 
-
 void MbedCloudClient::complete(ServiceClientCallbackStatus status)
 {
     tr_info("MbedCloudClient::complete status (%d)", status);
     if (status == Service_Client_Status_Registered) {
         _on_registered.call();
+        _on_status_changed.call(Registered);
     } else if (status == Service_Client_Status_Unregistered) {
         _object_list.clear();
         _on_unregistered.call();
+        _on_status_changed.call(Unregistered);
     } else if (status == Service_Client_Status_Register_Updated) {
         _on_registration_updated.call();
+        _on_status_changed.call(RegistrationUpdated);
+    } else if (status == Service_Client_Status_Paused) {
+        _on_status_changed.call(Paused);
+    } else if (status == Service_Client_Status_Alert_Mode) {
+        _on_status_changed.call(AlertMode);
     }
-    // ToDo: should we have some handling for Service_Client_Status_Failure    
+    // ToDo: should we have some handling for Service_Client_Status_Failure
 }
 
 void MbedCloudClient::error(int error, const char *reason)
@@ -321,17 +329,9 @@ void MbedCloudClient::value_updated(M2MBase *base, M2MBase::BaseType type)
     if (base) {
         tr_info("MbedCloudClient::value_updated path %s", base->uri_path());
         if (base->uri_path()) {
-#if MBED_CLOUD_CLIENT_STL_API
-            if (_update_values.count(base->uri_path()) != 0) {
-                tr_debug("MbedCloudClient::value_updated calling update() for %s", base->uri_path());
-                _update_values[base->uri_path()]->update();
-            } else
-#endif
-            {
-                // way to tell application that there is a value update
-                if (_value_callback) {
-                    _value_callback->value_updated(base, type);
-                }
+            // way to tell application that there is a value update
+            if (_value_callback) {
+                _value_callback->value_updated(base, type);
             }
         }
     }
@@ -349,12 +349,12 @@ void MbedCloudClient::send_get_request(DownloadType type,
 
     if (success) {
         _client.connector_client().m2m_interface()->get_data_request(type,
-                                                                    uri,
-                                                                    offset,
-                                                                    true,
-                                                                    data_cb,
-                                                                    error_cb,
-                                                                    context);
+                                                                     uri,
+                                                                     offset,
+                                                                     true,
+                                                                     data_cb,
+                                                                     error_cb,
+                                                                     context);
     }
 }
 
@@ -371,7 +371,7 @@ void MbedCloudClient::on_certificate_renewal(cert_renewal_cb_f user_cb)
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-const M2MBaseList* MbedCloudClient::get_object_list() const
+const M2MBaseList *MbedCloudClient::get_object_list() const
 {
     return &_object_list;
 }
@@ -395,6 +395,16 @@ void MbedCloudClient::resume(void *iface)
     if (success) {
         _client.connector_client().m2m_interface()->set_platform_network_handler(iface, _client.connector_client().connector_credentials_available());
         _client.connector_client().resume();
+    }
+}
+
+void MbedCloudClient::alert()
+{
+    // finish the ServiceClient's initialization and M2MInterface
+    bool success = _client.connector_client().setup();
+
+    if (success) {
+        _client.connector_client().m2m_interface()->alert();
     }
 }
 

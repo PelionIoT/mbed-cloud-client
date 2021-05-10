@@ -57,10 +57,6 @@
 #endif
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 
-#if MBED_CLOUD_CLIENT_STL_API
-#include <string>
-#endif
-
 #include <assert.h>
 #include <inttypes.h>
 
@@ -75,22 +71,22 @@ const uint8_t ServiceClient::hex_table[16] = {
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
 };
 
-ServiceClient::ServiceClient(ServiceClientCallback& callback)
-: _service_callback(callback),
-  _service_uri(NULL),
-  _stack(NULL),
-  _client_objs(NULL),
-  _current_state(State_Init),
-  _event_generated(false),
-  _state_engine_running(false),
+ServiceClient::ServiceClient(ServiceClientCallback &callback)
+    : _service_callback(callback),
+      _service_uri(NULL),
+      _stack(NULL),
+      _client_objs(NULL),
+      _current_state(State_Init),
+      _event_generated(false),
+      _state_engine_running(false),
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-  _uc_hub_tasklet_id(-1),
-  _setup_update_client(false),
+      _uc_hub_tasklet_id(-1),
+      _setup_update_client(false),
 #endif
 #ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
-  _multicast_tasklet_id(-1),
+      _multicast_tasklet_id(-1),
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-  _connector_client(this)
+      _connector_client(this)
 {
 }
 
@@ -120,20 +116,20 @@ bool ServiceClient::init()
     // as it will also initialize the tasklet.
     ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+    if (_uc_hub_tasklet_id < 0) {
+        _uc_hub_tasklet_id = eventOS_event_handler_create(UpdateClient::event_handler, UpdateClient::UPDATE_CLIENT_EVENT_CREATE);
         if (_uc_hub_tasklet_id < 0) {
-            _uc_hub_tasklet_id = eventOS_event_handler_create(UpdateClient::event_handler, UpdateClient::UPDATE_CLIENT_EVENT_CREATE);
-            if (_uc_hub_tasklet_id < 0) {
-                tr_error("ServiceClient::init - failed to create uc hub event handler (%d)", _uc_hub_tasklet_id);
-                _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
-                return false;
-            }
-        }
-#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
-        if (ARM_UC_HUB_createEventHandler() < 0) {
-            tr_error("ServiceClient::init - failed to create uc hub multicast event handler");
+            tr_error("ServiceClient::init - failed to create uc hub event handler (%d)", _uc_hub_tasklet_id);
             _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
             return false;
         }
+    }
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
+    if (ARM_UC_HUB_createEventHandler() < 0) {
+        tr_error("ServiceClient::init - failed to create uc hub multicast event handler");
+        _service_callback.error((int)UpdateClient::WarningUnknown, "Failed to create event handler");
+        return false;
+    }
 #endif // SERVICE_CLIENT_SUPPORT_MULTICAST
 #endif // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
@@ -152,12 +148,12 @@ bool ServiceClient::init()
     return true;
 }
 
-void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
+void ServiceClient::initialize_and_register(M2MBaseList &reg_objs)
 {
     tr_debug("ServiceClient::initialize_and_register");
-    if(_current_state == State_Init ||
-       _current_state == State_Unregister ||
-       _current_state == State_Failure) {
+    if (_current_state == State_Init ||
+            _current_state == State_Unregister ||
+            _current_state == State_Failure) {
         _client_objs = &reg_objs;
 
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
@@ -168,7 +164,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
             return;
         }
 #endif
-        if(!_setup_update_client) {
+        if (!_setup_update_client) {
             _setup_update_client = true;
 
 #ifdef MBED_CLOUD_DEV_UPDATE_ID
@@ -181,14 +177,14 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
             ccs_delete_item("mbed.VendorId", CCS_CONFIG_ITEM);
             /* Store Vendor Id to mbed.VendorId. No conversion is performed. */
             set_device_resource_value(M2MDevice::Manufacturer,
-                                      (const char*) arm_uc_vendor_id,
+                                      (const char *) arm_uc_vendor_id,
                                       arm_uc_vendor_id_size);
 
             /* Delete ClassId */
             ccs_delete_item("mbed.ClassId", CCS_CONFIG_ITEM);
             /* Store Class Id to mbed.ClassId. No conversion is performed. */
             set_device_resource_value(M2MDevice::ModelNumber,
-                                      (const char*) arm_uc_class_id,
+                                      (const char *) arm_uc_class_id,
                                       arm_uc_class_id_size);
 #endif /* MBED_CLOUD_DEV_UPDATE_ID */
 
@@ -211,7 +207,7 @@ void ServiceClient::initialize_and_register(M2MBaseList& reg_objs)
 
                 /* insert value from Update Client Common */
                 ccs_set_item(KEY_DEVICE_SOFTWAREVERSION,
-                             (const uint8_t*) ARM_UPDATE_CLIENT_VERSION,
+                             (const uint8_t *) ARM_UPDATE_CLIENT_VERSION,
                              sizeof(ARM_UPDATE_CLIENT_VERSION),
                              CCS_CONFIG_ITEM);
             }
@@ -255,26 +251,26 @@ void ServiceClient::finish_initialization(void)
     M2MDevice *device_object = device_object_from_storage();
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
-        // Initialize the certificate enrollment resources and module
-        if (CertificateEnrollmentClient::init(*_client_objs, &_connector_client.est_client()) != CE_STATUS_SUCCESS) {
-            _service_callback.error((int)CE_STATUS_INIT_FAILED, "Certificate Enrollment initialization failed");
-        }
+    // Initialize the certificate enrollment resources and module
+    if (CertificateEnrollmentClient::init(*_client_objs, &_connector_client.est_client()) != CE_STATUS_SUCCESS) {
+        _service_callback.error((int)CE_STATUS_INIT_FAILED, "Certificate Enrollment initialization failed");
+    }
 #endif /* !MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT */
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
     // Initialize the device sentry feature
     if (DeviceSentryClient::init(*_client_objs) != DS_STATUS_SUCCESS) {
-         _service_callback.error((int)DS_STATUS_INIT_FAILED, "Device Sentry initialization failed");
+        _service_callback.error((int)DS_STATUS_INIT_FAILED, "Device Sentry initialization failed");
     }
 #endif /* MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY */
 
     if (device_object) {
         /* Publish device object resource to mds */
         M2MResourceList list = device_object->object_instance()->resources();
-        if(!list.empty()) {
+        if (!list.empty()) {
             M2MResourceList::const_iterator it;
             it = list.begin();
-            for ( ; it != list.end(); it++ ) {
+            for (; it != list.end(); it++) {
                 (*it)->set_register_uri(true);
             }
         }
@@ -388,22 +384,44 @@ void ServiceClient::state_register()
 void ServiceClient::registration_process_result(ConnectorClient::StartupSubStateRegistration status)
 {
     tr_debug("ServiceClient::registration_process_result(): status: %d", status);
-    if (status == ConnectorClient::State_Registration_Success) {
+    switch (status) {
+        case ConnectorClient::State_Registration_Success:
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-        fota_app_resume();
+            fota_app_resume();
 #endif
-        internal_event(State_Success);
-    } else if (status == ConnectorClient::State_Registration_Failure || status == ConnectorClient::State_Bootstrap_Failure) {
-        internal_event(State_Failure);
-    } else if (status == ConnectorClient::State_Bootstrap_Success) {
-        internal_event(State_Register);
-    } else if (status == ConnectorClient::State_Unregistered) {
-        internal_event(State_Unregister);
-    } else if (status == ConnectorClient::State_Registration_Updated) {
+            internal_event(State_Success);
+            break;
+        case ConnectorClient::State_Registration_Failure:
+        case ConnectorClient::State_Bootstrap_Failure:
+            internal_event(State_Failure);
+            break;
+
+        case ConnectorClient::State_Bootstrap_Success:
+            internal_event(State_Register);
+            break;
+
+        case ConnectorClient::State_Unregistered:
+            internal_event(State_Unregister);
+            break;
+
+        case ConnectorClient::State_Registration_Updated:
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-        fota_app_resume();
+            fota_app_resume();
 #endif
-        _service_callback.complete(ServiceClientCallback::Service_Client_Status_Register_Updated);
+            _service_callback.complete(ServiceClientCallback::Service_Client_Status_Register_Updated);
+            break;
+
+        case ConnectorClient::State_Paused:
+            _service_callback.complete(ServiceClientCallback::Service_Client_Status_Paused);
+            break;
+
+        case ConnectorClient::State_Alert_Mode:
+            _service_callback.complete(ServiceClientCallback::Service_Client_Status_Alert_Mode);
+            break;
+
+        default:
+            tr_error("ServiceClient::registration_process_result(): unknown status");
+            break;
     }
 }
 
@@ -420,8 +438,8 @@ void ServiceClient::connector_error(M2MInterface::Error error, const char *reaso
     // Client is in State_Failure and failing to bootstrap on InvalidCertificates.
     // Factory reset the credentials to clear invalid/broken certificates and try again.
     else if (_current_state == State_Failure && (error == M2MInterface::InvalidCertificates
-                                              || error == M2MInterface::FailedToStoreCredentials
-                                              || error == M2MInterface::FailedToReadCredentials)) {
+                                                 || error == M2MInterface::FailedToStoreCredentials
+                                                 || error == M2MInterface::FailedToReadCredentials)) {
         _connector_client.factory_reset_credentials();
         _connector_client.bootstrap_again();
     }
@@ -434,7 +452,7 @@ void ServiceClient::connector_error(M2MInterface::Error error, const char *reaso
     else {
         internal_event(State_Failure);
     }
-    _service_callback.error(int(error),reason);
+    _service_callback.error(int(error), reason);
 }
 
 void ServiceClient::value_updated(M2MBase *base, M2MBase::BaseType type)
@@ -477,14 +495,14 @@ void ServiceClient::state_unregister()
     _service_callback.complete(ServiceClientCallback::Service_Client_Status_Unregistered);
 }
 
-M2MDevice* ServiceClient::device_object_from_storage()
+M2MDevice *ServiceClient::device_object_from_storage()
 {
     M2MDevice *device_object = M2MInterfaceFactory::create_device();
     if (device_object == NULL) {
         return NULL;
     }
-    M2MObjectInstance* instance = device_object->object_instance(0);
-    if(instance == NULL) {
+    M2MObjectInstance *instance = device_object->object_instance(0);
+    if (instance == NULL) {
         return NULL;
     }
 
@@ -497,39 +515,39 @@ M2MDevice* ServiceClient::device_object_from_storage()
     // create_resource() function returns NULL if resource already exists
     ccs_status_e status = ccs_get_item(g_fcc_manufacturer_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::Manufacturer, data);
         if (res == NULL) {
             res = instance->resource(DEVICE_MANUFACTURER);
             device_object->set_resource_value(M2MDevice::Manufacturer, data);
         }
-        if(res) {
+        if (res) {
             res->publish_value_in_registration_msg(true);
             res->set_auto_observable(true);
         }
     }
     status = ccs_get_item(g_fcc_model_number_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::ModelNumber, data);
         if (res == NULL) {
             res = instance->resource(DEVICE_MODEL_NUMBER);
             device_object->set_resource_value(M2MDevice::ModelNumber, data);
         }
-        if(res) {
+        if (res) {
             res->publish_value_in_registration_msg(true);
             res->set_auto_observable(true);
         }
     }
     status = ccs_get_item(g_fcc_device_serial_number_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::SerialNumber, data);
         if (res == NULL) {
             res = instance->resource(DEVICE_SERIAL_NUMBER);
             device_object->set_resource_value(M2MDevice::SerialNumber, data);
         }
-        if(res) {
+        if (res) {
             res->publish_value_in_registration_msg(true);
             res->set_auto_observable(true);
         }
@@ -537,7 +555,7 @@ M2MDevice* ServiceClient::device_object_from_storage()
 
     status = ccs_get_item(g_fcc_device_type_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::DeviceType, data);
         if (res == NULL) {
             (void)instance->resource(DEVICE_DEVICE_TYPE);
@@ -547,7 +565,7 @@ M2MDevice* ServiceClient::device_object_from_storage()
 
     status = ccs_get_item(g_fcc_hardware_version_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::HardwareVersion, data);
         if (res == NULL) {
             (void)instance->resource(DEVICE_HARDWARE_VERSION);
@@ -557,7 +575,7 @@ M2MDevice* ServiceClient::device_object_from_storage()
 
     status = ccs_get_item(KEY_DEVICE_SOFTWAREVERSION, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::SoftwareVersion, data);
         if (res == NULL) {
             (void)instance->resource(DEVICE_SOFTWARE_VERSION);
@@ -591,9 +609,9 @@ M2MDevice* ServiceClient::device_object_from_storage()
 
     status = ccs_get_item(g_fcc_device_time_zone_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::Timezone, data);
-        if ( res == NULL) {
+        if (res == NULL) {
             (void)instance->resource(DEVICE_TIMEZONE);
             device_object->set_resource_value(M2MDevice::Timezone, data);
         }
@@ -601,7 +619,7 @@ M2MDevice* ServiceClient::device_object_from_storage()
 
     status = ccs_get_item(g_fcc_offset_from_utc_parameter_name, buffer, buffer_size, &size, CCS_CONFIG_ITEM);
     if (status == CCS_STATUS_SUCCESS) {
-        const String data((char*)buffer, size);
+        const String data((char *)buffer, size);
         res = device_object->create_resource(M2MDevice::UTCOffset, data);
         if (res == NULL) {
             (void)instance->resource(DEVICE_UTC_OFFSET);
@@ -611,9 +629,9 @@ M2MDevice* ServiceClient::device_object_from_storage()
     String binding_mode;
     M2MInterface::BindingMode mode = _connector_client.transport_mode();
     if (mode == M2MInterface::UDP || mode == M2MInterface::TCP) {
-        binding_mode = (char*)BINDING_MODE_UDP;
+        binding_mode = (char *)BINDING_MODE_UDP;
     } else if (mode == M2MInterface::UDP_QUEUE || mode == M2MInterface::TCP_QUEUE) {
-        binding_mode = (char*)BINDING_MODE_UDP_QUEUE;
+        binding_mode = (char *)BINDING_MODE_UDP_QUEUE;
     }
     device_object->set_resource_value(M2MDevice::SupportedBindingMode, binding_mode);
 
@@ -632,46 +650,28 @@ M2MDevice* ServiceClient::device_object_from_storage()
  * \brief Set resource value in the Device Object
  *
  * \param resource Device enum to have value set.
- * \param value String object.
- * \return True if successful, false otherwise.
- */
-#if MBED_CLOUD_CLIENT_STL_API
-bool ServiceClient::set_device_resource_value(M2MDevice::DeviceResource resource,
-                                              const std::string& value)
-{
-    return set_device_resource_value(resource,
-                                     value.c_str(),
-                                     value.size());
-}
-#endif
-
-/**
- * \brief Set resource value in the Device Object
- *
- * \param resource Device enum to have value set.
  * \param value Byte buffer.
  * \param length Buffer length.
  * \return True if successful, false otherwise.
  */
 bool ServiceClient::set_device_resource_value(M2MDevice::DeviceResource resource,
-                                              const char* value,
+                                              const char *value,
                                               uint32_t length)
 {
     bool retval = false;
 
     /* sanity check */
-    if (value && (length < 256) && (length > 0))
-    {
+    if (value && (length < 256) && (length > 0)) {
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
         /* Pass resource value to Update Client.
            Used for validating the manifest.
         */
         switch (resource) {
             case M2MDevice::Manufacturer:
-                ARM_UC_SetVendorId((const uint8_t*) value, length);
+                ARM_UC_SetVendorId((const uint8_t *) value, length);
                 break;
             case M2MDevice::ModelNumber:
-                ARM_UC_SetClassId((const uint8_t*) value, length);
+                ARM_UC_SetClassId((const uint8_t *) value, length);
                 break;
             default:
                 break;
@@ -682,18 +682,18 @@ bool ServiceClient::set_device_resource_value(M2MDevice::DeviceResource resource
     return retval;
 }
 
-void ServiceClient::post_response_status_handler(const M2MBase& base,
+void ServiceClient::post_response_status_handler(const M2MBase &base,
                                                  const M2MBase::MessageDeliveryStatus status,
                                                  const M2MBase::MessageType type,
-                                                 void* me)
+                                                 void *me)
 {
-    switch(status) {
+    switch (status) {
         case M2MBase::MESSAGE_STATUS_DELIVERED: // intentional fall-through
         case M2MBase::MESSAGE_STATUS_SEND_FAILED: {
-            M2MDevice* dev = M2MInterfaceFactory::create_device();
+            M2MDevice *dev = M2MInterfaceFactory::create_device();
             if (dev != NULL && dev->object_instance(0) != NULL &&
-                &base == dev->object_instance(0)->resource(DEVICE_REBOOT)) {
-                ((ServiceClient*)me)->m2mdevice_reboot_execute();
+                    &base == dev->object_instance(0)->resource(DEVICE_REBOOT)) {
+                ((ServiceClient *)me)->m2mdevice_reboot_execute();
             }
             break;
         }
@@ -702,7 +702,7 @@ void ServiceClient::post_response_status_handler(const M2MBase& base,
     }
 }
 
-void ServiceClient::reboot_execute_handler(void*)
+void ServiceClient::reboot_execute_handler(void *)
 {
     // Don't perform reboot yet, as server will not get response. Instead, send response and wait
     // for acknowledgement before rebooting.

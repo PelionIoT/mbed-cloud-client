@@ -24,11 +24,11 @@
 #define BUFFER_SIZE 21
 #define TRACE_GROUP "mClt"
 
-M2MDevice* M2MDevice::_instance = NULL;
+M2MDevice *M2MDevice::_instance = NULL;
 
-M2MDevice* M2MDevice::get_instance()
+M2MDevice *M2MDevice::get_instance()
 {
-    if(_instance == NULL) {
+    if (_instance == NULL) {
         // ownership of this path is transferred to M2MBase.
         // Since this object is a singleton, we could use the C-structs to avoid heap
         // allocation on a lot of M2MDevice -objects data.
@@ -47,32 +47,31 @@ void M2MDevice::delete_instance()
 }
 
 M2MDevice::M2MDevice(char *path)
-: M2MObject(M2M_DEVICE_ID, path)
+    : M2MObject(M2M_DEVICE_ID, path)
 {
     M2MBase::set_register_uri(false);
     M2MBase::set_operation(M2MBase::GET_ALLOWED);
 
     _device_instance = M2MObject::create_object_instance();
-    if(_device_instance) {
+    if (_device_instance) {
         _device_instance->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
         _device_instance->set_register_uri(false);
         _device_instance->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
         _device_instance->set_observable(true); // this object instance has observable resources so also obj inst should be observable
-        M2MResource* res = _device_instance->create_dynamic_resource(DEVICE_REBOOT,
+        M2MResource *res = _device_instance->create_dynamic_resource(DEVICE_REBOOT,
                                                                      OMA_RESOURCE_TYPE,
                                                                      M2MResourceInstance::OPAQUE,
                                                                      false);
-        if(res) {
+        if (res) {
             res->set_operation(M2MBase::POST_ALLOWED);
             res->set_register_uri(true);
         }
 
-        M2MResourceInstance* instance = _device_instance->create_dynamic_resource_instance(DEVICE_ERROR_CODE,
-                                                                 OMA_RESOURCE_TYPE,
-                                                                 M2MResourceInstance::INTEGER,
-                                                                 true,0);
-        if(instance) {
-            M2MResource *dev_res = _device_instance->resource(DEVICE_ERROR_CODE);
+        M2MResourceInstance *instance = _device_instance->create_dynamic_resource_instance(DEVICE_ERROR_CODE,
+                                                                                           OMA_RESOURCE_TYPE,
+                                                                                           M2MResourceInstance::INTEGER,
+                                                                                           true, 0);
+        if (instance) {
             instance->set_operation(M2MBase::GET_ALLOWED);
             instance->set_value(0);
             instance->set_register_uri(true);
@@ -82,9 +81,9 @@ M2MDevice::M2MDevice(char *path)
                                                         OMA_RESOURCE_TYPE,
                                                         M2MResourceInstance::STRING,
                                                         true);
-        if(res) {
+        if (res) {
             res->set_operation(M2MBase::GET_ALLOWED);
-            res->set_value((const uint8_t*)BINDING_MODE_UDP,sizeof(BINDING_MODE_UDP)-1);
+            res->set_value((const uint8_t *)BINDING_MODE_UDP, sizeof(BINDING_MODE_UDP) - 1);
             res->set_register_uri(true);
         }
     }
@@ -94,16 +93,16 @@ M2MDevice::~M2MDevice()
 {
 }
 
-M2MResource* M2MDevice::create_resource(DeviceResource resource, const String &value)
+M2MResource *M2MDevice::create_resource(DeviceResource resource, const String &value)
 {
-    M2MResource* res = NULL;
-    const char* device_id_ptr = "";
+    M2MResource *res = NULL;
+    const char *device_id_ptr = "";
     M2MBase::Operation operation = M2MBase::GET_ALLOWED;
-    if(!is_resource_present(resource) && value.size() <= MAX_ALLOWED_STRING_LENGTH) {
-        switch(resource) {
+    if (!is_resource_present(resource) && value.size() <= MAX_ALLOWED_STRING_LENGTH) {
+        switch (resource) {
             case Manufacturer:
-               device_id_ptr = DEVICE_MANUFACTURER;
-               break;
+                device_id_ptr = DEVICE_MANUFACTURER;
+                break;
             case DeviceType:
                 device_id_ptr = DEVICE_DEVICE_TYPE;
                 break;
@@ -136,19 +135,19 @@ M2MResource* M2MDevice::create_resource(DeviceResource resource, const String &v
     }
     const String device_id(device_id_ptr);
 
-    if(!device_id.empty()) {
-        if(_device_instance) {
+    if (!device_id.empty()) {
+        if (_device_instance) {
             res = _device_instance->create_dynamic_resource(device_id,
                                                             OMA_RESOURCE_TYPE,
                                                             M2MResourceInstance::STRING,
                                                             true);
 
-            if(res ) {
+            if (res) {
                 res->set_operation(operation);
                 if (value.empty()) {
                     res->clear_value();
                 } else {
-                    res->set_value((const uint8_t*)value.c_str(),
+                    res->set_value((const uint8_t *)value.c_str(),
                                    (uint32_t)value.length());
                 }
                 res->set_register_uri(true);
@@ -158,48 +157,48 @@ M2MResource* M2MDevice::create_resource(DeviceResource resource, const String &v
     return res;
 }
 
-M2MResource* M2MDevice::create_resource(DeviceResource resource, int64_t value)
+M2MResource *M2MDevice::create_resource(DeviceResource resource, int64_t value)
 {
-    M2MResource* res = NULL;
-    const char* device_id_ptr = "";
+    M2MResource *res = NULL;
+    const char *device_id_ptr = "";
     M2MBase::Operation operation = M2MBase::GET_ALLOWED;
-    if(!is_resource_present(resource)) {
-        switch(resource) {
-        case BatteryLevel:
-            if(check_value_range(resource, value)) {
-                device_id_ptr = DEVICE_BATTERY_LEVEL;
-            }
-            break;
-        case BatteryStatus:
-            if(check_value_range(resource, value)) {
-                device_id_ptr = DEVICE_BATTERY_STATUS;
-            }
-            break;
-        case MemoryFree:
-            device_id_ptr = DEVICE_MEMORY_FREE;
-            break;
-        case MemoryTotal:
-            device_id_ptr = DEVICE_MEMORY_TOTAL;
-            break;
-        case CurrentTime:
-            device_id_ptr = DEVICE_CURRENT_TIME;
-            operation = M2MBase::GET_PUT_ALLOWED;
-            break;
-        default:
-            break;
+    if (!is_resource_present(resource)) {
+        switch (resource) {
+            case BatteryLevel:
+                if (check_value_range(resource, value)) {
+                    device_id_ptr = DEVICE_BATTERY_LEVEL;
+                }
+                break;
+            case BatteryStatus:
+                if (check_value_range(resource, value)) {
+                    device_id_ptr = DEVICE_BATTERY_STATUS;
+                }
+                break;
+            case MemoryFree:
+                device_id_ptr = DEVICE_MEMORY_FREE;
+                break;
+            case MemoryTotal:
+                device_id_ptr = DEVICE_MEMORY_TOTAL;
+                break;
+            case CurrentTime:
+                device_id_ptr = DEVICE_CURRENT_TIME;
+                operation = M2MBase::GET_PUT_ALLOWED;
+                break;
+            default:
+                break;
         }
     }
 
     const String device_id(device_id_ptr);
 
-    if(!device_id.empty()) {
-        if(_device_instance) {
+    if (!device_id.empty()) {
+        if (_device_instance) {
             res = _device_instance->create_dynamic_resource(device_id,
                                                             OMA_RESOURCE_TYPE,
                                                             M2MResourceInstance::INTEGER,
                                                             true);
 
-            if(res) {
+            if (res) {
 
 
                 res->set_operation(operation);
@@ -212,39 +211,39 @@ M2MResource* M2MDevice::create_resource(DeviceResource resource, int64_t value)
     return res;
 }
 
-M2MResourceInstance* M2MDevice::create_resource_instance(DeviceResource resource, int64_t value,
-                                                 uint16_t instance_id)
+M2MResourceInstance *M2MDevice::create_resource_instance(DeviceResource resource, int64_t value,
+                                                         uint16_t instance_id)
 {
-    M2MResourceInstance* res_instance = NULL;
-    const char* device_id_ptr = "";
+    M2MResourceInstance *res_instance = NULL;
+    const char *device_id_ptr = "";
     // For these resources multiple instance can exist
-    if(AvailablePowerSources == resource) {
-        if(check_value_range(resource, value)) {
+    if (AvailablePowerSources == resource) {
+        if (check_value_range(resource, value)) {
             device_id_ptr = DEVICE_AVAILABLE_POWER_SOURCES;
         }
-    } else if(PowerSourceVoltage == resource) {
+    } else if (PowerSourceVoltage == resource) {
         device_id_ptr = DEVICE_POWER_SOURCE_VOLTAGE;
-    } else if(PowerSourceCurrent == resource) {
+    } else if (PowerSourceCurrent == resource) {
         device_id_ptr = DEVICE_POWER_SOURCE_CURRENT;
-    } else if(ErrorCode == resource) {
-        if(check_value_range(resource, value)) {
+    } else if (ErrorCode == resource) {
+        if (check_value_range(resource, value)) {
             device_id_ptr = DEVICE_ERROR_CODE;
         }
     }
 
     const String device_id(device_id_ptr);
 
-    if(!device_id.empty()) {
-        if(_device_instance) {
-            res_instance = _device_instance->create_dynamic_resource_instance(device_id,OMA_RESOURCE_TYPE,
-                                                                     M2MResourceInstance::INTEGER,
-                                                                     true, instance_id);
+    if (!device_id.empty()) {
+        if (_device_instance) {
+            res_instance = _device_instance->create_dynamic_resource_instance(device_id, OMA_RESOURCE_TYPE,
+                                                                              M2MResourceInstance::INTEGER,
+                                                                              true, instance_id);
 
             M2MResource *res = _device_instance->resource(device_id);
-            if(res) {
+            if (res) {
                 res->set_register_uri(true);
             }
-            if(res_instance) {
+            if (res_instance) {
                 res_instance->set_value(value);
                 // Only read operation is allowed for above resources
                 res_instance->set_operation(M2MBase::GET_ALLOWED);
@@ -254,24 +253,24 @@ M2MResourceInstance* M2MDevice::create_resource_instance(DeviceResource resource
     }
     return res_instance;
 }
-M2MResource* M2MDevice::create_resource(DeviceResource resource)
+M2MResource *M2MDevice::create_resource(DeviceResource resource)
 {
-    M2MResource* res = NULL;
-    if(!is_resource_present(resource)) {
-        const char* device_Id_ptr = "";
-        if(FactoryReset == resource) {
+    M2MResource *res = NULL;
+    if (!is_resource_present(resource)) {
+        const char *device_Id_ptr = "";
+        if (FactoryReset == resource) {
             device_Id_ptr = DEVICE_FACTORY_RESET;
-        } else if(ResetErrorCode == resource) {
+        } else if (ResetErrorCode == resource) {
             device_Id_ptr = DEVICE_RESET_ERROR_CODE;
         }
         const String device_Id(device_Id_ptr);
 
-        if(_device_instance && !device_Id.empty()) {
+        if (_device_instance && !device_Id.empty()) {
             res = _device_instance->create_dynamic_resource(device_Id,
                                                             OMA_RESOURCE_TYPE,
                                                             M2MResourceInstance::OPAQUE,
                                                             false);
-            if(res) {
+            if (res) {
                 res->set_operation(M2MBase::POST_ALLOWED);
                 res->set_register_uri(true);
 
@@ -290,10 +289,10 @@ M2MResource* M2MDevice::create_resource(DeviceResource resource)
 bool M2MDevice::delete_resource(DeviceResource resource)
 {
     bool success = false;
-    if(M2MDevice::Reboot != resource             &&
-       M2MDevice::ErrorCode != resource          &&
-       M2MDevice::SupportedBindingMode != resource) {
-        if(_device_instance) {
+    if (M2MDevice::Reboot != resource             &&
+            M2MDevice::ErrorCode != resource          &&
+            M2MDevice::SupportedBindingMode != resource) {
+        if (_device_instance) {
             success = _device_instance->remove_resource(resource_name(resource));
         }
     }
@@ -304,11 +303,11 @@ bool M2MDevice::delete_resource_instance(DeviceResource resource,
                                          uint16_t instance_id)
 {
     bool success = false;
-    if(M2MDevice::Reboot != resource             &&
-       M2MDevice::ErrorCode != resource          &&
-       M2MDevice::SupportedBindingMode != resource) {
-        if(_device_instance) {
-            success = _device_instance->remove_resource_instance(resource_name(resource),instance_id);
+    if (M2MDevice::Reboot != resource             &&
+            M2MDevice::ErrorCode != resource          &&
+            M2MDevice::SupportedBindingMode != resource) {
+        if (_device_instance) {
+            success = _device_instance->remove_resource_instance(resource_name(resource), instance_id);
         }
     }
     return success;
@@ -319,45 +318,45 @@ bool M2MDevice::set_resource_value(DeviceResource resource,
                                    uint16_t instance_id)
 {
     bool success = false;
-    M2MResourceBase* res = get_resource_instance(resource, instance_id);
-    if(res && value.size() <= MAX_ALLOWED_STRING_LENGTH) {
-        if(M2MDevice::Manufacturer == resource          ||
-           M2MDevice::ModelNumber == resource           ||
-           M2MDevice::DeviceType == resource            ||
-           M2MDevice::SerialNumber == resource          ||
-           M2MDevice::HardwareVersion == resource       ||
-           M2MDevice::FirmwareVersion == resource       ||
-           M2MDevice::SoftwareVersion == resource       ||
-           M2MDevice::UTCOffset == resource             ||
-           M2MDevice::Timezone == resource              ||
-           M2MDevice::SupportedBindingMode == resource) {
-                if (value.empty()) {
-                    res->clear_value();
-                    success = true;
-                } else {
-                    success = res->set_value((const uint8_t*)value.c_str(),(uint32_t)value.length());
-                }
+    M2MResourceBase *res = get_resource_instance(resource, instance_id);
+    if (res && value.size() <= MAX_ALLOWED_STRING_LENGTH) {
+        if (M2MDevice::Manufacturer == resource          ||
+                M2MDevice::ModelNumber == resource           ||
+                M2MDevice::DeviceType == resource            ||
+                M2MDevice::SerialNumber == resource          ||
+                M2MDevice::HardwareVersion == resource       ||
+                M2MDevice::FirmwareVersion == resource       ||
+                M2MDevice::SoftwareVersion == resource       ||
+                M2MDevice::UTCOffset == resource             ||
+                M2MDevice::Timezone == resource              ||
+                M2MDevice::SupportedBindingMode == resource) {
+            if (value.empty()) {
+                res->clear_value();
+                success = true;
+            } else {
+                success = res->set_value((const uint8_t *)value.c_str(), (uint32_t)value.length());
+            }
         }
     }
     return success;
 }
 
 bool M2MDevice::set_resource_value(DeviceResource resource,
-                                       int64_t value,
-                                       uint16_t instance_id)
+                                   int64_t value,
+                                   uint16_t instance_id)
 {
     bool success = false;
-    M2MResourceBase* res = get_resource_instance(resource, instance_id);
-    if(res) {
-        if(M2MDevice::BatteryLevel == resource          ||
-           M2MDevice::BatteryStatus == resource         ||
-           M2MDevice::MemoryFree == resource            ||
-           M2MDevice::MemoryTotal == resource           ||
-           M2MDevice::ErrorCode == resource             ||
-           M2MDevice::CurrentTime == resource           ||
-           M2MDevice::AvailablePowerSources == resource ||
-           M2MDevice::PowerSourceVoltage == resource    ||
-           M2MDevice::PowerSourceCurrent == resource) {
+    M2MResourceBase *res = get_resource_instance(resource, instance_id);
+    if (res) {
+        if (M2MDevice::BatteryLevel == resource          ||
+                M2MDevice::BatteryStatus == resource         ||
+                M2MDevice::MemoryFree == resource            ||
+                M2MDevice::MemoryTotal == resource           ||
+                M2MDevice::ErrorCode == resource             ||
+                M2MDevice::CurrentTime == resource           ||
+                M2MDevice::AvailablePowerSources == resource ||
+                M2MDevice::PowerSourceVoltage == resource    ||
+                M2MDevice::PowerSourceCurrent == resource) {
             // If it is any of the above resource
             // set the value of the resource.
             if (check_value_range(resource, value)) {
@@ -373,18 +372,18 @@ String M2MDevice::resource_value_string(DeviceResource resource,
                                         uint16_t instance_id) const
 {
     String value = "";
-    const M2MResourceBase* res = get_resource_instance(resource, instance_id);
-    if(res) {
-        if(M2MDevice::Manufacturer == resource          ||
-           M2MDevice::ModelNumber == resource           ||
-           M2MDevice::DeviceType == resource            ||
-           M2MDevice::SerialNumber == resource          ||
-           M2MDevice::HardwareVersion == resource       ||
-           M2MDevice::FirmwareVersion == resource       ||
-           M2MDevice::SoftwareVersion == resource       ||
-           M2MDevice::UTCOffset == resource             ||
-           M2MDevice::Timezone == resource              ||
-           M2MDevice::SupportedBindingMode == resource) {
+    const M2MResourceBase *res = get_resource_instance(resource, instance_id);
+    if (res) {
+        if (M2MDevice::Manufacturer == resource          ||
+                M2MDevice::ModelNumber == resource           ||
+                M2MDevice::DeviceType == resource            ||
+                M2MDevice::SerialNumber == resource          ||
+                M2MDevice::HardwareVersion == resource       ||
+                M2MDevice::FirmwareVersion == resource       ||
+                M2MDevice::SoftwareVersion == resource       ||
+                M2MDevice::UTCOffset == resource             ||
+                M2MDevice::Timezone == resource              ||
+                M2MDevice::SupportedBindingMode == resource) {
 
 
             value = res->get_value_string();
@@ -397,17 +396,17 @@ int64_t M2MDevice::resource_value_int(DeviceResource resource,
                                       uint16_t instance_id) const
 {
     int64_t value = -1;
-    M2MResourceBase* res = get_resource_instance(resource, instance_id);
-    if(res) {
-        if(M2MDevice::BatteryLevel == resource          ||
-           M2MDevice::BatteryStatus == resource         ||
-           M2MDevice::MemoryFree == resource            ||
-           M2MDevice::MemoryTotal == resource           ||
-           M2MDevice::ErrorCode == resource             ||
-           M2MDevice::CurrentTime == resource           ||
-           M2MDevice::AvailablePowerSources == resource ||
-           M2MDevice::PowerSourceVoltage == resource    ||
-           M2MDevice::PowerSourceCurrent == resource) {
+    M2MResourceBase *res = get_resource_instance(resource, instance_id);
+    if (res) {
+        if (M2MDevice::BatteryLevel == resource          ||
+                M2MDevice::BatteryStatus == resource         ||
+                M2MDevice::MemoryFree == resource            ||
+                M2MDevice::MemoryTotal == resource           ||
+                M2MDevice::ErrorCode == resource             ||
+                M2MDevice::CurrentTime == resource           ||
+                M2MDevice::AvailablePowerSources == resource ||
+                M2MDevice::PowerSourceVoltage == resource    ||
+                M2MDevice::PowerSourceCurrent == resource) {
 
             // note: the value may be 32bit int on 32b archs.
             value = res->get_value_int();
@@ -419,8 +418,8 @@ int64_t M2MDevice::resource_value_int(DeviceResource resource,
 bool M2MDevice::is_resource_present(DeviceResource resource) const
 {
     bool success = false;
-    const M2MResourceBase* res = get_resource_instance(resource,0);
-    if(res) {
+    const M2MResourceBase *res = get_resource_instance(resource, 0);
+    if (res) {
         success = true;
     }
     return success;
@@ -429,7 +428,7 @@ bool M2MDevice::is_resource_present(DeviceResource resource) const
 uint16_t M2MDevice::per_resource_count(DeviceResource res) const
 {
     uint16_t count = 0;
-    if(_device_instance) {
+    if (_device_instance) {
         count = _device_instance->resource_count(resource_name(res));
     }
     return count;
@@ -438,22 +437,22 @@ uint16_t M2MDevice::per_resource_count(DeviceResource res) const
 uint16_t M2MDevice::total_resource_count() const
 {
     uint16_t count = 0;
-    if(_device_instance) {
+    if (_device_instance) {
         count = _device_instance->resources().size();
     }
     return count;
 }
 
-M2MResourceBase* M2MDevice::get_resource_instance(DeviceResource dev_res,
-                                                      uint16_t instance_id) const
+M2MResourceBase *M2MDevice::get_resource_instance(DeviceResource dev_res,
+                                                  uint16_t instance_id) const
 {
-    M2MResource* res = NULL;
-    M2MResourceBase* inst = NULL;
-    if(_device_instance) {
+    M2MResource *res = NULL;
+    M2MResourceBase *inst = NULL;
+    if (_device_instance) {
         res = _device_instance->resource(resource_name(dev_res));
-        if(res) {
-            if(res->supports_multiple_instances()) {
-               inst = res->resource_instance(instance_id);
+        if (res) {
+            if (res->supports_multiple_instances()) {
+                inst = res->resource_instance(instance_id);
             } else {
                 inst = res;
             }
@@ -462,10 +461,10 @@ M2MResourceBase* M2MDevice::get_resource_instance(DeviceResource dev_res,
     return inst;
 }
 
-const char* M2MDevice::resource_name(DeviceResource resource)
+const char *M2MDevice::resource_name(DeviceResource resource)
 {
-    const char* res_name = "";
-    switch(resource) {
+    const char *res_name = "";
+    switch (resource) {
         case Manufacturer:
             res_name = DEVICE_MANUFACTURER;
             break;
@@ -541,7 +540,7 @@ bool M2MDevice::check_value_range(DeviceResource resource, int64_t value)
     bool success = false;
     switch (resource) {
         case AvailablePowerSources:
-            if(value >= 0 && value <= 7) {
+            if (value >= 0 && value <= 7) {
                 success = true;
             }
             break;
@@ -560,9 +559,9 @@ bool M2MDevice::check_value_range(DeviceResource resource, int64_t value)
                 success = true;
             }
             break;
-    default:
-        success = true;
-        break;
+        default:
+            success = true;
+            break;
     }
     return success;
 }

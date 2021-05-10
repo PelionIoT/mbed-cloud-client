@@ -28,7 +28,7 @@
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/config.h"
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #ifndef FCC_NANOCLIENT_ENABLED
 #if PAL_USE_HW_TRNG
 #include "pal_plat_drbg_noise.h"
@@ -36,8 +36,7 @@
 #endif
 #include "mbed_trace.h"
 #include <stdlib.h>
-#include "pal_Crypto.h"
-#include "pal_plat_Crypto.h"
+#include "cs_pal_crypto.h"
 
 
 #define TRACE_GROUP "DRBG"

@@ -34,8 +34,8 @@ class M2MBase;
 class M2MInterfaceObserver;
 class M2MServer;
 
-typedef Vector<M2MObject*> M2MObjectList;
-typedef Vector<M2MBase*> M2MBaseList;
+typedef Vector<M2MObject *> M2MObjectList;
+typedef Vector<M2MBase *> M2MBaseList;
 typedef FP callback_handler;
 
 typedef enum request_error_e {
@@ -112,7 +112,7 @@ public:
         ESTEnrollmentFailed,
         FailedToStoreCredentials,
         FailedToReadCredentials
-    }Error;
+    } Error;
 
     /**
      * \brief An enum defining different kinds of binding
@@ -123,13 +123,13 @@ public:
         UDP = 0x01,
         UDP_QUEUE = 0x03,
         SMS = 0x04,
-        SMS_QUEUE =0x06,
+        SMS_QUEUE = 0x06,
         UDP_SMS_QUEUE = 0x07,
         TCP = 0x09, //not real value, spec does not have one!
-                    //this has nsdl binding mode bit UDP set
+        //this has nsdl binding mode bit UDP set
         TCP_QUEUE = 0x0b //not real value, spec does not have one!
-                         //this has nsdl binding mode bits, UDP and UDP_QUEUE set
-    }BindingMode;
+                    //this has nsdl binding mode bits, UDP and UDP_QUEUE set
+    } BindingMode;
 
     /**
      * \brief An enum defining different kinds of network
@@ -143,11 +143,11 @@ public:
         Nanostack_IPv6,
         ATWINC_IPv4,
         Unknown
-    }NetworkStack;
+    } NetworkStack;
 
 public:
 
-    virtual ~M2MInterface(){}
+    virtual ~M2MInterface() {}
 
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
@@ -250,7 +250,7 @@ public:
      * needs to be unregistered. If there is only one LWM2M server registered,
      * this parameter can be NULL.
      */
-    virtual void unregister_object(M2MSecurity* security_object = NULL) = 0;
+    virtual void unregister_object(M2MSecurity *security_object = NULL) = 0;
 
     /**
      * \brief Sets the function that is called for indicating that the client
@@ -380,13 +380,25 @@ public:
      */
     virtual void pause() = 0;
 
-    virtual nsdl_s* get_nsdl_handle() const = 0;
+    /**
+     * \brief Sets client into an alert mode.
+     *
+     * \note In alert mode client halts all data
+     * sendings/active operations and waits for priority data to be sent.
+     */
+    virtual void alert() = 0;
+
+    /**
+     * @brief Get ndsl handle.
+     * @return nsdl handle
+     */
+    virtual nsdl_s *get_nsdl_handle() const = 0;
 
     /**
      * @brief Returns M2MServer handle.
      * @return M2MServer handle
      */
-    virtual M2MServer* get_m2mserver() const = 0;
+    virtual M2MServer *get_m2mserver() const = 0;
 
     virtual uint16_t stagger_wait_time(bool boostrap) const = 0;
 

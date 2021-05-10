@@ -23,7 +23,7 @@
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2msecurity.h"
 #include "mbed-client/m2mconnectionhandler.h"
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 #include "mbed-client/m2mtimer.h"
 #endif
 #include "pal.h"
@@ -32,13 +32,17 @@
 #include "mbed-trace/mbed_trace.h"
 #include <stdlib.h> // free() and malloc()
 
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+#include "socket_api.h"
+#endif
+
 #define TRACE_GROUP "mClt"
 
 #if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
 #error "For async PAL DNS only API v2 or greater is supported on Mbed."
 #endif
 
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 #define DNS_FALLBACK_TIMEOUT 600000
 #endif
 
@@ -127,6 +131,10 @@ void M2MConnectionHandlerPimpl::event_handler(arm_event_s *event)
             socket_connect_handler();
             break;
 
+        case M2MConnectionHandlerPimpl::ESocketAlreadyConnected:
+            socket_connect_handler();
+            break;
+
         case M2MConnectionHandlerPimpl::ESocketClose:
             close_socket();
             break;
@@ -168,7 +176,12 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler *base,
       _net_iface(0),
 #if (PAL_DNS_API_VERSION == 0) || (PAL_DNS_API_VERSION == 1)
       _socket_address_len(0),
-#elif (PAL_DNS_API_VERSION == 2)
+#elif (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
+#if (PAL_DNS_API_VERSION == 3)
+      _current_address_info(0),
+      _address_info_count(0),
+      _address_info(0),
+#endif
       _handler_async_DNS(0),
 #endif
       _socket_state(ESocketStateDisconnected),
@@ -181,7 +194,7 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler *base,
         return;
     }
 #endif
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
     _dns_fallback_timer = new M2MTimer(*this);
 #endif
     if (PAL_SUCCESS != pal_init()) {
@@ -189,6 +202,7 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler *base,
     }
 
     memset(&_address, 0, sizeof _address);
+    _address._stack = stack;
     memset((void *)&_socket_address, 0, sizeof _socket_address);
     memset(&_ipV4Addr, 0, sizeof(palIpV4Addr_t));
     memset(&_ipV6Addr, 0, sizeof(palIpV6Addr_t));
@@ -207,13 +221,16 @@ M2MConnectionHandlerPimpl::M2MConnectionHandlerPimpl(M2MConnectionHandler *base,
 M2MConnectionHandlerPimpl::~M2MConnectionHandlerPimpl()
 {
     tr_debug("~M2MConnectionHandlerPimpl()");
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
     if (_handler_async_DNS > 0) {
         pal_cancelAddressInfoAsync(_handler_async_DNS);
     }
     delete _dns_fallback_timer;
 #endif
 
+#if (PAL_DNS_API_VERSION == 3)
+    free_address_info();
+#endif
     close_socket();
     delete _security_impl;
     _security_impl = NULL;
@@ -251,12 +268,19 @@ void M2MConnectionHandlerPimpl::send_event(SocketEvent event_type)
 }
 
 // This callback is used from PAL pal_getAddressInfoAsync,
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 #if (PAL_DNS_API_VERSION == 2)
 extern "C" void address_resolver_cb(const char *url, palSocketAddress_t *address, palStatus_t status, void *callbackArgument)
+#elif (PAL_DNS_API_VERSION == 3)
+extern "C" void address_resolver_cb(const char *url, palAddressInfo_t *addrInfo, palStatus_t status, void *callbackArgument)
+#endif
 {
     tr_debug("M2MConnectionHandlerPimpl::address_resolver callback");
     M2MConnectionHandlerPimpl *instance = (M2MConnectionHandlerPimpl *)callbackArgument;
     instance->stop_dns_fallback_timer();
+#if (PAL_DNS_API_VERSION == 3)
+    instance->set_address_info(addrInfo);
+#endif
     if (PAL_SUCCESS != status) {
         tr_error("M2MConnectionHandlerPimpl::address_resolver callback failed with %" PRIx32, status);
         instance->send_event(M2MConnectionHandlerPimpl::ESocketDnsError);
@@ -266,27 +290,60 @@ extern "C" void address_resolver_cb(const char *url, palSocketAddress_t *address
 }
 #endif
 
+#if (PAL_DNS_API_VERSION == 3)
+void M2MConnectionHandlerPimpl::set_address_info(palAddressInfo_t *addrInfo)
+{
+    _address_info = addrInfo;
+    _address_info_count = pal_getDNSCount(_address_info);
+    tr_debug("Found %d dns addresses", _address_info_count);
+}
+
+void M2MConnectionHandlerPimpl::free_address_info()
+{
+    _current_address_info = 0;
+    _address_info_count = 0;
+    pal_freeAddrInfo(_address_info);
+    _address_info = NULL;
+}
+#endif
+
 bool M2MConnectionHandlerPimpl::address_resolver(void)
 {
     palStatus_t status;
     bool ret = false;
+#if (PAL_DNS_API_VERSION == 3)
+    if (_current_address_info < _address_info_count) {
+        send_event(ESocketDnsResolved);
+        return true;
+    }
+    // start new dns query, reset current address info
+    free_address_info();
+#endif
 
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:asynchronous DNS");
     _handler_async_DNS = 0;
     tr_debug("M2MConnectionHandlerPimpl::address_resolver start _dns_fallback_timer");
     _dns_fallback_timer->stop_timer();
     _dns_fallback_timer->start_timer(DNS_FALLBACK_TIMEOUT, M2MTimerObserver::DnsQueryFallback, true);
+#if (PAL_DNS_API_VERSION == 2)
     status = pal_getAddressInfoAsync(_server_address.c_str(), (palSocketAddress_t *)&_socket_address, &address_resolver_cb, this, &_handler_async_DNS);
+#elif (PAL_DNS_API_VERSION == 3)
+    status = pal_getAddressInfoAsync(_server_address.c_str(), &address_resolver_cb, this, &_handler_async_DNS);
+#endif
     if (PAL_SUCCESS != status) {
         _dns_fallback_timer->stop_timer();
         tr_error("M2MConnectionHandlerPimpl::address_resolver, pal_getAddressInfoAsync fail. %" PRIx32, status);
+#if (PAL_DNS_API_VERSION == 3)
+        free_address_info();
+#endif
         _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
     } else {
         ret = true;
     }
 #else // #if (PAL_DNS_API_VERSION == 0)
     tr_debug("M2MConnectionHandlerPimpl::address_resolver:synchronous DNS");
+
     status = pal_getAddressInfo(_server_address.c_str(), (palSocketAddress_t *)&_socket_address, &_socket_address_len);
     if (PAL_SUCCESS != status) {
         tr_error("M2MConnectionHandlerPimpl::getAddressInfo failed with %" PRIx32, status);
@@ -302,7 +359,10 @@ bool M2MConnectionHandlerPimpl::address_resolver(void)
 
 void M2MConnectionHandlerPimpl::handle_dns_result(bool success)
 {
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
+#if (PAL_DNS_API_VERSION == 3)
+    pal_free_addressinfoAsync(_handler_async_DNS);
+#endif
     _handler_async_DNS = 0;
 #endif
     if (_socket_state != ESocketStateDNSResolving) {
@@ -315,6 +375,9 @@ void M2MConnectionHandlerPimpl::handle_dns_result(bool success)
         socket_connect_handler();
 
     } else {
+#if (PAL_DNS_API_VERSION == 3)
+        free_address_info();
+#endif
         _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
     }
 }
@@ -325,13 +388,33 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String &server_addr
                                                        const M2MSecurity *security,
                                                        bool is_server_ping)
 {
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
     if (_handler_async_DNS > 0) {
         if (pal_cancelAddressInfoAsync(_handler_async_DNS) != PAL_SUCCESS) {
             return false;
         }
     }
 #endif
+
+    // if we already have a secure connection set up for the server address (and LWM2MServer, not bootstrap)
+    // we should skip over the DNS query. In case of CID there might be situation that we have a valid CID for ip address x, now if we query
+    // dns again we might get ip address to y and COAP sending with the CID will fail. We will skip unnecessary dns query also if CID is not in use.
+    if ((_socket_state == ESocketStateSecureConnection) &&
+        (server_type == M2MConnectionObserver::LWM2MServer) && (_server_address == server_address)) {
+        _is_server_ping = is_server_ping;
+        if (is_server_ping) {
+            // skip over dns query to handshake. This will reset tls and do a clean tls handshake
+            tr_debug("M2MConnectionHandlerPimpl::resolve_server_address (server ping), skip dns to handshake");
+            _socket_state = ESocketStateDNSResolving;
+            send_event(ESocketDnsResolved);
+        } else {
+            // skip over dns query straight to COAP sending
+            tr_debug("M2MConnectionHandlerPimpl::resolve_server_address (), skip dns to COAP sending");
+            send_event(M2MConnectionHandlerPimpl::ESocketAlreadyConnected);
+        }
+        return true;
+    }
+
     _socket_state = ESocketStateDNSResolving;
     _security = security;
 
@@ -349,11 +432,17 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String &server_addr
         _secure_connection = false;
     }
 
+#if (PAL_DNS_API_VERSION == 3)
+    if (!(server_address == _server_address)) {
+        // new address, must do dns query
+        free_address_info();
+        tr_debug("M2MConnectionHandlerPimpl::resolve_server_address, new address, must do dns query.");
+    }
+#endif
     _server_port = server_port;
     _server_type = server_type;
     _server_address = server_address;
     _is_server_ping = is_server_ping;
-
 
     return address_resolver();
 }
@@ -374,7 +463,6 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
         case ESocketStateDisconnected:
         case ESocketStateHandshaking:
         case ESocketStateUnsecureConnection:
-        case ESocketStateSecureConnection:
             // Ignore these events
             break;
 
@@ -382,13 +470,27 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
 
             // Initialize the socket to stable state
             close_socket();
-
+#if (PAL_DNS_API_VERSION == 3)
+            if (_address_info) {
+                status = pal_getDNSAddress(_address_info, _current_address_info, (palSocketAddress_t *)&_socket_address);
+                _current_address_info++;
+                if (PAL_SUCCESS != status) {
+                    tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - pal_getDNSAddress %" PRIx32, status);
+                    _observer.socket_error(M2MConnectionHandler::DNS_RESOLVING_ERROR);
+                    return;
+                }
+                tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - trying dns address %d of possible %d", _current_address_info, _address_info_count);
+            } else {
+                // current DNS should be ok, resources are free'd
+                tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - continue with current DNS");
+            }
+#endif
             status = pal_setSockAddrPort((palSocketAddress_t *)&_socket_address, _server_port);
 
             if (PAL_SUCCESS != status) {
                 tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - setSockAddrPort err: %" PRIx32, status);
             } else {
-                tr_debug("address family: %d", (int)_socket_address.addressType);
+                tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - address family: %d", (int)_socket_address.addressType);
             }
 
             if (_socket_address.addressType == PAL_AF_INET) {
@@ -401,7 +503,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
 
                 tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - IPv4 Address %d.%d.%d.%d",
                         _ipV4Addr[0], _ipV4Addr[1], _ipV4Addr[2], _ipV4Addr[3]);
-
+                _address._stack = M2MInterface::LwIP_IPv4;
                 _address._address = (void *)_ipV4Addr;
                 _address._length = PAL_IPV4_ADDRESS_SIZE;
                 _address._port = _server_port;
@@ -414,7 +516,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                 }
 
                 tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - IPv6 Address: %s", mbed_trace_ipv6(_ipV6Addr));
-
+                _address._stack = M2MInterface::LwIP_IPv6;
                 _address._address = (void *)_ipV6Addr;
                 _address._length = PAL_IPV6_ADDRESS_SIZE;
                 _address._port = _server_port;
@@ -435,7 +537,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             // Now that we just retry connect when it is not yet succeeded anyway this state might be removed completely.
             _socket_state = ESocketStateConnectBeingCalled;
 
-        // fall through is intentional
+        // fall through
         case ESocketStateConnectBeingCalled:
         case ESocketStateConnecting:
             if (is_tcp_connection()) {
@@ -470,13 +572,14 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                 tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - Using UDP");
                 _socket_state = ESocketStateConnected;
             }
-
-        // fall through is a normal flow in case the UDP was used or pal_connect() happened to return immediately with PAL_SUCCESS
+        // fall through
+        // is a normal flow in case the UDP was used or pal_connect() happened to return immediately with PAL_SUCCESS
         case ESocketStateConnected:
             if (_security && security_instance_id >= 0) {
                 if (_secure_connection) {
                     if (_security_impl != NULL) {
                         _security_impl->reset();
+                        tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - security reseted!");
                         int ret_code = _security_impl->init(_security, security_instance_id, _is_server_ping);
                         if (ret_code == M2MConnectionHandler::ERROR_NONE) {
                             ret_code = _security_impl->set_dtls_socket_callback(&socket_event_handler, this);
@@ -507,10 +610,11 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
             }
             if (_socket_state != ESocketStateHandshaking) {
                 _socket_state = ESocketStateUnsecureConnection;
-                _observer.address_ready(_address,
-                                        _server_type,
-                                        _address._port);
+                _observer.address_ready(_address, _server_type, _address._port);
             }
+            break;
+        case ESocketStateSecureConnection:
+            _observer.address_ready(_address, _server_type, _address._port);
             break;
 
     }
@@ -708,22 +812,30 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
     int return_value;
     tr_debug("M2MConnectionHandlerPimpl::receive_handshake_handler()");
 
-    // assert(_socket_state == ESocketStateHandshaking);
+    assert(_socket_state == ESocketStateHandshaking);
 
     return_value = _security_impl->connect(_base, _is_server_ping);
-
+#if (PAL_DNS_API_VERSION == 3)
+    if (return_value == M2MConnectionHandler::ERROR_NONE) {
+        // current address worked so let's continue using that
+        _current_address_info--;
+        // free current dns resources
+        pal_freeAddrInfo(_address_info);
+        _address_info = NULL;
+    }
+#endif
     if (_is_server_ping && return_value == M2MConnectionHandler::ERROR_NONE) {
         // The callback for server-ping may trigger more than once.
         // Only handle it if CID exists, ignore otherwise.
         if (_security_impl->is_cid_available()) {
             tr_debug("M2MConnectionHandlerPimpl::receive_handshake_handler() - Server ping success");
+            _socket_state = ESocketStateSecureConnection;
             _observer.data_available(NULL, 0, _address);
         }
         return;
     }
 
     if (return_value == M2MConnectionHandler::ERROR_NONE) {
-
         _socket_state = ESocketStateSecureConnection;
         _observer.address_ready(_address,
                                 _server_type,
@@ -1016,7 +1128,7 @@ void M2MConnectionHandlerPimpl::initialize_event(arm_event_storage_t *event)
     event->link.next = NULL;
     event->link.prev = NULL;
 }
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 void M2MConnectionHandlerPimpl::stop_dns_fallback_timer()
 {
     _dns_fallback_timer->stop_timer();
@@ -1037,3 +1149,32 @@ void M2MConnectionHandlerPimpl::timer_expired(M2MTimerObserver::Type type)
     }
 }
 #endif
+
+bool M2MConnectionHandlerPimpl::set_socket_priority(M2MConnectionHandler::SocketPriority priority)
+{
+    if (!_socket) {
+        tr_error("M2MConnectionHandlerPimpl::set_socket_priority - socket not created");
+        return false;
+    }
+
+    palStatus_t status;
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    int16_t traffic_class = socket_option_traffic_class_dsc_set(priority);
+#else
+    int16_t traffic_class = priority;
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+
+    status = pal_setSocketOptionsWithLevel(_socket,
+                                           PAL_SOL_IPPROTO_IPV6,
+                                           PAL_SO_IPV6_TRAFFIC_CLASS,
+                                           &traffic_class,
+                                           sizeof(traffic_class));
+
+    if (PAL_ERR_NOT_SUPPORTED != status && PAL_SUCCESS != status) {
+        tr_error("M2MConnectionHandlerPimpl::set_socket_priority - err: %" PRIx32, status);
+        return false;
+    }
+
+    return true;
+}

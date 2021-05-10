@@ -18,7 +18,7 @@
 #include "pal.h"
 #include "pal_plat_network.h"
 #include "pal_plat_TLS.h"
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #include "pal_plat_drbg.h"
 #include "pal_macros.h"
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT

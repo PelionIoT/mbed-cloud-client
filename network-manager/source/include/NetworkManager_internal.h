@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Pelion. All rights reserved.
+ * Copyright (c) 2020-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -38,7 +38,8 @@ typedef enum config {
 
 typedef enum nm_status {
     NM_STATUS_FAIL = -1,
-    NM_STATUS_SUCCESS = 0
+    NM_STATUS_SUCCESS = 0,
+    NM_STATUS_UNSUPPORTED
 } nm_status_t;
 
 typedef enum nm_event_type_e {

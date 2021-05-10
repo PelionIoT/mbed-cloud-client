@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) || defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 #include "pal.h"
 #endif
@@ -1230,7 +1230,7 @@ palStatus_t pal_plat_CtrDRBGIsSeeded(palCtrDrbgCtxHandle_t ctx)
 #endif
 }
 
-// FIXME: Currently not public in pal_plat_Crypto.h and is called from pal_plat_drbg_w_entropy_sources.c
+// FIXME: Currently not public in cs_pal_plat_crypto.h and is called from pal_plat_drbg_w_entropy_sources.c
 // With a forward declaration
 // This function will later be public, deprecating pal_plat_CtrDRBGSeed() (pal_plat_CtrDRBGInit will call this directly).
 // Changing this requires some work - therefore not done yet

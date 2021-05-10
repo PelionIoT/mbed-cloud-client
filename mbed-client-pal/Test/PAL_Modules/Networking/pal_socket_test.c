@@ -15,7 +15,7 @@
  *******************************************************************************/
 
 #include "pal.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 #include "unity.h"
 #include "unity_fixture.h"
 #include "test_runners.h"
@@ -68,7 +68,9 @@ PAL_PRIVATE palSocket_t g_testSockets[PAL_NET_TEST_SOCKETS] = {0,0,0,0};
 #define PAL_NET_TEST_BUFFERED_UDP_MESSAGE_SIZE (1024 * 256)
 PAL_PRIVATE uint8_t *g_testRecvBuffer = NULLPTR;
 PAL_PRIVATE uint8_t *g_testSendBuffer = NULLPTR;
+#ifdef TARGET_LIKE_MBED
 PAL_PRIVATE bool g_interfaceConnected = false;
+#endif
 #define PAL_NET_TEST_ECHO_TEST_SERVER_ADDRESS "echo.mbedcloudtesting.com"
 
 // the tests expect to have guaranteed forward progress, even if they fail. So the semaphore
@@ -156,21 +158,30 @@ PAL_PRIVATE void socketCallback1( void * arg)
 static palSemaphoreID_t s_semaphoreID = NULLPTR;
 static palSemaphoreID_t s_semaphoreID3 = NULLPTR;
 
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 
 static palSemaphoreID_t s_asyncDnsSemaphore = NULLPTR;
 
 // flag marking if the pal_getAddressInfoAsync callback has been invoked
 PAL_PRIVATE bool g_getAddressInfoAsyncCallbackInvoked = false;
 
-
+#if (PAL_DNS_API_VERSION == 3)
+static palAddressInfo_t *global_addrInfo = NULLPTR;
+static palDNSQuery_t dns_query_t = 0;
+// callback invoked from the call to pal_getAddressInfoAsync
+PAL_PRIVATE void getAddressInfoAsyncCallback(const char* url, palAddressInfo_t *addrInfo, palStatus_t status, void* callbackArgument)
+{
+    global_addrInfo = addrInfo;
+#else
 // callback invoked from the call to pal_getAddressInfoAsync
 PAL_PRIVATE void getAddressInfoAsyncCallback(const char* url, palSocketAddress_t* address, palStatus_t status, void* callbackArgument)
 {
+#endif
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     g_getAddressInfoAsyncCallbackInvoked = true;
     pal_osSemaphoreRelease(s_asyncDnsSemaphore);
 }
+
 #endif
 
 PAL_PRIVATE palStatus_t doDnsQuery(const char* hostname, palSocketAddress_t *address, palSocketLength_t *addrlen)
@@ -186,6 +197,20 @@ PAL_PRIVATE palStatus_t doDnsQuery(const char* hostname, palSocketAddress_t *add
                                      NULL);
 
     result = pal_osSemaphoreWait(s_asyncDnsSemaphore, 5000, NULL);
+#elif (PAL_DNS_API_VERSION == 3)
+    result = pal_osSemaphoreCreate(0, &s_asyncDnsSemaphore);
+    TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
+    result = pal_getAddressInfoAsync(hostname,
+                                     &getAddressInfoAsyncCallback,
+                                     NULL,
+                                     &dns_query_t);
+    result = pal_osSemaphoreWait(s_asyncDnsSemaphore, 5000, NULL);
+    result = pal_free_addressinfoAsync(dns_query_t);
+    result = pal_getDNSAddress(global_addrInfo, 0, address);
+    *addrlen = sizeof(palSocketAddress_t);
+    pal_freeAddrInfo(global_addrInfo);
+    global_addrInfo = NULLPTR;
+    dns_query_t = 0;
 #else
     result = pal_getAddressInfo(hostname, address, addrlen);
 #endif
@@ -777,7 +802,7 @@ TEST(pal_socket, ServerSocketScenario)
     /*#S3*/
     uint32_t rand_number = 0;
     uint16_t incoming_port;
-    
+
 #if !PAL_USE_HW_TRNG
     palStatus_t status = PAL_SUCCESS;
     // If no hardware trng - entropy must be injected for random to work

@@ -52,13 +52,24 @@ public:
         SOCKET_TIMEOUT = -13,
     } ConnectionError;
 
+    /**
+     * @enum SocketPriority
+     * This enum defines priority for the socket.
+     * Used for setting traffic class socket option.
+     */
+    typedef enum {
+        DEFAULT_PRIORITY = 0,
+        HIGH_PRIORITY = 10,
+        ALERT_PRIORITY = 46
+    } SocketPriority;
+
 public:
 
     /**
     * \brief Constructor
     */
     M2MConnectionHandler(M2MConnectionObserver &observer,
-                         M2MConnectionSecurity* sec,
+                         M2MConnectionSecurity *sec,
                          M2MInterface::BindingMode mode,
                          M2MInterface::NetworkStack stack);
 
@@ -85,10 +96,10 @@ public:
     * \param is_server_ping Defines whether the call is for Server ping or not.
     * \return True if the address is valid, else false.
     */
-    bool resolve_server_address(const String& server_address,
+    bool resolve_server_address(const String &server_address,
                                 const uint16_t server_port,
                                 M2MConnectionObserver::ServerType server_type,
-                                const M2MSecurity* security,
+                                const M2MSecurity *security,
                                 bool is_server_ping = false);
 
     /**
@@ -99,8 +110,8 @@ public:
     * \return True if data is sent successfully, else false.
     */
     bool send_data(uint8_t *data_ptr,
-                           uint16_t data_len,
-                           sn_nsdl_addr_s *address_ptr);
+                   uint16_t data_len,
+                   sn_nsdl_addr_s *address_ptr);
 
     /**
     * \brief Listens to the incoming data from a remote server.
@@ -152,6 +163,12 @@ public:
     void unregister_network_handler();
 
     /**
+     * \brief Set socket priority.
+     * \return true if socket option was set correctly.
+     */
+    bool set_socket_priority(M2MConnectionHandler::SocketPriority priority);
+
+    /**
      * \brief Stores CID persistently for DTLS connections.
      */
     void store_cid();
@@ -163,7 +180,7 @@ public:
 
     /**
      * \brief Status of CID availability in client.
-     * return true if CID is available else false.
+     * \return true if CID is available else false.
      */
     bool is_cid_available();
 
@@ -179,10 +196,10 @@ private:
     M2MConnectionObserver                       &_observer;
     M2MConnectionHandlerPimpl                   *_private_impl;
 
-friend class Test_M2MConnectionHandler;
-friend class Test_M2MConnectionHandler_mbed;
-friend class Test_M2MConnectionHandler_linux;
-friend class M2MConnection_TestObserver;
+    friend class Test_M2MConnectionHandler;
+    friend class Test_M2MConnectionHandler_mbed;
+    friend class Test_M2MConnectionHandler_linux;
+    friend class M2MConnection_TestObserver;
 };
 
 #endif //M2M_CONNECTION_HANDLER_H__

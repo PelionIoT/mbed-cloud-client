@@ -192,14 +192,6 @@ palStatus_t pal_plat_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t
  */
 palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf);
 
-/*! \brief Perform the TLS handshake ping.
- *
- * @param[in] palTLSHandle: The TLS context.
- *
- * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
- */
-palStatus_t pal_plat_handShake_ping(palTLSHandle_t palTLSHandle);
-
 /*! \brief Perform the TLS handshake.
  *
  * @param[in] palTLSHandle: The TLS context.
@@ -400,6 +392,14 @@ void pal_plat_set_cid(const uint8_t* context, const size_t length);
  * \param[in] data_len: length of the CID
  */
 void pal_plat_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len);
+
+/**
+ * \brief Internal test function. Get CID for the current tls session.
+ * \param[in] palTLSHandle: The TLS context.
+ * \param[out] data_ptr: CID
+ * \param[in,out] data_len: length of the CID
+ */
+void pal_plat_get_cid_value(palTLSHandle_t palTLSHandle, uint8_t *data_ptr, size_t *data_len);
 
 #endif //PAL_USE_SSL_SESSION_RESUME
 #endif //_PAL_PLAT_TLS_H_

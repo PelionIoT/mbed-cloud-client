@@ -1,20 +1,51 @@
 ## Changelog for Pelion Device Management Client
 
+### Device Management Client
+
+- Added support for TLV to single resource.
+- PUT to a resource 1/0/1 now triggers a registration update.
+- POST to a resource 1/0/4 now triggers a de-register process.
+- Added API `m2mbase::set_confirmable(bool confirmable)` to choose whether notification is sent as a confirmable or non-confirmable way. By default confirmable message type is used.
+- M2MDevice now accepts PUT/POST requests and can also be observed.
+- Fixed an issue which can cause a crash if there is a lot of network traffic during pause() call.
+- Do not report notification sending timeout to application. Notification sending can't fail once message has been created since they have own queue for re-sending.
+- Removed deprecated notification delivery status API's. `M2MBase::set_message_delivery_status_cb` should be use instead.
+- Changed default content type from COAP_CONTENT_OMA_TLV_TYPE_OLD to COAP_CONTENT_OMA_TLV_TYPE.
+- Deprecated `kcm_ecdh_key_agreement()` API for psa configuration, due to `psa_set_key_enrollment_algorithm()` API deprecation in mbed-crypto.
+- Removed deprecated STL API's. Following API's and classes removed:
+  - `SimpleM2MResource*`
+  - `MbedCloudClient::set_device_resource_value(M2MDevice::DeviceResource resource, const std::string &value)`
+  - `MbedCloudClient::register_update_callback(string route, SimpleM2MResourceBase* resource)`
+- Added new API `MbedCloudClient::alert()` to send high priority messages.
+  - In alert mode Device Management Client halts all data sendings/active operations and waits for priority data to be sent.
+- Added new status callback API `MbedCloudClient::on_status_changed()` which will replace following callback API's:
+  - `MbedCloudClient::on_registered()`
+  - `MbedCloudClient::on_unregistered()`
+  - `MbedCloudClient::on_registration_updated()`
+- Added option to reduce traffic in bootstrap flow:
+  - `MBED_CONF_MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE` flag added to control whether delay or piggybacked response is used. By default piggybacked response type is used.
+  - Piggybacked response can be disabled by setting `mbed-client.bootstrap-piggybacked-response" : 0` in `mbed_app.json`.
+
+### Platform Adaptation Layer (PAL)
+
+- Added new PAL_DNS_API_VERSION 3. It's an asynchronous DNS API which can return multiple DNS results.
+  - This feature is currently implemented only for Linux platform, and is disabled by default. It can be enabled by defining PAL_DNS_API_VERSION=3. In future release this feature will be enabled by default for linux.
+
 ### Release 4.8.0 (19.04.2021)
 
 #### Device Management Client
 
-- Client internal timers were not using event_ids correctly. Previously, if there were two timers running at the same time, cancel might have stopped the wrong timer.
+- Client internal timers were not using event IDs correctly. Previously, if two timers were running at the same time, cancel might have stopped the wrong timer.
 - Added fallback timer for asynchronous DNS requests (`PAL_DNS_API_VERSION` = 2). The client waits 10 minutes for a response to DNS query before aborting the request and raising a DNS error event.
 - Improved client bootstrap recovery handling.
-- The client doesn't go sleep if update register, unregistering or reconnecting is ongoing.
+- The client doesn't go to sleep if update register, unregistering or reconnecting is ongoing.
 - Added LwM2M version as part of the registration message.
 - Added API to get M2MServer instance.
 - tinycbor: Removed the default usage of asserts in input validation. Instead of asserting, the library returns an error if an invalid cbor input is given. Introduced a new `TINYCBOR_USE_ASSERT` flag to save on code size. This saves approximately 200 bytes.
 - Deprecated the `MBED_CLIENT_USER_CONFIG_FILE` macro. An application only needs to use `MBED_CLOUD_CLIENT_USER_CONFIG_FILE`.
 - Allow Write-Attributes to GET resource.
 - Parent resource of resource-instance also set observable flag. Now also parent resource can be observed.
-- Added API `m2mbase::set_confirmable(bool confirmable)` to choose whether notification is sent as a confirmable or non-confirmable way. By default, the confirmable message type is used.
+- Added API `m2mbase::set_confirmable(bool confirmable)` to choose whether the notification is sent in a confirmable or a non-confirmable message. By default, the confirmable message type is used.
 - M2MDevice now accepts PUT/POST requests, and you can also observe it.
 - Fixed an issue which can cause a crash if there is a lot of network traffic during the `pause()` call.
 - Don't report notification sending timeout to the application. Notification sending can't fail after the message has been created because it has its own queue for resending.
@@ -123,7 +154,7 @@ However, the notification will still be stored internally in client and it will 
 * Added a compile-time check to prevent configuring the client with LIFETIME values below 60 seconds. 60 seconds is the minimum allowed.
 * [Mbed OS] Changed the default storage location for update to `ARM_UCP_FLASHIAP`.
 * Added support for Device Sentry feature.
-* Added new library flag `MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT`, The default is `null`. Should be set to `1` if SE hasn't pre-provisioned credentials.  
+* Added new library flag `MBED_CONF_MBED_CLOUD_CLIENT_NON_PROVISIONED_SECURE_ELEMENT`, The default is `null`. Should be set to `1` if SE hasn't pre-provisioned credentials.
 
 ### Release 4.4.0 (17.04.2020)
 
@@ -700,7 +731,7 @@ Added a temporary workaround for Cypress PSOC6 target to read each block from an
 * Full support for the `device generated keys` mode. You can activate the mode using the Factory Configurator Utility (FCU) or the KCM APIs.
 
     <span class="notes">**Note:** Cloud Client and Mbed Cloud do not yet support this mode.</span>
-    
+
 * A certificate signed request (CSR) that is generated on the device, can be created with the `Extended key usage` extension.
 * A new KCM API introduced:
   * `kcm_certificate_verify_with_private_key` - a self-generated certificate can be checked against a stored private key.

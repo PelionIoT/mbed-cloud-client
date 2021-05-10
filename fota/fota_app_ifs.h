@@ -42,13 +42,16 @@ extern "C" {
 /**
  * FOTA download authorization callback to be implemented by the device application.
  *
- * Should be implemented by the application if it wants to authorize FOTA to start downloading the candidate image.
+ * The application must implement this callback if you want the application to authorize the FOTA client to start downloading the candidate image.
+ * The client invokes this callback for the first time when the device receives the update manifest from Device Management.
  *
  * FOTA expects the callback implementation to call one of these APIs:
- *   - ::fota_app_authorize() - Authorize request to download image.
- *   - ::fota_app_reject() - Reject request to download image and discard the manifest. The update will not be re-prompted.
- *   - ::fota_app_defer() - Defer image download to a later phase. This aborts the current update attempt, while preserving the update manifest.
- *      Update will be restarted on next boot. Alternatively update can be restarted by calling ::fota_app_resume().
+ *   - ::fota_app_authorize() - Authorize request to download image. The download phase will proceed.
+ *   - ::fota_app_reject() - Reject request to download image and discard the manifest. The client will not re-prompt the update.
+ *   - ::fota_app_defer() - Defer image download to a later phase. This aborts the current image download attempt, while preserving the update manifest.
+ *                          Image download continues on the next boot, when the device next registers to Device Management or when the device application calls the :fota_app_resume() API.
+ *                          The client invokes ::fota_app_on_download_authorization when the update flow continues.
+ *                          Both ::fota_app_defer() and ::fota_app_resume() APIs are implemented only if the ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
  *
  * \note Only required if the ::MBED_CLOUD_CLIENT_FOTA_ENABLE build flag is specified.
  * \note Only required if the ::FOTA_DEFAULT_APP_IFS build flag is disabled.
@@ -69,16 +72,20 @@ int fota_app_on_download_authorization(
  * Pelion FOTA install authorization callback to be implemented by the device application.
  *
  * Should be implemented by the application if it wants to authorize FOTA to install the update.
+ * The client invokes this callback for the first time when the device fully downloads the update candidate image.
  *
  * FOTA client expects the callback implementation to call one of these APIs:
  *   - ::fota_app_authorize() - Authorize FOTA to install the candidate image. Reboot or connectivity loss may occur during installation.
- *                            This phase is critical because power loss can brick the device.
+ *                              This phase is critical because power loss can brick the device.
  *   - ::fota_app_reject() - Reject request to install, and discard the update.  The update will not be re-prompted.
  *   - ::fota_app_defer() - Defer the installation to a later phase. This marks the candidate image as valid, but the device will not reboot.
+ *                          For the main component, the installation proceeds automatically after the device reboots.
+ *                          For user components, the update flow proceeds on the next boot, when the device next registers to Device Management or when the device application calls the ::fota_app_resume() API.
+ *                          The application invokes the ::fota_app_on_download_authorization and ::fota_app_on_install_authorization() callbacks when the update flow proceeds.
+ *                          The client implements the ::fota_app_defer() and ::fota_app_resume() APIs only if the ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
  *
  * \note Only required if the ::MBED_CLOUD_CLIENT_FOTA_ENABLE build flag is specified.
  * \note Only required if the ::FOTA_DEFAULT_APP_IFS build flag is disabled.
- * \note After the application defers installation by calling ::fota_app_defer(), the device has to reboot before installing the candidate image. Calling ::fota_app_resume() after ::fota_app_defer() has no effect.
  *
  * \return ::FOTA_STATUS_SUCCESS to acknowledge that the application received the authorization callback properly.
  */
@@ -103,8 +110,14 @@ int fota_app_on_complete(int32_t status);
 /**
  * Resume Pelion FOTA update.
  *
- * If the update process is interrupted, the application can call this function to restart the process.
-  */
+ * If the update process is interrupted, the application can call this function to resume the process.
+ * This API invokes ::fota_app_on_download_authorization() CB.
+ *
+ * \note The function is implemented only if ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
+ * \note If ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is equal to ::FOTA_RESUME_SUPPORT_RESTART, the update flow will restart from the beginning.
+ * \note If ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is equal to ::FOTA_RESUME_SUPPORT_RESUME, the update flow will resume from the point that it was interrupted.
+ *
+ */
 void fota_app_resume(void);
 
 /**
@@ -118,7 +131,7 @@ void fota_app_authorize(void);
 /**
  * Reject Pelion FOTA update.
  *
- * FOTA client expects the ::fota_app_on_download_authorization() and ::fota_app_on_install_authorization() application callbacks to call this API.
+ * ::fota_app_on_download_authorization() and ::fota_app_on_install_authorization() application callbacks may call this API.
  *
  * \param[in] reason Reject reason code.
  */
@@ -127,9 +140,11 @@ void fota_app_reject(int32_t reason);
 /**
  * Defer Pelion FOTA update.
  *
- * FOTA client resources will be released and update will be reattempted on next boot or by
- * calling the ::fota_app_resume() API.
- * FOTA client expects the ::fota_app_on_download_authorization() and ::fota_app_on_install_authorization() application callbacks to call this API.
+ * The FOTA client releases resources and reattempts the update on the next boot, when the device next registers to Device Management or when the device application calls
+ * the ::fota_app_resume() API.
+ * ::fota_app_on_download_authorization() and ::fota_app_on_install_authorization() application callbacks may call this API.
+ *
+ * \note The function is implemented only if ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
  */
 void fota_app_defer(void);
 
@@ -183,12 +198,12 @@ int fota_app_on_install_candidate(const char *candidate_fs_name, const manifest_
 #if defined(MBED_CLOUD_CLIENT_FOTA_LINUX_SINGLE_MAIN_FILE)
 
 /**
- * Install MAIN application by overwriting current executable file.
+ * Install main application by overwriting current executable file.
  *
- * This function will overwrite the executable file and relaunch the process.
- * The API is expected to be called from ::fota_app_on_install_candidate() application
- * callback.
- * It is only available in case of a single main file mode.
+ * This function overwrites the executable file and relaunches the process.
+ * The client expects the ::fota_app_on_install_candidate() application
+ * callback to call this API.
+ * It is only available if there is a single main file.
  *
  * \note This function does not validate candidate file integrity or authenticity.
  *

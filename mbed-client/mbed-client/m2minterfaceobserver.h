@@ -67,7 +67,7 @@ public:
      * \param server_object An object containing information about the LWM2M server.
      * The client maintains the object.
      */
-    virtual void registration_updated(M2MSecurity *security_object, const M2MServer & server_object) = 0;
+    virtual void registration_updated(M2MSecurity *security_object, const M2MServer &server_object) = 0;
 
     /**
      * \brief A callback indicating that there was an error during the operation.
@@ -94,6 +94,15 @@ public:
      */
     virtual void network_status_changed(bool connected) = 0;
 
+    /**
+     * \brief A callback indicating that client is paused.
+     */
+    virtual void paused() = 0;
+
+    /**
+     * \brief A callback indicating that client is in alert mode.
+     */
+    virtual void alert_mode() = 0;
 };
 
 #endif // M2M_INTERFACE_OBSERVER_H

@@ -19,10 +19,10 @@
 #include "mbed-client/m2mconstants.h"
 
 M2MConnectionHandler::M2MConnectionHandler(M2MConnectionObserver &observer,
-                                           M2MConnectionSecurity* sec,
+                                           M2MConnectionSecurity *sec,
                                            M2MInterface::BindingMode mode,
                                            M2MInterface::NetworkStack stack)
-:_observer(observer)
+    : _observer(observer)
 {
     _private_impl = new M2MConnectionHandlerPimpl(this, observer, sec, mode, stack);
 }
@@ -38,11 +38,11 @@ bool M2MConnectionHandler::bind_connection(const uint16_t listen_port)
     return _private_impl->bind_connection(listen_port);
 }
 
-bool M2MConnectionHandler::resolve_server_address(const String& server_address,
-                                                      const uint16_t server_port,
-                                                      M2MConnectionObserver::ServerType server_type,
-                                                      const M2MSecurity* security,
-                                                      bool is_server_ping)
+bool M2MConnectionHandler::resolve_server_address(const String &server_address,
+                                                  const uint16_t server_port,
+                                                  M2MConnectionObserver::ServerType server_type,
+                                                  const M2MSecurity *security,
+                                                  bool is_server_ping)
 {
     return _private_impl->resolve_server_address(server_address, server_port,
                                                  server_type, security, is_server_ping);
@@ -113,4 +113,9 @@ bool M2MConnectionHandler::is_cid_available()
 void M2MConnectionHandler::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
 {
     _private_impl->set_cid_value(data_ptr, data_len);
+}
+
+bool M2MConnectionHandler::set_socket_priority(M2MConnectionHandler::SocketPriority priority)
+{
+    return  _private_impl->set_socket_priority(priority);
 }

@@ -29,9 +29,9 @@ int8_t M2MNotificationHandler::_tasklet_id = -1;
 
 extern "C" void notification_tasklet_func(arm_event_s *event)
 {
-    M2MNsdlInterface *iface = (M2MNsdlInterface*)event->data_ptr;
+    M2MNsdlInterface *iface = (M2MNsdlInterface *)event->data_ptr;
     if (event->event_type == MBED_CLIENT_NOTIFICATION_HANDLER_EVENT) {
-        iface->send_next_notification(false);
+        iface->send_next_notification(M2MNsdlInterface::SEND_NOTIFICATION);
         event->event_data = 0;
     }
 }
@@ -52,7 +52,11 @@ M2MNotificationHandler::~M2MNotificationHandler()
 
 void M2MNotificationHandler::send_notification(M2MNsdlInterface *interface)
 {
-    tr_debug("M2MNotificationHandler::send_notification");
+    if (interface->alert_mode()) {
+        tr_debug("M2MNotificationHandler::send_notification - in alert mode skip sending");
+        return;
+    }
+
     if (!_event.data.event_data) {
         _event.data.event_data = 1;
         _event.data.event_type = MBED_CLIENT_NOTIFICATION_HANDLER_EVENT;

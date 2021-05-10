@@ -283,11 +283,12 @@ int32_t sn_nsdl_register_endpoint(struct nsdl_s *handle,
 
     if (endpoint_info_ptr->ds_register_mode == REGISTER_WITH_RESOURCES) {
         /* Built body for message */
-        if (sn_nsdl_build_registration_body(handle, register_message_ptr, 0) == SN_NSDL_FAILURE) {
+        int ret = sn_nsdl_build_registration_body(handle, register_message_ptr, 0);
+        if (ret != SN_NSDL_SUCCESS) {
             register_message_ptr->uri_path_ptr = NULL;
             register_message_ptr->options_list_ptr->uri_host_ptr = NULL;
             sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
-            return SN_NSDL_FAILURE;
+            return ret;
         }
     }
 
@@ -507,9 +508,10 @@ int32_t sn_nsdl_update_registration(struct nsdl_s *handle, uint8_t *lt_ptr, uint
 
     /* Build payload */
     if (handle->ep_information_ptr->ds_register_mode == REGISTER_WITH_RESOURCES) {
-        if (sn_nsdl_build_registration_body(handle, register_message_ptr, 1) == SN_NSDL_FAILURE) {
+        int8_t ret = sn_nsdl_build_registration_body(handle, register_message_ptr, 1);
+        if (ret != SN_NSDL_SUCCESS) {
             sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, register_message_ptr);
-            return SN_NSDL_MEMORY_ALLOCATION_FAILED;
+            return ret;
         }
     }
 
@@ -651,12 +653,13 @@ int32_t sn_nsdl_oma_bootstrap(struct nsdl_s *handle,
         return SN_NSDL_FAILURE;
     }
 
-    if (set_NSP_address(handle,
-                        bootstrap_address_ptr->addr_ptr,
-                        bootstrap_address_ptr->addr_len,
-                        bootstrap_address_ptr->port,
-                        bootstrap_address_ptr->type) == SN_NSDL_FAILURE) {
-        return SN_NSDL_FAILURE;
+    int8_t ret = set_NSP_address(handle,
+                                 bootstrap_address_ptr->addr_ptr,
+                                 bootstrap_address_ptr->addr_len,
+                                 bootstrap_address_ptr->port,
+                                 bootstrap_address_ptr->type);
+    if (ret != SN_NSDL_SUCCESS) {
+        return ret;
     }
 
     handle->is_bs_server = true;
@@ -737,24 +740,15 @@ char *sn_nsdl_get_version(void)
 #endif
 }
 
-int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet_ptr, uint16_t packet_len, sn_nsdl_addr_s *src_ptr)
+int8_t sn_nsdl_process_coap(struct nsdl_s *handle, sn_coap_hdr_s *coap_packet_ptr, sn_nsdl_addr_s *src_ptr)
 {
-    sn_coap_hdr_s           *coap_packet_ptr    = NULL;
     sn_coap_hdr_s           *coap_response_ptr  = NULL;
     sn_nsdl_dynamic_resource_parameters_s *resource = NULL;
+
     /* Check parameters */
-    if (handle == NULL) {
+    if (handle == NULL || coap_packet_ptr == NULL) {
         return SN_NSDL_FAILURE;
     }
-
-    /* Parse CoAP packet */
-    coap_packet_ptr = sn_coap_protocol_parse(handle->grs->coap, src_ptr, packet_len, packet_ptr, (void *)handle);
-
-    /* Check if parsing was successfull */
-    if (coap_packet_ptr == (sn_coap_hdr_s *)NULL) {
-        return SN_NSDL_FAILURE;
-    }
-    sn_nsdl_print_coap_data(coap_packet_ptr, false);
 
 #if SN_COAP_DUPLICATION_MAX_MSGS_COUNT
     if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_DUPLICATED_MSG) {
@@ -989,7 +983,7 @@ static char *sn_nsdl_build_resource_attribute_str(char *dst, const sn_nsdl_attri
  * \param *handle Pointer to nsdl-library handle
  * \param   *message_ptr Pointer to CoAP message header
  *
- * \return  SN_NSDL_SUCCESS = 0, Failed = -1
+ * \return  SN_NSDL_SUCCESS = 0, Failed < 0
  */
 int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *message_ptr, uint8_t updating_registeration)
 {
@@ -1687,8 +1681,9 @@ static int8_t sn_nsdl_local_rx_function(struct nsdl_s *handle, sn_coap_hdr_s *co
         handle->sn_nsdl_endpoint_registered = SN_NSDL_ENDPOINT_IS_REGISTERED;
         sn_grs_mark_resources_as_registered(handle);
         is_reg_msg = true;
-        if (sn_nsdl_resolve_ep_information(handle, coap_packet_ptr) != SN_NSDL_SUCCESS) {
-            return SN_NSDL_FAILURE;
+        int8_t ret = sn_nsdl_resolve_ep_information(handle, coap_packet_ptr);
+        if (ret != SN_NSDL_SUCCESS) {
+            return ret;
         }
     }
 
@@ -1762,7 +1757,7 @@ static int8_t sn_nsdl_local_rx_function(struct nsdl_s *handle, sn_coap_hdr_s *co
  * \param *handle           Pointer to nsdl-library handle
  * \param *coap_packet_ptr  Pointer to received CoAP message
  *
- * \return  SN_NSDL_SUCCESS = 0, Failed = -1
+ * \return  SN_NSDL_SUCCESS = 0, Failed < 0
  */
 static int8_t sn_nsdl_resolve_ep_information(struct nsdl_s *handle, sn_coap_hdr_s *coap_packet_ptr)
 {

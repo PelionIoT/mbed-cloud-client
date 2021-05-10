@@ -875,12 +875,13 @@ static bool arm_uc_multicast_create_static_resources(M2MBaseList &list)
         object_inst->set_register_uri(false);
 
         if (arm_uc_multicast_ota_config.device_type == OTA_DEVICE_TYPE_BORDER_ROUTER) {
-            multicast_connected_nodes_res = object_inst->create_static_resource(&arm_uc_multicast_ota_connected_nodes_res, M2MResourceInstance::INTEGER);
+            /*multicast_connected_nodes_res = object_inst->create_static_resource(&arm_uc_multicast_ota_connected_nodes_res, M2MResourceInstance::INTEGER);
             if (!multicast_connected_nodes_res) {
                 tr_error("arm_uc_multicast_create_static_resources - failed to create multicast_connected_nodes_res!");
                 return false;
             }
             multicast_connected_nodes_res->set_value(0);
+            multicast_connected_nodes_res->set_register_uri(false);*/
 
             multicast_ready_res = object_inst->create_static_resource(&arm_uc_multicast_ota_ready_for_multicast_res, M2MResourceInstance::INTEGER);
             if (!multicast_ready_res) {
@@ -894,14 +895,15 @@ static bool arm_uc_multicast_create_static_resources(M2MBaseList &list)
             if (!multicast_command_res) {
                 tr_error("arm_uc_multicast_create_static_resources - failed to create multicast_command_res!");
                 return false;
-            }
+            }            
 
-            multicast_estimated_total_time_res = object_inst->create_static_resource(&arm_uc_multicast_estimated_total_time_res, M2MResourceInstance::OPAQUE);
+            /*multicast_estimated_total_time_res = object_inst->create_static_resource(&arm_uc_multicast_estimated_total_time_res, M2MResourceInstance::OPAQUE);
             if (!multicast_estimated_total_time_res) {
                 tr_error("arm_uc_multicast_create_static_resources - failed to create multicast_estimated_total_time_res!");
                 return false;
             }
             multicast_estimated_total_time_res->set_value(0);
+            multicast_estimated_total_time_res->set_register_uri(false);*/
 
             multicast_estimated_resend_time_res = object_inst->create_static_resource(&arm_uc_multicast_estimated_resend_time_res, M2MResourceInstance::OPAQUE);
             if (!multicast_estimated_resend_time_res) {
@@ -936,17 +938,20 @@ static bool arm_uc_multicast_create_static_resources(M2MBaseList &list)
             return false;
         }
 
+
         multicast_session_res = object_inst->create_static_resource(&arm_uc_multicast_ota_session_res, M2MResourceInstance::OPAQUE);
         if (!multicast_session_res) {
             tr_error("arm_uc_multicast_create_static_resources - failed to create multicast_session_res!");
             return false;
         }
 
+
         multicast_error_res = object_inst->create_static_resource(&arm_uc_multicast_error_res, M2MResourceInstance::OPAQUE);
         if (!multicast_error_res) {
             tr_error("arm_uc_multicast_create_static_resources - failed to create multicast_error_res!");
             return false;
         }
+        multicast_error_res->set_auto_observable(true);
 
         list.push_back(arm_uc_multicast_object);
     } else {

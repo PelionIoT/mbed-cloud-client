@@ -232,6 +232,8 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
             status = PAL_ERR_X509_CERT_VERIFY_FAILED;
             break;
 #endif
+        // Treat unexpected messages during renegotiation as fatal.
+        case MBEDTLS_ERR_SSL_WAITING_SERVER_HELLO_RENEGO:
         case MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE:
         // In some cases the ssl->f_send() can already return connection termination.
         case PAL_ERR_SOCKET_CONNECTION_RESET:
@@ -843,32 +845,6 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
 finish:
     return status;
 }
-
-palStatus_t pal_plat_handShake_ping(palTLSHandle_t palTLSHandle)
-{
-    palStatus_t status = PAL_SUCCESS;
-    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
-    int32_t platStatus = SSL_LIB_SUCCESS;
-
-    while( (MBEDTLS_SSL_SERVER_HELLO != localTLSCtx->tlsCtx.state) && (PAL_SUCCESS == status) )
-    {
-        platStatus = mbedtls_ssl_handshake_step( &localTLSCtx->tlsCtx );
-
-        /* Extract the first 4 bytes of the ServerHello random */
-        if( MBEDTLS_SSL_SERVER_HELLO == localTLSCtx->tlsCtx.state )
-        {
-            PAL_LOG_DBG("Server responded to CLIENT HELLO PING -success");
-        }
-
-        if (SSL_LIB_SUCCESS != platStatus)
-        {
-            status = translateTLSHandShakeErrToPALError(localTLSCtx, platStatus);
-        }
-    }
-
-    return status;
-}
-
 
 palStatus_t pal_plat_handShake(palTLSHandle_t palTLSHandle, uint64_t* serverTime)
 {
@@ -1572,7 +1548,7 @@ void pal_plat_set_cid(const uint8_t* context, const size_t length)
         memcpy(ssl_session_context, context, length);
         ssl_session_context_length = length;
     } else {
-        PAL_LOG_ERR("pal_plat_set_cid - cid set failed, too long %lu (max was %d)", length, SSL_SESSION_STORE_SIZE);
+        PAL_LOG_ERR("pal_plat_set_cid - cid set failed, too long %" PRIu32 " (max was %d)", (uint32_t)length, SSL_SESSION_STORE_SIZE);
     }
 }
 
@@ -1584,6 +1560,20 @@ void pal_plat_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr
     memcpy(localTLSCtx->tlsCtx.transform_out->out_cid, data_ptr, data_len);
     localTLSCtx->tlsCtx.transform_out->out_cid_len = data_len;
     pal_plat_saveSslSessionBuffer(palTLSHandle);
+#endif
+}
+
+void pal_plat_get_cid_value(palTLSHandle_t palTLSHandle, uint8_t *data_ptr, size_t *data_len)
+{
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+    assert(data_ptr != NULL);
+    assert(data_len != NULL);
+    assert(MBEDTLS_SSL_CID_OUT_LEN_MAX >= *data_len);
+
+    *data_len = 0;
+#ifdef MBEDTLS_SSL_DTLS_CONNECTION_ID
+    memcpy(data_ptr, localTLSCtx->tlsCtx.transform_out->out_cid, localTLSCtx->tlsCtx.transform_out->out_cid_len);
+    *data_len = localTLSCtx->tlsCtx.transform_out->out_cid_len;
 #endif
 }
 #endif // PAL_USE_SSL_SESSION_RESUME

@@ -34,7 +34,7 @@
 
 #define TRACE_GROUP "mClt"
 
-M2MInterface* M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observer,
+M2MInterface *M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observer,
                                                     const String &endpoint_name,
                                                     const String &endpoint_type,
                                                     const int32_t life_time,
@@ -46,77 +46,77 @@ M2MInterface* M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
                                                     const String &version)
 {
     tr_debug("M2MInterfaceFactory::create_interface - IN");
-    tr_info("M2MInterfaceFactory::create_interface - parameters endpoint name : %s",endpoint_name.c_str());
-    tr_info("M2MInterfaceFactory::create_interface - parameters endpoint type : %s",endpoint_type.c_str());
-    tr_info("M2MInterfaceFactory::create_interface - parameters life time(in secs): %" PRId32,life_time);
-    tr_info("M2MInterfaceFactory::create_interface - parameters Listen Port : %d",listen_port);
-    tr_info("M2MInterfaceFactory::create_interface - parameters Binding Mode : %d",(int)mode);
-    tr_info("M2MInterfaceFactory::create_interface - parameters NetworkStack : %d",(int)stack);
-    tr_info("M2MInterfaceFactory::create_interface - parameters version : %s",version.c_str());
+    tr_info("M2MInterfaceFactory::create_interface - parameters endpoint name : %s", endpoint_name.c_str());
+    tr_info("M2MInterfaceFactory::create_interface - parameters endpoint type : %s", endpoint_type.c_str());
+    tr_info("M2MInterfaceFactory::create_interface - parameters life time(in secs): %" PRId32, life_time);
+    tr_info("M2MInterfaceFactory::create_interface - parameters Listen Port : %d", listen_port);
+    tr_info("M2MInterfaceFactory::create_interface - parameters Binding Mode : %d", (int)mode);
+    tr_info("M2MInterfaceFactory::create_interface - parameters NetworkStack : %d", (int)stack);
+    tr_info("M2MInterfaceFactory::create_interface - parameters version : %s", version.c_str());
     M2MInterfaceImpl *interface = NULL;
 
 
     bool endpoint_type_valid = true;
-    if(!endpoint_type.empty()) {
-        if(endpoint_type.size() > MAX_ALLOWED_STRING_LENGTH){
+    if (!endpoint_type.empty()) {
+        if (endpoint_type.size() > MAX_ALLOWED_STRING_LENGTH) {
             endpoint_type_valid = false;
         }
     }
 
     bool domain_valid = true;
-    if(!domain.empty()) {
-        if(domain.size() > MAX_ALLOWED_STRING_LENGTH){
+    if (!domain.empty()) {
+        if (domain.size() > MAX_ALLOWED_STRING_LENGTH) {
             domain_valid = false;
         }
     }
 
     bool version_valid = true;
-    if(!version.empty()) {
-        if(version.size() > MAX_ALLOWED_STRING_LENGTH){
+    if (!version.empty()) {
+        if (version.size() > MAX_ALLOWED_STRING_LENGTH) {
             version_valid = false;
         }
     }
 
-    if(((life_time == -1) || (life_time >= MINIMUM_REGISTRATION_TIME)) &&
-       !endpoint_name.empty() && (endpoint_name.size() <= MAX_ALLOWED_STRING_LENGTH) &&
-       endpoint_type_valid && domain_valid && version_valid) {
+    if (((life_time == -1) || (life_time >= MINIMUM_REGISTRATION_TIME)) &&
+            !endpoint_name.empty() && (endpoint_name.size() <= MAX_ALLOWED_STRING_LENGTH) &&
+            endpoint_type_valid && domain_valid && version_valid) {
         tr_debug("M2MInterfaceFactory::create_interface - Creating M2MInterfaceImpl");
         interface = new M2MInterfaceImpl(observer, endpoint_name,
-                                         endpoint_type, life_time,
-                                         listen_port, domain, mode,
-                                         stack, context_address,
-                                         version);
+                                             endpoint_type, life_time,
+                                             listen_port, domain, mode,
+                                             stack, context_address,
+                                             version);
 
     }
     tr_debug("M2MInterfaceFactory::create_interface - OUT");
     return interface;
 }
 
-M2MSecurity* M2MInterfaceFactory::create_security(M2MSecurity::ServerType server_type)
+M2MSecurity *M2MInterfaceFactory::create_security(M2MSecurity::ServerType server_type)
 {
     tr_debug("M2MInterfaceFactory::create_security");
     M2MSecurity *security = M2MSecurity::get_instance();
     return security;
 }
 
-M2MServer* M2MInterfaceFactory::create_server()
+M2MServer *M2MInterfaceFactory::create_server()
 {
     tr_debug("M2MInterfaceFactory::create_server");
     M2MServer *server = new M2MServer();
     return server;
 }
 
-M2MDevice* M2MInterfaceFactory::create_device()
+M2MDevice *M2MInterfaceFactory::create_device()
 {
     tr_debug("M2MInterfaceFactory::create_device");
-    M2MDevice* device = M2MDevice::get_instance();
+    M2MDevice *device = M2MDevice::get_instance();
     return device;
 }
 
-M2MObject* M2MInterfaceFactory::create_object(const String &name)
+M2MObject *M2MInterfaceFactory::create_object(const String &name)
 {
     tr_debug("M2MInterfaceFactory::create_object : Name : %s", name.c_str());
-    if(name.size() > MAX_ALLOWED_STRING_LENGTH || name.empty()){
+    if (name.size() > MAX_ALLOWED_STRING_LENGTH || name.empty()) {
         return NULL;
     }
 
@@ -128,13 +128,13 @@ M2MObject* M2MInterfaceFactory::create_object(const String &name)
     return object;
 }
 
-M2MObject* M2MInterfaceFactory::find_or_create_object(M2MObjectList &object_list,
+M2MObject *M2MInterfaceFactory::find_or_create_object(M2MObjectList &object_list,
                                                       const uint16_t object_id,
                                                       bool &object_created)
 {
     // Check list for existing object
     object_created = false;
-    for (int i=0; i<object_list.size(); i++) {
+    for (int i = 0; i < object_list.size(); i++) {
         if (object_list[i]->name_id() == object_id) {
             tr_debug("Found existing /%" PRIu16, object_id);
             return object_list[i];
@@ -157,7 +157,7 @@ M2MObject* M2MInterfaceFactory::find_or_create_object(M2MObjectList &object_list
     return object;
 }
 
-M2MObjectInstance* M2MInterfaceFactory::find_or_create_object_instance(M2MObject &object,
+M2MObjectInstance *M2MInterfaceFactory::find_or_create_object_instance(M2MObject &object,
                                                                        const uint16_t object_instance_id,
                                                                        bool &object_instance_created)
 {
@@ -173,7 +173,7 @@ M2MObjectInstance* M2MInterfaceFactory::find_or_create_object_instance(M2MObject
     if (object_instance == NULL) {
         object_instance = object.create_object_instance(object_instance_id);
         if (object_instance == NULL) {
-            tr_err("Couldn't create /%d/%" PRIu16 " (out of memory?)", object.name_id(), object_instance_id);
+            tr_err("Couldn't create /%" PRId32 "s/%" PRIu16 " (out of memory?)", object.name_id(), object_instance_id);
             return NULL;
         }
     }
@@ -184,7 +184,7 @@ M2MObjectInstance* M2MInterfaceFactory::find_or_create_object_instance(M2MObject
     return object_instance;
 }
 
-M2MResource* M2MInterfaceFactory::find_or_create_resource(M2MObjectInstance &object_instance,
+M2MResource *M2MInterfaceFactory::find_or_create_resource(M2MObjectInstance &object_instance,
                                                           const uint16_t resource_id,
                                                           const M2MResourceInstance::ResourceType resource_type,
                                                           bool multiple_instance,
@@ -194,7 +194,7 @@ M2MResource* M2MInterfaceFactory::find_or_create_resource(M2MObjectInstance &obj
     M2MResource *resource = object_instance.resource(resource_id);
     if (resource != NULL) {
         tr_debug("Found existing /%d/%d/%" PRIu16,
-            object_instance.get_parent_object().name_id(), object_instance.instance_id(), resource_id);
+                 object_instance.get_parent_object().name_id(), object_instance.instance_id(), resource_id);
         return resource;
     }
 
@@ -202,18 +202,18 @@ M2MResource* M2MInterfaceFactory::find_or_create_resource(M2MObjectInstance &obj
     resource = object_instance.create_dynamic_resource(resource_id, "", resource_type,
                                                        true, multiple_instance, external_blockwise_store);
     if (resource == NULL) {
-        tr_err("Couldn't create /%d/%d/%" PRIu16 " (out of memory?)",
-            object_instance.get_parent_object().name_id(), object_instance.instance_id(), resource_id);
+        tr_err("Couldn't create /%" PRId32 "/%" PRIu16 "/%" PRIu16 " (out of memory?)",
+               object_instance.get_parent_object().name_id(), object_instance.instance_id(), resource_id);
         return NULL;
     }
 
     // All good
     tr_debug("Created new /%d/%d/%" PRIu16,
-        object_instance.get_parent_object().name_id(), object_instance.instance_id(), resource_id);
+             object_instance.get_parent_object().name_id(), object_instance.instance_id(), resource_id);
     return resource;
 }
 
-M2MResource* M2MInterfaceFactory::create_resource(M2MObjectList &object_list,
+M2MResource *M2MInterfaceFactory::create_resource(M2MObjectList &object_list,
                                                   const uint16_t object_id,
                                                   const uint16_t object_instance_id,
                                                   const uint16_t resource_id,
@@ -223,7 +223,7 @@ M2MResource* M2MInterfaceFactory::create_resource(M2MObjectList &object_list,
                                                   bool external_blockwise_store)
 {
     tr_debug("M2MInterfaceFactory::create_resource() - creating /%" PRIu16 "/%" PRIu16 "/%" PRIu16,
-        object_id, object_instance_id, resource_id);
+             object_id, object_instance_id, resource_id);
 
     M2MObject *object;
     M2MObjectInstance *object_instance;
@@ -240,7 +240,7 @@ M2MResource* M2MInterfaceFactory::create_resource(M2MObjectList &object_list,
     // Check and create object instance if necessary
     bool object_instance_created;
     object_instance = M2MInterfaceFactory::find_or_create_object_instance(
-        *object, object_instance_id, object_instance_created);
+                          *object, object_instance_id, object_instance_created);
     if (object_instance == NULL) {
         tr_err("M2MInterfaceFactory::create_resource() - failed to get object instance");
         goto cleanup_object;
@@ -248,8 +248,8 @@ M2MResource* M2MInterfaceFactory::create_resource(M2MObjectList &object_list,
 
     // Check and create resource if necessary
     resource = M2MInterfaceFactory::find_or_create_resource(
-        *object_instance, resource_id, resource_type,
-        multiple_instance, external_blockwise_store);
+                   *object_instance, resource_id, resource_type,
+                   multiple_instance, external_blockwise_store);
     if (resource == NULL) {
         tr_err("M2MInterfaceFactory::create_resource() - failed to get resource");
         goto cleanup_object_instance;
@@ -277,15 +277,15 @@ exit:
 }
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
-M2MEndpoint* M2MInterfaceFactory::create_endpoint(const String &name)
+M2MEndpoint *M2MInterfaceFactory::create_endpoint(const String &name)
 {
     tr_debug("M2MInterfaceFactory::create_endpoint : Name : %s", name.c_str());
-    if(name.size() > MAX_ALLOWED_STRING_LENGTH || name.empty()){
+    if (name.size() > MAX_ALLOWED_STRING_LENGTH || name.empty()) {
         return NULL;
     }
 
     M2MEndpoint *object = NULL;
-    char *path = (char*)malloc(2 + name.size() + 1);
+    char *path = (char *)malloc(2 + name.size() + 1);
     if (path) {
         // Prepend path with directory prefix "d/" so that all endpoints will be under common path
         path[0] = 'd';

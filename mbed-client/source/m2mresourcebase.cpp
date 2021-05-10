@@ -598,9 +598,8 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
     }
 
     if (received_coap_header && (operation() & M2MBase::GET_ALLOWED) != 0) {
-        bool content_type_present = false;
         coap_response->payload_ptr = NULL;
-        size_t payload_len = 0;
+        uint32_t payload_len = 0;
 
         if (received_coap_header->options_list_ptr &&
                 received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
@@ -631,17 +630,19 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                     received_coap_header->uri_path_len > 0) {
                 name.append_raw((char *)received_coap_header->uri_path_ptr, received_coap_header->uri_path_len);
             }
-            (*outgoing_block_message_cb)(name, coap_response->payload_ptr, (uint32_t &)payload_len);
+            (*outgoing_block_message_cb)(name, coap_response->payload_ptr, payload_len);
         }
 #endif
         // Read resource data from application
         M2MCallbackAssociation *item = M2MCallbackStorage::get_association_item(*this, M2MCallbackAssociation::M2MResourceInstanceReadCallback);
         if (item) {
-            read_data_from_application(item, nsdl, received_coap_header, coap_response, payload_len);
+            size_t len = 0;
+            read_data_from_application(item, nsdl, received_coap_header, coap_response, len);
+            payload_len = len;
         } else {
             if (coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE ||
                     coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE_OLD) {
-                coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), (uint32_t &)payload_len);
+                coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), payload_len);
             } else {
                 get_value(coap_response->payload_ptr, (uint32_t &)payload_len);
             }

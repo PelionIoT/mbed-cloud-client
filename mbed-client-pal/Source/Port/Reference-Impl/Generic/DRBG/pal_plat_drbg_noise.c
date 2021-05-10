@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "pal.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 #include "pal_plat_drbg.h"
 
 /**

@@ -253,12 +253,12 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, bool is_server_ping)
 {
     palStatus_t ret = PAL_SUCCESS;
-    if(is_server_ping) {
+    if (is_server_ping) {
         tr_info("M2MConnectionSecurityPimpl::connect is SERVER PING");
-        ret = pal_handShake_ping(_ssl);
+        ret = pal_handShake(_ssl, _conf, true);
     } else {
         tr_debug("M2MConnectionSecurityPimpl::connect is normal HANDSHAKE");
-        ret = pal_handShake(_ssl, _conf);
+        ret = pal_handShake(_ssl, _conf, false);
     }
 
     tr_debug("M2MConnectionSecurityPimpl::connect return code  %" PRIx32, ret);
@@ -392,5 +392,5 @@ bool M2MConnectionSecurityPimpl::is_cid_available()
 
 void M2MConnectionSecurityPimpl::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
 {
-    pal_set_cid_value(_ssl, data_ptr, data_len);
+    pal_set_cid_value(_ssl, _conf, data_ptr, data_len);
 }
