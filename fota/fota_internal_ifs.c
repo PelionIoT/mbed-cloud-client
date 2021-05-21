@@ -15,34 +15,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // ----------------------------------------------------------------------------
-#include "fota_platform.h"
 
-#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#include "fota_internal_ifs.h"
 
-#if !defined(FOTA_CUSTOM_PLATFORM) || (!FOTA_CUSTOM_PLATFORM)
+#ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
 
-// Default platform hooks
-int fota_platform_init_hook(bool after_upgrade)
+#include "fota/fota_event_handler.h"
+
+void fota_internal_resume()
 {
-    return FOTA_STATUS_SUCCESS;
+    fota_event_handler_defer_with_result_ignore_busy(fota_on_resume, /*fota resume by internal flow */ 1);
 }
 
-int fota_platform_start_update_hook(const char *comp_name)
-{
-    return FOTA_STATUS_SUCCESS;
-}
-
-int fota_platform_finish_update_hook(const char *comp_name)
-{
-    return FOTA_STATUS_SUCCESS;
-}
-
-int fota_platform_abort_update_hook(const char *comp_name)
-{
-    return FOTA_STATUS_SUCCESS;
-}
-
-#endif // !defined(FOTA_CUSTOM_PLATFORM) || (!FOTA_CUSTOM_PLATFORM)
-
-#endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-
+#endif

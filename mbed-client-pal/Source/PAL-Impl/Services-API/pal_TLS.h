@@ -204,10 +204,11 @@ palStatus_t pal_tlsSetSocket(palTLSConfHandle_t palTLSConf, palTLSSocket_t* sock
  * with the peer.
  * @param[in] palTLSHandle: The TLS context.
  * @param[in] palTLSConf: The TLS configuration context.
+ * @param[in] skipResume: If true, will skip resume. Resume may be active only in UDP DTLS.
  *
  * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
  */
-palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf);
+palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf, bool skipResume);
 
 /*! \brief Set the retransmit timeout values for the DTLS handshake.
  *  DTLS only, no effect on TLS.
@@ -220,15 +221,6 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
  */
 palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t minTimeout, uint32_t maxTimeout);
 
-#if PAL_USE_SECURE_TIME
-/*! \brief Return the result of the certificate verification.
- *
- * @param[in] palTLSHandle: The TLS context.
- *
- * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
- */
-palStatus_t pal_sslGetVerifyResult(palTLSHandle_t palTLSHandle);
-
 /*! \brief Return the result of the certificate verification.
  *
  * @param[in] palTLSHandle: The TLS context.
@@ -239,7 +231,6 @@ palStatus_t pal_sslGetVerifyResult(palTLSHandle_t palTLSHandle);
  * \return PAL_ERR_X509_CERT_VERIFY_FAILED in case of failure.
  */
 palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult);
-#endif //PAL_USE_SECURE_TIME
 
 /*! \brief Read the application data bytes (the max number of bytes).
  *
@@ -298,13 +289,6 @@ void pal_remove_cid();
  */
 bool pal_is_cid_available();
 
-/*! \brief DTLS ping to Cloud to check connectivity status.
- * @param[in] palTLSHandle: The TLS context.
- *
- * \return PAL_SUCCESS on success, or a negative value indicating a specific error code in case of failure.
- */
-palStatus_t pal_handShake_ping(palTLSHandle_t palTLSHandle);
-
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
 /*! \brief Enable SSL session storing. Disabled by default.
  *
@@ -331,10 +315,11 @@ void pal_setDTLSSocketCallback(palTLSConfHandle_t palTLSConf, palSocketCallback_
 
 /**
  * \brief Internal test function. Set CID for current tls session.
- * @param palTLSHandle: The TLS context.
- * @param data_ptr: CID
- * @param data_len: length of the CID
+ * @param[in] palTLSHandle: The TLS context.
+ * @param[in] palTLSConf: The DTLS configuration context.
+ * @param[in] data_ptr: CID
+ * @param[in] data_len: length of the CID
  */
-void pal_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len);
+void pal_set_cid_value(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf, const uint8_t *data_ptr, const size_t data_len);
 
 #endif // _PAL_DTLS_H_

@@ -31,11 +31,6 @@
 
 #include <stdint.h>
 
-#if MBED_CLOUD_CLIENT_STL_API
-#include <string>
-#endif
-
-
 // TODO: selection for whether multicast is enabled or not is still probably not working in all cases...
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE) && defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE)
 #define SERVICE_CLIENT_SUPPORT_MULTICAST
@@ -65,7 +60,9 @@ public:
         Service_Client_Status_Failure = -1,
         Service_Client_Status_Registered = 0,
         Service_Client_Status_Unregistered = 1,
-        Service_Client_Status_Register_Updated = 2
+        Service_Client_Status_Register_Updated = 2,
+        Service_Client_Status_Alert_Mode = 3,
+        Service_Client_Status_Paused = 4
     } ServiceClientCallbackStatus;
 
     /**
@@ -110,8 +107,7 @@ public:
  *  client.
  */
 
-class ServiceClient : private ConnectorClientCallback
-{
+class ServiceClient : private ConnectorClientCallback {
 public:
 
     /**
@@ -136,7 +132,7 @@ public:
     *  \param interface, Takes the structure that contains the
     *   needed information for an endpoint client to register.
     */
-    ServiceClient(ServiceClientCallback& callback);
+    ServiceClient(ServiceClientCallback &callback);
 
     /**
     *  \brief Destructor.
@@ -148,7 +144,7 @@ public:
     *  \param callback, Takes the callback for the status from ConnectorClient.
     *  \param client_objs, A list of objects to be registered to Cloud.
     */
-    void initialize_and_register(M2MBaseList& reg_objs);
+    void initialize_and_register(M2MBaseList &reg_objs);
 
     /**
     *  \brief Initializes event OS tasklets
@@ -173,23 +169,6 @@ public:
     */
     const ConnectorClient &connector_client() const;
 
-#if MBED_CLOUD_CLIENT_STL_API
-    /**
-     * \brief Set resource value in the Device Object
-     *
-     * \note This is deprecated as the rest of API's using std::string,
-     *  but there is no m2m_deprecated tag as that would cause warning on
-     *  default builds from MbedCloudClient::set_device_resource_value(),
-     *  which is the public API for this as it will be built but not used.
-     *
-     * \param resource Device enum to have value set.
-     * \param value String object.
-     * \return True if successful, false otherwise.
-     */
-    bool set_device_resource_value(M2MDevice::DeviceResource resource,
-                                   const std::string& value);
-#endif
-
     /**
      * \brief Set resource value in the Device Object
      *
@@ -199,7 +178,7 @@ public:
      * \return True if successful, false otherwise.
      */
     bool set_device_resource_value(M2MDevice::DeviceResource resource,
-                                   const char* value,
+                                   const char *value,
                                    uint32_t length);
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
@@ -331,13 +310,13 @@ protected :
     void state_unregister();
 
 private:
-    M2MDevice* device_object_from_storage();
+    M2MDevice *device_object_from_storage();
 
-    static void post_response_status_handler(const M2MBase& base,
+    static void post_response_status_handler(const M2MBase &base,
                                              const M2MBase::MessageDeliveryStatus status,
                                              const M2MBase::MessageType type,
-                                             void* me);
-    void reboot_execute_handler(void*);
+                                             void *me);
+    void reboot_execute_handler(void *);
     void m2mdevice_reboot_execute();
 
     /* lookup table for printing hexadecimal values */

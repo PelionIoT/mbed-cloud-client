@@ -18,6 +18,7 @@
 
 #include <stddef.h>
 
+
 // Dummy constructor, which does not init any value to something meaningful but needed for array construction.
 // It is better to leave values unintialized, so the Valgrind will point out if the Vector is used without
 // setting real values in there.
@@ -48,9 +49,13 @@ void M2MCallbackStorage::delete_instance()
 
 M2MCallbackStorage::~M2MCallbackStorage()
 {
-    // TODO: go through the list and delete all the FP<n> objects if there are any.
-    // On the other hand, if the system is done properly, each m2mobject should actually
+    // Go through the list and delete all the FP<n> objects if there are any.
+    // If the system is done properly, each m2mobject should actually
     // remove its callbacks from its destructor so there is nothing here to do
+    // find any association to given object and delete them from the vector
+    for (int index = _callbacks.size()-1; index >=0; index --) {
+        _callbacks.erase(index);
+    }
 }
 
 bool M2MCallbackStorage::add_callback(const M2MBase &object,
@@ -72,13 +77,12 @@ bool M2MCallbackStorage::do_add_callback(const M2MBase &object, void *callback, 
     bool add_success = false;
 
     // verify that the same callback is not re-added.
-    if (does_callback_exist(object, callback, type) == false) {
+    if (!does_callback_exist(object, callback, type)) {
 
         const M2MCallbackAssociation association(&object, callback, type, client_args);
         _callbacks.push_back(association);
         add_success = true;
     }
-
     return add_success;
 }
 
@@ -109,11 +113,9 @@ void M2MCallbackStorage::do_remove_callbacks(const M2MBase &object)
 void* M2MCallbackStorage::remove_callback(const M2MBase &object, M2MCallbackAssociation::M2MCallbackType type)
 {
     void* callback = NULL;
-
     // do not use the get_instance() here as it might create the instance
     M2MCallbackStorage* instance = M2MCallbackStorage::_static_instance;
     if (instance) {
-
         callback = instance->do_remove_callback(object, type);
     }
     return callback;
@@ -127,7 +129,6 @@ void* M2MCallbackStorage::do_remove_callback(const M2MBase &object, M2MCallbackA
         if ((_callbacks[index]._object == &object) && (_callbacks[index]._type == type)) {
             callback = _callbacks[index]._callback;
             _callbacks.erase(index);
-            break;
         }
     }
     return callback;

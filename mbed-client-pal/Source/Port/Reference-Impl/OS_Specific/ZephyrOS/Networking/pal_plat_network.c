@@ -34,6 +34,10 @@
 #if 1
 #define TRACE_GROUP "PAL"
 
+//#include <stdio.h>
+//#define DEBUG_DEBUG(...) { printf(__VA_ARGS__); printf("\r\n"); }
+//#define DEBUG_ERROR(...) { printf(__VA_ARGS__); printf("\r\n"); }
+
 #define DEBUG_DEBUG PAL_LOG_DBG
 #define DEBUG_ERROR PAL_LOG_ERR
 #else
@@ -653,6 +657,11 @@ palStatus_t pal_plat_close(palSocket_t* handle)
     return result;
 }
 
+/******************************************************************************/
+/* DNS                                                                        */
+/******************************************************************************/
+
+#if (PAL_DNS_API_VERSION == 0)
 palStatus_t pal_plat_getAddressInfo(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength)
 {
     DEBUG_DEBUG("pal_plat_getAddressInfo");
@@ -704,8 +713,203 @@ palStatus_t pal_plat_getAddressInfo(const char* hostname, palSocketAddress_t* ad
     return result;
 }
 
+#elif (PAL_DNS_API_VERSION == 3)
+
+#if (PAL_SUPPORT_IP_V4 || PAL_SUPPORT_NAT64)
+#define PAL_DNS_DEFAULT_QUERY_TYPE DNS_QUERY_TYPE_A
+#else
+#define PAL_DNS_DEFAULT_QUERY_TYPE DNS_QUERY_TYPE_AAAA
+#endif
+
+static size_t pal_dns_counter = 0;  // number of records in cache
+static uint16_t pal_dns_id = 0;     // handle for cancelling request in progress
+static palSocketAddress_t pal_dns_cache[PAL_DNS_CACHE_MAX] = { 0 }; // cache
+
+/**
+ * @brief      Callback function for Zephyr's DNS Resolve.
+ *
+ * @param[in]  status     Ongoing request's status.
+ * @param      info       DNS information.
+ * @param      user_data  User provided context.
+ */
+static void pal_plat_dns_resolve_cb(enum dns_resolve_status status,
+                                    struct dns_addrinfo *info,
+                                    void *user_data)
+{
+    DEBUG_DEBUG("pal_plat_dns_resolve_cb: %d", status);
+
+    /**
+     * Handle DNS record.
+     */
+    if ((status == DNS_EAI_INPROGRESS) &&
+        (pal_dns_counter < PAL_DNS_CACHE_MAX) && info) {
+        DEBUG_DEBUG("PAL DNS in progress");
+
+        palStatus_t result = PAL_ERR_SOCKET_DNS_ERROR;
+
+        /* get pointer to next slot in cache */
+        palSocketAddress_t* address = &pal_dns_cache[pal_dns_counter];
+
+        /* convert Zephyr address to PAL address */
+        if (info->ai_family == AF_INET) {
+
+#if !PAL_SUPPORT_IP_V4 && PAL_SUPPORT_NAT64
+            /* got IPv4 address on IPv6 network, convert to NAT64 address */
+            result = pal_setSockAddrNAT64Addr(address, net_sin(&info->ai_addr)->sin_addr.s4_addr);
+#else
+            result = pal_setSockAddrIPV4Addr(address, net_sin(&info->ai_addr)->sin_addr.s4_addr);
+#endif
+        } else if (info->ai_family == AF_INET6) {
+
+            result = pal_setSockAddrIPV6Addr(address, net_sin6(&info->ai_addr)->sin6_addr.s6_addr);
+
+        } else {
+            DEBUG_ERROR("Invalid IP address family %d", info->ai_family);
+            assert(0);
+        }
+
+        /* increment number of records in cache */
+        if (result == PAL_SUCCESS) {
+            pal_dns_counter++;
+        }
+
+    /**
+     * DNS lookup complete or failed.
+     */
+    } else {
+        DEBUG_DEBUG("PAL DNS done");
+
+        if (user_data) {
+
+            palStatus_t result = PAL_ERR_SOCKET_DNS_ERROR;
+
+            /* return success if at least one record has been received*/
+            if (pal_dns_counter) {
+                result = PAL_SUCCESS;
+            }
+
+            /* access user provided data */
+            pal_asyncAddressInfo_t* pal_info = (pal_asyncAddressInfo_t*) user_data;
+
+            /* invoke callback function with result */
+            pal_info->callback(pal_info->hostname,
+                               (palAddressInfo_t*) pal_dns_cache,
+                               result,
+                               pal_info->callbackArgument);
+        }
+    }
+}
+
+/*! \brief This function translates a hostname to a `palSocketAddress_t` that can be used with PAL sockets.
+ * @param[in] info address of `pal_asyncAddressInfo_t`.
+ */
+palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo_t* info)
+{
+    DEBUG_DEBUG("pal_plat_getAddressInfoAsync");
+
+    palStatus_t result = PAL_ERR_SOCKET_DNS_ERROR;
+
+    if (info) {
+        DEBUG_DEBUG("hostname: %s", info->hostname);
+
+        /* reset counter */
+        pal_dns_counter = 0;
+
+        /* lookup address using Zephyr's DNS Resolve */
+        int retval = dns_get_addr_info(info->hostname,              // const char *query,
+                                       PAL_DNS_DEFAULT_QUERY_TYPE,  // enum dns_query_type type,
+                                       &pal_dns_id,                 // uint16_t *dns_id,
+                                       pal_plat_dns_resolve_cb,     // dns_resolve_cb_tcb,
+                                       (void*) info,                // void *user_data,
+                                       PAL_DNS_TIMEOUT_MS);         // int32_t timeout
+
+        if (retval == 0) {
+
+            /* return handle for cancelling requests */
+            *info->queryHandle = pal_dns_id;
+
+            result = PAL_SUCCESS;
+        }
+    }
+
+    return result;
+}
+
+/*! \brief This function puts the palSocketAddress_t from the given index in palAddressInfo_t to the given addr
+ * @param[in] addrInfo The palAddressInfo_t which (if any) palSocketAddress_t is get.
+ * @param[in] index Index of the address in addrInfo to fetch.
+ * @param[out] addr palSocketAddress_t is put to this instance is any if found.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ */
+palStatus_t pal_plat_getDNSAddress(palAddressInfo_t *addrInfo, uint16_t index, palSocketAddress_t *addr)
+{
+    DEBUG_DEBUG("pal_plat_getDNSAddress");
+
+    palStatus_t result = PAL_ERR_SOCKET_DNS_ERROR;
+
+    if (addr && (index < PAL_DNS_CACHE_MAX)) {
+
+        /* copy record from cache */
+        memcpy(addr, &pal_dns_cache[index], sizeof(palSocketAddress_t));
+
+        result = PAL_SUCCESS;
+    }
+
+    return result;
+}
+
+/*! \brief Return the number of dns addresses in the given addrInfo
+ * @param[in] addrInfo The palAddressInfo_t to be used for countung dns addresses.
+ * \return Number of DNS addresses in the given addrInfo.
+ */
+int pal_plat_getDNSCount(palAddressInfo_t *addrInfo)
+{
+    DEBUG_DEBUG("pal_plat_getDNSCount");
+
+    return pal_dns_counter;
+}
+
+/*! \brief This function is cancelation for `pal_plat_getAddressInfoAsync()`.
+ * @param[in] queryHandle ID of ongoing DNS query.
+ */
+palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
+{
+    DEBUG_DEBUG("pal_plat_cancelAddressInfoAsync");
+
+    /* cancel request */
+    int result = dns_cancel_addr_info(queryHandle);
+
+    return (result == 0) ? PAL_SUCCESS : PAL_ERR_SOCKET_DNS_ERROR;
+}
+
+/*! \brief This function free's the thread used in pal_getAddressInfoAsync
+*/
+palStatus_t pal_plat_free_addressinfoAsync(palDNSQuery_t queryHandle)
+{
+    DEBUG_DEBUG("pal_plat_free_addressinfoAsync");
+
+    /* reset counter */
+    pal_dns_counter = 0;
+
+    return PAL_SUCCESS;
+}
+
+/*! \brief Free the given addrInfo.
+ * @param[in] addrInfo OS specific palAddressInfo_t which holds dns addresses.
+ */
+void pal_plat_freeAddrInfo(palAddressInfo_t* addrInfo)
+{
+    DEBUG_DEBUG("pal_plat_freeAddrInfo");
+
+    /* unused */
+}
+#else
+#error PAL_DNS_API_VERSION must be either 0 or 3
+#endif
+
 /******************************************************************************/
-/* Feature dependant */
+/* Feature dependant                                                          */
+/******************************************************************************/
 
 // for blocking sockets
 palStatus_t pal_plat_setSocketOptions(palSocket_t handle, int optionName, const void* optionValue, palSocketLength_t optionLength)
@@ -778,9 +982,25 @@ uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
     return PAL_DEFAULT_STAGGER_ESTIMATE;
 }
 
+/******************************************************************************/
+/* Network Interface                                                          */
+/******************************************************************************/
+
+#if !(defined(PAL_USE_APPLICATION_NETWORK_CALLBACK) && \
+             (PAL_USE_APPLICATION_NETWORK_CALLBACK == 1))
+palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex,
+                                                 connectionStatusCallback callback,
+                                                 void *client_arg)
+{
+    DEBUG_DEBUG("pal_plat_setConnectionStatusCallback");
+
+    return PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
+}
+#endif
 
 /******************************************************************************/
-/* Unused */
+/* Unused                                                                     */
+/******************************************************************************/
 
 palStatus_t pal_plat_getNumberOfNetInterfaces(uint32_t* numInterfaces)
 {
@@ -792,13 +1012,6 @@ palStatus_t pal_plat_getNumberOfNetInterfaces(uint32_t* numInterfaces)
 palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t* interfaceInfo)
 {
     DEBUG_DEBUG("pal_plat_getNetInterfaceInfo");
-
-    return PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
-}
-
-palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connectionStatusCallback callback, void *client_arg)
-{
-    DEBUG_DEBUG("pal_plat_setConnectionStatusCallback");
 
     return PAL_ERR_SOCKET_OPTION_NOT_SUPPORTED;
 }

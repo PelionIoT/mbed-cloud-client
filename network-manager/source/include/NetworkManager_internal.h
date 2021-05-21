@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Pelion. All rights reserved.
+ * Copyright (c) 2020-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -32,13 +32,13 @@ typedef enum config {
     WS,
     BR,
     NM,
-    NI,
-    RQ
+    NI
 } config_type_t;
 
 typedef enum nm_status {
     NM_STATUS_FAIL = -1,
-    NM_STATUS_SUCCESS = 0
+    NM_STATUS_SUCCESS = 0,
+    NM_STATUS_UNSUPPORTED
 } nm_status_t;
 
 typedef enum nm_event_type_e {
@@ -59,7 +59,6 @@ nm_status_t nm_post_timeout_event(nm_event_t event_type, int32_t delay);
 #define WS_STATS_RESOURCE_VERSION 1
 #define BR_STATS_RESOURCE_VERSION 1
 #define NODE_INFORMATION_VERSION 1
-#define RADIO_QUALITY_VERSION 1
 
 /* Application configuration */
 /* To-Do: Application configuration not decided yet (which conf. is changeable from server) */
@@ -112,10 +111,17 @@ typedef struct {
 } rpl_config_t;
 
 typedef struct {
+    char address[40];
+    uint16_t secret_len;
+    uint8_t *secret;
+} radius_server_t;
+
+typedef struct {
     uint32_t resource_version;
     rpl_config_t rpl_config;
     uint16_t delay;
     uint16_t pan_id;
+    radius_server_t radius_config;
 } nm_br_config_t;
 
 /* Application Statistics */
@@ -175,6 +181,8 @@ typedef struct {
     uint8_t primary_parent[16];
     uint16_t etx_1st_parent;    /*<! Primary parent ETX. */
     uint16_t etx_2nd_parent;    /*<! Secondary parent ETX. */
+    uint8_t rssi_in;
+    uint8_t rssi_out;
 } routing_info_t;
 
 /* Node information */
@@ -182,13 +190,6 @@ typedef struct {
     uint32_t resource_version;
     routing_info_t routing_info;
 } nm_node_info_t;
-
-/* Radio quality */
-typedef struct {
-    uint32_t resource_version;
-    uint8_t rssi_in;
-    uint8_t rssi_out;
-} nm_radio_quality_t;
 
 #ifdef __cplusplus
 } // closing brace for extern "C"

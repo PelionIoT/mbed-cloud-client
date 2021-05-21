@@ -32,8 +32,8 @@ extern "C" {
     * KCM item types.
     */
     typedef enum {
-        KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM supports ECC keys with curves defined in palGroupIndex_t (pal_Crypto.h).
-        KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM supports ECC keys with curves defined in palGroupIndex_t (pal_Crypto.h).
+        KCM_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM supports ECC keys with curves defined in palGroupIndex_t (cs_pal_crypto.h).
+        KCM_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM supports ECC keys with curves defined in palGroupIndex_t (cs_pal_crypto.h).
         KCM_SYMMETRIC_KEY_ITEM,        //!< KCM symmetric key item type.
         KCM_CERTIFICATE_ITEM,          //!< KCM certificate item type. Supports x509 certificates in DER format.
         KCM_CONFIG_ITEM,               //!< KCM configuration parameter item type.

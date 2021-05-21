@@ -29,7 +29,7 @@ extern "C" {
 #include "fota_internal.h"
 
 typedef  void (*fota_deferred_data_callabck_t)(uint8_t *data, size_t size);
-typedef  void (*fota_deferred_result_callabck_t)(int32_t status);
+typedef  void (*fota_deferred_result_callabck_t)(int32_t param);
 
 /*
  * Initialize event handler

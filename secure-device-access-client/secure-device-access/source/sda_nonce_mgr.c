@@ -20,7 +20,7 @@
 #include "sda_error_handling.h"
 #include "sda_nonce_mgr.h"
 #include "sda_macros.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 
 /** Self describing nonce structure
 * value - the nonce value

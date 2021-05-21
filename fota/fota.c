@@ -29,7 +29,7 @@
 #include "fota/fota_source.h"
 #include "fota/fota_delta.h"
 #include "fota/fota_app_ifs.h"
-#include "fota/fota_platform.h"
+#include "fota_platform_hooks.h"
 #include "fota/fota_nvm.h"
 #include "fota/fota_block_device.h"
 #include "fota/fota_crypto.h"
@@ -58,7 +58,7 @@
 #endif
 
 #if defined(TARGET_LIKE_LINUX)
-#include "fota_platform_linux.h"
+#include "fota/platform/linux/fota_platform_linux.h"
 #endif
 
 #if (MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME) && !FOTA_HEADER_HAS_CANDIDATE_READY
@@ -75,6 +75,8 @@ static void fota_on_install_authorize(bool defer);
 
 static bool initialized = false;
 static size_t storage_available;
+
+static bool fota_defer_by_user = false;
 
 // Multicast related variables here should not be part of the FOTA context, as they live also outside of FOTA scope
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT != FOTA_MULTICAST_UNSUPPORTED)
@@ -225,11 +227,10 @@ static void abort_update(int ret, const char *msg)
         fota_source_report_update_result(upd_res);
         fota_source_report_state(FOTA_SOURCE_STATE_IDLE, NULL, NULL);
         manifest_delete();
+        fota_nvm_fw_encryption_key_delete();
     } else {
         fota_source_report_state(FOTA_SOURCE_STATE_PROCESSING_MANIFEST, NULL, NULL);
     }
-
-    fota_nvm_fw_encryption_key_delete();
 
     const fota_component_desc_t *comp_desc;
     fota_component_get_desc(fota_ctx->comp_id, &comp_desc);
@@ -641,6 +642,7 @@ int fota_init(void *m2m_interface, void *resource_list)
 #endif
 
     initialized = true;
+    
     FOTA_TRACE_DEBUG("init complete");
 
     return FOTA_STATUS_SUCCESS;
@@ -669,6 +671,7 @@ int fota_deinit(void)
     fota_linux_deinit();
 #endif
     initialized = false;
+
     return FOTA_STATUS_SUCCESS;
 }
 
@@ -950,6 +953,8 @@ void fota_on_defer(int32_t status)
     if (!fota_ctx) {
         return;  // gracefully ignore this call if update is not running
     }
+    /* mark call to defer only if FOTA is active */
+    fota_defer_by_user = true; // for now we assume that defer called always by user app
 
     if (fota_ctx->state == FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION) {
         FOTA_TRACE_INFO("Installation deferred by application.");
@@ -1147,7 +1152,7 @@ static int prepare_and_program_header(void)
     fota_set_header_info_magic(&header_info);
     header_info.fw_size = fota_ctx->fw_info->installed_size;
     header_info.version = fota_ctx->fw_info->version;
-    header_info.external_header_size = (uint16_t)(sizeof(fota_header_info_t) - offsetof(fota_header_info_t,internal_header_barrier));
+    header_info.external_header_size = (uint16_t)(sizeof(fota_header_info_t) - offsetof(fota_header_info_t, internal_header_barrier));
     memcpy(header_info.digest, fota_ctx->fw_info->installed_digest, FOTA_CRYPTO_HASH_SIZE);
     memcpy(header_info.precursor, fota_ctx->fw_info->precursor_digest, FOTA_CRYPTO_HASH_SIZE);
     memcpy(header_info.vendor_data, fota_ctx->fw_info->vendor_data, FOTA_MANIFEST_VENDOR_DATA_SIZE);
@@ -1381,7 +1386,7 @@ finish:
 static int calc_and_erase_needed_storage()
 {
     int ret;
-    size_t storage_needed = 0, erase_size, total_erase_size;
+    size_t storage_needed = 0, erase_size, total_erase_size, end_addr;
 
     if (fota_ctx) {
         // Calculate needed space for FW data in storage:
@@ -1427,12 +1432,16 @@ static int calc_and_erase_needed_storage()
         return FOTA_STATUS_INSUFFICIENT_STORAGE;
     }
 
-    ret = fota_bd_get_erase_size(fota_candidate_get_config()->storage_start_addr + storage_needed - 1, &erase_size);
+    end_addr = fota_candidate_get_config()->storage_start_addr + storage_needed;
+    ret = fota_bd_get_erase_size(end_addr - 1, &erase_size);
     if (ret) {
         FOTA_TRACE_ERROR("Get erase size failed %d", ret);
         return ret;
     }
-    total_erase_size = FOTA_ALIGN_UP(storage_needed, erase_size);
+
+    // Align erase size to the end of last sector
+    total_erase_size = end_addr % erase_size ? FOTA_ALIGN_DOWN(end_addr, erase_size) + erase_size - fota_candidate_get_config()->storage_start_addr :
+                       storage_needed;
     FOTA_TRACE_DEBUG("Erasing storage at %zu, size %zu", fota_candidate_get_config()->storage_start_addr, total_erase_size);
     ret = fota_bd_erase(fota_candidate_get_config()->storage_start_addr, total_erase_size);
     if (ret) {
@@ -1655,7 +1664,7 @@ void fota_on_authorize(int32_t status)
     FOTA_ASSERT(
         (fota_ctx->state == FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION) ||
         (fota_ctx->state == FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION)
-    )
+    );
 
     if (fota_ctx->state == FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION) {
         FOTA_TRACE_INFO("Install authorization granted.");
@@ -1984,12 +1993,31 @@ fail:
 }
 
 
-void fota_on_resume(int32_t status)
+void fota_on_resume(int32_t param)
 {
 #if (MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT != FOTA_RESUME_UNSUPPORTED)
-    (void)status;  // unused
+
+    bool fota_resume_by_user = !param; // param=0 - called from user app
+    // param=1 - called from internal flow
+
     if (fota_ctx) {
+        /*
+         * FOTA context exists therefore defer was not called. Got here because of internal resume event, continue update
+         */
+        FOTA_TRACE_DEBUG("FOTA already running");
         return;  // FOTA is already running - ignore
+    }
+
+    FOTA_TRACE_INFO("fota_on_resume - resume by %u", fota_resume_by_user);
+
+    //if we got here, there is no fota context:
+    // either defer was called or context was deleted because of internal error
+    if ((fota_defer_by_user == true) && (fota_resume_by_user == false)) {
+        /* fota was deferred by user app and resume was called from internal flow
+         * ignore the resume  for now and wait for call from user app
+         */
+        FOTA_TRACE_INFO("Internal resume followed by user app defer - abort!");
+        return; // don't resume now, wait for explicit user call for resume
     }
 
     size_t manifest_size;
@@ -2016,6 +2044,7 @@ void fota_on_resume(int32_t status)
     if (ret) {
         FOTA_TRACE_ERROR("failed to load manifest from NVM (ret code %d) - update resume aborted.", ret);
     }
+    fota_defer_by_user = false; //resume completed, remove the flag
 #endif
 }
 

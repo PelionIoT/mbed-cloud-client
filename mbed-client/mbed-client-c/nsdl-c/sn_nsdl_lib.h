@@ -343,7 +343,7 @@ extern int32_t sn_nsdl_send_observation_notification(struct nsdl_s *handle, uint
 extern char *sn_nsdl_get_version(void);
 
 /**
- * \fn extern int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet, uint16_t packet_len, sn_nsdl_addr_s *src)
+ * \fn extern int8_t sn_nsdl_process_coap(struct nsdl_s *handle, sn_coap_hdr_s *coap_packet_ptr, sn_nsdl_addr_s *src_ptr)
  *
  * \brief To push CoAP packet to mbed Device C Client library
  *
@@ -361,9 +361,9 @@ extern char *sn_nsdl_get_version(void);
  *      the destination address of the response packet.
  *
  * \return  0   Success
- * \return  -1  Failure
+ * \return  < 0  Failure
  */
-extern int8_t sn_nsdl_process_coap(struct nsdl_s *handle, uint8_t *packet, uint16_t packet_len, sn_nsdl_addr_s *src);
+extern int8_t sn_nsdl_process_coap(struct nsdl_s *handle, sn_coap_hdr_s *coap_packet_ptr, sn_nsdl_addr_s *src_ptr);
 
 /**
  * \fn extern int8_t sn_nsdl_exec(struct nsdl_s *handle, uint32_t time);
@@ -494,7 +494,7 @@ extern int32_t sn_nsdl_send_request(struct nsdl_s *handle,
  *
  * \param   *handle Pointer to nsdl-library handle
  * \return  0   Success
- * \return  -1  Failed to indicate that internal address pointer is not allocated (call nsdl_init() first).
+ * \return  < 0  Failed to indicate that internal address pointer is not allocated (call nsdl_init() first).
  */
 extern int8_t set_NSP_address(struct nsdl_s *handle, uint8_t *NSP_address, uint8_t address_length, uint16_t port, sn_nsdl_addr_type_e address_type);
 

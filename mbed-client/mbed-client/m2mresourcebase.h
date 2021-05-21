@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public:
         OBJLINK
     } ResourceType;
 
-    /*
+    /**
      * \brief Value set callback function.
      * \param resource Pointer to resource whose value should be updated
      * \param value Pointer to value buffer containing new value, ownership is transferred to callback function
@@ -74,7 +74,7 @@ public:
      */
     typedef void(*value_set_callback)(const M2MResourceBase *resource, uint8_t *value, const uint32_t value_length);
 
-    /*
+    /**
      * \brief Read resource value callback function.
      * \param resource Pointer to resource whose value should will be read
      * \param buffer[OUT] Buffer containing the resource value
@@ -87,7 +87,7 @@ public:
                                                size_t *buffer_size,
                                                void *client_args);
 
-    /*
+    /**
      * \brief Type definition for a read resource value callback function.
      * \param[in]       resource        Pointer to resource whose value should will be read.
      * \param[out]      buffer          Pointer to value buffer.
@@ -104,9 +104,7 @@ public:
                                                        const size_t offset,
                                                        void *client_args);
 
-
-
-    /*
+    /**
      * \brief Read resource value size callback function.
      * \param resource Pointer to resource whose size will be read
      * \param buffer_size[OUT] Buffer size
@@ -117,7 +115,7 @@ public:
                                                     size_t *buffer_size,
                                                     void *client_args);
 
-    /*
+    /**
      * \brief Set resource value callback function.
      * \param resource Pointer to resource whose value will be updated
      * \param buffer Buffer containing the new value
@@ -207,6 +205,8 @@ public:
      * resource receives a POST command.
      * \param callback The function pointer that needs to be executed.
      * \return True, if callback could be set, false otherwise.
+     *
+     * \deprecated Function pointer classes are deprecated. Please use M2MResourceBase::set_execute_function(execute_callback_2 callback) instead.
      */
     bool set_execute_function(execute_callback callback);
 
@@ -393,6 +393,8 @@ public:
     /**
      * \brief Function to report the value changes to the object instance and object parent of the
      * resource if they have been subscribed
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     void report_to_parents();
 
@@ -433,6 +435,9 @@ public:
     */
     virtual const char *object_name() const = 0;
 
+    /**
+     * \deprecated Internal API, subject to be modified or removed.
+     */
     virtual M2MResource &get_parent_resource() const = 0;
 
 #ifndef DISABLE_BLOCK_MESSAGE
@@ -462,7 +467,7 @@ public:
 #endif
 
     /**
-     * @brief Set the status whether resource value will be part of registration message.     *
+     * @brief Set the status whether resource value will be part of registration message.
      * This only allowed for following resource types:
      * STRING,
      * INTEGER,
@@ -471,6 +476,8 @@ public:
      * OPAQUE
      *
      * @param publish_value If true then resource value will be part of registration message.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     void publish_value_in_registration_msg(bool publish_value);
 

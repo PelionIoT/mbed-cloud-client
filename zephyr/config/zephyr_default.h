@@ -89,6 +89,22 @@
     #define PAL_SUPPORT_NAT64 1
 #endif
 
+#ifndef PAL_DNS_API_VERSION
+    #define PAL_DNS_API_VERSION 3
+#endif
+
+#ifndef PAL_DNS_CACHE_MAX
+    #define PAL_DNS_CACHE_MAX 1
+#endif
+
+#ifndef PAL_DNS_TIMEOUT_MS
+    #define PAL_DNS_TIMEOUT_MS (60*1000)
+#endif
+
+#ifndef PAL_USE_APPLICATION_NETWORK_CALLBACK
+    #define PAL_USE_APPLICATION_NETWORK_CALLBACK 0
+#endif
+
 /*****************************************************************************/
 /* RTOS                                                                      */
 /*****************************************************************************/
@@ -103,6 +119,18 @@
     #else
         #define PAL_STACKS_MAX_SIZE (8 * 1024)
     #endif
+#endif
+
+#ifndef PAL_USE_APPLICATION_REBOOT
+    #define PAL_USE_APPLICATION_REBOOT 0
+#endif
+
+/*****************************************************************************/
+/* TLS                                                                       */
+/*****************************************************************************/
+
+#ifndef PAL_USE_SSL_SESSION_RESUME
+    #define PAL_USE_SSL_SESSION_RESUME 0
 #endif
 
 #endif /* PAL_DEFAULT_ZEPHYR_CONFIGURATION_H_ */

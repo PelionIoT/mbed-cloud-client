@@ -90,6 +90,15 @@ public:
     typedef NS_LIST_HEAD(coap_response_s, link) response_list_t;
 
     /**
+     * Enum defining an Notification queue options
+    */
+    typedef enum {
+        SEND_NOTIFICATION,           // Send next notification
+        CLEAR_NOTIFICATION_TOKEN,    // Clear notification token
+        REMOVE_NOTIFICATION          // Remove notification from queue
+    } NotificationQueueOption;
+
+    /**
     * @brief Constructor
     * @param observer, Observer to pass the event callbacks from nsdl library.
     */
@@ -290,6 +299,18 @@ public:
     void stop_timers();
 
     /**
+     * @brief Store alert mode state.
+     * @param alert Alert mode set or not.
+     */
+    void set_alert_mode(bool alert);
+
+    /**
+     * @brief Get the client alert mode status.
+     * @return True if client in alert mode otherwise False.
+     */
+    bool alert_mode() const;
+
+    /**
      * @brief Returns nsdl handle.
      * @return ndsl handle
      */
@@ -325,7 +346,7 @@ public:
      */
     bool remove_object_from_list(M2MBase *base);
 
-    /*
+    /**
      * @brief Get NSDL timer.
      * @return NSDL execution timer.
      */
@@ -347,6 +368,11 @@ public:
      * @brief Starts the NSDL execution timer.
      */
     void start_nsdl_execution_timer();
+
+    /**
+     * @brief Stops the NSDL execution timer.
+     */
+    void stop_nsdl_execution_timer();
 
     /**
      * @brief Returns security object.
@@ -383,7 +409,7 @@ public:
     /**
      * @brief Send next notification message.
     */
-    void send_next_notification(bool clear_token);
+    void send_next_notification(NotificationQueueOption option);
 
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
@@ -462,6 +488,13 @@ public:
      * \param data_len length of the CID
      */
     void set_cid_value(const uint8_t *data_ptr, const size_t data_len);
+
+    /**
+     * Helper method called from lifetime_write_callback.
+     * \param buffer Data holding lifetime value.
+     * \param buffer_size Size of the buffer.
+     */
+    bool update_server_lifetime(const uint8_t *buffer, const size_t buffer_size);
 
 protected: // from M2MTimerObserver
 
@@ -664,7 +697,7 @@ private:
 
     bool lifetime_value_changed() const;
 
-    void execute_notification_delivery_status_cb(M2MBase *object, int32_t msgid);
+    void handle_observation_response(M2MBase *object, int32_t msgid);
 
     bool is_response_to_request(const sn_coap_hdr_s *coap_header,
                                 struct request_context_s &get_data);
@@ -685,7 +718,8 @@ private:
      * @param clear_token, Flag to indicate whether observation token should be cleared.
      * @return True if notification sent, false otherwise or if send already in progress
      */
-    bool send_next_notification_for_object(M2MObject &object, bool clear_token);
+    bool send_next_notification_for_object(M2MObject &object, NotificationQueueOption option);
+    bool handle_notification_queue(M2MObject &object, NotificationQueueOption option);
 
     static char *parse_uri_query_parameters(char *uri);
 
@@ -706,7 +740,7 @@ private:
 
     void handle_request_response(const sn_coap_hdr_s *coap_header, struct request_context_s *request_context);
 
-    void handle_message_delivered(M2MBase *base, const M2MBase::MessageType type);
+    void handle_message_status_callback(M2MBase *base, const M2MBase::MessageType type, const M2MBase::MessageDeliveryStatus status);
 
     void handle_empty_ack(const sn_coap_hdr_s *coap_header, bool is_bootstrap_msg);
 
@@ -779,6 +813,9 @@ private:
     M2MTimer                                _download_retry_timer;
     uint32_t                                _download_retry_time;
     uint8_t                                 _network_rtt_estimate;
+    bool                                    _alert_mode;
+    NotificationQueueOption                 _last_notif_queue_event;
+    sn_coap_msg_code_e                      _current_request_code;
 
     friend class Test_M2MNsdlInterface;
 

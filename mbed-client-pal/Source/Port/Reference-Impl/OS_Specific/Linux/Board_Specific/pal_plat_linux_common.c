@@ -74,6 +74,8 @@ palStatus_t pal_plat_osEntropyRead(const char *entropyFileName, uint8_t *randomB
         status = PAL_ERR_FS_NO_FILE;
     }
 
+    printf("Finished generating random from %s.\n", entropySourceFileName);
+
     if (NULL != actualRandomSizeBytesOut) {
         *actualRandomSizeBytesOut = actualRead;
     }

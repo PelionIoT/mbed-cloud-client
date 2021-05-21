@@ -41,18 +41,17 @@ class M2MUpdateRegisterData;
  */
 
 class  M2MInterfaceImpl : public M2MInterface,
-                          public M2MNsdlObserver,
-                          public M2MConnectionObserver,
-                          public M2MTimerObserver
-{
+    public M2MNsdlObserver,
+    public M2MConnectionObserver,
+    public M2MTimerObserver {
 private:
     // Prevents the use of assignment operator by accident.
-    M2MInterfaceImpl& operator=( const M2MInterfaceImpl& /*other*/ );
+    M2MInterfaceImpl &operator=(const M2MInterfaceImpl & /*other*/);
 
     // Prevents the use of copy constructor by accident
-    M2MInterfaceImpl( const M2MInterfaceImpl& /*other*/ );
+    M2MInterfaceImpl(const M2MInterfaceImpl & /*other*/);
 
-friend class M2MInterfaceFactory;
+    friend class M2MInterfaceFactory;
 
 private:
 
@@ -70,7 +69,7 @@ private:
      * @param context_address Context address, default is empty.
      * @param version Version of the LwM2M Enabler that the LwM2M Client supports.
      */
-    M2MInterfaceImpl(M2MInterfaceObserver& observer,
+    M2MInterfaceImpl(M2MInterfaceObserver &observer,
                      const String &endpoint_name,
                      const String &endpoint_type,
                      const int32_t life_time,
@@ -179,7 +178,7 @@ public:
      * needs to be unregistered. If there is only one LWM2M server registered
      * this parameter can be NULL.
      */
-    virtual void unregister_object(M2MSecurity* security = NULL);
+    virtual void unregister_object(M2MSecurity *security = NULL);
 
     /**
      * @brief Sets the function which will be called indicating client
@@ -315,13 +314,25 @@ public:
      */
     virtual void pause();
 
-    virtual nsdl_s* get_nsdl_handle() const;
+    /**
+     * \brief Sets client into an alert mode.
+     *
+     * \note In alert mode client halts all data
+     * sendings/active operations and waits for priority data to be sent.
+     */
+    virtual void alert();
+
+    /**
+     * @brief Get ndsl handle.
+     * @return nsdl handle
+     */
+    virtual nsdl_s *get_nsdl_handle() const;
 
     /**
      * @brief Returns M2MServer handle.
      * @return M2MServer handle
      */
-    virtual M2MServer* get_m2mserver() const;
+    virtual M2MServer *get_m2mserver() const;
 
     /**
      * \brief Internal test function. Set CID for current tls session.
@@ -365,7 +376,7 @@ protected: // From M2MNsdlObserver
 
 protected: // From M2MConnectionObserver
 
-    virtual void data_available(uint8_t* data,
+    virtual void data_available(uint8_t *data,
                                 uint16_t data_size,
                                 const M2MConnectionObserver::SocketAddress &address);
 
@@ -389,94 +400,94 @@ private: // state machine state functions
     /**
     * When the state is Idle.
     */
-    void state_idle(EventData* data);
+    void state_idle(EventData *data);
 
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     /**
     * When the client starts bootstrap.
     */
-    void state_bootstrap( EventData *data);
+    void state_bootstrap(EventData *data);
 
     /**
     * When the bootstrap server address is resolved.
     */
-    void state_bootstrap_address_resolved( EventData *data);
+    void state_bootstrap_address_resolved(EventData *data);
 
     /**
     * When the bootstrap resource is created.
     */
-    void state_bootstrap_resource_created( EventData *data);
+    void state_bootstrap_resource_created(EventData *data);
 
     /**
     * When the server has sent response and bootstrapping is done.
     */
-    void state_bootstrapped( EventData *data);
+    void state_bootstrapped(EventData *data);
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
     * When the client starts register.
     */
-    void state_register( EventData *data);
+    void state_register(EventData *data);
 
     /**
     * When the server address for register is resolved.
     */
-    void state_register_address_resolved( EventData *data);
+    void state_register_address_resolved(EventData *data);
 
     /**
     * When the client is registered.
     */
-    void state_registered( EventData *data);
+    void state_registered(EventData *data);
 
     /**
     * When the client is updating registration.
     */
-    void state_update_registration( EventData *data);
+    void state_update_registration(EventData *data);
 
     /**
     * When the client starts unregister.
     */
-    void state_unregister( EventData *data);
+    void state_unregister(EventData *data);
 
     /**
     * When the client has been unregistered.
     */
-    void state_unregistered( EventData *data);
+    void state_unregistered(EventData *data);
 
     /**
     * When the coap data is been sent through socket.
     */
-    void state_sending_coap_data( EventData *data);
+    void state_sending_coap_data(EventData *data);
 
     /**
     * When the coap data is sent successfully.
     */
-    void state_coap_data_sent( EventData *data);
+    void state_coap_data_sent(EventData *data);
 
     /**
     * When the socket is receiving coap data.
     */
-    void state_receiving_coap_data( EventData *data);
+    void state_receiving_coap_data(EventData *data);
 
     /**
     * When the socket has received coap data.
     */
-    void state_coap_data_received( EventData *data);
+    void state_coap_data_received(EventData *data);
 
     /**
     * When the coap message is being processed.
     */
-    void state_processing_coap_data( EventData *data);
+    void state_processing_coap_data(EventData *data);
 
     /**
     * When the coap message has been processed.
     */
-    void state_coap_data_processed( EventData *data);
+    void state_coap_data_processed(EventData *data);
 
     /**
     * When the client is waiting to receive or send data.
     */
-    void state_waiting( EventData *data);
+    void state_waiting(EventData *data);
 
     /**
      * Start registration update.
@@ -517,7 +528,7 @@ private: // state machine state functions
      * @param current_state Current state to be set.
      * @param data Data to be passed to the state function.
      */
-    void state_function( uint8_t current_state, EventData* data  );
+    void state_function(uint8_t current_state, EventData *data);
 
     /**
      * @brief State Engine maintaining state machine logic.
@@ -529,14 +540,14 @@ private: // state machine state functions
     * @param New The state to which the state machine should go.
     * @param data The data to be passed to the state machine.
     */
-    void external_event(uint8_t, EventData* = NULL);
+    void external_event(uint8_t, EventData * = NULL);
 
     /**
     * Internal event generated by state machine.
     * @param New State which the state machine should go to.
     * @param data The data to be passed to the state machine.
     */
-    void internal_event(uint8_t, EventData* = NULL);
+    void internal_event(uint8_t, EventData * = NULL);
 
     /**
     * Queue mode enabled or not.
@@ -544,8 +555,7 @@ private: // state machine state functions
     */
     bool queue_mode() const;
 
-    enum
-    {
+    enum {
         EVENT_IGNORED = 0xFE,
         CANNOT_HAPPEN
     };
@@ -557,7 +567,7 @@ private: // state machine state functions
      * @param ip_address The extracted IP.
      * @param port The extracted port.
      */
-    static void process_address(const String& server_address, String& ip_address, uint16_t& port);
+    static void process_address(const String &server_address, String &ip_address, uint16_t &port);
 
     /**
      * Helper method for storing the error description to _error_description if the feature
@@ -569,11 +579,26 @@ private: // state machine state functions
     /**
      * Helper method for creating random initial reconnection time interval.
      */
-     void create_random_initial_reconnection_time();
+    void create_random_initial_reconnection_time();
 
-     void update_network_latency_configurations_with_rtt();
+    void update_network_latency_configurations_with_rtt();
 
-    enum ReconnectionState{
+    /**
+     * @brief Callback function which is called when POST comes to resource 1/0/4. Triggers de-registration.
+     * @param argument, Pointer to M2MResource::M2MExecuteParameter.
+    */
+    void disable_callback(void *argument);
+
+    /**
+     * @brief Callback function which is called when acknowledgement for the response to POST to resource 1/0/4
+     * is received from server.
+    */
+    static void post_response_status_handler(const M2MBase &base,
+                                                 const M2MBase::MessageDeliveryStatus status,
+                                                 const M2MBase::MessageType type,
+                                                 void *me);
+
+    enum ReconnectionState {
         None,
         WithUpdate,
         Unregistration,
@@ -582,40 +607,41 @@ private: // state machine state functions
 
 private:
 
-    EventData                   *_event_data;
-    uint16_t                    _server_port;
-    uint16_t                    _listen_port;
-    int32_t                     _life_time;
-    String                      _server_ip_address;
-    M2MSecurity                 *_register_server; //TODO: to be the list not owned
-    M2MTimer                    _queue_sleep_timer;
-    M2MTimer                    _retry_timer;
-    callback_handler            _callback_handler;
-    const uint8_t               _max_states;
-    bool                        _event_ignored;
-    bool                        _event_generated;
-    bool                        _reconnecting;
-    bool                        _retry_timer_expired;
-    bool                        _bootstrapped;
-    bool                        _bootstrap_finished;
-    bool                        _queue_mode_timer_ongoing;
-    uint8_t                     _current_state;
-    BindingMode                 _binding_mode;
-    ReconnectionState           _reconnection_state;
-    M2MInterfaceObserver        &_observer;
-    M2MConnectionSecurity       *_security_connection; // Doesn't own
-    M2MConnectionHandler        _connection_handler;
-    M2MNsdlInterface            _nsdl_interface;
-    M2MSecurity                 *_security;
+    EventData                               *_event_data;
+    M2MConnectionObserver::SocketAddress    _server_address;
+    uint16_t                                _server_port;
+    uint16_t                                _listen_port;
+    int32_t                                 _life_time;
+    String                                  _server_ip_address;
+    M2MSecurity                             *_register_server; //TODO: to be the list not owned
+    M2MTimer                                _queue_sleep_timer;
+    M2MTimer                                _retry_timer;
+    callback_handler                        _callback_handler;
+    const uint8_t                           _max_states;
+    bool                                    _event_ignored;
+    bool                                    _event_generated;
+    bool                                    _reconnecting;
+    bool                                    _retry_timer_expired;
+    bool                                    _bootstrapped;
+    bool                                    _bootstrap_finished;
+    bool                                    _queue_mode_timer_ongoing;
+    uint8_t                                 _current_state;
+    BindingMode                             _binding_mode;
+    ReconnectionState                       _reconnection_state;
+    M2MInterfaceObserver                    &_observer;
+    M2MConnectionSecurity                   *_security_connection; // Doesn't own
+    M2MConnectionHandler                    _connection_handler;
+    M2MNsdlInterface                        _nsdl_interface;
+    M2MSecurity                             *_security;
 
 #ifndef DISABLE_ERROR_DESCRIPTION
     // The DISABLE_ERROR_DESCRIPTION macro will reduce the flash usage by ~1800 bytes.
-    char                        _error_description[MAX_ALLOWED_ERROR_STRING_LENGTH];
+    char                                    _error_description[MAX_ALLOWED_ERROR_STRING_LENGTH];
 #endif
 
     // Reconnection related variables (in seconds)
-    uint16_t                    _initial_reconnection_time;
-    uint32_t                    _reconnection_time;
+    uint16_t                                _initial_reconnection_time;
+    uint32_t                                _reconnection_time;
 
     friend class Test_M2MInterfaceImpl;
 

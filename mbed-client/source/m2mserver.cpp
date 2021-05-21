@@ -32,7 +32,7 @@ M2MServer::M2MServer()
 
     _server_instance = object_instance();
 
-    if(_server_instance) {
+    if (_server_instance) {
         _server_instance->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
         _server_instance->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
 
@@ -40,51 +40,59 @@ M2MServer::M2MServer()
                                                                      OMA_RESOURCE_TYPE,
                                                                      M2MResourceInstance::INTEGER,
                                                                      true);
-        if(res) {
+        if (res) {
             res->set_operation(M2MBase::GET_PUT_ALLOWED);
         }
         res = _server_instance->create_dynamic_resource(SERVER_LIFETIME,
                                                         OMA_RESOURCE_TYPE,
                                                         M2MResourceInstance::INTEGER,
                                                         true);
-        if(res) {
+        if (res) {
             res->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
         }
+
+        res = _server_instance->create_dynamic_resource(SERVER_DISABLE,
+                                                        OMA_RESOURCE_TYPE,
+                                                        M2MResourceInstance::OPAQUE,
+                                                        false);
+        if (res) {
+            res->set_operation(M2MBase::POST_ALLOWED);
+        }
+
         res = _server_instance->create_dynamic_resource(SERVER_NOTIFICATION_STORAGE,
                                                         OMA_RESOURCE_TYPE,
                                                         M2MResourceInstance::BOOLEAN,
                                                         true);
-        if(res) {
+        if (res) {
             res->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
         }
         res = _server_instance->create_dynamic_resource(SERVER_BINDING,
                                                         OMA_RESOURCE_TYPE,
                                                         M2MResourceInstance::STRING,
                                                         true);
-        if(res) {
+        if (res) {
             res->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
         }
         res = _server_instance->create_dynamic_resource(SERVER_REGISTRATION_UPDATE,
                                                         OMA_RESOURCE_TYPE,
                                                         M2MResourceInstance::OPAQUE,
                                                         false);
-        if(res) {
-          res->set_operation(M2MBase::POST_ALLOWED);
+        if (res) {
+            res->set_operation(M2MBase::POST_ALLOWED);
         }
     }
 }
 
 M2MServer::~M2MServer()
 {
-
 }
 
 M2MResource* M2MServer::create_resource(ServerResource resource, uint32_t value)
 {
     M2MResource* res = NULL;
     const char* server_id_ptr = "";
-    if(!is_resource_present(resource)) {
-        switch(resource) {
+    if (!is_resource_present(resource)) {
+        switch (resource) {
         case DefaultMinPeriod:
             server_id_ptr = SERVER_DEFAULT_MIN_PERIOD;
             break;
@@ -99,16 +107,15 @@ M2MResource* M2MServer::create_resource(ServerResource resource, uint32_t value)
         }
     }
     String server_id(server_id_ptr);
-    
-    if(!server_id.empty()) {
-        if(_server_instance) {
+
+    if (!server_id.empty()) {
+        if (_server_instance) {
             res = _server_instance->create_dynamic_resource(server_id,
                                                             OMA_RESOURCE_TYPE,
                                                             M2MResourceInstance::INTEGER,
                                                             true);
-            if(res) {
+            if (res) {
                 res->set_operation(M2MBase::GET_PUT_POST_ALLOWED);
-                
                 res->set_value(value);
             }
         }
@@ -119,14 +126,14 @@ M2MResource* M2MServer::create_resource(ServerResource resource, uint32_t value)
 M2MResource* M2MServer::create_resource(ServerResource resource)
 {
     M2MResource* res = NULL;
-    if(!is_resource_present(resource)) {
-        if(M2MServer::Disable == resource) {
-                if(_server_instance) {
+    if (!is_resource_present(resource)) {
+        if (M2MServer::Disable == resource) {
+                if (_server_instance) {
                     res = _server_instance->create_dynamic_resource(SERVER_DISABLE,
                                                                     OMA_RESOURCE_TYPE,
                                                                     M2MResourceInstance::OPAQUE,
                                                                     false);
-                if(res) {
+                if (res) {
                     res->set_operation(M2MBase::POST_ALLOWED);
                 }
             }
@@ -139,7 +146,7 @@ bool M2MServer::delete_resource(ServerResource resource)
 {
     bool success = false;
     const char* server_id_ptr;
-    switch(resource) {
+    switch (resource) {
         case DefaultMinPeriod:
            server_id_ptr = SERVER_DEFAULT_MIN_PERIOD;
            break;
@@ -157,8 +164,8 @@ bool M2MServer::delete_resource(ServerResource resource)
             break;
     }
 
-    if(server_id_ptr) {
-        if(_server_instance) {
+    if (server_id_ptr) {
+        if (_server_instance) {
             success = _server_instance->remove_resource(server_id_ptr);
         }
     }
@@ -170,8 +177,8 @@ bool M2MServer::set_resource_value(ServerResource resource,
 {
     bool success = false;
     M2MResource* res = get_resource(resource);
-    if(res && (M2MServer::Binding == resource)) {
-        success = res->set_value((const uint8_t*)value.c_str(),(uint32_t)value.length());
+    if (res && (M2MServer::Binding == resource)) {
+        success = res->set_value((const uint8_t*)value.c_str(), (uint32_t)value.length());
     }
     return success;
 }
@@ -181,17 +188,16 @@ bool M2MServer::set_resource_value(ServerResource resource,
 {
     bool success = false;
     M2MResource* res = get_resource(resource);
-    if(res) {
-        if(M2MServer::ShortServerID == resource     ||
-           M2MServer::Lifetime == resource          ||
-           M2MServer::DefaultMinPeriod == resource  ||
-           M2MServer::DefaultMaxPeriod == resource  ||
-           M2MServer::DisableTimeout == resource    ||
-           M2MServer::NotificationStorage == resource) {
-            // If it is any of the above resource
-            // set the value of the resource.
-
-            success = res->set_value(value);
+    if (res) {
+        if (M2MServer::ShortServerID == resource     ||
+            M2MServer::Lifetime == resource          ||
+            M2MServer::DefaultMinPeriod == resource  ||
+            M2MServer::DefaultMaxPeriod == resource  ||
+            M2MServer::DisableTimeout == resource    ||
+            M2MServer::NotificationStorage == resource) {
+                // If it is any of the above resource
+                // set the value of the resource.
+                success = res->set_value(value);
         }
     }
     return success;
@@ -201,27 +207,24 @@ String M2MServer::resource_value_string(ServerResource resource) const
 {
     String value = "";
     M2MResource* res = get_resource(resource);
-    if(res && (M2MServer::Binding == resource)) {
-
+    if (res && (M2MServer::Binding == resource)) {
         value = res->get_value_string();
     }
     return value;
 }
 
-
 uint32_t M2MServer::resource_value_int(ServerResource resource) const
 {
     uint32_t value = 0;
     M2MResource* res = get_resource(resource);
-    if(res) {
-        if(M2MServer::ShortServerID == resource     ||
-           M2MServer::Lifetime == resource          ||
-           M2MServer::DefaultMinPeriod == resource  ||
-           M2MServer::DefaultMaxPeriod == resource  ||
-           M2MServer::DisableTimeout == resource    ||
-           M2MServer::NotificationStorage == resource) {
-
-            value = res->get_value_int();
+    if (res) {
+        if (M2MServer::ShortServerID == resource     ||
+            M2MServer::Lifetime == resource          ||
+            M2MServer::DefaultMinPeriod == resource  ||
+            M2MServer::DefaultMaxPeriod == resource  ||
+            M2MServer::DisableTimeout == resource    ||
+            M2MServer::NotificationStorage == resource) {
+                value = res->get_value_int();
         }
     }
     return value;
@@ -231,7 +234,7 @@ bool M2MServer::is_resource_present(ServerResource resource) const
 {
     bool success = false;
     M2MResource *res = get_resource(resource);
-    if(res) {
+    if (res) {
         success = true;
     }
     return success;
@@ -240,8 +243,8 @@ bool M2MServer::is_resource_present(ServerResource resource) const
 uint16_t M2MServer::total_resource_count() const
 {
     uint16_t total_count = 0;
-    if(_server_instance) {
-    total_count = _server_instance->resources().size();
+    if (_server_instance) {
+        total_count = _server_instance->resources().size();
     }
     return total_count;
 }
@@ -250,38 +253,38 @@ M2MResource* M2MServer::get_resource(ServerResource res) const
 {
     M2MResource* res_object = NULL;
     const char* res_name_ptr = NULL;
-    switch(res) {
-    case ShortServerID:
-        res_name_ptr = SERVER_SHORT_SERVER_ID;
-        break;
-    case Lifetime:
-        res_name_ptr = SERVER_LIFETIME;
-        break;
-    case DefaultMinPeriod:
-        res_name_ptr = SERVER_DEFAULT_MIN_PERIOD;
-        break;
-    case DefaultMaxPeriod:
-        res_name_ptr = SERVER_DEFAULT_MAX_PERIOD;
-        break;
-    case Disable:
-        res_name_ptr = SERVER_DISABLE;
-        break;
-    case DisableTimeout:
-        res_name_ptr = SERVER_DISABLE_TIMEOUT;
-        break;
-    case NotificationStorage:
-        res_name_ptr = SERVER_NOTIFICATION_STORAGE;
-        break;
-    case Binding:
-        res_name_ptr = SERVER_BINDING;
-        break;
-    case RegistrationUpdate:
-        res_name_ptr = SERVER_REGISTRATION_UPDATE;
-        break;
-    }
+    switch (res) {
+        case ShortServerID:
+            res_name_ptr = SERVER_SHORT_SERVER_ID;
+            break;
+        case Lifetime:
+            res_name_ptr = SERVER_LIFETIME;
+            break;
+        case DefaultMinPeriod:
+            res_name_ptr = SERVER_DEFAULT_MIN_PERIOD;
+            break;
+        case DefaultMaxPeriod:
+            res_name_ptr = SERVER_DEFAULT_MAX_PERIOD;
+            break;
+        case Disable:
+            res_name_ptr = SERVER_DISABLE;
+            break;
+        case DisableTimeout:
+            res_name_ptr = SERVER_DISABLE_TIMEOUT;
+            break;
+        case NotificationStorage:
+            res_name_ptr = SERVER_NOTIFICATION_STORAGE;
+            break;
+        case Binding:
+            res_name_ptr = SERVER_BINDING;
+            break;
+        case RegistrationUpdate:
+            res_name_ptr = SERVER_REGISTRATION_UPDATE;
+            break;
+        }
 
-    if(res_name_ptr) {
-        if(_server_instance) {
+    if (res_name_ptr) {
+        if (_server_instance) {
             res_object = _server_instance->resource(res_name_ptr);
         }
     }

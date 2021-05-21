@@ -288,11 +288,19 @@ if (FOTA_ENABLE)
     endif()
 
     include_directories(${FOTA_SOURCE_DIR})
+    include_directories("${FOTA_SOURCE_DIR}/platform/linux")
 
     FILE(GLOB FOTA_SRC
         "${FOTA_SOURCE_DIR}/*.c"
         "${FOTA_SOURCE_DIR}/*.cpp"
         "${FOTA_SOURCE_DIR}/bspatch/*.c"
+if ( (${OS_BRAND} MATCHES "Linux"))
+        "${FOTA_SOURCE_DIR}/platform/linux/*.c*"
+else
+if ( (${OS_BRAND} MATCHES "NXP"))
+        "${FOTA_SOURCE_DIR}/platform/nxp/*.c*"
+endif
+endif
     )
     message("FOTA sources = \n ${FOTA_SRC}")
     target_sources(mbedCloudClient PRIVATE "${FOTA_SRC}")
@@ -301,16 +309,18 @@ if (FOTA_ENABLE)
 
     add_library(fota STATIC ${FOTA_SRC})
 
-    if (MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK)
-       include(FindPkgConfig)
-       pkg_check_modules(CURL libcurl REQUIRED)
-       message("curl include at: ${CURL_INCLUDE_DIRS}")
-       message("curl link: ${CURL_LIBRARIES}")
-       include_directories(SYSTEM ${CURL_LIBRARIES})
-       target_link_libraries(fota ${CURL_LIBRARIES})
-    else()
-       add_dependencies(fota libcurl)
-       target_link_libraries(fota libcurl)
+    if ( NOT FOTA_COAP_DOWNLOAD)
+        if (MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK)
+            include(FindPkgConfig)
+            pkg_check_modules(CURL libcurl REQUIRED)
+            message("curl include at: ${CURL_INCLUDE_DIRS}")
+            message("curl link: ${CURL_LIBRARIES}")
+            include_directories(SYSTEM ${CURL_LIBRARIES})
+            target_link_libraries(fota ${CURL_LIBRARIES})
+        else()
+            add_dependencies(fota libcurl)
+            target_link_libraries(fota libcurl)
+        endif()
     endif()
     add_dependencies(mbedCloudClient fota)
     target_link_libraries(mbedCloudClient fota)

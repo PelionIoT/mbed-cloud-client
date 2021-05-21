@@ -206,20 +206,20 @@ palStatus_t pal_setSockAddrNAT64Addr(palSocketAddress_t* address, palIpV4Addr_t 
     pal_socketAddressInternal6_t* innerAddr = (pal_socketAddressInternal6_t*)address;
     innerAddr->pal_sin6_family = PAL_AF_INET6;
 
-    innerAddr->pal_sin6_addr[0] = 0x00;
-    innerAddr->pal_sin6_addr[1] = 0x64;
-    innerAddr->pal_sin6_addr[2] = 0xFF;
-    innerAddr->pal_sin6_addr[3] = 0x9B;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[0] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[1] = 0x64;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[2] = 0xFF;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[3] = 0x9B;
 
-    innerAddr->pal_sin6_addr[4] = 0x00;
-    innerAddr->pal_sin6_addr[5] = 0x00;
-    innerAddr->pal_sin6_addr[6] = 0x00;
-    innerAddr->pal_sin6_addr[7] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[4] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[5] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[6] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[7] = 0x00;
 
-    innerAddr->pal_sin6_addr[8] = 0x00;
-    innerAddr->pal_sin6_addr[9] = 0x00;
-    innerAddr->pal_sin6_addr[10] = 0x00;
-    innerAddr->pal_sin6_addr[11] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[8] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[9] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[10] = 0x00;
+    ((volatile uint8_t*) innerAddr->pal_sin6_addr)[11] = 0x00;
 
     innerAddr->pal_sin6_addr[12] = ipV4Addr[0];
     innerAddr->pal_sin6_addr[13] = ipV4Addr[1];
@@ -491,18 +491,23 @@ palStatus_t pal_getAddressInfoAsync(const char* hostname,
     }
     return status;
 }
-#elif (PAL_DNS_API_VERSION == 2)
-#ifndef TARGET_LIKE_MBED
+
+#elif (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
+#if !defined(TARGET_LIKE_MBED) && (PAL_DNS_API_VERSION == 2)
 #error "PAL_DNS_API_VERSION 2 is only supported with mbed-os"
 #endif
 palStatus_t pal_getAddressInfoAsync(const char* hostname,
-                                     palSocketAddress_t* address,
-                                     palGetAddressInfoAsyncCallback_t callback,
-                                     void* callbackArgument,
-                                     palDNSQuery_t* queryHandle)
+#if (PAL_DNS_API_VERSION == 2)
+                                    palSocketAddress_t* address,
+#endif
+                                    palGetAddressInfoAsyncCallback_t callback,
+                                    void* callbackArgument,
+                                    palDNSQuery_t* queryHandle)
 {
-    PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == address) || (NULL == callback))
-
+    PAL_VALIDATE_ARGUMENTS ((NULL == hostname) || (NULL == callback))
+#if (PAL_DNS_API_VERSION == 2)
+    PAL_VALIDATE_ARGUMENTS (NULL == address)
+#endif
     palStatus_t status;
 
     pal_asyncAddressInfo_t* info = (pal_asyncAddressInfo_t*)malloc(sizeof(pal_asyncAddressInfo_t));
@@ -511,7 +516,9 @@ palStatus_t pal_getAddressInfoAsync(const char* hostname,
     }
     else {
         info->hostname = (char*)hostname;
+#if (PAL_DNS_API_VERSION == 2)
         info->address = address;
+#endif
         info->callback = callback;
         info->callbackArgument = callbackArgument;
         info->queryHandle = queryHandle;
@@ -528,6 +535,29 @@ palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
     return pal_plat_cancelAddressInfoAsync(queryHandle);
 }
 
+#if (PAL_DNS_API_VERSION == 3)
+palStatus_t pal_getDNSAddress(palAddressInfo_t *addrInfo, uint16_t index, palSocketAddress_t *addr)
+{
+    PAL_VALIDATE_ARGUMENTS ((NULL == addrInfo) || (NULL == addr))
+    PAL_VALIDATE_ARGUMENTS (pal_getDNSCount(addrInfo) <= index)
+    return pal_plat_getDNSAddress(addrInfo, index, addr);
+}
+
+int pal_getDNSCount(palAddressInfo_t *addrInfo)
+{
+    return pal_plat_getDNSCount(addrInfo);
+}
+
+void pal_freeAddrInfo(palAddressInfo_t* addrInfo)
+{
+    pal_plat_freeAddrInfo(addrInfo);
+}
+
+palStatus_t pal_free_addressinfoAsync(palDNSQuery_t handle)
+{
+    return pal_plat_free_addressinfoAsync(handle);
+}
+#endif
 #endif //  PAL_DNS_API_VERSION
 #endif // PAL_NET_DNS_SUPPORT
 

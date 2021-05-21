@@ -34,7 +34,7 @@
 #include "cose_int.h"
 #include "crypto_cose.h"
 #include "pal.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 #include "mbedtls/bignum.h"
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecp.h"

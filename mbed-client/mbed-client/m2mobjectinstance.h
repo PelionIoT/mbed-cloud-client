@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ public:
     /**
      * \brief TODO!
      * \return M2MResource The resource for managing other client operations.
+     * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
     M2MResource* create_static_resource(const lwm2m_parameters_s* static_res,
                                         M2MResourceInstance::ResourceType type);
@@ -91,6 +92,7 @@ public:
      * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
      *        otherwise handled in mbed-client-c.
      * \return M2MResource The resource for managing other client operations.
+     * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
     M2MResource* create_static_resource(const String &resource_name,
                                         const String &resource_type,
@@ -112,6 +114,7 @@ public:
      * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
      *        otherwise handled in mbed-client-c.
      * \return M2MResource The resource for managing other client operations.
+     * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
     M2MResource* create_dynamic_resource(const String &resource_name,
                                          const String &resource_type,
@@ -132,6 +135,7 @@ public:
      * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
      *        otherwise handled in mbed-client-c.
      * \return M2MResource The resource for managing other client operations.
+     * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
     M2MResource* create_dynamic_resource(const uint16_t resource_name,
                                          const char *resource_type,
@@ -143,6 +147,7 @@ public:
     /**
      * \brief TODO!
      * \return M2MResource The resource for managing other client operations.
+     * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
     M2MResource* create_dynamic_resource(const lwm2m_parameters_s* static_res,
                                         M2MResourceInstance::ResourceType type,
@@ -159,6 +164,7 @@ public:
      * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
      *        otherwise handled in mbed-client-c.
      * \return M2MResourceInstance The resource instance for managing other client operations.
+     * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
     M2MResourceInstance* create_static_resource_instance(const String &resource_name,
                                                          const String &resource_type,
@@ -179,6 +185,7 @@ public:
      * \param external_blockwise_store If true CoAP blocks are passed to application through callbacks
      *        otherwise handled in mbed-client-c.
      * \return M2MResourceInstance The resource instance for managing other client operations.
+     * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
     M2MResourceInstance* create_dynamic_resource_instance(const String &resource_name,
                                                           const String &resource_type,
@@ -193,6 +200,7 @@ public:
      * Note: this will be removed in next version, please use the
      * remove_resource(const char*) version instead.
      * \return True if removed, else false.
+     * \deprecated String based APIs are deprecated. Please use the id or path instead.
      */
     bool remove_resource(const String &name);
 
@@ -219,6 +227,9 @@ public:
      */
     M2MResource* resource(const uint16_t resource_id) const;
 
+    /**
+     * \deprecated String based APIs are deprecated. Please use resource_id or path instead.
+     */
     M2MResource* resource(const String &name) const;
 
     M2MResource* resource(const char *resource) const;
@@ -241,6 +252,7 @@ public:
      * resource_count(const char*) version instead.
      * \param resource The name of the resource.
      * \return Total number of the resources.
+     * \deprecated String based APIs are deprecated. Please use resource_id or path instead.
      */
     uint16_t resource_count(const String& resource) const;
 
@@ -254,24 +266,28 @@ public:
     /**
      * \brief Adds the observation level for the object.
      * \param observation_level The level of observation.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual void add_observation_level(M2MBase::Observation observation_level);
 
     /**
      * \brief Removes the observation level from the object.
      * \param observation_level The level of observation.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual void remove_observation_level(M2MBase::Observation observation_level);
 
     /**
      * \brief Returns the Observation Handler object.
      * \return M2MObservationHandler object.
+     * \deprecated Internal API, subject to be modified or removed.
     */
     virtual M2MObservationHandler* observation_handler() const;
 
     /**
      * \brief Sets the observation handler
      * \param handler Observation handler
+     * \deprecated Internal API, subject to be modified or removed.
     */
     virtual void set_observation_handler(M2MObservationHandler *handler);
 
@@ -282,6 +298,7 @@ public:
      * \param observation_handler The handler object for sending
      * observation callbacks.
      * return sn_coap_hdr_s The message that needs to be sent to the server.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -294,6 +311,7 @@ public:
      * observation callbacks.
      * \param execute_value_updated True will execute the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -308,6 +326,7 @@ public:
      * observation callbacks.
      * \param execute_value_updated True will execute the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
@@ -317,7 +336,9 @@ public:
 
     inline M2MObject& get_parent_object() const;
 
-    // callback used from M2MResource/M2MResourceInstance
+    /** callback used from M2MResource/M2MResourceInstance
+     * \deprecated Internal API, subject to be modified or removed.
+     */
     void notification_update(M2MBase::Observation observation_level);
 
 protected:
@@ -353,6 +374,7 @@ private:
     friend class Test_M2MResourceInstance;
     friend class Test_M2MReportHandler;
     friend class TestFactory;
+    friend class Test_M2MInterfaceImpl;
 };
 
 inline M2MObject& M2MObjectInstance::get_parent_object() const

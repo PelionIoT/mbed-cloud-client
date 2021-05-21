@@ -32,25 +32,8 @@ extern "C" {
 /**
  * @file fota_curr_fw.h
  *  \brief FOTA requires access to the currently installed firmware (FW) and the FW metadata header.
- * By default, on non-Mbed-OS targets, the FOTA library assumes a custom FW layout structure and expects that the application will implement the current FW interfaces described in this file.
- * If the FW image and the FW header reside in a memory mapped flash, you can define the ::FOTA_CUSTOM_CURR_FW_STRUCTURE=0 macro, in which case, the application only has to implement these functions:
- *     uint8_t *fota_curr_fw_get_app_start_addr(void)
- *     uint8_t *fota_curr_fw_get_app_header_addr(void)
+ * Support code for each platform should implement the current FW interfaces described in this file.
  */
-
-/**
- * Returns a pointer to the application start.
- *
- * \return Pointer to the application start.
- */
-uint8_t *fota_curr_fw_get_app_start_addr(void);
-
-/**
- * Returns a pointer to the header start.
- *
- * \return Pointers to the header start.
- */
-uint8_t *fota_curr_fw_get_app_header_addr(void);
 
 /**
  * Reads the header of the current firmware.

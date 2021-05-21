@@ -220,10 +220,11 @@ extern "C" {
 	assert(0);\
 }
 
-#define PAL_LOG_ERR_FUNC  tr_err
-#define PAL_LOG_WARN_FUNC tr_warn
-#define PAL_LOG_INFO_FUNC tr_info
-#define PAL_LOG_DBG_FUNC  tr_debug
+#define PAL_LOG_ERR_FUNC   tr_err
+#define PAL_LOG_WARN_FUNC  tr_warn
+#define PAL_LOG_INFO_FUNC  tr_info
+#define PAL_LOG_DBG_FUNC   tr_debug
+#define PAL_LOG_ARRAY_FUNC tr_array
 
 // Little trick with mbed-trace error level is equal to function name handling the same level of log output
 #define PAL_LOG_LEVEL_ERR  TRACE_LEVEL_ERROR

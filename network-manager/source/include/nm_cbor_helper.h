@@ -33,7 +33,6 @@ extern "C" {
 #define NM_STAT_MAX_ENCODER_BUF 256
 #define BR_STAT_MAX_ENCODER_BUF 256
 #define NI_STAT_MAX_ENCODER_BUF 256
-#define RQ_STAT_MAX_ENCODER_BUF 64
 
 #define CH_NOISE_TABLE_CBOR_OVERHEAD                 30
 #define CH_NOISE_TABLE_MAX_ENCODING_BUFF(ch_noise_table_length) ((ch_noise_table_length*2)+CH_NOISE_TABLE_CBOR_OVERHEAD)

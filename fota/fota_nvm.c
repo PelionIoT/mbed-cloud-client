@@ -20,6 +20,9 @@
 
 #ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
 
+// TODO: Replace this with a proper define
+#if !defined(FOTA_UNIT_TEST)
+
 #define TRACE_GROUP "FOTA"
 
 #include "fota/fota_status.h"
@@ -52,6 +55,7 @@ static fota_status_e map_store_result(int result)
 
     return res;
 }
+
 #if (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL)
 int fota_nvm_get(cloud_client_param key, uint8_t *buffer, size_t buffer_size, size_t *bytes_read, ccs_item_type_e item_type)
 {
@@ -104,9 +108,7 @@ int fota_nvm_remove(cloud_client_param key, ccs_item_type_e item_type)
     return map_store_result(status);
 }
 
-
 #endif  // (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL)
-
 
 #if !defined(FOTA_KEY_ENCRYPTION_EXTERNAL_STORAGE)
 int fota_nvm_fw_encryption_key_get(uint8_t buffer[FOTA_ENCRYPT_KEY_SIZE])
@@ -372,4 +374,5 @@ int fota_nvm_comp_version_get(const char *comp_name, fota_component_version_t *v
     return fota_nvm_get(key, (uint8_t *)version, sizeof(*version), &bytes_read, CCS_CONFIG_ITEM);
 }
 
+#endif  //!defined(FOTA_UNIT_TEST)
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

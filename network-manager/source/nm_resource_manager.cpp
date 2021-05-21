@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pelion. All rights reserved.
+ * Copyright (c) 2020-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -45,8 +45,8 @@ static M2MResource *routing_table;
 static M2MResource *nm_stats;
 static M2MResource *br_stats;
 static M2MResource *node_stats;
-static M2MResource *radio_stats;
 static M2MResource *ch_noise;
+static M2MResource *reset_parameter;
 
 typedef struct {
     M2MResource *res_obj;
@@ -66,7 +66,6 @@ static uint8_t *ch_noise_buf = NULL;
 static uint8_t *br_stats_buf = NULL;
 static uint8_t *routing_table_buf = NULL;
 static uint8_t *node_stats_buf = NULL;
-static uint8_t *radio_stats_buf = NULL;
 static uint8_t *res_data = NULL;
 
 /* Function to overcome limitation of 32 bytes of length in tr_array */
@@ -126,6 +125,18 @@ static void br_config_cb(const char * /*object_name*/)
     nm_post_event(NM_EVENT_RESOURCE_SET, 0, res_data);
 }
 
+static void reset_parameter_cb(const char * /*object_name*/)
+{
+    res_set_data_t *res_data = (res_set_data_t *)nm_dyn_mem_alloc(sizeof(res_set_data_t));
+    if (res_data == NULL) {
+        return;
+    }
+    tr_info("Reset Parameter callback received");
+    res_data->res_obj = reset_parameter;
+    res_data->len = 0;
+    res_data->data = NULL;
+    nm_post_event(NM_EVENT_RESOURCE_SET, 0, res_data);
+}
 
 static nm_status_t nm_res_get_ws_config_from_kvstore(uint8_t **datap, size_t *length)
 {
@@ -244,9 +255,6 @@ static coap_response_code_e resource_read_requested(const M2MResourceBase &resou
         } else if (obj == node_stats) {
             status = nm_res_get_node_stats(&node_stats_buf, &len);
             res_data = node_stats_buf;
-        } else if (obj == radio_stats) {
-            status = nm_res_get_radio_stats(&radio_stats_buf, &len);
-            res_data = radio_stats_buf;
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
@@ -334,12 +342,6 @@ void msg_delivery_handle(const M2MBase &base,
                 node_stats_buf = NULL;
                 tr_debug("node_stats data Memory freed");
             }
-        } else if (obj == radio_stats) {
-            if (radio_stats_buf != NULL) {
-                nm_dyn_mem_free(radio_stats_buf);
-                radio_stats_buf = NULL;
-                tr_debug("radio_stats data Memory freed");
-            }
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
@@ -389,6 +391,12 @@ nm_status_t nm_res_manager_create(void *obj_list)
     ch_noise->set_read_resource_function(resource_read_requested, ch_noise);
     ch_noise->set_observable(true);
 
+    reset_parameter = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 8, M2MResourceInstance::OPAQUE, M2MBase::PUT_ALLOWED);
+    if (reset_parameter->set_value_updated_function(reset_parameter_cb) != true) {
+        tr_error("reset_parameter->set_value_updated_function() failed");
+        return NM_STATUS_FAIL;
+    }
+
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_BORDER_ROUTER) {
         br_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 6, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         br_stats->set_message_delivery_status_cb(msg_delivery_handle, br_stats);
@@ -405,11 +413,6 @@ nm_status_t nm_res_manager_create(void *obj_list)
         node_stats->set_message_delivery_status_cb(msg_delivery_handle, node_stats);
         node_stats->set_read_resource_function(resource_read_requested, node_stats);
         node_stats->set_observable(true);
-
-        radio_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 8, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
-        radio_stats->set_message_delivery_status_cb(msg_delivery_handle, radio_stats);
-        radio_stats->set_read_resource_function(resource_read_requested, radio_stats);
-        radio_stats->set_observable(true);
     }
     return NM_STATUS_SUCCESS;
 }
@@ -505,22 +508,6 @@ nm_status_t nm_res_manager_get(void *resource_object)
         return NM_STATUS_FAIL;
     }
 
-    if (res_obj == radio_stats) {
-        if (nm_res_get_radio_stats(&buf, &len) == NM_STATUS_SUCCESS) {
-            tr_info("Setting value of resource radio_stats [len = %u] in Cloud Client", len);
-            print_stream(buf, len);
-            if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Radio Statistics resource to Cloud Client");
-                return NM_STATUS_FAIL;
-            }
-            tr_info("Radio Statistics resource value Set to Cloud Client");
-            nm_dyn_mem_free(buf);
-            return NM_STATUS_SUCCESS;
-        }
-        tr_warn("FAILED to fetch Radio Statistics");
-        return NM_STATUS_FAIL;
-    }
-
     if (res_obj == routing_table) {
         if (nm_res_get_routing_table(&buf, &len) == NM_STATUS_SUCCESS) {
             tr_info("Setting value of resource routing_table [len = %u] in Cloud Client", len);
@@ -530,7 +517,7 @@ nm_status_t nm_res_manager_get(void *resource_object)
                 return NM_STATUS_FAIL;
             }
             tr_info("Routing Table resource value Set to Cloud Client");
-            /* Do not need to free buf pointer. We may use the same memory next time */
+            nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
         tr_warn("FAILED to fetch Routing Table");
@@ -587,6 +574,18 @@ nm_status_t nm_res_manager_set(void *resource_data)
         return NM_STATUS_SUCCESS;
     }
 
+    if (res_data->res_obj == reset_parameter) {
+
+        if(nm_reset_parameters() == NM_STATUS_FAIL) {
+            tr_info("Reset Parameter FAILED");
+        } else {
+            tr_info("Reset Parameter SUCCESS");
+        }
+        nm_dyn_mem_free(res_data);
+
+        return NM_STATUS_SUCCESS;
+    }
+
     /* To-Do :: Implement for other resources */
     return NM_STATUS_FAIL;
 }
@@ -602,7 +601,6 @@ void nm_manager_res_refresh(void)
         nm_post_event(NM_EVENT_RESOURCE_GET, 0, routing_table);
     } else if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_ROUTER) {
         nm_post_event(NM_EVENT_RESOURCE_GET, 0, node_stats);
-        nm_post_event(NM_EVENT_RESOURCE_GET, 0, radio_stats);
     }
 }
 

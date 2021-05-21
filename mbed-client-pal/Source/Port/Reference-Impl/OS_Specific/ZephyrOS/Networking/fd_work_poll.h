@@ -40,7 +40,7 @@ extern "C" {
 typedef struct fd_work_poll_s {
 #if (defined(PAL_SOCKET_USE_LONG_POLLING) && (PAL_SOCKET_USE_LONG_POLLING == 1)) || \
     (defined(PAL_SOCKET_USE_LONG_POLLING_THREAD) && (PAL_SOCKET_USE_LONG_POLLING_THREAD == 1))
-    struct k_delayed_work work;
+    struct k_work_delayable work;
     int nfds;
     k_ticks_t timeout;
     k_ticks_t remaining;

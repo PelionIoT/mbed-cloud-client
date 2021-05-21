@@ -22,7 +22,7 @@
 #ifndef FCC_NANOCLIENT_ENABLED
 #include "pal.h"
 #endif
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #include "cs_utils.h"
 #include "pv_macros.h"
 #include "key_slot_allocator.h"
@@ -782,7 +782,7 @@ kcm_status_e kcm_generate_random(uint8_t *buffer, size_t buffer_size)
     return kcm_status;
 }
 
-
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 kcm_status_e kcm_ecdh_key_agreement(const uint8_t *private_key_name, size_t private_key_name_len, const uint8_t *peer_public_key, size_t peer_public_key_size,
                                     uint8_t *shared_secret, size_t shared_secret_max_size, size_t *shared_secret_act_size_out)
 {
@@ -830,5 +830,6 @@ exit:
 
     return kcm_status;
 }
+#endif
 
 

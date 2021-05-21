@@ -75,23 +75,10 @@ static void set_generic_attr(uint32_t extra_flags, psa_key_attributes_t *psa_key
     }
 
     //Set algorithm and usage flags
-#if !defined(TARGET_LPC55S69_NS)
-    /* FIXME - we should skip this if key should be generated into secure element */
-    /* FIXME: currently, mbed-os has no SPM (Secure Partitioning Manager) support for LPC55S69_NS platforms.
-    *          that is why we mask the PSA multiple usage for those platforms, however, this workaround should be reverted once mbed-os
-    *          team will add the necessary implementation to support the psa_key_policy_set_enrollment_algorithm API.
-    */
-    // Set policy for ECDH (key agreement)
-    psa_key_usage |= (PSA_KEY_USAGE_DERIVE);
-#endif
-
     // set key usage
     psa_set_key_usage_flags(psa_key_attr, psa_key_usage);
     // set key algorithm
     psa_set_key_algorithm(psa_key_attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
-#if !defined(TARGET_LPC55S69_NS)
-    psa_set_key_enrollment_algorithm(psa_key_attr, PSA_ALG_ECDH);
-#endif
 }
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
@@ -236,7 +223,7 @@ kcm_status_e psa_drv_crypto_init(void)
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
     //Register se driver before calling to psa_crypto_init
-    psa_status = psa_register_se_driver(PSA_DRIVER_SE_DRIVER_LIFETIME_VALUE, g_se_driver_info);
+    psa_status = psa_register_se_driver(PSA_DRIVER_SE_DRIVER_LOCATION_VALUE, g_se_driver_info);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed psa_register_se_driver (%" PRIu32 ")", (uint32_t)psa_status);
 #endif
 

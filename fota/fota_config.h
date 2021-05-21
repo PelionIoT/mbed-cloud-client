@@ -157,20 +157,11 @@ extern char *program_invocation_name;
 #define MBED_CLOUD_CLIENT_FOTA_LINUX_CURR_FW_FILENAME program_invocation_name
 #endif
 
-#if defined(FOTA_CUSTOM_CURR_FW_STRUCTURE) && FOTA_CUSTOM_CURR_FW_STRUCTURE
-#error Custom current firmware structure should not be defined in Linux targets.
-#endif
-
 // No legacy bootloader here - force up to date header
 #undef MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION
 #define MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION 3
 
 #endif // defined(TARGET_LIKE_LINUX)
-
-
-#if !defined(FOTA_CUSTOM_CURR_FW_STRUCTURE) && !defined(__MBED__) && !defined(FOTA_UNIT_TEST) && !defined(TARGET_LIKE_LINUX)
-#define FOTA_CUSTOM_CURR_FW_STRUCTURE 1
-#endif
 
 // Set this flag to 1 to use custom verification logic for main app installation
 #if !defined(FOTA_CUSTOM_MAIN_APP_VERIFY_INSTALL)
@@ -261,8 +252,8 @@ extern char *program_invocation_name;
 #endif
 
 #if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
-#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 0) || !defined(__MBED__)
-#error FOTA_USE_DEVICE_KEY should be used only for with __MBED__ with encryption enabled
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 0) || (!(defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)) && !(defined(__MBED__)))
+#error FOTA_USE_DEVICE_KEY should be used only for with MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT or __MBED__ with encryption enabled
 #endif
 #endif
 

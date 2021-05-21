@@ -1173,9 +1173,8 @@ palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *ad
     struct addrinfo *pAddrInf = NULL;
     struct addrinfo hints = {0};
     int res;
-    int supportedAddressType1 = 0;
-    int supportedAddressType2 = 0;
-    hints.ai_family = AF_UNSPEC;
+    int supportedAddressType1;
+    int supportedAddressType2;
 
 #if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
     supportedAddressType1 = AF_INET;
@@ -1227,7 +1226,173 @@ palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *ad
     return result;
 }
 
+#if (PAL_DNS_API_VERSION == 3)
+
+PAL_PRIVATE palStatus_t getAddressInfo(const char *hostname, struct addrinfo **addrInfo)
+{
+    palStatus_t result = PAL_SUCCESS;
+    struct addrinfo hints = {0};
+    int err;
+    int supportedAddressType1;
+    int supportedAddressType2;
+
+#if PAL_NET_TCP_AND_TLS_SUPPORT == true
+    hints.ai_socktype = SOCK_STREAM;
+#else
+    hints.ai_socktype = SOCK_DGRAM;
 #endif
+#if PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_ANY
+    supportedAddressType1 = AF_INET;
+    supportedAddressType2 = AF_INET6;
+    hints.ai_family = AF_UNSPEC;
+#elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV4_ONLY
+    supportedAddressType1 = AF_INET;
+    supportedAddressType2 = AF_INET;
+    hints.ai_family = AF_INET;
+#elif PAL_NET_DNS_IP_SUPPORT == PAL_NET_DNS_IPV6_ONLY
+    supportedAddressType1 = AF_INET6;
+    supportedAddressType2 = AF_INET6;
+    hints.ai_family = AF_INET6;
+#else
+#error PAL_NET_DNS_IP_SUPPORT is not defined to a valid value.
+#endif
+
+    err = getaddrinfo(hostname, NULL, &hints, addrInfo);
+    if (err < 0)
+    {
+        // getaddrinfo returns EAI-error. In case of EAI_SYSTEM, the error
+        // is 'Other system error, check errno for details'
+        // (http://man7.org/linux/man-pages/man3/getaddrinfo.3.html#RETURN_VALUE)
+        if (err == EAI_SYSTEM)
+        {
+            result = translateErrorToPALError(errno);
+        }
+        else
+        {
+            // errno values are positive, getaddrinfo errors are negative so they can be mapped
+            // in the same place.
+            result = translateErrorToPALError(err);
+        }
+    }
+    else
+    {
+        // remove addresses that don't match what hints tried to tell
+        struct addrinfo *prev = *addrInfo, *curr = *addrInfo;
+        while (curr) {
+            if ((curr->ai_family != supportedAddressType1 && curr->ai_family != supportedAddressType2) ||
+                  curr->ai_socktype != hints.ai_socktype)
+            {
+                // remove from the list
+                if (prev == curr)
+                {
+                    // remove first item
+                    *addrInfo = curr->ai_next;
+                    prev = curr->ai_next;
+                }
+                else
+                {
+                    // remove from the middle or end
+                    prev->ai_next = curr->ai_next;
+                    prev = curr;
+                }
+                free(curr);
+                curr = prev->ai_next;
+            }
+            else
+            {
+                prev = curr;
+                curr = curr->ai_next;
+            }
+        }
+    }
+
+    return result;
+}
+
+// Thread function.
+PAL_PRIVATE void asyncDNSQueryFunc(void const *arg)
+{
+    pal_asyncAddressInfo_t *info  = (pal_asyncAddressInfo_t *)(arg);
+    struct addrinfo *addr;
+    palStatus_t result = getAddressInfo(info->hostname, &addr);
+    if (result == PAL_SUCCESS)
+    {
+        info->addrInfo = (palAddressInfo_t *)addr;
+    }
+    else
+    {
+        info->addrInfo = NULL;
+    }
+
+    info->callback(info->hostname, info->addrInfo, result, info->callbackArgument); // invoke callback
+    free(info);
+}
+
+int pal_plat_getDNSCount(palAddressInfo_t *addrInfo)
+{
+    int count = 0;
+    struct addrinfo *curr = (struct addrinfo *)addrInfo;
+    while (curr)
+    {
+        count++;
+        curr = curr->ai_next;
+    }
+    return count;
+}
+
+palStatus_t pal_plat_getDNSAddress(palAddressInfo_t *addressInfo, uint16_t index, palSocketAddress_t *addr)
+{
+    struct addrinfo *info = (struct addrinfo *)addressInfo;
+    uint16_t count = 0;
+    palStatus_t result = PAL_ERR_INVALID_ARGUMENT;
+
+    while (info)
+    {
+        if (count == index)
+        {
+            mempcpy((void *)addr, info->ai_addr, info->ai_addrlen);
+            result = PAL_SUCCESS;
+            break;
+        }
+        count++;
+        info = info->ai_next;
+    }
+    return result;
+}
+
+void pal_plat_freeAddrInfo(palAddressInfo_t *addressInfo)
+{
+    freeaddrinfo((struct addrinfo *)addressInfo);
+}
+
+palStatus_t pal_plat_free_addressinfoAsync(palDNSQuery_t queryHandle)
+{
+    return pal_plat_cancelAddressInfoAsync(queryHandle);
+}
+
+palStatus_t pal_plat_getAddressInfoAsync(pal_asyncAddressInfo_t *info)
+{
+    return pal_osThreadCreateWithAlloc(asyncDNSQueryFunc, (void *)info, PAL_osPriorityReservedDNS, PAL_ASYNC_DNS_THREAD_STACK_SIZE, NULL, info->queryHandle);
+}
+
+palStatus_t pal_plat_cancelAddressInfoAsync(palDNSQuery_t queryHandle)
+{
+    // just try to delete thread
+    palStatus_t result = PAL_SUCCESS;
+    if (queryHandle != NULLPTR)
+    {
+        palStatus_t result = pal_osThreadTerminate(&queryHandle);
+        if (PAL_SUCCESS != result)
+        {
+            PAL_LOG_ERR("error terminating dns async thread: %d", result);
+        }
+        queryHandle = NULLPTR;
+    }
+    return result;
+}
+
+#endif // (PAL_DNS_API_VERSION == 3)
+#endif // PAL_NET_DNS_SUPPORT
 
 palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connectionStatusCallback callback, void *arg)
 {
