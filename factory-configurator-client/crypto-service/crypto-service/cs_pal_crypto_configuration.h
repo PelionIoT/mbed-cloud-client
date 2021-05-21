@@ -16,8 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#ifndef _FCC_PAL_CRYPTO_COFIGURATION_H
-#define _FCC_PAL_CRYPTO_COFIGURATION_H
+#ifndef _CS_PAL_CRYPTO_CONFIGURATION_H
+#define _CS_PAL_CRYPTO_CONFIGURATION_H
 #include "limits.h"
 
 #ifdef PAL_USER_DEFINED_CONFIGURATION

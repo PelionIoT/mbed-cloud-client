@@ -44,7 +44,7 @@ static struct {
 } sock_control[NUMBER_OF_SOCKETS];
 
 
-static int8_t get_socket_handle(const palSocket_t* socket, int8_t* index)
+static int8_t get_socket_handle(const palSocket_t *socket, int8_t *index)
 {
     for (int i = 0; i < NUMBER_OF_SOCKETS; i++) {
         if (sock_control[i].socket_id == (intptr_t)socket) {
@@ -60,10 +60,10 @@ static int8_t get_socket_handle(const palSocket_t* socket, int8_t* index)
 
 void socket_callback(void *raw_param)
 {
-    const socket_callback_t *cb_event = (const socket_callback_t*)raw_param;
+    const socket_callback_t *cb_event = (const socket_callback_t *)raw_param;
     if (cb_event != NULL && cb_event->event_type == SOCKET_DATA) {
         int8_t index;
-        int8_t socket_handle = get_socket_handle((const palSocket_t*)cb_event->socket_id, &index);
+        int8_t socket_handle = get_socket_handle((const palSocket_t *)cb_event->socket_id, &index);
         if (socket_handle == -1) {
             PAL_LOG_ERR("socket_callback - socket id not found!");
         } else {
@@ -112,7 +112,7 @@ static int8_t address_pal2nanostack(const palSocketAddress_t *pal_addr, ns_addre
 {
     uint16_t port;
 
-    if (pal_getSockAddrPort (pal_addr, &port) != PAL_SUCCESS) {
+    if (pal_getSockAddrPort(pal_addr, &port) != PAL_SUCCESS) {
         return 0;
     }
 
@@ -122,7 +122,7 @@ static int8_t address_pal2nanostack(const palSocketAddress_t *pal_addr, ns_addre
             ns_addr->type = ADDRESS_IPV6;
             ns_addr->identifier = port;
             memcpy(ns_addr->address, &addr, sizeof(addr));
-            return (sizeof (addr));
+            return (sizeof(addr));
         } else {
             return 0;
         }
@@ -131,7 +131,7 @@ static int8_t address_pal2nanostack(const palSocketAddress_t *pal_addr, ns_addre
     return 0;
 }
 
-palStatus_t pal_plat_socketsInit(void* context)
+palStatus_t pal_plat_socketsInit(void *context)
 {
     (void)context;
 
@@ -140,7 +140,7 @@ palStatus_t pal_plat_socketsInit(void* context)
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_registerNetworkInterface(void* context, uint32_t* interfaceIndex)
+palStatus_t pal_plat_registerNetworkInterface(void *context, uint32_t *interfaceIndex)
 {
     (void)context;
     (void)interfaceIndex;
@@ -153,13 +153,13 @@ palStatus_t pal_plat_unregisterNetworkInterface(uint32_t interfaceIndex)
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_socketsTerminate(void* context)
+palStatus_t pal_plat_socketsTerminate(void *context)
 {
     (void)context;
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t* socket)
+palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palSocket_t *socket)
 {
     (void)interfaceNum;
     (void)type;
@@ -172,12 +172,12 @@ palStatus_t pal_plat_socket(palSocketDomain_t domain, palSocketType_t type, bool
     return PAL_ERR_NOT_SUPPORTED;
 }
 
-palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength)
+palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const void *optionValue, palSocketLength_t optionLength)
 {
     return pal_plat_setSocketOptionsWithLevel(socket, PAL_SOL_IPPROTO_IPV6, optionName, optionValue, optionLength);
 }
 
-palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength)
+palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void *optionValue, palSocketLength_t optionLength)
 {
     int8_t index;
     int8_t socket_handle = get_socket_handle(socket, &index);
@@ -200,6 +200,8 @@ palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOpti
         int optionVal;
         if (optionName == PAL_SO_IPV6_MULTICAST_HOPS) {
             optionVal = SOCKET_IPV6_MULTICAST_HOPS;
+        } else if (optionName == PAL_SO_IPV6_TRAFFIC_CLASS) {
+            optionVal = SOCKET_IPV6_TCLASS;
         } else {
             return PAL_ERR_SOCKET_GENERIC;
         }
@@ -214,14 +216,14 @@ palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOpti
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
+palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool *isNonBlocking)
 {
     *isNonBlocking = true;
 
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocketLength_t addressLength)
+palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t *myAddress, palSocketLength_t addressLength)
 {
     if (myAddress == NULL) {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -250,7 +252,7 @@ palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, pal
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length, palSocketAddress_t* from, palSocketLength_t* fromLength, size_t* bytesReceived)
+palStatus_t pal_plat_receiveFrom(palSocket_t socket, void *buffer, size_t length, palSocketAddress_t *from, palSocketLength_t *fromLength, size_t *bytesReceived)
 {
     if ((bytesReceived == NULL) || (from == NULL) || (fromLength == NULL)) {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -281,7 +283,7 @@ palStatus_t pal_plat_receiveFrom(palSocket_t socket, void* buffer, size_t length
     }
 }
 
-palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t length, const palSocketAddress_t* to, palSocketLength_t toLength, size_t* bytesSent)
+palStatus_t pal_plat_sendTo(palSocket_t socket, const void *buffer, size_t length, const palSocketAddress_t *to, palSocketLength_t toLength, size_t *bytesSent)
 {
     if ((bytesSent == NULL) || (to == NULL)) {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -300,7 +302,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
         return PAL_ERR_SOCKET_INVALID_ADDRESS;
     }
 
-    int16_t ret = socket_sendto(socket_handle, &ns_addr, (void*)buffer, length);
+    int16_t ret = socket_sendto(socket_handle, &ns_addr, (void *)buffer, length);
 
     if (ret < 0) {
         PAL_LOG_ERR("pal_plat_sendTo - socket_sendto failed: %d", ret);
@@ -311,7 +313,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_close(palSocket_t* socket)
+palStatus_t pal_plat_close(palSocket_t *socket)
 {
     int8_t index;
     int8_t socket_index = get_socket_handle(*socket, &index);
@@ -340,7 +342,7 @@ palStatus_t pal_plat_close(palSocket_t* socket)
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_getNumberOfNetInterfaces(uint32_t* numInterfaces)
+palStatus_t pal_plat_getNumberOfNetInterfaces(uint32_t *numInterfaces)
 {
     if (numInterfaces == NULL) {
         return (PAL_ERR_INVALID_ARGUMENT);
@@ -351,7 +353,7 @@ palStatus_t pal_plat_getNumberOfNetInterfaces(uint32_t* numInterfaces)
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t * interfaceInfo)
+palStatus_t pal_plat_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t *interfaceInfo)
 {
     (void)interfaceNum;
     (void)interfaceInfo;
@@ -379,7 +381,7 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument)
+palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t *address, palSocketLength_t *addressLen, palSocket_t *acceptedSocket, palAsyncSocketCallback_t callback, void *callbackArgument)
 {
     if (acceptedSocket == NULL) {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -407,7 +409,7 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t* address, pal
     return PAL_SUCCESS;
 }
 
-palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen)
+palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t *address, palSocketLength_t addressLen)
 {
     if (address == NULL) {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -443,7 +445,7 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
     }
 }
 
-palStatus_t pal_plat_recv(palSocket_t socket, void *buffer, size_t len, size_t* receivedDataSize)
+palStatus_t pal_plat_recv(palSocket_t socket, void *buffer, size_t len, size_t *receivedDataSize)
 {
     if (receivedDataSize == NULL) {
         return (PAL_ERR_INVALID_ARGUMENT);
@@ -486,7 +488,7 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
         return PAL_ERR_ITEM_NOT_EXIST;
     }
 
-    int16_t ret = socket_send(socket_handle, (void*)buf, len);
+    int16_t ret = socket_send(socket_handle, (void *)buf, len);
 
     PAL_LOG_DBG("pal_plat_send - socket_send return %d", ret);
 
@@ -511,8 +513,8 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain,
                                         bool nonBlockingSocket,
                                         uint32_t interfaceNum,
                                         palAsyncSocketCallback_t callback,
-                                        void* callbackArgument,
-                                        palSocket_t* socket)
+                                        void *callbackArgument,
+                                        palSocket_t *socket)
 {
     uint8_t protocol;
     int8_t socket_id;
@@ -583,64 +585,63 @@ palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex, connec
 PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 {
     palStatus_t status;
-    switch (errnoValue)
-    {
-    case EAI_MEMORY:
-        status = PAL_ERR_NO_MEMORY;
-        break;
-    case EWOULDBLOCK:
-        status = PAL_ERR_SOCKET_WOULD_BLOCK;
-        break;
-    case ENOTSOCK:
-        status = PAL_ERR_SOCKET_INVALID_VALUE;
-        break;
-    case EPERM:
-    case EACCES:
-        status = PAL_ERR_SOCKET_OPERATION_NOT_PERMITTED;
-        break;
-    case ETIMEDOUT:
-        status = PAL_ERR_TIMEOUT_EXPIRED;
-        break;
-    case EISCONN:
-        status = PAL_ERR_SOCKET_ALREADY_CONNECTED;
-        break;
-    case EAI_FAMILY:
-        status = PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
-        break;
-    case EINPROGRESS:
-        status = PAL_ERR_SOCKET_IN_PROGRES;
-        break;
-    case EALREADY:
-        status = PAL_ERR_SOCKET_ALREADY_CONNECTED;
-        break;
-    case EINVAL:
-        status = PAL_ERR_SOCKET_INVALID_VALUE;
-        break;
-    case EADDRINUSE:
-        status = PAL_ERR_SOCKET_ADDRESS_IN_USE;
-        break;
-    case ECONNABORTED:
-        status = PAL_ERR_SOCKET_CONNECTION_ABORTED;
-        break;
-    case ECONNRESET:
-    case ECONNREFUSED:
-        status = PAL_ERR_SOCKET_CONNECTION_RESET;
-        break;
-    case ENOBUFS:
-    case ENOMEM:
-        status = PAL_ERR_SOCKET_NO_BUFFERS;
-        break;
-    case EINTR:
-        status = PAL_ERR_SOCKET_INTERRUPTED;
-        break;
-    case EAI_AGAIN:
-    case EAI_NONAME:
-        status = PAL_ERR_SOCKET_DNS_ERROR;
-        break;
-    default:
-        PAL_LOG_ERR("translateErrorToPALError() cannot translate %d", errnoValue);
-        status = PAL_ERR_SOCKET_GENERIC;
-        break;
+    switch (errnoValue) {
+        case EAI_MEMORY:
+            status = PAL_ERR_NO_MEMORY;
+            break;
+        case EWOULDBLOCK:
+            status = PAL_ERR_SOCKET_WOULD_BLOCK;
+            break;
+        case ENOTSOCK:
+            status = PAL_ERR_SOCKET_INVALID_VALUE;
+            break;
+        case EPERM:
+        case EACCES:
+            status = PAL_ERR_SOCKET_OPERATION_NOT_PERMITTED;
+            break;
+        case ETIMEDOUT:
+            status = PAL_ERR_TIMEOUT_EXPIRED;
+            break;
+        case EISCONN:
+            status = PAL_ERR_SOCKET_ALREADY_CONNECTED;
+            break;
+        case EAI_FAMILY:
+            status = PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+            break;
+        case EINPROGRESS:
+            status = PAL_ERR_SOCKET_IN_PROGRES;
+            break;
+        case EALREADY:
+            status = PAL_ERR_SOCKET_ALREADY_CONNECTED;
+            break;
+        case EINVAL:
+            status = PAL_ERR_SOCKET_INVALID_VALUE;
+            break;
+        case EADDRINUSE:
+            status = PAL_ERR_SOCKET_ADDRESS_IN_USE;
+            break;
+        case ECONNABORTED:
+            status = PAL_ERR_SOCKET_CONNECTION_ABORTED;
+            break;
+        case ECONNRESET:
+        case ECONNREFUSED:
+            status = PAL_ERR_SOCKET_CONNECTION_RESET;
+            break;
+        case ENOBUFS:
+        case ENOMEM:
+            status = PAL_ERR_SOCKET_NO_BUFFERS;
+            break;
+        case EINTR:
+            status = PAL_ERR_SOCKET_INTERRUPTED;
+            break;
+        case EAI_AGAIN:
+        case EAI_NONAME:
+            status = PAL_ERR_SOCKET_DNS_ERROR;
+            break;
+        default:
+            PAL_LOG_ERR("translateErrorToPALError() cannot translate %d", errnoValue);
+            status = PAL_ERR_SOCKET_GENERIC;
+            break;
     }
     return status;
 }
@@ -648,7 +649,7 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 
 #if PAL_NET_DNS_SUPPORT
 
-palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t* length)
+palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address, palSocketLength_t *length)
 {
     if ((url == NULL) || (address == NULL) || (length == NULL)) {
         return PAL_ERR_INVALID_ARGUMENT;
@@ -661,10 +662,10 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
     struct addrinfo *addr_result;
     struct addrinfo hints;
 
-    memset (&hints, 0, sizeof (hints));
+    memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET6;
     int res = getaddrinfo(url, NULL, &hints, &addr_result);
-    if(res < 0) {
+    if (res < 0) {
         // getaddrinfo returns EAI-error. In case of EAI_SYSTEM, the error
         // is 'Other system error, check errno for details'
         // (http://man7.org/linux/man-pages/man3/getaddrinfo.3.html#RETURN_VALUE)
@@ -677,7 +678,7 @@ palStatus_t pal_plat_getAddressInfo(const char *url, palSocketAddress_t *address
         }
     } else {
         if (addr_result != NULL) {
-            int error = getnameinfo((struct sockaddr*)addr_result->ai_addr, addr_result->ai_addrlen, ip_addr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+            int error = getnameinfo((struct sockaddr *)addr_result->ai_addr, addr_result->ai_addrlen, ip_addr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
             if (error == 0) {
                 ns_address_t ns_address;
                 int8_t ns_addr_len = strlen(ip_addr);

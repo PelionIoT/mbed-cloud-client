@@ -53,7 +53,7 @@ void fota_app_defer()
 
 void fota_app_resume(void)
 {
-    fota_event_handler_defer_with_result_ignore_busy(fota_on_resume, 0);
+    fota_event_handler_defer_with_result_ignore_busy(fota_on_resume, /*fota resume by user app */ 0);
 }
 
 #if defined (FOTA_DEFAULT_APP_IFS) && FOTA_DEFAULT_APP_IFS==1

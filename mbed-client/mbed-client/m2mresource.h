@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -145,6 +145,13 @@ public:
     void set_delayed_response(bool delayed_response);
 #endif
     /**
+     * \brief Check if resource is set to send delayed responses for POST request.
+     * Use set_delayed_response() for enabling or disabling delayed response.
+     * \return True, if delayed response is enabled.
+     */
+    bool delayed_response() const;
+
+    /**
      * \brief A trigger to send the delayed response for the POST request.
      * The delayed_response flag must be set before receiving the POST request
      * and the value of the resource must be updated before calling this function.
@@ -152,22 +159,19 @@ public:
      * Please use M2MBase::send_async_response_with_code method, if you are using
      * ENABLE_ASYNC_REST_RESPONSE flag, because this method will be deprecated.
      * \param code Response code to be sent.
-     * \return True if a response is sent, else false.
+     * \return True if delayed response is enabled.
      */
     bool send_delayed_post_response(sn_coap_msg_code_e code = COAP_MSG_CODE_RESPONSE_CHANGED);
 
-    /**
+    /** \internal
      * \brief Provides the value of the token of the delayed post response.
      * \param[out] token A pointer to the token value.
      * \param[out] token_length The length of the token pointer.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     void get_delayed_token(uint8_t *&token, uint8_t &token_length);
 
-    /**
-     * \brief Returns the value set for delayed response for POST requests.
-     * \return The value for delayed response.
-     */
-    bool delayed_response() const;
 #endif //DISABLE_DELAYED_RESPONSE
 
     /**
@@ -199,12 +203,16 @@ public:
     /**
      * \brief Returns the Observation Handler object.
      * \return M2MObservationHandler object.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
     */
     virtual M2MObservationHandler* observation_handler() const;
 
     /**
      * \brief Sets the observation handler
      * \param handler Observation handler
+     *
+     * \deprecated Internal API, subject to be modified or removed.
     */
     virtual void set_observation_handler(M2MObservationHandler *handler);
 
@@ -213,6 +221,8 @@ public:
      * \brief Parses the received query for a notification
      * attribute.
      * \return True if required attributes are present, else false.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual bool handle_observation_attribute(const char *query);
 #endif
@@ -220,12 +230,16 @@ public:
     /**
      * \brief Adds the observation level for the object.
      * \param observation_level The level of observation.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual void add_observation_level(M2MBase::Observation observation_level);
 
     /**
      * \brief Removes the observation level from an object.
      * \param observation_level The level of observation.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual void remove_observation_level(M2MBase::Observation observation_level);
 
@@ -236,6 +250,8 @@ public:
      * \param observation_handler A handler object for sending
      * observation callbacks.
      * \return sn_coap_hdr_s The message that needs to be sent to the server.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -248,6 +264,8 @@ public:
      * observation callbacks.
      * \param execute_value_updated True executes the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to the server.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -261,6 +279,8 @@ public:
      * observation callbacks.
      * \param execute_value_updated True executes the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to the server.
+     *
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
@@ -268,6 +288,9 @@ public:
                                                bool &execute_value_updated,
                                                sn_nsdl_addr_s *address = NULL);
 
+    /**
+     * \deprecated Internal API, subject to be modified or removed.
+     */
     M2MObjectInstance& get_parent_object_instance() const;
 
     /**
@@ -326,6 +349,7 @@ friend class Test_M2MTLVDeserializer;
 friend class Test_M2MBase;
 friend class Test_M2MResourceInstance;
 friend class TestFactory;
+friend class Test_M2MInterfaceImpl;
 };
 
 /**
@@ -344,7 +368,9 @@ private:
 #ifdef MEMORY_OPTIMIZED_API
     M2MExecuteParameter(const char *object_name, const char *resource_name, uint16_t object_instance_id);
 #else
-    // This is a deprecated constructor, to be removed on next release.
+    /**
+     * \deprecated This is a deprecated constructor. Subject to be removed.
+     */
     M2MExecuteParameter(const String &object_name, const String &resource_name, uint16_t object_instance_id);
 #endif
 public:

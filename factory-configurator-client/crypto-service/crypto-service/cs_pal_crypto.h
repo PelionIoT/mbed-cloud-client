@@ -16,8 +16,8 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#ifndef _FCC_PAL_CRYPTO_H_
-#define _FCC_PAL_CRYPTO_H_
+#ifndef _CS_PAL_CRYPTO_H_
+#define _CS_PAL_CRYPTO_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +27,7 @@ extern "C" {
 #include <stdbool.h>
 #include <inttypes.h>
 #include <stddef.h>
-#include <pal_crypto_configuration.h>
+#include "cs_pal_crypto_configuration.h"
 #include "mbed-trace/mbed_trace.h"
 #if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) ||  defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 #include "pal.h"
@@ -36,7 +36,7 @@ extern "C" {
 #define NULLPTR 0
 typedef int32_t palStatus_t;
 
-/*! \file pal_Crypto.h
+/*! \file cs_pal_crypto.h
 *  \brief PAL cryptographic.
 *   This file contains cryptographic APIs and is part of the PAL service API.
 *

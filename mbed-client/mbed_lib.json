@@ -20,6 +20,12 @@
         "disable-delayed-response": null,
         "disable-block-message": null,
         "memory-optimized-api": null,
-        "enable-observation-parameters" : 1
+        "max-certificate-size": {
+            "help": "Maximum size for buffer passing around certificate chain.",
+            "default": 1024,
+            "value": 1024
+        },
+        "enable-observation-parameters" : 1,
+        "bootstrap-piggybacked-response" : null
     }
 }

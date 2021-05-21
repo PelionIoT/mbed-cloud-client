@@ -23,15 +23,14 @@
 #include "fota/fota_crypto_defs.h"
 #include "fota/fota_status.h"
 
-#ifdef __MBED__
-
 // fota_get_device_key_128bit in use only in case defined MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY or external legacy header
 #if ((MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) && (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)) || (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
 
+#include "kv_config.h"
 #include "KVMap.h"
-#include "mbed.h"
 #include "TDBStore.h"
-#include "DeviceKey.h"
+
+using namespace mbed;
 
 extern "C" int8_t fota_get_device_key_128bit(uint8_t *key, uint32_t keyLenBytes)
 {
@@ -64,5 +63,4 @@ extern "C" int8_t fota_get_device_key_128bit(uint8_t *key, uint32_t keyLenBytes)
 }
 
 #endif // #if ((MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) && (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)) || (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
-#endif // #ifdef __MBED__
 #endif //MBED_CLOUD_CLIENT_FOTA_ENABLE

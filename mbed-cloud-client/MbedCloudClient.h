@@ -46,22 +46,6 @@
 #include "multicast.h"
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 
-#if MBED_CLOUD_CLIENT_STL_API
-#include <map>
-#include <string>
-#include <vector>
-#endif
-
-#if MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION
-// We should not really pollute application's namespace with std:: by having this in
-// a public header file.
-// But as as removal of the next line may break existing applications, which build due to this
-// leakage, we need to maintain the old behavior for a while and just allow one to remove it.
-using namespace std;
-#endif
-
-class SimpleM2MResourceBase;
-
 /**
  * \brief MbedCloudClientCallback
  * A callback class for informing updated Object and Resource value from the
@@ -212,7 +196,7 @@ public:
         MulticastErrorEnd = MULTICAST_STATUS_RANGE_END
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 
-    }Error;
+    } Error;
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     /**
@@ -224,6 +208,18 @@ public:
         UpdateRequestInstall                    = UpdateClient::RequestInstall
     };
 #endif
+
+    /**
+     * \brief An enum defining different statuses
+     * that can occur during various client operations.
+     */
+    typedef enum {
+        Unregistered = 0,
+        Registered,
+        RegistrationUpdated,
+        AlertMode,
+        Paused
+    } Status;
 
     /**
      * \brief Constructor
@@ -241,12 +237,30 @@ public:
      * \param on_update_authorize_cb Callback function that Update Client calls to authorize firmware download or
      * an firmware update.
      * \param on_update_progress_cb Callback function that Update Client calls to report download progress.
+     * \deprecated
      */
     MbedCloudClient(void(*on_registered_cb)(void),
                     void(*on_unregistered_cb)(void),
                     void(*on_error_cb)(int)
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
-                    ,void(*update_authorize_cb)(int32_t request) = NULL,
+                    , void(*update_authorize_cb)(int32_t request) = NULL,
+                    void(*update_progress_cb)(uint32_t progress, uint32_t total) = NULL
+#endif
+                   ) m2m_deprecated;
+
+    /**
+     * \brief Constructor a Cloud Client with given callbacks.
+     * \param on_status_changed_cb Callback function that Device Management Client calls when the client status has changed.
+     * \param on_error_cb Callback function that Device Management Client calls when there is an error occuring in the
+     * client functionality.
+     * \param on_update_authorize_cb Callback function that Update Client calls to authorize firmware download or
+     * an firmware update.
+     * \param on_update_progress_cb Callback function that Update Client calls to report download progress.
+     */
+    MbedCloudClient(void(*on_status_changed_cb)(int),
+                    void(*on_error_cb)(int)
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
+                    , void(*update_authorize_cb)(int32_t request) = NULL,
                     void(*update_progress_cb)(uint32_t progress, uint32_t total) = NULL
 #endif
                    );
@@ -264,7 +278,7 @@ public:
      * \param object_list Objects that contain information about Device Management Client
      * attempting to register to the LwM2M server.
      */
-    void add_objects(const M2MObjectList& object_list);
+    void add_objects(const M2MObjectList &object_list);
 
     /**
      * \brief Add a list of M2MBase interface implementing objects that the application wants
@@ -274,7 +288,7 @@ public:
      * \param base_list Object implementing the M2MBase interface that contain information about Device Management
      * Client attempting to register to the LwM2M server.
      */
-    void add_objects(const M2MBaseList& base_list);
+    void add_objects(const M2MBaseList &base_list);
 
     void remove_object(M2MBase *object);
 
@@ -284,6 +298,8 @@ public:
      * typically on receiving `PUT` commands on the registered Objects.
      * \param callback Passes the class Object that implements the callback
      * function to handle the incoming `PUT` request on a given Object.
+     *
+     * \deprecate Please use M2MBase::set_value_updated_function() instead.
      */
     void set_update_callback(MbedCloudClientCallback *callback);
 
@@ -315,24 +331,26 @@ public:
      * An application using Device Management Client must be able to recover from the failure and retry the initialization of
      * Device Management Client by calling this API or `init()` at later stage.
      */
-    bool setup(void* iface);
+    bool setup(void *iface);
 
     /**
      * \brief Set the callback function that is called when Device Management Client is registered
      * successfully to Device Management. This is used for a statically defined function.
      * \param fn Function pointer to the function that is called when Device Management Client
      * is registered.
+     * \deprecated Please use `on_status_changed()` function callback instead.
      */
-    void on_registered(void(*fn)(void));
+    void on_registered(void(*fn)(void)) m2m_deprecated;
 
     /**
     * \brief Set the callback function that is called when Device Management Client is registered
     * successfully to Device Management. This is an overloaded function for a class function.
     * \param object Function pointer to the function that is called when Device Management Client
     * is registered.
+    * \deprecated Please use `on_status_changed()` function callback instead.
     */
     template<typename T>
-    void on_registered(T *object, void (T::*member)(void));
+    void on_registered(T *object, void (T::*member)(void)) m2m_deprecated;
 
     /**
      * \brief Set the callback function that is called when there is any error
@@ -354,29 +372,50 @@ public:
     void on_error(T *object, void (T::*member)(int));
 
     /**
+     * \brief Set the callback function that is called when the client status change.
+     * The status code can be mapped from the `MbedCloudClient::Status` enum.
+     * This is used for a statically defined function.
+     * \param fn Function pointer to the function that is called when the Device Management Client status change.
+     */
+    void on_status_changed(void(*fn)(int));
+
+    /**
+     * \brief Set the callback function that is called when the client status change.
+     * The status code can be mapped from the `MbedCloudClient::Status` enum.
+     * This is an overloaded function for a class function.
+     * \param object Function pointer to the function that is called when the
+     *  Device Management Client status change.
+     */
+    template<typename T>
+    void on_status_changed(T *object, void (T::*member)(int));
+
+    /**
      * \brief Set the callback function that is called when Device Management Client is unregistered
      * successfully from Device Management. This is used for a statically defined function.
      * \param fn Function pointer to the function that is called when Device Management Client
      * is unregistered.
+     * \deprecated Please use `on_status_changed()` function callback instead.
      */
-    void on_unregistered(void(*fn)(void));
+    void on_unregistered(void(*fn)(void)) m2m_deprecated;
 
     /**
     * \brief Set the callback function that is called when Device Management Client is unregistered
     * successfully from Device Management. This is an overloaded function for a class function.
     * \param object Function pointer to the function that is called when Device Management Client
     * is unregistered.
+    * \deprecated Please use `on_status_changed()` function callback instead.
     */
     template<typename T>
-    void on_unregistered(T *object, void (T::*member)(void));
+    void on_unregistered(T *object, void (T::*member)(void)) m2m_deprecated;
 
     /**
      * \brief Set the callback function that is called when Device Management Client registration
      * is updated successfully to Device Management. This is used for a statically defined function.
      * \param fn Function pointer to the function that is called when Device Management Client
      * registration is updated.
+     * \deprecated Please use `on_status_changed()` function callback instead.
      */
-    void on_registration_updated(void(*fn)(void));
+    void on_registration_updated(void(*fn)(void)) m2m_deprecated;
 
     /**
      * \brief Set the callback function that is called when Device Management Client registration
@@ -384,16 +423,17 @@ public:
      * function.
      * \param object Function pointer to the function that is called when Device Management Client
      * registration is updated.
+     * \deprecated Please use `on_status_changed()` function callback instead.
      */
     template<typename T>
-        void on_registration_updated(T *object, void (T::*member)(void));
+    void on_registration_updated(T *object, void (T::*member)(void)) m2m_deprecated;
 
     /**
     * \brief Send a registration update message to Device Management when Device Management Client is registered
     * successfully and there is no internal connection error.
     * If Device Management Client is not connected and there is some other internal network
     * transaction ongoing, this function triggers an error `MbedCloudClient::ConnectNotAllowed`.
-    * \deprecated
+    * \deprecated Please, use the MbedCloudClient::register_update() instead.
     */
     void keep_alive() m2m_deprecated;
 
@@ -450,21 +490,6 @@ public:
      *                                     size_t len, size_t *olen);`.
      */
     void set_entropy_callback(entropy_cb callback);
-
-#if MBED_CLOUD_CLIENT_STL_API
-    /**
-     * \brief Set resource value in the Device Object.
-     *
-     * \note This API and functionality using STL is being phased out, as it is wasting resources by
-     * duplicating data and harming portability by requiring an STL implementation.
-     *
-     * \param resource Device enum to have value set.
-     * \param value String object.
-     * \return True if successful, false otherwise.
-     */
-    bool set_device_resource_value(M2MDevice::DeviceResource resource,
-                                   const std::string &value) m2m_deprecated;
-#endif
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
     /**
@@ -579,6 +604,14 @@ public:
      */
     void resume(void *iface);
 
+    /**
+     * \brief Sets Device Management Client into an alert mode.
+     *
+     * \note In alert mode Device Management Client halts all data
+     * sendings/active operations and waits for priority data to be sent.
+     */
+    void alert();
+
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
     /**
      * \brief Perform enrollment over secure transport for a certificate signing request.
@@ -641,41 +674,20 @@ protected: // from ServiceClientCallback
 
 private:
 
-    /**
-    * \brief Register the update callback functions for `SimpleM2MResourceBase`
-    * objects.
-    * \param route The URI path of the registered Resource such as `/Test/0/res/`.
-    * \param resource Object of the `SimpleM2MResourceBase`.
-    */
-#if MBED_CLOUD_CLIENT_STL_API
-    void register_update_callback(string route, SimpleM2MResourceBase* resource) m2m_deprecated;
-#endif
-
-private:
-
     ServiceClient                                   _client;
     MbedCloudClientCallback                         *_value_callback;
     M2MBaseList                                     _object_list;
     FP0<void>                                       _on_registered;
     FP0<void>                                       _on_unregistered;
     FP0<void>                                       _on_registration_updated;
-    FP1<void,int>                                   _on_error;
+    FP1<void, int>                                   _on_error;
+    FP1<void, int>                                   _on_status_changed;
     const char                                      *_error_description;
     bool                                            _init_done;
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
     FP2<void, uint32_t, uint32_t>                   _on_external_update;
 #endif
 
-#if MBED_CLOUD_CLIENT_STL_API
-    // This API and functionality is being phased out, as it is wasting resources by
-    // duplicating data and harming portability by requiring an STL implementation.
-    map<string, M2MObject*>                         _objects;
-    map<string, M2MResource*>                       _resources;
-    map<string, SimpleM2MResourceBase*>             _update_values;
-
-friend class SimpleM2MResourceBase;
-
-#endif // MBED_CLOUD_CLIENT_STL_API
 };
 
 template<typename T>
@@ -704,5 +716,12 @@ void MbedCloudClient::on_registration_updated(T *object, void (T::*member)(void)
 {
     FP0<void> fp(object, member);
     _on_registration_updated = fp;
+}
+
+template<typename T>
+void MbedCloudClient::on_status_changed(T *object, void (T::*member)(int))
+{
+    FP1<void, int> fp(object, member);
+    _on_status_changed = fp;
 }
 #endif // __MBED_CLOUD_CLIENT_H__

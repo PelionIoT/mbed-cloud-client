@@ -53,17 +53,17 @@ bool M2MTLVDeserializer::is_resource_instance(const uint8_t *tlv)
     return is_resource_instance(tlv, 0);
 }
 
-M2MTLVDeserializer::Error M2MTLVDeserializer::deserialise_object_instances(const uint8_t* tlv,
+M2MTLVDeserializer::Error M2MTLVDeserializer::deserialise_object_instances(const uint8_t *tlv,
                                                                            uint32_t tlv_size,
                                                                            M2MObject &object,
                                                                            M2MTLVDeserializer::Operation operation)
 {
     M2MTLVDeserializer::Error error = M2MTLVDeserializer::None;
-    if (is_object_instance(tlv) ) {
+    if (is_object_instance(tlv)) {
         tr_debug("M2MTLVDeserializer::deserialise_object_instances");
-        error = deserialize_object_instances(tlv, tlv_size, 0, object,operation,false);
-        if(M2MTLVDeserializer::None == error) {
-            error = deserialize_object_instances(tlv, tlv_size, 0, object,operation,true);
+        error = deserialize_object_instances(tlv, tlv_size, 0, object, operation, false);
+        if (M2MTLVDeserializer::None == error) {
+            error = deserialize_object_instances(tlv, tlv_size, 0, object, operation, true);
         }
     } else {
         tr_debug("M2MTLVDeserializer::deserialise_object_instances ::NotValid");
@@ -81,14 +81,31 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resources(const uint8_
     if (!is_resource(tlv) && !is_multiple_resource(tlv)) {
         error = M2MTLVDeserializer::NotValid;
     } else {
-        error = deserialize_resources(tlv, tlv_size, 0, object_instance, operation,false);
-        if(M2MTLVDeserializer::None == error) {
+        error = deserialize_resources(tlv, tlv_size, 0, object_instance, operation, false);
+        if (M2MTLVDeserializer::None == error) {
             if (M2MTLVDeserializer::Put == operation) {
                 remove_resources(tlv, tlv_size, object_instance, 0);
             }
-            error = deserialize_resources(tlv, tlv_size, 0, object_instance, operation,true);
+            error = deserialize_resources(tlv, tlv_size, 0, object_instance, operation, true);
         }
     }
+    return error;
+}
+
+M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource(const uint8_t *tlv,
+                                                                   uint32_t tlv_size,
+                                                                   M2MResource &resource,
+                                                                   M2MTLVDeserializer::Operation operation)
+{
+    M2MTLVDeserializer::Error error = M2MTLVDeserializer::None;
+    if (!is_resource(tlv)) {
+        error = M2MTLVDeserializer::NotValid;
+    } else if (operation != M2MTLVDeserializer::Put) {
+        error = M2MTLVDeserializer::NotValid;
+    } else {
+        error = deserialize_resource(tlv, tlv_size, resource, operation, true);
+    }
+
     return error;
 }
 
@@ -107,21 +124,21 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
         ((tlv[0] & 0x20) == 0) ? offset : offset++;
 
         uint8_t length = tlv[0] & 0x18;
-        if(length == 0x08) {
+        if (length == 0x08) {
             offset += 1;
-        } else if(length == 0x10) {
+        } else if (length == 0x10) {
             offset += 2;
-        } else if(length == 0x18) {
+        } else if (length == 0x18) {
             offset += 3;
         }
 
         tr_debug("M2MTLVDeserializer::deserialize_resource_instances() Offset %d", offset);
-        error = deserialize_resource_instances(tlv, tlv_size, offset, resource, operation,false);
-        if(M2MTLVDeserializer::None == error) {
+        error = deserialize_resource_instances(tlv, tlv_size, offset, resource, operation, false);
+        if (M2MTLVDeserializer::None == error) {
             if (M2MTLVDeserializer::Put == operation) {
                 remove_resource_instances(tlv, tlv_size, resource, offset);
             }
-            error = deserialize_resource_instances(tlv, tlv_size, offset, resource, operation,true);
+            error = deserialize_resource_instances(tlv, tlv_size, offset, resource, operation, true);
         }
     }
     return error;
@@ -145,14 +162,14 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_object_instances(const
     it = list.begin();
 
     if (TYPE_OBJECT_INSTANCE == til._type) {
-        for (; it!=list.end(); it++) {
-            if((*it)->instance_id() == til._id) {
-                error = deserialize_resources(tlv, tlv_size, offset, (**it),operation, update_value);
+        for (; it != list.end(); it++) {
+            if ((*it)->instance_id() == til._id) {
+                error = deserialize_resources(tlv, tlv_size, offset, (**it), operation, update_value);
             }
         }
         offset += til._length;
 
-        if(offset < tlv_size) {
+        if (offset < tlv_size) {
             error = deserialize_object_instances(tlv, tlv_size, offset, object, operation, update_value);
         }
     }
@@ -180,14 +197,14 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resources(const uint8_
     bool multi = false;
     if (TYPE_RESOURCE == til._type || TYPE_RESOURCE_INSTANCE == til._type) {
         multi = false;
-        for (; it!=list.end(); it++) {
-            if((*it)->name_id() == til._id){
+        for (; it != list.end(); it++) {
+            if ((*it)->name_id() == til._id) {
                 tr_debug("M2MTLVDeserializer::deserialize_resources() - Resource ID %d ", til._id);
                 found = true;
-                if(update_value) {
-                    if(til._length > 0) {
+                if (update_value) {
+                    if (til._length > 0) {
                         tr_debug("M2MTLVDeserializer::deserialize_resources() - Update value");
-                        if (!set_resource_instance_value((*it), tlv+offset, til._length)) {
+                        if (!set_resource_instance_value((*it), tlv + offset, til._length)) {
                             error = M2MTLVDeserializer::OutOfMemory;
                             break;
                         }
@@ -196,7 +213,7 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resources(const uint8_
                         (*it)->clear_value();
                     }
                     break;
-                } else if(0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
+                } else if (0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
                     tr_debug("M2MTLVDeserializer::deserialize_resources() - NOT_ALLOWED");
                     error = M2MTLVDeserializer::NotAllowed;
                     break;
@@ -205,8 +222,8 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resources(const uint8_
         }
     } else if (TYPE_MULTIPLE_RESOURCE == til._type) {
         multi = true;
-        for (; it!=list.end(); it++) {
-            if((*it)->supports_multiple_instances() &&
+        for (; it != list.end(); it++) {
+            if ((*it)->supports_multiple_instances() &&
                     (*it)->name_id() == til._id) {
                 found = true;
                 error = deserialize_resource_instances(tlv, tlv_size, offset, (**it), object_instance, operation, update_value);
@@ -225,7 +242,7 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resources(const uint8_
             M2MResource *resource = object_instance.create_dynamic_resource(id, "", M2MResourceInstance::OPAQUE, true, multi);
             if (resource) {
                 resource->set_operation(M2MBase::GET_PUT_POST_DELETE_ALLOWED);
-                if  (TYPE_MULTIPLE_RESOURCE == til._type) {
+                if (TYPE_MULTIPLE_RESOURCE == til._type) {
                     error = deserialize_resource_instances(tlv, tlv_size, offset, (*resource), object_instance, operation, update_value);
                 }
             }
@@ -238,6 +255,42 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resources(const uint8_
 
     if (offset < tlv_size) {
         error = deserialize_resources(tlv, tlv_size, offset, object_instance, operation, update_value);
+    }
+
+    return error;
+}
+
+M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource(const uint8_t *tlv,
+                                                                   uint32_t tlv_size,
+                                                                   M2MResource &resource,
+                                                                   M2MTLVDeserializer::Operation operation,
+                                                                   bool update_value)
+{
+    M2MTLVDeserializer::Error error = M2MTLVDeserializer::None;
+    if (resource.operation() & M2MBase::PUT_ALLOWED) {
+        int offset = 0;
+        TypeIdLength til(tlv, offset);
+        til.deserialize();
+        offset = til._offset;
+
+        if (resource.resource_instance_type() == M2MResourceBase::INTEGER) {
+            int64_t value = String::convert_array_to_integer(tlv + offset, til._length);
+            if ((strcmp(resource.uri_path(), SERVER_LIFETIME_PATH) == 0) && (value < MINIMUM_REGISTRATION_TIME)) {
+                // Check that lifetime can't go below 60s
+                return M2MTLVDeserializer::NotAccepted;
+            } else {
+                if (!resource.set_value(value)) {
+                    error = M2MTLVDeserializer::OutOfMemory;
+                }
+            }
+        }
+
+        tr_debug("M2MTLVDeserializer::deserialize_resource() - Update value");
+        if (!set_resource_instance_value(&resource, tlv + offset, til._length)) {
+            error = M2MTLVDeserializer::OutOfMemory;
+        }
+    } else {
+        error = M2MTLVDeserializer::NotAllowed;
     }
 
     return error;
@@ -261,12 +314,12 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
         M2MResourceInstanceList::const_iterator it;
         it = list.begin();
         bool found = false;
-        for (; it!=list.end(); it++) {
-            if((*it)->instance_id() == til._id && TYPE_RESOURCE_INSTANCE == til._type) {
+        for (; it != list.end(); it++) {
+            if ((*it)->instance_id() == til._id && TYPE_RESOURCE_INSTANCE == til._type) {
                 found = true;
-                if(update_value) {
-                    if(til._length > 0) {
-                        if (!set_resource_instance_value((*it), tlv+offset, til._length)) {
+                if (update_value) {
+                    if (til._length > 0) {
+                        if (!set_resource_instance_value((*it), tlv + offset, til._length)) {
                             error = M2MTLVDeserializer::OutOfMemory;
                             break;
                         }
@@ -274,24 +327,24 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
                         (*it)->clear_value();
                     }
                     break;
-                } else if(0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
+                } else if (0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
                     error = M2MTLVDeserializer::NotAllowed;
                     break;
                 }
             }
         }
 
-        if(!found) {
-            if(M2MTLVDeserializer::Post == operation) {
+        if (!found) {
+            if (M2MTLVDeserializer::Post == operation) {
                 // Create a new Resource Instance
-                M2MResourceInstance *res_instance = object_instance.create_dynamic_resource_instance(resource.name(),"",
-                                                                                                 resource.resource_instance_type(),
-                                                                                                 true,
-                                                                                                 til._id);
-                if(res_instance) {
+                M2MResourceInstance *res_instance = object_instance.create_dynamic_resource_instance(resource.name(), "",
+                                                                                                     resource.resource_instance_type(),
+                                                                                                     true,
+                                                                                                     til._id);
+                if (res_instance) {
                     res_instance->set_operation(M2MBase::GET_PUT_POST_DELETE_ALLOWED);
                 }
-            } else if(M2MTLVDeserializer::Put == operation) {
+            } else if (M2MTLVDeserializer::Put == operation) {
                 error = M2MTLVDeserializer::NotFound;
             }
         }
@@ -302,8 +355,8 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
 
     offset += til._length;
 
-    if(offset < tlv_size) {
-      error = deserialize_resource_instances(tlv, tlv_size, offset, resource, object_instance, operation, update_value);
+    if (offset < tlv_size) {
+        error = deserialize_resource_instances(tlv, tlv_size, offset, resource, object_instance, operation, update_value);
     }
     return error;
 }
@@ -315,6 +368,9 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
                                                                              M2MTLVDeserializer::Operation operation,
                                                                              bool update_value)
 {
+    if (tlv_size < offset + 1) {
+        return M2MTLVDeserializer::NotValid;
+    }
     M2MTLVDeserializer::Error error = M2MTLVDeserializer::None;
     TypeIdLength til(tlv, offset);
     til.deserialize();
@@ -325,12 +381,12 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
         M2MResourceInstanceList::const_iterator it;
         it = list.begin();
         bool found = false;
-        for (; it!=list.end(); it++) {
-            if((*it)->instance_id() == til._id) {
+        for (; it != list.end(); it++) {
+            if ((*it)->instance_id() == til._id) {
                 found = true;
-                if(update_value) {
-                    if(til._length > 0) {
-                        if (!set_resource_instance_value((*it),tlv+offset, til._length)) {
+                if (update_value) {
+                    if (til._length > 0) {
+                        if (!set_resource_instance_value((*it), tlv + offset, til._length)) {
                             error = M2MTLVDeserializer::OutOfMemory;
                             break;
                         }
@@ -338,24 +394,24 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
                         (*it)->clear_value();
                     }
                     break;
-                } else if(0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
+                } else if (0 == ((*it)->operation() & M2MBase::PUT_ALLOWED)) {
                     error = M2MTLVDeserializer::NotAllowed;
                     break;
                 }
             }
         }
-        if(!found) {
-            if(M2MTLVDeserializer::Post == operation) {
+        if (!found) {
+            if (M2MTLVDeserializer::Post == operation) {
                 error = M2MTLVDeserializer::NotAllowed;
-            } else if(M2MTLVDeserializer::Put == operation) {
+            } else if (M2MTLVDeserializer::Put == operation) {
                 // Create a new Resource Instance
                 M2MResourceInstance *res_instance = resource.get_parent_object_instance().create_dynamic_resource_instance(
-                    resource.name(),
-                    "",
-                    resource.resource_instance_type(),
-                    true,
-                    til._id);
-                if(res_instance) {
+                                                        resource.name(),
+                                                        "",
+                                                        resource.resource_instance_type(),
+                                                        true,
+                                                        til._id);
+                if (res_instance) {
                     res_instance->set_operation(M2MBase::GET_PUT_DELETE_ALLOWED);
                 }
             }
@@ -368,8 +424,8 @@ M2MTLVDeserializer::Error M2MTLVDeserializer::deserialize_resource_instances(con
 
     offset += til._length;
 
-    if(offset < tlv_size) {
-         error = deserialize_resource_instances(tlv, tlv_size, offset, resource, operation, update_value);
+    if (offset < tlv_size) {
+        error = deserialize_resource_instances(tlv, tlv_size, offset, resource, operation, update_value);
     }
     return error;
 }
@@ -425,22 +481,22 @@ bool M2MTLVDeserializer::set_resource_instance_value(M2MResourceBase *res, const
     switch (res->resource_instance_type()) {
         case M2MResourceBase::INTEGER:
         case M2MResourceBase::BOOLEAN:
-        case M2MResourceBase::TIME:
-        {
+        case M2MResourceBase::TIME: {
             int64_t value = String::convert_array_to_integer(tlv, size);
             success = res->set_value(value);
             break;
-        // Todo! implement conversion for other types as well
+            // Todo! implement conversion for other types as well
         }
         case M2MResourceBase::STRING:
         case M2MResourceBase::OPAQUE:
         case M2MResourceBase::OBJLINK:
             success = res->set_value(tlv, size);
             break;
-        case M2MResourceBase::FLOAT:
-        {
+        case M2MResourceBase::FLOAT: {
             uint32_t value = common_read_32_bit(tlv);
-            success = res->set_value_float(*(float*)&value);
+            float float_value = 0;
+            memcpy(&float_value, &value, size);
+            success = res->set_value_float(float_value);
             break;
         }
         default:
@@ -460,14 +516,14 @@ void M2MTLVDeserializer::remove_resources(const uint8_t *tlv,
     M2MResourceList::const_iterator it;
 
     it = list.begin();
-    for (; it!=list.end();) {
+    for (; it != list.end();) {
         bool found = false;
-        while(offset < tlv_size) {
+        while (offset < tlv_size) {
             TypeIdLength til(tlv, offset);
             til.deserialize();
             offset = til._offset;
             offset += til._length;
-            if((*it)->name_id() == til._id){
+            if ((*it)->name_id() == til._id) {
                 offset = offset_size;
                 found = true;
                 break;
@@ -486,9 +542,9 @@ void M2MTLVDeserializer::remove_resources(const uint8_t *tlv,
 }
 
 void M2MTLVDeserializer::remove_resource_instances(const uint8_t *tlv,
-                                          uint32_t tlv_size,
-                                          M2MResource &resource,
-                                          uint32_t offset_size)
+                                                   uint32_t tlv_size,
+                                                   M2MResource &resource,
+                                                   uint32_t offset_size)
 {
     tr_debug("M2MTLVDeserializer::remove_resource_instances");
     uint32_t offset = offset_size;
@@ -496,14 +552,14 @@ void M2MTLVDeserializer::remove_resource_instances(const uint8_t *tlv,
     M2MResourceInstanceList::const_iterator it;
     it = list.begin();
 
-    for (; it!=list.end();) {
+    for (; it != list.end();) {
         bool found = false;
         while (offset < tlv_size) {
             TypeIdLength til(tlv, offset);
             til.deserialize();
             offset = til._offset;
             offset += til._length;
-            if ((*it)->instance_id() == til._id){
+            if ((*it)->instance_id() == til._id) {
                 offset = offset_size;
                 found = true;
                 break;
@@ -522,7 +578,7 @@ void M2MTLVDeserializer::remove_resource_instances(const uint8_t *tlv,
 }
 
 TypeIdLength::TypeIdLength(const uint8_t *tlv, uint32_t offset)
-: _tlv(tlv), _offset(offset), _type(tlv[offset] & 0xC0), _id(0), _length(0)
+    : _tlv(tlv), _offset(offset), _type(tlv[offset] & 0xC0), _id(0), _length(0)
 {
 }
 

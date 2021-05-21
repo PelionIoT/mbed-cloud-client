@@ -244,9 +244,9 @@ PAL_PRIVATE void* threadFunction(void* arg)
 
 palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgument, palThreadPriority_t priority, uint32_t stackSize, palThreadID_t* threadID)
 {
+    (void)priority;
     palStatus_t status = PAL_ERR_GENERIC_FAILURE;
     pthread_t sysThreadID = (pthread_t)NULL;
-    struct sched_param schedParam;
     pthread_attr_t attr;
     pthread_attr_t* ptrAttr = NULL;
     palThreadData_t* threadData;
@@ -269,28 +269,7 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
         goto finish;
     }
 
-    err = pthread_attr_setschedpolicy(ptrAttr, SCHED_RR);
-    if (0 != err)
-    {
-        goto finish;
-    }
-
-#if (PAL_SIMULATOR_TEST_ENABLE == 0) // disable ONLY for Linux PC simulator 
-    err = pthread_attr_setinheritsched(ptrAttr, PTHREAD_EXPLICIT_SCHED);
-    if (0 != err)
-    {
-        goto finish;
-    }
-#endif    
-    
     err = pthread_attr_setdetachstate(ptrAttr, PTHREAD_CREATE_DETACHED);
-    if (0 != err)
-    {
-        goto finish;
-    }    
-    
-    schedParam.sched_priority = PAL_THREAD_PRIORITY_TRANSLATE(priority);
-    err = pthread_attr_setschedparam(ptrAttr, &schedParam);
     if (0 != err)
     {
         goto finish;

@@ -21,7 +21,7 @@
 #include "ce_internal.h"
 #include "est_defs.h"
 #include "storage_kcm.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 
 const char g_lwm2m_name[] = "LWM2M";
 const char g_renewal_status_file[] = "renewal_status";

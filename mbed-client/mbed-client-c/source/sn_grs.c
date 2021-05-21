@@ -271,19 +271,21 @@ extern int8_t sn_grs_process_coap(struct nsdl_s *nsdl_handle, sn_coap_hdr_s *coa
             return sn_grs_core_request(nsdl_handle, src_addr_ptr, coap_packet_ptr);
         }
 
-        /* Get resource */
-        char* path = nsdl_handle->grs->sn_grs_alloc(coap_packet_ptr->uri_path_len + 1);
-        if (!path) {
-            return SN_NSDL_FAILURE;
+        if (coap_packet_ptr->uri_path_len > 0) {
+            /* Get resource */
+            char* path = nsdl_handle->grs->sn_grs_alloc(coap_packet_ptr->uri_path_len + 1);
+            if (!path) {
+                return SN_NSDL_FAILURE;
+            }
+
+            memcpy(path,
+                   coap_packet_ptr->uri_path_ptr,
+                   coap_packet_ptr->uri_path_len);
+            path[coap_packet_ptr->uri_path_len] = '\0';
+
+            resource_temp_ptr = sn_grs_search_resource(handle, path, SN_GRS_SEARCH_METHOD);
+            nsdl_handle->grs->sn_grs_free(path);
         }
-
-        memcpy(path,
-               coap_packet_ptr->uri_path_ptr,
-               coap_packet_ptr->uri_path_len);
-        path[coap_packet_ptr->uri_path_len] = '\0';
-
-        resource_temp_ptr = sn_grs_search_resource(handle, path, SN_GRS_SEARCH_METHOD);
-        nsdl_handle->grs->sn_grs_free(path);
 
         /* * * * * * * * * * * */
         /* If resource exists  */

@@ -123,12 +123,11 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
         palX509_t owncert;
         palPrivateKey_t privateKey;
         palX509_t caChain;
-        size_t len;
+        size_t len = MAX_CERTIFICATE_SIZE;
         uint8_t certificate[MAX_CERTIFICATE_SIZE];
         uint8_t *certificate_ptr = (uint8_t *)&certificate;
-        size_t resource_buffer_size;
+        size_t resource_buffer_size = MAX_CERTIFICATE_SIZE;
 
-        caChain.size = MAX_CERTIFICATE_SIZE;
         int ret_code = security->resource_value_buffer(M2MSecurity::ServerPublicKey, certificate_ptr, security_instance_id, &resource_buffer_size);
         caChain.buffer = certificate_ptr;
         caChain.size = static_cast<uint32_t>(resource_buffer_size);
@@ -174,8 +173,8 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
             size_t index = 0;
 
             while (index < cert_chain_size) {
-                size_t resource_buffer_size = 0;
-                owncert.size = MAX_CERTIFICATE_SIZE;
+                size_t resource_buffer_size = MAX_CERTIFICATE_SIZE;
+
                 ret_code = security->resource_value_buffer(M2MSecurity::ReadDeviceCertificateChain, certificate_ptr, security_instance_id, &resource_buffer_size);
                 owncert.buffer = certificate_ptr;
 
@@ -199,10 +198,10 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 
         uint8_t identity[MAX_CERTIFICATE_SIZE];
         uint8_t *identity_ptr = (uint8_t *)&identity;
-        size_t identity_len = 0;
+        size_t identity_len = MAX_CERTIFICATE_SIZE;
         uint8_t psk[MAX_CERTIFICATE_SIZE];
         uint8_t *psk_ptr = (uint8_t *)&psk;
-        size_t psk_len = 0;
+        size_t psk_len = MAX_CERTIFICATE_SIZE;
 
         int ret_code = security->resource_value_buffer(M2MSecurity::PublicKey, identity_ptr, security_instance_id, &identity_len);
         if (ret_code < 0) {
@@ -253,12 +252,12 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
 int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, bool is_server_ping)
 {
     palStatus_t ret = PAL_SUCCESS;
-    if(is_server_ping) {
+    if (is_server_ping) {
         tr_info("M2MConnectionSecurityPimpl::connect is SERVER PING");
-        ret = pal_handShake_ping(_ssl);
+        ret = pal_handShake(_ssl, _conf, true);
     } else {
         tr_debug("M2MConnectionSecurityPimpl::connect is normal HANDSHAKE");
-        ret = pal_handShake(_ssl, _conf);
+        ret = pal_handShake(_ssl, _conf, false);
     }
 
     tr_debug("M2MConnectionSecurityPimpl::connect return code  %" PRIx32, ret);
@@ -392,5 +391,5 @@ bool M2MConnectionSecurityPimpl::is_cid_available()
 
 void M2MConnectionSecurityPimpl::set_cid_value(const uint8_t *data_ptr, const size_t data_len)
 {
-    pal_set_cid_value(_ssl, data_ptr, data_len);
+    pal_set_cid_value(_ssl, _conf, data_ptr, data_len);
 }

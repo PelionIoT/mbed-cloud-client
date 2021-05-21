@@ -141,7 +141,7 @@ uint64_t pal_osKernelSysTickFrequency(void);
 *
 * @param[in] function A function pointer to the thread callback function.
 * @param[in] funcArgument An argument for the thread function.
-* @param[in] priority The priority of the thread.
+* @param[in] priority The priority of the thread. Not used in Linux.
 * @param[in] stackSize The stack size of the thread, can NOT be 0.
 * @param[in] store \b MUST be `NULL` - this functionality is not supported.
 * @param[out] threadID: The created thread ID handle. In case of error, this value is `NULL`.

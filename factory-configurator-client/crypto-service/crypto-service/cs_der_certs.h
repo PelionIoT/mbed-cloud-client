@@ -26,7 +26,7 @@ extern "C" {
 #include <stdint.h>
 #include "kcm_status.h"
 #include "storage_kcm.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 
 /*
 * Types certificate's attributes

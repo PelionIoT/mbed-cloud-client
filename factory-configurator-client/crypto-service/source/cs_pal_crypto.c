@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #include "pv_macros.h"
 #include <stdio.h>
 

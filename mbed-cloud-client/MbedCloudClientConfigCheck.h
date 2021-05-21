@@ -76,14 +76,6 @@ defined (MBED_CLOUD_CLIENT_TRANSPORT_MODE_UDP_QUEUE) || defined(MBED_CLOUD_CLIEN
 #error "One MBED_CLOUD_CLIENT_TRANSPORT_MODE must be defined at a time"
 #endif
 
-#if !defined(MBED_CLOUD_CLIENT_STL_API)
-#error "MBED_CLOUD_CLIENT_STL_API must have a value, nonzero enables API with STL"
-#endif
-
-#if !defined(MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION)
-#error "MBED_CLOUD_CLIENT_STD_NAMESPACE_POLLUTION must have a value, nonzero maintains legacy behavior"
-#endif
-
 #if defined(ARM_UC_PROFILE_MBED_CLIENT_LITE) && (ARM_UC_PROFILE_MBED_CLIENT_LITE==1)
 #error "Pelion Device Management Client must use ARM_UC_PROFILE_MBED_CLIENT_LITE=0 configuration."
 #endif

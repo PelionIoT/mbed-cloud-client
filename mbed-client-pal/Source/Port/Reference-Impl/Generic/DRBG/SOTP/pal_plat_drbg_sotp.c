@@ -19,7 +19,7 @@
 
 
 #include "pal.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 #include "pal_plat_drbg.h"
 #include "pal_plat_drbg_noise.h"
 #include "sotp.h"

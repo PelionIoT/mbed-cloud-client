@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -87,9 +87,9 @@ public:
      * \brief Enum defining a resource type.
     */
     typedef enum {
-        Static,
-        Dynamic,
-        Directory
+        Static,     ///< Static resource, value cannot change.
+        Dynamic,    ///< Dynamic resource.
+        Directory   ///< Unsupported. \deprecated. Obsolete resource type.
     } Mode;
 
     /**
@@ -110,22 +110,22 @@ public:
      * supported by a given resource.
     */
     typedef enum {
-        NOT_ALLOWED                 = 0x00,
-        GET_ALLOWED                 = 0x01,
-        PUT_ALLOWED                 = 0x02,
-        GET_PUT_ALLOWED             = 0x03,
-        POST_ALLOWED                = 0x04,
-        GET_POST_ALLOWED            = 0x05,
-        PUT_POST_ALLOWED            = 0x06,
-        GET_PUT_POST_ALLOWED        = 0x07,
-        DELETE_ALLOWED              = 0x08,
-        GET_DELETE_ALLOWED          = 0x09,
-        PUT_DELETE_ALLOWED          = 0x0A,
-        GET_PUT_DELETE_ALLOWED      = 0x0B,
-        POST_DELETE_ALLOWED         = 0x0C,
-        GET_POST_DELETE_ALLOWED     = 0x0D,
-        PUT_POST_DELETE_ALLOWED     = 0x0E,
-        GET_PUT_POST_DELETE_ALLOWED = 0x0F
+        NOT_ALLOWED                 = 0x00, ///< No operations allowed.
+        GET_ALLOWED                 = 0x01, ///< Only GET operation allowed.
+        PUT_ALLOWED                 = 0x02, ///< Only PUT operation allowed.
+        GET_PUT_ALLOWED             = 0x03, ///< GET and PUT operations allowed.
+        POST_ALLOWED                = 0x04, ///< Only POST operation allowed.
+        GET_POST_ALLOWED            = 0x05, ///< \deprecated Unsupported operation mode.
+        PUT_POST_ALLOWED            = 0x06, ///< \deprecated Unsupported operation mode.
+        GET_PUT_POST_ALLOWED        = 0x07, ///< \deprecated Unsupported operation mode.
+        DELETE_ALLOWED              = 0x08, ///< Only DELETE operation allowed.
+        GET_DELETE_ALLOWED          = 0x09, ///< GET and DELETE operations allowed.
+        PUT_DELETE_ALLOWED          = 0x0A, ///< PUT and DELETE operations allowed.
+        GET_PUT_DELETE_ALLOWED      = 0x0B, ///< GET, PUT and DELETE operations allowed.
+        POST_DELETE_ALLOWED         = 0x0C, ///< \deprecated Unsupported operation mode.
+        GET_POST_DELETE_ALLOWED     = 0x0D, ///< \deprecated Unsupported operation mode.
+        PUT_POST_DELETE_ALLOWED     = 0x0E, ///< \deprecated Unsupported operation mode.
+        GET_PUT_POST_DELETE_ALLOWED = 0x0F  ///< \deprecated Unsupported operation mode.
     } Operation;
 
     /**
@@ -194,6 +194,7 @@ public:
 #endif // ENABLE_ASYNC_REST_RESPONSE
 
     /*! \brief LwM2M parameters.
+     * \deprecated This is internal datastructure and subject to be changed or removed. Do not use on application.
      */
     typedef struct lwm2m_parameters {
         //add multiple_instances
@@ -262,26 +263,31 @@ public:
     /**
      * \brief Sets the operation type for an object.
      * \param operation The operation to be set.
+     *
+     * \deprecated Switching of operation mode on run time is deprecated. Set correct operation mode when creating the resource.
      */
     void set_operation(M2MBase::Operation operation);
 
 #if !defined(MEMORY_OPTIMIZED_API) || defined(RESOURCE_ATTRIBUTES_LIST)
+#if !defined(DISABLE_INTERFACE_DESCRIPTION) || defined(RESOURCE_ATTRIBUTES_LIST)
     /**
      * \brief Sets the interface description of the object.
      * \param description The description to be set.
+     * \deprecated Human readable interface descriptions are deprecated.
      */
-#if !defined(DISABLE_INTERFACE_DESCRIPTION) || defined(RESOURCE_ATTRIBUTES_LIST)
     void set_interface_description(const String &description);
 
     /**
      * \brief Sets the interface description of the object.
      * \param description The description to be set.
+     * \deprecated Human readable interface descriptions are deprecated.
      */
     void set_interface_description(const char *description);
 
     /**
      * \brief Returns the interface description of the object.
      * \return The interface description of the object.
+     * \deprecated Human readable interface descriptions are deprecated.
      */
     const char *interface_description() const;
 #endif
@@ -289,18 +295,21 @@ public:
     /**
      * \brief Sets the resource type of the object.
      * \param resource_type The resource type to be set.
+     * \deprecated Textual content types are deprecated. Please define correct content type when resource is created.
      */
     virtual void set_resource_type(const String &resource_type);
 
     /**
      * \brief Sets the resource type of the object.
      * \param resource_type The resource type to be set.
+     * \deprecated Textual content types are deprecated. Please define correct content type when resource is created.
      */
     virtual void set_resource_type(const char *resource_type);
 
     /**
      * \brief Returns the resource type of the object.
      * \return The resource type of the object.
+     * \deprecated Textual content types are deprecated. Please define correct content type when resource is created.
      */
     const char *resource_type() const;
 #endif
@@ -310,12 +319,14 @@ public:
      * \brief Sets the CoAP content type of the object.
      * \param content_type The content type to be set based on
      * CoAP specifications.
+     * \deprecated Modifying underlying CoAP library parameters is deprecated. Please define correct content type when resource is created.
      */
     void set_coap_content_type(const uint16_t content_type);
 
     /**
      * \brief Sets the observable mode for the object.
      * \param observable A value for the observation.
+     * \deprecated By default, all resources are now observable so this API is subject to be removed.
      */
     void set_observable(bool observable);
 
@@ -346,12 +357,14 @@ public:
     /**
      * \brief Adds the observation level for the object.
      * \param observation_level The level of observation.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     virtual void add_observation_level(M2MBase::Observation observation_level);
 
     /**
      * \brief Removes the observation level for the object.
      * \param observation_level The level of observation.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     virtual void remove_observation_level(M2MBase::Observation observation_level);
 
@@ -360,24 +373,28 @@ public:
      * \param observed The value for observation. When true, starts observing. When false, the ongoing observation is cancelled.
      * \param handler A handler object for sending
      * observation callbacks.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     void set_under_observation(bool observed,
                                M2MObservationHandler *handler);
     /**
      * \brief Returns the Observation Handler object.
      * \return M2MObservationHandler object.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
     */
     virtual M2MObservationHandler *observation_handler() const = 0;
 
     /**
      * \brief Sets the observation handler
      * \param handler Observation handler
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
     */
     virtual void set_observation_handler(M2MObservationHandler *handler) = 0;
 
     /**
      * \brief Sets the instance ID of the object.
      * \param instance_id The instance ID of the object.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     void set_instance_id(const uint16_t instance_id);
 
@@ -426,12 +443,14 @@ public:
     /**
      * \brief Returns the CoAP content type of the object.
      * \return The CoAP content type of the object.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     uint16_t coap_content_type() const;
 
     /**
      * \brief Returns the observation status of the object.
      * \return True if observable, else false.
+     * \deprecated All resources are observable by default.
      */
     bool is_observable() const;
 
@@ -444,6 +463,7 @@ public:
     /**
      * \brief Returns the observation level of the object.
      * \return The observation level of the object.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     M2MBase::Observation observation_level() const;
 
@@ -471,6 +491,7 @@ public:
      * attribute.
      * \param query The query that needs to be parsed.
      * \return True if required attributes are present, else false.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     virtual bool handle_observation_attribute(const char *query);
 #endif
@@ -482,6 +503,7 @@ public:
      * \param observation_handler A handler object for sending
      * observation callbacks.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     virtual sn_coap_hdr_s *handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -494,6 +516,7 @@ public:
      * observation callbacks.
      * \param execute_value_updated True executes the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     virtual sn_coap_hdr_s *handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -508,6 +531,7 @@ public:
      * observation callbacks.
      * \param execute_value_updated True executes the "value_updated" callback.
      * \return sn_coap_hdr_s  The message that needs to be sent to server.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     virtual sn_coap_hdr_s *handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
@@ -523,18 +547,21 @@ public:
     /**
      * \brief Sets whether this resource is published to server or not.
      * \param register_uri True sets the resource as part of registration message.
+     * \deprecated All resources are published. This API is subject to be removed.
      */
     void set_register_uri(bool register_uri);
 
     /**
      * \brief Returns whether this resource is published to server or not.
      * \return True if the resource is a part of the registration message, else false.
+     * \deprecated All resources are published. This API is subject to be removed.
      */
     bool register_uri();
 
     /**
      * @brief Returns whether this resource is under observation or not.
      * @return True if the resource is under observation, else false,
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     bool is_under_observation() const;
 
@@ -543,6 +570,7 @@ public:
      * object receives a PUT or POST command.
      * @param callback The function pointer that is called.
      * @return True, if callback could be set, false otherwise.
+     * \deprecated Function pointer classes are deprecated. Please use the M2MBase::set_value_updated_function(value_updated_callback2) instead.
      */
     bool set_value_updated_function(value_updated_callback callback);
 
@@ -557,12 +585,14 @@ public:
     /**
      * @brief Returns whether a callback function is set or not.
      * @return True if the callback function is set, else false.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     bool is_value_updated_function_set() const;
 
     /**
      * @brief Calls the function that is set in the "set_value_updated_function".
      * @param name The name of the object.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     void execute_value_updated(const String &name);
 
@@ -575,12 +605,14 @@ public:
     /**
      * @brief Returns the resource information.
      * @return Resource information.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     sn_nsdl_dynamic_resource_parameters_s *get_nsdl_resource() const;
 
     /**
      * @brief Returns the resource structure.
      * @return Resource structure.
+     * \deprecated Internal API. Subject to be removed, please don't use on application code.
      */
     M2MBase::lwm2m_parameters_s *get_lwm2m_parameters() const;
 
@@ -798,8 +830,9 @@ protected: // from M2MReportObserver
      * \brief Cancels the ongoing observation.
      *
      * \param status Delivery status to be sent to application
+     * \param notify Whether application is notified or not
      */
-    void cancel_observation(M2MBase::MessageDeliveryStatus status = M2MBase::MESSAGE_STATUS_UNSUBSCRIBED);
+    void cancel_observation(M2MBase::MessageDeliveryStatus status = M2MBase::MESSAGE_STATUS_UNSUBSCRIBED, bool notify = true);
 
     /**
      * \brief Start the observation.

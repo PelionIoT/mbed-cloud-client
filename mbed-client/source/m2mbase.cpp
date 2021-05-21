@@ -142,6 +142,7 @@ M2MBase::~M2MBase()
     delete callback;
 
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MBaseValueUpdatedCallback2);
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MBaseMessageDeliveryStatusCallback);
 #ifdef ENABLE_ASYNC_REST_RESPONSE
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MBaseAsyncCoapRequestCallback);
 #endif
@@ -1019,7 +1020,7 @@ bool M2MBase::is_blockwise_needed(const nsdl_s *nsdl, uint32_t payload_len)
         return false;
     }
 }
-void M2MBase::cancel_observation(M2MBase::MessageDeliveryStatus status)
+void M2MBase::cancel_observation(M2MBase::MessageDeliveryStatus status, bool notify)
 {
     tr_info("M2MBase::cancel_observation()");
 
@@ -1047,7 +1048,9 @@ void M2MBase::cancel_observation(M2MBase::MessageDeliveryStatus status)
         _report_handler->set_under_observation(false);
     }
 
-    send_message_delivery_status(*this, status, M2MBase::NOTIFICATION);
+    if (notify) {
+        send_message_delivery_status(*this, status, M2MBase::NOTIFICATION);
+    }
 }
 
 void M2MBase::handle_observation(nsdl_s *nsdl,

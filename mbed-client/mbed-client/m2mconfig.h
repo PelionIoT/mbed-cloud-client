@@ -110,11 +110,11 @@ typedef uint32_t (*random_number_cb)(void) ;
 *                  a complement.
 */
 typedef struct mbedtls_entropy {
-    int     (*entropy_source_ptr)(void *, unsigned char *,size_t , size_t *);
+    int (*entropy_source_ptr)(void *, unsigned char *, size_t, size_t *);
     void    *p_source;
     size_t  threshold;
     int     strong;
-}entropy_cb;
+} entropy_cb;
 
 
 // Include user provided configuration
@@ -174,8 +174,21 @@ typedef struct mbedtls_entropy {
 #define MEMORY_OPTIMIZED_API MBED_CONF_MBED_CLIENT_MEMORY_OPTIMIZED_API
 #endif
 
+#ifdef MBED_CONF_MBED_CLIENT_MAX_CERTIFICATE_SIZE
+#define MAX_CERTIFICATE_SIZE MBED_CONF_MBED_CLIENT_MAX_CERTIFICATE_SIZE
+#else
+#define MAX_CERTIFICATE_SIZE 1024
+#endif
+
 #ifndef MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS
 #define MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS 1
+#endif
+
+#ifdef MBED_CONF_MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE
+#define MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE MBED_CONF_MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE
+#endif
+#ifndef MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE
+#define MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE 1
 #endif
 
 // Define defaults if not defined yet.

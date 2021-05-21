@@ -17,7 +17,7 @@
 
 #include "pal.h"
 #include "pal_plat_TLS.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 
 // do not require storage unless this modules is configured to use it
 #if PAL_USE_SECURE_TIME
@@ -448,17 +448,19 @@ PAL_PRIVATE palStatus_t pal_updateTime(uint64_t serverTime, bool trustedTimeServ
 }
 #endif //PAL_USE_SECURE_TIME
 
-palStatus_t pal_handShake_ping(palTLSHandle_t palTLSHandle)
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+void pal_print_cid(palTLSHandle_t palTLSHandle)
 {
-    palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
-
-    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSCtx);
-    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSCtx->platTlsHandle);
-
-    return pal_plat_handShake_ping(palTLSCtx->platTlsHandle);
+    uint8_t data_ptr[32];// MBEDTLS_SSL_CID_OUT_LEN_MAX = 32
+    size_t data_len = 0;
+    pal_plat_get_cid_value(palTLSHandle, data_ptr, &data_len);
+    if (data_len) {
+        PAL_LOG_DBG("CID: %s", PAL_LOG_ARRAY_FUNC(data_ptr, data_len));
+    }
 }
+#endif
 
-palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf)
+palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf, bool skipResume)
 {
     palStatus_t status = PAL_SUCCESS;
     palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
@@ -468,9 +470,10 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
     PAL_VALIDATE_ARGUMENTS((NULLPTR == palTLSCtx->platTlsHandle || NULLPTR == palTLSConfCtx->platTlsConfHandle));
 
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
-    if(palTLSConfCtx->isDtlsMode) {
-        if(pal_plat_sslSessionAvailable()) {
-            PAL_LOG_DBG("Using stored session");
+    if (!skipResume && palTLSConfCtx->isDtlsMode) {
+        if (pal_plat_sslSessionAvailable()) {
+            PAL_LOG_DBG("pal_handShake: using stored session");
+            pal_print_cid(palTLSCtx->platTlsHandle);
             return status;
         }
     }
@@ -481,62 +484,56 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
         status = pal_plat_handShake(palTLSCtx->platTlsHandle, &palTLSCtx->serverTime);
         if (PAL_SUCCESS == status)
         {
-#if PAL_USE_SECURE_TIME
             int32_t verifyResult = 0;
             status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
             if (PAL_ERR_X509_CERT_VERIFY_FAILED == status)
             {
-                if ((PAL_ERR_X509_BADCERT_FUTURE & verifyResult) || ((true == palTLSConfCtx->trustedTimeServer) && (PAL_ERR_X509_BADCERT_EXPIRED & verifyResult)))
+#if PAL_USE_SECURE_TIME
+                // if cert verification fails _only_ on certificate time being wrong (and we use 'secure time' feature),
+                // try to renegotiate using server's time
+
+                // Cert being in future means client is actually in the past, so we're allowed to correct it always (sleepy device...)
+                // Cert being in the past (expired) means client is in future, so we only trust it when talking to Time RoT (trustedTimeServer)
+                if ((PAL_ERR_X509_BADCERT_FUTURE == verifyResult) || ((true == palTLSConfCtx->trustedTimeServer) && (PAL_ERR_X509_BADCERT_EXPIRED == verifyResult)))
                 {
-                    PAL_LOG_DBG("SSL EXPIRED OR FUTURE - retry");
+                    PAL_LOG_DBG("SSL EXPIRED OR FUTURE - renegotiate");
                     palTLSCtx->retryHandShake = true;
                     status = PAL_SUCCESS;
                 }
-                else if (PAL_SUCCESS != status)
+#else
+                // If PAL_USE_SECURE_TIME is not on, don't do time verification from certificate
+                if ((PAL_ERR_X509_BADCERT_FUTURE == verifyResult) || (PAL_ERR_X509_BADCERT_EXPIRED == verifyResult))
                 {
-                    status = PAL_ERR_X509_CERT_VERIFY_FAILED;
+                    PAL_LOG_WARN("SSL EXPIRED OR FUTURE - passing due to PAL_USE_SECURE_TIME not set");
+                    status = PAL_SUCCESS;
+                }
+#endif
+                if (PAL_SUCCESS != status)
+                {
                     palTLSCtx->serverTime = 0;
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
                     pal_removeSslSessionFromStorage(palTLSConfCtx->platTlsConfHandle);
 #endif
                 }
             }
-#else
-            if (PAL_SUCCESS != status)
-            {
-                status = PAL_ERR_X509_CERT_VERIFY_FAILED;
-                palTLSCtx->serverTime = 0;
-            }
-
-#endif //PAL_USE_SECURE_TIME
         }
     }
 #if PAL_USE_SECURE_TIME
     if ((PAL_SUCCESS == status) && (palTLSCtx->retryHandShake))
     {
         PAL_LOG_DBG("SSL START RENEGOTIATE");
-        if (!palTLSConfCtx->trustedTimeServer) //! if we are not proccessing handshake with the time trusted server we
-        {                                      //! will use PAL_TLS_VERIFY_REQUIRED authentication mode
-            status = pal_plat_setAuthenticationMode(palTLSConfCtx->platTlsConfHandle, PAL_TLS_VERIFY_REQUIRED);
-            if (PAL_SUCCESS != status)
-            {
-#if (PAL_USE_SSL_SESSION_RESUME == 1)
-                pal_removeSslSessionFromStorage(palTLSConfCtx->platTlsConfHandle);
-#endif
-                goto finish;
-            }
-        }
-        status = pal_plat_renegotiate(palTLSCtx->platTlsHandle, palTLSCtx->serverTime);
-        if (PAL_SUCCESS == status)
+        // We can now set verify required which does full certificate verification inside pal_plat_renegotiate call
+        // since time should be fine as we just got it from the server.
+        status = pal_plat_setAuthenticationMode(palTLSConfCtx->platTlsConfHandle, PAL_TLS_VERIFY_REQUIRED);
+        if (PAL_SUCCESS != status)
         {
-            int32_t verifyResult = 0;
-            status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
-            if ((palTLSConfCtx->trustedTimeServer) &&
-                ((PAL_ERR_X509_CERT_VERIFY_FAILED == status) && ((PAL_ERR_X509_BADCERT_EXPIRED & verifyResult) || (PAL_ERR_X509_BADCERT_FUTURE & verifyResult))))
-            {
-                status = PAL_SUCCESS;
-            }
+#if (PAL_USE_SSL_SESSION_RESUME == 1)
+            pal_removeSslSessionFromStorage(palTLSConfCtx->platTlsConfHandle);
+#endif
+            goto finish;
         }
+
+        status = pal_plat_renegotiate(palTLSCtx->platTlsHandle, palTLSCtx->serverTime);
     }
 
     if (PAL_SUCCESS == status)
@@ -549,14 +546,19 @@ palStatus_t pal_handShake(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLS
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
     if (PAL_SUCCESS == status) {
         pal_saveSslSessionToStorage(palTLSHandle, palTLSConf);
-        PAL_LOG_DBG("Storing session !");
+        PAL_LOG_DBG("pal_handShake: handshake done, storing session!");
+        if (palTLSConfCtx->isDtlsMode) {
+            pal_print_cid(palTLSCtx->platTlsHandle);
+        }
     }
+
 #endif // PAL_USE_SSL_SESSION_RESUME
+#if PAL_USE_SECURE_TIME
 finish:
+#endif //PAL_USE_SECURE_TIME
     return status;
 }
 
-#if PAL_USE_SECURE_TIME
 palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult)
 {
     palStatus_t status = PAL_SUCCESS;
@@ -571,28 +573,11 @@ palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t*
     if (0 != *verifyResult)
     {
         status = PAL_ERR_X509_CERT_VERIFY_FAILED;
-        *verifyResult = *verifyResult ^ PAL_ERR_MODULE_BITMASK_BASE; //! in order to turn off the MSB bit.
     }
 
     return status;
 }
 
-
-palStatus_t pal_sslGetVerifyResult(palTLSHandle_t palTLSHandle)
-{
-    palStatus_t status = PAL_SUCCESS;
-    palTLSService_t* palTLSCtx = NULL;
-    int32_t verifyResult = 0;
-
-    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSHandle);
-
-    palTLSCtx = (palTLSService_t*)palTLSHandle;
-    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSCtx->platTlsHandle);
-
-    status = pal_plat_sslGetVerifyResultExtended(palTLSCtx->platTlsHandle, &verifyResult);
-    return status;
-}
-#endif //PAL_USE_SECURE_TIME
 
 palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t minTimeout, uint32_t maxTimeout)
 {
@@ -625,11 +610,12 @@ palStatus_t pal_sslWrite(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSC
     palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
 
     PAL_VALIDATE_ARGUMENTS((NULLPTR == palTLSHandle || NULL == buffer || NULL == bytesWritten));
-
     status = pal_plat_sslWrite(palTLSCtx->platTlsHandle, buffer, len, bytesWritten);
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
-     palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
-    if(palTLSConfCtx->isDtlsMode) {
+    palTLSConfService_t* palTLSConfCtx = (palTLSConfService_t*)palTLSConf;
+    if (palTLSConfCtx->isDtlsMode) {
+        PAL_LOG_DBG("pal_plat_sslWrite, using stored session!");
+        pal_print_cid(palTLSCtx->platTlsHandle);
         pal_saveSslSessionToStorage(palTLSHandle, palTLSConf);
 }
 #endif // (PAL_USE_SSL_SESSION_RESUME == 1)
@@ -908,10 +894,11 @@ void pal_setDTLSSocketCallback(palTLSConfHandle_t palTLSConf, palSocketCallback_
     pal_plat_SetDTLSSocketCallback(palTLSConfCtx->platTlsConfHandle, callback, argument);
 }
 
-void pal_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len)
+void pal_set_cid_value(palTLSHandle_t palTLSHandle, palTLSConfHandle_t palTLSConf, const uint8_t *data_ptr, const size_t data_len)
 {
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
     palTLSService_t* palTLSCtx = (palTLSService_t*)palTLSHandle;
     pal_plat_set_cid_value(palTLSCtx->platTlsHandle, data_ptr, data_len);
+    pal_loadSslSessionFromStorage(palTLSHandle, palTLSConf);
 #endif
 }

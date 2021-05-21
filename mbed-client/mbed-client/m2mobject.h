@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -85,6 +85,8 @@ public:
      * \brief Creates a new object instance for a given mbed Client Interface object. With this,
      * the client can respond to server's GET methods with the provided value.
      * \return M2MObjectInstance. An object instance for managing other client operations.
+     *
+     * \deprecated Internal lwm2m_parameter_s structure is deprecated. Please use M2MObject::create_object_instance(uint16_t) instead.
      */
     M2MObjectInstance* create_object_instance(const lwm2m_parameters_s* s);
 
@@ -117,24 +119,28 @@ public:
     /**
      * \brief Returns the Observation Handler object.
      * \return M2MObservationHandler object.
+     * \deprecated Internal API, subject to be modified or removed.
     */
     virtual M2MObservationHandler* observation_handler() const;
 
     /**
      * \brief Sets the observation handler
      * \param handler Observation handler
+     * \deprecated Internal API, subject to be modified or removed.
     */
     virtual void set_observation_handler(M2MObservationHandler *handler);
 
     /**
      * \brief Adds the observation level for the object.
      * \param observation_level The level of observation.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual void add_observation_level(M2MBase::Observation observation_level);
 
     /**
      * \brief Removes the observation level from the object.
      * \param observation_level The level of observation.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual void remove_observation_level(M2MBase::Observation observation_level);
 
@@ -145,6 +151,7 @@ public:
      * \param observation_handler The handler object for sending
      * observation callbacks.
      * \return sn_coap_hdr_s  The message that needs to be sent to server.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -158,6 +165,7 @@ public:
      * observation callbacks.
      * \param execute_value_updated True will execute the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
@@ -172,6 +180,7 @@ public:
      * observation callbacks.
      * \param execute_value_updated True will execute the "value_updated" callback.
      * \return sn_coap_hdr_s The message that needs to be sent to server.
+     * \deprecated Internal API, subject to be modified or removed.
      */
     virtual sn_coap_hdr_s* handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
@@ -179,6 +188,9 @@ public:
                                                bool &execute_value_updated,
                                                sn_nsdl_addr_s *address = NULL);
 
+    /**
+     * \deprecated Internal API, subject to be modified or removed.
+     */
     void notification_update(uint16_t obj_instance_id);
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION

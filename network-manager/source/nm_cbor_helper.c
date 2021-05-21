@@ -54,6 +54,8 @@
 #define CBOR_TAG_DIO_INTERVAL_DOUBLING              "dio_interval_doublings"
 #define CBOR_TAG_DIO_REDUNDANCY_CONST               "dio_redundancy_constant"
 #define CBOR_TAG_BR_DELAY                           "br_delay"
+#define CBOR_TAG_RADIUS_SERVER_SECRET               "Radius_server_secret"
+#define CBOR_TAG_RADIUS_SERVER_ADDR                 "Radius_server_addr"
 //Wi-SUN Statistics
 #define CBOR_TAG_WS_INFO_VER                        "ws_info_ver"
 #define CBOR_TAG_WS_GLOBLE_ADDR                     "global_addr"
@@ -107,8 +109,6 @@
 #define CBOR_TAG_PARENT_ADDR                        "primary_parent_addr"
 #define CBOR_TAG_ETX1ST_PARENT                      "etx_1st_parent"
 #define CBOR_TAG_ETX2ND_PARENT                      "etx_2nd_parent"
-//Radio quality
-#define CBOR_TAG_RADIO_RESOURCE_VER                 "radio_ver"
 #define CBOR_TAG_RSSI_IN                            "rssi_in"
 #define CBOR_TAG_RSSI_OUT                           "rssi_out"
 // Channel Noise
@@ -193,6 +193,30 @@ static bool get_int_array_from_stream(CborValue *main_value, const char *str_nam
         cbor_value_advance_fixed(&array_value);
     }
     *array_len = array_index;
+    return true;
+}
+
+static bool get_byte_value_from_stream(CborValue *main_value, const char *str_name, CborValue *map_value, uint8_t **temp_buffer, size_t *temp_buffer_size)
+{
+    CborValue element;
+
+    if (cbor_value_map_find_value(main_value, str_name, map_value) != CborNoError) {
+        tr_debug("Finding byte string in map fail");
+        return false;
+    }
+    if (cbor_value_is_byte_string(map_value) != true) {
+        tr_debug("Value is not byte string");
+        return false;
+    }
+    if (cbor_value_calculate_string_length(map_value, temp_buffer_size) != CborNoError) {
+        tr_debug("Byte string length fail");
+        return false;
+    }
+    if (cbor_value_dup_byte_string(map_value, temp_buffer, temp_buffer_size, &element) != CborNoError) {
+        tr_debug("Get byte string fail");
+        return false;
+    }
+
     return true;
 }
 
@@ -340,7 +364,11 @@ static nm_status_t update_br_config(void *st_app, uint8_t *cbor_data, size_t len
     CborValue main_value;
     CborValue map_value;
 
+    char *temp_buffer = NULL;
+    uint8_t *secret_buffer = NULL;
+    size_t temp_buffer_size = 0;
     uint32_t int_value = 0;
+
     nm_br_config_t *br_cfg = (nm_br_config_t *)st_app;
 
     if (cbor_parser_init(cbor_data, len, 0, &parser, &main_value) != CborNoError) {
@@ -375,6 +403,31 @@ static nm_status_t update_br_config(void *st_app, uint8_t *cbor_data, size_t len
     // Finding br_delay
     if (get_uint32_value_from_stream(&main_value, CBOR_TAG_BR_DELAY, &map_value, &int_value) == true) {
         br_cfg->delay = (uint16_t)int_value;
+    }
+
+    //Finding Radius Server Secret
+    if (get_byte_value_from_stream(&main_value, CBOR_TAG_RADIUS_SERVER_SECRET, &map_value, &secret_buffer, &temp_buffer_size) == true) {
+        if (br_cfg->radius_config.secret != NULL && br_cfg->radius_config.secret_len != 0) {
+            free(br_cfg->radius_config.secret);
+            br_cfg->radius_config.secret_len = 0;
+            br_cfg->radius_config.secret = NULL;
+        }
+        br_cfg->radius_config.secret_len = (uint16_t)temp_buffer_size;
+        br_cfg->radius_config.secret = secret_buffer;
+    }
+
+    //Finding Radius Server address
+    if (get_string_value_from_stream(&main_value, CBOR_TAG_RADIUS_SERVER_ADDR, &map_value, &temp_buffer) == true) {
+        if(!strcasecmp(temp_buffer,"NULL")) {
+            memset(br_cfg->radius_config.address, '\0', sizeof(br_cfg->radius_config.address));
+        } else {
+        strcpy(br_cfg->radius_config.address, temp_buffer);
+        }
+    }
+
+    if (temp_buffer != NULL) {
+        free(temp_buffer);
+        temp_buffer = NULL;
     }
 
     /* This parameters going to update from binary only */
@@ -692,6 +745,16 @@ static nm_status_t br_config_to_cbor(void *br_cfg, uint8_t *cbor_data, size_t *l
     // br_delay
     if (encode_text_string(&map, CBOR_TAG_BR_DELAY, sizeof(CBOR_TAG_BR_DELAY) - 1)) {
         encode_uint32_value(&map, (uint32_t)st_cfg->delay);
+    }
+
+    // radius_server_secret
+    if (encode_text_string(&map, CBOR_TAG_RADIUS_SERVER_SECRET, sizeof(CBOR_TAG_RADIUS_SERVER_SECRET) - 1)) {
+        encode_byte_array(&map, st_cfg->radius_config.secret, st_cfg->radius_config.secret_len);
+    }
+
+    // radius_server_addr
+    if (encode_text_string(&map, CBOR_TAG_RADIUS_SERVER_ADDR, sizeof(CBOR_TAG_RADIUS_SERVER_ADDR) - 1)) {
+        encode_text_string(&map, st_cfg->radius_config.address, strlen(st_cfg->radius_config.address));
     }
 
     // Close Map
@@ -1096,6 +1159,16 @@ static nm_status_t node_stats_to_cbor(void *stats_ni, uint8_t *cbor_data, size_t
         encode_uint32_value(&map, (uint32_t)node_stats->routing_info.etx_2nd_parent);
     }
 
+    // rssi_in
+    if (encode_text_string(&map, CBOR_TAG_RSSI_IN, sizeof(CBOR_TAG_RSSI_IN) - 1)) {
+        encode_uint32_value(&map, (uint32_t)node_stats->routing_info.rssi_in);
+    }
+
+    // rssi_out
+    if (encode_text_string(&map, CBOR_TAG_RSSI_OUT, sizeof(CBOR_TAG_RSSI_OUT) - 1)) {
+        encode_uint32_value(&map, (uint32_t)node_stats->routing_info.rssi_out);
+    }
+
     // Close Map
     cbor_error = cbor_encoder_close_container(&encoder, &map);
     if (cbor_error) {
@@ -1106,51 +1179,6 @@ static nm_status_t node_stats_to_cbor(void *stats_ni, uint8_t *cbor_data, size_t
     size_t ret = cbor_encoder_get_buffer_size(&encoder, cbor_data);
     tr_debug("Length of node_stats_to_cbor buffer is %d", ret);
     *len = ret;
-    return NM_STATUS_SUCCESS;
-}
-
-static nm_status_t radio_stats_to_cbor(void *stats_rq, uint8_t *cbor_data, size_t *len)
-{
-    CborError cbor_error = CborNoError;
-    CborEncoder encoder;
-    CborEncoder map;
-    nm_radio_quality_t *radio_stats = (nm_radio_quality_t *)stats_rq;
-
-    cbor_encoder_init(&encoder, cbor_data, NI_STAT_MAX_ENCODER_BUF, 0);
-
-    // Create map
-    cbor_error = cbor_encoder_create_map(&encoder, &map, CborIndefiniteLength);
-    if (cbor_error) {
-        tr_debug("Failed creating presence map with error code %d", cbor_error);
-        return NM_STATUS_FAIL;
-    }
-
-    // Resource version no
-    if (encode_text_string(&map, CBOR_TAG_RADIO_RESOURCE_VER, sizeof(CBOR_TAG_RADIO_RESOURCE_VER) - 1)) {
-        encode_uint32_value(&map, RADIO_QUALITY_VERSION);
-    }
-
-    // rssi_in
-    if (encode_text_string(&map, CBOR_TAG_RSSI_IN, sizeof(CBOR_TAG_RSSI_IN) - 1)) {
-        encode_uint32_value(&map, (uint32_t)radio_stats->rssi_in);
-    }
-
-    // rssi_out
-    if (encode_text_string(&map, CBOR_TAG_RSSI_OUT, sizeof(CBOR_TAG_RSSI_OUT) - 1)) {
-        encode_uint32_value(&map, (uint32_t)radio_stats->rssi_out);
-    }
-
-    // Close Map
-    cbor_error = cbor_encoder_close_container(&encoder, &map);
-    if (cbor_error) {
-        tr_debug("Failed closing presence map with error code %d", cbor_error);
-        return NM_STATUS_FAIL;
-    }
-
-    size_t ret = cbor_encoder_get_buffer_size(&encoder, cbor_data);
-    tr_debug("Length of radio_stats_to_cbor buffer is %d", ret);
-    *len = ret;
-
     return NM_STATUS_SUCCESS;
 }
 
@@ -1189,12 +1217,6 @@ nm_status_t nm_statistics_to_cbor(void *stats, uint8_t *cbor_data, config_type_t
             status = node_stats_to_cbor(stats, cbor_data, len);
             if (status) {
                 tr_info("NI statistics cbor encoder fail");
-            }
-            break;
-        case RQ:
-            status = radio_stats_to_cbor(stats, cbor_data, len);
-            if (status) {
-                tr_info("RQ statistics cbor encoder fail");
             }
             break;
     }

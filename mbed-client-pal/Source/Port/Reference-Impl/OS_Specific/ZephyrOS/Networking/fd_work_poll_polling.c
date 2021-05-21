@@ -90,7 +90,7 @@ void fd_work_poll_init(fd_work_poll_t *work, fd_work_handler_t handler)
     }
 #endif
 
-    k_delayed_work_init(&work->work, fd_work_delayed_handler);
+    k_work_init_delayable(&work->work, fd_work_delayed_handler);
 
     work->handler = handler;
 }
@@ -112,7 +112,9 @@ int fd_work_poll_submit(fd_work_poll_t *work, struct zsock_pollfd *fds, int nfds
         k_mutex_unlock(&fd_work_mutex);
 
         /* wait at least one polling interval before actually polling. */
-        k_delayed_work_submit_to_queue(&WORK_QUEUE_NAME, &work->work, Z_TIMEOUT_TICKS(work->timeout));
+        k_work_reschedule_for_queue(&WORK_QUEUE_NAME,
+                                    &work->work,
+                                    Z_TIMEOUT_TICKS(work->timeout));
     }
 
     return 0;
@@ -126,7 +128,7 @@ static void fd_work_delayed_handler(struct k_work* input)
      * Get the encapsulating container which contains variables carried across
      * work queue invocations.
      */
-    struct k_delayed_work* delayed = CONTAINER_OF(input, struct k_delayed_work, work);
+    struct k_work_delayable* delayed = CONTAINER_OF(input, struct k_work_delayable, work);
 
     fd_work_poll_t* work = CONTAINER_OF(delayed, fd_work_poll_t, work);
 
@@ -188,7 +190,9 @@ static void fd_work_delayed_handler(struct k_work* input)
         } else {
 
             /* reschedule work. */
-            k_delayed_work_submit_to_queue(&WORK_QUEUE_NAME, &work->work, Z_TIMEOUT_TICKS(work_delay));
+            k_work_reschedule_for_queue(&WORK_QUEUE_NAME,
+                                        delayed,
+                                        Z_TIMEOUT_TICKS(work_delay));
         }
     }
 }
@@ -202,7 +206,7 @@ int fd_work_poll_cancel(fd_work_poll_t *work)
     if (work) {
 
         /* remove work from queue. */
-        status = k_delayed_work_cancel(&work->work);
+        status = k_work_cancel_delayable(&work->work);
 
         /* Work is submitted from another thread. Ensure all values are set atomically. */
         k_mutex_lock(&fd_work_mutex, K_FOREVER);

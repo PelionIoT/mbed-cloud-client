@@ -20,6 +20,9 @@
 
 #ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
 
+// TODO: Replace this with a proper define
+#if !defined(FOTA_UNIT_TEST)
+
 #define TRACE_GROUP "FOTA"
 
 #include <stdlib.h>
@@ -195,4 +198,5 @@ void fota_event_handler_defer_with_result_ignore_busy(
     }
 }
 
+#endif  // !defined(FOTA_UNIT_TEST)
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

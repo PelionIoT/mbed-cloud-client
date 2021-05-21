@@ -14,16 +14,15 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef _PAL_PLAT_CRYPTO_H_
-#define _PAL_PLAT_CRYPTO_H_
+#ifndef _CS_PAL_PLAT_CRYPTO_H_
+#define _CS_PAL_PLAT_CRYPTO_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "pal_Crypto.h"
-//#include "pal_crypto_configuration.h"
-/*! \file pal_plat_Crypto.h
+#include "cs_pal_crypto.h"
+/*! \file cs_pal_plat_crypto.h
  *  \brief PAL cryptographic - platform.
  *   This file contains cryptographic APIs that need to be implemented in the platform layer.
  */

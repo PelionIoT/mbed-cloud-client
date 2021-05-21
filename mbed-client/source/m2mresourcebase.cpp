@@ -135,6 +135,8 @@ M2MResourceBase::~M2MResourceBase()
 
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueReadCallback);
 
+    M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueReadSizeCallback);
+
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceBaseValueWriteCallback);
 
     M2MCallbackStorage::remove_callback(*this, M2MCallbackAssociation::M2MResourceInstanceReadCallback);
@@ -598,14 +600,22 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
     }
 
     if (received_coap_header && (operation() & M2MBase::GET_ALLOWED) != 0) {
-        bool content_type_present = false;
         coap_response->payload_ptr = NULL;
-        size_t payload_len = 0;
+        uint32_t payload_len = 0;
 
-        if (received_coap_header->options_list_ptr &&
-                received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
-            coap_response->content_format = received_coap_header->options_list_ptr->accept;
-            set_coap_content_type(coap_response->content_format);
+        if (received_coap_header->options_list_ptr && received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
+            if ((received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_OPAQUE_TYPE) ||
+                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_PLAIN_TEXT_TYPE) ||
+                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE_OLD) ||
+                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE)) {
+                coap_response->content_format = received_coap_header->options_list_ptr->accept;
+                set_coap_content_type(coap_response->content_format);
+            } else {
+                // Invalid accept or json which we don't support
+                tr_error("M2MResourceBase::handle_get_request() - invalid or unsupported accept: %d", received_coap_header->options_list_ptr->accept);
+                coap_response->msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
+                return coap_response;
+            }
         } else {
             if (resource_instance_type() == M2MResourceInstance::OPAQUE) {
                 coap_response->content_format = sn_coap_content_format_e(COAP_CONTENT_OMA_OPAQUE_TYPE);
@@ -631,17 +641,19 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                     received_coap_header->uri_path_len > 0) {
                 name.append_raw((char *)received_coap_header->uri_path_ptr, received_coap_header->uri_path_len);
             }
-            (*outgoing_block_message_cb)(name, coap_response->payload_ptr, (uint32_t &)payload_len);
+            (*outgoing_block_message_cb)(name, coap_response->payload_ptr, payload_len);
         }
 #endif
         // Read resource data from application
         M2MCallbackAssociation *item = M2MCallbackStorage::get_association_item(*this, M2MCallbackAssociation::M2MResourceInstanceReadCallback);
         if (item) {
-            read_data_from_application(item, nsdl, received_coap_header, coap_response, payload_len);
+            size_t len = 0;
+            read_data_from_application(item, nsdl, received_coap_header, coap_response, len);
+            payload_len = len;
         } else {
             if (coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE ||
                     coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE_OLD) {
-                coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), (uint32_t &)payload_len);
+                coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), payload_len);
             } else {
                 get_value(coap_response->payload_ptr, (uint32_t &)payload_len);
             }
@@ -752,8 +764,8 @@ sn_coap_hdr_s *M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                 }
 #endif
                 // Firmware object uri path is limited to be max 255 bytes
-                if ((strcmp(uri_path(), FIRMAWARE_PACKAGE_URI_PATH) == 0) &&
-                        received_coap_header->payload_len > 255) {
+                if ((strcmp(uri_path(), FIRMWARE_PACKAGE_URI_PATH) == 0) &&
+                        received_coap_header->payload_len > MAX_FIRMWARE_PACKAGE_URI_PATH_LEN) {
                     msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                 } else if ((strcmp(uri_path(), SERVER_LIFETIME_PATH) == 0)) {
                     // Check that lifetime can't go below 60s

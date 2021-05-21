@@ -33,6 +33,7 @@ class M2MServer : public M2MObject
 
 friend class M2MInterfaceFactory;
 friend class M2MNsdlInterface;
+friend class M2MInterfaceImpl;
 
 public:
 

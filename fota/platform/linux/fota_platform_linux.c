@@ -63,8 +63,8 @@ static void set_full_file_name(char **var, const char *base)
 #if MBED_CLOUD_CLIENT_FOTA_SUPPORT_PAL
     // In yocto, header file and temp header file reside in primary pal partition (mnt/config),and defined in fota_config.h as a simple file name.
     // The candidate and raw candidate files reside in /mnt/cache directory and defined as a full path.
-    
-    // If fota file starts with '/' -> its already have a full path, we don't need to build full file name.
+
+    // If fota file starts with '/' - its already have a full path, we don't need to build full file name
     if (base[0] != '/') {
         char primary[PAL_MAX_FILE_AND_FOLDER_LENGTH];
         pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FILE_AND_FOLDER_LENGTH, primary);
@@ -249,7 +249,7 @@ int fota_linux_init()
         // Header completely invalid - regenerate it from scratch
         memset(&header_info, 0, sizeof(header_info));
 
-        if( fota_component_version_semver_to_int(INIT_MAIN_VERSION, &header_info.version)){
+        if (fota_component_version_semver_to_int(INIT_MAIN_VERSION, &header_info.version)) {
             FOTA_TRACE_ERROR("Invalid initial version " INIT_MAIN_VERSION);
             FOTA_ASSERT(!status);
         }

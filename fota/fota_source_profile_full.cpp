@@ -19,7 +19,7 @@
 #include "fota/fota_base.h"
 
 #ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
-#if (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL)
+#if (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_FULL) && !defined(FOTA_UNIT_TEST)
 
 #define TRACE_GROUP "FOTA"
 
@@ -303,11 +303,11 @@ int fota_source_init(
     bin_to_hex_string(curr_fw_digest, FOTA_CRYPTO_HASH_SIZE, str_digest, FOTA_CRYPTO_HASH_SIZE * 2 + 1);
 
     M2MResource *pkg_name_resource = lwm2m_object_instance->create_dynamic_resource(
-                            "5",
-                            "PkgName",
-                            M2MResourceInstance::STRING,
-                            false // observable
-                        );
+                                         "5",
+                                         "PkgName",
+                                         M2MResourceInstance::STRING,
+                                         false // observable
+                                     );
     FOTA_ASSERT(pkg_name_resource);
     pkg_name_resource->set_operation(M2MBase::GET_ALLOWED);
     pkg_name_resource->set_value(str_digest, curr_fw_digest_size);
@@ -318,11 +318,11 @@ int fota_source_init(
     // Create package version resource /10252/0/6
     FOTA_TRACE_DEBUG("Announcing version is %" PRIu64, curr_fw_version);
     M2MResource *pkg_version_resource = lwm2m_object_instance->create_dynamic_resource(
-                               "6",
-                               "PkgVersion",
-                               M2MResourceInstance::INTEGER,
-                               false // observable
-                           );
+                                            "6",
+                                            "PkgVersion",
+                                            M2MResourceInstance::INTEGER,
+                                            false // observable
+                                        );
     FOTA_ASSERT(pkg_version_resource);
     pkg_version_resource->set_operation(M2MBase::GET_ALLOWED);
     pkg_version_resource->set_value(curr_fw_version);
@@ -378,7 +378,7 @@ int fota_source_init(
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 0)
     // Create
     g_component_lwm2m_object = M2MInterfaceFactory::create_object("14");
-    FOTA_ASSERT(g_component_lwm2m_object );
+    FOTA_ASSERT(g_component_lwm2m_object);
 
     m2m_object_list->push_back(g_component_lwm2m_object);
 #endif

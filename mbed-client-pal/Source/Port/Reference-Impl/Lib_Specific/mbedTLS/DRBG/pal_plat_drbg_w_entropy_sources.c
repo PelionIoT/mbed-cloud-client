@@ -30,7 +30,7 @@
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/config.h"
-#include "pal_plat_Crypto.h"
+#include "cs_pal_plat_crypto.h"
 #if PAL_USE_HW_TRNG
 #include "pal_plat_drbg_noise.h"
 #endif

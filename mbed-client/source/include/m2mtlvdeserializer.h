@@ -34,7 +34,8 @@ public :
         NotFound,
         NotAllowed,
         NotValid,
-        OutOfMemory
+        OutOfMemory,
+        NotAccepted
     } Error;
 
     typedef enum {
@@ -98,6 +99,15 @@ public :
                                                     M2MTLVDeserializer::Operation operation);
 
     /**
+     * Deserialises the given binary that must encode a resource. Binary array
+     * can be checked before invoking this method.
+     */
+    static M2MTLVDeserializer::Error deserialize_resource(const uint8_t *tlv,
+                                                    uint32_t tlv_size,
+                                                    M2MResource &resource,
+                                                    M2MTLVDeserializer::Operation operation);
+
+    /**
      * Deserialises the given binary that must encode resource instances. Binary array
      * can be checked before invoking this method.
      */
@@ -125,6 +135,12 @@ private:
                                                     uint32_t tlv_size,
                                                     uint32_t offset,
                                                     M2MObjectInstance &object_instance,
+                                                    M2MTLVDeserializer::Operation operation,
+                                                    bool update_value);
+
+    static M2MTLVDeserializer::Error deserialize_resource(const uint8_t *tlv,
+                                                    uint32_t tlv_size,
+                                                    M2MResource &resource,
                                                     M2MTLVDeserializer::Operation operation,
                                                     bool update_value);
 

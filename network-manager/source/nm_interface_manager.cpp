@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Pelion. All rights reserved.
+ * Copyright (c) 2020-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -16,7 +16,8 @@
 
 #if defined MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER && (MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER == 1)
 
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "mbed.h"
 #include "mbed_trace.h"
 #include "NetworkInterface.h"
@@ -28,6 +29,7 @@
 #include "nm_resource_manager.h"
 #include "NetworkManager_internal.h"
 #include "nm_dynmem_helper.h"
+#include "nm_kcm_factory.h"
 
 #define TRACE_GROUP "NMif"
 
@@ -37,9 +39,10 @@
 #define NM_STAT_MAX_BUF NM_STAT_MAX_ENCODER_BUF
 #define BR_STAT_MAX_BUF BR_STAT_MAX_ENCODER_BUF
 #define NI_STAT_MAX_BUF NI_STAT_MAX_ENCODER_BUF
-#define RQ_STAT_MAX_BUF RQ_STAT_MAX_ENCODER_BUF
 
-#define DEFAULT_CONFIG_DELAY 0
+#define DEFAULT_CONFIG_DELAY          0
+#define MESH_MAC_ADDR_LEN             8
+#define BACKHAUL_MAC_ADDR_LEN         6
 
 static SocketAddress sa;
 static NetworkInterface *backhaul_interface = NULL;
@@ -89,6 +92,46 @@ void register_interfaces(NetworkInterface *mesh_iface, NetworkInterface *backhau
     ws_iface = reinterpret_cast<WisunInterface *>(mesh_iface);
     ws_br = br_iface;
 }
+
+nm_status_t nm_backhaul_configure_factory_mac_address(NetworkInterface *backhaul_iface)
+{
+#if ((MBED_VERSION >= MBED_ENCODE_VERSION(6, 8, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION >= MBED_ENCODE_VERSION(5, 15, 7))))
+    uint8_t *backhaul_mac_address = NULL;
+    uint8_t *r_backhaul_mac_address = NULL;
+    size_t backhaul_mac_address_len = 0;
+
+    if (backhaul_iface == NULL) {
+        tr_error("Could not Apply Backhaul MAC Address Factory Configuration: Backhaul Interface is NULL");
+        return NM_STATUS_FAIL;
+    }
+
+    if (nm_kcm_ethernet_mac_address_init(&r_backhaul_mac_address, &backhaul_mac_address_len) == NM_STATUS_SUCCESS) {
+        if(string2hex_mac_address(&backhaul_mac_address,r_backhaul_mac_address,backhaul_mac_address_len) == NM_STATUS_SUCCESS)  {
+            if (backhaul_iface->set_mac_address(backhaul_mac_address, BACKHAUL_MAC_ADDR_LEN) != MESH_ERROR_NONE) {
+                tr_error("FAILED to set Backhaul MAC address from Factory Configuration %s", tr_array(r_backhaul_mac_address, backhaul_mac_address_len));
+                free(r_backhaul_mac_address);
+                nm_dyn_mem_free(backhaul_mac_address);
+                return NM_STATUS_FAIL;
+            } else {
+                tr_info("Factory Configuration SET: Backhaul MAC address %s", tr_array(backhaul_mac_address, BACKHAUL_MAC_ADDR_LEN));
+                free(r_backhaul_mac_address);
+                nm_dyn_mem_free(backhaul_mac_address);
+            }
+        } else {
+            tr_error("FAILED: Read wrong Backhaul MAC address length from KCM: %d, Expected length is 6", backhaul_mac_address_len/2);
+            free(r_backhaul_mac_address);
+            nm_dyn_mem_free(backhaul_mac_address);
+            return NM_STATUS_FAIL;
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Backhaul MAC address");
+    }
+    return NM_STATUS_SUCCESS;
+#else
+    return NM_STATUS_UNSUPPORTED;
+#endif
+}
+
 
 
 
@@ -382,6 +425,169 @@ static nm_status_t get_default_ws_config_from_nanostack(nm_ws_config_t *ws_confi
     return NM_STATUS_SUCCESS;
 }
 
+nm_status_t string2hex_mac_address(uint8_t **mac_addr, uint8_t *recv_buffer, uint8_t length)
+{
+    uint8_t  base_mac_addr[8] = {'\0'};
+    char dummy[3] = {'\0'};
+    int j = 0;
+    uint8_t num = 0;
+
+    tr_debug("received length = %d",length);
+
+    if(length / 2 == MESH_MAC_ADDR_LEN){
+        *mac_addr = (uint8_t *)nm_dyn_mem_alloc(MESH_MAC_ADDR_LEN * sizeof(char));
+        memset(*mac_addr, '\0' ,MESH_MAC_ADDR_LEN);
+    } else if (length / 2 == BACKHAUL_MAC_ADDR_LEN){
+        *mac_addr = (uint8_t *)nm_dyn_mem_alloc(BACKHAUL_MAC_ADDR_LEN * sizeof(char));
+        memset(*mac_addr, '\0' ,BACKHAUL_MAC_ADDR_LEN);
+    } else {
+        tr_err("Received wrong MAC ADDR length %d",length);
+        return NM_STATUS_FAIL;
+    }
+
+    for(int k=0;k<8;k++)
+     {
+        for(int i=0;i<2;i++){
+            dummy[i] = recv_buffer[i+j];
+        }
+        num = strtol(dummy, NULL, 16);
+        j=j+2;
+        base_mac_addr[k] = num;
+     }
+    if(length / 2 == MESH_MAC_ADDR_LEN){
+        memcpy(*mac_addr,base_mac_addr,MESH_MAC_ADDR_LEN);
+        tr_debug("MAC ADDR length set %d",MESH_MAC_ADDR_LEN);
+    } else if(length / 2 == BACKHAUL_MAC_ADDR_LEN){
+        memcpy(*mac_addr,base_mac_addr,BACKHAUL_MAC_ADDR_LEN);
+        tr_debug("MAC ADDR length set %d",BACKHAUL_MAC_ADDR_LEN);
+    } else {
+        tr_err("Failed: memcpy received wrong MAC ADDR length");
+        return NM_STATUS_FAIL;
+    }
+        return NM_STATUS_SUCCESS;
+}
+
+nm_status_t nm_mesh_configure_factory_mac_address(NetworkInterface *mesh_iface)
+{
+#if ((MBED_VERSION >= MBED_ENCODE_VERSION(6, 8, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION >= MBED_ENCODE_VERSION(5, 15, 7))))
+    uint8_t *mesh_mac_address = NULL;
+    uint8_t *r_mesh_mac_address= NULL;
+    size_t mesh_mac_address_len = 0;
+
+    if (mesh_iface == NULL) {
+        tr_error("Could not Apply Mesh MAC Address Factory Configuration: Mesh Interface is NULL");
+        return NM_STATUS_FAIL;
+    }
+
+    if (nm_kcm_mesh_mac_address_init(&r_mesh_mac_address, &mesh_mac_address_len) == NM_STATUS_SUCCESS) {
+        if(string2hex_mac_address(&mesh_mac_address,r_mesh_mac_address,mesh_mac_address_len) == NM_STATUS_SUCCESS) {
+            if (mesh_iface->set_mac_address(mesh_mac_address, MESH_MAC_ADDR_LEN) != MESH_ERROR_NONE) {
+                tr_error("FAILED to set Mesh MAC address from Factory Configuration %s", tr_array(r_mesh_mac_address, mesh_mac_address_len));
+                free(r_mesh_mac_address);
+                nm_dyn_mem_free(mesh_mac_address);
+                return NM_STATUS_FAIL;
+            } else {
+                tr_info("Factory Configuration SET: Mesh MAC address %s", tr_array(mesh_mac_address, MESH_MAC_ADDR_LEN));
+                free(r_mesh_mac_address);
+                nm_dyn_mem_free(mesh_mac_address);
+            }
+        } else {
+            free(r_mesh_mac_address);
+            nm_dyn_mem_free(mesh_mac_address);
+            tr_error("FAILED: Read wrong Mesh MAC address length from KCM: %d, Expected length is 8", mesh_mac_address_len/2);
+            return NM_STATUS_FAIL;
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Mesh MAC address");
+    }
+    return NM_STATUS_SUCCESS;
+#else
+    return NM_STATUS_UNSUPPORTED;
+#endif
+}
+
+nm_status_t nm_factory_configure_mesh_iface(void)
+{
+    char *network_name_ptr;
+    uint8_t network_size;
+    uint8_t regulatory_domain, operating_class, operating_mode;
+    uint8_t *trusted_cert;
+    uint16_t trusted_cert_len;
+    uint8_t *own_cert;
+    uint16_t own_cert_len;
+    uint8_t *own_cert_key;
+    uint16_t own_cert_key_len;
+
+    tr_info("Applying Factory Configurations on Mesh Interface");
+
+    if (ws_iface == NULL) {
+        tr_warn("Could not Apply Factory Configuration: Mesh Interface is not Initialized yet");
+        return NM_STATUS_FAIL;
+    }
+
+    if (nm_kcm_wisun_network_name_init(&network_name_ptr) == NM_STATUS_SUCCESS) {
+        if (ws_iface->set_network_name(network_name_ptr) != MESH_ERROR_NONE) {
+            tr_error("FAILED to set network name '%s' from Factory Configuration", network_name_ptr);
+            nm_dyn_mem_free(network_name_ptr);
+            return NM_STATUS_FAIL;
+        } else {
+            nm_dyn_mem_free(network_name_ptr);
+            tr_info("Factory Configuration SET: Network Name = %s", network_name_ptr);
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Network Name");
+    }
+
+    if (nm_kcm_wisun_network_size_init(&network_size) == NM_STATUS_SUCCESS) {
+        if (ws_iface->set_network_size(network_size) != MESH_ERROR_NONE) {
+            tr_error("FAILED to set network size '%d' from Factory Configuration", network_size);
+            return NM_STATUS_FAIL;
+        } else {
+            tr_info("Factory Configuration SET: Network Size = %d", network_size);
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Network Size");
+    }
+
+    if (nm_kcm_wisun_network_regulatory_domain_init(&regulatory_domain, &operating_class, &operating_mode) == NM_STATUS_SUCCESS) {
+        if (ws_iface->set_network_regulatory_domain(regulatory_domain, operating_class, operating_mode) != MESH_ERROR_NONE) {
+            tr_error("FAILED to set Reg Dom '%d', OP Class '%d' and OP Mode '%d' from Factory Configuration", regulatory_domain, operating_class, operating_mode);
+            return NM_STATUS_FAIL;
+        } else {
+            tr_info("Factory Configuration SET: Reg Dom = %d, OP Class = %d, OP Mode = %d", regulatory_domain, operating_class, operating_mode);
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Regulatory Domain or Operating Class or Operating Mode");
+    }
+
+    if (nm_kcm_wisun_network_trusted_certificate_init(&trusted_cert, &trusted_cert_len) == NM_STATUS_SUCCESS) {
+        if (ws_iface->set_trusted_certificate(trusted_cert, trusted_cert_len) != MESH_ERROR_NONE) {
+            tr_error("FAILED to set Trusted Certificate from Factory Configuration");
+            free(trusted_cert);
+            return NM_STATUS_FAIL;
+        } else {
+            tr_info("Factory Configuration SET: Trusted Certificate");
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Trusted Certificate");
+    }
+
+    if (nm_kcm_wisun_network_own_certificate_init(&own_cert, &own_cert_len, &own_cert_key, &own_cert_key_len) == NM_STATUS_SUCCESS) {
+        if (ws_iface->set_own_certificate(own_cert, own_cert_len, own_cert_key, own_cert_key_len) != MESH_ERROR_NONE) {
+            tr_error("FAILED to set Own Certificate from Factory Configuration");
+            free(own_cert);
+            free(own_cert_key);
+            return NM_STATUS_FAIL;
+        } else {
+            tr_info("Factory Configuration SET: Own Certificate");
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Own Certificate");
+    }
+
+    return NM_STATUS_SUCCESS;
+}
+
 nm_status_t nm_configure_mesh_iface(void)
 {
     nm_ws_config_t default_ws_config = {0};
@@ -405,6 +611,7 @@ nm_status_t nm_configure_mesh_iface(void)
      */
     nm_iface_kvstore_read_cfg(kv_key_ws, &modified_ws_config, WS);
 
+    tr_info("Applying Latest Received Configurations from Pelion Server on Mesh Interface");
     if (set_ws_config_to_nanostack(&default_ws_config, &modified_ws_config) == NM_STATUS_FAIL) {
         tr_warn("FAILED to set Wi-SUN config to Nanostack");
         return NM_STATUS_FAIL;
@@ -434,7 +641,7 @@ nm_status_t nm_configure_mesh_iface(void)
     /* Enable Statistics */
     ws_iface->enable_statistics();
 
-    tr_info("Mesh Interface Configured with Latest Configuration");
+    tr_debug("Mesh Interface Configured with Latest Configuration");
 
     return NM_STATUS_SUCCESS;
 }
@@ -656,6 +863,8 @@ nm_status_t nm_res_get_node_stats(uint8_t **datap, size_t *length)
     memcpy(node_info.routing_info.primary_parent, stack_state_info.parent_addr, sizeof(stack_state_info.parent_addr));
     node_info.routing_info.etx_1st_parent = ws_stats_temp.etx_1st_parent;
     node_info.routing_info.etx_2nd_parent = ws_stats_temp.etx_2nd_parent;
+    node_info.routing_info.rssi_in = stack_state_info.rsl_in;
+    node_info.routing_info.rssi_out = stack_state_info.rsl_out;
 
     *datap = (uint8_t *)nm_dyn_mem_alloc(NI_STAT_MAX_BUF);
     if (*datap == NULL) {
@@ -663,40 +872,6 @@ nm_status_t nm_res_get_node_stats(uint8_t **datap, size_t *length)
     }
 
     if (nm_statistics_to_cbor(&node_info, *datap, NI, length) == NM_STATUS_FAIL) {
-        tr_warn("FAILED to CBORise Wi-SUN Statistics");
-        /* Free dynamically allocated memory */
-        nm_dyn_mem_free(*datap);
-        return NM_STATUS_FAIL;
-    }
-
-    return NM_STATUS_SUCCESS;
-}
-
-nm_status_t nm_res_get_radio_stats(uint8_t **datap, size_t *length)
-{
-    /*need to implement get radio quality information here */
-    ws_stack_state_t stack_state_info = {0};
-    nm_radio_quality_t radio_quality = {0};
-
-    if (ws_iface == NULL) {
-        tr_warn("FAILED: Wi-SUN Interface is not initialized yet");
-        return NM_STATUS_FAIL;
-    }
-
-    if (ws_iface->stack_info_get(&stack_state_info) != MESH_ERROR_NONE) {
-        tr_warn("FAILED to read Wi-SUN network stack state info from Nanostack");
-        return NM_STATUS_FAIL;
-    }
-
-    radio_quality.rssi_in = stack_state_info.rsl_in;
-    radio_quality.rssi_out = stack_state_info.rsl_out;
-
-    *datap = (uint8_t *)nm_dyn_mem_alloc(NI_STAT_MAX_BUF);
-    if (*datap == NULL) {
-        return NM_STATUS_FAIL;
-    }
-
-    if (nm_statistics_to_cbor(&radio_quality, *datap, RQ, length) == NM_STATUS_FAIL) {
         tr_warn("FAILED to CBORise Wi-SUN Statistics");
         /* Free dynamically allocated memory */
         nm_dyn_mem_free(*datap);
@@ -734,6 +909,26 @@ nm_status_t nm_res_get_ch_noise_stats(uint8_t **datap, size_t *length)
 
     return NM_STATUS_SUCCESS;
 }
+
+nm_status_t nm_reset_parameters(void)
+{
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
+    if (ws_iface == NULL) {
+        tr_warn("FAILED: Wi-SUN Interface is not initialized yet");
+        return NM_STATUS_FAIL;
+    }
+
+    if (ws_iface->reset_statistics() == MESH_ERROR_UNKNOWN) {
+        tr_info("FAILED: Unable to Reset Parameter");
+        return NM_STATUS_FAIL;
+    } else {
+        tr_info("Reset Parameter Success");
+    }
+#else
+    tr_warn("Not supported in this version");
+#endif
+    return NM_STATUS_SUCCESS;
+}
 /************************************************************************/
 
 
@@ -747,9 +942,38 @@ nm_status_t nm_res_get_ch_noise_stats(uint8_t **datap, size_t *length)
 
 /****************************BR Interface********************************/
 
+static nm_status_t get_server_secret(radius_server_t *temp_cfg)
+{
+    mesh_error_t status = MESH_ERROR_UNKNOWN;
+    temp_cfg->secret_len = 8192;
+    /* Get first length */
+    status = ws_br->get_radius_shared_secret(&temp_cfg->secret_len, NULL);
+    if (status == MESH_ERROR_NONE && temp_cfg->secret_len > 0) {
+        /* Allocate dynamically memory for server secret*/
+        temp_cfg->secret = (uint8_t *) nm_dyn_mem_alloc(temp_cfg->secret_len);
+        /* Get secret */
+        status = ws_br->get_radius_shared_secret(&temp_cfg->secret_len, temp_cfg->secret);
+        if (status == MESH_ERROR_NONE) {
+            tr_info("Server secret found");
+        } else {
+            tr_warn("FAILED: Get radius server secret return %d", status);
+            nm_dyn_mem_free(temp_cfg->secret);
+            temp_cfg->secret = NULL;
+            return NM_STATUS_FAIL;
+        }
+    } else {
+        tr_warn("FAILED: Get radius server secret length : %d from Nanostack, return status %d", temp_cfg->secret_len, status);
+        return NM_STATUS_FAIL;
+    }
+
+    return NM_STATUS_SUCCESS;
+}
+
+
 static nm_status_t br_config_validation(nm_br_config_t *existing_br_config, nm_br_config_t *updated_br_config)
 {
     mesh_error_t status = MESH_ERROR_UNKNOWN;
+    radius_server_t temp = {0};
 
     if ((existing_br_config == NULL) || (updated_br_config == NULL)) {
         tr_debug("FAILED: Validate br_config is NULL");
@@ -785,6 +1009,17 @@ static nm_status_t br_config_validation(nm_br_config_t *existing_br_config, nm_b
         }
     }
 
+    /*validation for radius server address here by getting radius server secret*/
+    if (updated_br_config->radius_config.secret_len == 0) {
+        if ((get_server_secret(&temp) != NM_STATUS_SUCCESS)) {
+            tr_warn("FAILED: Get radius server secret, Skipping server address");
+            memset(updated_br_config->radius_config.address, '\0', sizeof(updated_br_config->radius_config.address));
+        } else {
+            nm_dyn_mem_free(temp.secret);
+            temp.secret = NULL;
+        }
+    }
+
     /* Update for delay parameter here */
     tr_debug("Validation complete of received br_configuration");
     return NM_STATUS_SUCCESS;
@@ -793,6 +1028,7 @@ static nm_status_t br_config_validation(nm_br_config_t *existing_br_config, nm_b
 static nm_status_t set_br_config_to_nanostack(nm_br_config_t *existing_br_config, nm_br_config_t *updated_br_config)
 {
     mesh_error_t status = MESH_ERROR_UNKNOWN;
+    radius_server_t temp = {0};
 
     if ((existing_br_config == NULL) || (updated_br_config == NULL)) {
         tr_debug("FAILED: Set br_config is NULL");
@@ -821,6 +1057,42 @@ static nm_status_t set_br_config_to_nanostack(nm_br_config_t *existing_br_config
         tr_info("SET PAN ID: %d", updated_br_config->pan_id);
     }
 
+    /* Setting radius server secret */
+    if (updated_br_config->radius_config.secret != NULL) {
+        if (memcmp(existing_br_config->radius_config.secret, updated_br_config->radius_config.secret, updated_br_config->radius_config.secret_len) != 0) {
+            status = ws_br->set_radius_shared_secret(updated_br_config->radius_config.secret_len, (const uint8_t *) updated_br_config->radius_config.secret);
+            if (status != MESH_ERROR_NONE) {
+                tr_warn("FAILED to set network Radius Server Secret to Nanostack %d", status);
+                return NM_STATUS_FAIL;
+            } else {
+                tr_info("Radius server Secret set");
+            }
+        }
+    }
+
+    /* Setting radius server address */
+    if (memcmp(existing_br_config->radius_config.address, updated_br_config->radius_config.address, sizeof(updated_br_config->radius_config.address)) != 0) {
+        if (get_server_secret(&temp) == NM_STATUS_SUCCESS) {
+            if(updated_br_config->radius_config.address[0] == '\0') {
+                /*Clear External radius server address*/
+                status = ws_br->set_radius_server_ipv6_address(NULL);
+            } else {
+                /*Set External radius server address*/
+            status = ws_br->set_radius_server_ipv6_address(updated_br_config->radius_config.address);
+            }
+            nm_dyn_mem_free(temp.secret);
+            temp.secret = NULL;
+            if (status != MESH_ERROR_NONE) {
+                tr_info("FAILED: Set radius server address return %d", status);
+                return NM_STATUS_FAIL;
+            } else {
+                tr_info("SUCCESS: Set radius server address %s", updated_br_config->radius_config.address);
+            }
+        } else {
+            tr_warn("FAILED: Setting Radius Server address to Nanostack Skipped due to Radius Server Secret not found");
+        }
+    }
+
     updated_br_config->resource_version = WS_BR_RESOURCE_VERSION;
     tr_debug("BR_resource_version %lu", updated_br_config->resource_version);
     return NM_STATUS_SUCCESS;
@@ -844,6 +1116,56 @@ static nm_status_t get_default_br_config_from_nanostack(nm_br_config_t *br_confi
     if (status != MESH_ERROR_NONE) {
         tr_warn("FAILED to get pan_configuration from Nanostack");
         return NM_STATUS_FAIL;
+    }
+
+    if (get_server_secret(&br_config->radius_config) == NM_STATUS_SUCCESS) {
+        status = ws_br->get_radius_server_ipv6_address(br_config->radius_config.address);
+        if (status != MESH_ERROR_NONE) {
+            tr_info("FAILED: Get radius server address return %d", status);
+        } else {
+            tr_info("SUCCESS: Get radius server address %s", br_config->radius_config.address);
+        }
+    }
+
+    return NM_STATUS_SUCCESS;
+}
+
+nm_status_t nm_factory_configure_border_router(void)
+{
+    size_t radius_buf_len = 0;
+    char *radius_serv_adr = NULL;
+    uint8_t * radius_serv_secret = NULL;
+    tr_info("Applying Factory Configurations on BR Interface");
+
+    if (ws_br == NULL) {
+        tr_warn("Could not Apply Factory Configuration: Border Router is not Initialized yet");
+        return NM_STATUS_FAIL;
+    }
+    if (nm_kcm_wisun_network_radius_secret_init(&radius_serv_secret, &radius_buf_len) == NM_STATUS_SUCCESS) {
+        if (ws_br->set_radius_shared_secret((uint16_t)radius_buf_len, radius_serv_secret) != MESH_ERROR_NONE) {
+            tr_error("FAILED to set radius shared secret '%s' len '%d'from Factory Configuration", tr_array( radius_serv_secret, radius_buf_len), radius_buf_len);
+            free(radius_serv_secret);
+            return NM_STATUS_FAIL;
+        } else {
+            tr_info("Factory Configuration SET: Radius Shared Secret = %s ,Radius Shared Secret len = %d", tr_array( radius_serv_secret, radius_buf_len),radius_buf_len);
+            free(radius_serv_secret);
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Radius Shared Secret");
+        return NM_STATUS_SUCCESS;
+    }
+
+    if (nm_kcm_wisun_network_radius_addr_init(&radius_serv_adr, &radius_buf_len) == NM_STATUS_SUCCESS) {
+        if (ws_br->set_radius_server_ipv6_address((char *)radius_serv_adr) != MESH_ERROR_NONE) {
+            tr_error("FAILED to set radius server address '%s' len '%d'from Factory Configuration", tr_array((uint8_t *)radius_serv_adr, radius_buf_len), radius_buf_len);
+            free(radius_serv_adr);
+            return NM_STATUS_FAIL;
+        } else {
+            tr_info("Factory Configuration SET: Radius Server Address = %s and Len = %d", tr_array((uint8_t *)radius_serv_adr, radius_buf_len), radius_buf_len);
+            free(radius_serv_adr);
+        }
+    } else {
+        tr_info("Factory Configuration NOT FOUND: Radius Server Address");
     }
 
     return NM_STATUS_SUCCESS;
@@ -872,6 +1194,7 @@ nm_status_t nm_configure_border_router(void)
      */
     nm_iface_kvstore_read_cfg(kv_key_br, &modified_br_config, BR);
 
+    tr_info("Applying Latest Received Configurations from Pelion Server on BR Interface");
     if (set_br_config_to_nanostack(&default_br_config, &modified_br_config) == NM_STATUS_FAIL) {
         tr_warn("FAILED to set Border Router config to Nanostack");
         return NM_STATUS_FAIL;
@@ -898,7 +1221,7 @@ nm_status_t nm_configure_border_router(void)
     /* Free dynamically allocated memory */
     nm_dyn_mem_free(cborise_data);
 
-    tr_info("Border Router Configured with Latest Configuration");
+    tr_debug("Border Router Configured with Latest Configuration");
 
     return NM_STATUS_SUCCESS;
 }
@@ -907,6 +1230,7 @@ nm_status_t nm_res_set_br_config(uint8_t *data, size_t length)
 {
     nm_br_config_t kvstored_br_config = {0};
     nm_br_config_t received_br_config = {0};
+
     uint8_t *cborise_data = NULL;
     size_t cborise_data_len = 0;
 
@@ -948,6 +1272,7 @@ nm_status_t nm_res_set_br_config(uint8_t *data, size_t length)
         nm_dyn_mem_free(cborise_data);
         return NM_STATUS_FAIL;
     }
+
     if (set_data_to_kvstore(kv_key_br, cborise_data, cborise_data_len) == NM_STATUS_FAIL) {
         tr_error("FAILED to store updated CBORised BR Configuration");
         /* Free dynamically allocated memory */

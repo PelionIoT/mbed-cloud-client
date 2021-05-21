@@ -277,6 +277,11 @@ public:
      */
     void start_timers();
 
+    /**
+    * @brief Stop pmin & pmax timers.
+    */
+    void stop_timers();
+
 protected : // from M2MTimerObserver
 
     virtual void timer_expired(M2MTimerObserver::Type type =
@@ -310,10 +315,7 @@ private:
     */
     bool check_attribute_validity() const;
 
-    /**
-    * @brief Stop pmin & pmax timers.
-    */
-    void stop_timers();
+
 
     /**
      * @brief Check if current value match threshold values.

@@ -47,8 +47,8 @@ typedef enum {
 * Keep these sync with ones that found from kcm_defs.h
 */
 typedef enum {
-    CCS_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
-    CCS_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(pal_Crypto.h)
+    CCS_PRIVATE_KEY_ITEM,          //!< KCM private key item type. KCM Supports ECC keys with curves defined in palGroupIndex_t(cs_pal_crypto.h)
+    CCS_PUBLIC_KEY_ITEM,           //!< KCM public key item type.  KCM Supports ECC keys with curves defined in palGroupIndex_t(cs_pal_crypto.h)
     CCS_SYMMETRIC_KEY_ITEM,        //!< KCM symmetric key item type.
     CCS_CERTIFICATE_ITEM,          //!< KCM certificate item type. Supported x509 certificates in der format.
     CCS_CONFIG_ITEM                //!< KCM configuration parameter item type.

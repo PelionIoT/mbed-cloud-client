@@ -1,7 +1,7 @@
 # Copyright (c) 2021 Pelion IoT
 # SPDX-License-Identifier: Apache-2.0
 
-menu "PAL options"
+menu "Platform Abstraction Layer options"
 
 config PELION_PAL_SUPPORT_NAT64
     bool "Automatic NAT64 address support on IPv6 networks"
@@ -11,4 +11,71 @@ config PELION_PAL_SUPPORT_NAT64
       IPv4 addresses to IPv6 using default NAT64 prefix. Only comes into
       effect when an IPv6-only device receives an IPv4 address from the DNS
       server.
+
+config PELION_PAL_SUPPORT_SSL_CONNECTION_ID
+    bool "Use Connection Identifiers for DTLS 1.2"
+    help
+      Connection ID is an extention to DTLS 1.2 that allows a DTLS session
+      to persist even if the device's IP address and port changes, which
+      otherwise would require a new DTLS handshake. This enables devices
+      to power down their network interface for long periods of time,
+      saving power and network bandwidth.
+
+      Requires mbed TLS 2.18.0 or newer and transport mode to be UDP or
+      UDP Queue.
+
+      https://tools.ietf.org/html/draft-ietf-tls-dtls-connection-id-11
+
+config PELION_PAL_USE_APPLICATION_REBOOT
+    bool "Use reboot function provided by application"
+    help
+      Override default reboot function with one provided by application.
+      Useful for shutting down the device gracefully, powering down external
+      components and saving state.
+
+      Signature for C function:
+        void pal_plat_osApplicationReboot(void)
+
+config PELION_PAL_USE_APPLICATION_NETWORK_CALLBACK
+    bool "Use network status callback provided by application"
+    help
+      Provide setter for registering network status callback function in
+      application. Application uses callback function to notify Pelion client
+      about changes in network connectivity, enabling the client to refrain
+      from sending data during network loss.
+
+      Signature for C function:
+      #include "pal.h"
+      palStatus_t pal_plat_setConnectionStatusCallback(uint32_t interfaceIndex,
+                                                       connectionStatusCallback callback,
+                                                       void *client_arg)
+
+choice
+    prompt "DNS API"
+    default PELION_PAL_USE_DNS_API_RESOLVE
+    help
+      Select DNS API used by network abstraction implementation.
+
+    config PELION_PAL_USE_DNS_API_POSIX
+        bool "POSIX"
+        help
+          Use POSIX's getaddrinfo. This call is synchronous and maps to
+          Pelion's DNS version 0.
+
+    config PELION_PAL_USE_DNS_API_RESOLVE
+        bool "DNS Resolve"
+        depends on DNS_RESOLVER
+        help
+          Use DNS Resolve's dns_get_addr_info. This call is asynchronous and maps
+          to Pelion's DNS version 3.
+
+endchoice
+
+config NEWLIB_LIBC_FLOAT_PRINTF
+    bool "Build with newlib float printf"
+    default y
+    help
+      Enable floating points in Newlib's snprintf. Must be enabled for correctly
+      formatting floating points in LwM2M resources.
+
 endmenu

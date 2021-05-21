@@ -288,17 +288,8 @@ void *ccs_open_certificate_chain(const char *chain_file_name, size_t *chain_size
 ccs_status_e ccs_get_next_cert_chain(void *chain_handle, void *cert_data, size_t *data_size)
 {
     kcm_status_e kcm_status;
-    size_t max_size = 1024;
 
-    kcm_status = kcm_cert_chain_get_next_size((kcm_cert_chain_handle *) chain_handle, data_size);
-
-    if (kcm_status != KCM_STATUS_SUCCESS) {
-        tr_error("CloudClientStorage::ccs_get_next_cert_chain - get_next_size error %d", kcm_status);
-        return CCS_STATUS_ERROR;
-    }
-
-
-    kcm_status = kcm_cert_chain_get_next_data((kcm_cert_chain_handle *) chain_handle, (uint8_t*)cert_data, max_size, data_size);
+    kcm_status = kcm_cert_chain_get_next_data((kcm_cert_chain_handle *) chain_handle, (uint8_t*)cert_data, *data_size, data_size);
 
     if (kcm_status != KCM_STATUS_SUCCESS) {
         tr_error("CloudClientStorage::ccs_get_next_cert_chain - get_next_data error %d", kcm_status);

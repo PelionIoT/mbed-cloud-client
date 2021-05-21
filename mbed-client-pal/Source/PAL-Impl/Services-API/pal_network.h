@@ -20,7 +20,7 @@
 #define _PAL_SOCKET_H
 
 #ifndef _PAL_H
-    #error "Please do not include this file directly, use pal.h instead"
+#error "Please do not include this file directly, use pal.h instead"
 #endif
 
 
@@ -41,7 +41,7 @@ extern "C" {
 */
 
 typedef uint32_t palSocketLength_t; /*!< \brief The length of data. */
-typedef void* palSocket_t; /*!< \brief PAL socket handle type. */
+typedef void *palSocket_t; /*!< \brief PAL socket handle type. */
 
 #define  PAL_NET_MAX_ADDR_SIZE 32 // check if we can make this more efficient
 
@@ -50,7 +50,13 @@ typedef struct palSocketAddress {
     char              addressData[PAL_NET_MAX_ADDR_SIZE];  /*!< \brief Address based on the protocol used. */
 } palSocketAddress_t; /*!< \brief Address data structure with enough room to support IPV4 and IPV6. */
 
-typedef struct palNetInterfaceInfo{
+#if PAL_NET_DNS_SUPPORT
+#if (PAL_DNS_API_VERSION == 3)
+typedef void *palAddressInfo_t; /*!< \brief PAL address info handle type. */
+#endif // (PAL_DNS_API_VERSION == 3)
+#endif // PAL_NET_DNS_SUPPORT
+
+typedef struct palNetInterfaceInfo {
     char interfaceName[16]; //15 + ‘\0’
     palSocketAddress_t address;
     uint32_t addressSize;
@@ -88,13 +94,14 @@ typedef enum {
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
     PAL_SO_SNDTIMEO = 0x1005,  /*!< \brief Send timeout. */
     PAL_SO_RCVTIMEO = 0x1006,  /*!< \brief Receive timeout. */
-    PAL_SO_IPV6_MULTICAST_HOPS = 0x1007  /*!< \brief Hop limit for subsequent multicast datagrams to be set to any value from 0 to 255. This ability is used to control the scope of the multicasts. */
+    PAL_SO_IPV6_MULTICAST_HOPS = 0x1007,  /*!< \brief Hop limit for subsequent multicast datagrams to be set to any value from 0 to 255. This ability is used to control the scope of the multicasts. */
+    PAL_SO_IPV6_TRAFFIC_CLASS = 0x1008  /*!< \brief Use to set IPv6 traffic class priority. Default is 0. */
 } palSocketOptionName_t;
 
 /*! \brief Socket protocol level options supported by PAL. */
 typedef enum {
     PAL_SOL_SOCKET = 0,
-    PAL_SOL_IPPROTO_IPV6 =1
+    PAL_SOL_IPPROTO_IPV6 = 1
 } palSocketOptionLevelName_t;
 
 #define PAL_NET_DEFAULT_INTERFACE 0xFFFFFFFF
@@ -105,7 +112,7 @@ typedef enum {
 typedef uint8_t palIpV4Addr_t[PAL_IPV4_ADDRESS_SIZE];
 typedef uint8_t palIpV6Addr_t[PAL_IPV6_ADDRESS_SIZE];
 
-typedef void(*connectionStatusCallback) (palNetworkStatus_t status, void *client_arg);
+typedef void(*connectionStatusCallback)(palNetworkStatus_t status, void *client_arg);
 
 /*! \brief Register a network interface for use with PAL sockets.
  *
@@ -119,7 +126,7 @@ typedef void(*connectionStatusCallback) (palNetworkStatus_t status, void *client
  *
  * \note If a context is not applicable on a target configuration, use \c NULL .
  */
-palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t* interfaceIndex);
+palStatus_t pal_registerNetworkInterface(void *networkInterfaceContext, uint32_t *interfaceIndex);
 
 /*! \brief Unregister a network interface.
  * @param interfaceIndex Index of the network interface to be removed.
@@ -127,56 +134,56 @@ palStatus_t pal_registerNetworkInterface(void* networkInterfaceContext, uint32_t
  */
 palStatus_t pal_unregisterNetworkInterface(uint32_t interfaceIndex);
 
- /*! \brief Set a port to an address data structure.
-  * @param[in,out] address The address data structure to configure.
-  * @param[in] port The port number to set.
-  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
-  * \note To set the socket correctly, the `addressType` field of the address must be set correctly.
-  *       You can set it either directly, or using the `pal_setSockAddrIPV4Addr` or `pal_setSockAddrIPV6Addr` functions.
-  */
-palStatus_t pal_setSockAddrPort(palSocketAddress_t* address, uint16_t port);
+/*! \brief Set a port to an address data structure.
+ * @param[in,out] address The address data structure to configure.
+ * @param[in] port The port number to set.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ * \note To set the socket correctly, the `addressType` field of the address must be set correctly.
+ *       You can set it either directly, or using the `pal_setSockAddrIPV4Addr` or `pal_setSockAddrIPV6Addr` functions.
+ */
+palStatus_t pal_setSockAddrPort(palSocketAddress_t *address, uint16_t port);
 
 /*! \brief Set an IPv4 address to an address data structure and set `addressType` as IPv4.
  * @param[in,out] address The address data structure to configure.
  * @param[in] ipV4Addr The address value to set.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_setSockAddrIPV4Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr);
+palStatus_t pal_setSockAddrIPV4Addr(palSocketAddress_t *address, palIpV4Addr_t ipV4Addr);
 
 /*! \brief Get an IPv4 address from an address data structure.
  * @param[in] address The address data structure to query.
  * @param[out] ipV4Addr The IPv4 address to get.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t* address, palIpV4Addr_t ipV4Addr);
+palStatus_t pal_getSockAddrIPV4Addr(const palSocketAddress_t *address, palIpV4Addr_t ipV4Addr);
 
 /*! \brief Set an IPv6 address to an address data structure and set the `addressType` as IPv6.
  * @param[in,out] address The address data structure to configure.
  * @param[in] ipV6Addr The address value to set.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t* address, palIpV6Addr_t ipV6Addr);
+palStatus_t pal_setSockAddrIPV6Addr(palSocketAddress_t *address, palIpV6Addr_t ipV6Addr);
 
 /*! \brief Get an IPv6 address from an address data structure.
  * @param[in] address The address data structure to query.
  * @param[out] ipV6Addr The address to get.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t* address, palIpV6Addr_t ipV6Addr);
+palStatus_t pal_getSockAddrIPV6Addr(const palSocketAddress_t *address, palIpV6Addr_t ipV6Addr);
 
 /*! \brief Set a NAT64 address from an IPv4 address data structure and set `addressType` as IPv6.
  * @param[in,out] address The address data structure to configure.
  * @param[in] ipV4Addr The address value to set.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_setSockAddrNAT64Addr(palSocketAddress_t* address, palIpV4Addr_t ipV4Addr);
+palStatus_t pal_setSockAddrNAT64Addr(palSocketAddress_t *address, palIpV4Addr_t ipV4Addr);
 
 /*! \brief Get a port from an address data structure.
  * @param[in] address The address data structure to query.
  * @param[out] port The port to get.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_getSockAddrPort(const palSocketAddress_t* address, uint16_t* port);
+palStatus_t pal_getSockAddrPort(const palSocketAddress_t *address, uint16_t *port);
 
 /*! \brief Set the value for a socket option on a network socket.
  * @param[in] socket The socket to configure.
@@ -185,7 +192,7 @@ palStatus_t pal_getSockAddrPort(const palSocketAddress_t* address, uint16_t* por
  * @param[in] optionLength  The size of the buffer provided for `optionValue`.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void* optionValue, palSocketLength_t optionLength);
+palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void *optionValue, palSocketLength_t optionLength);
 
 /*! \brief Set the value for a socket option on a network socket.
  * @param[in] socket The socket to configure.
@@ -195,14 +202,14 @@ palStatus_t pal_setSocketOptions(palSocket_t socket, int optionName, const void*
  * @param[in] optionLength  The size of the buffer provided for `optionValue`.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void* optionValue, palSocketLength_t optionLength);
+palStatus_t pal_setSocketOptionsWithLevel(palSocket_t socket, palSocketOptionLevelName_t optionLevel, int optionName, const void *optionValue, palSocketLength_t optionLength);
 
 /*! \brief Check if a socket is non-blocking.
  * @param[in] socket The socket to check.
  * @param[out] isNonBlocking `True` if the socket is non-blocking, otherwise `false`.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_isNonBlocking(palSocket_t socket, bool* isNonBlocking);
+palStatus_t pal_isNonBlocking(palSocket_t socket, bool *isNonBlocking);
 
 /*! \brief Bind a socket to a local address.
  * @param[in] socket The socket to bind.
@@ -210,7 +217,7 @@ palStatus_t pal_isNonBlocking(palSocket_t socket, bool* isNonBlocking);
  * @param[in] addressLength The length of the address passed in `myAddress`.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocketLength_t addressLength);
+palStatus_t pal_bind(palSocket_t socket, palSocketAddress_t *myAddress, palSocketLength_t addressLength);
 
 /*! \brief Receive a payload from a specific socket.
  * @param[in] socket The socket to receive from. The socket passed to this function should usually be of type `PAL_SOCK_DGRAM`, though your specific implementation may support other types as well.
@@ -221,7 +228,7 @@ palStatus_t pal_bind(palSocket_t socket, palSocketAddress_t* myAddress, palSocke
  * @param[out] bytesReceived The actual amount of payload data received in the buffer.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_receiveFrom(palSocket_t socket, void* buffer, size_t length, palSocketAddress_t* from, palSocketLength_t* fromLength, size_t* bytesReceived);
+palStatus_t pal_receiveFrom(palSocket_t socket, void *buffer, size_t length, palSocketAddress_t *from, palSocketLength_t *fromLength, size_t *bytesReceived);
 
 /*! \brief Send a payload to an address using a specific socket.
  * @param[in] socket The socket to use for sending the payload. The socket passed to this function should usually be of type `PAL_SOCK_DGRAM`, though your specific implementation may support other types as well.
@@ -232,27 +239,27 @@ palStatus_t pal_receiveFrom(palSocket_t socket, void* buffer, size_t length, pal
  * @param[out] bytesSent The actual amount of payload data sent.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_sendTo(palSocket_t socket, const void* buffer, size_t length, const palSocketAddress_t* to, palSocketLength_t toLength, size_t* bytesSent);
+palStatus_t pal_sendTo(palSocket_t socket, const void *buffer, size_t length, const palSocketAddress_t *to, palSocketLength_t toLength, size_t *bytesSent);
 
 /*! \brief Close a network socket.
  * @param[in,out] socket The socket to be closed.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  * \note Receives `palSocket_t*`, \e not `palSocket_t`, so that it can zero the socket to avoid re-use.
  */
-palStatus_t pal_close(palSocket_t* socket);
+palStatus_t pal_close(palSocket_t *socket);
 
 /*! \brief Get the number of current network interfaces.
  * @param[out] numInterfaces The number of interfaces.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_getNumberOfNetInterfaces(uint32_t* numInterfaces);
+palStatus_t pal_getNumberOfNetInterfaces(uint32_t *numInterfaces);
 
 /*! \brief Get information regarding the socket at the interface index number given. This number is returned when registering the socket.
  * @param[in] interfaceNum The number of the interface to get information for.
  * @param[out] interfaceInfo The information for the given interface number.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t* interfaceInfo);
+palStatus_t pal_getNetInterfaceInfo(uint32_t interfaceNum, palNetInterfaceInfo_t *interfaceInfo);
 
 /*! \brief Set listener for connection status events.
  * @param[in] interfaceNum Index of the network interface to be listen.
@@ -274,7 +281,7 @@ palStatus_t pal_setConnectionStatusCallback(uint32_t interfaceNum, connectionSta
 /*! \brief The type of the callback function passed when creating asynchronous sockets.
  * @param[in] argument The user provided argument passed to the callback function.
  */
-typedef void(*palAsyncSocketCallback_t)(void*);
+typedef void(*palAsyncSocketCallback_t)(void *);
 
 #if PAL_NET_TCP_AND_TLS_SUPPORT // The functionality below is supported only if TCP is supported.
 
@@ -296,7 +303,7 @@ palStatus_t pal_listen(palSocket_t socket, int backlog);
  * @param[in] callbackArgument The callback argument to be attached to the asynchronous accepted socket.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t* address, palSocketLength_t* addressLen, palSocket_t* acceptedSocket, palAsyncSocketCallback_t callback, void* callbackArgument);
+palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t *address, palSocketLength_t *addressLen, palSocket_t *acceptedSocket, palAsyncSocketCallback_t callback, void *callbackArgument);
 
 #endif // PAL_NET_SERVER_SOCKET_API
 
@@ -306,7 +313,7 @@ palStatus_t pal_accept(palSocket_t socket, palSocketAddress_t* address, palSocke
  * @param[in] addressLen The length of the `address` field.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_connect(palSocket_t socket, const palSocketAddress_t* address, palSocketLength_t addressLen);
+palStatus_t pal_connect(palSocket_t socket, const palSocketAddress_t *address, palSocketLength_t addressLen);
 
 /*! \brief Receive data from a connected socket.
  * @param[in] socket The connected socket on which to receive data. The socket passed to this function should usually be of type `PAL_SOCK_STREAM`, though your specific implementation may support other types as well.
@@ -315,7 +322,7 @@ palStatus_t pal_connect(palSocket_t socket, const palSocketAddress_t* address, p
  * @param[out] recievedDataSize The length of the data actually received.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_recv(palSocket_t socket, void* buf, size_t len, size_t* recievedDataSize);
+palStatus_t pal_recv(palSocket_t socket, void *buf, size_t len, size_t *recievedDataSize);
 
 /*! \brief Send a buffer via a connected socket.
  * @param[in] socket The connected socket on which to send data. The socket passed to this function should usually be of type `PAL_SOCK_STREAM`, though your specific implementation may support other types as well.
@@ -324,7 +331,7 @@ palStatus_t pal_recv(palSocket_t socket, void* buf, size_t len, size_t* recieved
  * @param[out] sentDataSize The length of the data sent.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_send(palSocket_t socket, const void* buf, size_t len, size_t* sentDataSize);
+palStatus_t pal_send(palSocket_t socket, const void *buf, size_t len, size_t *sentDataSize);
 
 
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
@@ -338,7 +345,7 @@ palStatus_t pal_send(palSocket_t socket, const void* buf, size_t len, size_t* se
  * @param[out] socket The socket is returned through this output parameter.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, palSocket_t* socket);
+palStatus_t pal_asynchronousSocket(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, palSocket_t *socket);
 
 /*! \brief Get an asynchronous network socket that passes the provided `callbackArgument` to a specified callback when it is triggered.
  * @param[in] domain The domain for the created socket. See enum `palSocketDomain_t` for supported types.
@@ -350,7 +357,7 @@ palStatus_t pal_asynchronousSocket(palSocketDomain_t domain, palSocketType_t typ
  * @param[out] socket The socket is returned through this output parameter.
  * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback,void* callbackArgument, palSocket_t* socket);
+palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSocketType_t type, bool nonBlockingSocket, uint32_t interfaceNum, palAsyncSocketCallback_t callback, void *callbackArgument, palSocket_t *socket);
 
 
 #if PAL_NET_DNS_SUPPORT
@@ -361,8 +368,9 @@ palStatus_t pal_asynchronousSocketWithArgument(palSocketDomain_t domain, palSock
  * Supports both IP address as a string, and hostnames (using DNS lookup).
  * @param[in] hostname The hostname (or IP address string) to be translated to a `palSocketAddress_t`.
  * @param[out] address The address for the output of the translation.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_getAddressInfo(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength);
+palStatus_t pal_getAddressInfo(const char *hostname, palSocketAddress_t *address, palSocketLength_t *addressLength);
 
 #if (PAL_DNS_API_VERSION == 1)
 
@@ -372,8 +380,9 @@ palStatus_t pal_getAddressInfo(const char* hostname, palSocketAddress_t* address
  * @param[in] addressLength The length of the address for the output of the translation in bytes.
  * @param[in] status The status of the operation - PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  * @param[in] callbackArgument The user callback argument.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-typedef void(*palGetAddressInfoAsyncCallback_t)(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength, palStatus_t status, void* callbackArgument);
+typedef void(*palGetAddressInfoAsyncCallback_t)(const char *hostname, palSocketAddress_t *address, palSocketLength_t *addressLength, palStatus_t status, void *callbackArgument);
 
 /*! \brief This function translates a hostname to `palSocketAddress_t` which can be used with PAL sockets.
  *
@@ -384,11 +393,12 @@ typedef void(*palGetAddressInfoAsyncCallback_t)(const char* hostname, palSocketA
  * @param[out] addressLength The length of the address for the output of the translation in bytes.
  * @param[in] callback The user-provided callback to be invoked once the function has completed.
  * @param[in] callbackArgument The user-provided callback argument which will be passed back to the callback function.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-palStatus_t pal_getAddressInfoAsync(const char* hostname, palSocketAddress_t* address, palSocketLength_t* addressLength, palGetAddressInfoAsyncCallback_t callback, void* callbackArgument);
+palStatus_t pal_getAddressInfoAsync(const char *hostname, palSocketAddress_t *address, palSocketLength_t *addressLength, palGetAddressInfoAsyncCallback_t callback, void *callbackArgument);
 #endif
-
-#elif (PAL_DNS_API_VERSION == 2)
+#elif (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
+#if (PAL_DNS_API_VERSION == 2)
 typedef int32_t palDNSQuery_t; /*!< \brief PAL DNS query handle. Can be used to cancel the asynchronous DNS query. */
 
 /*! \brief Prototype of the callback function invoked when querying address info asynchronously using `pal_getAddressInfoAsync`.
@@ -396,8 +406,9 @@ typedef int32_t palDNSQuery_t; /*!< \brief PAL DNS query handle. Can be used to 
  * @param[out] address The address for the output of the translation.
  * @param[out] status The status of the operation - PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  * @param[in] callbackArgument The user callback argument.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-typedef void(*palGetAddressInfoAsyncCallback_t)(const char* hostname, palSocketAddress_t* address, palStatus_t status, void* callbackArgument);
+typedef void(*palGetAddressInfoAsyncCallback_t)(const char *hostname, palSocketAddress_t *address, palStatus_t status, void *callbackArgument);
 
 /*! \brief Structure used by pal_getAddressInfoAsync.
  * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
@@ -405,13 +416,13 @@ typedef void(*palGetAddressInfoAsyncCallback_t)(const char* hostname, palSocketA
  * @param[in] callback The user-provided callback.
  * @param[in] callbackArgument The user callback argument of `pal_GetAddressInfoAsyncCallback_t`.
  * @param[out] queryHandle Handler ID, which can be used for a cancellation request.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
-typedef struct pal_asyncAddressInfo
-{
-    char* hostname;
-    palSocketAddress_t* address;
+typedef struct pal_asyncAddressInfo {
+    char *hostname;
+    palSocketAddress_t *address;
     palGetAddressInfoAsyncCallback_t callback;
-    void* callbackArgument;
+    void *callbackArgument;
     palDNSQuery_t *queryHandle;
 } pal_asyncAddressInfo_t;
 
@@ -422,20 +433,92 @@ typedef struct pal_asyncAddressInfo
  * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
  * @param[out] address The address for the output of the translation.
  * @param[in] callback The user-provided callback to be invoked once the function has completed.
+ * @param[in] callbackArgument The user callback argument of `pal_GetAddressInfoAsyncCallback_t`.
  * @param[out] queryHandle DNS query handler. Caller must take care of allocation. If not used, then set as `NULL`.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ */
+palStatus_t pal_getAddressInfoAsync(const char *hostname,
+                                    palSocketAddress_t *address,
+                                    palGetAddressInfoAsyncCallback_t callback,
+                                    void *callbackArgument,
+                                    palDNSQuery_t *queryHandle);
+
+#elif (PAL_DNS_API_VERSION == 3)
+typedef uintptr_t palDNSQuery_t; /*!< \brief PAL DNS query handle. Can be used to cancel the asynchronous DNS query. */
+
+/*! \brief This function puts the palSocketAddress_t from the given index in palAddressInfo_t to the given addr
+ * @param[in] addrInfo The palAddressInfo_t which (if any) palSocketAddress_t is get.
+ * @param[in] index Index of the address in addrInfo to fetch.
+ * @param[out] addr palSocketAddress_t is put to this instance is any if found.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ */
+palStatus_t pal_getDNSAddress(palAddressInfo_t *addrInfo, uint16_t index, palSocketAddress_t *addr);
+
+/*! \brief Return the number of dns addresses in the given addrInfo
+ * @param[in] addrInfo The palAddressInfo_t to be used for countung dns addresses.
+ * \return Number of DNS addresses in the given addrInfo.
+ */
+int pal_getDNSCount(palAddressInfo_t *addrInfo);
+
+/*! \brief Free the given addrInfo.
+ * @param[in] addrInfo OS specific palAddressInfo_t which holds dns addresses.
+ */
+void pal_freeAddrInfo(palAddressInfo_t *addrInfo);
+
+/*! \brief This function free's the thread needed in pal_getAddressInfoAsync
+ * @param[out] handle PAL DNS query handle, used to cancel the asynchronous DNS query.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+*/
+palStatus_t pal_free_addressinfoAsync(palDNSQuery_t handle);
+
+/*! \brief Prototype of the callback function invoked when querying address info asynchronously using `pal_getAddressInfoAsync`.
+ * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
+ * @param[out] addrInfo OS specific palAddressInfo_t which holds dns addresses.
+ * @param[out] status The status of the operation - PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
+ * @param[in] callbackArgument The user callback argument.
+ */
+typedef void(*palGetAddressInfoAsyncCallback_t)(const char *hostname, palAddressInfo_t *addrInfo, palStatus_t status, void *callbackArgument);
+
+/*! \brief Structure used by pal_getAddressInfoAsync.
+ * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
+ * @param[out] addrInfo OS specific palAddressInfo_t which holds dns addresses.
+ * @param[in] callback The user-provided callback.
+ * @param[in] callbackArgument The user callback argument of `pal_GetAddressInfoAsyncCallback_t`.
+ * @param[out] queryHandle Handler ID, which can be used for a cancellation request.
+ */
+typedef struct pal_asyncAddressInfo
+{
+    char* hostname;
+    palAddressInfo_t *addrInfo;
+    palGetAddressInfoAsyncCallback_t callback;
+    void* callbackArgument;
+    palDNSQuery_t *queryHandle;
+} pal_asyncAddressInfo_t;
+
+/*! \brief This function translates a hostname to `palSocketAddress_t`(s) which can be used with PAL sockets.
+ *
+ * Supports both IP address as a string, and hostname (using DNS lookup).
+ * \note The function is non-blocking.
+ * @param[in] hostname The user-provided hostname (or IP address string) to be translated.
+ * @param[in] callback The user-provided callback to be invoked once the function has completed.
+ * @param[in] callbackArgument The user callback argument of `pal_GetAddressInfoAsyncCallback_t`.
+ * @param[out] queryHandle DNS query handler. Caller must take care of allocation. If not used, then set as `NULL`.
+ * \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
  */
 palStatus_t pal_getAddressInfoAsync(const char* hostname,
-                                     palSocketAddress_t* address,
                                      palGetAddressInfoAsyncCallback_t callback,
                                      void* callbackArgument,
                                      palDNSQuery_t* queryHandle);
 
+#endif
+
 /*! \brief This function is a cancellation for `pal_getAddressInfoAsync`.
 * @param[in] queryHandle Id of the ongoing DNS query.
+* \return PAL_SUCCESS (0) in case of success, or a specific negative error code in case of failure.
 */
 palStatus_t pal_cancelAddressInfoAsync(palDNSQuery_t queryHandle);
 #else
-    #error "Please specify the platform PAL_DNS_API_VERSION 0, 1, or 2."
+    #error "Please specify the platform PAL_DNS_API_VERSION 0, 1, 2 or 3"
 #endif //  PAL_DNS_API_VERSION
 #endif  // PAL_NET_DNS_SUPPORT
 

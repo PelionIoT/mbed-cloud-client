@@ -56,6 +56,7 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver &observer,
                                    const String &con_addr,
                                    const String &version)
     : _event_data(NULL),
+      _server_address{stack, NULL, 0, 0},
       _server_port(0),
       _listen_port(listen_port),
       _life_time(l_time),
@@ -99,9 +100,36 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver &observer,
     //Here we must use TCP still
     _connection_handler.bind_connection(_listen_port);
 
+    M2MResource *disable_res = get_m2mserver()->get_resource(M2MServer::Disable);
+    if (disable_res) {
+        disable_res->set_execute_function(execute_callback(this, &M2MInterfaceImpl::disable_callback));
+        disable_res->set_delayed_response(true);
+        disable_res->set_message_delivery_status_cb(M2MInterfaceImpl::post_response_status_handler, this);
+    }
+
     tr_debug("M2MInterfaceImpl::M2MInterfaceImpl() -OUT");
 }
 
+void M2MInterfaceImpl::post_response_status_handler(const M2MBase &base,
+                                                    const M2MBase::MessageDeliveryStatus status,
+                                                    const M2MBase::MessageType type,
+                                                    void *me)
+{
+    if (status == M2MBase::MESSAGE_STATUS_DELIVERED && type == M2MBase::DELAYED_POST_RESPONSE) {
+        ((M2MInterfaceImpl *)me)->unregister_object();
+    }
+}
+
+
+void M2MInterfaceImpl::disable_callback(void *)
+{
+    // Don't perform unregister yet, as server will not get response. Instead, send response and wait
+    // for acknowledgement before unregistering.
+    M2MResource *disable_res = get_m2mserver()->get_resource(M2MServer::Disable);
+    if (disable_res) {
+        disable_res->send_delayed_post_response();
+    }
+}
 
 M2MInterfaceImpl::~M2MInterfaceImpl()
 {
@@ -273,7 +301,7 @@ void M2MInterfaceImpl::update_registration(M2MSecurity *security_object,
 void M2MInterfaceImpl::unregister_object(M2MSecurity * /*security*/)
 {
     tr_debug("M2MInterfaceImpl::unregister_object - IN - current state %d", _current_state);
-    if (_nsdl_interface.is_unregister_ongoing()) {
+    if (_nsdl_interface.is_unregister_ongoing() || _nsdl_interface.alert_mode()) {
         set_error_description(ERROR_REASON_27);
         _observer.error(M2MInterface::NotAllowed);
         return;
@@ -387,6 +415,10 @@ void M2MInterfaceImpl::registration_error(uint8_t error_code, bool retry, bool f
             //   else
             //        Network issue, do not delete CID but continue reconnection logic (99%)
             tr_error("M2MInterfaceImpl::registration_error sending CLIENT HELLO PING");
+
+            // Make sure that FW download do resume after register update
+            _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
+
             _reconnection_state = M2MInterfaceImpl::ClientPing;
             _connection_handler.resolve_server_address(_server_ip_address, _server_port,
                                                        M2MConnectionObserver::LWM2MServer,
@@ -542,31 +574,12 @@ void M2MInterfaceImpl::data_available(uint8_t *data,
 {
     tr_debug("M2MInterfaceImpl::data_available");
     if (_reconnection_state == M2MInterfaceImpl::ClientPing) {
-        tr_info("M2MInterfaceImpl::data_available() : Ping success, remove CID");
-        //   Lwm2m server has responded so it implies that CID has expired and
-        //   thats why message sending had failed so delete CID and re-do connection with full handshake
-        if (_nsdl_interface.is_registered()) {
-            _reconnection_state = M2MInterfaceImpl::WithUpdate;
-        } else {
-            _reconnection_state = M2MInterfaceImpl::None;
-        }
-
-        _connection_handler.remove_cid();
-        // Update network stagger values as now device has to do full handshake for registration.
-        _nsdl_interface.update_network_rtt_estimate();
-
-        uint16_t rand_time = 10 + _nsdl_interface.get_network_stagger_estimate(false);
-        // The new timeout is randomized to + 10% and -10% range from original random value
-        randLIB_seed_random();
-        rand_time = randLIB_randomise_base(rand_time, 0x7333, 0x8CCD);
-
-        // Take in use the new timer. For single-device networks, reconnecting fast is the primary goal.
-        // For multidevice networks sharing same pipe should provide stagger_estimates. In such case we need to
-        // enforce that to prevent too large reconnection spike in the network.
+        tr_info("M2MInterfaceImpl::data_available() : Ping success");
+        _server_address = address;
+        // There can't be delay between handshake finished and sending the first COAP message as server
+        // needs the first message after handshake to set handshake successful. So let's launch timer after 1ms.
         _retry_timer.stop_timer();
-        _retry_timer.start_timer(rand_time * 1000,
-                                 M2MTimerObserver::RetryTimer);
-
+        _retry_timer.start_timer(1, M2MTimerObserver::RetryTimer);
         return;
     }
     ReceivedData event;
@@ -591,6 +604,13 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
     tr_error("M2MInterfaceImpl::socket_error: (%d), retry (%d), reconnecting (%d), reconnection_state (%d)",
              error_code, retry, _reconnecting, (int)_reconnection_state);
 
+    // Reconnection can't be done when in alert mode
+    if (_nsdl_interface.alert_mode()) {
+        tr_info("M2MInterfaceImpl::socket_error - in alert mode --> go to pause state");
+        pause();
+        return;
+    }
+
     // Ignore errors while client is sleeping
     if (queue_mode()) {
         if (_callback_handler && _queue_mode_timer_ongoing) {
@@ -598,8 +618,8 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
             return;
         }
     }
-    _queue_sleep_timer.stop_timer();
 
+    _queue_sleep_timer.stop_timer();
     _retry_timer.stop_timer();
 
     const char *error_code_des;
@@ -647,6 +667,8 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
 
     // Do a reconnect
     if (retry) {
+        _nsdl_interface.set_registration_status(false);
+
         if ((error == M2MInterface::SecureConnectionFailed || error == M2MInterface::InvalidParameters) &&
                 _bootstrapped) {
             // Connector client will start the bootstrap flow again
@@ -655,7 +677,6 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
             return;
         }
 
-        _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
         _reconnecting = true;
         _connection_handler.stop_listening();
         _retry_timer_expired = false;
@@ -772,14 +793,26 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
     } else if (M2MTimerObserver::RetryTimer == type) {
         tr_debug("M2MInterfaceImpl::timer_expired() - retry");
         _retry_timer_expired = true;
-        if (_bootstrapped) {
-            internal_event(STATE_REGISTER);
-        }
+
+        if (_reconnection_state == M2MInterfaceImpl::ClientPing) {
+            //   Lwm2m server has responded TLS handshake, set the reconnection state to correct state
+            if (_nsdl_interface.is_registered()) {
+                _reconnection_state = M2MInterfaceImpl::WithUpdate;
+            } else {
+                _reconnection_state = M2MInterfaceImpl::None;
+            }
+            // as we have now done handshake already we MUST NOT do any dns queries -> continue to address ready
+            address_ready(_server_address, M2MConnectionObserver::LWM2MServer, _server_address._port);
+        } else {
+            if (_bootstrapped) {
+                internal_event(STATE_REGISTER);
+            }
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
-        else {
-            internal_event(STATE_BOOTSTRAP);
-        }
+            else {
+                internal_event(STATE_BOOTSTRAP);
+            }
 #endif
+        }
 
     } else if (M2MTimerObserver::BootstrapFlowTimer == type) {
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -811,6 +844,10 @@ void M2MInterfaceImpl::state_idle(EventData * /*data*/)
 void M2MInterfaceImpl::state_bootstrap(EventData *data)
 {
     tr_debug("M2MInterfaceImpl::state_bootstrap");
+
+    // Disable CoAP retransmissions when connection is not ready.
+    _nsdl_interface.stop_nsdl_execution_timer();
+
     // Start with bootstrapping preparation
     _bootstrapped = false;
     _bootstrap_finished = false;
@@ -939,9 +976,13 @@ void M2MInterfaceImpl::state_bootstrapped(EventData */*data*/)
 void M2MInterfaceImpl::state_register(EventData *data)
 {
     tr_debug("M2MInterfaceImpl::state_register");
-    _nsdl_interface.set_registration_status(false);
+
+    // Disable CoAP retransmissions when connection is not ready.
+    _nsdl_interface.stop_nsdl_execution_timer();
+
     M2MRegisterData *event = static_cast<M2MRegisterData *>(data);
     if (!_security) {
+        _nsdl_interface.set_registration_status(false);
         M2MInterface::Error error = M2MInterface::InvalidParameters;
         // Start with registration preparation
         if (event) {
@@ -1064,6 +1105,14 @@ void M2MInterfaceImpl::state_register_address_resolved(EventData *data)
 
         _retry_timer.stop_timer();
 
+        // Reset back to normal mode
+        if (_nsdl_interface.alert_mode()) {
+            _nsdl_interface.set_alert_mode(false);
+            if (!_connection_handler.set_socket_priority(M2MConnectionHandler::DEFAULT_PRIORITY)) {
+                tr_warn("M2MInterfaceImpl::state_register_address_resolved - failed to set socket priority");
+            }
+        }
+
         switch (_reconnection_state) {
             case M2MInterfaceImpl::None:
                 if (!_nsdl_interface.send_register_message()) {
@@ -1078,6 +1127,8 @@ void M2MInterfaceImpl::state_register_address_resolved(EventData *data)
             case M2MInterfaceImpl::WithUpdate:
                 // Start registration update in case it is reconnection logic because of network issue.
                 internal_event(STATE_UPDATE_REGISTRATION);
+                break;
+            default:
                 break;
         }
     }
@@ -1139,9 +1190,11 @@ void M2MInterfaceImpl::pause()
 {
     tr_debug("M2MInterfaceImpl::pause()");
     internal_event(STATE_IDLE);
+
     if (_binding_mode == M2MInterface::UDP || _binding_mode == M2MInterface::UDP_QUEUE) {
         _connection_handler.store_cid();
     }
+
     _connection_handler.unregister_network_handler();
     _connection_handler.stop_listening();
     _retry_timer.stop_timer();
@@ -1151,7 +1204,34 @@ void M2MInterfaceImpl::pause()
 
     sn_nsdl_clear_coap_resending_queue(_nsdl_interface.get_nsdl_handle());
 
+    _observer.paused();
+}
 
+void M2MInterfaceImpl::alert()
+{
+    if (!_nsdl_interface.is_registered() || _reconnecting) {
+        tr_info("M2MInterfaceImpl::alert() - in reconnection or not registered --> go to pause");
+        pause();
+        return;
+    }
+
+    if (!_connection_handler.set_socket_priority(M2MConnectionHandler::ALERT_PRIORITY)) {
+        tr_warn("M2MInterfaceImpl::alert - failed to set socket into high priority mode");
+    }
+
+    sn_nsdl_clear_coap_resending_queue(_nsdl_interface.get_nsdl_handle());
+    _connection_handler.claim_mutex();
+    _nsdl_interface.set_request_context_to_be_resend(NULL, 0);
+    _connection_handler.release_mutex();
+    _queue_sleep_timer.stop_timer();
+
+    _nsdl_interface.set_alert_mode(true);
+    _nsdl_interface.clear_sent_blockwise_messages();
+    _nsdl_interface.clear_received_blockwise_messages();
+
+    internal_event(STATE_WAITING);
+
+    _observer.alert_mode();
 }
 
 void M2MInterfaceImpl::state_unregister(EventData */*data*/)
@@ -1500,7 +1580,7 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
                 _retry_timer.start_timer(rand_time * 1000,
                                          M2MTimerObserver::RetryTimer);
                 // The old value is an estimate as it has been randomized before use (+/- 10%).
-                tr_info("M2MInterfaceImpl::network_interface_status_change - old value %d - new reconnection time %d", _reconnection_time / RECONNECT_INCREMENT_FACTOR, rand_time);
+                tr_info("M2MInterfaceImpl::network_interface_status_change - old value %" PRIu32 " - new reconnection time %" PRIu32, _reconnection_time / RECONNECT_INCREMENT_FACTOR, rand_time);
                 _reconnection_time = rand_time;
             }
         }

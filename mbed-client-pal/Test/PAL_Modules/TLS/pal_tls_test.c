@@ -18,7 +18,7 @@
 #include "unity.h"
 #include "unity_fixture.h"
 #include "pal.h"
-#include "pal_Crypto.h"
+#include "cs_pal_crypto.h"
 #include "pal_tls_utils.h"
 #include "storage_kcm.h"
 #include "test_runners.h"
@@ -62,17 +62,19 @@ PAL_PRIVATE palSocket_t g_socket = 0;
 extern void * g_palTestTLSInterfaceCTX; // this is set by the palTestMain funciton
 PAL_PRIVATE uint32_t g_interfaceCTXIndex = 0;
 
-#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+#if (PAL_USE_INTERNAL_FLASH == 1)
     PAL_PRIVATE uint8_t g_trustedServerID[PAL_CERT_ID_SIZE] __attribute__((aligned(4))) = { 0 };
     PAL_PRIVATE size_t g_actualServerIDSize = 0;
 #endif
 
+#if ((PAL_USE_SECURE_TIME == 1) && (PAL_ENABLE_X509 == 1))
 PAL_PRIVATE palMutexID_t g_mutex1 = NULLPTR;
 #if (PAL_ENABLE_X509 == 1)
     PAL_PRIVATE palMutexID_t g_mutex2 = NULLPTR;
 #endif
 PAL_PRIVATE palMutexID_t g_mutexHandShake1 = NULLPTR;
 PAL_PRIVATE bool g_retryHandshake = false;
+#endif
 
 #define PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(a, b) \
     if (a != b) \
@@ -81,17 +83,47 @@ PAL_PRIVATE bool g_retryHandshake = false;
         goto finish;\
     }
 
-#if (PAL_DNS_API_VERSION == 2)
+#if (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
 
 static palSemaphoreID_t s_asyncDnsSemaphore = NULLPTR;
 
 // callback invoked from the call to pal_getAddressInfoAsync
+#if (PAL_DNS_API_VERSION == 2)
+
 PAL_PRIVATE void getAddressInfoAsyncCallback(const char* url, palSocketAddress_t* address, palStatus_t status, void* callbackArgument)
 {
+#else // (PAL_DNS_API_VERSION == 3)
+static palAddressInfo_t *global_addrInfo = NULLPTR;
+static palDNSQuery_t dns_query_t = 0;
+PAL_PRIVATE void getAddressInfoAsyncCallback(const char* url, palAddressInfo_t *addrInfo, palStatus_t status, void* callbackArgument)
+{
+    global_addrInfo = addrInfo;
+#endif
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     pal_osSemaphoreRelease(s_asyncDnsSemaphore);
 }
 #endif
+
+#if !(PAL_USE_SECURE_TIME)
+// If testing without PAL secure time, some tests require faking the time to mbedtls to get desired effect
+// from certificate verification
+#include "mbedtls/ssl.h"
+#include "mbedtls/platform.h"
+static mbedtls_time_t time_to_return;
+static mbedtls_time_t definately_in_future = 1935316090; // Wednesday, April 30, 2031 11:48:10 AM
+static int return_fake_time = 0;
+mbedtls_time_t pal_mbedtlsTimeCB(mbedtls_time_t* timer)
+{
+    if(return_fake_time) {
+        return time_to_return++;
+    }
+    else {
+        // this is what mbedtls calls by default if mbedtls_platform_set_time was not called
+        return MBEDTLS_PLATFORM_STD_TIME(timer);
+    }
+}
+#endif
+
 
 PAL_PRIVATE palStatus_t doDnsQuery(const char* hostname, palSocketAddress_t *address, palSocketLength_t *addrlen)
 {
@@ -106,6 +138,20 @@ PAL_PRIVATE palStatus_t doDnsQuery(const char* hostname, palSocketAddress_t *add
                                      NULL);
 
     result = pal_osSemaphoreWait(s_asyncDnsSemaphore, 5000, NULL);
+#elif (PAL_DNS_API_VERSION == 3)
+    result = pal_osSemaphoreCreate(0, &s_asyncDnsSemaphore);
+    TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, result);
+    result = pal_getAddressInfoAsync(hostname,
+                                     &getAddressInfoAsyncCallback,
+                                     NULL,
+                                     &dns_query_t);
+    result = pal_osSemaphoreWait(s_asyncDnsSemaphore, 5000, NULL);
+    result = pal_free_addressinfoAsync(dns_query_t);
+    result = pal_getDNSAddress(global_addrInfo, 0, address);
+    *addrlen = sizeof(palSocketAddress_t);
+    pal_freeAddrInfo(global_addrInfo);
+    global_addrInfo = NULLPTR;
+    dns_query_t = 0;
 #else
     result = pal_getAddressInfo(hostname, address, addrlen);
 #endif
@@ -123,6 +169,7 @@ PAL_PRIVATE void socketCallback1( void * arg)
 }
 
 static void setCredentials(palTLSConfHandle_t handle);
+static void setCredentialsWrongCA(palTLSConfHandle_t handle);
 static void do_handshake(palTLSTransportMode_t mode, bool enable_session_storing);
 
 //! This structre is for tests only and MUST be the same structure as in the pal_TLS.c file
@@ -193,10 +240,16 @@ TEST_SETUP(pal_tls)
 
     status = pal_osSetTime(currentTime);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#if !(PAL_USE_SECURE_TIME)
+    mbedtls_platform_set_time(pal_mbedtlsTimeCB);
+#endif
 }
 
 TEST_TEAR_DOWN(pal_tls)
 {
+#if !(PAL_USE_SECURE_TIME)
+    return_fake_time = 0;
+#endif
     if (0 != g_socket)
     {
         pal_close(&g_socket);
@@ -449,8 +502,8 @@ TEST(pal_tls, tlsCACertandPSK)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Create a TCP socket.                                    | PAL_SUCCESS |
-* | 2 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 1 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 2 | Create a TCP socket.                                                       | PAL_SUCCESS |
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 5 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
@@ -490,10 +543,6 @@ TEST(pal_tls, tlsHandshakeTCP)
     struct server_address server;
 
     /*#1*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#2*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
@@ -502,6 +551,10 @@ TEST(pal_tls, tlsHandshakeTCP)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -559,7 +612,7 @@ TEST(pal_tls, tlsHandshakeTCP)
         curTimeInSec = pal_osGetTime();
         TEST_ASSERT_TRUE(curTimeInSec >= minSecSinceEpoch);
         timePassedInSec = curTimeInSec - minSecSinceEpoch;
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while ((PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status) &&
@@ -617,8 +670,8 @@ TEST(pal_tls, tlsHandshakeTCP)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Create a UDP socket.                                        | PAL_SUCCESS |
-* | 2 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 1 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 2 | Create a UDP socket.                                                       | PAL_SUCCESS |
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
 * | 5 | Initialize the TLS context using `pal_initTLS`.                            | PAL_SUCCESS |
@@ -654,16 +707,12 @@ TEST(pal_tls, tlsHandshakeUDP)
     palTLSSocket_t tlsSocket = {g_socket, &socketAddr, 0, transportationMode};
     int32_t verifyResult = 0;
     struct server_address server;
-
-    /*#1*/
     int32_t temp;
+
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_DGRAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#2*/
+    /*#1*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
@@ -671,6 +720,10 @@ TEST(pal_tls, tlsHandshakeUDP)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_DGRAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -711,7 +764,7 @@ TEST(pal_tls, tlsHandshakeUDP)
     /*#9*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
@@ -763,8 +816,8 @@ TEST(pal_tls, tlsHandshakeUDP)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Create a UDP socket.                                        | PAL_SUCCESS |
-* | 2 | Perform a DNS lookup on server adderss.                                | PAL_SUCCESS |
+* | 1 | Perform a DNS lookup on server adderss.                                | PAL_SUCCESS |
+* | 2 | Create a UDP socket.                                                   | PAL_SUCCESS |
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
 * | 5 | Initialize the TLS context using `pal_initTLS`.                            | PAL_SUCCESS |
@@ -792,25 +845,24 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     #endif
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
     struct server_address server;
-
+    int32_t temp;
     uint64_t curTimeInSec;
     const uint64_t minSecSinceEpoch = PAL_MIN_SEC_FROM_EPOCH + 1; //At least 47 years passed from 1.1.1970 in seconds
 
-    /*#1*/
-    int32_t temp;
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_DGRAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#2*/
+    /*#1*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_DGRAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -854,7 +906,7 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
     /*#9*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
@@ -885,8 +937,8 @@ TEST(pal_tls, tlsHandshakeUDPTimeOut)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Create a TCP socket.                                          | PAL_SUCCESS |
-* | 2 | Perform a DNS lookup on the server address.                              | PAL_SUCCESS |
+* | 1 | Perform a DNS lookup on the server address.                              | PAL_SUCCESS |
+* | 2 | Create a TCP socket.                                                     | PAL_SUCCESS |
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 5 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
@@ -927,22 +979,22 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     uint64_t initialTime = 0;
     int32_t verifyResult = 0;
     struct server_address server;
-
     int32_t temp;
+
     status = pal_osSemaphoreCreate(1, &s_semaphoreID);
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
     /*#1*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#2*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -987,7 +1039,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
     /*#10*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
@@ -1064,8 +1116,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M)
 * |---|--------------------------------|-------------|
 * | 1 | Get saved time from storage, move backward half day and set time to RAM    | PAL_SUCCESS |
 * | 2 | Update `STORAGE_RBP_SAVED_TIME_NAME` directly in storage to the new time from #1  | PAL_SUCCESS |
-* | 3 | Create a TCP socket.                                         | PAL_SUCCESS |
-* | 4 | Perform a DNS lookup on the server address.                             | PAL_SUCCESS |
+* | 3 | Perform a DNS lookup on the server address.                             | PAL_SUCCESS |
+* | 4 | Create a TCP socket.                                                    | PAL_SUCCESS |
 * | 5 | Set the server port.                                                    | PAL_SUCCESS |
 * | 6 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 7 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
@@ -1125,15 +1177,15 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#3*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#4*/
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#4*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#5*/
@@ -1182,7 +1234,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
     /*#11*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
@@ -1253,13 +1305,14 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 
 
 /**
-* @brief Test TLS handshake (TCP) with future time to make handshake to fail due to bad cert time from server.
+* @brief Test TLS handshake (TCP) with future time to make handshake to fail when PAL_USE_SECURE_TIME is set
+*        and pass if unset, due to bad cert time from server.
 *
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Create a TCP socket.                                        | PAL_SUCCESS |
-* | 2 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 1 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 2 | Create a TCP socket.                                                       | PAL_SUCCESS |
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
 * | 5 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
@@ -1267,7 +1320,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureLWM2M_NoTimeUpdate)
 * | 7 | Set the certificate and keys.                                              | PAL_SUCCESS |
 * | 8 | Set the socket chain to the configuration using `pal_tlsSetSocket`.           | PAL_SUCCESS |
 * | 9 | Setsystem time to be far in the future `pal_osSetTime`.                   | PAL_SUCCESS |
-* | 10 | Perform a TLS handshake with the server using `pal_handShake`.           | PAL_ERR_X509_CERT_VERIFY_FAILED |
+* | 10 | Perform a TLS handshake with the server using `pal_handShake`.           | PAL_ERR_X509_CERT_VERIFY_FAILED OR PAL_SUCCESS |
 * | 11 | Verify the handshake result using `pal_sslGetVerifyResult`.               | PAL_ERR_X509_BADCERT_EXPIRED |
 * | 12 | Set tme back to the original time before the test.                        | PAL_SUCCESS |
 * | 13 | Uninitialize the TLS context using `pal_freeTLS`.                         | PAL_SUCCESS |
@@ -1279,7 +1332,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-#if ((PAL_USE_SECURE_TIME == 1) && (PAL_USE_INTERNAL_FLASH == 1))
+#if (PAL_USE_INTERNAL_FLASH)
     palStatus_t status = PAL_SUCCESS;
     palTLSConfHandle_t palTLSConf = NULLPTR;
     palTLSHandle_t palTLSHandle = NULLPTR;
@@ -1287,9 +1340,11 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     palSocketAddress_t socketAddr = {0};
     palSocketLength_t addressLength = 0;
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
+#if PAL_USE_SECURE_TIME
     uint64_t futureTime = 2145542642; //Wed, 27 Dec 2037 16:04:02 GMT
     uint64_t currentTime = 0;
     size_t actualSavedTimeSize = 0;
+#endif
     int32_t verifyResult = 0;
     struct server_address server;
 
@@ -1301,10 +1356,6 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     do_handshake(PAL_TLS_MODE, false);
 
     /*#1*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#2*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
@@ -1312,6 +1363,10 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -1359,6 +1414,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     }
 
     /*#9*/
+#if PAL_USE_SECURE_TIME
     status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     status = pal_osSetTime(futureTime);
@@ -1368,15 +1424,21 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
         pal_tlsConfigurationFree(&palTLSConf);
         TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     }
+#else
+    // Set time to future
+    return_fake_time = 1;
+    time_to_return = definately_in_future;
+#endif
 
     /*#10*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
 
+#if PAL_USE_SECURE_TIME
     if (PAL_ERR_X509_CERT_VERIFY_FAILED != status)
     {
         pal_osSetTime(currentTime);
@@ -1384,20 +1446,32 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
         pal_tlsConfigurationFree(&palTLSConf);
         TEST_ASSERT_EQUAL_HEX(PAL_ERR_X509_CERT_VERIFY_FAILED, status);
     }
+#else
+    if (PAL_SUCCESS != status)
+    {
+        pal_freeTLS(&palTLSHandle);
+        pal_tlsConfigurationFree(&palTLSConf);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+#endif
 
     /*#11*/
     status = pal_sslGetVerifyResultExtended(palTLSHandle, &verifyResult);
     if ((PAL_ERR_X509_CERT_VERIFY_FAILED != status) || (0 == (PAL_ERR_X509_BADCERT_EXPIRED & verifyResult)))
     {
+#if PAL_USE_SECURE_TIME
         pal_osSetTime(currentTime);
+#endif
         pal_freeTLS(&palTLSHandle);
         pal_tlsConfigurationFree(&palTLSConf);
         TEST_ASSERT_TRUE(PAL_ERR_X509_BADCERT_EXPIRED & verifyResult);
     }
 
+#if PAL_USE_SECURE_TIME
     /*#12*/
     status = pal_osSetTime(currentTime);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+#endif
 
     /*#13*/
     status = pal_freeTLS(&palTLSHandle);
@@ -1414,19 +1488,19 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
     status = pal_close(&g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
+#if PAL_USE_SECURE_TIME
     /*#15*/
     status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&currentTime, sizeof(currentTime), &actualSavedTimeSize);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
     TEST_ASSERT_TRUE(futureTime > currentTime);
+#endif
 #else
-    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_SECURE_TIME or PAL_USE_INTERNAL_FLASH not set");
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_INTERNAL_FLASH not set");
 #endif
 
 #else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
     TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
 #endif
-
-
 }
 
 /**
@@ -1435,8 +1509,8 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredLWM2MCert)
 *
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
-* | 1 | Create a TCP socket.                                        | PAL_SUCCESS |
-* | 2 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 1 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 2 | Create a TCP socket.                                                       | PAL_SUCCESS |
 * | 3 | Set the server port.                                                     | PAL_SUCCESS |
 * | 4 | Parse the CA cert.                                                     | PAL_SUCCESS |
 * | 5 | Get the CA cert ID.                                                     | PAL_SUCCESS |
@@ -1484,16 +1558,16 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
 
     /*#1*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#2*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#1*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#3*/
@@ -1587,7 +1661,7 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
     /*#13*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
@@ -1698,8 +1772,8 @@ TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_Trusted)
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
 * | 1 | Get saved time from storage, move backward half day and set time to RAM    | PAL_SUCCESS |
-* | 2 | Create a TCP socket.                                        | PAL_SUCCESS |
-* | 3 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 2 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 3 | Create a TCP socket.                                                       | PAL_SUCCESS |
 * | 4 | Set the server port.                                                     | PAL_SUCCESS |
 * | 5 | Parse the CA cert.                                                     | PAL_SUCCESS |
 * | 6 | Get the CA cert ID.                                                     | PAL_SUCCESS |
@@ -1757,16 +1831,16 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#3*/
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#3*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#4*/
@@ -1854,7 +1928,7 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
     /*#13*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
@@ -1959,8 +2033,8 @@ TEST(pal_tls, tlsHandshakeTCP_FutureTrustedServer_NoTimeUpdate)
 * | # |    Step                        |   Expected  |
 * |---|--------------------------------|-------------|
 * | 1 | Get saved time from storage, move forward half day and set time to RAM    | PAL_SUCCESS |
-* | 2 | Create a TCP socket.                                        | PAL_SUCCESS |
-* | 3 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 2 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 3 | Create a TCP socket.                                                       | PAL_SUCCESS |
 * | 4 | Set the server port.                                                     | PAL_SUCCESS |
 * | 5 | Parse the CA cert.                                                     | PAL_SUCCESS |
 * | 6 | Get the CA cert ID.                                                     | PAL_SUCCESS |
@@ -2020,15 +2094,15 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#2*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
-    /*#3*/
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
     }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#3*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
     /*#4*/
@@ -2116,7 +2190,7 @@ TEST(pal_tls, tlsHandshakeTCP_NearPastTrustedServer_NoTimeUpdate)
     /*#13*/
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
@@ -2229,16 +2303,6 @@ static void do_handshake(palTLSTransportMode_t mode, bool enable_session_storing
     palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
     struct server_address server;
 
-    if (mode == PAL_TLS_MODE)
-    {
-        status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
-    }
-    else
-    {
-        status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_DGRAM, true, 0, socketCallback1, &g_socket);
-    }
-    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
-
     parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
 
     status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
@@ -2246,6 +2310,16 @@ static void do_handshake(palTLSTransportMode_t mode, bool enable_session_storing
     if (PAL_SUCCESS != status)
     {
         PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
+    }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    if (mode == PAL_TLS_MODE)
+    {
+        status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
+    }
+    else
+    {
+        status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_DGRAM, true, 0, socketCallback1, &g_socket);
     }
     TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
 
@@ -2298,7 +2372,7 @@ static void do_handshake(palTLSTransportMode_t mode, bool enable_session_storing
 
     do
     {
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
     }
     while ((PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status));
@@ -2346,12 +2420,12 @@ static palStatus_t ThreadHandshakeTCP()
     mutexWait = true;
 
     /*#1*/
-    status = pal_asynchronousSocket(PAL_AF_INET, PAL_SOCK_STREAM, true, 0, socketCallback1, &socketTCP);
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
+    status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
     /*#2*/
-    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
-    status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &socketTCP);
     PAL_TLS_INT32_CHECK_NOT_EQUAL_GOTO_FINISH(PAL_SUCCESS, status);
 
     tlsSocket.addressLength = addressLength;
@@ -2409,7 +2483,7 @@ static palStatus_t ThreadHandshakeTCP()
                 pal_osDelay(600);
             }
         }
-        status = pal_handShake(palTLSHandle, palTLSConf);
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
         pal_osDelay(1000);
     }
     while ( (PAL_ERR_TLS_WANT_READ == status) || (PAL_ERR_TLS_WANT_WRITE == status));
@@ -2708,10 +2782,250 @@ TEST(pal_tls, tlsHandshake_SessionResume)
 
 }
 
+/**
+* @brief Test TLS handshake (TCP) to make sure client handles multiple error messages from certificate verification.
+*
+*
+* | # |    Step                        |   Expected  |
+* |---|--------------------------------|-------------|
+* | 1 | Perform a DNS lookup on the server address.                                | PAL_SUCCESS |
+* | 2 | Create a TCP socket.                                                       | PAL_SUCCESS |
+* | 3 | Set the server port.                                                     | PAL_SUCCESS |
+* | 4 | Parse the CA cert.                                                     | PAL_SUCCESS |
+* | 5 | Get the CA cert ID.                                                     | PAL_SUCCESS |
+* | 6 | Set the CA cert ID into the storage.                                            | PAL_SUCCESS |
+* | 7 | Connect the TCP socket to the server.                                        | PAL_SUCCESS |
+* | 8 | Initialize the TLS configuration using `pal_initTLSConfiguration`.         | PAL_SUCCESS |
+* | 9 | Initialize the TLS context using `pal_initTLS`.                            | PAL_SUCCESS |
+* | 10 | Set the certificate and keys. set CA cert so that it will not be valid.   | PAL_SUCCESS |
+* | 11 | Set the socket to the configuration using `pal_tlsSetSocket`.           | PAL_SUCCESS |
+* | 12 | Set system time to be far in the future `pal_osSetTime`.                   | PAL_SUCCESS |
+* | 13 | Perform a TLS handshake with the server using `pal_handShake`.           | PAL_ERR_X509_CERT_VERIFY_FAILED |
+* | 14 | Uninitialize the TLS context using `pal_freeTLS`.                         | PAL_SUCCESS |
+* | 15 | Uninitialize the TLS configuration using `pal_tlsConfigurationFree`.      | PAL_SUCCESS |
+* | 16 | Free X509 handle.                                                   | PAL_SUCCESS |
+*/
+// this is copy-paste of palTLSService_t from pal_TLS.c. It's not meant to be used outside PAL but
+// since this test needs to mimic malicious server returning a certificate which is wrong in two
+// ways and also returning non-valid 'secure time' in the ServerHello message we need to modify
+// it during the test.
+typedef struct tls_ctx
+{
+    bool retryHandShake;
+    uint64_t serverTime;
+    uintptr_t platTlsHandle;
+}tls_ctx_t;
+
+TEST(pal_tls, tlsHandshakeTCP_ExpiredServerCert_UnTrusted)
+{
+
+#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+
+#if (PAL_USE_INTERNAL_FLASH)
+    palStatus_t status = PAL_SUCCESS;
+    palTLSConfHandle_t palTLSConf = NULLPTR;
+    palTLSHandle_t palTLSHandle = NULLPTR;
+    palTLSTransportMode_t transportationMode = PAL_TLS_MODE;
+    palSocketAddress_t socketAddr = { 0 };
+    palSocketLength_t addressLength = 0;
+    palTLSSocket_t tlsSocket = { g_socket, &socketAddr, 0, transportationMode };
+    uint64_t futureTime = 2145542642; //Wed, 27 Dec 2037 16:04:02 GMT
+    uint64_t updatedTime = 0;
+    size_t actualSavedTimeSize = 0;
+    palX509Handle_t trustedServerCA = NULLPTR;
+    struct server_address server;
+
+    int32_t temp;
+    status = pal_osSemaphoreCreate(1, &s_semaphoreID);
+    TEST_ASSERT_EQUAL_HEX( PAL_SUCCESS, status);
+
+    /*#1*/
+    parseServerAddress(&server, PAL_TLS_TEST_SERVER_ADDRESS);
+    status = doDnsQuery(server.hostname, &socketAddr, &addressLength);
+    if (PAL_SUCCESS != status)
+    {
+        PAL_LOG_ERR("DNS query error for %s", PAL_TLS_TEST_SERVER_ADDRESS);
+    }
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#2*/
+    status = pal_asynchronousSocket(socketAddr.addressType, PAL_SOCK_STREAM, true, 0, socketCallback1, &g_socket);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#3*/
+    status = pal_setSockAddrPort(&socketAddr, server.port);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    tlsSocket.addressLength = addressLength;
+    tlsSocket.socket = g_socket;
+
+    /*#4*/
+    status = pal_x509Initiate(&trustedServerCA);
+    TEST_ASSERT_NOT_EQUAL(trustedServerCA, NULLPTR);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_x509CertParse(trustedServerCA, (const unsigned char *)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE);
+    if (PAL_SUCCESS != status)
+    {
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#5*/
+    status = pal_x509CertGetAttribute(trustedServerCA, PAL_X509_CERT_ID_ATTR, g_trustedServerID, sizeof(g_trustedServerID), &g_actualServerIDSize);
+    if (PAL_SUCCESS != status)
+    {
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#6*/
+    status = storage_rbp_write(STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME, (uint8_t*)g_trustedServerID, g_actualServerIDSize, false);
+    if (PAL_SUCCESS != status)
+    {
+        status = pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#7*/
+    do {
+        status = pal_connect(g_socket, &socketAddr, addressLength);
+        pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
+    } while (status == PAL_ERR_SOCKET_IN_PROGRES || status == PAL_ERR_SOCKET_WOULD_BLOCK);
+
+    if (status == PAL_ERR_SOCKET_ALREADY_CONNECTED) {
+        status = PAL_SUCCESS;
+    }
+
+    if (PAL_SUCCESS != status)
+    {
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#8*/
+    status = pal_initTLSConfiguration(&palTLSConf, transportationMode);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    /*#9*/
+    status = pal_initTLS(palTLSConf, &palTLSHandle, false);
+    if (PAL_SUCCESS != status)
+    {
+        pal_freeTLS(&palTLSHandle);
+        pal_tlsConfigurationFree(&palTLSConf);
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#10*/
+    setCredentialsWrongCA(palTLSConf);
+
+    /*#11*/
+    status = pal_tlsSetSocket(palTLSConf, &tlsSocket);
+    if (PAL_SUCCESS != status)
+    {
+        pal_freeTLS(&palTLSHandle);
+        pal_tlsConfigurationFree(&palTLSConf);
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#12*/
+    status = pal_osSetStrongTime(futureTime);
+    if (PAL_SUCCESS != status)
+    {
+        pal_freeTLS(&palTLSHandle);
+        pal_tlsConfigurationFree(&palTLSConf);
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#13*/
+    do
+    {
+        status = pal_handShake(palTLSHandle, palTLSConf, false);
+        tls_ctx_t* tls_ctx = (tls_ctx_t*)palTLSHandle;
+        if (tls_ctx->retryHandShake) {
+            // server should really fail before logic goes to renegotiation...
+            // ..but this hack ensures we get server's cert to appear from future
+            // if it happens to still continue there
+            tls_ctx->serverTime = 50;
+        }
+        pal_osSemaphoreWait(s_semaphoreID, 1000, &temp);
+    }
+    while (PAL_ERR_TLS_WANT_READ == status || PAL_ERR_TLS_WANT_WRITE == status);
+
+    if (PAL_ERR_X509_CERT_VERIFY_FAILED != status)
+    {
+        pal_freeTLS(&palTLSHandle);
+        pal_tlsConfigurationFree(&palTLSConf);
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_ERR_X509_CERT_VERIFY_FAILED, status);
+    }
+
+    /*#14*/
+    status = pal_freeTLS(&palTLSHandle);
+    if (PAL_SUCCESS != status)
+    {
+        pal_x509Free(&trustedServerCA);
+        pal_tlsConfigurationFree(&palTLSConf);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#15*/
+    status = pal_tlsConfigurationFree(&palTLSConf);
+    if (PAL_SUCCESS != status)
+    {
+        pal_x509Free(&trustedServerCA);
+        TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    }
+
+    /*#16*/
+    status = pal_x509Free(&trustedServerCA);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_close(&g_socket);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = storage_rbp_read(STORAGE_RBP_SAVED_TIME_NAME, (uint8_t*)&updatedTime, sizeof(updatedTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_TRUE(updatedTime <= futureTime);
+
+    status = storage_rbp_read(STORAGE_RBP_LAST_TIME_BACK_NAME, (uint8_t*)&updatedTime, sizeof(updatedTime), &actualSavedTimeSize);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    TEST_ASSERT_TRUE(updatedTime <= futureTime);
+#else
+    TEST_IGNORE_MESSAGE("Ignored, PAL_USE_INTERNAL_FLASH not set");
+#endif
+
+#else //MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+    TEST_IGNORE_MESSAGE("Ignored, MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT is defined");
+#endif
+
+}
+
 static void setCredentials(palTLSConfHandle_t handle)
 {
     palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
     palX509_t caCert = { (const void*)PAL_TLS_TEST_SERVER_CA, MAX_CERTIFICATE_SIZE };
+
+    palStatus_t status;
+    palPrivateKey_t prvKey;
+    status = pal_initPrivateKey((const void*)PAL_TLS_TEST_DEVICE_PRIVATE_KEY, MAX_CERTIFICATE_SIZE, &prvKey);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+
+    status = pal_setOwnCertChain(handle, &pubKey);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_setOwnPrivateKey(handle, &prvKey);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+    status = pal_setCAChain(handle, &caCert, NULL);
+    TEST_ASSERT_EQUAL_HEX(PAL_SUCCESS, status);
+}
+
+static void setCredentialsWrongCA(palTLSConfHandle_t handle)
+{
+    palX509_t pubKey = {(const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE};
+    palX509_t caCert = { (const void*)PAL_TLS_TEST_DEVICE_CERTIFICATE, MAX_CERTIFICATE_SIZE };
 
     palStatus_t status;
     palPrivateKey_t prvKey;

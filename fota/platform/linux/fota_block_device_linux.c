@@ -217,6 +217,11 @@ int fota_bd_get_erase_value(int *erase_value)
     return FOTA_STATUS_SUCCESS;
 }
 
+size_t fota_bd_physical_addr_to_logical_addr(size_t phys_addr)
+{
+    return phys_addr;
+}
+
 #endif // (MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE != FOTA_EXTERNAL_BD)
 #endif // defined(TARGET_LIKE_LINUX)
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE
