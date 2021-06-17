@@ -1,5 +1,13 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.9.1 (17.06.2021)
+
+### Device Management Client
+- Fixed the incorrect overriding of CoAP retransmission buffer size.
+
+### Platform Adaptation Layer (PAL)
+- [Zephyr] Fixed a memory leak on DNs handling.
+
 ### Release 4.9.0 (20.05.2021)
 
 ### Device Management Client

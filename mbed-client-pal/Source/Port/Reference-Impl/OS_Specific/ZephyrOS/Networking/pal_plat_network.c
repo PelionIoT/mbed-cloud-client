@@ -704,6 +704,9 @@ palStatus_t pal_plat_getAddressInfo(const char* hostname, palSocketAddress_t* ad
                 assert(0);
             }
 
+            /* release allocated resources */
+            freeaddrinfo(info);
+
         } else {
 
             result = PAL_ERR_SOCKET_DNS_ERROR;

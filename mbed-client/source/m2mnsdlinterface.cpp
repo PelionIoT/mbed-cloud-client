@@ -88,7 +88,7 @@
 
 #define REGISTRATION_UPDATE_DELAY 10 // wait 10ms before sending registration update for PUT to resource 1/0/1
 
-const char *MCC_VERSION = "mccv=4.9.0";
+const char *MCC_VERSION = "mccv=4.9.1";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -317,8 +317,6 @@ bool M2MNsdlInterface::initialize()
     sn_nsdl_set_retransmission_parameters(_nsdl_handle,
                                           MBED_CLIENT_RECONNECTION_COUNT,
                                           _network_rtt_estimate);
-
-    sn_nsdl_set_retransmission_buffer(_nsdl_handle, MBED_CLIENT_SN_COAP_RESENDING_QUEUE_SIZE_MSGS, 0);
 
     sn_nsdl_handle_block2_response_internally(_nsdl_handle, false);
 
