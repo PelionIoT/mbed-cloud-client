@@ -181,7 +181,7 @@ palStatus_t pal_plat_osDelay(uint32_t milliseconds)
 }
 
 struct timer_data {
-    struct k_work_delayable work;
+    struct k_work_delayable dwork;
     palTimerFuncPtr callback;
     void *arg;
     struct k_mutex lock;
@@ -193,7 +193,7 @@ struct timer_data {
 static void work_fn(struct k_work *work)
 {
     struct k_work_delayable *dwork = CONTAINER_OF(work, struct k_work_delayable, work);
-    struct timer_data *timer_data = CONTAINER_OF(dwork, struct timer_data, work);
+    struct timer_data *timer_data = CONTAINER_OF(dwork, struct timer_data, dwork);
 
     uint64_t uptime = k_uptime_get();
 
@@ -226,16 +226,17 @@ static void work_fn(struct k_work *work)
                 delay = 0;
             }
 
-            k_work_reschedule(&timer_data->work, K_MSEC(delay));
+            k_work_reschedule(&timer_data->dwork, K_MSEC(delay));
 
             /* If timer was started reference is already taken. */
             k_sem_take(&timer_data->busy, K_NO_WAIT);
         }
     } else {
-        if (!k_work_reschedule(&timer_data->work,
+        if (!k_work_reschedule(&timer_data->dwork,
                                K_MSEC(timer_data->timeout - uptime))) {
             k_sem_take(&timer_data->busy, K_NO_WAIT);
         }
+
     }
 
     /* Release the timer. */
@@ -267,7 +268,7 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function,
         k_sem_init(&timer_data->busy, 2, 2);
 
         k_mutex_init(&timer_data->lock);
-        k_work_init_delayable(&timer_data->work, work_fn);
+        k_work_init_delayable(&timer_data->dwork, work_fn);
 
         *timerID = (palTimerID_t)timer_data;
         return PAL_SUCCESS;
@@ -295,11 +296,11 @@ palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
         timer_data->period = millisec;
     }
 
-    if (!k_work_cancel_delayable(&timer_data->work)) {
+    if (!k_work_cancel_delayable(&timer_data->dwork)) {
         k_sem_give(&timer_data->busy);
-        k_work_reschedule(&timer_data->work, get_timeout(millisec));
+        k_work_reschedule(&timer_data->dwork, get_timeout(millisec));
         k_sem_take(&timer_data->busy, K_NO_WAIT);
-    } else if (!k_work_reschedule(&timer_data->work, get_timeout(millisec))) {
+    } else if (!k_work_reschedule(&timer_data->dwork, get_timeout(millisec))) {
         k_sem_take(&timer_data->busy, K_NO_WAIT);
     } else {
         /* Callback cannot be stopped or resubmitted.
@@ -327,7 +328,7 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
         timer_data->period = UINT64_MAX;
     }
 
-    if (!k_work_cancel_delayable(&timer_data->work)) {
+    if (!k_work_cancel_delayable(&timer_data->dwork)) {
         k_sem_give(&timer_data->busy);
     } else {
         /* Callback cannot be stopped.
