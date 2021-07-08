@@ -14,6 +14,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+#include "platform/mbed_version.h"
 #include "psa_driver.h"
 #include "psa/protected_storage.h"
 #include "psa/crypto.h"
