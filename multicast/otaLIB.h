@@ -370,7 +370,17 @@ void ota_socket_receive_data(uint16_t payload_length,
  */
 void ota_firmware_pulled();
 
+/**
+ * \brief A function to delete multicast session
+ * \param session Session identifier.
+ */
 void ota_delete_session(uint8_t* session);
+
+/**
+ * \brief A function to send an error to the backend
+ * \param error Error code to be sent.
+ */
+void ota_send_error(ota_error_code_e error);
 
 #ifdef __cplusplus
 }

@@ -125,7 +125,7 @@ static void nm_event_handler(arm_event_s *event)
 
 nm_error_t NetworkManager::configure_factory_mac_address(void *mesh_iface, void *backhaul_iface)
 {
-    if (nm_mesh_configure_factory_mac_address((NetworkInterface *)mesh_iface) == NM_STATUS_FAIL) {
+    if (nm_mesh_configure_factory_mac_address((WisunInterface *)mesh_iface) == NM_STATUS_FAIL) {
         tr_error("Could not configure Factory MAC Address on Mesh Interface");
         return NM_ERROR_UNKNOWN;
     }
@@ -140,7 +140,7 @@ nm_error_t NetworkManager::configure_factory_mac_address(void *mesh_iface, void 
 
 nm_error_t NetworkManager::configure_factory_mac_address(void *mesh_iface)
 {
-    if (nm_mesh_configure_factory_mac_address((NetworkInterface *)mesh_iface) == NM_STATUS_FAIL) {
+    if (nm_mesh_configure_factory_mac_address((WisunInterface *)mesh_iface) == NM_STATUS_FAIL) {
         tr_error("Could not configure Factory MAC Address on Mesh Interface");
         return NM_ERROR_UNKNOWN;
     }
@@ -150,7 +150,7 @@ nm_error_t NetworkManager::configure_factory_mac_address(void *mesh_iface)
 
 nm_error_t NetworkManager::reg_and_config_iface(void *mesh_iface, void *backhaul_iface, void *br_iface)
 {
-    register_interfaces((NetworkInterface *)mesh_iface, (NetworkInterface *)backhaul_iface, (WisunBorderRouter *)br_iface);
+    register_interfaces((WisunInterface *)mesh_iface, (NetworkInterface *)backhaul_iface, (WisunBorderRouter *)br_iface);
 
     if (nm_factory_configure_mesh_iface() == NM_STATUS_FAIL) {
         tr_error("Could not SET Factory Configuration on Mesh Interface");
@@ -174,7 +174,7 @@ nm_error_t NetworkManager::reg_and_config_iface(void *mesh_iface, void *backhaul
 
 nm_error_t NetworkManager::reg_and_config_iface(void *mesh_iface)
 {
-    register_interfaces((NetworkInterface *)mesh_iface, NULL, NULL);
+    register_interfaces((WisunInterface *)mesh_iface, NULL, NULL);
 
     if (nm_factory_configure_mesh_iface() == NM_STATUS_FAIL) {
         tr_error("Could not SET Factory Configuration on Mesh Interface");

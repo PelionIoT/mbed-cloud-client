@@ -66,23 +66,32 @@
 #endif
 
 static fota_context_t *fota_ctx = NULL;
+static fota_persistent_context_t fota_persistent_ctx;
 
 static int handle_fw_fragment(uint8_t *buf, size_t size, bool last);
 static int handle_manifest(uint8_t *manifest_buf, size_t manifest_size, bool is_resume, bool is_multicast);
 static void on_reboot(void);
 static int finalize_update(void);
-static void fota_on_install_authorize(bool defer);
+static void fota_on_download_authorize();
+static void fota_on_install_authorize(fota_install_state_e fota_install_type);
 
 static bool initialized = false;
 static size_t storage_available;
 
 static bool fota_defer_by_user = false;
+static bool erase_candidate_image = true;
+
+bool fota_resume_download_after_user_auth = true; //indication if resume flow  executed after reboot, used also in test_fota_core.cpp.
+fota_install_state_e fota_install_state = FOTA_INSTALL_STATE_IDLE; //FOTA installation state, used also in test_fota_core.cpp.
+
 
 // Multicast related variables here should not be part of the FOTA context, as they live also outside of FOTA scope
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT != FOTA_MULTICAST_UNSUPPORTED)
 static size_t mc_image_data_addr;
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
+#if !(defined(TARGET_LIKE_LINUX))
 static int multicast_br_candidate_iterate_handler(fota_candidate_iterate_callback_info *info);
+#endif
 static int multicast_br_post_install_handler(const char *component_name, const fota_header_info_t *expected_header_info);
 #elif (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE)
 #if MBED_CLOUD_CLIENT_FOTA_EXTERNAL_DOWNLOADER
@@ -156,15 +165,13 @@ static void free_context_buffers(void)
 #endif  // !defined(FOTA_DISABLE_DELTA)
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
-    if (fota_ctx->enc_ctx) {
-        fota_encrypt_finalize(&fota_ctx->enc_ctx);
-    }
+    fota_encrypt_finalize(&fota_ctx->enc_ctx);
 #endif
 
-    if (fota_ctx->curr_fw_hash_ctx) {
-        fota_hash_finish(&fota_ctx->curr_fw_hash_ctx);
-    }
-
+    fota_hash_finish(&fota_ctx->payload_hash_ctx);
+#if !defined(FOTA_DISABLE_DELTA)
+    fota_hash_finish(&fota_ctx->installed_hash_ctx);
+#endif
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE)
     free(fota_ctx->mc_node_frag_buf);
     fota_ctx->mc_node_frag_buf = NULL;
@@ -204,16 +211,17 @@ static void update_cleanup(void)
     fota_source_enable_auto_observable_resources_reporting(true);
 }
 
-static void abort_update(int ret, const char *msg)
+static void do_abort_update(int ret, const char *msg)
 {
     int upd_res;
     bool do_terminate_update = true;
-
-    if (!fota_is_active_update()) {
-        return;
-    }
+    bool do_report_update_result = true;
 
     FOTA_TRACE_ERROR("Update aborted: (ret code %d) %s", ret, msg);
+
+    if (ret == FOTA_STATUS_MULTICAST_UPDATE_ABORTED_INTERNAL) {
+        do_report_update_result = false;
+    }
 
     if (ret == FOTA_STATUS_FAIL_UPDATE_STATE ||
             ret == FOTA_STATUS_UPDATE_DEFERRED ||
@@ -224,7 +232,13 @@ static void abort_update(int ret, const char *msg)
     }
 
     if (do_terminate_update) {
-        fota_source_report_update_result(upd_res);
+        if (upd_res > -1 * FOTA_STATUS_INTERNAL_ERR_BASE) {
+            // map all internal errors to a generic internal error
+            upd_res = -1 * FOTA_STATUS_INTERNAL_ERROR;
+        }
+        if (do_report_update_result) {
+           fota_source_report_update_result(upd_res);
+        }
         fota_source_report_state(FOTA_SOURCE_STATE_IDLE, NULL, NULL);
         manifest_delete();
         fota_nvm_fw_encryption_key_delete();
@@ -233,20 +247,41 @@ static void abort_update(int ret, const char *msg)
     }
 
     const fota_component_desc_t *comp_desc;
-    fota_component_get_desc(fota_ctx->comp_id, &comp_desc);
+    fota_component_get_desc(fota_persistent_ctx.comp_id, &comp_desc);
     fota_platform_abort_update_hook(comp_desc->name);
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
-    if (fota_ctx->mc_br_update) {
-        FOTA_DBG_ASSERT(fota_ctx->mc_br_post_action_callback);
-        fota_ctx->mc_br_post_action_callback(ret);
+    if (fota_persistent_ctx.mc_br_update) {
+        FOTA_DBG_ASSERT(fota_persistent_ctx.mc_br_post_action_callback);
+        fota_persistent_ctx.mc_br_post_action_callback(ret);
     }
 #elif (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE)
-    if (fota_ctx->mc_node_update && fota_ctx->mc_node_post_action_callback) {
-        fota_ctx->mc_node_post_action_callback(ret);
+    if (fota_persistent_ctx.mc_node_update && fota_persistent_ctx.mc_node_post_action_callback) {
+        fota_persistent_ctx.mc_node_post_action_callback(ret);
     }
 #endif
-    handle_fota_app_on_complete(ret); //notify application
+
+    fota_app_on_complete(ret); //notify application
     update_cleanup();
+}
+
+static void abort_update(int ret, const char *msg)
+{
+    if (!fota_is_active_update()) {
+        return;
+    }
+
+    //fill FOTA persistent context
+    fota_persistent_ctx.comp_id = fota_ctx->comp_id;
+    fota_persistent_ctx.state = fota_ctx->state;
+#if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
+    fota_persistent_ctx.mc_br_update = fota_ctx->mc_br_update;
+    fota_persistent_ctx.mc_br_post_action_callback = fota_ctx->mc_br_post_action_callback;
+#elif (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE)
+    fota_persistent_ctx.mc_node_update = fota_ctx->mc_node_update;
+    fota_persistent_ctx.mc_node_post_action_callback = fota_ctx->mc_node_post_action_callback;
+#endif
+
+    do_abort_update(ret, msg);
 }
 
 static void on_state_set_failure(void)
@@ -269,7 +304,8 @@ int fota_is_ready(uint8_t *data, size_t size, fota_state_e *fota_state)
         return FOTA_STATUS_OUT_OF_MEMORY;
     }
     int ret = manifest_get(manifest, FOTA_MANIFEST_MAX_SIZE, &manifest_size);
-    if (ret) { //  cannot find saved manifest - ready to start an update
+    if (ret) {
+        //  cannot find saved manifest - ready to start an update
         *fota_state = FOTA_STATE_IDLE;
         goto CLEANUP;
     }
@@ -542,10 +578,12 @@ int fota_init(void *m2m_interface, void *resource_list)
     ret = manifest_get((uint8_t *)&dummy, sizeof(dummy), &manifest_size);
     if (ret != FOTA_STATUS_NOT_FOUND) {
         source_state = FOTA_SOURCE_STATE_PROCESSING_MANIFEST;
+        FOTA_TRACE_DEBUG("manifest exists on fota_init()");
+        fota_resume_download_after_user_auth = true; //fota_init() was called and manifest exists - we assume that resume flow will be initiated after reboot
     } else {
         uint8_t fw_key[FOTA_ENCRYPT_KEY_SIZE];
         ret = fota_nvm_fw_encryption_key_get(fw_key);
-        clear_buffer_from_mem(fw_key, sizeof(fw_key));
+        fota_fi_memset(fw_key, 0, sizeof(fw_key));
         after_upgrade = !ret;
     }
 
@@ -642,7 +680,7 @@ int fota_init(void *m2m_interface, void *resource_list)
 #endif
 
     initialized = true;
-    
+
     FOTA_TRACE_DEBUG("init complete");
 
     return FOTA_STATUS_SUCCESS;
@@ -675,7 +713,7 @@ int fota_deinit(void)
     return FOTA_STATUS_SUCCESS;
 }
 
-static int init_encryption(void)
+static int init_encryption(manifest_firmware_info_t *fw_info)
 {
     int ret = FOTA_STATUS_NOT_FOUND;
 
@@ -697,24 +735,29 @@ static int init_encryption(void)
     if (ret) {
         for (;;) {
             uint8_t zero_key[FOTA_ENCRYPT_KEY_SIZE] = {0};
-            size_t volatile loop_check;
+            volatile size_t loop_check;
 
 #if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
             ret = fota_get_device_key_128bit(fw_key, FOTA_ENCRYPT_KEY_SIZE);
-            if (ret) {
-                FOTA_TRACE_ERROR("Unable to generate random FW key. ret %d", ret);
-                return ret;
-            }
-#elif (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_ONE_TIME_FW_KEY)
-            ret = fota_gen_random(fw_key, sizeof(fw_key));
-            if (ret) {
-                FOTA_TRACE_ERROR("Unable to generate random FW key. ret %d", ret);
-                return ret;
+#elif (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY)
+            if (fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+                // copy the key from manifest_firmware_info_t
+                // and clear it from the fota_ctx
+                fota_fi_memcpy(fw_key, fota_ctx->encryption_key, sizeof(fw_key));
+                fota_fi_memset(fota_ctx->encryption_key, 0, FOTA_ENCRYPT_KEY_SIZE);
+                ret = FOTA_STATUS_SUCCESS;
+            } else {
+                ret = fota_gen_random(fw_key, sizeof(fw_key));
             }
 #else
-#error MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION wrong value
+            // encryption support disabled
+            ret = fota_gen_random(fw_key, sizeof(fw_key));
 #endif
-            // safely check that generated key is non zero
+            if (ret) {
+                FOTA_TRACE_ERROR("Unable to generate random FW key. ret %d", ret);
+                return ret;
+            }
+            // safely check that key is non zero
             FOTA_FI_SAFE_COND((fota_fi_memcmp(fw_key, zero_key, FOTA_ENCRYPT_KEY_SIZE, &loop_check)
                                && (loop_check == FOTA_ENCRYPT_KEY_SIZE)), FOTA_STATUS_INTERNAL_ERROR,
                               "Zero encryption key - retry");
@@ -724,10 +767,18 @@ static int init_encryption(void)
                 FOTA_TRACE_ERROR("Unable to set FW key. ret %d", ret);
                 return ret;
             }
+            // non zero key
             break;
 
 fail:
-            ;// retry here if zero
+            // zero key
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY)
+            if (fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+                // don't retry since the fota_ctx->encryption_key will not changed
+                return ret;
+            }
+#endif
+            ;// retry here
         }
 
         FOTA_TRACE_DEBUG("New FOTA key saved");
@@ -736,7 +787,7 @@ fail:
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
     ret = fota_encrypt_decrypt_start(&fota_ctx->enc_ctx, fw_key, sizeof(fw_key));
-    clear_buffer_from_mem(fw_key, sizeof(fw_key));
+    fota_fi_memset(fw_key, 0, sizeof(fw_key));
     if (ret) {
         FOTA_TRACE_ERROR("Unable to start encryption engine. ret %d", ret);
         return ret;
@@ -854,6 +905,15 @@ static int handle_manifest(uint8_t *manifest_buf, size_t manifest_size, bool is_
 
     FOTA_TRACE_DEBUG("Pelion FOTA manifest is valid");
 
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+        // move encryption_key from fw_info to fota_ctx
+        // to hide it from fota_app_on_download_authorization
+        fota_fi_memcpy(fota_ctx->encryption_key, fota_ctx->fw_info->encryption_key, FOTA_ENCRYPT_KEY_SIZE);
+        fota_fi_memset(fota_ctx->fw_info->encryption_key, 0, FOTA_ENCRYPT_KEY_SIZE);
+    }
+#endif
+
     ret = fota_component_name_to_id(fota_ctx->fw_info->component_name, &fota_ctx->comp_id);
     if (ret) {
         FOTA_TRACE_ERROR("Manifest addresses unknown component %s", fota_ctx->fw_info->component_name);
@@ -893,10 +953,17 @@ static int handle_manifest(uint8_t *manifest_buf, size_t manifest_size, bool is_
         memcpy(fota_ctx->fw_info->precursor_digest, curr_fw_digest, FOTA_CRYPTO_HASH_SIZE);
     }
 
-    fota_ctx->state = FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION;
+    if ((is_resume == false) || (fota_resume_download_after_user_auth == true)) { //ask for authorization
+        fota_ctx->state = FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION;
+        FOTA_TRACE_DEBUG("Ask for user authorization");
+        fota_source_report_state(report_state, request_download_auth, on_state_set_failure);
+    } else { // resume without asking authorization
+        //skip asking authorization from user since he has already provided one
+        FOTA_TRACE_DEBUG("Resuming download...");
+        fota_source_report_state(report_state, fota_on_download_authorize, on_state_set_failure);
+    }
 
-    fota_source_report_state(report_state, request_download_auth, on_state_set_failure);
-
+    fota_resume_download_after_user_auth = false;
     return FOTA_STATUS_SUCCESS;
 
 fail:
@@ -923,7 +990,7 @@ void fota_on_manifest(uint8_t *data, size_t size)
             return;
         }
         // Not activated - unicast update should take precedence over multicast one. Abort multicast one.
-        abort_update(FOTA_STATUS_MULTICAST_UPDATE_ABORTED, "Overridden by unicast manifest");
+        abort_update(FOTA_STATUS_MULTICAST_UPDATE_ABORTED_INTERNAL, "Overridden by unicast manifest");
     }
 #endif
 
@@ -935,30 +1002,51 @@ void fota_on_manifest(uint8_t *data, size_t size)
 
 void fota_on_reject(int32_t status)
 {
-    FOTA_ASSERT(fota_ctx);
+    FOTA_ASSERT(initialized == true);
 
     FOTA_TRACE_ERROR("Application rejected update - reason %" PRId32, status);
 
-    if (fota_ctx->state == FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION) {
+    if (!fota_ctx) {
+        // We just need to know whether manifest is present, so no need to allocate a full size manifest
+        size_t manifest_size = 0;
+        uint8_t dummy;
+
+        if (manifest_get((uint8_t *)&dummy, sizeof(dummy), &manifest_size) != FOTA_STATUS_NOT_FOUND) {
+            // these steps should be performed even if fota context does not exits, but manifest exists.
+            // one possible scenario is if defer was called before reject, then the context is released (but manifest still exists).
+            // when fota reject called, manifest should be removed and fota flow terminated.
+
+            if (fota_persistent_ctx.state == FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION) {
+                do_abort_update(FOTA_STATUS_DOWNLOAD_AUTH_NOT_GRANTED, "Download Authorization not granted");
+            } else {
+                do_abort_update(FOTA_STATUS_INSTALL_AUTH_NOT_GRANTED,  "Install Authorization not granted");
+            }
+        }
+        return;
+    } else if (fota_ctx->state == FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION) {
         abort_update(FOTA_STATUS_DOWNLOAD_AUTH_NOT_GRANTED, "Download Authorization not granted");
-    } else {
+    } else { //FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION
         abort_update(FOTA_STATUS_INSTALL_AUTH_NOT_GRANTED, "Install Authorization not granted");
     }
 }
 
-void fota_on_defer(int32_t status)
+void fota_on_defer(int32_t param)
 {
-    (void)status;
+    FOTA_ASSERT(initialized == true);
 
     if (!fota_ctx) {
         return;  // gracefully ignore this call if update is not running
     }
+
+    if (fota_ctx->state == FOTA_STATE_INSTALLING) {
+        return; //don't allow defer/postpone during install 
+    }
+
     /* mark call to defer only if FOTA is active */
     fota_defer_by_user = true; // for now we assume that defer called always by user app
 
     if (fota_ctx->state == FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION) {
-        FOTA_TRACE_INFO("Installation deferred by application.");
-        fota_on_install_authorize(true);
+        fota_on_install_authorize((fota_install_state_e) param);
         return;
     }
 
@@ -1045,7 +1133,8 @@ static void install_component()
     int ret = FOTA_STATUS_SUCCESS;
     (void) ret;
 
-    manifest_delete();
+    fota_ctx->state = FOTA_STATE_INSTALLING;
+
 
 #if defined(__MBED__)
     // At this point we don't need our fota context buffers any more, for mbed
@@ -1054,7 +1143,6 @@ static void install_component()
 #endif
 
     fota_component_get_desc(comp_id, &comp_desc);
-    FOTA_TRACE_INFO("Installing new version for component %s", comp_desc->name);
 
     // Code saving - only relevant if we have additional components other than the main one
 #if FOTA_COMPONENT_SUPPORT
@@ -1076,6 +1164,8 @@ static void install_component()
 #endif
 
     if (do_install) {
+        FOTA_TRACE_INFO("Installing new version for component %s", comp_desc->name);
+
         // Run the installer using the candidate iterate service
         ret = fota_candidate_iterate_image(true, (bool) MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT,
                                            comp_desc->name, install_alignment,
@@ -1118,22 +1208,44 @@ fail:
             handle_fota_app_on_complete(ret); //notify application on after install, no reset
         }
     }
+
 #endif // FOTA_COMPONENT_SUPPORT
 
-    if (comp_desc->desc_info.need_reboot) {
+    // remove manifest after candidate installation finished and before potential reboot.
+    // MAIN component for mbed-os will be installed by the bootloader
+    manifest_delete();
+	
+    if ((comp_desc->desc_info.need_reboot) && (fota_install_state == FOTA_INSTALL_STATE_AUTHORIZE)) {
+        fota_ctx->state = FOTA_STATE_IDLE;
         fota_source_report_state(FOTA_SOURCE_STATE_REBOOTING, on_reboot, on_reboot);
         return;
     }
 
+    if (fota_install_state == FOTA_INSTALL_STATE_AUTHORIZE) {
+
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE)
-    if (fota_ctx->mc_node_update) {
-        FOTA_DBG_ASSERT(fota_ctx->mc_node_post_action_callback);
-        fota_ctx->mc_node_post_action_callback(ret);
-    }
+        if (fota_ctx->mc_node_update) {
+            FOTA_DBG_ASSERT(fota_ctx->mc_node_post_action_callback);
+            fota_ctx->mc_node_post_action_callback(ret);
+        }
 #endif
-    fota_platform_finish_update_hook(comp_desc->name);
-    fota_source_report_update_result(FOTA_STATUS_FW_UPDATE_OK);
-    fota_source_report_state(FOTA_SOURCE_STATE_IDLE, NULL, NULL);
+        fota_platform_finish_update_hook(comp_desc->name);
+        fota_source_report_update_result(FOTA_STATUS_FW_UPDATE_OK);
+        fota_source_report_state(FOTA_SOURCE_STATE_IDLE, NULL, NULL);
+
+#if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
+        if (fota_ctx->mc_br_update) {
+            // don't erase candidate image in case of node update by border router
+            erase_candidate_image = false;
+        }
+#endif
+
+        if (erase_candidate_image == true)
+        {
+            fota_candidate_erase();
+        }
+    }
+
     update_cleanup();
 }
 
@@ -1160,10 +1272,36 @@ static int prepare_and_program_header(void)
     memcpy(header_info.signature, fota_ctx->fw_info->installed_signature, FOTA_IMAGE_RAW_SIGNATURE_SIZE);
 #endif  // defined(MBED_CLOUD_CLIENT_FOTA_SIGNED_IMAGE_SUPPORT)
 
-    header_info.block_size = MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE;
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1) && \
+    (MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE != FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE)
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+        header_info.block_size = FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE;
+    } else
+#endif
+    {
+        header_info.block_size = MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE;
+    }
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
     header_info.flags |= FOTA_HEADER_ENCRYPTED_FLAG;
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY)
+    // encrypt fw_key buffer using device key and store it in the header
+    uint8_t fw_key[FOTA_ENCRYPT_KEY_SIZE];
+    ret = fota_nvm_fw_encryption_key_get(fw_key);
+    if (ret) {
+        FOTA_TRACE_DEBUG("Encryption key not found");
+        goto fail;
+    }
+    ret = fota_encrypt_fw_key(fw_key,
+                              header_info.encrypted_fw_key,
+                              header_info.encrypted_fw_key_tag,
+                              &header_info.encrypted_fw_key_iv);
+    fota_fi_memset(fw_key, 0, sizeof(fw_key));
+    if (ret) {
+        FOTA_TRACE_ERROR("Failed to start encryption engine. ret %d", ret);
+        goto fail;
+    }
+#endif // FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY
 #endif
 
 #if MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME
@@ -1223,6 +1361,8 @@ static int analyze_resume_state(fota_state_e *next_fota_state)
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT != 1)
     fota_candidate_block_checksum_t checksum = 0;
+#else
+    fota_hash_context_t *payload_temp_hash_ctx = NULL;
 #endif
 
     if (fota_ctx->resume_state == FOTA_RESUME_STATE_INACTIVE) {
@@ -1294,6 +1434,15 @@ static int analyze_resume_state(fota_state_e *next_fota_state)
         goto no_resume;
     }
 
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+        ret = fota_hash_start(&payload_temp_hash_ctx);
+        if (ret) {
+            goto no_resume;
+        }
+    }
+#endif
+
     num_blocks_available = storage_available / fota_ctx->page_buf_size;
     num_blocks_left = FOTA_ALIGN_UP(fota_ctx->fw_info->payload_size, fota_ctx->effective_page_buf_size) /
                       fota_ctx->effective_page_buf_size;
@@ -1321,8 +1470,22 @@ static int analyze_resume_state(fota_state_e *next_fota_state)
         }
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+        size_t data_offset = 0;
+        if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+            //  update data offset to skip the tag
+            data_offset = FOTA_ENCRYPT_TAG_SIZE;
+            // on an encrypted payload, update payload_temp_hash_ctx before decrypting
+            // and copy it to payload_hash_ctx only if decrypt succeeds. 
+            ret = fota_hash_update(payload_temp_hash_ctx, fota_ctx->effective_page_buf, chunk);
+            if (ret) {
+                goto no_resume;
+            }
+        }
         // decrypt data with tag (at the beginning of page_buf)
-        ret = fota_decrypt_data(fota_ctx->enc_ctx, fota_ctx->effective_page_buf, chunk, fota_ctx->effective_page_buf,
+        ret = fota_decrypt_data(fota_ctx->enc_ctx,
+                                fota_ctx->effective_page_buf + data_offset,
+                                chunk - data_offset,
+                                fota_ctx->effective_page_buf + data_offset,
                                 fota_ctx->page_buf);
         if (ret) {
             // Decryption failure - Skip the block
@@ -1342,11 +1505,22 @@ static int analyze_resume_state(fota_state_e *next_fota_state)
         }
 #endif
 
-        // Block verified as OK - update num blocks left, hash and IV (if encrypted)
-        ret = fota_hash_update(fota_ctx->curr_fw_hash_ctx, fota_ctx->effective_page_buf, chunk);
-        if (ret) {
-            goto no_resume;
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+        if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+            // on encrypted payload, copy payload_temp_hash_ctx to payload_hash_ctx
+            fota_hash_clone(fota_ctx->payload_hash_ctx, payload_temp_hash_ctx);
         }
+        else
+#endif
+        {
+            // update payload_hash_ctx after decryption
+            ret = fota_hash_update(fota_ctx->payload_hash_ctx, fota_ctx->effective_page_buf, chunk);
+            if (ret) {
+                goto no_resume;
+            }
+        }
+
+        // Block verified as OK - update num blocks left
         num_blocks_left--;
         fota_ctx->payload_offset += chunk;
         fota_ctx->fw_bytes_written += chunk;
@@ -1355,6 +1529,13 @@ next_block:
         num_blocks_available--;
         fota_ctx->storage_addr += fota_ctx->page_buf_size;
     }
+
+#if !defined(FOTA_DISABLE_DELTA)
+    // for a delta patch, copy payload_hash_ctx to installed_hash_ctx
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA) {
+        fota_hash_clone(fota_ctx->installed_hash_ctx, fota_ctx->payload_hash_ctx);
+    }
+#endif
 
     // Got here means that the whole firmware has been written, but candidate ready header is blank.
     // This means we can converge to the regular install authorization flow.
@@ -1369,8 +1550,17 @@ no_resume:
     fota_ctx->storage_addr = save_storage_addr;
     fota_ctx->fw_bytes_written = 0;
     fota_ctx->payload_offset = 0;
-    fota_hash_finish(&fota_ctx->curr_fw_hash_ctx);
-    fota_hash_start(&fota_ctx->curr_fw_hash_ctx);
+    // reset payload_hash_ctx
+    fota_hash_finish(&fota_ctx->payload_hash_ctx);
+    fota_hash_start(&fota_ctx->payload_hash_ctx);
+#if !defined(FOTA_DISABLE_DELTA)
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA) {
+        // reset installed_hash_ctx
+        fota_hash_finish(&fota_ctx->installed_hash_ctx);
+        fota_hash_start(&fota_ctx->installed_hash_ctx);
+    }
+#endif
+
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
     fota_encryption_stream_reset(fota_ctx->enc_ctx);
 #endif
@@ -1378,6 +1568,9 @@ no_resume:
 finish:
     free(fota_ctx->page_buf);
     fota_ctx->page_buf = NULL;
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+    fota_hash_finish(&payload_temp_hash_ctx);
+#endif
     return ret;
 }
 
@@ -1457,6 +1650,7 @@ static void fota_on_download_authorize()
     size_t prog_size;
     const fota_component_desc_t *comp_desc;
 #if MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME
+    int erase_val;
     fota_state_e next_fota_state = FOTA_STATE_DOWNLOADING;
 #endif
 
@@ -1475,6 +1669,14 @@ static void fota_on_download_authorize()
     }
     FOTA_TRACE_DEBUG("FOTA BlockDevice initialized");
 
+#if (MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME)
+    ret = fota_bd_get_erase_value(&erase_val);
+    if (ret || (erase_val < 0)) {
+        FOTA_TRACE_ERROR("Full resume not supported for devices that have no erase");
+        FOTA_ASSERT(0);
+    }
+#endif
+
     ret = fota_bd_get_program_size(&prog_size);
     if (ret) {
         FOTA_TRACE_ERROR("Get program size failed. ret %d", ret);
@@ -1487,9 +1689,17 @@ static void fota_on_download_authorize()
         goto fail;
     }
 
-    fota_ctx->page_buf_size = FOTA_ALIGN_UP(MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE, prog_size);
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1) && \
+    (MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE != FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE)
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+        fota_ctx->page_buf_size = FOTA_ALIGN_UP(FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE, prog_size);
+    } else
+#endif
+    {
+        fota_ctx->page_buf_size = FOTA_ALIGN_UP(MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE, prog_size);
+    }
 
-    ret = init_encryption();
+    ret = init_encryption(fota_ctx->fw_info);
     if (ret) {
         goto fail;
     }
@@ -1497,16 +1707,28 @@ static void fota_on_download_authorize()
     fota_ctx->effective_page_buf_size = fota_ctx->page_buf_size;
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
-    fota_ctx->effective_page_buf_size -= FOTA_ENCRYPT_TAG_SIZE;
+    if (fota_ctx->fw_info->payload_format != FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+        // on encrypted payload, skip reducing tag size
+        fota_ctx->effective_page_buf_size -= FOTA_ENCRYPT_TAG_SIZE;
+    }
 #elif (MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME)
     // Reduce checksum size
     fota_ctx->effective_page_buf_size -= sizeof(fota_candidate_block_checksum_t);
 #endif
 
-    ret = fota_hash_start(&fota_ctx->curr_fw_hash_ctx);
+    ret = fota_hash_start(&fota_ctx->payload_hash_ctx);
     if (ret) {
         goto fail;
     }
+
+#if !defined(FOTA_DISABLE_DELTA)
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA) {
+        ret = fota_hash_start(&fota_ctx->installed_hash_ctx);
+        if (ret) {
+            goto fail;
+        }
+    }
+#endif
 
     fota_ctx->fw_header_offset = fota_ctx->storage_addr - fota_ctx->fw_header_bd_size;
 
@@ -1609,45 +1831,42 @@ fail:
     abort_update(ret, "Failed on download authorization event");
 }
 
-static void fota_on_install_authorize(bool defer)
+static void fota_on_install_authorize(fota_install_state_e fota_install_type)
 {
     int ret;
     const fota_component_desc_t *comp_desc;
+
+    fota_install_state = fota_install_type;
 
     fota_component_get_desc(fota_ctx->comp_id, &comp_desc);
 
     free(fota_ctx->page_buf);
     fota_ctx->page_buf = NULL;
 
-    if (fota_ctx->candidate_header_size) {
-        ret = write_candidate_ready(comp_desc->name);
-    } else {
-        ret = prepare_and_program_header();
-    }
-    if (ret) {
-        FOTA_TRACE_ERROR("FOTA write final header - failed %d", ret);
-        goto fail;
-    }
-
-    // Install defer means that we skip the installation for now
-    if (defer) {
-        if (fota_ctx->comp_id == FOTA_COMPONENT_MAIN_COMP_NUM) {
-            // Main component is a special case - bootloader will install the FW upon next reset,
-            // so no need to keep the manifest.
-            manifest_delete();
+    if (fota_install_state != FOTA_INSTALL_STATE_DEFER) {
+        if (fota_ctx->candidate_header_size) {
+            ret = write_candidate_ready(comp_desc->name);
         } else {
-            // All other components will use the resume flow for that, so manifest should be kept.
-#if MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT != FOTA_RESUME_SUPPORT_RESUME
-            abort_update(FOTA_STATUS_INTERNAL_ERROR,
-                         "Component install defer requires resume support");
-            return;
-#endif
+            ret = prepare_and_program_header();
         }
-        update_cleanup();
-        return;
+        if (ret) {
+            FOTA_TRACE_ERROR("FOTA write final header - failed %d", ret);
+            goto fail;
+        }
     }
 
-    fota_source_report_state(FOTA_SOURCE_STATE_UPDATING, install_component, on_state_set_failure);
+    if ((fota_install_state == FOTA_INSTALL_STATE_AUTHORIZE) || (fota_install_state == FOTA_INSTALL_STATE_POSTPONE_REBOOT))  {
+        fota_source_report_state(FOTA_SOURCE_STATE_UPDATING, install_component, on_state_set_failure);
+    } else { //FOTA_INSTALL_STATE_DEFER -  we skip the installation for now
+#if MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME
+        FOTA_TRACE_INFO("FOTA install deferred until further user instruction");
+#else
+        abort_update(FOTA_STATUS_INTERNAL_ERROR,
+                         "Component install defer requires resume support");
+#endif
+        update_cleanup();
+    }
+
     return;
 
 fail:
@@ -1655,10 +1874,8 @@ fail:
     abort_update(ret, "Failed on install authorization event");
 }
 
-void fota_on_authorize(int32_t status)
+void fota_on_authorize(int32_t param)
 {
-    (void)status; //unused warning
-
     FOTA_ASSERT(fota_ctx);
 
     FOTA_ASSERT(
@@ -1667,8 +1884,9 @@ void fota_on_authorize(int32_t status)
     );
 
     if (fota_ctx->state == FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION) {
+        FOTA_ASSERT(param == FOTA_INSTALL_STATE_AUTHORIZE);
         FOTA_TRACE_INFO("Install authorization granted.");
-        fota_on_install_authorize(false);
+        fota_on_install_authorize((fota_install_state_e)param);
         return;
     }
 
@@ -1708,11 +1926,14 @@ static int program_to_storage(uint8_t *buf, size_t addr, uint32_t size)
     do {
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
-        uint8_t *tag = fota_ctx->page_buf;
-        ret = fota_encrypt_data(fota_ctx->enc_ctx, src_buf, data_size, src_buf, tag);
-        if (ret) {
-            FOTA_TRACE_ERROR("encryption failed %d", ret);
-            return ret;
+        if (fota_ctx->fw_info->payload_format != FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+            // on encrypted payload, data already encrypted
+            uint8_t *tag = fota_ctx->page_buf;
+            ret = fota_encrypt_data(fota_ctx->enc_ctx, src_buf, data_size, src_buf, tag);
+            if (ret) {
+                FOTA_TRACE_ERROR("encryption failed %d", ret);
+                return ret;
+            }
         }
 #elif MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT == FOTA_RESUME_SUPPORT_RESUME
         fota_candidate_block_checksum_t *checksum = (fota_candidate_block_checksum_t *) fota_ctx->page_buf;
@@ -1752,11 +1973,6 @@ static int handle_fw_fragment(uint8_t *buf, size_t size, bool last)
     uint32_t prog_size;
     uint32_t chunk;
 
-    int ret = fota_hash_update(fota_ctx->curr_fw_hash_ctx, buf, size);
-    if (ret) {
-        return ret;
-    }
-
     while (size) {
         // Two cases here:
         // 1. The "hard" one - If our fragment is not aligned to a whole page:
@@ -1778,7 +1994,7 @@ static int handle_fw_fragment(uint8_t *buf, size_t size, bool last)
         source_buf += chunk;
 
         if ((prog_size >= fota_ctx->effective_page_buf_size) || last) {
-            ret = program_to_storage(prog_buf,
+            int ret = program_to_storage(prog_buf,
                                      fota_ctx->storage_addr,
                                      prog_size);
             if (ret) {
@@ -1803,7 +2019,17 @@ static void on_approve_state_delivered(void)
 static int finalize_update(void)
 {
     int ret;
-    uint8_t curr_fw_hash_buf[FOTA_CRYPTO_HASH_SIZE];
+    uint8_t calced_hash_buf[FOTA_CRYPTO_HASH_SIZE];
+    fota_hash_context_t *calced_hash_ctx = fota_ctx->payload_hash_ctx;
+    uint8_t *expected_digest = fota_ctx->fw_info->payload_digest;
+
+#if !defined(FOTA_DISABLE_DELTA)
+    // on delta, digest is calced on the install/unpatch data
+    if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA) {
+        calced_hash_ctx = fota_ctx->installed_hash_ctx;
+        expected_digest = fota_ctx->fw_info->installed_digest;
+    }
+#endif
 
     // Ongoing resume state here means that all authentication has been done before.
     // Can jump straight to finish.
@@ -1811,22 +2037,32 @@ static int finalize_update(void)
         goto finished;
     }
 
-    ret = fota_hash_result(fota_ctx->curr_fw_hash_ctx, curr_fw_hash_buf);
+    ret = fota_hash_result(calced_hash_ctx, calced_hash_buf);
     if (ret) {
         return ret;
     }
+
 #if defined(MBED_CLOUD_CLIENT_FOTA_SIGNED_IMAGE_SUPPORT)
-    ret = fota_verify_signature_prehashed(
-              curr_fw_hash_buf,
-              fota_ctx->fw_info->installed_signature, FOTA_IMAGE_RAW_SIGNATURE_SIZE
-          );
-    FOTA_FI_SAFE_COND(
-        (ret == FOTA_STATUS_SUCCESS),
-        FOTA_STATUS_MANIFEST_PAYLOAD_CORRUPTED,
-        "Candidate image is not authentic"
-    );
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+    if (fota_ctx->fw_info->payload_format != FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW)
+        // on encrypted payload, skip verifing signature as
+        //  we can't calc the hash of the installed payload.
+        //  It will be verified later by the bootloader.
+#endif
+    {
+        ret = fota_verify_signature_prehashed(
+                calced_hash_buf,
+                fota_ctx->fw_info->installed_signature, FOTA_IMAGE_RAW_SIGNATURE_SIZE
+            );
+        FOTA_FI_SAFE_COND(
+            (ret == FOTA_STATUS_SUCCESS),
+            FOTA_STATUS_MANIFEST_PAYLOAD_CORRUPTED,
+            "Candidate image is not authentic"
+        );
+    }
 #else
-    FOTA_FI_SAFE_MEMCMP(curr_fw_hash_buf, fota_ctx->fw_info->installed_digest, FOTA_CRYPTO_HASH_SIZE,
+    // compare expected_digest against calced digest
+    FOTA_FI_SAFE_MEMCMP(calced_hash_buf, expected_digest, FOTA_CRYPTO_HASH_SIZE,
                         FOTA_STATUS_MANIFEST_PAYLOAD_CORRUPTED,
                         "Downloaded FW hash does not match manifest hash");
 #endif
@@ -1847,7 +2083,7 @@ finished:
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
     if (fota_ctx->mc_br_update) {
         // No need to authorize on BR mode, jump straight to installation
-        fota_on_install_authorize(false);
+        fota_on_install_authorize(FOTA_INSTALL_STATE_AUTHORIZE);
         return FOTA_STATUS_SUCCESS;
     }
 #endif
@@ -1915,6 +2151,9 @@ void fota_on_fragment(uint8_t *buf, size_t size)
 
     handle_fota_app_on_download_progress(fota_ctx->payload_offset, size, fota_ctx->fw_info->payload_size);
 
+    // update payload_hash_ctx with fragment
+    ret = fota_hash_update(fota_ctx->payload_hash_ctx, buf, size);
+
     if (fota_ctx->fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA) {
 #if !defined(FOTA_DISABLE_DELTA)
         bool finished = false;
@@ -1947,6 +2186,11 @@ void fota_on_fragment(uint8_t *buf, size_t size)
                 }
                 if (actual_frag_size) {
                     last_fragment = ((fota_ctx->fw_bytes_written + fota_ctx->page_buf_offset + actual_frag_size) == fota_ctx->fw_info->installed_size);
+                    // update installed_hash_ctx with delta_buf
+                    ret = fota_hash_update(fota_ctx->installed_hash_ctx, fota_ctx->delta_buf, actual_frag_size);
+                    if (ret) {
+                        goto fail;
+                    }
                     ret = handle_fw_fragment(fota_ctx->delta_buf, actual_frag_size, last_fragment);
                     if (ret) {
                         goto fail;
@@ -1960,6 +2204,9 @@ void fota_on_fragment(uint8_t *buf, size_t size)
         FOTA_ASSERT(0);
 #endif  // #if !defined(FOTA_DISABLE_DELTA)
     } else {
+        if (ret) {
+            goto fail;
+        }
         last_fragment = ((payload_bytes_left - size) == 0);
         ret = handle_fw_fragment(buf, size, last_fragment);
         if (ret) {
@@ -2006,6 +2253,11 @@ void fota_on_resume(int32_t param)
          */
         FOTA_TRACE_DEBUG("FOTA already running");
         return;  // FOTA is already running - ignore
+    }
+
+    if (fota_install_state == FOTA_INSTALL_STATE_POSTPONE_REBOOT) {
+        FOTA_TRACE_DEBUG("FOTA resume not supported after postpone");
+        return; 
     }
 
     FOTA_TRACE_INFO("fota_on_resume - resume by %u", fota_resume_by_user);
@@ -2192,7 +2444,7 @@ int fota_multicast_node_on_manifest(uint8_t *data, size_t size,
         } else {
             if (memcmp(manifest_hash, fota_ctx->mc_node_manifest_hash, FOTA_CRYPTO_HASH_SIZE)) {
                 FOTA_TRACE_DEBUG("Got a new multicast manifest, aborting previous FOTA session");
-                abort_update(FOTA_STATUS_MULTICAST_UPDATE_ABORTED, "Multicast manifest overridden");
+                abort_update(FOTA_STATUS_MULTICAST_UPDATE_ABORTED_INTERNAL, "Multicast manifest overridden");
             } else {
                 FOTA_TRACE_DEBUG("Same multicast manifest received, silently ignored");
                 return FOTA_STATUS_SUCCESS;
@@ -2280,7 +2532,9 @@ int fota_multicast_node_get_ready_for_image(size_t image_size)
             FOTA_TRACE_DEBUG("Current multicast update activated, can't override it");
             return FOTA_STATUS_MULTICAST_UPDATE_ACTIVATED;
         } else {
-            abort_update(FOTA_STATUS_MULTICAST_UPDATE_ABORTED, "Multicast update overridden");
+            if (mc_node_new_image) {
+                FOTA_TRACE_INFO("Multicast - get ready for a new image again - silently ignored");
+            }
         }
     }
 
@@ -2428,11 +2682,13 @@ int fota_ext_downloader_on_image_ready(void)
 
 #elif (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
 
+#if !(defined(TARGET_LIKE_LINUX))
 static int multicast_br_candidate_iterate_handler(fota_candidate_iterate_callback_info *info)
 {
     // Nothing to do - candidate already here
     return FOTA_STATUS_SUCCESS;
 }
+#endif
 
 static int multicast_br_post_install_handler(const char *component_name, const fota_header_info_t *expected_header_info)
 {

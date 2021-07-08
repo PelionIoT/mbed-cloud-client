@@ -49,6 +49,8 @@
 #define MBED_CONF_UPDATE_CLIENT_APPLICATION_DETAILS 0
 #endif
 
+#define CURRENT_FW_HASH_CALCULATION_BUFFER_SIZE 4096
+
 #ifndef MBED_CONF_UPDATE_CLIENT_BOOTLOADER_DETAILS
 #define MBED_CONF_UPDATE_CLIENT_BOOTLOADER_DETAILS 0
 #endif
@@ -74,7 +76,7 @@ static palImageId_t arm_ucex_activate_image_id;
  * @return ERR_NONE if success, otherwise error
  */
 #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
-static int original_file_stat(uint64_t* file_size)
+static int original_file_stat(uint64_t *file_size)
 {
     arm_uc_error_t result;
     char file_path[ORIG_FILENAME_MAX_PATH] = { 0 };
@@ -146,7 +148,7 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
                         result = arm_uc_parse_external_header_v2(read_buffer, details);
                     } else {
                         /* invalid header format */
-                        tr_err("Unrecognized firmware header: magic = 0x%" PRIx32 ", version = 0x%" PRIx32 ", size = %" PRIu32 ,
+                        tr_err("Unrecognized firmware header: magic = 0x%" PRIx32 ", version = 0x%" PRIx32 ", size = %" PRIu32,
                                headerMagic, headerVersion, bytes_read);
                     }
                 }
@@ -156,6 +158,7 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
                 //           In this version info is fetched only from header file which is created
                 //           during update process.
                 tr_info("pal_fsOpen returned status = %" PRIu32, status);
+                result.code = ERR_NONE;
             }
 
             if (PAL_SUCCESS != status || ERR_NONE != result.code) {
@@ -172,12 +175,12 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
                     arm_uc_error_t res = ARM_UC_cryptoHashSetup(&mdHandle, ARM_UC_CU_SHA256);
                     if (res.error == ERR_NONE) {
                         // buffer
-                        uint8_t data_buf[ARM_UC_SHA256_SIZE];
+                        uint8_t data_buf[CURRENT_FW_HASH_CALCULATION_BUFFER_SIZE];
 
                         // arm buffer
                         arm_uc_buffer_t buffer;
                         buffer.size = 0;
-                        buffer.size_max = ARM_UC_SHA256_SIZE;
+                        buffer.size_max = CURRENT_FW_HASH_CALCULATION_BUFFER_SIZE;
                         buffer.ptr = data_buf;
 
                         // reading offset
@@ -187,14 +190,14 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
                         uint64_t len;
 
                         // trim to max of file size
-                        if (f_size < ARM_UC_SHA256_SIZE) {
+                        if (f_size < CURRENT_FW_HASH_CALCULATION_BUFFER_SIZE) {
                             len = f_size;
                         } else {
-                            len = ARM_UC_SHA256_SIZE;
+                            len = CURRENT_FW_HASH_CALCULATION_BUFFER_SIZE;
                         }
 
                         // read original file
-                        while(len > 0 && arm_uc_deltapaal_original_reader(buffer.ptr, len, offset) == ERR_NONE) {
+                        while (len > 0 && arm_uc_deltapaal_original_reader(buffer.ptr, len, offset) == ERR_NONE) {
                             // update hash
                             buffer.size = len;
                             ARM_UC_cryptoHashUpdate(&mdHandle, &buffer);
@@ -203,10 +206,10 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
                             offset += len;
 
                             // trim next read to file size if necessary
-                            if (f_size - offset < ARM_UC_SHA256_SIZE) {
+                            if (f_size - offset < CURRENT_FW_HASH_CALCULATION_BUFFER_SIZE) {
                                 len = f_size - offset;
                             } else {
-                                len = ARM_UC_SHA256_SIZE;
+                                len = CURRENT_FW_HASH_CALCULATION_BUFFER_SIZE;
                             }
                         }
 
@@ -215,16 +218,14 @@ arm_uc_error_t pal_ext_imageGetActiveDetails(arm_uc_firmware_details_t *details)
 
                         if (offset == 0) {
                             tr_warn("Original reader failed with first read => keep zero hash");
-                        }
-                        else {
+                        } else {
                             // copy hash to otherwise zeroed details
                             memcpy(details->hash, buffer.ptr, ARM_UC_SHA256_SIZE);
                         }
                     } else {
                         tr_warn("ARM_UC_cryptoHashSetup failed with %" PRIu32, res.error);
                     }
-                }
-                else {
+                } else {
                     tr_warn("arm_uc_deltapaal_original_stat failed with %d", stat_res);
                 }
 #endif // #if defined(ARM_UC_FEATURE_DELTA_PAAL) && (ARM_UC_FEATURE_DELTA_PAAL == 1)
@@ -269,7 +270,7 @@ static void pal_ext_imageActivationWorker(const void *location)
                                                            path_buf, PAL_MAX_FILE_AND_FOLDER_LENGTH);
 #else
     arm_uc_error_t result = arm_uc_pal_filesystem_get_path(*(palImageId_t *)location, FIRMWARE_IMAGE_ITEM_DATA,
-                                                               path_buf, PAL_MAX_FILE_AND_FOLDER_LENGTH);
+                                                           path_buf, PAL_MAX_FILE_AND_FOLDER_LENGTH);
 #endif
     palStatus_t rc = PAL_ERR_GENERIC_FAILURE;
 

@@ -103,6 +103,11 @@ public:
      * \brief A callback indicating that client is in alert mode.
      */
     virtual void alert_mode() = 0;
+
+    /**
+     * \brief A callback indicating that client is sleeping.
+     */
+    virtual void sleep() = 0;
 };
 
 #endif // M2M_INTERFACE_OBSERVER_H

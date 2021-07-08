@@ -110,8 +110,9 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     if (_sec_mode == M2MConnectionSecurity::DTLS) {
         // convert to milliseconds and scale to reasonable range based on the network latency
 
-        uint32_t dtls_min = _network_rtt_estimate * 1000;
-        uint32_t dtls_max = _network_rtt_estimate * 1000 * 5;
+        // add a bit of overhead for the initial timeout which is based on the round-trip estimate
+        uint32_t dtls_min = _network_rtt_estimate * 1000 * 4 / 3;
+        uint32_t dtls_max = dtls_min * 8;
 
         pal_setHandShakeTimeOut(_conf, dtls_min, dtls_max);
     }

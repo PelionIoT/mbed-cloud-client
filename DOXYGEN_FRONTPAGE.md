@@ -20,12 +20,12 @@ The C++ API allows quick application development.
 
 Device Management Client C++ API is essentially constructed around following classes, their base classes and derivatives:
 
-* MbedCloudClient
-* M2MInterface
-* M2MObject
-* M2MObjectInstance
-* M2MResource
-* M2MResourceInstance
+* MbedCloudClient.
+* M2MInterface.
+* M2MObject.
+* M2MObjectInstance.
+* M2MResource.
+* M2MResourceInstance.
 
 Device Management Client follows the architecture specified by LwM2M.
 `M2MObject`, `M2MObjectInstance`, `M2MResource`, `M2MResourceInstance` are C++ classes that represent what LwM2M specifies as *Object*, *Object Instance*, *Resouce* and *Resource Instance*.
@@ -65,41 +65,41 @@ This process shows how you can create a client-based application.
 
 1. Create a `MbedCloudClient` object and register certain callbacks with it:
 
-    ```.cpp
-    MbedCloudClient client;
-    client.on_registered(...);
-    client.on_unregistered(...);
-    client.on_error(...);
-    ```
+   ```.cpp
+   MbedCloudClient client;
+   client.on_registered(...);
+   client.on_unregistered(...);
+   client.on_error(...);
+   ```
 
-1. Define your own resources:
+2. Define your own resources:
 
-    ```.cpp
-    M2MObjectList list;
+   ```.cpp
+   M2MObjectList list;
 
-    M2MObject *object = M2MInterfaceFactory::create_object(name);
-    M2MObjectInstance* object_instance = object->create_object_instance(instance_id);
-    M2MResource* resource = object_instance->create_dynamic_resource(name, resource_type, data_type, observable);
+   M2MObject *object = M2MInterfaceFactory::create_object(name);
+   M2MObjectInstance* object_instance = object->create_object_instance(instance_id);
+   M2MResource* resource = object_instance->create_dynamic_resource(name, resource_type, data_type, observable);
 
-    resource->set_value((const unsigned char*)value, strlen(value));
-    resource->set_operation(M2MBase::GET_PUT_ALLOWED);
-    resource->set_message_delivery_status_cb(...);
-    resource->set_value_updated_function((void(*)(const char*))cb);
+   resource->set_value((const unsigned char*)value, strlen(value));
+   resource->set_operation(M2MBase::GET_PUT_ALLOWED);
+   resource->set_message_delivery_status_cb(...);
+   resource->set_value_updated_function((void(*)(const char*))cb);
 
-    list->push_back(object);
-    ```
+   list->push_back(object);
+   ```
 
-1. Call `MbedCloudClient::add_objects()` to add LwM2M objects to the client:
+3. Call `MbedCloudClient::add_objects()` to add LwM2M objects to the client:
 
-    ```.cpp
-    client.add_objects(_obj_list);
-    ```
+   ```.cpp
+   client.add_objects(_obj_list);
+   ```
 
-1. Give a platform-specific pointer to the client (it uses this as its network interface):
+4. Give a platform-specific pointer to the client (it uses this as its network interface):
 
-    ```.cpp
-    client.setup(mcc_platform_get_network_interface());
-    ```
+   ```.cpp
+   client.setup(mcc_platform_get_network_interface());
+   ```
 
   This initiates the client and starts its state machine.
 

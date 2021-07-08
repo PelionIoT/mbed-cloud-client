@@ -350,6 +350,7 @@ friend class Test_M2MBase;
 friend class Test_M2MResourceInstance;
 friend class TestFactory;
 friend class Test_M2MInterfaceImpl;
+friend class Test_M2MDiscover;
 };
 
 /**

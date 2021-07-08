@@ -21,7 +21,7 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-
+#include "MbedCloudClient.h"
 #include "include/ServiceClient.h"
 #include "include/CloudClientStorage.h"
 
@@ -39,6 +39,7 @@
 #include "ns_hal_init.h"
 #include "fota/fota_internal_ifs.h"
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
+
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 #include "CertificateEnrollmentClient.h"
@@ -71,6 +72,18 @@ const uint8_t ServiceClient::hex_table[16] = {
     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
 };
 
+#define SERVICE_CLIENT_TASKLET_INIT_EVENT 0
+#define SERVICE_CLIENT_TASKLET_COMPLETE_EVENT 1
+
+extern "C" void service_client_tasklet_func(arm_event_s *event)
+{
+    event->event_id = 0;
+    if (event->event_type == SERVICE_CLIENT_TASKLET_COMPLETE_EVENT) {
+        ServiceClientCallback *callback = (ServiceClientCallback *)event->data_ptr;
+        callback->complete((ServiceClientCallback::ServiceClientCallbackStatus)event->event_data);
+    }
+}
+
 ServiceClient::ServiceClient(ServiceClientCallback &callback)
     : _service_callback(callback),
       _service_uri(NULL),
@@ -86,7 +99,8 @@ ServiceClient::ServiceClient(ServiceClientCallback &callback)
 #ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
       _multicast_tasklet_id(-1),
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
-      _connector_client(this)
+      _connector_client(this),
+      _tasklet_id(-1)
 {
 }
 
@@ -115,6 +129,14 @@ bool ServiceClient::init()
     // The ns_hal_init() needs to be called by someone before create_interface(),
     // as it will also initialize the tasklet.
     ns_hal_init(NULL, MBED_CLIENT_EVENT_LOOP_SIZE, NULL, NULL);
+    if (_tasklet_id < 0) {
+        _tasklet_id = eventOS_event_handler_create(service_client_tasklet_func, SERVICE_CLIENT_TASKLET_INIT_EVENT);
+        if (_tasklet_id < 0) {
+            tr_error("ServiceClient::init - failed to create tasklet (%d)", _tasklet_id);
+            _service_callback.error((int)MbedCloudClient::ConnectMemoryConnectFail, "Failed to create event handler");
+            return false;
+        }
+    }
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
     if (_uc_hub_tasklet_id < 0) {
         _uc_hub_tasklet_id = eventOS_event_handler_create(UpdateClient::event_handler, UpdateClient::UPDATE_CLIENT_EVENT_CREATE);
@@ -134,7 +156,7 @@ bool ServiceClient::init()
 #endif // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
     if (_multicast_tasklet_id < 0) {
-        _multicast_tasklet_id = eventOS_event_handler_create(&arm_uc_multicast_tasklet, 0);
+        _multicast_tasklet_id = eventOS_event_handler_create(&arm_uc_multicast_tasklet, ARM_UC_OTA_MULTICAST_INIT_EVENT);
         if (_multicast_tasklet_id < 0) {
             tr_error("ServiceClient::init - failed to create multicast event handler (%d)", _multicast_tasklet_id);
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
@@ -144,6 +166,10 @@ bool ServiceClient::init()
         }
     }
 #endif // SERVICE_CLIENT_SUPPORT_MULTICAST
+
+    memset(&_event, 0, sizeof(_event));
+    _event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+    _event.data.receiver = _tasklet_id;
 
     return true;
 }
@@ -408,15 +434,19 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
             fota_internal_resume();
 #endif
-            _service_callback.complete(ServiceClientCallback::Service_Client_Status_Register_Updated);
+            send_complete_event(ServiceClientCallback::Service_Client_Status_Register_Updated);
             break;
 
         case ConnectorClient::State_Paused:
-            _service_callback.complete(ServiceClientCallback::Service_Client_Status_Paused);
+            send_complete_event(ServiceClientCallback::Service_Client_Status_Paused);
             break;
 
         case ConnectorClient::State_Alert_Mode:
-            _service_callback.complete(ServiceClientCallback::Service_Client_Status_Alert_Mode);
+            send_complete_event(ServiceClientCallback::Service_Client_Status_Alert_Mode);
+            break;
+
+        case ConnectorClient::State_Sleep:
+            send_complete_event(ServiceClientCallback::Service_Client_Status_Sleep);
             break;
 
         default:
@@ -435,16 +465,15 @@ void ServiceClient::connector_error(M2MInterface::Error error, const char *reaso
     else if (_current_state == State_Bootstrap) {
         registration_process_result(ConnectorClient::State_Bootstrap_Failure);
     }
-    // Client is in State_Failure and failing to bootstrap on InvalidCertificates.
-    // Factory reset the credentials to clear invalid/broken certificates and try again.
-    else if (_current_state == State_Failure && (error == M2MInterface::InvalidCertificates
-                                                 || error == M2MInterface::FailedToStoreCredentials
+    // Client is in State_Failure and failing to bootstrap due to storage failures.
+    // Factory reset the credentials to clear invalid/broken certificates and re-bootstrap.
+    else if (_current_state == State_Failure && (error == M2MInterface::FailedToStoreCredentials
                                                  || error == M2MInterface::FailedToReadCredentials)) {
         _connector_client.factory_reset_credentials();
         _connector_client.bootstrap_again();
     }
     // Client is in State Failure and fails bootstrap in invalid parameters.
-    // Try to recover with rebootstrapping.
+    // Try to recover with re-bootstrapping.
     else if (_current_state == State_Failure && error == M2MInterface::InvalidParameters) {
         _connector_client.bootstrap_again();
     }
@@ -480,19 +509,19 @@ void ServiceClient::state_success()
 {
     tr_info("ServiceClient::state_success()");
     // this is verified already at client API level, but this might still catch some logic failures
-    _service_callback.complete(ServiceClientCallback::Service_Client_Status_Registered);
+    send_complete_event(ServiceClientCallback::Service_Client_Status_Registered);
 }
 
 void ServiceClient::state_failure()
 {
     tr_error("ServiceClient::state_failure()");
-    _service_callback.complete(ServiceClientCallback::Service_Client_Status_Failure);
+    send_complete_event(ServiceClientCallback::Service_Client_Status_Failure);
 }
 
 void ServiceClient::state_unregister()
 {
     tr_debug("ServiceClient::state_unregister()");
-    _service_callback.complete(ServiceClientCallback::Service_Client_Status_Unregistered);
+    send_complete_event(ServiceClientCallback::Service_Client_Status_Unregistered);
 }
 
 M2MDevice *ServiceClient::device_object_from_storage()
@@ -715,6 +744,17 @@ void ServiceClient::reboot_execute_handler(void *)
 void ServiceClient::m2mdevice_reboot_execute()
 {
     pal_osReboot();
+}
+
+void ServiceClient::send_complete_event(ServiceClientCallback::ServiceClientCallbackStatus status)
+{
+    if (!_event.data.event_id) {
+        _event.data.event_id = true;
+        _event.data.event_data = status;
+        _event.data.event_type = SERVICE_CLIENT_TASKLET_COMPLETE_EVENT;
+        _event.data.data_ptr = (void *)&_service_callback;
+        eventOS_event_send_user_allocated(&_event);
+    }
 }
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE

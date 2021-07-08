@@ -66,6 +66,23 @@
 #define CBOR_TAG_RPL_TOTAL_MEM                      "rpl_total_memory"
 #define CBOR_TAG_ASYNC_TX_CNT                       "async_tx_cnt"
 #define CBOR_TAG_ASYNC_RX_CNT                       "async_rx_cnt"
+#define CBOR_TAG_JOIN_STATE_1                       "join_state_1"
+#define CBOR_TAG_JOIN_STATE_2                       "join_state_2"
+#define CBOR_TAG_JOIN_STATE_3                       "join_state_3"
+#define CBOR_TAG_JOIN_STATE_4                       "join_state_4"
+#define CBOR_TAG_JOIN_STATE_5                       "join_state_5"
+#define CBOR_TAG_SEND_PAS                           "sent_PAS"
+#define CBOR_TAG_SEND_PA                            "sent_PA"
+#define CBOR_TAG_SEND_PCS                           "sent_PCS"
+#define CBOR_TAG_SEND_PC                            "sent_PC"
+#define CBOR_TAG_RECV_PAS                           "recv_PAS"
+#define CBOR_TAG_RECV_PA                            "recv_PA"
+#define CBOR_TAG_RECV_PCS                           "recv_PCS"
+#define CBOR_TAG_RECV_PC                            "recv_PC"
+#define CBOR_TAG_NEIGHBOUR_ADD                      "neighbour_add"
+#define CBOR_TAG_NEIGHBOUR_REMOVE                   "neighbour_remove"
+#define CBOR_TAG_CHILD_ADD                          "child_add"
+#define CBOR_TAG_CHILD_REMOVE                       "child_remove"
 //General Network Statistics
 #define CBOR_TAG_MAC_RX_CNT                         "mac_rx_cnt"
 #define CBOR_TAG_MAC_TX_CNT                         "mac_tx_cnt"
@@ -113,6 +130,18 @@
 #define CBOR_TAG_RSSI_OUT                           "rssi_out"
 // Channel Noise
 #define CBOR_TAG_CCA_TH_TABLE                       "cca_threshold_table"
+//Neighbors Information
+#define CBOR_TAG_NBR_COUNT                          "nbr_cnt"
+#define CBOR_TAG_NBR_INFO                           "nbr_info"
+#define CBOR_TAG_NBR_LINK_LOCAL_ADDR                "ll_addr"
+#define CBOR_TAG_NBR_GLOGBAL_ADDR                   "gbl_addr"
+#define CBOR_TAG_NBR_RSL_OUT                        "rsl_out"
+#define CBOR_TAG_NBR_RSL_IN                         "rsl_in"
+#define CBOR_TAG_NBR_RPL_RANK                       "rpl_rank"
+#define CBOR_TAG_NBR_ETX                            "etx"
+#define CBOR_TAG_NBR_LIFETIME                       "lifetime"
+#define CBOR_TAG_NBR_TYPE                           "type"
+
 
 static bool get_string_value_from_stream(CborValue *main_value, const char *str_name, CborValue *map_value, char **temp_buffer)
 {
@@ -952,17 +981,102 @@ static nm_status_t ws_stats_to_cbor(void *stats_ws, uint8_t *cbor_data, size_t *
 
     // rpl_total_memory
     if (encode_text_string(&map, CBOR_TAG_RPL_TOTAL_MEM, sizeof(CBOR_TAG_RPL_TOTAL_MEM) - 1)) {
-        encode_uint32_value(&map, ws_stats->ws_rpl_statistics.rpl_total_memory);
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.rpl_total_memory);
     }
 
     // asynch_tx_count
     if (encode_text_string(&map, CBOR_TAG_ASYNC_TX_CNT, sizeof(CBOR_TAG_ASYNC_TX_CNT) - 1)) {
-        encode_uint32_value(&map, ws_stats->ws_mac_statistics.asynch_tx_count);
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.asynch_tx_count);
     }
 
     // asynch_rx_count
     if (encode_text_string(&map, CBOR_TAG_ASYNC_RX_CNT, sizeof(CBOR_TAG_ASYNC_RX_CNT) - 1)) {
-        encode_uint32_value(&map, ws_stats->ws_mac_statistics.asynch_rx_count);
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.asynch_rx_count);
+    }
+
+    // join_state_1
+    if (encode_text_string(&map, CBOR_TAG_JOIN_STATE_1, sizeof(CBOR_TAG_JOIN_STATE_1) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.join_state_1);
+    }
+
+    // join_state_2
+    if (encode_text_string(&map, CBOR_TAG_JOIN_STATE_2, sizeof(CBOR_TAG_JOIN_STATE_2) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.join_state_2);
+    }
+
+    // join_state_3
+    if (encode_text_string(&map, CBOR_TAG_JOIN_STATE_3, sizeof(CBOR_TAG_JOIN_STATE_3) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.join_state_3);
+    }
+
+    // join_state_4
+    if (encode_text_string(&map, CBOR_TAG_JOIN_STATE_4, sizeof(CBOR_TAG_JOIN_STATE_4) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.join_state_4);
+    }
+
+    // join_state_5
+    if (encode_text_string(&map, CBOR_TAG_JOIN_STATE_5, sizeof(CBOR_TAG_JOIN_STATE_5) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.join_state_5);
+    }
+
+    // sent_PAS
+    if (encode_text_string(&map, CBOR_TAG_SEND_PAS, sizeof(CBOR_TAG_SEND_PAS) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.sent_PAS);
+    }
+
+    // sent_PA
+    if (encode_text_string(&map, CBOR_TAG_SEND_PA, sizeof(CBOR_TAG_SEND_PA) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.sent_PA);
+    }
+
+    // sent_PCS
+    if (encode_text_string(&map, CBOR_TAG_SEND_PCS, sizeof(CBOR_TAG_SEND_PCS) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.sent_PCS);
+    }
+
+    // sent_PC
+    if (encode_text_string(&map, CBOR_TAG_SEND_PC, sizeof(CBOR_TAG_SEND_PC) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.sent_PC);
+    }
+
+    // recv_PAS
+    if (encode_text_string(&map, CBOR_TAG_RECV_PAS, sizeof(CBOR_TAG_RECV_PAS) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.recv_PAS);
+    }
+
+    // recv_PA
+    if (encode_text_string(&map, CBOR_TAG_RECV_PA, sizeof(CBOR_TAG_RECV_PA) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.recv_PA);
+    }
+
+    // recv_PCS
+    if (encode_text_string(&map, CBOR_TAG_RECV_PCS, sizeof(CBOR_TAG_RECV_PCS) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.recv_PCS);
+    }
+
+    // recv_PC
+    if (encode_text_string(&map, CBOR_TAG_RECV_PC, sizeof(CBOR_TAG_RECV_PC) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.recv_PC);
+    }
+
+    // neighbour_add
+    if (encode_text_string(&map, CBOR_TAG_NEIGHBOUR_ADD, sizeof(CBOR_TAG_NEIGHBOUR_ADD) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.neighbour_add);
+    }
+
+    // neighbour_remove
+    if (encode_text_string(&map, CBOR_TAG_NEIGHBOUR_REMOVE, sizeof(CBOR_TAG_NEIGHBOUR_REMOVE) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.neighbour_remove);
+    }
+
+    // child_add
+    if (encode_text_string(&map, CBOR_TAG_CHILD_ADD, sizeof(CBOR_TAG_CHILD_ADD) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.child_add);
+    }
+
+    // child_remove
+    if (encode_text_string(&map, CBOR_TAG_CHILD_REMOVE, sizeof(CBOR_TAG_CHILD_REMOVE) - 1)) {
+        encode_uint32_value(&map, ws_stats->ws_mesh_statistics.child_remove);
     }
 
     // pan_id
@@ -1182,6 +1296,136 @@ static nm_status_t node_stats_to_cbor(void *stats_ni, uint8_t *cbor_data, size_t
     return NM_STATUS_SUCCESS;
 }
 
+static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, size_t *len)
+{
+
+    CborError cbor_error = CborNoError;
+    CborEncoder encoder;
+    CborEncoder map;
+    CborEncoder stu_array;
+    CborEncoder remap;
+
+    nbr_info_t *nbr_info = (nbr_info_t *)stats_ns;
+
+    cbor_encoder_init(&encoder, cbor_data,(nbr_info->count * (sizeof(nm_ws_nbr_info_t)) + NEIGHBOR_INFO_MAX_ENCODING_BUFF(nbr_info->count)), 0);
+
+    // Create map
+    cbor_error = cbor_encoder_create_map(&encoder, &map, CborIndefiniteLength);
+    if (cbor_error) {
+        tr_warn("Failed creating presence map with error code %d", cbor_error);
+        return NM_STATUS_FAIL;
+    }
+
+    // neighbor_count
+    if (encode_text_string(&map, CBOR_TAG_NBR_COUNT, sizeof(CBOR_TAG_NBR_COUNT) - 1)) {
+        encode_uint32_value(&map, (uint32_t)nbr_info->count);
+    }
+
+    if(nbr_info->count == 0) {
+        // Close map
+        cbor_error = cbor_encoder_close_container(&encoder, &map);
+        if (cbor_error) {
+            tr_warn("Failed closing presence map with error code %d", cbor_error);
+            return NM_STATUS_FAIL;
+        }
+
+        size_t ret = cbor_encoder_get_buffer_size(&encoder, cbor_data);
+        tr_debug("Length of neighbor_info_to_cbor buffer is %d", ret);
+        *len = ret;
+
+        return NM_STATUS_SUCCESS;
+    }
+
+    // neighbor_info
+    if(encode_text_string(&map, CBOR_TAG_NBR_INFO, sizeof(CBOR_TAG_NBR_INFO) - 1)) {
+
+        // Create array
+        cbor_error = cbor_encoder_create_array(&map, &stu_array, nbr_info->count);
+        if (cbor_error) {
+            tr_warn("Failed creating array for map with error code %d", cbor_error);
+            return NM_STATUS_FAIL;
+        }
+
+        for (int i = 0; i < nbr_info->count; i++) {
+            // Create remap
+            cbor_error = cbor_encoder_create_map(&stu_array, &remap, CborIndefiniteLength);
+            if (cbor_error) {
+                tr_warn("Failed creating presence remap with error code %d", cbor_error);
+                return NM_STATUS_FAIL;
+            }
+
+            // link_local_addr
+            if (encode_text_string(&remap, CBOR_TAG_NBR_LINK_LOCAL_ADDR, sizeof(CBOR_TAG_NBR_LINK_LOCAL_ADDR) - 1)) {
+                encode_byte_array(&remap, nbr_info->nbr_info_ptr[i].link_local_address, sizeof(nbr_info->nbr_info_ptr[i].link_local_address));
+            }
+
+            // global_addr
+            if (encode_text_string(&remap, CBOR_TAG_NBR_GLOGBAL_ADDR, sizeof(CBOR_TAG_NBR_GLOGBAL_ADDR) - 1)) {
+                encode_byte_array(&remap, nbr_info->nbr_info_ptr[i].global_address, sizeof(nbr_info->nbr_info_ptr[i].global_address));
+            }
+
+            // rsl_out
+            if (encode_text_string(&remap, CBOR_TAG_NBR_RSL_OUT, sizeof(CBOR_TAG_NBR_RSL_OUT) - 1)) {
+                encode_uint32_value(&remap, (uint32_t)nbr_info->nbr_info_ptr[i].rsl_out);
+            }
+
+            // rsl_in
+            if (encode_text_string(&remap, CBOR_TAG_NBR_RSL_IN, sizeof(CBOR_TAG_NBR_RSL_IN) - 1)) {
+                encode_uint32_value(&remap, (uint32_t)nbr_info->nbr_info_ptr[i].rsl_in);
+            }
+
+            // rpl_rank
+            if (encode_text_string(&remap, CBOR_TAG_NBR_RPL_RANK, sizeof(CBOR_TAG_NBR_RPL_RANK) - 1)) {
+                encode_uint32_value(&remap, (uint32_t)nbr_info->nbr_info_ptr[i].rpl_rank);
+            }
+
+            // etx
+            if (encode_text_string(&remap, CBOR_TAG_NBR_ETX, sizeof(CBOR_TAG_NBR_ETX) - 1)) {
+                encode_uint32_value(&remap, (uint32_t)nbr_info->nbr_info_ptr[i].etx);
+            }
+
+            // lifetime
+            if (encode_text_string(&remap, CBOR_TAG_NBR_LIFETIME, sizeof(CBOR_TAG_NBR_LIFETIME) - 1)) {
+                encode_uint32_value(&remap, (uint32_t)nbr_info->nbr_info_ptr[i].lifetime);
+            }
+
+            // type
+            if (encode_text_string(&remap, CBOR_TAG_NBR_TYPE, sizeof(CBOR_TAG_NBR_TYPE) - 1)) {
+                encode_uint32_value(&remap, (uint32_t)nbr_info->nbr_info_ptr[i].type);
+            }
+
+            // Close remap
+            cbor_error = cbor_encoder_close_container(&stu_array, &remap);
+            if (cbor_error) {
+                tr_debug("Failed closing presence remap with error code %d", cbor_error);
+                return NM_STATUS_FAIL;
+            }
+        }
+
+        // Close array
+        cbor_error = cbor_encoder_close_container(&map, &stu_array);
+        if (cbor_error) {
+            tr_warn("Failed closing presence array of map with error code %d", cbor_error);
+            return NM_STATUS_FAIL;
+        }
+
+        // Close map
+        cbor_error = cbor_encoder_close_container(&encoder, &map);
+        if (cbor_error) {
+            tr_warn("Failed closing presence map with error code %d", cbor_error);
+            return NM_STATUS_FAIL;
+        }
+
+    }
+
+    size_t ret = cbor_encoder_get_buffer_size(&encoder, cbor_data);
+    tr_debug("Length of neighbor_info_to_cbor buffer is %d", ret);
+    *len = ret;
+
+    return NM_STATUS_SUCCESS;
+}
+
+
 nm_status_t nm_statistics_to_cbor(void *stats, uint8_t *cbor_data, config_type_t type, size_t *len)
 {
     nm_status_t status = NM_STATUS_FAIL;
@@ -1217,6 +1461,12 @@ nm_status_t nm_statistics_to_cbor(void *stats, uint8_t *cbor_data, config_type_t
             status = node_stats_to_cbor(stats, cbor_data, len);
             if (status) {
                 tr_info("NI statistics cbor encoder fail");
+            }
+            break;
+        case NS:
+            status = neighbor_stats_to_cbor(stats, cbor_data, len);
+            if (status) {
+                tr_info("Neighbor statistics cbor encoder fail");
             }
             break;
     }

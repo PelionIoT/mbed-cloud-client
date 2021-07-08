@@ -32,7 +32,8 @@ typedef enum config {
     WS,
     BR,
     NM,
-    NI
+    NI,
+    NS
 } config_type_t;
 
 typedef enum nm_status {
@@ -147,22 +148,34 @@ typedef struct {
     uint16_t pan_id;
 } ws_common_id_statistics_t;
 
-/* Wi-Sun RPL Statistics */
+/* Wi-Sun mesh Statistics */
 typedef struct {
     uint32_t rpl_total_memory;  /*<! RPL current memory usage total. */
-} ws_rpl_statistics_t;
-
-/* Wi-Sun MAC Statistics */
-typedef struct {
     uint32_t asynch_tx_count;   /*<! Asynch TX counter */
     uint32_t asynch_rx_count;   /*<! Asynch RX counter */
-} ws_mac_statistics_t;
+    uint32_t join_state_1;      /*<! Time spent in individual Wi-SUN join state 1 Discovery */
+    uint32_t join_state_2;      /*<! Time spent in individual Wi-SUN join state 2 Authentication */
+    uint32_t join_state_3;      /*<! Time spent in individual Wi-SUN join state 3 Configuration learn */
+    uint32_t join_state_4;      /*<! Time spent in individual Wi-SUN join state 4 RPL parent discovery */
+    uint32_t join_state_5;      /*<! Time spent in individual Wi-SUN join state 5 Active state */
+    uint32_t sent_PAS;          /*<! Amount of Wi-SUN Pan Advertisement Solicit Message sent */
+    uint32_t sent_PA;           /*<! Amount of Wi-SUN Pan Advertisement Message sent */
+    uint32_t sent_PCS;          /*<! Amount of Wi-SUN Pan Configuration Solicit Message sent */
+    uint32_t sent_PC;           /*<! Amount of Wi-SUN Pan Configuration Message sent */
+    uint32_t recv_PAS;          /*<! Amount of Wi-SUN Pan Advertisement Solicit Message received */
+    uint32_t recv_PA;           /*<! Amount of Wi-SUN Pan Advertisement Message received */
+    uint32_t recv_PCS;          /*<! Amount of Wi-SUN Pan Configuration Solicit Message received */
+    uint32_t recv_PC;           /*<! Amount of Wi-SUN Pan Configuration Message received */
+    uint32_t neighbour_add;     /*<! New Neighbours found */
+    uint32_t neighbour_remove;  /*<! New Neighbours Removed */
+    uint32_t child_add;         /*<! New Child added */
+    uint32_t child_remove;      /*<! Child lost */
+} ws_mesh_statistics_t;
 
 /* Wi-SUN common information */
 typedef struct {
     ws_common_id_statistics_t ws_common_id_statistics;
-    ws_rpl_statistics_t ws_rpl_statistics;
-    ws_mac_statistics_t ws_mac_statistics;
+    ws_mesh_statistics_t ws_mesh_statistics;
 } nm_ws_common_info_t;
 
 /* Wi-SUN border router information */
@@ -190,6 +203,38 @@ typedef struct {
     uint32_t resource_version;
     routing_info_t routing_info;
 } nm_node_info_t;
+
+typedef enum {
+    NM_WISUN_OTHER = 0,            /**< temporary or soon to be removed neighbor*/
+    NM_WISUN_PRIMARY_PARENT,       /**< Primary parent used for upward packets and used from Border router downwards*/
+    NM_WISUN_SECONDARY_PARENT,     /**< Secondary parent reported to border router and might be used as alternate route*/
+    NM_WISUN_CANDIDATE_PARENT,     /**< Candidate neighbor that is considered as parent if there is problem with active parents*/
+    NM_WISUN_CHILD                 /**< Child with registered address*/
+} nm_ws_nbr_type_e;
+
+typedef struct {
+    /** parent RSSI Out measured RSSI value calculated using EWMA specified by Wi-SUN from range of -174 (0) to +80 (254) dBm.*/
+    uint8_t rsl_out;
+    /** parent RSSI in measured RSSI value calculated using EWMA specified by Wi-SUN from range of -174 (0) to +80 (254) dBm.*/
+    uint8_t rsl_in;
+    /** RPL Rank value for parents 0xffff for neighbors RANK is unknown*/
+    uint16_t rpl_rank;
+    /** Measured ETX value if known set to 0xFFFF if not known or Child*/
+    uint16_t etx;
+    /** Remaining lifetime Link lifetime for parents and ARO lifetime for children*/
+    uint32_t lifetime;
+    /** Neighbour type (Primary Parent, Secondary Parent, Candidate parent, child, other(Temporary neighbours))*/
+    nm_ws_nbr_type_e type;
+    /** Link local address*/
+    uint8_t link_local_address[16];
+    /** Global address if it is known set to 0 if not available*/
+    uint8_t global_address[16];
+} nm_ws_nbr_info_t;
+
+typedef struct {
+    uint16_t count;
+    nm_ws_nbr_info_t *nbr_info_ptr;
+}nbr_info_t;
 
 #ifdef __cplusplus
 } // closing brace for extern "C"

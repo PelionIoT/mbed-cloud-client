@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015-2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -184,6 +184,10 @@ typedef struct mbedtls_entropy {
 #define MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS 1
 #endif
 
+#ifndef MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY
+#define MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY 1
+#endif
+
 #ifdef MBED_CONF_MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE
 #define MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE MBED_CONF_MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE
 #endif
@@ -191,7 +195,12 @@ typedef struct mbedtls_entropy {
 #define MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE 1
 #endif
 
-// Define defaults if not defined yet.
+#ifdef MBED_CONF_MBED_CLIENT_MAX_RECONNECT_TIMEOUT
+#define MBED_CLIENT_MAX_RECONNECT_TIMEOUT MBED_CONF_MBED_CLIENT_MAX_RECONNECT_TIMEOUT
+#endif
+#ifndef MBED_CLIENT_MAX_RECONNECT_TIMEOUT
+#define MBED_CLIENT_MAX_RECONNECT_TIMEOUT        14400   // 4 hours
+#endif
 
 #ifndef MBED_CLIENT_RECONNECTION_COUNT
 #define MBED_CLIENT_RECONNECTION_COUNT 3

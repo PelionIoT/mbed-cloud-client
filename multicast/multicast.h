@@ -22,6 +22,7 @@
 #include "eventOS_event.h"
 #include "eventOS_event_timer.h"
 
+#define ARM_UC_OTA_MULTICAST_INIT_EVENT             0
 #define ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT    1
 #define ARM_UC_OTA_MULTICAST_TIMER_EVENT            2
 #define ARM_UC_OTA_MULTICAST_DL_DONE_EVENT          3

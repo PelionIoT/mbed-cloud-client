@@ -19,22 +19,18 @@
 #ifndef FOTA_DEVICE_KEY
 #define FOTA_DEVICE_KEY
 
-#ifdef __MBED__
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if ((MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) && (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)) || (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
-
+#if ((MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) && (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)) || \
+    (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
 int8_t fota_get_device_key_128bit(uint8_t *key, uint32_t keyLenBytes);
 
-#endif // #if (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) || (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
+#endif
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif
 
 #endif // FOTA_DEVICE_KEY

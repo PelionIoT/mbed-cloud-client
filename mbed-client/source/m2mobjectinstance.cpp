@@ -33,6 +33,7 @@
 #include "include/m2mreporthandler.h"
 #include "mbed-trace/mbed_trace.h"
 #include "include/m2mcallbackstorage.h"
+#include "include/m2mdiscover.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -497,8 +498,12 @@ sn_coap_hdr_s *M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
 
                 // Check if preferred content type is supported
                 if (content_type_present) {
-                    if (coap_response->content_format != COAP_CONTENT_OMA_TLV_TYPE_OLD &&
-                            coap_response->content_format != COAP_CONTENT_OMA_TLV_TYPE) {
+                    if ((coap_response->content_format != COAP_CONTENT_OMA_TLV_TYPE_OLD) &&
+                            (coap_response->content_format != COAP_CONTENT_OMA_TLV_TYPE)
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY) && (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY == 1)
+                            && (coap_response->content_format != COAP_CONTENT_OMA_LINK_FORMAT_TYPE)
+#endif
+                            ) {
                         is_content_type_supported = false;
                     }
                 }
@@ -516,7 +521,17 @@ sn_coap_hdr_s *M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
                         set_coap_content_type(coap_response->content_format);
                         data = M2MTLVSerializer::serialize(_resource_list, data_length);
                     }
-
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY) && (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY == 1)
+                    else if (coap_response->content_format == COAP_CONTENT_OMA_LINK_FORMAT_TYPE) {
+                        // Discover
+                        data_length = 0;
+                        data = M2MDiscover::create_object_instance_payload(this, data_length);
+                        if (!data) {
+                            data_length = 0;
+                            tr_error("M2MObjectInstance::handle_get_request() - Discover data allocation failed!");
+                        }
+                    }
+#endif
                     coap_response->payload_len = data_length;
                     coap_response->payload_ptr = data;
 
@@ -629,6 +644,9 @@ sn_coap_hdr_s *M2MObjectInstance::handle_put_request(nsdl_s *nsdl,
                             break;
                         case M2MTLVDeserializer::OutOfMemory:
                             msg_code = COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE;
+                            break;
+                        case M2MTLVDeserializer::NotAccepted:
+                            msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                             break;
                     }
                 }

@@ -4,6 +4,7 @@
         "event-loop-size": 1024,
         "reconnection-count": 3,
         "reconnection-interval": null,
+        "max-reconnect-timeout": null,
         "tcp-keepalive-interval": 100,
         "disable-bootstrap-feature": null,
         "coap-disable-obs-feature":null,
@@ -26,6 +27,7 @@
             "value": 1024
         },
         "enable-observation-parameters" : 1,
-        "bootstrap-piggybacked-response" : null
+        "bootstrap-piggybacked-response" : null,
+        "enable-discovery" : 1
     }
 }

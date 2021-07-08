@@ -218,7 +218,8 @@ public:
         Registered,
         RegistrationUpdated,
         AlertMode,
-        Paused
+        Paused,
+        Sleep
     } Status;
 
     /**
@@ -469,7 +470,7 @@ public:
      * \param callback Function pointer that is called when Device Management Client
      * goes to sleep.
      */
-    void set_queue_sleep_handler(callback_handler handler);
+    void set_queue_sleep_handler(callback_handler handler) m2m_deprecated;
 
     /**
      * \brief Set the function callback that is called by Device Management Client to

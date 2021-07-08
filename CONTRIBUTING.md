@@ -8,6 +8,7 @@ Due to the release process, all new releases are squashed code drops. Therefore,
 
 | Author         | Pull Request  | Change title/summary                                     |
 |----------------|---------------|----------------------------------------------------------|
-| Garrett LoVerde (@40Grit) | [#46](https://github.com/ARMmbed/mbed-cloud-client/pull/46) | Remove redundant switch in `get_resource` |
+| Garrett LoVerde (@40Grit) | [#46](https://github.com/PelionIoT/mbed-cloud-client/pull/46) | Remove redundant switch in `get_resource` |
 | Pawel Dunaj ([@pdunaj](https://github.com/pdunaj))            | N/A | Port Pelion Client to Zephyr OS |
 | Emil Obalski ([@emob-nordic](https://github.com/emob-nordic)) | N/A | Port Pelion Client to Zephyr OS | 
+| Emil Obalski ([@emob-nordic](https://github.com/emob-nordic)) | [#86](https://github.com/PelionIoT/mbed-cloud-client/pull/86) | Update pal Timers |

@@ -327,7 +327,7 @@ static ds_status_e extract_ip_addr_and_port(const char *rem_address_field, ds_st
 
 static bool avoid_report_remote_address(const char *rem_address_field, int connection_state_field, ds_net_protocol_type_t protocol)
 {
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((rem_address_field == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: rem_address_field is NULL");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((rem_address_field == NULL), true, "Invalid parameter: rem_address_field is NULL");
     SA_PV_LOG_TRACE_FUNC_ENTER("rem_address_field=%s, connection_state_field=%d, protocol=%d", rem_address_field, connection_state_field, protocol);
 
     bool ret_var = false;
@@ -366,9 +366,9 @@ static const char* protocol_to_str(ds_net_protocol_type_t protocol)
 
 static bool is_ip_addr_and_port_already_reported(const ds_stat_ip_data_t *stats_array, uint32_t number_items_to_search, const ds_stat_ip_data_t* ip_data)
 {
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((ip_data == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: ip_data is NULL");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((ip_data == NULL), true, "Invalid parameter: ip_data is NULL");
     SA_PV_LOG_TRACE_FUNC_ENTER("ip address=%s, port=%" PRIu16, ip_data->ip_addr, ip_data->port);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((stats_array == NULL), DS_STATUS_INVALID_PARAMETER, "Invalid parameter: stats_array is NULL");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((stats_array == NULL), true, "Invalid parameter: stats_array is NULL");
 
     bool ret_var = false;
     for (uint32_t i = 0; i <= number_items_to_search; i++) {
@@ -567,10 +567,10 @@ ds_status_e ds_plat_memory_stats_get(ds_stats_memory_t *mem_stats_out)
 
     uint64_t mem_total_kb = 0, mem_free_kb = 0;
     ds_status_e status = meminfo_fields_get_from_line(&mem_total_kb, "MemTotal:", fp);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status, release_resources, "Failed to get MemTotal field");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), (void)status, release_resources, "Failed to get MemTotal field");
 
     status = meminfo_fields_get_from_line(&mem_free_kb, "MemFree:", fp);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), status, release_resources, "Failed to get MemFree field");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((status != DS_STATUS_SUCCESS), (void)status, release_resources, "Failed to get MemFree field");
 
 release_resources:
     fclose (fp);

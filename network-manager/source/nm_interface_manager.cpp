@@ -39,6 +39,7 @@
 #define NM_STAT_MAX_BUF NM_STAT_MAX_ENCODER_BUF
 #define BR_STAT_MAX_BUF BR_STAT_MAX_ENCODER_BUF
 #define NI_STAT_MAX_BUF NI_STAT_MAX_ENCODER_BUF
+#define NS_STAT_MAX_BUF NS_STAT_MAX_ENCODER_BUF
 
 #define DEFAULT_CONFIG_DELAY          0
 #define MESH_MAC_ADDR_LEN             8
@@ -86,10 +87,10 @@ static nm_status_t nm_iface_kvstore_read_cfg(char *key, void *struct_val, config
     return status;
 }
 
-void register_interfaces(NetworkInterface *mesh_iface, NetworkInterface *backhaul_iface, WisunBorderRouter *br_iface)
+void register_interfaces(WisunInterface *mesh_iface, NetworkInterface *backhaul_iface, WisunBorderRouter *br_iface)
 {
     backhaul_interface = backhaul_iface;
-    ws_iface = reinterpret_cast<WisunInterface *>(mesh_iface);
+    ws_iface = mesh_iface;
     ws_br = br_iface;
 }
 
@@ -467,7 +468,7 @@ nm_status_t string2hex_mac_address(uint8_t **mac_addr, uint8_t *recv_buffer, uin
         return NM_STATUS_SUCCESS;
 }
 
-nm_status_t nm_mesh_configure_factory_mac_address(NetworkInterface *mesh_iface)
+nm_status_t nm_mesh_configure_factory_mac_address(WisunInterface *mesh_iface)
 {
 #if ((MBED_VERSION >= MBED_ENCODE_VERSION(6, 8, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION >= MBED_ENCODE_VERSION(5, 15, 7))))
     uint8_t *mesh_mac_address = NULL;
@@ -772,9 +773,28 @@ nm_status_t nm_res_get_ws_stats(uint8_t **datap, size_t *length)
         return NM_STATUS_FAIL;
     }
 
-    ws_stats.ws_rpl_statistics.rpl_total_memory = ws_stats_temp.rpl_total_memory;
-    ws_stats.ws_mac_statistics.asynch_rx_count = ws_stats_temp.asynch_rx_count;
-    ws_stats.ws_mac_statistics.asynch_tx_count = ws_stats_temp.asynch_tx_count;
+    ws_stats.ws_mesh_statistics.rpl_total_memory = ws_stats_temp.rpl_total_memory;
+    ws_stats.ws_mesh_statistics.asynch_rx_count = ws_stats_temp.asynch_rx_count;
+    ws_stats.ws_mesh_statistics.asynch_tx_count = ws_stats_temp.asynch_tx_count;
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
+    ws_stats.ws_mesh_statistics.join_state_1 = ws_stats_temp.join_state_1;
+    ws_stats.ws_mesh_statistics.join_state_2 = ws_stats_temp.join_state_2;
+    ws_stats.ws_mesh_statistics.join_state_3 = ws_stats_temp.join_state_3;
+    ws_stats.ws_mesh_statistics.join_state_4 = ws_stats_temp.join_state_4;
+    ws_stats.ws_mesh_statistics.join_state_5 = ws_stats_temp.join_state_5;
+    ws_stats.ws_mesh_statistics.sent_PAS = ws_stats_temp.sent_PAS;
+    ws_stats.ws_mesh_statistics.sent_PA = ws_stats_temp.sent_PA;
+    ws_stats.ws_mesh_statistics.sent_PCS = ws_stats_temp.sent_PCS;
+    ws_stats.ws_mesh_statistics.sent_PC = ws_stats_temp.sent_PC;
+    ws_stats.ws_mesh_statistics.recv_PAS = ws_stats_temp.recv_PAS;
+    ws_stats.ws_mesh_statistics.recv_PA = ws_stats_temp.recv_PA;
+    ws_stats.ws_mesh_statistics.recv_PCS = ws_stats_temp.recv_PCS;
+    ws_stats.ws_mesh_statistics.recv_PC = ws_stats_temp.recv_PC;
+    ws_stats.ws_mesh_statistics.neighbour_add = ws_stats_temp.Neighbour_add;
+    ws_stats.ws_mesh_statistics.neighbour_remove = ws_stats_temp.Neighbour_remove;
+    ws_stats.ws_mesh_statistics.child_add = ws_stats_temp.Child_add;
+    ws_stats.ws_mesh_statistics.child_remove = ws_stats_temp.child_remove;
+#endif
 
     memcpy(ws_stats.ws_common_id_statistics.rpl_dodag_id, rpl_stats_temp.rpl_dodag_id, sizeof(rpl_stats_temp.rpl_dodag_id));
     ws_stats.ws_common_id_statistics.instance_id = rpl_stats_temp.instance_id;
@@ -910,9 +930,9 @@ nm_status_t nm_res_get_ch_noise_stats(uint8_t **datap, size_t *length)
     return NM_STATUS_SUCCESS;
 }
 
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
 nm_status_t nm_reset_parameters(void)
 {
-#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
     if (ws_iface == NULL) {
         tr_warn("FAILED: Wi-SUN Interface is not initialized yet");
         return NM_STATUS_FAIL;
@@ -924,11 +944,62 @@ nm_status_t nm_reset_parameters(void)
     } else {
         tr_info("Reset Parameter Success");
     }
-#else
-    tr_warn("Not supported in this version");
-#endif
     return NM_STATUS_SUCCESS;
 }
+
+nm_status_t nm_res_get_nbr_info_stats(uint8_t **datap, size_t *length)
+{
+    nbr_info_t nw_nbr_info = {'\0'};
+
+    if (ws_iface == NULL) {
+        tr_warn("FAILED: Wi-SUN Interface is not initialized yet");
+        return NM_STATUS_FAIL;
+    }
+
+    /* Get neighbors count first to allocate dynamic memory allocation */
+    if (ws_iface->nbr_info_get(NULL, &nw_nbr_info.count) != MESH_ERROR_NONE) {
+        tr_warn("FAILED to read Neighbors count info from Nanostack");
+        return NM_STATUS_FAIL;
+    }
+
+    if(nw_nbr_info.count != 0 ){
+
+        nw_nbr_info.nbr_info_ptr = (nm_ws_nbr_info_t *)nm_dyn_mem_alloc(nw_nbr_info.count * (sizeof(nm_ws_nbr_info_t)));
+        if (nw_nbr_info.nbr_info_ptr == NULL) {
+            tr_warn("FAILED to allocate memory for neighbor information");
+            return NM_STATUS_FAIL;
+        }
+
+        /* Get neighbors information*/
+        if (ws_iface->nbr_info_get((ws_nbr_info_t *)(nw_nbr_info.nbr_info_ptr), &nw_nbr_info.count) != MESH_ERROR_NONE) {
+            /* Free dynamically allocated memory */
+            nm_dyn_mem_free(nw_nbr_info.nbr_info_ptr);
+            tr_warn("FAILED to read Neighbors info from Nanostack");
+            return NM_STATUS_FAIL;
+        }
+    }
+
+    *datap = (uint8_t *)nm_dyn_mem_alloc(((nw_nbr_info.count * (sizeof(nm_ws_nbr_info_t))) + NEIGHBOR_INFO_MAX_ENCODING_BUFF(nw_nbr_info.count)));
+    if (*datap == NULL) {
+        tr_warn("FAILED to allocate memory to CBORise data for neighbors information");
+        /* Free dynamically allocated memory */
+        nm_dyn_mem_free(nw_nbr_info.nbr_info_ptr);
+        return NM_STATUS_FAIL;
+    }
+
+    if (nm_statistics_to_cbor(&nw_nbr_info, *datap, NS, length) == NM_STATUS_FAIL) {
+        tr_warn("FAILED to CBORise Wi-SUN Statistics");
+        /* Free dynamically allocated memory */
+        nm_dyn_mem_free(nw_nbr_info.nbr_info_ptr);
+        nm_dyn_mem_free(*datap);
+        return NM_STATUS_FAIL;
+    }
+
+    /* Free dynamically allocated memory */
+    nm_dyn_mem_free(nw_nbr_info.nbr_info_ptr);
+    return NM_STATUS_SUCCESS;
+}
+#endif //((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
 /************************************************************************/
 
 

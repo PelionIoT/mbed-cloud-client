@@ -375,6 +375,7 @@ private:
     friend class Test_M2MReportHandler;
     friend class TestFactory;
     friend class Test_M2MInterfaceImpl;
+    friend class Test_M2MDiscover;
 };
 
 inline M2MObject& M2MObjectInstance::get_parent_object() const

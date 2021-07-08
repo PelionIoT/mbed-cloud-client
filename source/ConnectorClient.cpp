@@ -436,6 +436,15 @@ bool ConnectorClient::create_bootstrap_object()
                 tr_info("ConnectorClient::create_bootstrap_object - M2MServerUri %.*s", (int)real_size, buffer);
                 if (_security->set_resource_value(M2MSecurity::M2MServerUri, buffer, real_size, bs_id)) {
                     success = true;
+                    String server_uri = String((const char *)buffer, real_size);
+                    tr_info("ConnectorClient::create_bootstrap_object check security mode");
+                    if (!strstr(server_uri.c_str(),"coaps")) {
+                        success = false;
+                        if (_security->set_resource_value(M2MSecurity::SecurityMode, M2MSecurity::NoSecurity, bs_id)) {
+                            tr_info("ConnectorClient::create_bootstrap_object set no security mode");
+                            success = true;
+                        }
+                    }
                 }
             }
         }
@@ -678,6 +687,8 @@ bool ConnectorClient::create_register_object()
         success = true;
     }
 
+    tr_debug("ConnectorClient::create_register_object() - success %d", success);
+
     // Add ResourceID's and values to the security ObjectID/ObjectInstance
     if (success) {
         success = false;
@@ -691,7 +702,7 @@ bool ConnectorClient::create_register_object()
     }
 
     // Endpoint
-    if (success) {
+    if (success && _endpoint_info.mode != M2MSecurity::NoSecurity) {
         success = false;
         // 64 characters for common name + 1 for null terminator
         char device_id[65];
@@ -1189,29 +1200,38 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
     if (m2m_id == -1) {
         return status;
     }
+    uint32_t sec_mode = _security->resource_value_int(M2MSecurity::SecurityMode, m2m_id);
+    _endpoint_info.mode = (M2MSecurity::SecurityModeType)sec_mode;
 
     size_t buffer_size = MAX_CERTIFICATE_SIZE;
     uint8_t public_key[MAX_CERTIFICATE_SIZE];
     uint8_t *public_key_ptr = (uint8_t *)&public_key;
 
-    // TODO! Update to use chain api
-    if (security->resource_value_buffer(M2MSecurity::PublicKey, public_key_ptr, m2m_id, &buffer_size) != 0) {
-        return status;
-    }
 
-    char device_id[64];
-    memset(device_id, 0, 64);
-    if (extract_field_from_certificate(public_key, buffer_size, "L", device_id)) {
-        tr_info("ConnectorClient::set_connector_credentials - L internal_endpoint_name : %s", device_id);
-        _endpoint_info.internal_endpoint_name = String(device_id);
-        ccs_delete_item(KEY_INTERNAL_ENDPOINT, CCS_CONFIG_ITEM);
-        status = ccs_set_item(KEY_INTERNAL_ENDPOINT, (uint8_t *)device_id, strlen(device_id), CCS_CONFIG_ITEM);
-    }
 
-    memset(device_id, 0, 64);
-    if (extract_field_from_certificate(public_key, buffer_size, "CN", device_id)) {
-        tr_info("ConnectorClient::set_connector_credentials - CN endpoint_name : %s", device_id);
-        _endpoint_info.endpoint_name = String(device_id);
+    if (sec_mode != M2MSecurity::NoSecurity) {
+
+        // TODO! Update to use chain api
+        if (security->resource_value_buffer(M2MSecurity::PublicKey, public_key_ptr, m2m_id, &buffer_size) != 0) {
+            return status;
+        }
+
+        char device_id[64];
+        memset(device_id, 0, 64);
+        if (extract_field_from_certificate(public_key, buffer_size, "L", device_id)) {
+            tr_info("ConnectorClient::set_connector_credentials - L internal_endpoint_name : %s", device_id);
+            _endpoint_info.internal_endpoint_name = String(device_id);
+            ccs_delete_item(KEY_INTERNAL_ENDPOINT, CCS_CONFIG_ITEM);
+            status = ccs_set_item(KEY_INTERNAL_ENDPOINT, (uint8_t *)device_id, strlen(device_id), CCS_CONFIG_ITEM);
+        }
+
+        memset(device_id, 0, 64);
+        if (extract_field_from_certificate(public_key, buffer_size, "CN", device_id)) {
+            tr_info("ConnectorClient::set_connector_credentials - CN endpoint_name : %s", device_id);
+            _endpoint_info.endpoint_name = String(device_id);
+        }
+    } else {
+        status = CCS_STATUS_SUCCESS;
     }
 
     if (status == CCS_STATUS_SUCCESS) {
@@ -1529,7 +1549,9 @@ void ConnectorClient::bootstrap_again()
 {
     if (!_rebootstrap_time_initialized) {
         randLIB_seed_random();
-        _rebootstrap_time = randLIB_get_random_in_range(1, 10);
+        // TODO: this should use stagger/rtt logic instead.
+        // Using reasonable calm backoff if hitting rebootstrapping timers.
+        _rebootstrap_time = randLIB_get_random_in_range(20, 100);
         _rebootstrap_time_initialized = true;
     }
 
@@ -1567,6 +1589,11 @@ void ConnectorClient::paused()
 void ConnectorClient::alert_mode()
 {
     _callback->registration_process_result(ConnectorClient::State_Alert_Mode);
+}
+
+void ConnectorClient::sleep()
+{
+    _callback->registration_process_result(ConnectorClient::State_Sleep);
 }
 
 bool ConnectorClient::bootstrapped()

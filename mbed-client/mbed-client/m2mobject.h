@@ -230,6 +230,7 @@ friend class Test_M2MSecurity;
 friend class Test_M2MServer;
 friend class Test_M2MReportHandler;
 friend class Test_M2MResourceInstance;
+friend class Test_M2MDiscover;
 };
 
 #endif // M2M_OBJECT_H

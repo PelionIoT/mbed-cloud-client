@@ -819,7 +819,7 @@ int32_t pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHan
         PAL_LOG_DBG("pal_loadSslSessionFromStorage - feature not enabled !");
         return return_value;
     }
-    if(!palTLSConfCtx->isDtlsMode) {
+    if (!palTLSConfCtx->isDtlsMode) {
         size_t act_size = 0;
         kcm_status_e kcm_status = kcm_item_get_data_size((uint8_t *)kcm_session_item_name,
                                        strlen(kcm_session_item_name),
@@ -827,7 +827,11 @@ int32_t pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHan
 
         if (kcm_status != KCM_STATUS_SUCCESS)
         {
-            PAL_LOG_ERR("pal_loadSslSessionFromStorage - failed to get item size!");
+            if (kcm_status != KCM_STATUS_ITEM_NOT_FOUND) {
+                PAL_LOG_ERR("pal_loadSslSessionFromStorage - failed to get item size: %d!", kcm_status);
+            } else {
+                PAL_LOG_DBG("pal_loadSslSessionFromStorage - session not found");
+            }
             return return_value;
         }
 
@@ -861,13 +865,13 @@ int32_t pal_loadSslSessionFromStorage(palTLSHandle_t palTLSHandle, palTLSConfHan
 
         if (kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_ITEM_NOT_FOUND)
         {
-            PAL_LOG_ERR("pal_loadSslSessionFromStorage - failed to get item size!");
+            PAL_LOG_ERR("pal_loadSslSessionFromStorage - failed to get item size: %d!", kcm_status);
             return return_value;
         }
 
-        if(pal_plat_sslSessionAvailable()) {
+        if (pal_plat_sslSessionAvailable()) {
             return_value = pal_plat_loadSslSession(palTLSCtx->platTlsHandle);
-        } else if(act_size > 0) {
+        } else if (act_size > 0) {
             size_t data_out = 0;
             uint8_t *existing_session = (uint8_t*)malloc(act_size);
             kcm_item_get_data((uint8_t *)kcm_session_item_name,

@@ -223,6 +223,7 @@ struct nsdl_s *sn_nsdl_init(uint8_t (*sn_nsdl_tx_cb)(struct nsdl_s *, sn_nsdl_ca
     handle->sn_nsdl_endpoint_registered = SN_NSDL_ENDPOINT_NOT_REGISTERED;
     handle->context = NULL;
 
+    randLIB_seed_random();
     randLIB_get_n_bytes_random(&handle->token_seed, sizeof(handle->token_seed));
     if (handle->token_seed == 0) {
         handle->token_seed++;

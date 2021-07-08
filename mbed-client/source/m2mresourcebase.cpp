@@ -31,6 +31,7 @@
 #include "mbed-client/m2mobject.h"
 #include "mbed-client/m2mobjectinstance.h"
 #include "include/m2mcallbackstorage.h"
+#include "include/m2mdiscover.h"
 #include "include/m2mreporthandler.h"
 #include "include/nsdllinker.h"
 #include "include/m2mtlvserializer.h"
@@ -46,9 +47,6 @@
 // -9223372036854775808 - +9223372036854775807
 // max length of int64_t string is 20 bytes + nil
 #define REGISTRY_INT64_STRING_MAX_LEN 21
-// (space needed for -3.402823 × 10^38) + (magic decimal 6 digits added as no precision is added to "%f") + trailing zero
-#define REGISTRY_FLOAT_STRING_MAX_LEN 48
-
 
 
 M2MResourceBase::M2MResourceBase(
@@ -607,7 +605,11 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
             if ((received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_OPAQUE_TYPE) ||
                 (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_PLAIN_TEXT_TYPE) ||
                 (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE_OLD) ||
-                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE)) {
+                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE)
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY) && (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY == 1)
+                || (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_LINK_FORMAT_TYPE)
+#endif
+                ) { // COAP_CONTENT_OMA_LINK_FORMAT_TYPE if for Discover
                 coap_response->content_format = received_coap_header->options_list_ptr->accept;
                 set_coap_content_type(coap_response->content_format);
             } else {
@@ -654,7 +656,20 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
             if (coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE ||
                     coap_response->content_format == COAP_CONTENT_OMA_TLV_TYPE_OLD) {
                 coap_response->payload_ptr = M2MTLVSerializer::serialize(&get_parent_resource(), payload_len);
-            } else {
+            }
+#if defined (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY) && (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY == 1)
+            else if (coap_response->content_format == COAP_CONTENT_OMA_LINK_FORMAT_TYPE) {
+                // Discover
+                payload_len = 0;
+                uint8_t *data = M2MDiscover::create_resource_payload((const M2MResource *)this, payload_len);
+                if (!data) {
+                    payload_len = 0;
+                    tr_error("M2MResource::handle_get_request() - Discover data allocation failed!");
+                }
+                coap_response->payload_ptr = data;
+            }
+#endif
+            else {
                 get_value(coap_response->payload_ptr, (uint32_t &)payload_len);
             }
         }

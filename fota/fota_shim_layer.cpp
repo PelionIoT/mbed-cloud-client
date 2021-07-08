@@ -138,6 +138,11 @@ int fota_app_on_download_authorization(
                 candidate_info->payload_size,
                 candidate_info->installed_size
             );
+        } else if (candidate_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+            FOTA_APP_PRINT("Update size %zuB (Encrypted image size %zuB)",
+                candidate_info->installed_size,
+                candidate_info->payload_size
+            );
         } else {
             FOTA_APP_PRINT("Update size %zuB", candidate_info->payload_size);
         }

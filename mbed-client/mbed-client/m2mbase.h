@@ -691,6 +691,12 @@ public:
 
 #endif // MBED_CLOUD_CLIENT_EDGE_EXTENSION
 
+    /**
+     * \brief Returns the Report Handler object.
+     * \return M2MReportHandler object.
+    */
+    M2MReportHandler *report_handler() const;
+
 protected: // from M2MReportObserver
 
     virtual bool observation_to_be_sent(const m2m::Vector<uint16_t> &changed_instance_ids,
@@ -746,12 +752,6 @@ protected: // from M2MReportObserver
      * \return M2MReportHandler object.
     */
     M2MReportHandler *create_report_handler();
-
-    /**
-     * \brief Returns the Report Handler object.
-     * \return M2MReportHandler object.
-    */
-    M2MReportHandler *report_handler() const;
 
     static bool build_path(StringBuffer<MAX_PATH_SIZE> &buffer, const char *s1, uint16_t i1, const char *s2, uint16_t i2);
 

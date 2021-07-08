@@ -17,10 +17,10 @@
 #ifndef NM_INTERFACE_MANAGER_H_
 #define NM_INTERFACE_MANAGER_H_
 
-void register_interfaces(NetworkInterface *mesh_iface, NetworkInterface *backhaul_iface, WisunBorderRouter *br_iface);
+void register_interfaces(WisunInterface *mesh_iface, NetworkInterface *backhaul_iface, WisunBorderRouter *br_iface);
 nm_status_t nm_backhaul_configure_factory_mac_address(NetworkInterface *backhaul_iface);
 
-nm_status_t nm_mesh_configure_factory_mac_address(NetworkInterface *mesh_iface);
+nm_status_t nm_mesh_configure_factory_mac_address(WisunInterface *mesh_iface);
 nm_status_t nm_factory_configure_mesh_iface(void);
 nm_status_t nm_configure_mesh_iface(void);
 nm_status_t nm_res_set_ws_config(uint8_t *data, size_t length);
@@ -28,6 +28,8 @@ nm_status_t nm_res_get_ws_stats(uint8_t **datap, size_t *length);
 nm_status_t nm_res_get_nm_stats(uint8_t **datap, size_t *length);
 nm_status_t nm_res_get_node_stats(uint8_t **datap, size_t *length);
 nm_status_t nm_res_get_ch_noise_stats(uint8_t **datap, size_t *length);
+nm_status_t nm_res_get_nbr_info_stats(uint8_t **datap, size_t *length);
+
 void apply_ws_config_after_delay(uint16_t delay);
 void apply_ws_config_to_nannostack(void);
 void mesh_interface_connected(void);
