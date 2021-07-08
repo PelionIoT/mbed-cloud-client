@@ -349,6 +349,8 @@ int fota_source_init(
     resource->set_operation(M2MBase::GET_ALLOWED);
     resource->set_value(FOTA_MCCP_PROTOCOL_VERSION);
     resource->publish_value_in_registration_msg(true);
+    resource->set_auto_observable(true);
+
 
     // Create vendor resource /10255/0/2
     resource = lwm2m_object_instance->create_dynamic_resource(
@@ -360,6 +362,7 @@ int fota_source_init(
     resource->set_operation(M2MBase::GET_ALLOWED);
     resource->set_value(vendor_id, vendor_id_size);
     resource->publish_value_in_registration_msg(true);
+    resource->set_auto_observable(true);
 
     // Create class resource  /10255/0/4
     resource = lwm2m_object_instance->create_dynamic_resource(
@@ -372,6 +375,7 @@ int fota_source_init(
     resource->set_operation(M2MBase::GET_ALLOWED);
     resource->set_value(class_id, class_id_size);
     resource->publish_value_in_registration_msg(true);
+    resource->set_auto_observable(true);
 
     m2m_object_list->push_back(g_lwm2m_dev_metadata_object);
 
@@ -446,8 +450,8 @@ static int report_int(M2MResource *resource, int value, report_sent_callback_t o
         return FOTA_STATUS_SUCCESS;
     }
 
-    FOTA_DBG_ASSERT(!g_on_sent_callback);
-    FOTA_DBG_ASSERT(!g_on_failure_callback);
+    FOTA_DBG_ASSERT(!(on_sent && g_on_sent_callback));
+    FOTA_DBG_ASSERT(!(on_failure && g_on_failure_callback));
 
     // must assign values before calling registry_set_value_int because of special way unit-tests are implemented
     g_on_sent_callback = on_sent;
@@ -527,7 +531,7 @@ int fota_source_firmware_request_fragment(const char *uri, size_t offset)
         true,  //async
         data_req_callback,  // data_cb
         data_req_error_callback,  // error_cb
-        NULL  // context
+        (void *) offset  // context
     );
 
     return FOTA_STATUS_SUCCESS;

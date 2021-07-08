@@ -46,7 +46,10 @@ static M2MResource *nm_stats;
 static M2MResource *br_stats;
 static M2MResource *node_stats;
 static M2MResource *ch_noise;
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
 static M2MResource *reset_parameter;
+static M2MResource *nbr_info;
+#endif
 
 typedef struct {
     M2MResource *res_obj;
@@ -66,7 +69,11 @@ static uint8_t *ch_noise_buf = NULL;
 static uint8_t *br_stats_buf = NULL;
 static uint8_t *routing_table_buf = NULL;
 static uint8_t *node_stats_buf = NULL;
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
+static uint8_t *nbr_info_buf = NULL;
+#endif
 static uint8_t *res_data = NULL;
+
 
 /* Function to overcome limitation of 32 bytes of length in tr_array */
 static void print_stream(uint8_t *datap, uint32_t datal)
@@ -125,6 +132,7 @@ static void br_config_cb(const char * /*object_name*/)
     nm_post_event(NM_EVENT_RESOURCE_SET, 0, res_data);
 }
 
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
 static void reset_parameter_cb(const char * /*object_name*/)
 {
     res_set_data_t *res_data = (res_set_data_t *)nm_dyn_mem_alloc(sizeof(res_set_data_t));
@@ -137,6 +145,7 @@ static void reset_parameter_cb(const char * /*object_name*/)
     res_data->data = NULL;
     nm_post_event(NM_EVENT_RESOURCE_SET, 0, res_data);
 }
+#endif
 
 static nm_status_t nm_res_get_ws_config_from_kvstore(uint8_t **datap, size_t *length)
 {
@@ -255,6 +264,11 @@ static coap_response_code_e resource_read_requested(const M2MResourceBase &resou
         } else if (obj == node_stats) {
             status = nm_res_get_node_stats(&node_stats_buf, &len);
             res_data = node_stats_buf;
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
+        } else if (obj == nbr_info) {
+            status = nm_res_get_nbr_info_stats(&nbr_info_buf, &len);
+            res_data = nbr_info_buf;
+#endif
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
@@ -342,6 +356,14 @@ void msg_delivery_handle(const M2MBase &base,
                 node_stats_buf = NULL;
                 tr_debug("node_stats data Memory freed");
             }
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
+        } else if (obj == nbr_info) {
+            if (nbr_info_buf != NULL) {
+                nm_dyn_mem_free(nbr_info_buf);
+                nbr_info_buf = NULL;
+                tr_debug("nbr_info data Memory freed");
+            }
+#endif
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
@@ -391,11 +413,18 @@ nm_status_t nm_res_manager_create(void *obj_list)
     ch_noise->set_read_resource_function(resource_read_requested, ch_noise);
     ch_noise->set_observable(true);
 
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
     reset_parameter = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 8, M2MResourceInstance::OPAQUE, M2MBase::PUT_ALLOWED);
     if (reset_parameter->set_value_updated_function(reset_parameter_cb) != true) {
         tr_error("reset_parameter->set_value_updated_function() failed");
         return NM_STATUS_FAIL;
     }
+
+    nbr_info = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 11, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
+    nbr_info->set_message_delivery_status_cb(msg_delivery_handle, nbr_info);
+    nbr_info->set_read_resource_function(resource_read_requested, nbr_info);
+    nbr_info->set_observable(true);
+#endif
 
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_BORDER_ROUTER) {
         br_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 6, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
@@ -540,6 +569,24 @@ nm_status_t nm_res_manager_get(void *resource_object)
         return NM_STATUS_FAIL;
     }
 
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
+    if (res_obj == nbr_info) {
+        if (nm_res_get_nbr_info_stats(&buf, &len) == NM_STATUS_SUCCESS) {
+            tr_info("Setting value of resource nbr_info [len = %u] in Cloud Client", len);
+            print_stream(buf, len);
+            if (res_obj->set_value(buf, len) != true) {
+                tr_warn("FAILED to set Neighbor Info. resource to Cloud Client");
+                return NM_STATUS_FAIL;
+            }
+            tr_info("Neighbor Info. resource value Set to Cloud Client");
+            nm_dyn_mem_free(buf);
+            return NM_STATUS_SUCCESS;
+        }
+        tr_warn("FAILED to fetch Neighbor Info.");
+        return NM_STATUS_FAIL;
+    }
+#endif
+
     return NM_STATUS_FAIL;
 }
 
@@ -574,6 +621,7 @@ nm_status_t nm_res_manager_set(void *resource_data)
         return NM_STATUS_SUCCESS;
     }
 
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
     if (res_data->res_obj == reset_parameter) {
 
         if(nm_reset_parameters() == NM_STATUS_FAIL) {
@@ -585,6 +633,7 @@ nm_status_t nm_res_manager_set(void *resource_data)
 
         return NM_STATUS_SUCCESS;
     }
+#endif
 
     /* To-Do :: Implement for other resources */
     return NM_STATUS_FAIL;
@@ -596,6 +645,9 @@ void nm_manager_res_refresh(void)
     nm_post_event(NM_EVENT_RESOURCE_GET, 0, nm_stats);
     nm_post_event(NM_EVENT_RESOURCE_GET, 0, ws_stats);
     nm_post_event(NM_EVENT_RESOURCE_GET, 0, ch_noise);
+#if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
+    nm_post_event(NM_EVENT_RESOURCE_GET, 0, nbr_info);
+#endif
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_BORDER_ROUTER) {
         nm_post_event(NM_EVENT_RESOURCE_GET, 0, br_stats);
         nm_post_event(NM_EVENT_RESOURCE_GET, 0, routing_table);

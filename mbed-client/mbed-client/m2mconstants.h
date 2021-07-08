@@ -212,7 +212,8 @@ const uint32_t HANDSHAKE_TIMEOUT_MSECS = (30 * 60 * 1000);
 #define ERROR_NO_MEMORY         "Memory allocation failed"
 #define ERROR_FAILED_TO_READ_CREDENTIALS "Failed to read credentials"
 
-#define MAX_RECONNECT_TIMEOUT        604800
+#define MAX_RECONNECT_TIMEOUT_LOW    300 // 5 minutes
+
 #define RECONNECT_INCREMENT_FACTOR   2
 
 #define AUTO_OBS_TOKEN_MIN 1
@@ -240,5 +241,6 @@ const uint8_t COAP_CONTENT_OMA_TLV_TYPE_OLD = 99;
 const uint16_t COAP_CONTENT_OMA_TLV_TYPE = 11542;
 const uint16_t COAP_CONTENT_OMA_JSON_TYPE = 11543;
 const uint8_t COAP_CONTENT_OMA_OPAQUE_TYPE = 42;
+const uint8_t COAP_CONTENT_OMA_LINK_FORMAT_TYPE = 40;// COAP_CT_LINK_FORMAT;
 
 #endif // M2MCONSTANTS_H

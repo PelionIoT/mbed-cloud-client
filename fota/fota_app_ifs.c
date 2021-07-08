@@ -38,7 +38,7 @@
 
 void fota_app_authorize()
 {
-    fota_event_handler_defer_with_result(fota_on_authorize, 0);
+    fota_event_handler_defer_with_result(fota_on_authorize, FOTA_INSTALL_STATE_AUTHORIZE /*This parameter is relevant only to the FOTA install stage.*/);
 }
 
 void fota_app_reject(int32_t reason)
@@ -48,7 +48,12 @@ void fota_app_reject(int32_t reason)
 
 void fota_app_defer()
 {
-    fota_event_handler_defer_with_result(fota_on_defer, 0);
+    fota_event_handler_defer_with_result(fota_on_defer, FOTA_INSTALL_STATE_DEFER /*This parameter is relevant only to the FOTA install stage.*/);
+}
+
+void fota_app_postpone_reboot()
+{
+     fota_event_handler_defer_with_result(fota_on_defer, FOTA_INSTALL_STATE_POSTPONE_REBOOT /*This parameter is relevant only to the FOTA install stage.*/);  
 }
 
 void fota_app_resume(void)
@@ -91,7 +96,7 @@ int fota_app_on_complete(int32_t status)
     The user application is supposed to save all current work
     before rebooting.
 
-    Note: the authorization call can be postponed and called later.
+    Note: The authorization call can be deferred and called later.
     This doesn't affect the performance of the Cloud Client.
 */
 int fota_app_on_install_authorization(void)
@@ -133,6 +138,11 @@ int fota_app_on_download_authorization(
             "Delta update. Patch size %zuB full image size %zuB",
             candidate_info->payload_size,
             candidate_info->installed_size
+        );
+    } else if (candidate_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
+        FOTA_APP_PRINT("Update size %zuB (Encrypted image size %zuB)",
+            candidate_info->installed_size,
+            candidate_info->payload_size
         );
     } else {
         FOTA_APP_PRINT("Update size %zuB", candidate_info->payload_size);

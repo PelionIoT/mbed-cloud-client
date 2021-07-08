@@ -101,7 +101,8 @@ public:
         State_Registration_Updated,
         State_Unregistered,
         State_Alert_Mode,
-        State_Paused
+        State_Paused,
+        State_Sleep
     };
 
 public:
@@ -301,6 +302,8 @@ public:
     virtual void paused();
 
     virtual void alert_mode();
+
+    virtual void sleep();
 
     /**
      * \brief Resumes client's timed functionality and network connection

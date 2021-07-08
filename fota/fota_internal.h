@@ -40,6 +40,7 @@ typedef enum {
     FOTA_STATE_AWAIT_DOWNLOAD_AUTHORIZATION,
     FOTA_STATE_DOWNLOADING,
     FOTA_STATE_AWAIT_INSTALL_AUTHORIZATION,
+    FOTA_STATE_INSTALLING,
     FOTA_STATE_INVALID = 255,
 } fota_state_e;
 
@@ -48,6 +49,17 @@ typedef enum {
     FOTA_RESUME_STATE_STARTED,
     FOTA_RESUME_STATE_ONGOING,
 } fota_resume_state_e;
+
+typedef enum {
+    FOTA_INSTALL_STATE_IDLE,
+    FOTA_INSTALL_STATE_AUTHORIZE,
+    FOTA_INSTALL_STATE_DEFER,
+    FOTA_INSTALL_STATE_POSTPONE_REBOOT
+} fota_install_state_e;
+
+
+// The encryption block size used to encrypt payload by the cloud
+#define FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE 1024
 
 // Internal component for BR downloader (must start with '%' as it's internal)
 #define FOTA_MULTICAST_BR_INT_COMP_NAME "%MC_BR"
@@ -63,8 +75,14 @@ typedef struct {
     uint8_t *delta_buf;
     fota_delta_ctx_t *delta_ctx;
 #endif
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
     fota_encrypt_context_t *enc_ctx;
-    fota_hash_context_t *curr_fw_hash_ctx;
+    uint8_t encryption_key[FOTA_ENCRYPT_KEY_SIZE];
+#endif
+    fota_hash_context_t *payload_hash_ctx;
+#if !defined(FOTA_DISABLE_DELTA)
+    fota_hash_context_t *installed_hash_ctx;
+#endif
     uint8_t *page_buf;
     uint32_t page_buf_offset;
     uint32_t page_buf_size;
@@ -86,9 +104,23 @@ typedef struct {
     bool mc_node_update_activated;
     fota_multicast_node_post_action_callback_t mc_node_post_action_callback;
     uint8_t *mc_node_frag_buf;
-    uint8_t *mc_node_manifest_hash[FOTA_CRYPTO_HASH_SIZE];
+    uint8_t mc_node_manifest_hash[FOTA_CRYPTO_HASH_SIZE];
 #endif
 } fota_context_t;
+
+
+typedef struct {
+    unsigned int comp_id;
+    fota_state_e state;
+#if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_BR_MODE)
+    bool mc_br_update;
+    fota_multicast_br_post_action_callback_t mc_br_post_action_callback;
+#elif (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE)
+    bool mc_node_update;
+    fota_multicast_node_post_action_callback_t mc_node_post_action_callback;
+#endif
+} fota_persistent_context_t;
+
 
 fota_context_t *fota_get_context(void);
 
@@ -96,7 +128,7 @@ int  fota_is_ready(uint8_t *data, size_t size, fota_state_e *fota_state);
 
 void fota_on_manifest(uint8_t *data, size_t size);
 void fota_on_reject(int32_t status);
-void fota_on_defer(int32_t status);
+void fota_on_defer(int32_t param);
 void fota_on_authorize(int32_t status);
 void fota_on_fragment(uint8_t *buf, size_t size);
 void fota_on_fragment_failure(int32_t status);

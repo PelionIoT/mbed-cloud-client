@@ -28,6 +28,7 @@
 #include "mbed-client/m2minterface.h"
 #include "mbed-client/m2mdevice.h"
 #include "ConnectorClient.h"
+#include "eventOS_event.h"
 
 #include <stdint.h>
 
@@ -62,7 +63,8 @@ public:
         Service_Client_Status_Unregistered = 1,
         Service_Client_Status_Register_Updated = 2,
         Service_Client_Status_Alert_Mode = 3,
-        Service_Client_Status_Paused = 4
+        Service_Client_Status_Paused = 4,
+        Service_Client_Status_Sleep = 5
     } ServiceClientCallbackStatus;
 
     /**
@@ -309,6 +311,12 @@ protected :
     */
     void state_unregister();
 
+    /**
+    * Send complete event.
+    * \param status, Indicates success or failure in terms of status code.
+    */
+    void send_complete_event(ServiceClientCallback::ServiceClientCallbackStatus status);
+
 private:
     M2MDevice *device_object_from_storage();
 
@@ -338,6 +346,8 @@ private:
     int8_t                          _multicast_tasklet_id;
 #endif // SERVICE_CLIENT_SUPPORT_MULTICAST
     ConnectorClient                 _connector_client;
+    int8_t                          _tasklet_id;
+    arm_event_storage_t             _event;
 };
 
 #endif // !__SERVICE_CLIENT_H__

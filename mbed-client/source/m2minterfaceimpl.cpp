@@ -56,7 +56,6 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver &observer,
                                    const String &con_addr,
                                    const String &version)
     : _event_data(NULL),
-      _server_address{stack, NULL, 0, 0},
       _server_port(0),
       _listen_port(listen_port),
       _life_time(l_time),
@@ -84,6 +83,10 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver &observer,
       _reconnection_time(0)
 {
     tr_debug("M2MInterfaceImpl::M2MInterfaceImpl() -IN");
+    memset(&_server_address, 0, sizeof(_server_address));
+    _server_address._stack = stack;
+
+    randLIB_seed_random();
 
 #ifndef DISABLE_ERROR_DESCRIPTION
     memset(_error_description, 0, sizeof(_error_description));
@@ -236,8 +239,8 @@ void M2MInterfaceImpl::register_object(M2MSecurity *security, const M2MBaseList 
     TRANSITION_MAP_ENTRY(EVENT_IGNORED)                 // state_bootstrap_wait
     TRANSITION_MAP_ENTRY(EVENT_IGNORED)                 // state_bootstrap_error_wait
     TRANSITION_MAP_ENTRY(STATE_REGISTER)                // state_bootstrapped
-    TRANSITION_MAP_ENTRY(EVENT_IGNORED)                 // state_register
-    TRANSITION_MAP_ENTRY(EVENT_IGNORED)                 // state_register_address_resolved
+    TRANSITION_MAP_ENTRY(STATE_REGISTER)                // state_register
+    TRANSITION_MAP_ENTRY(STATE_REGISTER)                // state_register_address_resolved
     TRANSITION_MAP_ENTRY(STATE_REGISTER)                // state_registered
     TRANSITION_MAP_ENTRY(EVENT_IGNORED)                 // state_update_registration
     TRANSITION_MAP_ENTRY(EVENT_IGNORED)                 // state_unregister
@@ -528,7 +531,7 @@ void M2MInterfaceImpl::bootstrap_error(M2MInterface::Error error, const char *re
     _observer.error(error);
     internal_event(STATE_IDLE);
 
-    if (error == M2MInterface::InvalidParameters || error == M2MInterface::InvalidCertificates) {
+    if (error == M2MInterface::InvalidParameters) {
         // These failures are not recoverable on this level. Requires recovery on higher level.
         return;
     }
@@ -546,9 +549,9 @@ void M2MInterfaceImpl::bootstrap_error(M2MInterface::Error error, const char *re
     // The timeout is randomized to + 10% and -10% range from reconnection value
     _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
 
-    if (_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
+    if (_reconnection_time >= MBED_CLIENT_MAX_RECONNECT_TIMEOUT) {
         // The max timeout is randomized to + 10% and -10% range from maximum value
-        _reconnection_time = randLIB_randomise_base(MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
+        _reconnection_time = randLIB_randomise_base(MBED_CLIENT_MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
     }
 }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -612,11 +615,9 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
     }
 
     // Ignore errors while client is sleeping
-    if (queue_mode()) {
-        if (_callback_handler && _queue_mode_timer_ongoing) {
-            tr_info("M2MInterfaceImpl::socket_error - Queue Mode - don't try to reconnect while in QueueMode");
-            return;
-        }
+    if (queue_mode() && _queue_mode_timer_ongoing) {
+        tr_info("M2MInterfaceImpl::socket_error - Queue Mode - don't try to reconnect while in QueueMode");
+        return;
     }
 
     _queue_sleep_timer.stop_timer();
@@ -690,9 +691,9 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
         // The timeout is randomized to + 10% and -10% range from reconnection value
         _reconnection_time = randLIB_randomise_base(_reconnection_time, 0x7333, 0x8CCD);
 
-        if (_reconnection_time >= MAX_RECONNECT_TIMEOUT) {
+        if (_reconnection_time >= MBED_CLIENT_MAX_RECONNECT_TIMEOUT) {
             // The max timeout is randomized to + 10% and -10% range from maximum value
-            _reconnection_time = randLIB_randomise_base(MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
+            _reconnection_time = randLIB_randomise_base(MBED_CLIENT_MAX_RECONNECT_TIMEOUT, 0x7333, 0x8CCD);
         }
 #ifndef DISABLE_ERROR_DESCRIPTION
         snprintf(_error_description, sizeof(_error_description), ERROR_REASON_9, error_code_des);
@@ -740,9 +741,7 @@ void M2MInterfaceImpl::address_ready(const M2MConnectionObserver::SocketAddress 
 void M2MInterfaceImpl::data_sent()
 {
     tr_debug("M2MInterfaceImpl::data_sent()");
-    if (queue_mode() &&
-            _callback_handler &&
-            _nsdl_interface.is_registered()) {
+    if (queue_mode() && _nsdl_interface.is_registered()) {
         _queue_sleep_timer.stop_timer();
 #if (PAL_USE_SSL_SESSION_RESUME == 0)
         _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
@@ -789,6 +788,7 @@ void M2MInterfaceImpl::timer_expired(M2MTimerObserver::Type type)
             if (_callback_handler) {
                 _callback_handler();
             }
+            _observer.sleep();
         }
     } else if (M2MTimerObserver::RetryTimer == type) {
         tr_debug("M2MInterfaceImpl::timer_expired() - retry");
@@ -1147,7 +1147,7 @@ void M2MInterfaceImpl::state_registered(EventData */*data*/)
     if (_reconnection_state == M2MInterfaceImpl::Unregistration) {
         internal_event(STATE_UNREGISTER);
     } else {
-        if (queue_mode() && _callback_handler) {
+        if (queue_mode()) {
             _queue_sleep_timer.stop_timer();
 #if (PAL_USE_SSL_SESSION_RESUME == 0)
             _queue_sleep_timer.start_timer(_nsdl_interface.total_retransmission_time(_nsdl_interface.get_resend_count()) * (uint64_t)1000,
@@ -1568,7 +1568,6 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
             // Estimate new reconnection time based on Stagger. This ensures controlled recovery in constrained network with large number of devices.
             uint32_t rand_time = 10 + _nsdl_interface.get_network_stagger_estimate(false);
             // The new timeout is randomized to + 10% and -10% range from original random value
-            randLIB_seed_random();
             rand_time = randLIB_randomise_base(rand_time, 0x7333, 0x8CCD);
             // If the new randomized time is significantly smaller than current running reconnection time, take the new value in use.
             // In mesh the is reported in regular internals. This tries to ensure that we do not end up in situation where
@@ -1595,7 +1594,6 @@ void M2MInterfaceImpl::network_interface_status_change(NetworkInterfaceStatus st
 void M2MInterfaceImpl::create_random_initial_reconnection_time()
 {
     if (_initial_reconnection_time == 0) {
-        randLIB_seed_random();
 
         _initial_reconnection_time = 10 + _nsdl_interface.get_network_rtt_estimate();
         // The initial timeout is randomized to + 10% and -10% range from original random value

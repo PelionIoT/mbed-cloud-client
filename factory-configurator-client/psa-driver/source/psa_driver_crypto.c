@@ -561,6 +561,7 @@ kcm_status_e psa_drv_crypto_get_handle(uint16_t key_id, psa_key_handle_t *key_ha
     //Open key handle
     psa_status = psa_open_key(key_id, key_handle_out);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((psa_status != PSA_SUCCESS), psa_drv_translate_to_kcm_error(psa_status), "Failed to open the key");
+    SA_PV_LOG_TRACE("psa_open_key %" PRIu32 " handle %" PRIu32 "", key_id, key_handle_out);
 #else
     uint32_t extra_flags;
     uint8_t raw_key[KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE + sizeof(extra_flags)]; // should be bigger than KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE

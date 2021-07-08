@@ -619,8 +619,8 @@ static int report_int(int value, int16_t resource_id, report_sent_callback_t on_
         return FOTA_STATUS_SUCCESS;
     }
 
-    FOTA_DBG_ASSERT(!g_on_sent_callback);
-    FOTA_DBG_ASSERT(!g_on_failure_callback);
+    FOTA_DBG_ASSERT(!(on_sent && g_on_sent_callback));
+    FOTA_DBG_ASSERT(!(on_failure && g_on_failure_callback));
 
     // must assign values before calling registry_set_value_int because of special way unit-tests are implemented
     g_on_sent_callback = on_sent;

@@ -1,14 +1,60 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.10.0 (07.07.2021)
+
+### Device Management Client
+
+- Updated Mbed CoAP to v5.1.11.
+- Improved handling of "Bad requests" during bootstrapping. Now client will handle the recovery internally without reporting fatal certificate errors to upper level.
+  - Previously this was resulting in factory resets as this was handled as fatal storage failure.
+- Fixed duplication of sent notifications, which sometimes happened if the application called `set_value()`in the `MbedCloudClient::on_registered()`callback.
+- Added sleep state for `MbedCloudClient::on_status_changed()`.
+
+    This makes `MbedCloudClient::set_queue_sleep_handler(callback_handler handler)` redundant. It's marked as deprecated.
+
+- Added support for LwM2M Discover.
+- Allowed the application to control the maximum reconnection timeout using the `MBED_CONF_MBED_CLIENT_MAX_RECONNECT_TIMEOUT` flag.
+
+    This flag ensures that the reconnection time doesn't go above the set maximum value. The default value is 4hrs, and the lowest acceptable value is 5min.
+
+#### Device Management Update Client
+
+- Added support for updating device firmware with a server-encrypted update image.
+   - Enabled by the new `MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT` macro.
+   - Limitation: Not supported when `MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE` is not 1024.
+- Changes to implementation of update candidate image encryption:
+   - Added a new `FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY` option to the `MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION` macro.
+   - Replaced `FOTA_USE_DEVICE_KEY` with `FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY` as the default value for `MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION` following a security vulnerability found in `FOTA_USE_DEVICE_KEY`.
+
+       <div style="background-color:#F3F3F3; text-align:left; vertical-align: middle; padding:15px 30px;">
+       For Mbed OS devices, using  `FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY` is a breaking change that requires the new bootloader introduced in Device Management Client 4.10.0.
+
+       In Device Management Client 4.10.0, `FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY` is the default value of the `MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION` macro.
+
+       If you are upgrading to Device Management Client 4.10.0 but using the bootloader from a previous release, you must explicitly define `FOTA_USE_DEVICE_KEY`.
+
+       We highly recommend using the bootloader from Device Management Client 4.10.0, which fixes a security vulnerability found in the bootloader from the 4.8.0/4.9.0 releases.
+       </div>
+
+   - Deprecated the `FOTA_USE_DEVICE_KEY` option, which will be removed in a future version.
+- Changed `fota_app_defer()` behavior so that candidate image download or install resumes only after the device application explicitly calls `fota_app_resume()`. When the device reboots, the client invokes the download or install callbacks to request the device application’s approval to continue the download or installation.
+- Added support for calling `fota_app_reject()` after `fota_app_defer()`.
+- Added the `fota_app_postpone_reboot()` API. Calling this API postpones device reboot, which is required to complete the FOTA process, until the device application explicitly initiates reboot.
+- Fix: Resuming download from the last successfully downloaded fragment was not previously supported on devices with an SD card, like the K64F.
+- Fix: Support for resuming installation after an unexpected interruption (for example, power loss):
+   - Of the main or component image on Linux.
+   - Of a component image on an Mbed OS devices.
+- Fix: Removed the candidate image file from its original path in Linux after FOTA completion.
+
 ### Release 4.9.1 (17.06.2021)
 
 ### Device Management Client
 - Fixed the incorrect overriding of CoAP retransmission buffer size.
 
 ### Platform Adaptation Layer (PAL)
-- [Zephyr] Fixed a memory leak on DNs handling.
+- [Zephyr] Fixed a memory leak on DNS handling.
 
-### Release 4.9.0 (20.05.2021)
+### Release 4.9.0 (21.05.2021)
 
 ### Device Management Client
 

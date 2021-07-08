@@ -1,4 +1,4 @@
-/* Copyright (c) 2021 Pelion IoT
+/* Copyright (c) 2021 Pelion
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -181,11 +181,11 @@ palStatus_t pal_plat_osDelay(uint32_t milliseconds)
 }
 
 struct timer_data {
-    struct k_work_delayable work;
+    struct k_work_delayable dwork;
+    struct k_work_sync work_sync;
     palTimerFuncPtr callback;
     void *arg;
     struct k_mutex lock;
-    struct k_sem busy;
     uint64_t timeout;
     uint64_t period;
 };
@@ -193,9 +193,10 @@ struct timer_data {
 static void work_fn(struct k_work *work)
 {
     struct k_work_delayable *dwork = CONTAINER_OF(work, struct k_work_delayable, work);
-    struct timer_data *timer_data = CONTAINER_OF(dwork, struct timer_data, work);
+    struct timer_data *timer_data = CONTAINER_OF(dwork, struct timer_data, dwork);
 
     uint64_t uptime = k_uptime_get();
+    int ret = 0;
 
     k_mutex_lock(&timer_data->lock, K_FOREVER);
 
@@ -219,27 +220,16 @@ static void work_fn(struct k_work *work)
                 /* Timer was restarted - timeout was updated. */
             }
 
-            /* Calculate work delay. */
-            int64_t delay = timer_data->timeout - k_uptime_get();
-            if (delay < 0) {
-                /* Timer is late. Can happen for long callbacks. */
-                delay = 0;
-            }
-
-            k_work_reschedule(&timer_data->work, K_MSEC(delay));
-
-            /* If timer was started reference is already taken. */
-            k_sem_take(&timer_data->busy, K_NO_WAIT);
+            ret = k_work_reschedule(&timer_data->dwork, K_TIMEOUT_ABS_MS(timer_data->timeout));
+            __ASSERT_NO_MSG(ret > 0);
         }
     } else {
-        if (!k_work_reschedule(&timer_data->work,
-                               K_MSEC(timer_data->timeout - uptime))) {
-            k_sem_take(&timer_data->busy, K_NO_WAIT);
-        }
+        /* Theoretically impossible but could be handled, reschedule remaining time. */
+        ret = k_work_reschedule(&timer_data->dwork, K_MSEC(timer_data->timeout - uptime));
+        __ASSERT_NO_MSG(ret > 0);
     }
 
     /* Release the timer. */
-    k_sem_give(&timer_data->busy);
     k_mutex_unlock(&timer_data->lock);
 }
 
@@ -259,15 +249,11 @@ palStatus_t pal_plat_osTimerCreate(palTimerFuncPtr function,
         timer_data->callback = function;
 
         /* Non-zero period marks periodic timer. */
-        timer_data->period = (timerType == palOsTimerPeriodic) ?
-                             UINT64_MAX : 0;
+        timer_data->period = (timerType == palOsTimerPeriodic) ? UINT64_MAX : 0;
         timer_data->timeout = 0;
 
-        /* Two references - extra one is for unstoppable callback. */
-        k_sem_init(&timer_data->busy, 2, 2);
-
         k_mutex_init(&timer_data->lock);
-        k_work_init_delayable(&timer_data->work, work_fn);
+        k_work_init_delayable(&timer_data->dwork, work_fn);
 
         *timerID = (palTimerID_t)timer_data;
         return PAL_SUCCESS;
@@ -295,18 +281,8 @@ palStatus_t pal_plat_osTimerStart(palTimerID_t timerID, uint32_t millisec)
         timer_data->period = millisec;
     }
 
-    if (!k_work_cancel_delayable(&timer_data->work)) {
-        k_sem_give(&timer_data->busy);
-        k_work_reschedule(&timer_data->work, get_timeout(millisec));
-        k_sem_take(&timer_data->busy, K_NO_WAIT);
-    } else if (!k_work_reschedule(&timer_data->work, get_timeout(millisec))) {
-        k_sem_take(&timer_data->busy, K_NO_WAIT);
-    } else {
-        /* Callback cannot be stopped or resubmitted.
-         * Let in-callback code to handle the restart.
-         */
-    }
-
+    int ret = k_work_reschedule(&timer_data->dwork, K_TIMEOUT_ABS_MS(timer_data->timeout));
+    __ASSERT_NO_MSG(ret > 0);
     k_mutex_unlock(&timer_data->lock);
 
     return PAL_SUCCESS;
@@ -327,14 +303,11 @@ palStatus_t pal_plat_osTimerStop(palTimerID_t timerID)
         timer_data->period = UINT64_MAX;
     }
 
-    if (!k_work_cancel_delayable(&timer_data->work)) {
-        k_sem_give(&timer_data->busy);
-    } else {
-        /* Callback cannot be stopped.
-         * Let in-callback code to handle the restart.
-         */
-    }
-
+    /* Return code is not relevant.
+     * If Stop was called from timer callback it cannot be stopped.
+     * Let in-callback code handle the stop.
+     */
+    (void)k_work_cancel_delayable(&timer_data->dwork);
     k_mutex_unlock(&timer_data->lock);
 
     return PAL_SUCCESS;
@@ -359,9 +332,7 @@ palStatus_t pal_plat_osTimerDelete(palTimerID_t *timerID)
     palStatus_t ret = pal_plat_osTimerStop(*timerID);
     __ASSERT_NO_MSG(ret == PAL_SUCCESS);
 
-    /* Wait until timer callback completes. */
-    k_sem_take(&timer_data->busy, K_FOREVER);
-    k_sem_take(&timer_data->busy, K_FOREVER);
+    (void)k_work_cancel_delayable_sync(&timer_data->dwork, &timer_data->work_sync);
 
     /* Nothing is using the resources - delete the timer. */
     free(timer_data);

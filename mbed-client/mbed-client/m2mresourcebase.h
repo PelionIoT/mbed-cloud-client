@@ -19,6 +19,8 @@
 #include "mbed-client/m2mbase.h"
 #include "mbed-client/functionpointer.h"
 
+// (space needed for -3.402823 × 10^38) + (magic decimal 6 digits added as no precision is added to "%f") + trailing zero
+#define REGISTRY_FLOAT_STRING_MAX_LEN 48
 
 /*! \file m2mresourcebase.h \brief header for M2MResourceBase. */
 

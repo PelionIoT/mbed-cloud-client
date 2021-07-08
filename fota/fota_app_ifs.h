@@ -113,9 +113,10 @@ int fota_app_on_complete(int32_t status);
  * If the update process is interrupted, the application can call this function to resume the process.
  * This API invokes ::fota_app_on_download_authorization() CB.
  *
- * \note The function is implemented only if ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
- * \note If ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is equal to ::FOTA_RESUME_SUPPORT_RESTART, the update flow will restart from the beginning.
- * \note If ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is equal to ::FOTA_RESUME_SUPPORT_RESUME, the update flow will resume from the point that it was interrupted.
+ * \note The function is implemented only if the ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
+ * \note If ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is equal to ::FOTA_RESUME_SUPPORT_RESTART, the update flow restarts from the beginning.
+ * \note If ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is equal to ::FOTA_RESUME_SUPPORT_RESUME, the update flow resumes from the point that it was interrupted.
+ * \note FOTA update resume is not supported after the device application calls ::fota_app_postpone_reboot().
  *
  */
 void fota_app_resume(void);
@@ -129,7 +130,7 @@ void fota_app_resume(void);
 void fota_app_authorize(void);
 
 /**
- * Reject Pelion FOTA update.
+ * Reject and terminate FOTA update.
  *
  * ::fota_app_on_download_authorization() and ::fota_app_on_install_authorization() application callbacks may call this API.
  *
@@ -138,15 +139,33 @@ void fota_app_authorize(void);
 void fota_app_reject(int32_t reason);
 
 /**
- * Defer Pelion FOTA update.
+ * Defer FOTA update.
  *
- * The FOTA client releases resources and reattempts the update on the next boot after device registration or when the device application calls
+ * Stop all operations related to update process. 
+ * The FOTA client pauses the FOTA process, releases resources and reattempts the update when the device application calls
  * the ::fota_app_resume() API.
+ * 
  * ::fota_app_on_download_authorization() and ::fota_app_on_install_authorization() application callbacks may call this API.
  *
- * \note The function is implemented only if ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
+ * \note The function is implemented only if the ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
+ * \note If the client rebooted, the client calls fota_app_on_download_authorization() or fota_app_on_install_authorization() again to re-check for the device application's approval.
+ * \note The client supports installation defer only before installation starts. Calling this API during the installation process has no effect.
+ *
  */
 void fota_app_defer(void);
+
+/**
+ * Postpone device reboot after FOTA update.
+ *
+ * For the MAIN mbed-os component, the FOTA client doesn't boot by itself after download is completed. The device application must trigger reboot.
+ * After reboot, the bootloader installs the MAIN mbed-os component and completes the FOTA process.
+ * For other components: The FOTA client installs the component but doesn't boot itself. The device application must trigger reboot.
+ * Only ::fota_app_on_install_authorization() application callbacks may call this API.
+ *
+ * \note The function is implemented only if the ::MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT build flag is not equal to ::FOTA_RESUME_UNSUPPORTED.
+ * \note The FOTA client supports postpone reboot only before installation starts. Calling this API during installation process has no effect.
+ */
+void fota_app_postpone_reboot(void);
 
 
 /**
@@ -206,6 +225,7 @@ int fota_app_on_install_candidate(const char *candidate_fs_name, const manifest_
  * It is only available if there is a single main file.
  *
  * \note This function does not validate candidate file integrity or authenticity.
+ * \note Candidate image file will be deleted from its original path after this callback execution.
  *
  * \param[in] candidate_file_name Candidate image file name as found in the file system.
  *

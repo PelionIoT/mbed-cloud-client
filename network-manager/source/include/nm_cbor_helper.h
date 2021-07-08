@@ -33,12 +33,17 @@ extern "C" {
 #define NM_STAT_MAX_ENCODER_BUF 256
 #define BR_STAT_MAX_ENCODER_BUF 256
 #define NI_STAT_MAX_ENCODER_BUF 256
+#define NS_STAT_MAX_ENCODER_BUF 512
 
 #define CH_NOISE_TABLE_CBOR_OVERHEAD                 30
 #define CH_NOISE_TABLE_MAX_ENCODING_BUFF(ch_noise_table_length) ((ch_noise_table_length*2)+CH_NOISE_TABLE_CBOR_OVERHEAD)
 
 #define ROUTING_TABLE_CBOR_OVERHEAD                 30
 #define ROUTING_TABLE_MAX_ENCODING_BUFF(table_length) (table_length+ROUTING_TABLE_CBOR_OVERHEAD)
+
+#define ONE_TIME_CBOR_DATA_SIZE_FOR_DEVICE_COUNT        23
+#define NEIGHBOR_INFO_CBOR_DATA_SIZE_PER_DEVICE         65
+#define NEIGHBOR_INFO_MAX_ENCODING_BUFF(neighbor_info_count) (((neighbor_info_count) * (NEIGHBOR_INFO_CBOR_DATA_SIZE_PER_DEVICE)) + ONE_TIME_CBOR_DATA_SIZE_FOR_DEVICE_COUNT)
 
 nm_status_t nm_cbor_config_struct_update(void *st_cfg, uint8_t *cbor_data, config_type_t type, size_t len);
 nm_status_t nm_config_to_cbor(void *st_cfg, uint8_t *cbor_data, config_type_t type, size_t *len);

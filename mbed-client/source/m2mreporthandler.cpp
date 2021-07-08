@@ -247,6 +247,52 @@ bool M2MReportHandler::parse_notification_attribute(const char *query,
     return success;
 }
 
+float M2MReportHandler::get_notification_attribute_float(WriteAttribute attribute)
+{
+    float retval = 0;
+    switch (attribute) {
+        case M2MReportHandler::Lt:
+            retval = _lt;
+            break;
+        case M2MReportHandler::Gt:
+            retval = _gt;
+            break;
+        case M2MReportHandler::St:
+            retval = _st;
+            break;
+        case M2MReportHandler::Pmin:
+        case M2MReportHandler::Pmax:
+        /* fall-thru */
+        default:
+            tr_error("M2MReportHandler::get_notification_attribute_float - invalid attribute: %d", attribute);
+            assert(true);
+            break;
+    }
+    return retval;
+}
+
+int32_t M2MReportHandler::get_notification_attribute_int(WriteAttribute attribute)
+{
+    int32_t retval = 0;
+    switch (attribute) {
+        case M2MReportHandler::Pmin:
+            retval = _pmin;
+            break;
+        case M2MReportHandler::Pmax:
+            retval = _pmax;
+            break;
+        case M2MReportHandler::Lt:
+        case M2MReportHandler::Gt:
+        case M2MReportHandler::St:
+        /* fall-thru */
+        default:
+            tr_error("M2MReportHandler::get_notification_attribute_int - invalid attribute: %d", attribute);
+            assert(true);
+            break;
+    }
+    return retval;
+}
+
 void M2MReportHandler::timer_expired(M2MTimerObserver::Type type)
 {
     switch (type) {

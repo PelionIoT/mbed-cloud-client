@@ -30,6 +30,11 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+#if defined(TARGET_LIKE_LINUX)
+#include <stdio.h>
+#include "fota/platform/linux/fota_platform_linux.h"
+#endif //(TARGET_LIKE_LINUX)
+
 typedef struct {
     size_t bd_read_size;
     size_t bd_prog_size;
@@ -134,9 +139,7 @@ static void cleanup()
         return;
     }
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
-    if (ctx->enc_ctx) {
-        fota_encrypt_finalize(&ctx->enc_ctx);
-    }
+    fota_encrypt_finalize(&ctx->enc_ctx);
 #endif
     free(ctx->fragment_buf);
     free(ctx);
@@ -266,7 +269,14 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
             uint8_t zero_key[FOTA_ENCRYPT_KEY_SIZE] = {0};
             size_t volatile loop_check;
 
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION != FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY)
             ret = fota_nvm_fw_encryption_key_get(fw_key);
+#else
+            ret = fota_decrypt_fw_key(fw_key, 
+                                      ctx->header_info.encrypted_fw_key,
+                                      ctx->header_info.encrypted_fw_key_tag,
+                                      ctx->header_info.encrypted_fw_key_iv);
+#endif
             if (ret) {
                 FOTA_TRACE_ERROR("FW encryption key get failed. ret %d", ret);
                 goto fail;
@@ -539,9 +549,7 @@ int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const cha
     }
 
 fail:
-    if (hash_ctx) {
-        fota_hash_finish(&hash_ctx);
-    }
+    fota_hash_finish(&hash_ctx);
     cleanup();
     return ret;
 }
@@ -554,6 +562,14 @@ int fota_candidate_erase(void)
         return ret;
     }
     ret = fota_bd_erase(fota_candidate_get_config()->storage_start_addr, erase_size);
+
+#if defined(TARGET_LIKE_LINUX)
+    // for Linux remove both "update_storage" (blockdevice file) and "candidate" file(the FOTA candidate)
+    FOTA_TRACE_DEBUG("removing blockdevice and candidate files %s, %s:", fota_linux_get_update_storage_file_name(), fota_linux_get_candidate_file_name());
+    remove(fota_linux_get_update_storage_file_name());
+    remove(fota_linux_get_candidate_file_name()); //might not exist if user app moved it.
+#endif
+
     return ret;
 }
 

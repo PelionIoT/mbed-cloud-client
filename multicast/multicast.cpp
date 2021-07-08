@@ -89,7 +89,7 @@ static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_pa
 static void             arm_uc_multicast_process_finished(uint8_t *session_id);
 static bool             read_dodag_info(char *dodag_address);
 static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr);
-static void             arm_uc_multicast_update_client_event(uintptr_t event_data);
+static void             arm_uc_multicast_update_client_event(struct arm_event_s *event);
 static void             arm_uc_multicast_update_client_init();
 static void             arm_uc_multicast_update_client_external_update_event(struct arm_event_s *event);
 
@@ -291,7 +291,12 @@ multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &cli
     tr_debug("arm_uc_multicast_init");
 
     if (tasklet_id < 0) {
-        tr_error("Trying to pass invalid tasklet_id for arm_uc_multicast_init");
+        tr_error("arm_uc_multicast_init - trying to pass invalid tasklet_id for arm_uc_multicast_init");
+        return MULTICAST_STATUS_INIT_FAILED;
+    }
+
+    if (arm_uc_multicast_interface_id < 0) {
+        tr_error("arm_uc_multicast_init - mesh interface not set!");
         return MULTICAST_STATUS_INIT_FAILED;
     }
 
@@ -357,7 +362,7 @@ void arm_uc_multicast_tasklet(struct arm_event_s *event)
     if (ARM_UC_OTA_MULTICAST_TIMER_EVENT == event->event_type) {
         ota_timer_expired(event->event_id);
     } else if (ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT == event->event_type) {
-        arm_uc_multicast_update_client_event(event->event_data);
+        arm_uc_multicast_update_client_event(event);
     } else if (ARM_UC_OTA_MULTICAST_DL_DONE_EVENT == event->event_type) {
         tr_info("arm_uc_multicast_tasklet - download completed");
         ota_firmware_pulled();
@@ -376,8 +381,8 @@ void arm_uc_multicast_tasklet(struct arm_event_s *event)
         arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
         arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
         eventOS_event_send_user_allocated(&arm_uc_multicast_event);
-    } else {
-        tr_error("arm_uc_multicast_tasklet - unknown event!");
+    } else if (ARM_UC_OTA_MULTICAST_INIT_EVENT != event->event_type) {
+        tr_error("arm_uc_multicast_tasklet - unknown event! (%d)", event->event_type);
     }
 }
 
@@ -385,7 +390,7 @@ void arm_uc_multicast_network_connected()
 {
     char addr[45] = {0};
     if (read_dodag_info(addr)) {
-        if(arm_uc_multicast_update_resource_value(MULTICAST_NETWORK_ID, reinterpret_cast<unsigned char*>(addr), strlen(addr)) == 2) {
+        if (arm_uc_multicast_update_resource_value(MULTICAST_NETWORK_ID, reinterpret_cast<unsigned char *>(addr), strlen(addr)) == 2) {
             // return value 2 means value actually changed from previous, so in netid case we need to trigger full
             // registration to update device directory
             tr_info("dodag info changed during network global up. triggering full register.");
@@ -468,15 +473,14 @@ static void arm_uc_multicast_socket_callback(void *port)
     // Read from the right socket
     if ((intptr_t)port == OTA_SOCKET_MULTICAST_PORT) {
         status = pal_receiveFrom(arm_uc_multicast_socket, recv_buffer, RECEIVE_BUFFER_SIZE, &address, &addrlen, &recv);
+        // Skip data coming from multicast loop
+        if (arm_uc_multicast_send_in_progress) {
+            tr_info("arm_uc_multicast_socket_callback - multicast loopback data --> skip");
+            arm_uc_multicast_send_in_progress = false;
+            return;
+        }
     } else {
         status = pal_receiveFrom(arm_uc_multicast_missing_frag_socket, recv_buffer, RECEIVE_BUFFER_SIZE, &address, &addrlen, &recv);
-    }
-
-    // Skip data coming from multicast loop
-    if (arm_uc_multicast_send_in_progress) {
-        tr_info("arm_uc_multicast_socket_callback - multicast loopback data --> skip");
-        arm_uc_multicast_send_in_progress = false;
-        return;
     }
 
     if (status == PAL_SUCCESS) {
@@ -548,7 +552,9 @@ static int8_t arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16
         return -1;
     }
 
-    arm_uc_multicast_send_in_progress = true;
+    if (destination->port == OTA_SOCKET_MULTICAST_PORT) {
+        arm_uc_multicast_send_in_progress = true;
+    }
 
     return pal_sendTo(socket, payload, count, &pal_addr, sizeof(pal_addr), &sent);
 }
@@ -895,7 +901,7 @@ static bool arm_uc_multicast_create_static_resources(M2MBaseList &list)
             if (!multicast_command_res) {
                 tr_error("arm_uc_multicast_create_static_resources - failed to create multicast_command_res!");
                 return false;
-            }            
+            }
 
             /*multicast_estimated_total_time_res = object_inst->create_static_resource(&arm_uc_multicast_estimated_total_time_res, M2MResourceInstance::OPAQUE);
             if (!multicast_estimated_total_time_res) {
@@ -1170,7 +1176,7 @@ static void arm_uc_multicast_send_event(arm_uc_hub_state_t state)
 
 ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32_t payload_len)
 {
-    if(ARM_UC_HUB_setManifest(payload_ptr, payload_len)) {
+    if (ARM_UC_HUB_setManifest(payload_ptr, payload_len)) {
         arm_uc_multicast_send_event(ARM_UC_HUB_STATE_MANIFEST_FETCHED);
     }
 
@@ -1182,9 +1188,9 @@ void arm_uc_multicast_firmware_ready()
     arm_uc_multicast_send_event(ARM_UC_HUB_STATE_LAST_FRAGMENT_STORE_DONE);
 }
 
-void arm_uc_multicast_update_client_event(uintptr_t event_data)
+void arm_uc_multicast_update_client_event(struct arm_event_s *event)
 {
-    ARM_UC_HUB_setState((arm_uc_hub_state_t)event_data);
+    ARM_UC_HUB_setState((arm_uc_hub_state_t)event->event_data);
 }
 
 void arm_uc_multicast_update_client_external_update_event(struct arm_event_s *event)
@@ -1327,8 +1333,8 @@ static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_pa
         fota_br_image_params.payload_size = ota_parameters->fw_total_byte_count;
         memcpy(fota_br_image_params.payload_digest, ota_parameters->whole_fw_checksum_tbl, OTA_WHOLE_FW_CHECKSUM_LENGTH);
         arm_uc_multicast_event.data.data_ptr = NULL;
-        arm_uc_multicast_event.data.event_data = MULTICAST_FOTA_EVENT_MANIFEST_RECEIVED;
-        arm_uc_multicast_event.data.event_id = 0;
+        arm_uc_multicast_event.data.event_data = 0;
+        arm_uc_multicast_event.data.event_id = MULTICAST_FOTA_EVENT_MANIFEST_RECEIVED;
         arm_uc_multicast_event.data.sender = 0;
         arm_uc_multicast_event.data.event_type = ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT;
         arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
@@ -1366,6 +1372,15 @@ static ota_error_code_e arm_uc_multicast_start_received(ota_parameters_t *ota_pa
 static void arm_uc_multicast_process_finished(uint8_t */*session_id*/)
 {
     tr_info("arm_uc_multicast_process_finished");
+    arm_uc_multicast_event.data.data_ptr = NULL;
+    arm_uc_multicast_event.data.event_data = 0;
+    arm_uc_multicast_event.data.event_id = 0;
+    arm_uc_multicast_event.data.sender = 0;
+    arm_uc_multicast_event.data.event_type = ARM_UC_OTA_DELETE_SESSION_EVENT;
+    arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+    arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
+
+    eventOS_event_send_user_allocated(&arm_uc_multicast_event);
 }
 
 /*
@@ -1380,7 +1395,22 @@ ota_error_code_e arm_uc_multicast_manifest_received(uint8_t *payload_ptr, uint32
 {
     int result = FOTA_STATUS_SUCCESS;
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
-    result = fota_multicast_node_on_manifest(payload_ptr, payload_len, arm_uc_multicast_fota_multicast_node_post_manifest_received_action_callback);
+    uint8_t *payload = (uint8_t *)malloc(payload_len);
+    if (payload) {
+        memcpy(payload, payload_ptr, payload_len);
+        arm_uc_multicast_event.data.data_ptr = (void *)payload;
+        arm_uc_multicast_event.data.event_data = payload_len;
+        arm_uc_multicast_event.data.event_id = MULTICAST_FOTA_EVENT_MANIFEST_RECEIVED;
+        arm_uc_multicast_event.data.sender = 0;
+        arm_uc_multicast_event.data.event_type = ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT;
+        arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
+        arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
+
+        eventOS_event_send_user_allocated(&arm_uc_multicast_event);
+    } else {
+        tr_error("arm_uc_multicast_manifest_received - failed to allocate memory");
+        result = FOTA_STATUS_OUT_OF_MEMORY;
+    }
 #else
     (void)payload_ptr;
     (void)payload_len;
@@ -1420,8 +1450,7 @@ void arm_uc_multicast_fota_multicast_node_post_manifest_received_action_callback
     if (result != FOTA_STATUS_SUCCESS) {
         tr_error("Error setting manifest to fota: %d", result);
         arm_uc_multicast_manifest_rejected = true;
-    }
-    else {
+    } else {
         tr_debug("Manifest set to fota.");
         arm_uc_multicast_manifest_rejected = false;
     }
@@ -1442,8 +1471,7 @@ void arm_uc_multicast_fota_multicast_br_post_start_received_action_callback(int 
         arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
 
         eventOS_event_send_user_allocated(&arm_uc_multicast_event);
-    }
-    else {
+    } else {
         // TODO: abort libota?
     }
 }
@@ -1451,23 +1479,29 @@ void arm_uc_multicast_fota_multicast_br_post_start_received_action_callback(int 
 /*
  * Event queue callback for decoupling libota callbacks and Update client process
  */
-void arm_uc_multicast_update_client_event(uintptr_t event_data)
+void arm_uc_multicast_update_client_event(struct arm_event_s *event)
 {
-#if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
-    multicast_fota_event fota_event = (multicast_fota_event)event_data;
-    switch(fota_event) {
+    multicast_fota_event fota_event = (multicast_fota_event)event->event_id;
+
+    switch (fota_event) {
         case MULTICAST_FOTA_EVENT_MANIFEST_RECEIVED:
+#if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
             // TODO: check error code?
             fota_multicast_br_on_image_request(&fota_br_image_params, arm_uc_multicast_fota_multicast_br_post_start_received_action_callback);
+#else
+            if (fota_multicast_node_on_manifest((uint8_t *)event->data_ptr,
+                                                event->event_data,
+                                                arm_uc_multicast_fota_multicast_node_post_manifest_received_action_callback) != FOTA_STATUS_SUCCESS) {
+                ota_send_error(OTA_PARAMETER_FAIL);
+            }
+
+            free(event->data_ptr);
+#endif // ARM_UC_MULTICAST_BORDER_ROUTER_MODE
             break;
         default:
             tr_error("Unknown event in arm_uc_multicast_update_client_event! (%d)", (int)fota_event);
             break;
     }
-#else
-    (void)event_data;
-    tr_error("Unexpected call to arm_uc_multicast_update_client_event!");
-#endif
 }
 
 void arm_uc_multicast_update_client_external_update_event(struct arm_event_s *event)

@@ -16,15 +16,21 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
-#ifdef MBED_CLOUD_CLIENT_FOTA_ENABLE
+#if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE) && !defined(FOTA_UNIT_TEST)
 #include <inttypes.h>
 #include <stddef.h>
 #include "fota_device_key.h"
 #include "fota/fota_crypto_defs.h"
 #include "fota/fota_status.h"
 
-// fota_get_device_key_128bit in use only in case defined MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY or external legacy header
-#if ((MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) && (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)) || (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
+#ifdef TARGET_LIKE_MBED
+#include "mbed_error.h"
+#endif
+
+#if ((MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) && (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)) || \
+    (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+
+#if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT)
 
 #include "kv_config.h"
 #include "KVMap.h"
@@ -62,5 +68,24 @@ extern "C" int8_t fota_get_device_key_128bit(uint8_t *key, uint32_t keyLenBytes)
 
 }
 
-#endif // #if ((MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION == 2) && (MBED_CLOUD_CLIENT_FOTA_FW_HEADER_EXTERNAL == 1)) || (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_DEVICE_KEY)
+#else
+
+#include "pal.h"
+
+int8_t fota_get_device_key_128bit(uint8_t *key, uint32_t keyLenBytes)
+{
+    palStatus_t ret = pal_osGetDeviceKey(palOsStorageEncryptionKey128Bit, key, keyLenBytes);
+    if (ret == PAL_SUCCESS) {
+        return FOTA_STATUS_SUCCESS;
+    } else if (ret == PAL_ERR_ITEM_NOT_EXIST) {
+        return FOTA_STATUS_NOT_FOUND;
+    } else {
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    return FOTA_STATUS_SUCCESS;
+}
+
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT
+#endif
 #endif //MBED_CLOUD_CLIENT_FOTA_ENABLE

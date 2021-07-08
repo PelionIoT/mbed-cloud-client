@@ -88,7 +88,7 @@
 
 #define REGISTRATION_UPDATE_DELAY 10 // wait 10ms before sending registration update for PUT to resource 1/0/1
 
-const char *MCC_VERSION = "mccv=4.9.1";
+const char *MCC_VERSION = "mccv=4.10.0";
 
 int8_t M2MNsdlInterface::_tasklet_id = -1;
 
@@ -125,6 +125,13 @@ extern "C" void nsdlinterface_tasklet_func(arm_event_s *event)
         M2MNsdlInterface::memory_free(coap_data);
         eventOS_scheduler_mutex_release();
 
+    } else if (event->event_type == MBED_CLIENT_NSDLINTERFACE_MESSAGE_STATUS_CB_EVENT) {
+        M2MObject *object = (M2MObject *)event->data_ptr;
+        uint8_t status = event->event_data >> 8;
+        uint8_t type = event->event_data;
+        object->send_message_delivery_status(*object,
+                                             (M2MBase::MessageDeliveryStatus)status,
+                                             (M2MBase::MessageType)type);
     }
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     else if (event->event_type == MBED_CLIENT_NSDLINTERFACE_BS_EVENT) {
@@ -136,16 +143,16 @@ extern "C" void nsdlinterface_tasklet_func(arm_event_s *event)
                                                               coap_data->received_coap_header->msg_code);
         if (coap_response) {
 #if (MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE == 0)
-            coap_response->msg_type = coap_data->received_coap_header->msg_type;
-            // Let CoAP to choose next message id
-            coap_response->msg_id = 0;
+        coap_response->msg_type = coap_data->received_coap_header->msg_type;
+        // Let CoAP to choose next message id
+        coap_response->msg_id = 0;
 #endif // MBED_CLIENT_BOOTSTRAP_PIGGYBACKED_RESPONSE
 
-            if (sn_nsdl_send_coap_message(coap_data->nsdl_handle, &coap_data->address, coap_response) == 0) {
-                interface->store_bs_finished_response_id(coap_response->msg_id);
-            } else {
-                tr_error("Failed to send final response for BS finished");
-            }
+        if (sn_nsdl_send_coap_message(coap_data->nsdl_handle, &coap_data->address, coap_response) == 0) {
+            interface->store_bs_finished_response_id(coap_response->msg_id);
+        } else {
+            tr_error("Failed to send final response for BS finished");
+        }
 
             sn_coap_parser_release_allocated_coap_msg_mem(coap_data->nsdl_handle->grs->coap, coap_response);
 
@@ -179,13 +186,6 @@ extern "C" void nsdlinterface_tasklet_func(arm_event_s *event)
         nsdl_s *nsdl_handle = (nsdl_s *)event->data_ptr;
         M2MNsdlInterface *interface = (M2MNsdlInterface *)sn_nsdl_get_context(nsdl_handle);
         interface->handle_bootstrap_finish_ack(event->event_data);
-    } else if (event->event_type == MBED_CLIENT_NSDLINTERFACE_MESSAGE_STATUS_CB_EVENT) {
-        M2MObject *object = (M2MObject *)event->data_ptr;
-        uint8_t status = event->event_data >> 8;
-        uint8_t type = event->event_data;
-        object->send_message_delivery_status(*object,
-                                             (M2MBase::MessageDeliveryStatus)status,
-                                             (M2MBase::MessageType)type);
     }
 #endif //MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 }
@@ -904,7 +904,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                     if (base && resp->type != M2MBase::NOTIFICATION) {
                         handle_message_status_callback(base, resp->type, M2MBase::MESSAGE_STATUS_SEND_FAILED);
                     }
-                    remove_item_from_response_list(resp->uri_path, coap_header->msg_id);
+                    free_response_list();
                 }
 
                 _observer.registration_error(M2MInterface::NetworkError, true);
@@ -3415,28 +3415,22 @@ void M2MNsdlInterface::handle_request_response(const sn_coap_hdr_s *coap_header,
             // Start retry logic, only for file download operation
         } else if (coap_header->msg_code == COAP_MSG_CODE_RESPONSE_SERVICE_UNAVAILABLE &&
                    request_context->msg_code == COAP_MSG_CODE_REQUEST_GET) {
-            bool retry = true;
 
             if (!_download_retry_time) {
                 // Range is from 1 sec to 10 sec
                 _download_retry_time = randLIB_get_random_in_range(1, 10);
             } else {
                 _download_retry_time *= RECONNECT_INCREMENT_FACTOR;
-                if (_download_retry_time > MAX_RECONNECT_TIMEOUT) {
-                    tr_error("M2MNsdlInterface::handle_request_response - file download failed, retry completed");
-                    retry = false;
-                    failed_to_send_request(request_context, coap_header);
+                if (_download_retry_time >= MBED_CLIENT_MAX_RECONNECT_TIMEOUT) {
+                    _download_retry_time = MBED_CLIENT_MAX_RECONNECT_TIMEOUT;
                 }
             }
 
-            if (retry) {
-                tr_info("M2MNsdlInterface::handle_request_response - continue file download after %" PRIu32, _download_retry_time);
-                set_request_context_to_be_resend(coap_header->token_ptr, coap_header->token_len);
-                _download_retry_timer.start_timer(_download_retry_time * 1000, M2MTimerObserver::RetryTimer);
-            }
-
-            // Message sending has failed, inform application
+            tr_info("M2MNsdlInterface::handle_request_response - continue file download after %" PRIu32, _download_retry_time);
+            set_request_context_to_be_resend(coap_header->token_ptr, coap_header->token_len);
+            _download_retry_timer.start_timer(_download_retry_time * 1000, M2MTimerObserver::RetryTimer);
         } else {
+            // Message sending has failed, inform application
             failed_to_send_request(request_context, coap_header);
         }
     }

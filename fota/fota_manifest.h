@@ -36,8 +36,15 @@ extern "C" {
 #define FOTA_MANIFEST_TRACE_DEBUG(fmt, ...)
 #endif
 
-#define FOTA_MANIFEST_PAYLOAD_FORMAT_RAW    1
-#define FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA  5
+// Payload format types
+#define FOTA_MANIFEST_PAYLOAD_FORMAT_RAW             0x0001
+#define FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA           0x0005
+//  V3 only
+#define FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW   0x0101
+#define FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_DELTA 0x0105 // not supported yet
+
+// Encryption key tags
+#define FOTA_MANIFEST_ENCRYPTION_KEY_TAG_AES_128     0x1
 
 /*
  * Update details as extracted from the Pelion FOTA manifest
@@ -57,7 +64,11 @@ typedef struct {
 #if defined(MBED_CLOUD_CLIENT_FOTA_SIGNED_IMAGE_SUPPORT)
     uint8_t        installed_signature[FOTA_IMAGE_RAW_SIGNATURE_SIZE]; /** Raw encoded signature over installed image */
 #endif  // defined(MBED_CLOUD_CLIENT_FOTA_SIGNED_IMAGE_SUPPORT)
-
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+    uint8_t        encryption_key[FOTA_ENCRYPT_KEY_SIZE];  /*< Encryption key used to encrypt payload */
+#endif
+    uint8_t        vendor_id[FOTA_VENDOR_ID_LEN];                /*< Vendor ID for passing this to the PT. */
+    uint8_t        class_id[FOTA_CLASS_ID_LEN];                  /*< Class ID for passing to the PT. */
 } manifest_firmware_info_t;
 
 /*

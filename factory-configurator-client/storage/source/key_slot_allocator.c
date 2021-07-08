@@ -283,6 +283,21 @@ static kcm_status_e store_table(ksa_descriptor_s *table_descriptor)
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+//#define PRINT_KSA_TABLE
+#ifdef PRINT_KSA_TABLE
+    if(table_descriptor->ksa_table_uid == KSA_KEY_TABLE_ID_RESERVED_TYPE) {
+        printf("table id %d\n", table_descriptor->ksa_table_uid);
+        printf("| item name | active id | factory id | renewal id |\n");
+        for(int i = 0; i < table_descriptor->ksa_num_of_table_entries; i++) {
+            printf("| %x | %d | %d | %d |", table_descriptor->ksa_start_entry[i].item_name, 
+                                            table_descriptor->ksa_start_entry[i].active_item_id,
+                                            table_descriptor->ksa_start_entry[i].factory_item_id,
+                                            table_descriptor->ksa_start_entry[i].renewal_item_id);
+
+            printf("\n");
+        }
+    }
+#endif
 
     //Save the new table
     kcm_status = psa_drv_ps_set_data_direct(table_descriptor->ksa_table_uid, (const void*)table_descriptor->ksa_start_entry,
@@ -314,11 +329,11 @@ static void destroy_ksa_tables()
 }
 
 
-static kcm_status_e set_entry_id(ksa_item_entry_s *item_entry, ksa_id_type_e item_id_type, uint16_t id_value)
+static kcm_status_e set_entry_id(ksa_item_entry_s *item_entry, ksa_id_type_e item_id_type, uint16_t id_value, ksa_item_type_e table_index)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
 
-    SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
+    SA_PV_LOG_TRACE_FUNC_ENTER("id type %" PRIu32 ", id value %" PRIu16 "", (uint32_t)item_id_type, id_value);
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((item_entry == NULL), KCM_STATUS_INVALID_PARAMETER, "table_entry is NULL");
 
@@ -338,7 +353,7 @@ static kcm_status_e set_entry_id(ksa_item_entry_s *item_entry, ksa_id_type_e ite
     }
 
     //Save the table
-    kcm_status = store_table(&g_ksa_desc[item_id_type]);
+    kcm_status = store_table(&g_ksa_desc[table_index]);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to store KSA table to persistent store");
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
@@ -422,7 +437,7 @@ static kcm_status_e destroy_all_ce_keys()
             kcm_status = delete_data(table_entry->renewal_item_id);
             SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_INVALID_PARAMETER), kcm_status, "Failed to destroy key id");
             //zero the entry
-            set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+            set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID, KSA_KEY_ITEM);
         }
         table_entry++;
     }
@@ -1159,7 +1174,7 @@ kcm_status_e ksa_factory_reset(void)
                 SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed destroying CE item ");
 
                 //zero the entry
-                set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+                set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID, table_index);
             }
 
             //squeeze the entry, if it became empty after factory reset - e.g both active and factory entries are 0
@@ -1393,12 +1408,12 @@ kcm_status_e ksa_generate_ce_keys(
     kcm_status = psa_drv_crypto_generate_keys_from_existing_ids(prv_ksa_id, pub_ksa_id, &prv_ksa_id, &pub_ksa_id, psa_priv_key_handle, psa_pub_key_handle);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to generate keys");
 
-    kcm_status = set_entry_id(priv_key_entry, KSA_CE_PSA_ID_TYPE, prv_ksa_id);
+    kcm_status = set_entry_id(priv_key_entry, KSA_CE_PSA_ID_TYPE, prv_ksa_id, KSA_KEY_ITEM);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to set_entry_id");
 
     if (public_key_name != NULL) {
 
-        kcm_status = set_entry_id(pub_key_entry, KSA_CE_PSA_ID_TYPE, pub_ksa_id);
+        kcm_status = set_entry_id(pub_key_entry, KSA_CE_PSA_ID_TYPE, pub_ksa_id, KSA_KEY_ITEM);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status = kcm_status, exit, "Failed to set_entry_id");
     }
 
@@ -1409,12 +1424,12 @@ exit:
         //In case of error we need to close and destroy allocated key handles
         if (psa_priv_key_handle != 0) {
             psa_destroy_key(*psa_priv_key_handle);
-            set_entry_id(priv_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+            set_entry_id(priv_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID, KSA_KEY_ITEM);
             *psa_priv_key_handle = 0;
         }
         if (psa_pub_key_handle != 0) {
             psa_destroy_key(*psa_pub_key_handle);
-            set_entry_id(pub_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+            set_entry_id(pub_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID, KSA_KEY_ITEM);
             *psa_pub_key_handle = 0;
         }
     }
@@ -1455,7 +1470,7 @@ kcm_status_e ksa_destroy_ce_key(const uint8_t *item_name, uint32_t item_type)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS && kcm_status != KCM_STATUS_INVALID_PARAMETER), kcm_status, "Failed to destroy key id");
 
     //Clean the current id field
-    kcm_status = set_entry_id(ksa_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+    kcm_status = set_entry_id(ksa_key_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID, ksa_item_type);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update active id");
 
     kcm_status = store_table(&g_ksa_desc[item_type]);
@@ -1544,11 +1559,11 @@ kcm_status_e ksa_activate_ce_key(const uint8_t *key_name)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((table_entry->renewal_item_id == 0), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, "Renewal ID is not valid");
 
     //Update active id of the entry with value of renewal id
-    kcm_status = set_entry_id(table_entry, KSA_ACTIVE_PSA_ID_TYPE, table_entry->renewal_item_id);
+    kcm_status = set_entry_id(table_entry, KSA_ACTIVE_PSA_ID_TYPE, table_entry->renewal_item_id, KSA_KEY_ITEM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update active id");
 
     // default renewal id 
-    kcm_status = set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID);
+    kcm_status = set_entry_id(table_entry, KSA_CE_PSA_ID_TYPE, PSA_INVALID_SLOT_ID, KSA_KEY_ITEM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to zero renewal id");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
@@ -1643,7 +1658,7 @@ kcm_status_e ksa_update_key_id(const uint8_t *key_name, ksa_id_type_e key_id_typ
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed get_active_entry_of_existing_item");
 
     //Update active id of the entry with value of renewal id
-    kcm_status = set_entry_id(table_entry, key_id_type, id_value);
+    kcm_status = set_entry_id(table_entry, key_id_type, id_value, KSA_KEY_ITEM);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed to update active id");
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();

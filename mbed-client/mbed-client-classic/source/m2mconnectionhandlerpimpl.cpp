@@ -32,6 +32,15 @@
 #include "mbed-trace/mbed_trace.h"
 #include <stdlib.h> // free() and malloc()
 
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+// Copied from socket_api.h since not part of mbed-os master yet
+
+/** Helper Traffic class Differentiated Services Code for QoS  0-63. 0 is default which define Lowest Priority
+ *
+ * */
+#define traffic_class_dsc_set(x)  (uint8_t)((x & 63) << 2)
+#endif
+
 #define TRACE_GROUP "mClt"
 
 #if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
@@ -396,7 +405,7 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String &server_addr
     // we should skip over the DNS query. In case of CID there might be situation that we have a valid CID for ip address x, now if we query
     // dns again we might get ip address to y and COAP sending with the CID will fail. We will skip unnecessary dns query also if CID is not in use.
     if ((_socket_state == ESocketStateSecureConnection) &&
-        (server_type == M2MConnectionObserver::LWM2MServer) && (_server_address == server_address)) {
+            (server_type == M2MConnectionObserver::LWM2MServer) && (_server_address == server_address)) {
         _is_server_ping = is_server_ping;
         if (is_server_ping) {
             // skip over dns query to handshake. This will reset tls and do a clean tls handshake
@@ -1154,7 +1163,13 @@ bool M2MConnectionHandlerPimpl::set_socket_priority(M2MConnectionHandler::Socket
     }
 
     palStatus_t status;
+
+#ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+    int16_t traffic_class = traffic_class_dsc_set(priority);
+#else
     int16_t traffic_class = priority;
+#endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+
     status = pal_setSocketOptionsWithLevel(_socket,
                                            PAL_SOL_IPPROTO_IPV6,
                                            PAL_SO_IPV6_TRAFFIC_CLASS,

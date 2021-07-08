@@ -74,15 +74,16 @@ public:
 
     /**
      * Enum defining which write attributes are set.
+     * Note! Do not change order or values. Used in m2mDiscovery.
     */
-    enum {
+    typedef enum {
         Cancel = 1,
         Pmin = 2,
         Pmax = 4,
         Lt = 8,
         Gt = 16,
         St = 32
-    };
+    } WriteAttribute;
 
     /**
      * Destructor
@@ -127,6 +128,21 @@ public:
     bool parse_notification_attribute(const char *query,
                                       M2MBase::BaseType type,
                                       M2MResourceInstance::ResourceType resource_type = M2MResourceInstance::OPAQUE);
+
+    /**
+     * @brief Get the float value of the given Write attribute.
+     * Will return valid value only for floats, e.g. M2MReportHandler::Lt, M2MReportHandler::Gt and M2MReportHandler::St.
+     * @param attribute, write attribute value to return.
+     * @return float value of the given attribute
+     */
+    float get_notification_attribute_float(WriteAttribute attribute);
+
+    /** @brief Get the int value of the given Write attribute.
+     * Will return valid value only for int32_t's, e.g. M2MReportHandler::Pmin and M2MReportHandler::Pmax.
+     * @param attribute, write attribute value to return.
+     * @return int32_t value of the given attribute
+     */
+    int32_t get_notification_attribute_int(WriteAttribute attribute);
 #endif
 
     /**

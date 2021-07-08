@@ -313,6 +313,8 @@ void MbedCloudClient::complete(ServiceClientCallbackStatus status)
         _on_status_changed.call(Paused);
     } else if (status == Service_Client_Status_Alert_Mode) {
         _on_status_changed.call(AlertMode);
+    } else if (status == Service_Client_Status_Sleep) {
+        _on_status_changed.call(Sleep);
     }
     // ToDo: should we have some handling for Service_Client_Status_Failure
 }
