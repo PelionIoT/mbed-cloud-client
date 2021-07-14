@@ -60,6 +60,7 @@ palStatus_t pal_plat_imageActivate(palImageId_t imageId)
 
 palStatus_t pal_plat_imageGetActiveHash(palBuffer_t *hash)
 {
+#if DEVICE_FLASH
     palStatus_t ret = PAL_ERR_UPDATE_ERROR;
     uint32_t read_offset = PAL_UPDATE_ACTIVE_METADATA_HEADER_OFFSET +
                             offsetof(FirmwareHeader_t, firmwareSHA256);
@@ -95,6 +96,9 @@ palStatus_t pal_plat_imageGetActiveHash(palBuffer_t *hash)
 
 exit:
     return ret;
+#else
+    return PAL_ERR_NOT_IMPLEMENTED;
+#endif
 }
 
 palStatus_t pal_plat_imageGetActiveVersion (palBuffer_t* version)
