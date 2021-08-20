@@ -66,6 +66,10 @@
         "delta-storage-size": {
             "help": "Total storage allocated for delta image. This config item is only for multicast update.",
             "value": null
+        },
+        "in-transit-hash-validation": {
+            "help": "Calculate payload hash in transit and not by reading back from storage. Useful on platforms without read permission.",
+            "value": 0
         }
     }
 }

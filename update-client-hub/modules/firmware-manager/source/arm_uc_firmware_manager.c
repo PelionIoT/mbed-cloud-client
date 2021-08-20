@@ -45,6 +45,9 @@ static arm_uc_buffer_t *back_buffer = NULL;
 
 #define UCFM_DEBUG_OUTPUT 0
 
+#ifndef MBED_CONF_UPDATE_CLIENT_IN_TRANSIT_HASH_VALIDATION
+#define MBED_CONF_UPDATE_CLIENT_IN_TRANSIT_HASH_VALIDATION 0
+#endif
 
 static void arm_uc_signal_ucfm_handler(uintptr_t event);
 
@@ -124,6 +127,48 @@ static void debug_output_validation(arm_uc_hash_t *hash,
 
 /******************************************************************************/
 
+/* Hash comparison.
+*/
+static void arm_uc_internal_compare_hash(void)
+{
+    UC_FIRM_TRACE("arm_uc_internal_compare_hash");
+
+    /* use specific event for "invalid hash" */
+    uint32_t error_event = UCFM_EVENT_FINALIZE_INVALID_HASH_ERROR;
+
+    /* finalize hash calculation */
+    uint8_t hash_output_ptr[2 * UCFM_MAX_BLOCK_SIZE];
+    arm_uc_buffer_t hash_buffer = {
+        .size_max = sizeof(hash_output_ptr),
+        .size = 0,
+        .ptr = hash_output_ptr
+    };
+
+    ARM_UC_cryptoHashFinish(&mdHandle, &hash_buffer);
+
+    /* size check before memcmp call */
+    if (hash_buffer.size == ARM_UC_SHA256_SIZE) {
+        int diff = memcmp(hash_buffer.ptr, package_hash, ARM_UC_SHA256_SIZE);
+
+#if UCFM_DEBUG_OUTPUT
+        debug_output_validation(package_hash, &hash_buffer);
+#endif
+
+        if (diff == 0) {
+            /* hash matches */
+            UC_FIRM_TRACE("image hash valid");
+            error_event = UCFM_EVENT_FINALIZE_DONE;
+        } else {
+            UC_FIRM_ERR_MSG("image hash invalid");
+        }
+
+        /* clear local hash */
+        memset(package_hash, 0, ARM_UC_SHA256_SIZE);
+    }
+
+    arm_uc_signal_ucfm_handler(error_event);
+}
+
 /* Hash calculation is performed using the output buffer. This function fills
    the output buffer with data from the PAL.
 */
@@ -132,7 +177,6 @@ static void arm_uc_internal_process_hash(void)
     bool double_buffering = (front_buffer != back_buffer);
     bool needs_more_data = (package_offset < package_configuration->package_size);
     arm_uc_error_t status = { .code = ERR_NONE };
-    uint32_t error_event = UCFM_EVENT_FINALIZE_ERROR;
 
     if (double_buffering && needs_more_data) {
 #if UCFM_DEBUG_OUTPUT
@@ -175,45 +219,11 @@ static void arm_uc_internal_process_hash(void)
                                       back_buffer);
             }
         } else {
-            /* invert status code so that it has to be set explicitly for success */
-            status.code = FIRM_ERR_INVALID_PARAMETER;
-
-            /* finalize hash calculation */
-            uint8_t hash_output_ptr[2 * UCFM_MAX_BLOCK_SIZE];
-            arm_uc_buffer_t hash_buffer = {
-                .size_max = sizeof(hash_output_ptr),
-                .size = 0,
-                .ptr = hash_output_ptr
-            };
-
-            ARM_UC_cryptoHashFinish(&mdHandle, &hash_buffer);
-
-            /* size check before memcmp call */
-            if (hash_buffer.size == ARM_UC_SHA256_SIZE) {
-                int diff = memcmp(hash_buffer.ptr,
-                                  package_hash,
-                                  ARM_UC_SHA256_SIZE);
-
-#if UCFM_DEBUG_OUTPUT
-                debug_output_validation(package_hash,
-                                        &hash_buffer);
-#endif
-
-                /* hash matches */
-                if (diff == 0) {
-                    UC_FIRM_TRACE("UCFM_EVENT_FINALIZE_DONE");
-
-                    arm_uc_signal_ucfm_handler(UCFM_EVENT_FINALIZE_DONE);
-                    status.code = ERR_NONE;
-                } else {
-                    /* use specific event for "invalid hash" */
-                    UC_FIRM_ERR_MSG("Invalid image hash");
-
-                    error_event = UCFM_EVENT_FINALIZE_INVALID_HASH_ERROR;
-                }
-                // clear local hash
-                memset(package_hash, 0, ARM_UC_SHA256_SIZE);
-            }
+            /* All data has been passed through hash calculation.
+             * Compare hash with manifest. This function will signal
+             * success/failure by itself.
+             */
+            arm_uc_internal_compare_hash();
         }
 
         /* Front buffer is processed, back buffer might be reading more data.
@@ -227,7 +237,7 @@ static void arm_uc_internal_process_hash(void)
     /* signal error if status is not clean */
     if (status.error != ERR_NONE) {
         UC_FIRM_TRACE("UCFM_EVENT_FINALIZE_ERROR");
-        arm_uc_signal_ucfm_handler(error_event);
+        arm_uc_signal_ucfm_handler(UCFM_EVENT_FINALIZE_ERROR);
     }
 }
 
@@ -239,28 +249,37 @@ static void event_handler_finalize(void)
 {
     UC_FIRM_TRACE("event_handler_finalize");
 
-    /* setup mandatory hash */
-    arm_uc_mdType_t mdtype = ARM_UC_CU_SHA256;
-    arm_uc_error_t result = ARM_UC_cryptoHashSetup(&mdHandle, mdtype);
+/* Hash is calculated while in transit */
+#if MBED_CONF_UPDATE_CLIENT_IN_TRANSIT_HASH_VALIDATION
+    UC_FIRM_TRACE("calculate hash in transit");
 
-    if (result.error == ERR_NONE) {
-        /* initiate hash calculation */
-        package_offset = 0;
+    /* All data has been passed through hash calculation.
+     * Compare hash with manifest. This function will signal
+     * success/failure by itself.
+     */
+    arm_uc_internal_compare_hash();
 
-        /* indicate number of bytes needed */
-        front_buffer->size = (package_configuration->package_size < front_buffer->size_max) ?
-                             package_configuration->package_size : front_buffer->size_max;
+/* Hash is calculated by reading back payload from storage*/
+#else
+    UC_FIRM_TRACE("calculate hash from storage");
 
-        /* initiate read from PAL */
-        result = ARM_UCP_Read(package_configuration->package_id,
-                              package_offset,
-                              front_buffer);
-    }
+    /* initiate hash calculation */
+    package_offset = 0;
+
+    /* indicate number of bytes needed */
+    front_buffer->size = (package_configuration->package_size < front_buffer->size_max) ?
+                         package_configuration->package_size : front_buffer->size_max;
+
+    /* initiate read from PAL */
+    arm_uc_error_t result = ARM_UCP_Read(package_configuration->package_id,
+                                         package_offset,
+                                         front_buffer);
 
     if (result.error != ERR_NONE) {
-        UC_FIRM_ERR_MSG("ARM_UC_cryptoHashSetup failed");
+        UC_FIRM_ERR_MSG("ARM_UCP_Read during hash check failed");
         arm_uc_signal_ucfm_handler(UCFM_EVENT_FINALIZE_ERROR);
     }
+#endif
 }
 
 /* Function for decoupling PAL callbacks using the internal task queue. */
@@ -416,13 +435,12 @@ static arm_uc_error_t ARM_UCFM_Prepare(ARM_UCFM_Setup_t *configuration,
             arm_uc_signal_ucfm_handler(UCFM_EVENT_PREPARE_ERROR);
         }
     }
-#if UCFM_DEBUG_OUTPUT
+
     /* Initialize hash to calculate downloaded fragments hash */
     if (result.error == ERR_NONE) {
         arm_uc_mdType_t mdtype = ARM_UC_CU_SHA256;
         result = ARM_UC_cryptoHashSetup(&mdHandle, mdtype);
     }
-#endif
 
     return result;
 }
@@ -478,8 +496,8 @@ static arm_uc_error_t ARM_UCFM_Write(const arm_uc_buffer_t *fragment)
                 fragment_offset += length_update;
             }
         }
-#if UCFM_DEBUG_OUTPUT
-        /* calculate hash on the fly for debugging purpose */
+#if MBED_CONF_UPDATE_CLIENT_IN_TRANSIT_HASH_VALIDATION
+        /* calculate hash on the fly */
         ARM_UC_cryptoHashUpdate(&mdHandle, fragment);
 #endif
         /* store fragment using PAL */
@@ -514,7 +532,7 @@ static arm_uc_error_t ARM_UCFM_ReadFromSlot(const arm_uc_buffer_t* output, uint3
     return result;
 }
 
-static arm_uc_error_t ARM_UCFM_Read(arm_uc_buffer_t *buf, uint32_t offset)
+static arm_uc_error_t ARM_UCFM_Read(const arm_uc_buffer_t *buf, uint32_t offset)
 {
     arm_uc_error_t result = (arm_uc_error_t) { FIRM_ERR_UNINITIALIZED };
     result = ARM_UCFM_ReadFromSlot(buf, package_configuration->package_id, offset);
@@ -523,7 +541,7 @@ static arm_uc_error_t ARM_UCFM_Read(arm_uc_buffer_t *buf, uint32_t offset)
 
 static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t *front, arm_uc_buffer_t *back)
 {
-    UC_FIRM_TRACE("ARM_UCFM_Finish");
+    UC_FIRM_TRACE("ARM_UCFM_Finalize");
 
     arm_uc_error_t result = (arm_uc_error_t) { ERR_NONE };
 
@@ -550,20 +568,6 @@ static arm_uc_error_t ARM_UCFM_Finalize(arm_uc_buffer_t *front, arm_uc_buffer_t 
 
         /* disable module until next setup call is received */
         ready_to_receive = false;
-
-#if UCFM_DEBUG_OUTPUT
-        /* finalize hash calculation */
-        uint8_t hash_output_ptr[2 * UCFM_MAX_BLOCK_SIZE];
-        arm_uc_buffer_t hash_buffer = {
-            .size_max = sizeof(hash_output_ptr),
-            .size = 0,
-            .ptr = hash_output_ptr
-        };
-
-        ARM_UC_cryptoHashFinish(&mdHandle, &hash_buffer);
-
-        debug_print_hash("downloaded hash:", hash_buffer.ptr, hash_buffer.size);
-#endif
     }
 
     return result;
