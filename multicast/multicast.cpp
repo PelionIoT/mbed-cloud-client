@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #include "sn_coap_header.h"
 #include "pal.h"
@@ -35,22 +36,36 @@
 #include "m2mobjectinstance.h"
 #include "m2mresource.h"
 #include "MbedCloudClient.h"
+
+#if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+extern char g_mesh_network_id[OTA_MAX_MESH_NETWORK_ID_LENGTH];
+extern void build_mesh_shared_file_name();
+extern  int8_t arm_uc_multicast_mesh_simulator_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload);
+
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+#include "pal_plat_rtos.h"
+palThreadID_t tid;
+extern void thread_node(void const *arg);
+#endif
+
+#endif
+
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 #include "socket_api.h"
 #include "ip6string.h"
 #include "arm_uc_types.h"
 #include "net_interface.h"
+
+#if defined(MULTICAST_UCHUB_INTEGRATION)
 #include "update-client-firmware-manager/arm_uc_firmware_manager.h"
 #include "update_client_hub_state_machine.h"
-#include "update-client-manifest-manager/update-client-manifest-types.h"
 #include "update-client-common/arm_uc_config.h"
+
+static arm_uc_hub_state_t   arm_uc_hub_state = ARM_UC_HUB_STATE_UNINITIALIZED;
+
+#endif
+
 #include "randLIB.h"
-
-#include "otaLIB.h"
-#include "otaLIB_resources.h"
-
-// including UC defines TRACE_GROUP already
-#undef TRACE_GROUP
-#define TRACE_GROUP "MULTICAST"
 
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
 #include "net_rpl.h"
@@ -59,7 +74,17 @@
 extern "C" {
 #include "ws_bbr_api.h"
 };
-#endif
+#endif // defined(ARM_UC_MULTICAST_NODE_MODE)
+
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
+
+#include "libota.h"
+#include "otaLIB.h"
+#include "otaLIB_resources.h"
+
+// including UC defines TRACE_GROUP already
+#undef TRACE_GROUP
+#define TRACE_GROUP "MULTICAST"
 
 #define OTA_SOCKET_UNICAST_PORT             48380 // Socket port number for OTA (used for Unicast)
 #define OTA_SOCKET_MULTICAST_PORT           48381 // Socket port number for OTA (used for Link local multicast and MPL multicast)
@@ -68,6 +93,7 @@ extern "C" {
 
 static bool arm_uc_multicast_manifest_rejected = false;
 static bool arm_uc_multicast_send_in_progress = false;
+static bool arm_uc_multicast_init_done = false;
 
 static void             arm_uc_multicast_request_timer(uint8_t timer_id, uint32_t timeout);
 static void             arm_uc_multicast_cancel_timer(uint8_t timer_id);
@@ -78,7 +104,9 @@ static ota_error_code_e arm_uc_multicast_read_parameters(ota_parameters_t *ota_p
 static uint32_t         arm_uc_multicast_write_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *from);
 static uint32_t         arm_uc_multicast_read_fw_bytes(uint8_t *ota_session_id, uint32_t offset, uint32_t count, uint8_t *to);
 static void             arm_uc_multicast_send_update_fw_cmd_received_info(uint32_t delay);
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 static int8_t           arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16_t count, uint8_t *payload);
+#endif // defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)    
 static uint16_t         arm_uc_multicast_update_resource_value(ota_resource_types_e type, uint8_t *payload_ptr, uint16_t payload_len);
 static bool             arm_uc_multicast_create_static_resources(M2MBaseList &list);
 static void             arm_uc_multicast_socket_callback(void *);
@@ -112,10 +140,16 @@ static const uint8_t        arm_uc_multicast_address[16] = {0xff, 0x03, 0x00, 0x
 static const uint8_t        arm_uc_multicast_link_local_multicast_address[16] = {0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}; // Link local multicast socket IP addres
 static arm_event_storage_t  arm_uc_multicast_event;
 static const int16_t        multicast_hops = 24;
-static arm_uc_hub_state_t   arm_uc_hub_state = ARM_UC_HUB_STATE_UNINITIALIZED;
+
 
 #if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
+#if defined(MULTICAST_FOTA_INTEGRATION)
+#include "fota_manifest.h"
+manifest_firmware_info_t fw_info;
+#else
+#include "update-client-manifest-manager/update-client-manifest-types.h"
 struct manifest_firmware_info_t fw_info;
+#endif
 #endif
 
 static ota_parameters_t stored_ota_parameters = {
@@ -155,7 +189,11 @@ static ota_config_func_pointers_t arm_uc_ota_function_pointers = {
     .write_fw_bytes_fptr = &arm_uc_multicast_write_fw_bytes,
     .read_fw_bytes_fptr = &arm_uc_multicast_read_fw_bytes,
     .send_update_fw_cmd_received_info_fptr = &arm_uc_multicast_send_update_fw_cmd_received_info,
+#if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+    .socket_send_fptr = &arm_uc_multicast_mesh_simulator_send,
+#else
     .socket_send_fptr = &arm_uc_multicast_socket_send,
+#endif // defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)    
     .update_resource_value_fptr = &arm_uc_multicast_update_resource_value,
     .manifest_received_fptr = &arm_uc_multicast_manifest_received,
     .firmware_ready_fptr = &arm_uc_multicast_firmware_ready,
@@ -282,7 +320,6 @@ const static M2MBase::lwm2m_parameters arm_uc_multicast_fragment_size_res = {
     false               // read_write_callback_set
 };
 
-
 /************************************************/
 /* Multicast API                                */
 /************************************************/
@@ -290,19 +327,25 @@ multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &cli
 {
     tr_debug("arm_uc_multicast_init");
 
+    if (arm_uc_multicast_init_done) {
+        tr_debug("arm_uc_multicast_init - already initialized");
+        return MULTICAST_STATUS_SUCCESS;
+    }
+
     if (tasklet_id < 0) {
         tr_error("arm_uc_multicast_init - trying to pass invalid tasklet_id for arm_uc_multicast_init");
         return MULTICAST_STATUS_INIT_FAILED;
     }
-
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     if (arm_uc_multicast_interface_id < 0) {
-        tr_error("arm_uc_multicast_init - mesh interface not set!");
-        return MULTICAST_STATUS_INIT_FAILED;
+        tr_info("arm_uc_multicast_init - mesh interface not yet configured - wait next init");
+        return MULTICAST_STATUS_SUCCESS;
     }
-
+#endif
     arm_uc_multicast_tasklet_id = tasklet_id;
     arm_uc_multicast_m2m_client = &client;
 
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     if (!arm_uc_multicast_open_socket(&arm_uc_multicast_socket, OTA_SOCKET_MULTICAST_PORT)) {
         return MULTICAST_STATUS_INIT_FAILED;
     }
@@ -310,9 +353,11 @@ multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &cli
     if (!arm_uc_multicast_open_socket(&arm_uc_multicast_missing_frag_socket, OTA_SOCKET_UNICAST_PORT)) {
         return MULTICAST_STATUS_INIT_FAILED;
     }
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 
     memset(&arm_uc_multicast_event, 0, sizeof(arm_uc_multicast_event));
 
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     arm_uc_multicast_ota_config.unicast_socket_addr.port = OTA_SOCKET_UNICAST_PORT;
     arm_uc_multicast_ota_config.unicast_socket_addr.type = OTA_ADDRESS_IPV6;
 
@@ -321,16 +366,24 @@ multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &cli
 
     arm_uc_multicast_ota_config.link_local_multicast_socket_addr.port = OTA_SOCKET_MULTICAST_PORT;
     memcpy(arm_uc_multicast_ota_config.link_local_multicast_socket_addr.address_tbl, arm_uc_multicast_link_local_multicast_address, 16);
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 
 #if defined(ARM_UC_MULTICAST_BORDER_ROUTER_MODE)
     arm_uc_multicast_ota_config.device_type = OTA_DEVICE_TYPE_BORDER_ROUTER;
+#if defined(MULTICAST_FOTA_INTEGRATION)
+    memset(&fw_info, 0, sizeof(manifest_firmware_info_t));
+#else
     memset(&fw_info, 0, sizeof(struct manifest_firmware_info_t));
+#endif
+
 #else
 
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     if (arm_uc_multicast_get_parent_addr(arm_uc_multicast_ota_config.unicast_socket_addr.address_tbl) != OTA_OK) {
         tr_error("arm_uc_multicast_init - failed to read parent address");
         return MULTICAST_STATUS_INIT_FAILED;
     }
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 
     arm_uc_multicast_ota_config.device_type = OTA_DEVICE_TYPE_NODE;
 #endif
@@ -343,7 +396,24 @@ multicast_status_e arm_uc_multicast_init(M2MBaseList &list, ConnectorClient &cli
         return MULTICAST_STATUS_INIT_FAILED;
     }
 
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     arm_uc_multicast_update_client_init();
+#endif
+
+#if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+    build_mesh_shared_file_name();
+#if defined(ARM_UC_MULTICAST_NODE_MODE)
+
+    palStatus_t status = pal_plat_osThreadCreate(&thread_node, NULL, PAL_osPriorityAboveNormal, 2 * 1024 * 1024, &tid);
+    if (status != 0) {
+        tr_error("can't create node thread :[%s]", strerror(status));
+    } else {
+        tr_debug("Thread node created successfully");
+    }
+#endif
+#endif
+
+    arm_uc_multicast_init_done = true;
 
     return MULTICAST_STATUS_SUCCESS;
 }
@@ -355,6 +425,7 @@ void arm_uc_multicast_deinit()
     pal_close(&arm_uc_multicast_missing_frag_socket);
     delete arm_uc_multicast_object;
     arm_uc_multicast_object = NULL;
+    arm_uc_multicast_init_done = false;
 }
 
 void arm_uc_multicast_tasklet(struct arm_event_s *event)
@@ -376,11 +447,15 @@ void arm_uc_multicast_tasklet(struct arm_event_s *event)
     } else if (ARM_UC_OTA_FULL_REG_EVENT == event->event_type) {
         arm_uc_multicast_m2m_client->start_full_registration();
     } else if (ARM_UC_HUB_EVENT_TIMER == event->event_type) {
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
+#if defined(MULTICAST_UCHUB_INTEGRATION)
         arm_uc_multicast_event.data.event_data = arm_uc_hub_state;
         arm_uc_multicast_event.data.event_type = ARM_UC_OTA_MULTICAST_UPDATE_CLIENT_EVENT;
         arm_uc_multicast_event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
         arm_uc_multicast_event.data.receiver = arm_uc_multicast_tasklet_id;
         eventOS_event_send_user_allocated(&arm_uc_multicast_event);
+#endif
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR        
     } else if (ARM_UC_OTA_MULTICAST_INIT_EVENT != event->event_type) {
         tr_error("arm_uc_multicast_tasklet - unknown event! (%d)", event->event_type);
     }
@@ -412,6 +487,10 @@ bool arm_uc_multicast_interface_configure(int8_t interface_id)
 /************************************************/
 static bool read_dodag_info(char *address)
 {
+#if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+    memcpy(address, g_mesh_network_id, OTA_MAX_MESH_NETWORK_ID_LENGTH);
+    return true;
+#else
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
     rpl_dodag_info_t dodag_info;
     if (rpl_read_dodag_info(&dodag_info, arm_uc_multicast_interface_id)) {
@@ -433,10 +512,12 @@ static bool read_dodag_info(char *address)
         return false;
     }
 #endif
+#endif
 }
 
 static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr)
 {
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 #if defined(ARM_UC_MULTICAST_NODE_MODE)
     // Get the parent address for unicast
     ws_stack_info_t stack_info = {};
@@ -449,9 +530,10 @@ static ota_error_code_e arm_uc_multicast_get_parent_addr(uint8_t *addr)
 #else
     (void)addr;
 #endif
-
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     return OTA_OK;
 }
+
 
 /************************************************/
 /* Socket API implementation                    */
@@ -511,6 +593,7 @@ static void arm_uc_multicast_socket_callback(void *port)
     }
 }
 
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 /*
  * socket_send_fptr() Function pointer for sending data to socket
  *            Parameters:
@@ -558,9 +641,11 @@ static int8_t arm_uc_multicast_socket_send(ota_ip_address_t *destination, uint16
 
     return pal_sendTo(socket, payload, count, &pal_addr, sizeof(pal_addr), &sent);
 }
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
 
 static bool arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port)
 {
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     palStatus_t status;
     palSocketAddress_t bind_address;
     palIpV6Addr_t interface_address6;
@@ -610,9 +695,10 @@ static bool arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port)
     }
 
     tr_info("arm_uc_multicast_open_socket - opened OTA socket (port=%u)", port);
-
+#endif // #ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     return true;
 }
+
 
 /************************************************/
 /* Timer implementation                         */
@@ -625,7 +711,7 @@ static bool arm_uc_multicast_open_socket(palSocket_t *socket, uint16_t port)
  */
 static void arm_uc_multicast_request_timer(uint8_t timer_id, uint32_t timeout)
 {
-    tr_info("arm_uc_multicast_request_timer - id %" PRIu8 ", timeout %" PRIu32 "(ms)", timer_id, timeout);
+    tr_debug("arm_uc_multicast_request_timer - id %" PRIu8 ", timeout %" PRIu32 "(ms)", timer_id, timeout);
     int8_t res = eventOS_event_timer_request(timer_id, ARM_UC_OTA_MULTICAST_TIMER_EVENT, arm_uc_multicast_tasklet_id, timeout);
     assert(res == 0);
 }
@@ -637,7 +723,6 @@ static void arm_uc_multicast_request_timer(uint8_t timer_id, uint32_t timeout)
  */
 static void arm_uc_multicast_cancel_timer(uint8_t timer_id)
 {
-    tr_info("arm_uc_multicast_cancel_timer - id %" PRIu8, timer_id);
     eventOS_event_timer_cancel(timer_id, arm_uc_multicast_tasklet_id);
 }
 
@@ -1513,4 +1598,4 @@ void arm_uc_multicast_update_client_external_update_event(struct arm_event_s *ev
 
 #endif // defined(MULTICAST_FOTA_INTEGRATION)
 
-#endif // defined(ARM_UC_MULTICAST_ENABLE) && (ARM_UC_MULTICAST_ENABLE == 1)
+#endif // defined(LIBOTA_ENABLED) && (LIBOTA_ENABLED)

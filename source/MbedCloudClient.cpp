@@ -25,6 +25,10 @@
 #include "CertificateEnrollmentClient.h"
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
 
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+#include "m2mdynlog.h"
+#endif //defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+
 #include <assert.h>
 
 #define xstr(s) str(s)
@@ -142,6 +146,7 @@ void MbedCloudClient::set_update_callback(MbedCloudClientCallback *callback)
 
 bool MbedCloudClient::init()
 {
+    tr_info("MbedCloudClient::init");
     if (!_init_done) {
         _init_done = _client.init();
         if (!_init_done) {
@@ -154,9 +159,9 @@ bool MbedCloudClient::init()
     return _init_done;
 }
 
-bool MbedCloudClient::setup(void *iface)
+bool MbedCloudClient::setup(void *iface, bool full_register)
 {
-    tr_debug("MbedCloudClient setup()");
+    tr_info("MbedCloudClient::setup");
 
     if (!init()) {
         return false;
@@ -164,7 +169,7 @@ bool MbedCloudClient::setup(void *iface)
 
     // set the network interface to M2MInterface
     _client.connector_client().m2m_interface()->set_platform_network_handler(iface, _client.connector_client().connector_credentials_available());
-    _client.initialize_and_register(_object_list);
+    _client.initialize_and_register(_object_list, full_register);
     return true;
 }
 
@@ -206,16 +211,19 @@ void MbedCloudClient::on_registration_updated(void(*fn)(void))
 
 void MbedCloudClient::keep_alive()
 {
+    tr_info("MbedCloudClient::keep_alive");
     _client.connector_client().update_registration();
 }
 
 void MbedCloudClient::register_update()
 {
+    tr_info("MbedCloudClient::register_update");
     _client.connector_client().update_registration();
 }
 
 void MbedCloudClient::close()
 {
+    tr_info("MbedCloudClient::close");
     // finish the ServiceClient's initialization and M2MInterface
     bool success = _client.connector_client().setup();
 
@@ -236,6 +244,7 @@ M2MInterface *MbedCloudClient::get_m2m_interface()
 
 void MbedCloudClient::set_queue_sleep_handler(callback_handler handler)
 {
+    tr_info("MbedCloudClient::set_queue_sleep_handler");
     // finish the ServiceClient's initialization and M2MInterface
     bool success = _client.connector_client().setup();
 
@@ -246,6 +255,7 @@ void MbedCloudClient::set_queue_sleep_handler(callback_handler handler)
 
 void MbedCloudClient::set_random_number_callback(random_number_cb callback)
 {
+    tr_info("MbedCloudClient::set_random_number_callback");
     // finish the ServiceClient's initialization and M2MInterface
     bool success = _client.connector_client().setup();
 
@@ -256,6 +266,7 @@ void MbedCloudClient::set_random_number_callback(random_number_cb callback)
 
 void MbedCloudClient::set_entropy_callback(entropy_cb callback)
 {
+    tr_info("MbedCloudClient::set_entropy_callback");
     // finish the ServiceClient's initialization and M2MInterface
     bool success = _client.connector_client().setup();
 
@@ -381,6 +392,7 @@ const M2MBaseList *MbedCloudClient::get_object_list() const
 
 void MbedCloudClient::pause()
 {
+    tr_info("MbedCloudClient::pause");
     // finish the ServiceClient's initialization and M2MInterface
     bool success = _client.connector_client().setup();
 
@@ -391,6 +403,7 @@ void MbedCloudClient::pause()
 
 void MbedCloudClient::resume(void *iface)
 {
+    tr_info("MbedCloudClient::resume");
     // finish the ServiceClient's initialization and M2MInterface
     bool success = _client.connector_client().setup();
 
@@ -402,6 +415,7 @@ void MbedCloudClient::resume(void *iface)
 
 void MbedCloudClient::alert()
 {
+    tr_info("MbedCloudClient::alert");
     // finish the ServiceClient's initialization and M2MInterface
     bool success = _client.connector_client().setup();
 
@@ -436,3 +450,16 @@ void MbedCloudClient::est_free_cert_chain_context(cert_chain_context_s *context)
     _client.connector_client().est_client().free_cert_chain_context(context);
 }
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
+
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+void MbedCloudClient::set_dynamic_logging_state(bool state, bool stopped_by_update)
+{
+    if (_init_done) {
+        if (state) {
+            M2MDynLog::get_instance()->start_capture();
+        } else {
+            M2MDynLog::get_instance()->stop_capture(true, stopped_by_update);
+        }
+    }
+}
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE

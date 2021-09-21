@@ -32,7 +32,9 @@
 // Make sure that timer id does not collapse with one defined in ota_timers_e
 #define ARM_UC_HUB_EVENT_TIMER                      100
 
-#if defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK) || defined(__NANOSIMULATOR__)
+#define OTA_MAX_MESH_NETWORK_ID_LENGTH  45
+
+#if defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK) || defined(__NANOSIMULATOR__) || defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR)
 #define ARM_UC_OTA_MULTICAST_RAND_START     1   // seconds
 #define ARM_UC_OTA_MULTICAST_RAND_END       10  // seconds
 #else

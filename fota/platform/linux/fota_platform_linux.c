@@ -26,7 +26,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
-
 #include "fota_platform_linux.h"
 #include "fota_crypto.h"
 #include "fota_curr_fw.h"
@@ -49,12 +48,20 @@
 #define INIT_MAIN_VERSION "0.0.0"
 #endif
 
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+#define MAX_SYS_CALL_COMMAND_SIZE 512
+char command_buffer[MAX_SYS_CALL_COMMAND_SIZE] = { 0 };
+#endif
+
 #if !defined(MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR)
 static char *header_file_name = NULL;
 static char *temp_header_file_name = NULL;
 static char *update_storage_file_name = NULL;
 static char *candidate_file_name = NULL;
-
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+static char *package_dir_name = NULL;
+static char *package_descriptor_file_name = NULL;
+#endif
 // Use config directory for all FOTA files
 static void set_full_file_name(char **var, const char *base)
 {
@@ -120,11 +127,24 @@ const char *fota_linux_get_candidate_file_name(void)
 {
     return candidate_file_name;
 }
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+const char *fota_linux_get_package_dir_name(void)
+{
+    return package_dir_name;
+}
+
+const char *fota_linux_get_package_descriptor_file_name(void)
+{
+    return package_descriptor_file_name;
+}
+#endif
+
+
 #endif // !defined(MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR)
 
 static const int fw_buf_size = 2048;
 
-int fota_linux_candidate_iterate(fota_candidate_iterate_callback_info *info)
+int fota_linux_candidate_iterate(const char* comp_name, const char *sub_comp_name, fota_comp_candidate_iterate_callback_info *info, const uint8_t *vendor_data, size_t vendor_data_size, void* app_ctx)
 {
     switch (info->status) {
         case FOTA_CANDIDATE_ITERATE_START: {
@@ -232,6 +252,10 @@ int fota_linux_init()
     set_full_file_name(&temp_header_file_name, MBED_CLOUD_CLIENT_FOTA_LINUX_TEMP_HEADER_FILENAME);
     set_full_file_name(&update_storage_file_name, MBED_CLOUD_CLIENT_FOTA_LINUX_UPDATE_STORAGE_FILENAME);
     set_full_file_name(&candidate_file_name, MBED_CLOUD_CLIENT_FOTA_LINUX_CANDIDATE_FILENAME);
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+    set_full_file_name(&package_dir_name, MBED_CLOUD_CLIENT_FOTA_LINUX_PACKAGE_DIRECTORY_NAME);
+    set_full_file_name(&package_descriptor_file_name, MBED_CLOUD_CLIENT_FOTA_LINUX_PACKAGE_DESCRIPTOR_FILE_NAME);
+#endif
 #endif
 
     // Check if a valid temporary file exists. If so, use it as our file (as it can only exist
@@ -290,6 +314,181 @@ int fota_linux_init()
 
     return FOTA_STATUS_SUCCESS;
 }
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+#if !defined(MBED_CLOUD_CLIENT_FOTA_LINUX_CONFIG_DIR)
+#if  MBED_CLOUD_CLIENT_FOTA_SUPPORT_PAL == 1
+int fota_linux_remove_directory(const char *path_name)
+{
+    // delete the files in package directory
+    palStatus_t  pal_status = pal_fsRmFiles(path_name);
+    // the use case is that package directory may not exist
+    if ((pal_status != PAL_SUCCESS) && (pal_status != PAL_ERR_FS_NO_FILE) && (pal_status != PAL_ERR_FS_NO_PATH)) {
+        FOTA_TRACE_ERROR("Failed to remove package directory files %s with pal_status  0x%x", path_name, (unsigned int)pal_status);
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+    // delete the package directory directory
+    pal_status = pal_fsRmDir(fota_linux_get_package_dir_name());
+    if (pal_status != PAL_SUCCESS) {
+        // Any error apart from dir not exist returns error.
+        if ((pal_status != PAL_ERR_FS_NO_FILE) && (pal_status != PAL_ERR_FS_NO_PATH)) {
+            FOTA_TRACE_ERROR("Failed to remove package directory %s with pal_status  0x%x", path_name, (unsigned int)pal_status);
+            return FOTA_STATUS_INTERNAL_ERROR;
+        }
+    }
+    return FOTA_STATUS_SUCCESS;
+}
+#endif
+#else
+//TODO: Implement this with c function (without system call)
+int fota_linux_remove_directory(const char *path_name)
+{
+    int res = 0;
+    // Initialize command buffer.
+    memset(command_buffer, 0, sizeof(command_buffer));
+    // Build rm directory command string.
+    res = snprintf(command_buffer, sizeof(command_buffer), "rm -rf %s ", path_name);
+    if (res == 0) {
+        FOTA_TRACE_ERROR("Failed to build rm -rf command");
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    // Use system call to delete directory.
+    res = system(command_buffer);
+    if (res) {
+        FOTA_TRACE_ERROR("System call remove directory failed");
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+	
+    return FOTA_STATUS_SUCCESS;
+}
+#endif
+
+// Read file data : get the size of the file -> allocate memory -> read the file
+int fota_linux_read_file(const char *file_name, uint8_t **p_buffer, size_t *p_buffer_size)
+{
+    int res = 0;
+    size_t bytes_read = 0;
+    uint8_t *p_temp = NULL;
+
+    // Open file.
+    FILE *desc_handle = fopen(file_name, "r");
+    if (!desc_handle) {
+        if (errno == ENOENT) {
+            res = FOTA_STATUS_COMB_PACKAGE_DIR_NOT_FOUND;
+        } else {
+            FOTA_TRACE_ERROR("Failed to open file : %s", strerror(errno));
+            res = FOTA_STATUS_INTERNAL_ERROR;
+        }
+        goto cleanup;
+    }
+    if (fseek(desc_handle, 0L, SEEK_END)) {
+        FOTA_TRACE_ERROR("Failed SEEK_END descriptor file");
+        res = FOTA_STATUS_INTERNAL_ERROR;
+        goto cleanup;
+    }
+    // Get size of the descriptor file.
+    *p_buffer_size = ftell(desc_handle);
+
+    // Allocate buffer for descriptor file data.
+    p_temp = malloc(*p_buffer_size);
+    if (!p_temp) {
+        FOTA_TRACE_ERROR("Failed to allocate memory");
+        res = FOTA_STATUS_OUT_OF_MEMORY;
+        goto cleanup;
+    }
+
+    // Seek to the beginning of the file.
+    fseek(desc_handle, 0, SEEK_SET);
+
+    // Read the file to the allocated buffer
+    bytes_read = fread(p_temp, 1, *p_buffer_size, desc_handle);
+    if (bytes_read != *p_buffer_size) {
+        FOTA_TRACE_ERROR("Failed to read descripor file");
+        res = FOTA_STATUS_INTERNAL_ERROR;
+        goto cleanup;
+    }
+
+    *p_buffer = p_temp;
+
+cleanup:
+    // Close file handle
+    if (desc_handle) {
+        fclose(desc_handle);
+    }
+    // In case of failure release package descriptor data memory.
+    if (res != 0 && p_temp != NULL) {
+        free(p_temp);
+    }
+    return res;
+}
+int fota_linux_create_directory(const char* file_name)
+{
+    // Remove package directory
+    int res = fota_linux_remove_directory(file_name);
+    if (res) {
+        FOTA_TRACE_ERROR("Failed to remove directory %s ", file_name);
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    // Create package directory
+    res = mkdir(file_name, 0700);
+    if (res) {
+        FOTA_TRACE_ERROR("Failed to create directory %s",file_name);
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    return res;
+}
+
+int fota_linux_untar_file(const char* file_name, const char* dir_name)
+{
+    // Initialize command buffer.
+    memset(command_buffer, 0, sizeof(command_buffer));
+    // Build tar command string.
+    int res = snprintf(command_buffer, sizeof(command_buffer), "tar -xf %s -C %s", file_name,dir_name);
+    if (res == 0) {
+        FOTA_TRACE_ERROR("Failed to build tar command");
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    // Use system call to untar the combined package.
+    res = system(command_buffer);
+    if (res) {
+        FOTA_TRACE_ERROR("System call tar failed");
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    return res;
+}
+
+int fota_linux_extract_and_get_package_descriptor_data(uint8_t **package_descriptor_data, size_t *package_descriptor_data_size)
+{
+    int res = 0;
+    char command_buffer[MAX_SYS_CALL_COMMAND_SIZE] = { 0 };
+
+    // Create package directory
+    res = fota_linux_create_directory(fota_linux_get_package_dir_name());
+    if (res) {
+        FOTA_TRACE_ERROR("Failed to create package directory %s ", fota_linux_get_package_dir_name());
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    // Untar package directory
+    res = fota_linux_untar_file(fota_linux_get_candidate_file_name(),fota_linux_get_package_dir_name());
+    if (res) {
+        FOTA_TRACE_ERROR("Failed to untar package file %s ", fota_linux_get_candidate_file_name());
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+
+    // Read descriptor file
+    res = fota_linux_read_file(fota_linux_get_package_descriptor_file_name(),package_descriptor_data,package_descriptor_data_size);
+    if (res) {
+        FOTA_TRACE_ERROR("Failed to read descriptor file");
+        res = FOTA_STATUS_INTERNAL_ERROR;
+    }
+    return res;
+}
+#endif
 
 void fota_linux_deinit()
 {
@@ -302,6 +501,12 @@ void fota_linux_deinit()
     update_storage_file_name = NULL;
     free(candidate_file_name);
     candidate_file_name = NULL;
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+    free(package_dir_name);
+    package_dir_name = NULL;
+    free(package_descriptor_file_name);
+    package_descriptor_file_name = NULL;
+#endif
 #endif
 }
 

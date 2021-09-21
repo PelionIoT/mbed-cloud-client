@@ -25,21 +25,11 @@
 
 #include "fota/fota_header_info.h"
 #include "fota/fota_crypto_defs.h"
+#include "fota/fota_comp_callbacks.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * Candidate iterate status
- *
- * This status code is passed to user supplied fota_candidate_iterate_handler_t callback function.
- */
-typedef enum {
-    FOTA_CANDIDATE_ITERATE_START,  /**< sent once on candidate iteration start event */
-    FOTA_CANDIDATE_ITERATE_FRAGMENT, /**< sent multiple times - once per extracted candidate fragment */
-    FOTA_CANDIDATE_ITERATE_FINISH,  /**< sent once on candidate iteration finish event */
-} fota_candidate_iterate_status;
 
 // Block checksum (in case of resume and non encrypted blocks)
 typedef uint16_t fota_candidate_block_checksum_t;
@@ -90,12 +80,13 @@ void fota_candidate_set_config(fota_candidate_config_t *in_fota_candidate_config
 const fota_candidate_config_t *fota_candidate_get_config(void);
 
 /**
+ * Deprecated callback. New customers should use ::fota_comp_install_cb_t instead.
  * Callback called on iteration start, each fragment and finish.
  *
  * \param[in] info iterate callback info.
  * \return FOTA_STATUS_SUCCESS on success.
  */
-typedef int (*fota_candidate_iterate_handler_t)(fota_candidate_iterate_callback_info *info);
+fota_deprecated typedef int (*fota_candidate_iterate_handler_t)(fota_candidate_iterate_callback_info *info);
 
 #define FOTA_CANDIDATE_SKIP_VALIDATION 0x27
 
@@ -109,8 +100,22 @@ typedef int (*fota_candidate_iterate_handler_t)(fota_candidate_iterate_callback_
  * \param[in] handler callback called on iteration start, each fragment and finish.
  * \return FOTA_STATUS_SUCCESS on success.
  */
-int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const char *expected_comp_name,
+int fota_candidate_iterate_image_backward_support(uint8_t validate, bool force_encrypt, const char *expected_comp_name,
                                  uint32_t install_alignment, fota_candidate_iterate_handler_t handler);
+
+/**
+ * Iterate on comp candidate image.
+ *
+ * \param[in] validate optionally validate image on storage, could add significant time to validate candidate.
+ * \param[in] force_encrypt force encryption.
+ * \param[in] expected_comp_name expected component name.
+ * \param[in] install_alignment  installer alignment in bytes.
+ * \param[in] handler callback called on iteration start, each fragment and finish.
+ * \param[in] component_install_cb install callback for component
+ * \return FOTA_STATUS_SUCCESS on success.
+ */
+int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const char *expected_comp_name,
+                                 uint32_t install_alignment, fota_candidate_iterate_handler_t handler, fota_comp_install_cb_t component_install_cb);
 
 /**
  * Read candidate component ready header.

@@ -23,15 +23,13 @@
 
 #define TRACE_GROUP "mClt"
 
-bool extract_field_from_certificate(const uint8_t* cer, size_t cer_len, const char *field, char* value)
+bool extract_field_from_certificate(const uint8_t *cer, size_t cer_len, const char *field, char *value)
 {
 #if 1 // TODO : Uncomment once PAL has feature to extract "L" from certificate
-    tr_debug("extract_field_from_certificate");
-
     palX509Attr_t attr = PAL_X509_L_ATTR;
-    if (strcmp(field,"CN") == 0) {
+    if (strcmp(field, "CN") == 0) {
         attr = PAL_X509_CN_ATTR;
-    } else if (strcmp(field,"L") == 0) {
+    } else if (strcmp(field, "L") == 0) {
         attr = PAL_X509_L_ATTR;
     } else {
         return false;
@@ -50,7 +48,7 @@ bool extract_field_from_certificate(const uint8_t* cer, size_t cer_len, const ch
         tr_error("extract_field_from_certificate - cert parse failed: %d", (int)ret);
         pal_x509Free(&cert);
         return false;
-    }    
+    }
     ret = pal_x509CertGetAttribute(cert, attr, value, 65, &len);
     if (ret != PAL_SUCCESS) {
         tr_error("extract_field_from_certificate - cert attr get failed: %d", (int)ret);

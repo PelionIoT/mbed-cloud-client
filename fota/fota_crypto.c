@@ -110,7 +110,7 @@ const unsigned char* fota_get_derivation_string(void)
 #endif
 }
 #endif
-
+#if defined(MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION)
 static int derive_key(uint8_t *key)
 {
     uint8_t key_buf_hmac[FOTA_CRYPTO_HASH_SIZE];
@@ -123,6 +123,7 @@ static int derive_key(uint8_t *key)
 
     return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
 }
+#endif
 
 int fota_encrypt_decrypt_start(fota_encrypt_context_t **ctx, const uint8_t *key, uint32_t key_size)
 {

@@ -24,13 +24,17 @@
 #include "MbedCloudClient.h"
 #include "include/ServiceClient.h"
 #include "include/CloudClientStorage.h"
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+#include "m2mdynlog.h"
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
 
-#if !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#if !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE) && defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE)
 #include "include/UpdateClientResources.h"
 #include "update-client-hub/update_client_public.h"
-#else
+#elif defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #include "fota/fota_shim_layer.h"
 #endif
+
 #include "factory_configurator_client.h"
 #include "mbed-client/m2mconstants.h"
 #include "mbed-client/m2mconfig.h"
@@ -99,6 +103,9 @@ ServiceClient::ServiceClient(ServiceClientCallback &callback)
 #ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
       _multicast_tasklet_id(-1),
 #endif // MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+      _dynlog_tasklet_id(-1),
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
       _connector_client(this),
       _tasklet_id(-1)
 {
@@ -121,6 +128,10 @@ ServiceClient::~ServiceClient()
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
     DeviceSentryClient::finalize();
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_ENABLE_DEVICE_SENTRY
+
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+    M2MDynLog::delete_instance();
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
 }
 
 bool ServiceClient::init()
@@ -166,6 +177,15 @@ bool ServiceClient::init()
         }
     }
 #endif // SERVICE_CLIENT_SUPPORT_MULTICAST
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+    if (_dynlog_tasklet_id < 0) {
+        _dynlog_tasklet_id = eventOS_event_handler_create(&M2MDynLog::dynamic_log_tasklet, 0);
+        if (_dynlog_tasklet_id < 0) {
+            tr_error("ServiceClient::init - failed to create dynlog event handler (%d)", _dynlog_tasklet_id);
+            return false;
+        }
+    }
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
 
     memset(&_event, 0, sizeof(_event));
     _event.data.priority = ARM_LIB_MED_PRIORITY_EVENT;
@@ -174,16 +194,14 @@ bool ServiceClient::init()
     return true;
 }
 
-void ServiceClient::initialize_and_register(M2MBaseList &reg_objs)
+void ServiceClient::initialize_and_register(M2MBaseList &reg_objs, bool full_register)
 {
     tr_debug("ServiceClient::initialize_and_register");
     if (_current_state == State_Init ||
             _current_state == State_Unregister ||
             _current_state == State_Failure) {
         _client_objs = &reg_objs;
-
 #if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-        tr_debug("ServiceClient::initialize_and_register: update client supported");
 #ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
         if (arm_uc_multicast_init(*_client_objs, _connector_client, _multicast_tasklet_id) != MULTICAST_STATUS_SUCCESS) {
             _service_callback.error((int)MULTICAST_STATUS_INIT_FAILED, "Multicast initialization failed");
@@ -262,10 +280,29 @@ void ServiceClient::initialize_and_register(M2MBaseList &reg_objs)
         assert(!fota_res);
         (void)fota_res;
 #endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+        if (!M2MDynLog::get_instance()->initialize(*_client_objs, _dynlog_tasklet_id)) {
+            tr_error("ServiceClient::initialize_and_register - failed to create dynlog resources");
+            _service_callback.error((int)MbedCloudClient::ConnectMemoryConnectFail, "Failed to create dynlog resources");
+            return;
+        }
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
         finish_initialization();
 #endif // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
     } else if (_current_state == State_Success) {
-        state_success();
+        if (full_register) {
+            // Multicast module might not yet be initialized.
+            // First init call can happen when mesh interface is not yet up and running and net_id reading will fail.
+#ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
+            if (arm_uc_multicast_init(*_client_objs, _connector_client, _multicast_tasklet_id) != MULTICAST_STATUS_SUCCESS) {
+                _service_callback.error((int)MULTICAST_STATUS_INIT_FAILED, "Multicast initialization failed");
+                return;
+            }
+#endif // SERVICE_CLIENT_SUPPORT_MULTICAST
+            _connector_client.start_full_registration();
+        } else {
+            state_success();
+        }
     }
 }
 
@@ -325,8 +362,6 @@ const ConnectorClient &ServiceClient::connector_client() const
 // function to transition to a new state
 void ServiceClient::internal_event(StartupMainState new_state)
 {
-    tr_debug("ServiceClient::internal_event: state: %d -> %d", _current_state, new_state);
-
     _event_generated = true;
     _current_state = new_state;
 
@@ -338,8 +373,6 @@ void ServiceClient::internal_event(StartupMainState new_state)
 // the state engine executes the state machine states
 void ServiceClient::state_engine(void)
 {
-    tr_debug("ServiceClient::state_engine");
-
     // this simple flagging gets rid of recursive calls to this method
     _state_engine_running = true;
 
@@ -380,11 +413,9 @@ void ServiceClient::state_function(StartupMainState current_state)
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 void ServiceClient::state_bootstrap()
 {
-    tr_info("ServiceClient::state_bootstrap()");
     bool credentials_ready = _connector_client.connector_credentials_available();
     bool bootstrap = _connector_client.use_bootstrap();
-    tr_info("ServiceClient::state_bootstrap() - lwm2m credentials available: %d", credentials_ready);
-    tr_info("ServiceClient::state_bootstrap() - use bootstrap: %d", bootstrap);
+    tr_info("ServiceClient::state_bootstrap() - lwm2m creds available: %d, use bs: %d", credentials_ready, bootstrap);
 
     bool get_time = false;
 #if defined (PAL_USE_SECURE_TIME) && (PAL_USE_SECURE_TIME == 1)
@@ -403,7 +434,6 @@ void ServiceClient::state_bootstrap()
 #endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 void ServiceClient::state_register()
 {
-    tr_info("ServiceClient::state_register()");
     _connector_client.start_registration(_client_objs);
 }
 
@@ -486,7 +516,6 @@ void ServiceClient::connector_error(M2MInterface::Error error, const char *reaso
 
 void ServiceClient::value_updated(M2MBase *base, M2MBase::BaseType type)
 {
-    tr_debug("ServiceClient::value_updated()");
     _service_callback.value_updated(base, type);
 }
 
@@ -507,20 +536,17 @@ void ServiceClient::network_status_changed(bool connected)
 
 void ServiceClient::state_success()
 {
-    tr_info("ServiceClient::state_success()");
     // this is verified already at client API level, but this might still catch some logic failures
     send_complete_event(ServiceClientCallback::Service_Client_Status_Registered);
 }
 
 void ServiceClient::state_failure()
 {
-    tr_error("ServiceClient::state_failure()");
     send_complete_event(ServiceClientCallback::Service_Client_Status_Failure);
 }
 
 void ServiceClient::state_unregister()
 {
-    tr_debug("ServiceClient::state_unregister()");
     send_complete_event(ServiceClientCallback::Service_Client_Status_Unregistered);
 }
 

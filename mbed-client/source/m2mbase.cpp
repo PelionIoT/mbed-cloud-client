@@ -111,7 +111,6 @@ M2MBase::M2MBase(const String &resource_name,
             _sn_resource->identifier_int_type = false;
             _sn_resource->identifier.name = stringdup((char *)resource_name.c_str());
         } else {
-            tr_debug("M2MBase::M2Mbase resource name is EMPTY ===========");
             _sn_resource->identifier_int_type = true;
             _sn_resource->identifier.instance_id = 0;
         }
@@ -119,6 +118,7 @@ M2MBase::M2MBase(const String &resource_name,
         _sn_resource->dynamic_resource_params->free_on_delete = true;
         _sn_resource->dynamic_resource_params->auto_observable = false;
         _sn_resource->dynamic_resource_params->publish_value = false;
+        _sn_resource->dynamic_resource_params->access = M2MBase::GET_ALLOWED;
     }
 }
 
@@ -301,8 +301,10 @@ void M2MBase::set_coap_content_type(const uint16_t con_type)
 
 void M2MBase::set_observable(bool observable)
 {
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     _sn_resource->dynamic_resource_params->observable = observable;
     set_changed();
+#endif
 }
 
 void M2MBase::set_auto_observable(bool auto_observable)
@@ -355,8 +357,7 @@ void M2MBase::remove_observation_level(M2MBase::Observation obs_level)
 void M2MBase::set_under_observation(bool observed,
                                     M2MObservationHandler *handler)
 {
-    tr_debug("M2MBase::set_under_observation - observed: %d", observed);
-    tr_debug("M2MBase::set_under_observation - base_type: %d", base_type());
+    tr_debug("M2MBase::set_under_observation - observed: %d, type: %d", observed, base_type());
     if (_report_handler) {
         _report_handler->set_under_observation(observed);
     }
@@ -483,10 +484,17 @@ uint16_t M2MBase::coap_content_type() const
     return _sn_resource->dynamic_resource_params->coap_content_type;
 }
 
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
 bool M2MBase::is_observable() const
 {
     return _sn_resource->dynamic_resource_params->observable;
 }
+#else
+bool M2MBase::is_readable() const
+{
+    return ((operation() & M2MBase::GET_ALLOWED) != 0);
+}
+#endif //MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE
 
 bool M2MBase::is_auto_observable() const
 {
@@ -530,7 +538,7 @@ uint32_t M2MBase::max_age() const
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 bool M2MBase::handle_observation_attribute(const char *query)
 {
-    tr_debug("M2MBase::handle_observation_attribute - under observation(%d)", is_under_observation());
+    tr_debug("M2MBase::handle_observation_attribute - under obs: (%d)", is_under_observation());
     bool success = false;
     // Create handler if not already exists. Client must able to parse write attributes even when
     // observation is not yet set
@@ -1071,7 +1079,11 @@ void M2MBase::handle_observation(nsdl_s *nsdl,
         return;
     }
 
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     if (!is_observable()) {
+#else
+    if (!is_readable()) {
+#endif
         // Received subscription request for non-observable resource.
         tr_warn("M2MBase::handle_observation() - %s - not observable!", uri_path());
         response_code = COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED;

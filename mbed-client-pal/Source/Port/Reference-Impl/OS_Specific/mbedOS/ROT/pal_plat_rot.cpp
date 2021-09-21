@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016-2018 ARM Ltd.
+ * Copyright 2016-2021 Pelion.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #include "pal.h"
 #include "pal_plat_rot.h"
 #include "KVMap.h"
-#ifdef TARGET_LIKE_MBED
+#ifdef __MBED__
 #include "mbed_error.h"
 #endif
 #include "TDBStore.h"
@@ -47,7 +47,7 @@ palStatus_t pal_plat_osGetRoT(uint8_t * key, size_t keyLenBytes)
     if (keyLenBytes != PAL_DEVICE_KEY_SIZE_IN_BYTES) {
         return PAL_ERR_INVALID_ARGUMENT;
     }
-    //Check internal instance 
+    //Check internal instance
     if (inner_store == NULL) {
         return PAL_ERR_NULL_POINTER;
     }

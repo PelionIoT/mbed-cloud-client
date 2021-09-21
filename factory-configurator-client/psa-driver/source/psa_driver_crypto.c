@@ -32,6 +32,10 @@ kcm_status_e psa_drv_ps_set(void* data, size_t data_size, uint32_t extra_flags, 
 kcm_status_e psa_drv_ps_remove(const uint16_t ksa_id);
 #endif
 
+#ifdef __MBED__
+#include "platform/mbed_version.h"
+#endif
+
 /*============================================== Static functions CRYPTO driver implementation =========================================*/
 static kcm_status_e psa_import_or_generate(const void* raw_data,
                                             size_t raw_data_size,

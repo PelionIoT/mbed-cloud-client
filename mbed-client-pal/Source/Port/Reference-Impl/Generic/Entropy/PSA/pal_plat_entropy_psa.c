@@ -31,7 +31,7 @@
 
 // include only when mbedTLS use PSA
 #if defined(MBEDTLS_ENTROPY_NV_SEED) && defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
-    #include "crypto.h"
+    #include "psa/crypto.h"
 #endif
 
 #ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT

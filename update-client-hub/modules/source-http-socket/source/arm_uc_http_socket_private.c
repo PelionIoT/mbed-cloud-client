@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2017 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -209,10 +209,10 @@ arm_uc_error_t arm_uc_http_prepare_skip_to_event(uint32_t an_event)
  *   synchronous (with PAL_DNS_API_VERSION 0).
  * In addition, there is a distinction in that Linux does not currently support v2 API.
  */
-#if (PAL_DNS_API_VERSION > 1) && !defined(TARGET_LIKE_MBED)
+#if (PAL_DNS_API_VERSION > 1) && !defined(__MBED__)
 #error "Async PAL DNS API v2 or greater is only supported on Mbed."
 #endif
-#if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
+#if (PAL_DNS_API_VERSION == 1) && defined(__MBED__)
 #error "Async PAL DNS API v1 is not supported on Mbed."
 #endif
 

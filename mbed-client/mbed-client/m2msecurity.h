@@ -75,7 +75,8 @@ public:
      */
     typedef enum {
         M2MServer = 0x0,
-        Bootstrap = 0x1
+        Bootstrap = 0x1,
+        NotDefined =0x2
     } ServerType;
 
 private:
@@ -119,6 +120,13 @@ public:
      * \return M2MObjectInstance if created successfully, else NULL.
      */
     M2MObjectInstance* create_object_instance(ServerType server_type);
+
+       /**
+     * \brief Creates a new object instance.
+     * \param instance_id Instance id for new object instance.
+     * \return M2MObjectInstance if created successfully, else NULL.
+     */
+    M2MObjectInstance* create_object_instance(uint16_t instance_id);
 
     /**
      * \brief Remove all security object instances.
@@ -279,7 +287,10 @@ public:
 private:
 
 
-    void clear_resources(uint16_t instance_id = 0);
+    void clear_resources();
+    void clear_resources(uint16_t instance_id);
+    void create_resources(M2MObjectInstance *server_instance,
+                          M2MSecurity::ServerType server_type);
 
 protected:
     static M2MSecurity*          _instance;

@@ -36,6 +36,17 @@ typedef enum config {
     NS
 } config_type_t;
 
+typedef enum {
+    /** Fixed channel. */
+    NM_WS_FIXED_CHANNEL,
+    /** TR51 channel function. */
+    NM_WS_TR51CF,
+    /** Direct Hash channel function. */
+    NM_WS_DH1CF,
+    /** Vendor Defined channel function. */
+    NM_WS_VENDOR_DEF_CF
+} nm_ws_channel_functions;
+
 typedef enum nm_status {
     NM_STATUS_FAIL = -1,
     NM_STATUS_SUCCESS = 0,
@@ -66,10 +77,19 @@ nm_status_t nm_post_timeout_event(nm_event_t event_type, int32_t delay);
 
 
 typedef struct {
-    uint8_t regulatory_domain;
     uint8_t operating_class;
     uint8_t operating_mode;
-} reg_op_t;
+} op_class_mode_t;
+
+typedef struct {
+    uint8_t phy_mode_id;
+    uint8_t channel_plan_id;
+} network_domain_t;
+
+typedef struct {
+    op_class_mode_t op_class_mode;
+    network_domain_t net_dom;
+} phy_config_t;
 
 typedef struct {
     mesh_channel_function_t uc_channel_function;
@@ -96,7 +116,8 @@ typedef struct {
     char network_name[33];
     uint32_t channel_mask[8];
     uint32_t resource_version;
-    reg_op_t reg_op;
+    uint8_t regulatory_domain;
+    phy_config_t phy_config;
     uint8_t network_size;
     uc_ch_config_t uc_ch_config;
     bc_ch_config_t bc_ch_config;

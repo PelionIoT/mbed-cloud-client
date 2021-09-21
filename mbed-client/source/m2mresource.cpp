@@ -47,7 +47,9 @@ M2MResource::M2MResource(M2MObjectInstance &parent,
 {
     M2MBase::set_base_type(M2MBase::Resource);
     M2MBase::set_operation(M2MBase::GET_ALLOWED);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     M2MBase::set_observable(false);
+#endif
     if (multiple_instance) {
         M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
     }
@@ -90,7 +92,9 @@ M2MResource::M2MResource(M2MObjectInstance &parent,
 {
     M2MBase::set_base_type(M2MBase::Resource);
     M2MBase::set_operation(M2MBase::GET_PUT_ALLOWED);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     M2MBase::set_observable(observable);
+#endif
     if (multiple_instance) {
         M2MBase::set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
     }

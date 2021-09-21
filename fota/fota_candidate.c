@@ -422,14 +422,170 @@ static int fota_candidate_extract_fragment(uint8_t **buf, size_t *actual_size, b
     return FOTA_STATUS_SUCCESS;
 }
 
+int fota_candidate_validation(bool force_encrypt, const char *expected_comp_name)
+{
+    int ret;
+    fota_hash_context_t *hash_ctx = NULL;
+    bool ignore = false;
+    uint8_t *buf = NULL;
+    size_t actual_size = 0;
+
+
+    // Can use install alignment of 1 here, as this is just validation, no installation yet
+    ret = fota_candidate_extract_start(force_encrypt, expected_comp_name, 1);
+    if (ret) {
+        goto fail;
+    }
+
+    FOTA_TRACE_INFO("Validating image...");
+    uint8_t hash_output[FOTA_CRYPTO_HASH_SIZE];
+
+    ret = fota_hash_start(&hash_ctx);
+    if (ret) {
+        goto fail;
+    }
+    do {
+        ret = fota_candidate_extract_fragment(&buf, &actual_size, &ignore);
+        if (ret) {
+            goto fail;
+        }
+        if (ignore) {
+            continue;
+        }
+
+        ret = fota_hash_update(hash_ctx, buf, actual_size);
+        if (ret) {
+            goto fail;
+        }
+
+    } while (actual_size);
+
+    ret = fota_hash_result(hash_ctx, hash_output);
+    if (ret) {
+        goto fail;
+    }
+
+    fota_hash_finish(&hash_ctx);
+
+#if defined(MBED_CLOUD_CLIENT_FOTA_SIGNED_IMAGE_SUPPORT)
+    int sig_verify_status = fota_verify_signature_prehashed(
+                                hash_output,
+                                ctx->header_info.signature, FOTA_IMAGE_RAW_SIGNATURE_SIZE
+                            );
+    FOTA_FI_SAFE_COND(
+        (sig_verify_status == FOTA_STATUS_SUCCESS),
+        (sig_verify_status == FOTA_STATUS_MANIFEST_SIGNATURE_INVALID) ? FOTA_STATUS_MANIFEST_PAYLOAD_CORRUPTED : ret,
+        "Candidate image is not authentic"
+    );
+#else
+    FOTA_FI_SAFE_MEMCMP(hash_output, ctx->header_info.digest, FOTA_CRYPTO_HASH_SIZE,
+                        FOTA_STATUS_MANIFEST_PAYLOAD_CORRUPTED,
+                        "Hash mismatch - corrupted candidate");
+#endif
+    FOTA_TRACE_INFO("Image is valid.");
+
+fail:
+    fota_hash_finish(&hash_ctx);
+    return ret;
+
+}
+
 int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const char *expected_comp_name,
+                                 uint32_t install_alignment, fota_candidate_iterate_handler_t handler, fota_comp_install_cb_t component_install_cb)
+{
+    int ret;
+
+    // both handlers not allowed
+    FOTA_ASSERT(!(component_install_cb && handler));
+
+    if(handler) {
+        return fota_candidate_iterate_image_backward_support(validate, force_encrypt, expected_comp_name,
+                                 install_alignment, handler);
+    }
+
+    fota_comp_candidate_iterate_callback_info cb_info;
+    size_t actual_size = 0;
+    uint8_t *buf = NULL;
+    bool ignore = false;
+
+    FOTA_ASSERT(component_install_cb);
+
+    // Make sure previous context is cleared (relevant mainly in tests)
+    cleanup();
+
+    // Install alignment of zero is just like an alignment of 1 (i.e. no limitation)
+    install_alignment = install_alignment ? install_alignment : 1;
+
+    // Validation phase
+    if (validate != FOTA_CANDIDATE_SKIP_VALIDATION) {
+        ret = fota_candidate_validation(force_encrypt, expected_comp_name);
+        if (ret) {
+            goto fail;
+        }
+    }
+
+    // Start iteration phase
+
+    actual_size = 0;
+    ignore = false;
+
+    ret = fota_candidate_extract_start(force_encrypt, expected_comp_name, install_alignment);
+    if (ret) {
+        goto fail;
+    }
+
+    memset(&cb_info, 0, sizeof(cb_info));
+
+    cb_info.status = FOTA_CANDIDATE_ITERATE_START;
+    ret = component_install_cb(expected_comp_name, NULL, &cb_info, ctx->header_info.vendor_data, FOTA_MANIFEST_VENDOR_DATA_SIZE, NULL);
+    if (ret) {
+        FOTA_TRACE_ERROR("Candidate user handler failed on start, ret %d", ret);
+        goto fail;
+    }
+
+    do {
+        ret = fota_candidate_extract_fragment(&buf, &actual_size, &ignore);
+        if (ret) {
+            goto fail;
+        }
+        if (ignore) {
+            continue;
+        }
+        cb_info.status = FOTA_CANDIDATE_ITERATE_FRAGMENT;
+        cb_info.frag_size = actual_size;
+        cb_info.frag_buf = buf;
+        ret = component_install_cb(expected_comp_name, NULL, &cb_info, ctx->header_info.vendor_data, FOTA_MANIFEST_VENDOR_DATA_SIZE, NULL);
+        if (ret) {
+            FOTA_TRACE_ERROR("Candidate user handler failed on fragment, ret %d", ret);
+            goto fail;
+        }
+        cb_info.frag_pos += actual_size;
+    } while (cb_info.frag_pos < ctx->header_info.fw_size);
+
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+    if (ctx->header_info.flags & FOTA_HEADER_ENCRYPTED_FLAG) {
+        fota_encrypt_finalize(&ctx->enc_ctx);
+    }
+#endif
+
+    cb_info.status = FOTA_CANDIDATE_ITERATE_FINISH;
+    ret = component_install_cb(expected_comp_name, NULL, &cb_info, ctx->header_info.vendor_data, FOTA_MANIFEST_VENDOR_DATA_SIZE, NULL);
+    if (ret) {
+        FOTA_TRACE_ERROR("Candidate user handler failed on finish, ret %d", ret);
+    }
+
+fail:
+    cleanup();
+    return ret;
+}
+
+int fota_candidate_iterate_image_backward_support(uint8_t validate, bool force_encrypt, const char *expected_comp_name,
                                  uint32_t install_alignment, fota_candidate_iterate_handler_t handler)
 {
     int ret;
     fota_candidate_iterate_callback_info cb_info;
     size_t actual_size = 0;
     uint8_t *buf = NULL;
-    fota_hash_context_t *hash_ctx = NULL;
     bool ignore = false;
 
     FOTA_ASSERT(handler);
@@ -441,60 +597,11 @@ int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const cha
     install_alignment = install_alignment ? install_alignment : 1;
 
     // Validation phase
-
-    // Can use install alignment of 1 here, as this is just validation, no installation yet
-    ret = fota_candidate_extract_start(force_encrypt, expected_comp_name, 1);
-    if (ret) {
-        goto fail;
-    }
-
     if (validate != FOTA_CANDIDATE_SKIP_VALIDATION) {
-        FOTA_TRACE_INFO("Validating image...");
-        uint8_t hash_output[FOTA_CRYPTO_HASH_SIZE];
-
-        ret = fota_hash_start(&hash_ctx);
+        ret = fota_candidate_validation(force_encrypt, expected_comp_name);
         if (ret) {
             goto fail;
         }
-        do {
-            ret = fota_candidate_extract_fragment(&buf, &actual_size, &ignore);
-            if (ret) {
-                goto fail;
-            }
-            if (ignore) {
-                continue;
-            }
-
-            ret = fota_hash_update(hash_ctx, buf, actual_size);
-            if (ret) {
-                goto fail;
-            }
-
-        } while (actual_size);
-
-        ret = fota_hash_result(hash_ctx, hash_output);
-        if (ret) {
-            goto fail;
-        }
-
-        fota_hash_finish(&hash_ctx);
-
-#if defined(MBED_CLOUD_CLIENT_FOTA_SIGNED_IMAGE_SUPPORT)
-        int sig_verify_status = fota_verify_signature_prehashed(
-                                    hash_output,
-                                    ctx->header_info.signature, FOTA_IMAGE_RAW_SIGNATURE_SIZE
-                                );
-        FOTA_FI_SAFE_COND(
-            (sig_verify_status == FOTA_STATUS_SUCCESS),
-            (sig_verify_status == FOTA_STATUS_MANIFEST_SIGNATURE_INVALID) ? FOTA_STATUS_MANIFEST_PAYLOAD_CORRUPTED : ret,
-            "Candidate image is not authentic"
-        );
-#else
-        FOTA_FI_SAFE_MEMCMP(hash_output, ctx->header_info.digest, FOTA_CRYPTO_HASH_SIZE,
-                            FOTA_STATUS_MANIFEST_PAYLOAD_CORRUPTED,
-                            "Hash mismatch - corrupted candidate");
-#endif
-        FOTA_TRACE_INFO("Image is valid.");
     }
 
     // Start iteration phase
@@ -549,7 +656,6 @@ int fota_candidate_iterate_image(uint8_t validate, bool force_encrypt, const cha
     }
 
 fail:
-    fota_hash_finish(&hash_ctx);
     cleanup();
     return ret;
 }
@@ -568,6 +674,9 @@ int fota_candidate_erase(void)
     FOTA_TRACE_DEBUG("removing blockdevice and candidate files %s, %s:", fota_linux_get_update_storage_file_name(), fota_linux_get_candidate_file_name());
     remove(fota_linux_get_update_storage_file_name());
     remove(fota_linux_get_candidate_file_name()); //might not exist if user app moved it.
+#if MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1
+    fota_linux_remove_directory(fota_linux_get_package_dir_name());
+#endif
 #endif
 
     return ret;

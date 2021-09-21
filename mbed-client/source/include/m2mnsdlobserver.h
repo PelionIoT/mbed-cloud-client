@@ -27,8 +27,7 @@ class M2MServer;
  * @brief Observer class for informing NSDL callback to the state machine
  */
 
-class M2MNsdlObserver
-{
+class M2MNsdlObserver {
 
 public :
 
@@ -66,11 +65,19 @@ public :
     virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false) = 0;
 
     /**
-    * @brief Informs that client is unregistered successfully.
+    * @brief Informs that client is unregistered.
+    * @param success, True when successfully unregistered, False if unregistration fails for example network issue.
     */
-    virtual void client_unregistered() = 0;
+    virtual void client_unregistered(bool success = true) = 0;
 
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+    /**
+    * @brief Triggers initialisation of resource callbacks for the given
+    * security object instance.
+    * @param instance_id, The instance id of the security object to be initialised.
+    */
+    virtual void init_security_object(uint16_t instance_id) = 0;
+
     /**
     * @brief Informs that client bootstrapping is done.
     * @param security_object, M2MSecurity Object which contains information about

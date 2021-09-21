@@ -12,3 +12,4 @@ Due to the release process, all new releases are squashed code drops. Therefore,
 | Pawel Dunaj ([@pdunaj](https://github.com/pdunaj))            | N/A | Port Pelion Client to Zephyr OS |
 | Emil Obalski ([@emob-nordic](https://github.com/emob-nordic)) | N/A | Port Pelion Client to Zephyr OS | 
 | Emil Obalski ([@emob-nordic](https://github.com/emob-nordic)) | [#86](https://github.com/PelionIoT/mbed-cloud-client/pull/86) | Update pal Timers |
+| ccli8 ([@ccli8](https://github.com/ccli8)) | [#88](https://github.com/PelionIoT/mbed-cloud-client/pull/88) | Fix missing header file |

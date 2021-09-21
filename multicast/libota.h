@@ -50,6 +50,19 @@
 #define OTA_INVALID_PROCESS_ID_INDEX                0xFF
 #define OTA_MISSING_FRAGMENTS_IP_ADDR_LENGTH        16 // In bytes, e.g: fdf9b02a9fab2d033e4a92fffef5267a
 
+#if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+    #define OTA_DEFAULT_FRAGMENT_SIZE           (20*1024) // In bytes
+    #define OTA_MAX_MULTICAST_MESSAGE_SIZE      (20*1200) - OTA_FRAGMENT_CMD_LENGTH // In bytes, 21 is the "header" part of the fragment command
+
+# else
+    #define OTA_DEFAULT_FRAGMENT_SIZE           1024 // In bytes
+    #define OTA_MAX_MULTICAST_MESSAGE_SIZE      1200 - OTA_FRAGMENT_CMD_LENGTH // In bytes, 21 is the "header" part of the fragment command
+#endif
+
+#define OTA_MIN_FRAGMENT_SIZE               768 // In bytes, this can be less if manifest will go as fragments. Delta manifest is around 540 bytes.
+
+#define OTA_FRAGMENTS_REQ_BITMASK_LENGTH    16 // In bytes (bitmask consist of 128 bits: 16 bytes * 8 bits = 128 bits)
+
 typedef enum
 {
     OTA_CMD_MANIFEST = 1,

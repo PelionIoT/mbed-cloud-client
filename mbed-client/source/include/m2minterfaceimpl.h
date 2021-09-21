@@ -353,9 +353,10 @@ protected: // From M2MNsdlObserver
 
     virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false);
 
-    virtual void client_unregistered();
+    virtual void client_unregistered(bool success = true);
 
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+    virtual void init_security_object(uint16_t instance_id);
 
     virtual void bootstrap_done();
 
@@ -594,14 +595,13 @@ private: // state machine state functions
      * is received from server.
     */
     static void post_response_status_handler(const M2MBase &base,
-                                                 const M2MBase::MessageDeliveryStatus status,
-                                                 const M2MBase::MessageType type,
-                                                 void *me);
+                                             const M2MBase::MessageDeliveryStatus status,
+                                             const M2MBase::MessageType type,
+                                             void *me);
 
     enum ReconnectionState {
         None,
         WithUpdate,
-        Unregistration,
         ClientPing
     };
 
@@ -642,6 +642,9 @@ private:
     // Reconnection related variables (in seconds)
     uint16_t                                _initial_reconnection_time;
     uint32_t                                _reconnection_time;
+
+    // Get M2M server IP address from security's instance with the given id
+    void get_security_server_ip_address(int32_t instance_id);
 
     friend class Test_M2MInterfaceImpl;
 

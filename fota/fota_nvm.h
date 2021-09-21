@@ -160,6 +160,34 @@ int fota_nvm_comp_version_get(const char *comp_name, fota_component_version_t *v
 int fota_nvm_set_update_public_key(void);
 #endif
 
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+/**
+* Set Pelion FOTA update result.
+*
+* \param[in] status Value to save.
+*
+* \return FOTA_STATUS_SUCCESS on success.
+*/
+int fota_nvm_update_result_set(int status);
+/**
+* Get saved Pelion FOTA update result.
+*
+* \param[out] size FOTA update result.
+* \param[in]  status_size Status size available for reading.
+* \param[out] bytes_read Actual status size.
+*
+* \return FOTA_STATUS_SUCCESS on success.
+*/
+int fota_nvm_update_result_get(int *status, size_t status_size, size_t *bytes_read);
+/**
+* Delete Pelion FOTA update result.
+*
+* \return FOTA_STATUS_SUCCESS on success.
+*/
+int fota_nvm_update_result_delete(void);
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif

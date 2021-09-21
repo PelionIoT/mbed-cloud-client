@@ -198,7 +198,9 @@ typedef struct sn_nsdl_resource_parameters_ {
     unsigned                                    registered: 2;       /**< Is resource registered or not */
     bool                                        publish_uri: 1;      /**< 1 if resource to be published to server */
     bool                                        free_on_delete: 1;   /**< 1 if struct is dynamic allocted --> to be freed */
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     bool                                        observable: 1;       /**< Is resource observable or not */
+#endif
     bool                                        auto_observable: 1;  /**< Is resource auto observable or not */
     bool                                        always_publish: 1;   /**< 1 if resource should always be published in registration or registration update **/
     unsigned                                    publish_value: 2;     /**< 0 for non-publishing,1 if resource value to be published in registration message,

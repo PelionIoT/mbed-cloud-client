@@ -23,7 +23,6 @@ add_definitions(-DSN_COAP_REDUCE_BLOCKWISE_HEAP_FOOTPRINT=1)
 project(mbedCloudClient)
 
 # mbed-cloud-client
-
 SET(MBED_CLOUD_CLIENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mbed-cloud-client)
 
 ADD_GLOBALDIR( ${CMAKE_CURRENT_SOURCE_DIR})
@@ -270,6 +269,39 @@ SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)
     include_directories(${UPDATE_SOURCE_DIR}/modules/source)
 
 if (FOTA_ENABLE)
+
+if (MESH_SOCKET_SIMULATOR)
+    message("<<<< MESH FOTA SIMULATOR >>>>")
+
+    ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/multicast) 
+
+    add_definitions(-DMBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR=1)
+    add_definitions(-DMBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT=FOTA_RESUME_UNSUPPORTED)
+    add_definitions(-DMBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT=0)
+    if (BORDER_ROUTER_MODE)
+        add_definitions(-DMBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT=FOTA_MULTICAST_BR_MODE)
+    else()
+        add_definitions(-DMBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT=FOTA_MULTICAST_NODE_MODE)
+    endif()
+
+    SET(MESH_SOCKET_SIMULATOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/multicast)
+
+    include_directories(${MESH_SOCKET_SIMULATOR_DIR})
+
+    FILE(GLOB MESH_FOTA_SRC
+        "${MESH_SOCKET_SIMULATOR_DIR}/*.c"
+        "${MESH_SOCKET_SIMULATOR_DIR}/*.cpp"
+    )
+
+    message("MESH FOTA sources = \n ${MESH_FOTA_SRC}")
+    target_sources(mbedCloudClient PRIVATE "${MESH_FOTA_SRC}")
+    target_compile_definitions(mbedCloudClient INTERFACE MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR=1)
+    add_library(multicast STATIC ${MESH_FOTA_SRC})
+
+    add_dependencies(mbedCloudClient multicast)
+    target_link_libraries(mbedCloudClient multicast)
+endif()
+
     message("<<<< FOTA ENABLED >>>>")
     SET(FOTA_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fota)
 
@@ -309,7 +341,7 @@ endif
 
     add_library(fota STATIC ${FOTA_SRC})
 
-    if ( NOT FOTA_COAP_DOWNLOAD)
+    if (NOT FOTA_COAP_DOWNLOAD)
         if (MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK)
             include(FindPkgConfig)
             pkg_check_modules(CURL libcurl REQUIRED)
@@ -322,15 +354,16 @@ endif
             target_link_libraries(fota libcurl)
         endif()
     endif()
+
     add_dependencies(mbedCloudClient fota)
     target_link_libraries(mbedCloudClient fota)
-else()
+else() # (FOTA_ENABLE)
 
     include_directories(${UPDATE_SOURCE_DIR}/modules/source-http)
 
     add_dependencies(mbedCloudClient  update-client)
     target_link_libraries(mbedCloudClient update-client)
-endif()
+endif() # (FOTA_ENABLE)
 
 # Needed to link sources
 #set (SRC_LIBS ${SRC_LIBS} PARENT_SCOPE)

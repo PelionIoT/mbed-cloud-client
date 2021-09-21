@@ -172,6 +172,13 @@ bool M2MServer::delete_resource(ServerResource resource)
     return success;
 }
 
+void M2MServer::delete_resources()
+{
+    for(int i = 0; i <= M2MServer::RegistrationUpdate; i++) {
+        delete_resource((ServerResource) i);
+    }
+}
+
 bool M2MServer::set_resource_value(ServerResource resource,
                                    const String &value)
 {

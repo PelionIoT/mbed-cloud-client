@@ -22,7 +22,7 @@
 #include "storage_internal.h"
 #include "pv_macros.h"
 #include "cs_pal_crypto.h"
-#ifdef TARGET_LIKE_MBED
+#ifdef __MBED__
 #include "mbed.h"
 #if !(defined(TARGET_TFM) && (MBED_MAJOR_VERSION > 5))
 #include "psa/lifecycle.h"

@@ -109,7 +109,9 @@ static int read_callback_helper(const char *key, void *buffer, size_t &buffer_le
     return CCS_STATUS_SUCCESS;
 }
 
-
+static uint32_t server_type(const M2MResourceBase &resource) {
+    return resource.get_parent_resource().get_parent_object_instance().resource(M2MSecurity::BootstrapServer)->get_value_int();
+}
 
 static bool write_security_object_data_to_kcm(const M2MResourceBase &resource, const uint8_t *buffer, const size_t buffer_size, void */*client_args*/)
 {
@@ -119,7 +121,7 @@ static bool write_security_object_data_to_kcm(const M2MResourceBase &resource, c
 
     switch (resource_id) {
         case M2MSecurity::PublicKey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 ccs_delete_item(g_fcc_bootstrap_device_certificate_name, CCS_CERTIFICATE_ITEM);
                 status = ccs_set_item(g_fcc_bootstrap_device_certificate_name, buffer, buffer_size, CCS_CERTIFICATE_ITEM);
             } else {
@@ -129,7 +131,7 @@ static bool write_security_object_data_to_kcm(const M2MResourceBase &resource, c
             break;
 
         case M2MSecurity::ServerPublicKey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 ccs_delete_item(g_fcc_bootstrap_server_ca_certificate_name, CCS_CERTIFICATE_ITEM);
                 status = ccs_set_item(g_fcc_bootstrap_server_ca_certificate_name, buffer, buffer_size, CCS_CERTIFICATE_ITEM);
             } else {
@@ -139,7 +141,7 @@ static bool write_security_object_data_to_kcm(const M2MResourceBase &resource, c
             break;
 
         case M2MSecurity::Secretkey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 ccs_delete_item(g_fcc_bootstrap_device_private_key_name, CCS_PRIVATE_KEY_ITEM);
                 status = ccs_set_item(g_fcc_bootstrap_device_private_key_name, buffer, buffer_size, CCS_PRIVATE_KEY_ITEM);
             } else {
@@ -162,11 +164,10 @@ static coap_response_code_e read_security_object_data_from_kcm(const M2MResource
                                                                void */*client_args*/)
 {
     uint32_t resource_id = resource.name_id();
-    uint16_t object_instance_id = resource.object_instance_id();
     int status;
     switch (resource_id) {
         case M2MSecurity::PublicKey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 status = read_callback_helper(g_fcc_bootstrap_device_certificate_name, (void *)buffer, buffer_len);
             } else {
                 status = read_callback_helper(g_fcc_lwm2m_device_certificate_name, (void *)buffer, buffer_len);
@@ -174,7 +175,7 @@ static coap_response_code_e read_security_object_data_from_kcm(const M2MResource
             break;
 
         case M2MSecurity::ServerPublicKey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 status = read_callback_helper(g_fcc_bootstrap_server_ca_certificate_name, (void *)buffer, buffer_len);
             } else {
                 status = read_callback_helper(g_fcc_lwm2m_server_ca_certificate_name, (void *)buffer, buffer_len);
@@ -182,7 +183,7 @@ static coap_response_code_e read_security_object_data_from_kcm(const M2MResource
             break;
 
         case M2MSecurity::Secretkey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 status = read_callback_helper(g_fcc_bootstrap_device_private_key_name, (void *)buffer, buffer_len);
             } else {
                 status = read_callback_helper(g_fcc_lwm2m_device_private_key_name, (void *)buffer, buffer_len);
@@ -200,24 +201,23 @@ static coap_response_code_e read_security_object_data_from_kcm(const M2MResource
 static int read_security_object_data_size_from_kcm(const M2MResourceBase &resource, size_t *buffer_len, void */*client_args*/)
 {
     uint32_t resource_id = resource.name_id();
-    uint16_t object_instance_id = resource.object_instance_id();
     switch (resource_id) {
         case M2MSecurity::PublicKey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 return read_size_callback_helper(g_fcc_bootstrap_device_certificate_name, *buffer_len);
             } else {
                 return read_size_callback_helper(g_fcc_lwm2m_device_certificate_name, *buffer_len);
             }
 
         case M2MSecurity::ServerPublicKey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 return read_size_callback_helper(g_fcc_bootstrap_server_ca_certificate_name, *buffer_len);
             } else {
                 return read_size_callback_helper(g_fcc_lwm2m_server_ca_certificate_name, *buffer_len);
             }
 
         case M2MSecurity::Secretkey:
-            if (object_instance_id == M2MSecurity::Bootstrap) {
+            if (server_type(resource) == M2MSecurity::Bootstrap) {
                 return read_size_callback_helper(g_fcc_bootstrap_device_private_key_name, *buffer_len);
             } else {
                 return read_size_callback_helper(g_fcc_lwm2m_device_private_key_name, *buffer_len);
@@ -233,9 +233,8 @@ static int read_security_object_data_size_from_kcm(const M2MResourceBase &resour
 static int open_certificate_chain_callback(const M2MResourceBase &resource, size_t *chain_size, void *client_args)
 {
     void *handle = NULL;
-    uint16_t object_instance_id = resource.object_instance_id();
     ConnectorClient *client = (ConnectorClient *)client_args;
-    if (object_instance_id == M2MSecurity::Bootstrap) {
+    if (server_type(resource) == M2MSecurity::Bootstrap) {
         handle = ccs_open_certificate_chain(g_fcc_bootstrap_device_certificate_name, chain_size);
         client->set_certificate_chain_handle(handle);
     } else {
@@ -381,7 +380,6 @@ void ConnectorClient::start_bootstrap()
 */
 bool ConnectorClient::create_bootstrap_object()
 {
-    tr_debug("ConnectorClient::create_bootstrap_object");
     bool success = false;
 
     // Check if bootstrap credentials are already stored in KCM
@@ -391,8 +389,7 @@ bool ConnectorClient::create_bootstrap_object()
             success = true;
         }
 
-        tr_info("ConnectorClient::create_bootstrap_object - bs_id = %" PRId32, bs_id);
-        tr_info("ConnectorClient::create_bootstrap_object - use credentials from storage");
+        tr_info("ConnectorClient::create_bootstrap_object - use credentials from storage, bs_id = %" PRId32, bs_id);
 
         // Allocate scratch buffer, this will be used to copy parameters from storage to security object
         size_t real_size = 0;
@@ -437,8 +434,7 @@ bool ConnectorClient::create_bootstrap_object()
                 if (_security->set_resource_value(M2MSecurity::M2MServerUri, buffer, real_size, bs_id)) {
                     success = true;
                     String server_uri = String((const char *)buffer, real_size);
-                    tr_info("ConnectorClient::create_bootstrap_object check security mode");
-                    if (!strstr(server_uri.c_str(),"coaps")) {
+                    if (!strstr(server_uri.c_str(), "coaps")) {
                         success = false;
                         if (_security->set_resource_value(M2MSecurity::SecurityMode, M2MSecurity::NoSecurity, bs_id)) {
                             tr_info("ConnectorClient::create_bootstrap_object set no security mode");
@@ -487,7 +483,6 @@ bool ConnectorClient::create_bootstrap_object()
 
 void ConnectorClient::state_bootstrap_start()
 {
-
     assert(_interface != NULL);
     assert(_security != NULL);
     uint16_t delay = _interface->stagger_wait_time(true);
@@ -551,7 +546,6 @@ M2MInterface *ConnectorClient::m2m_interface()
 
 void ConnectorClient::start_full_registration()
 {
-    tr_debug("ConnectorClient::start_full_registration()");
     _do_full_registration = true;
     assert(_callback != NULL);
     assert(_setup_complete);
@@ -579,7 +573,6 @@ void ConnectorClient::update_registration()
 // function to transition to a new state
 void ConnectorClient::internal_event(StartupSubStateRegistration new_state)
 {
-    tr_debug("ConnectorClient::internal_event: state: %d -> %d", _current_state, new_state);
     _event_generated = true;
     _current_state = new_state;
 
@@ -592,8 +585,6 @@ void ConnectorClient::internal_event(StartupSubStateRegistration new_state)
 // the state engine executes the state machine states
 void ConnectorClient::state_engine(void)
 {
-    tr_debug("ConnectorClient::state_engine");
-
     // this simple flagging gets rid of recursive calls to this method
     _state_engine_running = true;
 
@@ -665,7 +656,6 @@ void ConnectorClient::state_function(StartupSubStateRegistration current_state)
 */
 bool ConnectorClient::create_register_object()
 {
-    tr_debug("ConnectorClient::create_register_object()");
     int32_t m2m_id = _security->get_security_instance_id(M2MSecurity::M2MServer);
     if (m2m_id == -1) {
         init_security_object();
@@ -750,7 +740,7 @@ bool ConnectorClient::create_register_object()
         }
     }
 
-    if (success) {
+    if (success && _endpoint_info.mode != M2MSecurity::NoSecurity) {
         success = false;
         if (ccs_get_item(KEY_ACCOUNT_ID, buffer, max_size, &real_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
             tr_info("ConnectorClient::create_register_object - AccountId %.*s", (int)real_size, buffer);
@@ -960,7 +950,6 @@ void ConnectorClient::state_est_failure()
 
 void ConnectorClient::state_registration_start()
 {
-    tr_info("ConnectorClient::state_registration_start()");
     assert(_interface != NULL);
     assert(_security != NULL);
 
@@ -1158,7 +1147,6 @@ bool ConnectorClient::connector_credentials_available()
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 bool ConnectorClient::use_bootstrap()
 {
-    tr_debug("ConnectorClient::use_bootstrap");
     size_t real_size = 0;
     uint8_t data[CONFIG_BOOLEAN_ITEM_SIZE] = {0};
     uint32_t value = 0;
@@ -1342,7 +1330,6 @@ ccs_status_e ConnectorClient::clear_first_to_claim()
     return ccs_delete_item(KEY_FIRST_TO_CLAIM, CCS_CONFIG_ITEM);
 }
 
-
 const ConnectorClientEndpointInfo *ConnectorClient::endpoint_info() const
 {
     return &_endpoint_info;
@@ -1364,22 +1351,26 @@ bool ConnectorClient::is_first_to_claim()
     return false;
 }
 
-
 void ConnectorClient::timer_expired(M2MTimerObserver::Type type)
 {
     if (type == M2MTimerObserver::StaggerWaitTimer) {
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         if (bootstrapped()) {
+#endif
             if (_do_full_registration) {
                 _interface->register_object(_security, *_client_objs, true);
             } else {
                 _interface->register_object(_security, *_client_objs);
             }
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
         } else {
             _interface->bootstrap(_security);
         }
+#endif
     }
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     else if (type == M2MTimerObserver::BootstrapFlowTimer) {
+        tr_info("ConnectorClient::timer_expired - bootstrap");
         start_bootstrap();
     }
 #endif
@@ -1431,7 +1422,6 @@ void ConnectorClient::est_enrollment_result(est_enrollment_result_e result,
             status = kcm_cert_chain_close(chain_handle);
             if (status == KCM_STATUS_SUCCESS) {
                 tr_info("ConnectorClient::est_enrollment_result() - Certificates stored successfully");
-                tr_info("ConnectorClient::est_enrollment_result() - Storing lwm2m credentials");
                 if (cc->set_connector_credentials(cc->_security) == CCS_STATUS_SUCCESS) {
                     state = State_EST_Success;
                 }
@@ -1464,47 +1454,52 @@ M2MInterface::BindingMode ConnectorClient::transport_mode()
 #endif
 }
 
+void ConnectorClient::init_security_object(uint16_t instance_id)
+{
+    tr_info("ConnectorClient::init_security_object id: %d", instance_id);
+    M2MResource *res = _security->get_resource(M2MSecurity::ServerPublicKey, instance_id);
+    if (res) {
+        res->set_read_resource_function(read_security_object_data_from_kcm, this);
+        res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
+        res->set_resource_write_callback(write_security_object_data_to_kcm, this);
+    }
+
+    res = _security->get_resource(M2MSecurity::PublicKey, instance_id);
+    if (res) {
+        res->set_read_resource_function(read_security_object_data_from_kcm, this);
+        res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
+        res->set_resource_write_callback(write_security_object_data_to_kcm, this);
+    }
+
+    res = _security->get_resource(M2MSecurity::Secretkey,instance_id);
+    if (res) {
+        res->set_read_resource_function(read_security_object_data_from_kcm, this);
+        res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
+        res->set_resource_write_callback(write_security_object_data_to_kcm, this);
+    }
+
+    res = _security->get_resource(M2MSecurity::OpenCertificateChain, instance_id);
+    if (res) {
+        res->set_resource_read_size_callback(open_certificate_chain_callback, this);
+    }
+
+    res = _security->get_resource(M2MSecurity::ReadDeviceCertificateChain, instance_id);
+    if (res) {
+        res->set_read_resource_function(read_certificate_chain_callback, this);
+    }
+
+    res = _security->get_resource(M2MSecurity::CloseCertificateChain, instance_id);
+    if (res) {
+        res->set_resource_read_size_callback(close_certificate_chain_callback, this);
+    }
+}
 void ConnectorClient::init_security_object()
 {
     if (_security) {
         for (int i = 0; i <= M2MSecurity::Bootstrap; i++) {
             // _security->create_object_instance() returns NULL if object already exists
-            if (_security->create_object_instance((M2MSecurity::ServerType)i)) {
-                M2MResource *res = _security->get_resource(M2MSecurity::ServerPublicKey, i);
-                if (res) {
-                    res->set_read_resource_function(read_security_object_data_from_kcm, this);
-                    res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
-                    res->set_resource_write_callback(write_security_object_data_to_kcm, this);
-                }
-
-                res = _security->get_resource(M2MSecurity::PublicKey, i);
-                if (res) {
-                    res->set_read_resource_function(read_security_object_data_from_kcm, this);
-                    res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
-                    res->set_resource_write_callback(write_security_object_data_to_kcm, this);
-                }
-
-                res = _security->get_resource(M2MSecurity::Secretkey, i);
-                if (res) {
-                    res->set_read_resource_function(read_security_object_data_from_kcm, this);
-                    res->set_resource_read_size_callback(read_security_object_data_size_from_kcm, this);
-                    res->set_resource_write_callback(write_security_object_data_to_kcm, this);
-                }
-
-                res = _security->get_resource(M2MSecurity::OpenCertificateChain, i);
-                if (res) {
-                    res->set_resource_read_size_callback(open_certificate_chain_callback, this);
-                }
-
-                res = _security->get_resource(M2MSecurity::ReadDeviceCertificateChain, i);
-                if (res) {
-                    res->set_read_resource_function(read_certificate_chain_callback, this);
-                }
-
-                res = _security->get_resource(M2MSecurity::CloseCertificateChain, i);
-                if (res) {
-                    res->set_resource_read_size_callback(close_certificate_chain_callback, this);
-                }
+            if (_security->get_security_instance_id((M2MSecurity::ServerType)i) >= 0 || _security->create_object_instance((M2MSecurity::ServerType)i)) {
+                init_security_object(_security->get_security_instance_id((M2MSecurity::ServerType)i));
             }
         }
     }
@@ -1529,13 +1524,17 @@ void ConnectorClient::external_update(uint32_t start_address, uint32_t firmware_
 
 void ConnectorClient::resume()
 {
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     if (bootstrapped()) {
+#endif
         uint16_t delay = _interface->stagger_wait_time(true);
         tr_info("ConnectorClient::resume() - resume after %d seconds", delay);
         _stagger_timer->start_timer(delay * 1000, M2MTimerObserver::StaggerWaitTimer);
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     } else {
         start_bootstrap();
     }
+#endif
 }
 
 void ConnectorClient::factory_reset_credentials()
@@ -1596,6 +1595,7 @@ void ConnectorClient::sleep()
     _callback->registration_process_result(ConnectorClient::State_Sleep);
 }
 
+#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 bool ConnectorClient::bootstrapped()
 {
     if (connector_credentials_available() || !use_bootstrap()) {
@@ -1604,3 +1604,4 @@ bool ConnectorClient::bootstrapped()
         return false;
     }
 }
+#endif

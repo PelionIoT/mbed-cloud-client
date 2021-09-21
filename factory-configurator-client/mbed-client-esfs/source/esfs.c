@@ -94,7 +94,7 @@ static bool esfs_initialize = false;
 esfs_result_e esfs_init(void)
 {
     esfs_result_e result = ESFS_SUCCESS;
-    tr_info("esfs_init - enter");
+    tr_debug("esfs_init - enter");
     if (!esfs_initialize)
     {
         palStatus_t pal_result = PAL_SUCCESS;
@@ -200,7 +200,7 @@ errorExit:
 esfs_result_e esfs_finalize(void)
 {
     esfs_initialize = false;
-    tr_info("esfs_finalize - enter");
+    tr_debug("esfs_finalize - enter");
     return ESFS_SUCCESS;
 }
 
@@ -829,7 +829,7 @@ esfs_result_e esfs_reset(void)
     esfs_result_e result = ESFS_SUCCESS;
     palStatus_t pal_result = PAL_SUCCESS;
     char dir_path[MAX_FULL_PATH_SIZE] = { 0 };
-    tr_info("esfs_reset - enter");
+    tr_debug("esfs_reset - enter");
     pal_result = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FOLDER_DEPTH_CHAR + 1, dir_path);
     if (pal_result != PAL_SUCCESS)
     {
@@ -925,7 +925,7 @@ esfs_result_e esfs_factory_reset(void) {
     char full_path_backup_dir[MAX_FULL_PATH_SIZE] = { 0 };
     bool is_single_partition = true;
     
-    tr_info("esfs_factory_reset - enter");
+    tr_debug("esfs_factory_reset - enter");
     pal_result = pal_fsGetMountPoint(PAL_FS_PARTITION_SECONDARY, PAL_MAX_FOLDER_DEPTH_CHAR + 1, full_path_backup_dir);
     if (pal_result != PAL_SUCCESS)
     {
@@ -1525,7 +1525,7 @@ esfs_result_e esfs_create(const uint8_t *name, size_t name_length, const esfs_tl
     // Verify that the array is always packed without padding, since we read and write it as a whole.
     PAL_ASSERT_STATIC(sizeof(esfs_tlvItem_t[ESFS_MAX_TYPE_LENGTH_VALUES]) == ESFS_MAX_TYPE_LENGTH_VALUES * sizeof(esfs_tlvItem_t));
 
-    tr_info("esfs_create - enter");
+    tr_debug("esfs_create - enter");
 
     // Check parameters
     if (!file_handle || !name || name_length == 0 || name_length > ESFS_MAX_NAME_LENGTH || meta_data_qty > ESFS_MAX_TYPE_LENGTH_VALUES)
@@ -1748,7 +1748,7 @@ esfs_result_e esfs_open(const uint8_t *name, size_t name_length, uint16_t *esfs_
     bool is_aes_ctx_created = false;
     palStatus_t res = PAL_SUCCESS;
 
-    tr_info("esfs_open - enter");
+    tr_debug("esfs_open - enter");
     // Check parameters
     if(!file_handle || !name || name_length == 0 || name_length > ESFS_MAX_NAME_LENGTH)
     {
@@ -2007,7 +2007,7 @@ esfs_result_e esfs_write(esfs_file_t *file_handle, const void *buffer, size_t by
 {
     esfs_result_e result = ESFS_ERROR;
 
-    tr_info("esfs_write - enter");
+    tr_debug("esfs_write - enter");
     if((esfs_validate(file_handle) != ESFS_SUCCESS) || (!buffer) || (bytes_to_write == 0))
     {
         tr_err("esfs_write() failed with bad parameters");
@@ -2060,7 +2060,7 @@ esfs_result_e esfs_read(esfs_file_t *file_handle, void *buffer, size_t bytes_to_
     size_t remaining_bytes = 0;
     palStatus_t res = PAL_SUCCESS;
 
-    tr_info("esfs_read - enter");
+    tr_debug("esfs_read - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS || read_bytes == NULL || !buffer)
     {
         result = ESFS_INVALID_PARAMETER;
@@ -2161,7 +2161,7 @@ esfs_result_e esfs_seek(esfs_file_t *file_handle, int32_t offset, esfs_seek_orig
     palStatus_t res = PAL_SUCCESS;
     off_t pal_offset;
 
-    tr_info("esfs_seek - enter");
+    tr_debug("esfs_seek - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS)
     {
         tr_err("esfs_seek() failed with bad parameters");
@@ -2251,7 +2251,7 @@ esfs_result_e esfs_file_size(esfs_file_t *file_handle, size_t *size_in_bytes)
 {
     esfs_result_e result = ESFS_ERROR;
 
-    tr_info("esfs_file_size - enter");
+    tr_debug("esfs_file_size - enter");
     if((esfs_validate(file_handle) != ESFS_SUCCESS) || (!size_in_bytes))
     {
         tr_err("esfs_file_size() failed with bad parameters");
@@ -2277,7 +2277,7 @@ esfs_result_e esfs_close(esfs_file_t *file_handle)
     char full_path_working_dir[MAX_FULL_PATH_SIZE];
     palStatus_t res = PAL_SUCCESS;
 
-    tr_info("esfs_close - enter");
+    tr_debug("esfs_close - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS)
     {
         tr_err("esfs_close() failed with bad parameters");
@@ -2394,7 +2394,7 @@ esfs_result_e esfs_delete(const uint8_t *name, size_t name_length)
     char short_file_name[ESFS_QUALIFIED_FILE_NAME_LENGTH];
     esfs_result_e result = ESFS_ERROR;
 
-    tr_info("esfs_delete - enter");
+    tr_debug("esfs_delete - enter");
     // Check parameters
     if(!name || name_length == 0)
     {
@@ -2407,7 +2407,7 @@ esfs_result_e esfs_delete(const uint8_t *name, size_t name_length)
         tr_err("esfs_delete() - esfs_get_name_from_blob() failed");
         goto errorExit;
     }
-    tr_info("esfs_delete %s", short_file_name);
+    tr_debug("esfs_delete %s", short_file_name);
 
     pal_result = pal_fsGetMountPoint(PAL_FS_PARTITION_PRIMARY, PAL_MAX_FOLDER_DEPTH_CHAR + 1, working_dir_path);
     if (pal_result != PAL_SUCCESS)
@@ -2424,7 +2424,7 @@ esfs_result_e esfs_delete(const uint8_t *name, size_t name_length)
 
     strncat(working_dir_path,short_file_name, ESFS_QUALIFIED_FILE_NAME_LENGTH - 1);
 
-    tr_info("esfs_delete %s", working_dir_path);
+    tr_debug("esfs_delete %s", working_dir_path);
     pal_result = pal_fsUnlink(working_dir_path);
 
     if ((pal_result == PAL_ERR_FS_NO_FILE) || (pal_result == PAL_ERR_FS_NO_PATH))
@@ -2447,7 +2447,7 @@ errorExit:
 esfs_result_e esfs_get_meta_data_properties(esfs_file_t *file_handle, esfs_tlv_properties_t **meta_data_properties)
 {
     esfs_result_e result = ESFS_ERROR;
-    tr_info("esfs_get_meta_data_properties - enter");
+    tr_debug("esfs_get_meta_data_properties - enter");
     if((esfs_validate(file_handle) != ESFS_SUCCESS) || (!meta_data_properties))
     {
         tr_err("esfs_get_meta_data_properties() failed with bad parameters");
@@ -2477,7 +2477,7 @@ esfs_result_e esfs_read_meta_data(esfs_file_t *file_handle, uint32_t index, esfs
     int32_t offset_to_restore = 0;
     palStatus_t res = PAL_SUCCESS;
 
-    tr_info("esfs_read_meta_data - enter");
+    tr_debug("esfs_read_meta_data - enter");
     if(esfs_validate(file_handle) != ESFS_SUCCESS || index >= ESFS_MAX_TYPE_LENGTH_VALUES || !meta_data || (file_handle->tlv_properties.tlv_items[index].length_in_bytes == 0))
     {
         tr_err("esfs_read_meta_data() failed with bad parameters");

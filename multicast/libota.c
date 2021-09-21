@@ -56,8 +56,30 @@ static size_t resend_payload_size = 0;
 
 // OTA library calculates checksum by OTA_CHECKSUM_CALCULATING_BYTE_COUNT bytes at a time and then generates event with
 // OTA_CHECKSUM_CALCULATING_INTERVAL time for avoiding interrupting other operations for too long time
+#if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+#define OTA_CHECKSUM_CALCULATING_BYTE_COUNT                 (20*512) // In bytes
+#define OTA_CHECKSUM_CALCULATING_INTERVAL                   3  // In milliseconds
+#define CRITICAL_MESSAGE_SEND_COUNT                         2   // How many times critical messages are sent (manifest, start and activate)
+
+// Not supporting missing fragmets for simulator yet, next phase
+#define OTA_MISSING_FRAGMENTS_REQUESTING_TIMEOUT_START      36000   // After this random timeout, device will send request for its missing fragments.
+#define OTA_FRAGMENTS_REQUEST_SERVICE_TIMEOUT_START         5   // After this random timeout, device will start sending fragments to requester.
+#define OTA_TIMER_RANDOM_WINDOW                             5   // Random window for timer.
+#define OTA_NOTIFICATION_TIMER_DELAY                        2   // This is start time in seconds for random timeout, which OTA library uses for sending ack to backend.
+#define OTA_ONE_FRAGMENT_WAITTIME_SECS                      120 // After this timeout service will fail the campaign if nodes are not in correct state and threshold is not met
+
+#define OTA_MULTICAST_INTERVAL                              5  // Delay between multicast messages
+#define OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT               60 /* After this timeout, device will start requesting its missing fragments.
+                                                                  This is needed if node did not receive END FRAGMENT command. */
+#endif // #if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+
+#ifndef OTA_CHECKSUM_CALCULATING_BYTE_COUNT
 #define OTA_CHECKSUM_CALCULATING_BYTE_COUNT                 512 // In bytes
+#endif
+
+#ifndef OTA_CHECKSUM_CALCULATING_INTERVAL
 #define OTA_CHECKSUM_CALCULATING_INTERVAL                   10  // In milliseconds
+#endif
 
 // * * * Timer random timeout values (values are seconds) * * *
 #if defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK) || defined(__NANOSIMULATOR__)
@@ -70,24 +92,46 @@ static size_t resend_payload_size = 0;
 #define OTA_MULTICAST_INTERVAL                              5   // Delay between multicast messages
 #define OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT               120 /* After this timeout, device will start requesting its missing fragments.
                                                                     This is needed if node did not receive END FRAGMENT command. */
-#else
-#define CRITICAL_MESSAGE_SEND_COUNT                         3   // How many times critical messages are sent (manifest, start and activate)
-#define OTA_MISSING_FRAGMENTS_REQUESTING_TIMEOUT_START      30  // After this random timeout, device will send request for its missing fragments.
-#define OTA_FRAGMENTS_REQUEST_SERVICE_TIMEOUT_START         5   // After this random timeout, device will start sending fragments to requester.
-#define OTA_TIMER_RANDOM_WINDOW                             60  // Random window for timer.
-#define OTA_NOTIFICATION_TIMER_DELAY                        2   // This is start time in seconds for random timeout, which OTA library uses for sending ack to backend.
-#define OTA_ONE_FRAGMENT_WAITTIME_SECS                      3600 // After this timeout service will fail the campaign if nodes are not in correct state and threshold is not met
+#endif // defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK) || defined(__NANOSIMULATOR__)
 
+#ifndef CRITICAL_MESSAGE_SEND_COUNT
+#define CRITICAL_MESSAGE_SEND_COUNT                         3   // How many times critical messages are sent (manifest, start and activate)
+#endif
+
+#ifndef OTA_MISSING_FRAGMENTS_REQUESTING_TIMEOUT_START
+#define OTA_MISSING_FRAGMENTS_REQUESTING_TIMEOUT_START      30  // After this random timeout, device will send request for its missing fragments.
+#endif
+
+#ifndef OTA_FRAGMENTS_REQUEST_SERVICE_TIMEOUT_START
+#define OTA_FRAGMENTS_REQUEST_SERVICE_TIMEOUT_START         5   // After this random timeout, device will start sending fragments to requester.
+#endif
+
+#ifndef OTA_TIMER_RANDOM_WINDOW
+#define OTA_TIMER_RANDOM_WINDOW                             60  // Random window for timer.
+#endif
+
+#ifndef OTA_NOTIFICATION_TIMER_DELAY
+#define OTA_NOTIFICATION_TIMER_DELAY                        2   // This is start time in seconds for random timeout, which OTA library uses for sending ack to backend.
+#endif
+
+#ifndef OTA_ONE_FRAGMENT_WAITTIME_SECS
+#define OTA_ONE_FRAGMENT_WAITTIME_SECS                      3600 // After this timeout service will fail the campaign if nodes are not in correct state and threshold is not met
+#endif
+
+
+#ifndef OTA_MULTICAST_INTERVAL
 #ifndef MBED_CLOUD_CLIENT_MULTICAST_INTERVAL
 #define OTA_MULTICAST_INTERVAL                              60  // Delay between multicast messages
 #else
 #define OTA_MULTICAST_INTERVAL MBED_CLOUD_CLIENT_MULTICAST_INTERVAL
 #endif
+#endif // OTA_MULTICAST_INTERVAL
 
-#define OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT               1800 /* After this timeout, device will start requesting its missing fragments.
-                                                                    This is needed if node did not receive END FRAGMENT command. */
-
-#endif // MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK
+/* After this timeout, device will start requesting its missing fragments.
+   This is needed if node did not receive END FRAGMENT command. */
+#ifndef OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT
+#define OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT               1800 
+#endif                                                                    
 
 // Set resend delays based on expiration times, trying to spread out the traffic as much as possible to give
 // nodes as much time as possible to recover from whatever has caused them to miss the first multicast transmission.
@@ -222,7 +266,9 @@ ota_error_code_e ota_lib_configure(ota_lib_config_data_t *lib_config_data_ptr,
     tr_info("Missing fragments total count: %u Received fragment total count: %u",
             missing_fragment_total_count, (ota_parameters.fw_fragment_count - missing_fragment_total_count));
 
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
     ota_get_and_log_first_missing_segment(NULL);
+#endif
 
     if (ota_parameters.ota_state == OTA_STATE_CHECKSUM_CALCULATING) {
         ota_manage_whole_fw_checksum_calculating();
@@ -251,14 +297,22 @@ done:
 
 void ota_socket_receive_data(uint16_t payload_length, uint8_t *payload_ptr, ota_ip_address_t *source_addr_ptr)
 {
+    uint8_t command_id = payload_ptr[0];
+
+#if defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR) && (MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR == 1)
+    (void)source_addr_ptr; // unused
+    if (payload_ptr == NULL) {
+        tr_err("ota_socket_receive_data() - called with NULL pointer");
+        return;
+    }
+#else
     if (payload_ptr == NULL || source_addr_ptr == NULL) {
         tr_err("ota_socket_receive_data() - called with NULL pointer");
         return;
     }
 
-    uint8_t command_id = payload_ptr[0];
-
     tr_info("OTA received socket data from source address: %s Port %u, Length: %"PRIu16", Command id: %"PRIu8" ", trace_ipv6(source_addr_ptr->address_tbl), source_addr_ptr->port, payload_length, command_id);
+#endif
 
     switch (command_id) {
         case OTA_CMD_START:
@@ -315,7 +369,6 @@ void ota_socket_receive_data(uint16_t payload_length, uint8_t *payload_ptr, ota_
 void ota_timer_expired(uint8_t timer_id)
 {
     ota_cancel_timer_fptr(timer_id);
-    tr_debug("ota_timer_expired - id %d", timer_id);
     if (timer_id == OTA_END_FRAGMENTS_TIMER) {
         create_multicast_header(OTA_CMD_END_FRAGMENTS);
         if (ota_socket_send_fptr(&ota_lib_config_data.link_local_multicast_socket_addr, OTA_SESSION_ID_SIZE + 1, socket_buf.ptr) != 0) {
@@ -569,8 +622,7 @@ static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length
         ota_delete_process(ota_parameters.ota_session_id);
     }
 
-    tr_info("ota_border_router_manage_command - command id: %d, command type: %d, version: %d", command_id, command_type, multicast_version);
-    tr_info("ota_border_router_manage_command - session %s", tr_array(session_id, OTA_SESSION_ID_SIZE));
+    tr_info("ota_border_router_manage_command - cmd id: %d, cmd type: %d, ver: %d, session %s", command_id, command_type, multicast_version, tr_array(session_id, OTA_SESSION_ID_SIZE));
     if (ota_add_new_process(session_id) != OTA_OK) {
         tr_err("ota_border_router_manage_command - session already exists or not able to create!");
         return status;
@@ -630,6 +682,7 @@ static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length
                         uint32_t start_sending_duration = OTA_START_RESEND_DELAY * (CRITICAL_MESSAGE_SEND_COUNT - 1);
                         uint32_t multicasting_duration = OTA_MULTICAST_INTERVAL * ota_parameters.fw_fragment_count;
                         uint32_t resend_time = start_sending_duration + (2 * multicasting_duration) + OTA_MISSING_FRAGMENT_FALLBACK_TIMEOUT;
+
                         ota_send_estimated_resend_time(resend_time);
                         ota_parameters.ota_state = OTA_STATE_STARTED;
                         status = ota_store_parameters_fptr(&ota_parameters);
@@ -657,7 +710,6 @@ static ota_error_code_e ota_border_router_manage_command(uint16_t payload_length
 
 static void ota_parse_start_command_parameters(uint8_t *payload_ptr)
 {
-    tr_debug("ota_parse_start_command_parameters");
     uint16_t payload_index = OTA_CMD_PROCESS_ID_INDEX;
 
     uint8_t session_id[OTA_SESSION_ID_SIZE];
@@ -670,9 +722,6 @@ static void ota_parse_start_command_parameters(uint8_t *payload_ptr)
     payload_index += 1;
 
     ota_parameters.fw_fragment_count = common_read_16_bit(&payload_ptr[payload_index]);
-    tr_info("Number of firmware fragments: %u", ota_parameters.fw_fragment_count);
-    tr_info("Number of segments (fragment_count / OTA_SEGMENT_SIZE): %u", (ota_parameters.fw_fragment_count / OTA_SEGMENT_SIZE));
-    tr_info("Bytes over segments (fragment_count %% OTA_SEGMENT_SIZE): %u", (ota_parameters.fw_fragment_count % OTA_SEGMENT_SIZE));
 
     payload_index += 2;
 
@@ -681,10 +730,10 @@ static void ota_parse_start_command_parameters(uint8_t *payload_ptr)
     if ((ota_parameters.fw_fragment_count % OTA_SEGMENT_SIZE) != 0) {
         ota_parameters.fw_segment_count++;
     }
-    tr_info("Number of needed segments: %u", ota_parameters.fw_segment_count);
 
     ota_parameters.fw_fragment_byte_count = common_read_16_bit(&payload_ptr[payload_index]);
-    tr_info("Fragment size: %u", ota_parameters.fw_fragment_byte_count);
+
+    tr_info("ota_parse_start_command_parameters - fragment size: %u, fragment count: %u, segment count: %u", ota_parameters.fw_fragment_byte_count, ota_parameters.fw_fragment_count, ota_parameters.fw_segment_count);
 
     payload_index += 2;
 
@@ -853,8 +902,6 @@ static void ota_manage_fragment_command(uint16_t payload_length, uint8_t *payloa
 
 static void ota_manage_abort_command(uint16_t payload_length, uint8_t *payload_ptr)
 {
-    tr_info("ota_manage_abort_command - OTA process count: %u", ota_parameters.ota_process_count);
-
     uint16_t payload_index;
 
     tr_info("***Received OTA ABORT command. Length: %d", payload_length);
@@ -909,7 +956,6 @@ static void ota_manage_abort_command(uint16_t payload_length, uint8_t *payload_p
 
 static void ota_manage_end_fragments_command(uint16_t payload_length, uint8_t *payload_ptr)
 {
-    tr_debug("ota_manage_end_fragments_command");
     uint16_t payload_index;
 
     tr_info("***Received OTA END FRAGMENTS command. Length: %d, state: %d", payload_length, ota_parameters.ota_state);
@@ -954,8 +1000,6 @@ static void ota_manage_end_fragments_command(uint16_t payload_length, uint8_t *p
 
 static ota_error_code_e ota_manage_manifest_command(uint16_t payload_length, uint8_t *payload_ptr)
 {
-    tr_debug("ota_manage_manifest_command");
-
     // Clean up any existing sessions
     ota_delete_process(ota_parameters.ota_session_id);
 
@@ -1016,8 +1060,6 @@ static void ota_manage_update_fw_command(uint16_t payload_length, uint8_t *paylo
     uint8_t device_type = payload_ptr[payload_index];
     payload_index += 1;
 
-    tr_info("Device type: %d", device_type);
-
     if (device_type != ota_lib_config_data.device_type) {
         tr_warn("State change failed (Device type check failed, msg: %d <> cnf: %d)", device_type, ota_lib_config_data.device_type);
         // the function returns here for border router, so effectively we're done in BR.
@@ -1047,11 +1089,11 @@ static void ota_manage_update_fw_command(uint16_t payload_length, uint8_t *paylo
             tr_err("Storing OTA states failed, RC: %d", rc);
         }
 
-        tr_warn("State changed to \"OTA FW UPDATE\"");
+        tr_info("State changed to \"OTA FW UPDATE\"");
 
         ota_send_update_fw_cmd_received_info_fptr(ota_update_fw_delay);
     } else {
-        tr_warn("State already \"OTA FW UPDATE\"");
+        tr_info("State already \"OTA FW UPDATE\"");
     }
 
     ota_update_status_resource();
@@ -1087,17 +1129,14 @@ static void ota_manage_fragments_request_command(uint16_t payload_length, uint8_
             return;
         }
 
-        tr_info("OTA process ID checked successfully");
-
         ota_fragments_request_service_segment_id = common_read_16_bit(&payload_ptr[payload_index]);
         payload_index += 2;
-
-        tr_info("Requested Segment ID: %u", ota_fragments_request_service_segment_id);
 
         memcpy(ota_fragments_request_service_bitmask_tbl, &payload_ptr[payload_index], OTA_FRAGMENTS_REQ_BITMASK_LENGTH);
         payload_index += OTA_FRAGMENTS_REQ_BITMASK_LENGTH;
 
-        tr_info("Requested Fragment bitmasks: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+        tr_info("Requested Segment ID: %u, Requested Fragment bitmasks: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+                ota_fragments_request_service_segment_id,
                 ota_fragments_request_service_bitmask_tbl[0], ota_fragments_request_service_bitmask_tbl[1], ota_fragments_request_service_bitmask_tbl[2], ota_fragments_request_service_bitmask_tbl[3],
                 ota_fragments_request_service_bitmask_tbl[4], ota_fragments_request_service_bitmask_tbl[5], ota_fragments_request_service_bitmask_tbl[6], ota_fragments_request_service_bitmask_tbl[7],
                 ota_fragments_request_service_bitmask_tbl[8], ota_fragments_request_service_bitmask_tbl[9], ota_fragments_request_service_bitmask_tbl[10], ota_fragments_request_service_bitmask_tbl[11],
@@ -1331,7 +1370,7 @@ static void ota_manage_whole_fw_checksum_calculating(void)
 
     if (ota_parameters.ota_state == OTA_STATE_CHECKSUM_CALCULATING) {
         if (ota_checksum_calculating_ptr.ota_sha256_context_ptr == NULL) {
-            tr_info("Whole FW checksum calculating started!!!");
+            tr_info("Whole FW checksum calculating started");
             new_round_needed = true;
 
             memset(&ota_checksum_calculating_ptr, 0, sizeof(ota_checksum_calculating_t));
@@ -1352,9 +1391,6 @@ static void ota_manage_whole_fw_checksum_calculating(void)
             if ((ota_checksum_calculating_ptr.current_byte_id + pushed_fw_data_byte_count) > fw_total_data_byte_count) {
                 pushed_fw_data_byte_count = (fw_total_data_byte_count - ota_checksum_calculating_ptr.current_byte_id);
             }
-            tr_info("Calculating whole FW checksum! pushed byte count: %"PRIu32" Byte ID: %"PRIu32" ",
-                    pushed_fw_data_byte_count,
-                    ota_checksum_calculating_ptr.current_byte_id);
 
             uint8_t *pushed_fw_data_byte_ptr = ota_malloc_fptr(pushed_fw_data_byte_count);
 
@@ -1409,7 +1445,9 @@ static void ota_manage_whole_fw_checksum_calculating(void)
                                 ota_send_error(rc);
                             }
                         } else if (ota_lib_config_data.device_type == OTA_DEVICE_TYPE_NODE) {
+#ifndef MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR
                             ota_start_timer(OTA_END_FRAGMENTS_TIMER, OTA_NOTIFICATION_TIMER_DELAY, OTA_TIMER_RANDOM_WINDOW);
+#endif                            
                             ota_start_timer(OTA_FIRMWARE_READY_TIMER, 1, 0);
                         }
 
@@ -1732,7 +1770,6 @@ void ota_firmware_pulled()
 
 ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *payload_ptr, uint16_t payload_length)
 {
-    tr_debug("ota_send_multicast_command - command %d", command);
     assert(socket_buf.ptr != NULL);
 
     if (payload_length > OTA_MAX_MULTICAST_MESSAGE_SIZE) {
@@ -1772,7 +1809,7 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
             uint32_t reboot_delay = common_read_32_bit(&payload_ptr[19]);
 
             // In simulator case accept any activation delay from payload
-#if !defined(__NANOSIMULATOR__) || !defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK)
+#if !defined(__NANOSIMULATOR__) && !defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK) && !defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR)
             if (reboot_delay < OTA_ONE_FRAGMENT_WAITTIME_SECS) {
                 tr_warn("Given activation delay was too short: %" PRIu32 ". Changed it to minimum %" PRIu32 ".", reboot_delay, OTA_ONE_FRAGMENT_WAITTIME_SECS);
                 reboot_delay = OTA_ONE_FRAGMENT_WAITTIME_SECS;
@@ -1787,6 +1824,7 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
         break;
 
         default:
+            tr_error("ota_send_multicast_command - unknown command");
             break;
     }
 
@@ -1815,11 +1853,11 @@ ota_error_code_e ota_send_multicast_command(ota_commands_e command, uint8_t *pay
 static void ota_send_estimated_resend_time(uint32_t resend_time_in_secs)
 {
     tr_info("ota_send_estimated_resend_time - time: %"PRIu32" seconds, session: %s", resend_time_in_secs, tr_array(ota_parameters.ota_session_id, OTA_SESSION_ID_SIZE));
-    uint8_t payload[21];
+    uint8_t payload[OTA_FRAGMENT_CMD_LENGTH];
     payload[0] = 1; // Version info
     memcpy(payload + 1, ota_parameters.ota_session_id, OTA_SESSION_ID_SIZE); // Session id
     common_write_32_bit(resend_time_in_secs, payload + 17);
-    ota_update_resource_value_fptr(MULTICAST_ESTIMATED_RESEND_TIME, payload, 21);
+    ota_update_resource_value_fptr(MULTICAST_ESTIMATED_RESEND_TIME, payload, OTA_FRAGMENT_CMD_LENGTH);
 }
 
 void ota_send_error(ota_error_code_e error)

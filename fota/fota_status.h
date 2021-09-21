@@ -50,7 +50,12 @@ typedef enum {
     FOTA_STATUS_INTERNAL_DELTA_ERROR                = -42, /**< Non-specific internal error - delta engine */
     FOTA_STATUS_INTERNAL_CRYPTO_ERROR               = -43, /**< Non-specific internal error - crypto engine */
     FOTA_STATUS_NOT_FOUND                           = -44, /**< Expected asset is not found in NVM */
-    FOTA_STATUS_MULTICAST_UPDATE_ABORTED            = -45, /**< Received abort request from Multicast */
+    FOTA_STATUS_MULTICAST_UPDATE_ABORTED            = -45, /**< Multicast abort session */
+    FOTA_STATUS_COMB_PACKAGE_MALFORMED              = -46, /**< Failure to parse a combined package */
+    FOTA_STATUS_COMB_PACKAGE_WRONG_IMAGE_NUM        = -47, /**< Combined package with wrong number of images */
+    FOTA_STATUS_COMB_PACKAGE_IMAGE_ID_NAME_TOO_LONG = -48, /**< Combined image name specified in a package is too long. */
+    FOTA_STATUS_COMB_PACKAGE_VENDOR_DATA_TOO_LONG   = -49, /**< Vendor data size specified in a package descriptor is too long. */
+
 
     // internal transient errors - should not be reported to service
     FOTA_STATUS_SUCCESS                             = 0,   /**< all good */
@@ -62,9 +67,10 @@ typedef enum {
     FOTA_STATUS_FW_DELTA_REQUIRED_MORE_DATA         = -83, /**< Delta engine requires more data to proceed */
     FOTA_STATUS_FW_SIZE_MISMATCH                    = -84, /**< FW fetching returned more data than expected - should not happen */
     FOTA_STATUS_RESOURCE_BUSY                       = -85, /**< Resource (typically storage) is busy */
-    FOTA_STATUS_MULTICAST_UPDATE_ABORTED_INTERNAL   = -86, /**< Abort Multicast not report to service*/
-    FOTA_STATUS_MULTICAST_UPDATE_ACTIVATED          = -87, /**< Received abort request or new manifest from Multicast, when previous one was activated*/
-    FOTA_STATUS_INVALID_ARGUMENT                    = -88	 /**< Invalid argument was received */
+    FOTA_STATUS_MULTICAST_UPDATE_ABORTED_INTERNAL   = -86, /**< Abort multicast command*/
+    FOTA_STATUS_MULTICAST_UPDATE_ACTIVATED          = -87, /**< Received abort request, or new manifest received after previous one was activated*/
+    FOTA_STATUS_INVALID_ARGUMENT                    = -88, /**< Invalid argument was received */
+    FOTA_STATUS_COMB_PACKAGE_DIR_NOT_FOUND          = -89 /**< Combined package directory not found */
 } fota_status_e;
 
 

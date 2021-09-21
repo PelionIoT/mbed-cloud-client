@@ -24,7 +24,7 @@
 // config file for keepalive server
 #include "pal_socket_test_address.h"
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-#include "crypto.h"
+#include "psa/crypto.h"
 #endif
 
 #ifdef __linux__

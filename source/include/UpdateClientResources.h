@@ -25,9 +25,7 @@
 #include MBED_CLOUD_CLIENT_USER_CONFIG_FILE
 #endif
 
-#if defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 #include "update-client-hub/update_client_hub.h"
-#endif
 
 #include <stdint.h>
 

@@ -28,6 +28,8 @@
         },
         "enable-observation-parameters" : 1,
         "bootstrap-piggybacked-response" : null,
-        "enable-discovery" : 1
+        "enable-discovery" : 1,
+        "dynamic-observable" : null,
+        "dynamic-logging-buffer-size" : 0
     }
 }

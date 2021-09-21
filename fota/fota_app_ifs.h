@@ -198,10 +198,11 @@ void fota_app_on_download_progress(size_t downloaded_size, size_t current_chunk_
  */
 int fota_app_on_main_app_verify_install(const fota_header_info_t *expected_header_info);
 
-
 #if defined(TARGET_LIKE_LINUX)
 
 /**
+ * This function is deprecated for the component update, but still should be used for the main app
+ * 
  * Pelion FOTA install callback to be implemented by application.
  *
  * FOTA client expects the callback to install the candidate and return ::FOTA_STATUS_SUCCESS or reboot the system.

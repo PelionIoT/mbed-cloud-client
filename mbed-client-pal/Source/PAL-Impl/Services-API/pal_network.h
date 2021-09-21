@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2016-2019 ARM Ltd.
+// Copyright 2016-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -541,10 +541,21 @@ uint8_t pal_getRttEstimate();
  * This feature is currently only supported for Mbed OS Wi-SUN stack as a dynamic feature. Other platforms/stacks return
  * PAL_DEFAULT_STAGGER_ESTIMATE.
  * @param[in] estimate for the amount of data in KiB to be transferred.
- * @param[out] stagger_estimate The randomized stagger estimate.
+ * @param[out] stagger_estimate The randomized stagger estimate in seconds.
  */
 
 uint16_t pal_getStaggerEstimate(uint16_t data_amount);
+
+/*! \brief This function sets an application defined override value for the stagger estimate for registration in seconds.
+ *
+ * This value can be used to set a delay for the registration of the client after interface GLOBAL_UP
+ * to stagger the traffic in a multidevice network with limited bandwidth.
+ * When set to any value larger than 0, this overrides any compile-time values set by PAL_DEFAULT_STAGGER_ESTIMATE or provided by network stack.
+ * If value is 0, this override is disabled.
+ * @param[in] stagger value in seconds.
+ */
+
+void pal_setFixedStaggerEstimate(uint16_t stagger_estimate);
 
 #ifdef __cplusplus
 }

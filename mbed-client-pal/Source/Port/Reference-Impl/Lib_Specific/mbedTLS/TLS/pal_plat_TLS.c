@@ -24,7 +24,7 @@
 #include "mbedtls/memory_buffer_alloc.h"
 #endif
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-#include "crypto.h"
+#include "psa/crypto.h"
 #include "stdio.h"
 #endif
 
@@ -780,7 +780,7 @@ palStatus_t pal_plat_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, u
         }
         else
         {
-            PAL_LOG_ERR("SSL Write platform return code -0x%" PRIx32 ".", -platStatus);
+            PAL_LOG_DBG("SSL Write platform return code -0x%" PRIx32 ".", -platStatus);
         }
     }
     return status;
@@ -1404,6 +1404,12 @@ finish:
 PAL_PRIVATE void palDebug(void *ctx, int debugLevel, const char *fileName, int line, const char *message)
 {
     (void)ctx;
+    // find directory separator
+    const char *soleFileName = strrchr(fileName, '/');
+    // if found, strip directories
+    if(soleFileName) {
+        fileName = soleFileName + 1;
+    }
     PAL_LOG_DBG("%s: %d: %s", fileName, line, message);
 }
 

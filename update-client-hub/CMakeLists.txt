@@ -111,11 +111,13 @@ FILE(GLOB UPDATE_SRC
 )
 else()
 FILE(GLOB UPDATE_SRC
+    "${UPDATE_SOURCE_DIR}/delta-tool-internal/source/*.c"
     "${UPDATE_SOURCE_DIR}/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/atomic-queue/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/common/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/metadata-header/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/control-center/source/*.c"
+    "${UPDATE_SOURCE_DIR}/modules/delta-paal/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/device-identity/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/firmware-manager/source/*.c"
     "${UPDATE_SOURCE_DIR}/modules/lwm2m-mbed/source/*.cpp"

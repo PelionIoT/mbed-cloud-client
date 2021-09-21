@@ -155,7 +155,9 @@ M2MResource *M2MObjectInstance::create_dynamic_resource(const lwm2m_parameters_s
             //if (multiple_instance) { // TODO!
             //  res->set_coap_content_type(COAP_CONTENT_OMA_TLV_TYPE);
             //}
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
             res->set_observable(observable);
+#endif
             res->add_observation_level(observation_level());
             _resource_list.push_back(res);
             set_changed();
@@ -234,7 +236,9 @@ M2MResourceInstance *M2MObjectInstance::create_static_resource_instance(const St
             _resource_list.push_back(res);
             set_changed();
             res->set_operation(M2MBase::GET_ALLOWED);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
             res->set_observable(false);
+#endif
             res->set_register_uri(false);
         }
     }
@@ -274,7 +278,9 @@ M2MResourceInstance *M2MObjectInstance::create_dynamic_resource_instance(const S
                                   false, path, true, external_blockwise_store);
             _resource_list.push_back(res);
             res->set_register_uri(false);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
             res->set_observable(observable);
+#endif
             res->set_operation(M2MBase::GET_ALLOWED);
         }
     }
@@ -285,7 +291,9 @@ M2MResourceInstance *M2MObjectInstance::create_dynamic_resource_instance(const S
                                                path, external_blockwise_store, true);
             if (instance) {
                 instance->set_operation(M2MBase::GET_ALLOWED);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
                 instance->set_observable(observable);
+#endif
                 instance->set_instance_id(instance_id);
                 res->add_resource_instance(instance);
                 set_changed();
@@ -503,7 +511,7 @@ sn_coap_hdr_s *M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY) && (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY == 1)
                             && (coap_response->content_format != COAP_CONTENT_OMA_LINK_FORMAT_TYPE)
 #endif
-                            ) {
+                       ) {
                         is_content_type_supported = false;
                     }
                 }
@@ -550,7 +558,7 @@ sn_coap_hdr_s *M2MObjectInstance::handle_get_request(nsdl_s *nsdl,
                         msg_code = COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT; // Content format not supported
                     }
                 } else {
-                    tr_error("M2MObjectInstance::handle_get_request() - Content-type: %d not supported", coap_response->content_format);
+                    tr_error("M2MObjectInstance::handle_get_request() - ct: %d not supported", coap_response->content_format);
                     msg_code = COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE;
                 }
             }

@@ -1,5 +1,48 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.11.0 (17.09.2021)
+
+### Device Management Client
+
+- Removed content type `ct=` field from the register message payload.
+- Bootstrap LWM2M compliance:
+   - Bootstrap message parsing extracts instance ID from Uri-Path or from payload.
+   - Security instance IDs are no longer hardcoded but are in line with the bootstrap-server resource boolean value.
+   - Extended DELETE to paths other than 0 and 0/0.
+   - Updated to ignore and not fail when not supported optional resources are included in bootstrap PUT requests.
+   - Bootstrap done is triggered on receiving ACK to separate CHANGED response to the bs finish POST request. Previously, boostrap done was relying only on ssl peer close notification.
+   - Client has a new configuration flag `MBED_CLIENT_DYNAMIC_OBSERVABLE`, which controls APIs such as `set_observable()`. The purpose of these features is to control whether the resource can be observed from the cloud. When enabled, Client also appends the "obs" parameter to the resources as part of the registration message. If disabled, all resources are always observable, and you don't need to specify such capability separately. As part of improving LwM2M compliancy and to clean up the code base, this feature is wrapped behind this feature flag that is currently enabled by default. In the future, we plan to disable and eventually remove the feature completely.
+- Add support to collect and store trace output to NVM for later review.
+   - You can enable this option by defining compile time macro `MBED_CONF_MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE`. This defines the size for a RAM buffer. When the buffer is full or trace level trigger is found, the buffer content is stored to NVM.
+   - When enabled, these resources are published, and you can use them to control logging:
+      - 33456/0/1 Start log capture.
+      - 33456/0/2 Stop log capture.
+      - 33456/0/3 Read current logs from NVM.
+      - 33456/0/4 Erase existing logs from NVM.
+      - 33456/0/5 Trace level output. Accepted values are: CMD (0), ERROR (1), WARN (2), INFO (3), DEBUG(4).
+      - 33456/0/6 Trace level trigger. Accepted values are: DISABLED(0), ERROR (1) and WARN (2). Default value is ERROR. If disabled, all trace lines defined by trace level are stored to NVM.
+      - 33456/0/7 Size of the NVM in bytes.
+      - 33456/0/8 Auto erase NVM when full, disabled by default.
+      - 33456/0/9 Is capture currently enabled/disabled.
+      - 33456/0/10 Size of unread logs in NVM.
+      - 33456/0/11 Error, SUCCESS(0), STORAGE FULL(1), READ FAILURE(2), WRITE FAILURE(3), ABORTED(4), OUT OF MEMORY(5).
+      - 33456/0/12 Total size if logs in NVM.
+   - The application can also start and stop capture using `MbedCloudClient::set_dynamic_logging_state(bool state)` API.
+- Extended the `MbedCloudClient::setup()` API to allow the application to trigger full registration.
+
+#### Device Management Update Client
+
+- [Linux] Added support for FOTA combined update, which is a coordinated and simultaneous installation of multiple images on a device. The new `MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT` macro enables this. To enable a combined update on a device, register a device component that consists of the relevant subcomponents that need to be updated together. `FOTA_MAX_NUM_OF_SUB_COMPONENTS` defines the maximum number of supported subcomponents.
+- Deprecated component update callback prototypes. Customers using Pelion Device Management Client 4.11 and higher should use the new component update callbacks.
+   - Deprecated the verify-after-installation callback (`fota_component_verify_install_handler_t`). Use the `fota_comp_verify_cb_t` callback instead.
+   - Deprecated the installation callback for non-Linux targets (`fota_candidate_iterate_handler_t`). Use the `fota_comp_install_cb_t` callback instead.
+   - Deprecated the installation callback for Linux targets for component update (`fota_app_on_install_candidate`). For component update, use the `fota_comp_install_cb_t` callback. To update the main application, use `fota_app_on_install_candidate`.
+   - Added the `fota_comp_finalize_cb_t` installation finalization callback for future use (not in use yet).
+
+### Platform Adaptation Layer (PAL)
+
+[Linux] Enabled `PAL_DNS_API_VERSION` 3 by default for Linux configurations.
+
 ### Release 4.10.0 (07.07.2021)
 
 ### Device Management Client

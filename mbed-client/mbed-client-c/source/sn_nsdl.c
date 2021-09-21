@@ -47,6 +47,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #if defined MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 #define MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
@@ -90,14 +91,15 @@ static uint8_t      ep_name_parameter_string[]  = {'e', 'p', '='};      /* Endpo
 static uint8_t      resource_path_ptr[]         = {'r', 'd'};           /* For resource directory */
 static uint8_t      resource_type_parameter[]   = {'r', 't', '='};      /* Resource type. Only once for registration */
 #ifndef COAP_DISABLE_OBS_FEATURE
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
 static uint8_t      obs_parameter[]             = {'o', 'b', 's'};      /* Observable */
+#endif
 static uint8_t      aobs_parameter[]            = {'a', 'o', 'b', 's', '='}; /* Auto observable */
 #endif
 static uint8_t      if_description_parameter[]  = {'i', 'f', '='};      /* Interface description. Only once */
 static uint8_t      ep_lifetime_parameter[]     = {'l', 't', '='};      /* Lifetime. Number of seconds that this registration will be valid for. Must be updated within this time, or will be removed. */
 static uint8_t      version_parameter[]         = {'l', 'w', 'm', '2', 'm', '='}; /* LwM2M Version. Version of the LwM2M Enabler that the LwM2M Client support */
 static uint8_t      ep_domain_parameter[]       = {'d', '='};           /* Domain name. If this parameter is missing, a default domain is assumed. */
-static uint8_t      coap_con_type_parameter[]   = {'c', 't', '='};      /* CoAP content type */
 static uint8_t      resource_value[]            = {'v', '='};           /* Resource value */
 #ifdef RESOURCE_ATTRIBUTES_LIST
 static uint8_t      name_parameter[]            = {'n', 'a', 'm', 'e', '='};
@@ -133,7 +135,6 @@ static bool             sn_nsdl_check_uint_overflow(uint16_t resource_size, uint
 static void             remove_previous_block_data(struct nsdl_s *handle, sn_nsdl_addr_s *src_ptr, const uint32_t block_number);
 static bool             update_last_block_data(struct nsdl_s *handle, sn_coap_hdr_s *coap_packet_ptr, bool block1);
 #if MBED_CONF_MBED_TRACE_ENABLE
-static const char      *sn_nsdl_coap_status_description(sn_coap_status_e status);
 static const char      *sn_nsdl_coap_message_code_desc(int msg_code);
 static const char      *sn_nsdl_coap_message_type_desc(int msg_type);
 #endif
@@ -759,7 +760,6 @@ int8_t sn_nsdl_process_coap(struct nsdl_s *handle, sn_coap_hdr_s *coap_packet_pt
 
 #if SN_COAP_DUPLICATION_MAX_MSGS_COUNT
     if (coap_packet_ptr->coap_status == COAP_STATUS_PARSER_DUPLICATED_MSG) {
-        tr_info("sn_nsdl_process_coap - received duplicate message, ignore");
         sn_coap_parser_release_allocated_coap_msg_mem(handle->grs->coap, coap_packet_ptr);
         return SN_NSDL_SUCCESS;
     }
@@ -927,7 +927,6 @@ static int32_t sn_nsdl_internal_coap_send(struct nsdl_s *handle, sn_coap_hdr_s *
 #endif
 
     coap_message_len = sn_coap_builder_calc_needed_packet_data_size_2(coap_header_ptr, handle->grs->coap->sn_coap_block_data_size);
-    tr_debug("sn_nsdl_internal_coap_send - msg len: %" PRId32 "", coap_message_len);
     if (coap_message_len <= 0) {
         return SN_NSDL_FAILURE;
     }
@@ -994,7 +993,6 @@ static char *sn_nsdl_build_resource_attribute_str(char *dst, const sn_nsdl_attri
  */
 int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *message_ptr, uint8_t updating_registeration)
 {
-    tr_debug("sn_nsdl_build_registration_body");
     /* Local variables */
     uint8_t                 *temp_ptr;
     sn_nsdl_dynamic_resource_parameters_s   *resource_temp_ptr;
@@ -1113,15 +1111,6 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
                 }
             }
 #endif
-            if (resource_temp_ptr->coap_content_type != 0) {
-                *temp_ptr++ = ';';
-                memcpy(temp_ptr, coap_con_type_parameter, COAP_CON_PARAMETER_LEN);
-                temp_ptr += COAP_CON_PARAMETER_LEN;
-                *temp_ptr++ = '"';
-                temp_ptr = sn_nsdl_itoa(temp_ptr,
-                                        resource_temp_ptr->coap_content_type);
-                *temp_ptr++ = '"';
-            }
 
             /* ;v */
             if ((resource_temp_ptr->publish_value > 0) && resource_temp_ptr->resource) {
@@ -1173,12 +1162,14 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
                     temp_ptr = sn_nsdl_itoa(temp_ptr, temp);
                     *temp_ptr++ = '"';
                 }
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
             } else if (resource_temp_ptr->observable) {
                 *temp_ptr++ = ';';
                 memcpy(temp_ptr, obs_parameter, OBS_PARAMETER_LEN);
                 temp_ptr += OBS_PARAMETER_LEN;
+#endif //MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE
             }
-#endif
+#endif //COAP_DISABLE_OBS_FEATURE
         }
         resource_temp_ptr = sn_grs_get_next_resource(handle->grs, resource_temp_ptr);
 
@@ -1199,7 +1190,6 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
  */
 static uint16_t sn_nsdl_calculate_registration_body_size(struct nsdl_s *handle, uint8_t updating_registeration, int8_t *error)
 {
-    tr_debug("sn_nsdl_calculate_registration_body_size");
     /* Local variables */
     uint16_t return_value = 0;
     *error = SN_NSDL_SUCCESS;
@@ -1323,17 +1313,6 @@ static uint16_t sn_nsdl_calculate_registration_body_size(struct nsdl_s *handle, 
                 }
             }
 #endif
-            if (resource_temp_ptr->coap_content_type != 0) {
-                /* ;if="content" */
-                uint8_t len = sn_nsdl_itoa_len(resource_temp_ptr->coap_content_type);
-                if (sn_nsdl_check_uint_overflow(return_value, 6, len)) {
-                    return_value += (6 + len);
-                } else {
-                    *error = SN_NSDL_FAILURE;
-                    break;
-                }
-            }
-
             if ((resource_temp_ptr->publish_value > 0) && resource_temp_ptr->resource) {
                 /* ;v="" */
                 uint16_t len = resource_temp_ptr->resource_len;
@@ -1372,6 +1351,7 @@ static uint16_t sn_nsdl_calculate_registration_body_size(struct nsdl_s *handle, 
                     *error = SN_NSDL_FAILURE;
                     break;
                 }
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
             } else if (resource_temp_ptr->observable) {
                 if (sn_nsdl_check_uint_overflow(return_value, 4, 0)) {
                     return_value += 4;
@@ -1379,8 +1359,9 @@ static uint16_t sn_nsdl_calculate_registration_body_size(struct nsdl_s *handle, 
                     *error = SN_NSDL_FAILURE;
                     break;
                 }
+#endif //MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE
             }
-#endif
+#endif //COAP_DISABLE_OBS_FEATURE
         }
         resource_temp_ptr = sn_grs_get_next_resource(handle->grs, resource_temp_ptr);
     }
@@ -2357,6 +2338,15 @@ bool sn_nsdl_remove_resource_attribute(sn_nsdl_static_resource_parameters_s *par
 
 #endif
 
+#define WRITE_TAG(buf, buf_size, format, ...) \
+{ \
+    int written = snprintf(buf, buf_size, format, ##__VA_ARGS__); \
+    if (written >= buf_size || written < 0) { \
+        goto print_line; \
+    } else { \
+         ret += written; \
+    } \
+}
 
 void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
 {
@@ -2365,26 +2355,128 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
         return;
     }
 
+    const char *delimeter = "|";
+    const char *token = "token:";
+    const char *payload = "pl:";
+    const char *path = "path:";
+    const char *ct = "ct:";
+    const char *etag = "e-tag:";
+    const char *proxy = "proxy:";
+    const char *host = "host:";
+    const char *loc = "loc:";
+    const char *loc_query = "loc-query:";
+    const char *obs = "obs:";
+    const char *max_age = "max-age:";
+    const char *size1 = "size1:";
+    const char *size2 = "size2:";
+    const char *block1 = "block1:";
+    const char *block2 = "block2:";
+    const char *accept = "accept:";
+    const char *uri_query = "uri-query:";
+    const char *uri_port = "uri-port:";
+    const char *mid = "MID:";
+    const char *status = "STATUS:";
+    const char *sent = "OUT: [";
+    const char *received = "IN: [";
+    const char *end = "]";
+
+    const int buf_size = 512;
+    char buffer[buf_size];
+    int ret = 0;
+
     if (outgoing) {
-        tr_info("======== Outgoing CoAP package ========");
+        WRITE_TAG(buffer, buf_size, "%s", sent);
     } else {
-        tr_info("======== Incoming CoAP package ========");
+        WRITE_TAG(buffer, buf_size, "%s", received);
     }
 
+    WRITE_TAG(buffer + ret, buf_size - ret, "%s%s", sn_nsdl_coap_message_type_desc(coap_header_ptr->msg_type), delimeter);
+
+
+    if (COAP_STATUS_OK != coap_header_ptr->coap_status) {
+        WRITE_TAG(buffer + ret, buf_size - ret, "%s%d%s", status, coap_header_ptr->coap_status, delimeter)
+
+    }
+
+    WRITE_TAG(buffer + ret, buf_size - ret, "%s%s", sn_nsdl_coap_message_code_desc(coap_header_ptr->msg_code), delimeter);
+    WRITE_TAG(buffer + ret, buf_size - ret, "%s%d%s", mid, coap_header_ptr->msg_id, delimeter);
+
     if (coap_header_ptr->uri_path_len > 0 && coap_header_ptr->uri_path_ptr) {
-        tr_info("Uri-Path:\t\t%.*s", coap_header_ptr->uri_path_len, coap_header_ptr->uri_path_ptr);
+        WRITE_TAG(buffer + ret, buf_size - ret, "%s%.*s%s", path, coap_header_ptr->uri_path_len, coap_header_ptr->uri_path_ptr, delimeter);
     }
-    tr_info("Status:\t\t%s", sn_nsdl_coap_status_description(coap_header_ptr->coap_status));
-    tr_info("Code:\t\t%s", sn_nsdl_coap_message_code_desc(coap_header_ptr->msg_code));
-    tr_info("Type:\t\t%s", sn_nsdl_coap_message_type_desc(coap_header_ptr->msg_type));
-    tr_info("Id:\t\t%d", coap_header_ptr->msg_id);
-    if (coap_header_ptr->token_ptr && coap_header_ptr->token_len > 0) {
-        tr_info("Token:\t\t%s", tr_array(coap_header_ptr->token_ptr, coap_header_ptr->token_len));
-    }
+
+    WRITE_TAG(buffer + ret, buf_size - ret, "%s%s%s", token, tr_array(coap_header_ptr->token_ptr, coap_header_ptr->token_len), delimeter);
+    WRITE_TAG(buffer + ret, buf_size - ret, "%s%d%s", payload, coap_header_ptr->payload_len, delimeter);
+
     if (coap_header_ptr->content_format != -1) {
-        tr_info("Content-type:\t%d", coap_header_ptr->content_format);
+        WRITE_TAG(buffer + ret, buf_size - ret, "%s%d%s", ct, coap_header_ptr->content_format, delimeter);
     }
-    tr_info("Payload len:\t%d", coap_header_ptr->payload_len);
+
+    if (coap_header_ptr->options_list_ptr) {
+        WRITE_TAG(buffer + ret, buf_size - ret, "%s%"PRIu32"%s", max_age, coap_header_ptr->options_list_ptr->max_age, delimeter);
+
+        if (coap_header_ptr->options_list_ptr->etag_ptr && coap_header_ptr->options_list_ptr->etag_len > 0) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%s%s", etag, tr_array(coap_header_ptr->options_list_ptr->etag_ptr, coap_header_ptr->options_list_ptr->etag_len), delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->uri_host_ptr && coap_header_ptr->options_list_ptr->uri_host_len > 0) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%.*s%s", host, coap_header_ptr->options_list_ptr->uri_host_len, coap_header_ptr->options_list_ptr->uri_host_ptr, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->location_path_ptr && coap_header_ptr->options_list_ptr->location_path_len > 0) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%.*s%s", loc, coap_header_ptr->options_list_ptr->location_path_len, coap_header_ptr->options_list_ptr->location_path_ptr, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->location_query_ptr && coap_header_ptr->options_list_ptr->location_query_len > 0) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%.*s%s", loc_query, coap_header_ptr->options_list_ptr->location_query_len, coap_header_ptr->options_list_ptr->location_query_ptr, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->observe != -1) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%"PRId32"%s", obs, coap_header_ptr->options_list_ptr->observe, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->use_size1) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%"PRIu32"%s", size1, coap_header_ptr->options_list_ptr->size1, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->use_size2) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%"PRIu32"%s", size2, coap_header_ptr->options_list_ptr->size2, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->block1 != -1) {
+            uint8_t tmp = (coap_header_ptr->options_list_ptr->block1 & 0x07);
+            uint16_t block_size = 1u << (tmp + 4);
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s(%"PRId32":%d:%d)%s", block1, coap_header_ptr->options_list_ptr->block1 >> 4, (coap_header_ptr->options_list_ptr->block1) & 0x08 ? true : false, block_size, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->block2 != -1) {
+            uint8_t tmp = (coap_header_ptr->options_list_ptr->block2 & 0x07);
+            uint16_t block_size = 1u << (tmp + 4);
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s(%"PRId32":%d:%d)%s", block2, coap_header_ptr->options_list_ptr->block2 >> 4, (coap_header_ptr->options_list_ptr->block2) & 0x08 ? true : false, block_size, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->accept != -1) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%d%s", accept, coap_header_ptr->options_list_ptr->accept, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->uri_port != -1) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%"PRId32"%s", uri_port, coap_header_ptr->options_list_ptr->uri_port, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->uri_query_ptr && coap_header_ptr->options_list_ptr->uri_query_len > 0) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%.*s%s", uri_query, coap_header_ptr->options_list_ptr->uri_query_len, coap_header_ptr->options_list_ptr->uri_query_ptr, delimeter);
+        }
+
+        if (coap_header_ptr->options_list_ptr->proxy_uri_ptr && coap_header_ptr->options_list_ptr->proxy_uri_len > 0) {
+            WRITE_TAG(buffer + ret, buf_size - ret, "%s%.*s%s", proxy, coap_header_ptr->options_list_ptr->proxy_uri_len, coap_header_ptr->options_list_ptr->proxy_uri_ptr, delimeter);
+        }
+    }
+    // Replace last delimeter
+    WRITE_TAG(buffer + ret - 1, buf_size - ret - 1, "%s", end);
+
+print_line:
+    tr_info("%s", buffer);
+
 #ifdef MBED_CLIENT_PRINT_COAP_PAYLOAD
     if (coap_header_ptr->payload_ptr && coap_header_ptr->payload_len > 0) {
         int i = 0;
@@ -2403,62 +2495,6 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
     }
 #endif
 
-    if (coap_header_ptr->options_list_ptr) {
-        if (coap_header_ptr->options_list_ptr->etag_ptr && coap_header_ptr->options_list_ptr->etag_len > 0) {
-            tr_info("E-tag:\t%s", tr_array(coap_header_ptr->options_list_ptr->etag_ptr, coap_header_ptr->options_list_ptr->etag_len));
-        }
-        if (coap_header_ptr->options_list_ptr->proxy_uri_ptr && coap_header_ptr->options_list_ptr->proxy_uri_len > 0) {
-            tr_info("Proxy uri:\t%.*s", coap_header_ptr->options_list_ptr->proxy_uri_len, coap_header_ptr->options_list_ptr->proxy_uri_ptr);
-        }
-
-        if (coap_header_ptr->options_list_ptr->uri_host_ptr && coap_header_ptr->options_list_ptr->uri_host_len > 0) {
-            tr_info("Uri host:\t%.*s", coap_header_ptr->options_list_ptr->uri_host_len, coap_header_ptr->options_list_ptr->uri_host_ptr);
-        }
-
-        if (coap_header_ptr->options_list_ptr->location_path_ptr && coap_header_ptr->options_list_ptr->location_path_len > 0) {
-            tr_info("Location path:\t%.*s", coap_header_ptr->options_list_ptr->location_path_len, coap_header_ptr->options_list_ptr->location_path_ptr);
-        }
-
-        if (coap_header_ptr->options_list_ptr->location_query_ptr && coap_header_ptr->options_list_ptr->location_query_len > 0) {
-            tr_info("Location query:\t%.*s", coap_header_ptr->options_list_ptr->location_query_len, coap_header_ptr->options_list_ptr->location_query_ptr);
-        }
-
-        if (coap_header_ptr->options_list_ptr->uri_query_ptr && coap_header_ptr->options_list_ptr->uri_query_len > 0) {
-            tr_info("Uri query:\t%.*s", coap_header_ptr->options_list_ptr->uri_query_len, coap_header_ptr->options_list_ptr->uri_query_ptr);
-        }
-
-        tr_info("Max-age:\t\t%" PRIu32"", coap_header_ptr->options_list_ptr->max_age);
-        if (coap_header_ptr->options_list_ptr->use_size1) {
-            tr_info("Size 1:\t\t%" PRIu32"", coap_header_ptr->options_list_ptr->size1);
-        }
-        if (coap_header_ptr->options_list_ptr->use_size2) {
-            tr_info("Size 2:\t\t%" PRIu32"", coap_header_ptr->options_list_ptr->size2);
-        }
-        if (coap_header_ptr->options_list_ptr->accept != -1) {
-            tr_info("Accept:\t\t%d", coap_header_ptr->options_list_ptr->accept);
-        }
-        if (coap_header_ptr->options_list_ptr->uri_port != -1) {
-            tr_info("Uri port:\t%" PRId32"", coap_header_ptr->options_list_ptr->uri_port);
-        }
-        if (coap_header_ptr->options_list_ptr->observe != -1) {
-            tr_info("Observe:\t\t%" PRId32"", coap_header_ptr->options_list_ptr->observe);
-        }
-        if (coap_header_ptr->options_list_ptr->block1 != -1) {
-            tr_info("Block1 number:\t%" PRId32"", coap_header_ptr->options_list_ptr->block1 >> 4);
-            uint8_t temp = (coap_header_ptr->options_list_ptr->block1 & 0x07);
-            uint16_t block_size = 1u << (temp + 4);
-            tr_info("Block1 size:\t%d", block_size);
-            tr_info("Block1 more:\t%d", (coap_header_ptr->options_list_ptr->block1) & 0x08 ? true : false);
-        }
-        if (coap_header_ptr->options_list_ptr->block2 != -1) {
-            tr_info("Block2 number:\t%" PRId32"", coap_header_ptr->options_list_ptr->block2 >> 4);
-            uint8_t temp = (coap_header_ptr->options_list_ptr->block2 & 0x07);
-            uint16_t block_size = 1u << (temp + 4);
-            tr_info("Block2 size:\t%d", block_size);
-            tr_info("Block2 more:\t%d", (coap_header_ptr->options_list_ptr->block2) & 0x08 ? true : false);
-        }
-    }
-    tr_info("======== End of CoAP package ========");
 #else
     (void) coap_header_ptr;
     (void) outgoing;
@@ -2466,89 +2502,65 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
 }
 
 #if MBED_CONF_MBED_TRACE_ENABLE
-const char *sn_nsdl_coap_status_description(sn_coap_status_e status)
-{
-    switch (status) {
-        case COAP_STATUS_OK:
-            return "COAP_STATUS_OK";
-        case COAP_STATUS_PARSER_ERROR_IN_HEADER:
-            return "COAP_STATUS_PARSER_ERROR_IN_HEADER";
-        case COAP_STATUS_PARSER_DUPLICATED_MSG:
-            return "COAP_STATUS_PARSER_DUPLICATED_MSG";
-        case COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING:
-            return "COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVING";
-        case COAP_STATUS_PARSER_BLOCKWISE_ACK:
-            return "COAP_STATUS_PARSER_BLOCKWISE_ACK";
-        case COAP_STATUS_PARSER_BLOCKWISE_MSG_REJECTED:
-            return "COAP_STATUS_PARSER_BLOCKWISE_MSG_REJECTED";
-        case COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED:
-            return "COAP_STATUS_PARSER_BLOCKWISE_MSG_RECEIVED";
-        case COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED:
-            return "COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED";
-        default:
-            return "";
-    }
-}
-
 const char *sn_nsdl_coap_message_code_desc(int msg_code)
 {
     switch (msg_code) {
         case COAP_MSG_CODE_EMPTY:
-            return "COAP_MSG_CODE_EMPTY";
+            return "EMPTY";
         case COAP_MSG_CODE_REQUEST_GET:
-            return "COAP_MSG_CODE_REQUEST_GET";
+            return "GET";
         case COAP_MSG_CODE_REQUEST_POST:
-            return "COAP_MSG_CODE_REQUEST_POST";
+            return "POST";
         case COAP_MSG_CODE_REQUEST_PUT:
-            return "COAP_MSG_CODE_REQUEST_PUT";
+            return "PUT";
         case COAP_MSG_CODE_REQUEST_DELETE:
-            return "COAP_MSG_CODE_REQUEST_DELETE";
+            return "DELETE";
         case COAP_MSG_CODE_RESPONSE_CREATED:
-            return "COAP_MSG_CODE_RESPONSE_CREATED";
+            return "CREATED";
         case COAP_MSG_CODE_RESPONSE_DELETED:
-            return "COAP_MSG_CODE_RESPONSE_DELETED";
+            return "DELETED";
         case COAP_MSG_CODE_RESPONSE_VALID:
-            return "COAP_MSG_CODE_RESPONSE_VALID";
+            return "VALID";
         case COAP_MSG_CODE_RESPONSE_CHANGED:
-            return "COAP_MSG_CODE_RESPONSE_CHANGED";
+            return "CHANGED";
         case COAP_MSG_CODE_RESPONSE_CONTENT:
-            return "COAP_MSG_CODE_RESPONSE_CONTENT";
+            return "CONTENT";
         case COAP_MSG_CODE_RESPONSE_CONTINUE:
-            return "COAP_MSG_CODE_RESPONSE_CONTINUE";
+            return "CONTINUE";
         case COAP_MSG_CODE_RESPONSE_BAD_REQUEST:
-            return "COAP_MSG_CODE_RESPONSE_BAD_REQUEST";
+            return "BAD_REQUEST";
         case COAP_MSG_CODE_RESPONSE_UNAUTHORIZED:
-            return "COAP_MSG_CODE_RESPONSE_UNAUTHORIZED";
+            return "UNAUTHORIZED";
         case COAP_MSG_CODE_RESPONSE_BAD_OPTION:
-            return "COAP_MSG_CODE_RESPONSE_BAD_OPTION";
+            return "BAD_OPTION";
         case COAP_MSG_CODE_RESPONSE_FORBIDDEN:
-            return "COAP_MSG_CODE_RESPONSE_FORBIDDEN";
+            return "FORBIDDEN";
         case COAP_MSG_CODE_RESPONSE_NOT_FOUND:
-            return "COAP_MSG_CODE_RESPONSE_NOT_FOUND";
+            return "NOT_FOUND";
         case COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED:
-            return "COAP_MSG_CODE_RESPONSE_METHOD_NOT_ALLOWED";
+            return "NOT_ALLOWED";
         case COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE:
-            return "COAP_MSG_CODE_RESPONSE_NOT_ACCEPTABLE";
+            return "NOT_ACCEPTABLE";
         case COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_INCOMPLETE:
-            return "COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_INCOMPLETE";
+            return "ENTITY_INCOMPLETE";
         case COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED:
-            return "COAP_MSG_CODE_RESPONSE_PRECONDITION_FAILED";
+            return "PRECONDITION_FAILED";
         case COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE:
-            return "COAP_MSG_CODE_RESPONSE_REQUEST_ENTITY_TOO_LARGE";
+            return "ENTITY_TOO_LARGE";
         case COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT:
-            return "COAP_MSG_CODE_RESPONSE_UNSUPPORTED_CONTENT_FORMAT";
+            return "UNSUPPORTED_CONTENT_FORMAT";
         case COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR:
-            return "COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR";
+            return "INTERNAL_SERVER_ERROR";
         case COAP_MSG_CODE_RESPONSE_NOT_IMPLEMENTED:
-            return "COAP_MSG_CODE_RESPONSE_NOT_IMPLEMENTED";
+            return "NOT_IMPLEMENTED";
         case COAP_MSG_CODE_RESPONSE_BAD_GATEWAY:
-            return "COAP_MSG_CODE_RESPONSE_BAD_GATEWAY";
+            return "BAD_GATEWAY";
         case COAP_MSG_CODE_RESPONSE_SERVICE_UNAVAILABLE:
-            return "COAP_MSG_CODE_RESPONSE_SERVICE_UNAVAILABLE";
+            return "SERVICE_UNAVAILABLE";
         case COAP_MSG_CODE_RESPONSE_GATEWAY_TIMEOUT:
-            return "COAP_MSG_CODE_RESPONSE_GATEWAY_TIMEOUT";
+            return "GATEWAY_TIMEOUT";
         case COAP_MSG_CODE_RESPONSE_PROXYING_NOT_SUPPORTED:
-            return "COAP_MSG_CODE_RESPONSE_PROXYING_NOT_SUPPORTED";
+            return "PROXYING_NOT_SUPPORTED";
         default:
             return "";
     }
@@ -2558,13 +2570,13 @@ const char *sn_nsdl_coap_message_type_desc(int msg_type)
 {
     switch (msg_type) {
         case COAP_MSG_TYPE_CONFIRMABLE:
-            return "COAP_MSG_TYPE_CONFIRMABLE";
+            return "CON";
         case COAP_MSG_TYPE_NON_CONFIRMABLE:
-            return "COAP_MSG_TYPE_NON_CONFIRMABLE";
+            return "NON-CON";
         case COAP_MSG_TYPE_ACKNOWLEDGEMENT:
-            return "COAP_MSG_TYPE_ACKNOWLEDGEMENT";
+            return "ACK";
         case COAP_MSG_TYPE_RESET:
-            return "COAP_MSG_TYPE_RESET";
+            return "RST";
         default:
             return "";
     }

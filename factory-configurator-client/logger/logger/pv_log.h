@@ -45,6 +45,7 @@ void pv_log_trace(int level, const char* filename, int line, const char *func, c
 */
 void pv_log_trace_buffer(int level, const char* filename, int line, const char *func, const char *color, const char *name, const uint8_t *buff, uint32_t buff_size);
 
+#ifdef FCC_ENABLE_FULL_TRACING
 #define _SA_PV_LOG_FUNC_ENTER(level, filename, line, func, format, ...) _SA_PV_LOG(level, filename, line, func, "===> " format, ##__VA_ARGS__)
 
 /**  Exit function logging
@@ -54,6 +55,11 @@ void pv_log_trace_buffer(int level, const char* filename, int line, const char *
  * - Usage example (with INFO level): SA_PV_LOG_INFO_FUNC_EXIT("argPointerToInt = %d, argPointerToUnsigned32 = %" PRIu32 "", *argPointerToInt, (uint32_t)*argPointerToUnsigned32);
  */
 #define _SA_PV_LOG_FUNC_EXIT(level, filename, line, func, format, ...) _SA_PV_LOG(level, filename, line, func, "<=== " format, ##__VA_ARGS__)
+#else
+#define _SA_PV_LOG_FUNC_ENTER(level, filename, line, func, format, ...)
+
+#define _SA_PV_LOG_FUNC_EXIT(level, filename, line, func, format, ...)
+#endif
 
 // CRITICAL always being output
 #define SA_PV_LOG_CRITICAL(format, ...) \

@@ -101,6 +101,11 @@ public:
     bool delete_resource(ServerResource rescource);
 
     /**
+     * \brief Deletes all optional resources.
+     */
+    void delete_resources();
+
+    /**
      * \brief Sets the value of a given resource enum.
      * \param resource With this function, a value can be set on the following resources:
      * 'Binding'.

@@ -81,6 +81,11 @@
             "macro_name": "FOTA_NUM_COMPONENTS",
             "value": 1
         },
+        "max-num-of-sub-components": {
+            "help": "The maximum number of updateable sub components.",
+            "macro_name": "FOTA_MAX_NUM_OF_SUB_COMPONENTS",
+            "value": 2
+        },
         "resume-support": {
             "help": "Type of resume support: unsupported, restart only, resume",
             "macro_name": "MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT",
@@ -95,6 +100,11 @@
         "default-app-ifs": {
             "help": " enable default fota implementation callbacks",
             "macro_name": "FOTA_DEFAULT_APP_IFS",
+            "value": null
+        },
+        "sub-component-support": {
+            "help": "Sub-component support enabled",
+            "macro_name": "MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT",
             "value": null
         }
     }
