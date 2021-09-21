@@ -27,10 +27,6 @@
 
 #define BUFFER_SIZE 21
 
-// Default instance id's that server uses
-#define DEFAULT_M2M_INSTANCE       0
-#define DEFAULT_BOOTSTRAP_INSTANCE 1
-
 M2MSecurity* M2MSecurity::_instance = NULL;
 
 M2MSecurity* M2MSecurity::get_instance()
@@ -57,99 +53,122 @@ M2MSecurity::~M2MSecurity()
 {
 }
 
-M2MObjectInstance* M2MSecurity::create_object_instance(ServerType server_type)
+void M2MSecurity::create_resources(M2MObjectInstance *server_instance, M2MSecurity::ServerType server_type)
 {
-    uint16_t instance_id = DEFAULT_M2M_INSTANCE;
-    if (server_type == Bootstrap) {
-        instance_id = DEFAULT_BOOTSTRAP_INSTANCE;
+    M2MResource* res = server_instance->create_dynamic_resource(SECURITY_M2M_SERVER_URI,
+                                                                 OMA_RESOURCE_TYPE,
+                                                                 M2MResourceInstance::STRING,
+                                                                 false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
     }
-
-    M2MObjectInstance *server_instance = M2MObject::object_instance(instance_id);
-    if (server_instance != NULL) {
-        // Instance already exists, return NULL
-        return NULL;
-    }
-
-    server_instance = M2MObject::create_object_instance(instance_id);
-    if (server_instance) {
-        M2MResource* res = server_instance->create_dynamic_resource(SECURITY_M2M_SERVER_URI,
-                                                                     OMA_RESOURCE_TYPE,
-                                                                     M2MResourceInstance::STRING,
-                                                                     false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
-        }
-        res = server_instance->create_dynamic_resource(SECURITY_BOOTSTRAP_SERVER,
-                                                        OMA_RESOURCE_TYPE,
-                                                        M2MResourceInstance::BOOLEAN,
-                                                        false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
+    res = server_instance->create_dynamic_resource(SECURITY_BOOTSTRAP_SERVER,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::BOOLEAN,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+        if (server_type != M2MSecurity::NotDefined) {
             res->set_value((int)server_type);
         }
-        res = server_instance->create_dynamic_resource(SECURITY_SECURITY_MODE,
+    }
+    res = server_instance->create_dynamic_resource(SECURITY_SECURITY_MODE,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::INTEGER,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+    }
+    res = server_instance->create_dynamic_resource(SECURITY_PUBLIC_KEY,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::OPAQUE,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+    }
+    res = server_instance->create_dynamic_resource(SECURITY_SERVER_PUBLIC_KEY,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::OPAQUE,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+    }
+    res = server_instance->create_dynamic_resource(SECURITY_SECRET_KEY,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::OPAQUE,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+    }
+
+    res = server_instance->create_dynamic_resource(SECURITY_OPEN_CERTIFICATE_CHAIN,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::OPAQUE,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+    }
+
+    res = server_instance->create_dynamic_resource(SECURITY_CLOSE_CERTIFICATE_CHAIN,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::OPAQUE,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+    }
+
+    res = server_instance->create_dynamic_resource(SECURITY_READ_CERTIFICATE_CHAIN,
+                                                    OMA_RESOURCE_TYPE,
+                                                    M2MResourceInstance::OPAQUE,
+                                                    false);
+    if (res) {
+        res->set_operation(M2MBase::NOT_ALLOWED);
+    }
+
+    // This is a resource only for LWM2M server instance.
+    // Will be created also when server type is not defined.
+    // Deserialization of a bootstrap PUT payload is deleting the resources that are not present in payload.
+    if (M2MSecurity::Bootstrap != server_type) {
+        res = server_instance->create_dynamic_resource(SECURITY_SHORT_SERVER_ID,
                                                         OMA_RESOURCE_TYPE,
                                                         M2MResourceInstance::INTEGER,
                                                         false);
         if (res) {
             res->set_operation(M2MBase::NOT_ALLOWED);
         }
-        res = server_instance->create_dynamic_resource(SECURITY_PUBLIC_KEY,
-                                                        OMA_RESOURCE_TYPE,
-                                                        M2MResourceInstance::OPAQUE,
-                                                        false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
-        }
-        res = server_instance->create_dynamic_resource(SECURITY_SERVER_PUBLIC_KEY,
-                                                        OMA_RESOURCE_TYPE,
-                                                        M2MResourceInstance::OPAQUE,
-                                                        false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
-        }
-        res = server_instance->create_dynamic_resource(SECURITY_SECRET_KEY,
-                                                        OMA_RESOURCE_TYPE,
-                                                        M2MResourceInstance::OPAQUE,
-                                                        false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
-        }
-
-        res = server_instance->create_dynamic_resource(SECURITY_OPEN_CERTIFICATE_CHAIN,
-                                                        OMA_RESOURCE_TYPE,
-                                                        M2MResourceInstance::OPAQUE,
-                                                        false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
-        }
-
-        res = server_instance->create_dynamic_resource(SECURITY_CLOSE_CERTIFICATE_CHAIN,
-                                                        OMA_RESOURCE_TYPE,
-                                                        M2MResourceInstance::OPAQUE,
-                                                        false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
-        }
-
-        res = server_instance->create_dynamic_resource(SECURITY_READ_CERTIFICATE_CHAIN,
-                                                        OMA_RESOURCE_TYPE,
-                                                        M2MResourceInstance::OPAQUE,
-                                                        false);
-        if (res) {
-            res->set_operation(M2MBase::NOT_ALLOWED);
-        }
-
-        if (M2MSecurity::M2MServer == server_type) {
-            res = server_instance->create_dynamic_resource(SECURITY_SHORT_SERVER_ID,
-                                                            OMA_RESOURCE_TYPE,
-                                                            M2MResourceInstance::INTEGER,
-                                                            false);
-            if (res) {
-                res->set_operation(M2MBase::NOT_ALLOWED);
-            }
-        }
     }
+}
+
+M2MObjectInstance* M2MSecurity::create_object_instance(uint16_t instance_id)
+{
+    M2MObjectInstance *server_instance = M2MObject::create_object_instance(instance_id);
+
+    if (server_instance) {
+        create_resources(server_instance, M2MSecurity::NotDefined);
+    } else {
+        tr_error("M2MSecurity::create_object_instance - failed to create object instance id: %d", instance_id);
+    }
+
+    return server_instance;
+}
+
+M2MObjectInstance* M2MSecurity::create_object_instance(ServerType server_type)
+{
+    int32_t instance_id = get_security_instance_id(server_type);
+
+    if (instance_id >= 0) {
+        // Instance already exists, return NULL
+        return NULL;
+    }
+
+    M2MObjectInstance *server_instance = M2MObject::create_object_instance(new_instance_id());
+
+    if (server_instance) {
+        create_resources(server_instance, server_type);
+    } else {
+        tr_error("M2MSecurity::create_object_instance - failed to create object instance for server type: %d", server_type);
+    }
+
     return server_instance;
 }
 
@@ -478,8 +497,27 @@ M2MResource* M2MSecurity::get_resource(SecurityResource res, uint16_t instance_i
     return res_object;
 }
 
+void M2MSecurity::clear_resources()
+{
+    const M2MObjectInstanceList &insts = instances();
+
+    if (!insts.empty()) {
+        M2MObjectInstanceList::const_iterator it;
+        it = insts.begin();
+        for ( ; it != insts.end(); it++ ) {
+            uint16_t id = (*it)->instance_id();
+            clear_resources(id);
+        }
+    }
+}
+
 void M2MSecurity::clear_resources(uint16_t instance_id)
 {
+    // BOOTSTRAP DELETE - except the LwM2M Bootstrap-Server Account
+    if(server_type(instance_id) == M2MSecurity::Bootstrap) {
+        return;
+    }
+
     for(int i = 0; i <= M2MSecurity::ClientHoldOffTime; i++) {
         M2MResource *res = get_resource((SecurityResource) i, instance_id);
         if (res) {

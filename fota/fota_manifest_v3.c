@@ -200,8 +200,9 @@ static int parse_payload_metadata(
  *      -- 01xx-FFxx describe encrypted-format
  *      raw-binary(1),
  *      arm-patch-stream(5),
+ *      combined(6),
  *      encrypted-raw(257),  -- 0x0101
- *      encrypted-patch(261) -- 0x0105
+ *      encrypted-combined(263) -- 0x0106
  *    },
  *
  *    -- raw ECDSA signature (r||s) over installed payload
@@ -358,7 +359,7 @@ int parse_manifest_internal(
     p += len;
 
     FOTA_MANIFEST_TRACE_DEBUG("Parse Manifest:payload-format @%d",  p - input_data);
-    tls_status = mbedtls_asn1_get_enumerated_value(&p, manifest_end, &fw_info->payload_format);
+    tls_status = mbedtls_asn1_get_enumerated_value(&p, manifest_end,(int *)&fw_info->payload_format);
     if (tls_status != 0) {
         FOTA_TRACE_ERROR("Error reading Manifest:payload-format %d", tls_status);
         return FOTA_STATUS_MANIFEST_MALFORMED;
@@ -370,6 +371,12 @@ int parse_manifest_internal(
 
 #if !defined(FOTA_DISABLE_DELTA)
         case FOTA_MANIFEST_PAYLOAD_FORMAT_DELTA:
+#endif
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+        case FOTA_MANIFEST_PAYLOAD_FORMAT_COMBINED:
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+        case FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_COMBINED:
+#endif
 #endif
             break;
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
@@ -385,7 +392,7 @@ int parse_manifest_internal(
 
         // FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_DELTA not supported yet
         default:
-            FOTA_TRACE_ERROR("error unsupported payload format %d - ", fw_info->payload_format);
+            FOTA_TRACE_ERROR("error unsupported payload format %" PRIu32 " - ", fw_info->payload_format);
             return FOTA_STATUS_MANIFEST_PAYLOAD_UNSUPPORTED;
     }
 
@@ -455,52 +462,6 @@ int parse_manifest_internal(
 
     return FOTA_STATUS_SUCCESS;
 }
-
-#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
-/*
- * -- Encryption Key Schema:
- * --   the key used to encrypt the payload
- * --   added by service after SignedResource
- * EncryptionKeySchema DEFINITIONS IMPLICIT TAGS ::= BEGIN
- *   EncryptionKey ::= CHOICE {
- *     aes-128-bit [1] IMPLICIT OCTET STRING (SIZE(16))
- *   }
- */
-static int parse_encryption_key(
-    const uint8_t *int_key, size_t int_key_size,
-    uint8_t        encryption_key[FOTA_ENCRYPT_KEY_SIZE],
-    const uint8_t *input_data
-)
-{
-    size_t len = int_key_size;
-    unsigned char *p = (unsigned char *)int_key;
-    unsigned char *encryption_key_end = p + int_key_size;
-
-    FOTA_MANIFEST_TRACE_DEBUG("Parse EncryptionKey @%d",  p - input_data);
-    int ret = mbedtls_asn1_get_tag(
-                    &p, encryption_key_end, &len,
-                    MBEDTLS_ASN1_CONTEXT_SPECIFIC | FOTA_MANIFEST_ENCRYPTION_KEY_TAG_AES_128);
-    if (ret != 0) {
-        FOTA_TRACE_ERROR("Error EncryptionKey tag %d", ret);
-        return FOTA_STATUS_MANIFEST_MALFORMED;
-    }
-
-    if (len != FOTA_ENCRYPT_KEY_SIZE) {
-        FOTA_TRACE_ERROR("Unexpected EncryptionKey size %zu", len);
-        return FOTA_STATUS_MANIFEST_MALFORMED;
-    }
-
-    if (p + len > encryption_key_end) {
-        FOTA_TRACE_ERROR("Error got truncated manifest");
-        return FOTA_STATUS_MANIFEST_MALFORMED;
-    }
-
-    fota_fi_memcpy(encryption_key, p, FOTA_ENCRYPT_KEY_SIZE);
-    p += len;
-
-    return FOTA_STATUS_SUCCESS;
-}
-#endif // (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
 
 /*
  * Assuming SignedResource followed by EncryptionKeySchema
@@ -648,27 +609,91 @@ int fota_manifest_parse(
         return tmp_status;
     }
 
-#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
-    if (fw_info->payload_format == FOTA_MANIFEST_PAYLOAD_FORMAT_ENCRYPTED_RAW) {
-
-        unsigned char *int_key = p;
-        size_t int_key_size = input_size - (size_t)(p - input_data);
-        tmp_status = parse_encryption_key(
-                        int_key, int_key_size,
-                        fw_info->encryption_key, input_data);
-        if (tmp_status != 0) {
-            FOTA_TRACE_ERROR("parse_manifest_internal failed %d", tmp_status);
-            return tmp_status;
-        }
-
-    }
-#endif
-
     FOTA_MANIFEST_TRACE_DEBUG("status = %d", FOTA_STATUS_SUCCESS);
     return FOTA_STATUS_SUCCESS;
 fail:
     return ret;
 }
-#endif
+
+#if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+/*
+ * Assuming SignedResource followed by EncryptionKeySchema
+ *  when the payload is pre-encrypted
+ * 
+ *  SignedResource ::= SEQUENCE {
+ *    manifest-version ENUMERATED {
+ *      v3(3)
+ *    },
+ *    manifest Manifest,
+ *
+ *    -- raw ECDSA signature (r||s) over Manifest
+ *    signature OCTET STRING
+ *  }
+ *
+ * -- Encryption Key Schema:
+ * --   the key used to encrypt the payload
+ * --   added by service after SignedResource
+ * EncryptionKeySchema DEFINITIONS IMPLICIT TAGS ::= BEGIN
+ *   EncryptionKey ::= CHOICE {
+ *     aes-128-bit [1] IMPLICIT OCTET STRING (SIZE(16))
+ *   }
+ */
+int fota_encryption_key_parse(
+    const uint8_t *input_data,
+    size_t         input_size,
+    uint8_t        encryption_key[FOTA_ENCRYPT_KEY_SIZE]
+)
+{
+    FOTA_DBG_ASSERT(input_data);
+    FOTA_DBG_ASSERT(input_size);
+
+    size_t len = input_size;
+    unsigned char *p = (unsigned char *)input_data;
+    unsigned char *input_data_end = p + len;
+
+    FOTA_MANIFEST_TRACE_DEBUG("Parse SignedResource @%d",  p - input_data);
+    int ret = mbedtls_asn1_get_tag(
+                     &p, input_data_end, &len,
+                     MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+    if (ret != 0) {
+        FOTA_TRACE_ERROR("Error SignedResource tag %d", ret);
+        return FOTA_STATUS_MANIFEST_MALFORMED;
+    }
+
+    if (p + len > input_data_end) {
+        FOTA_TRACE_ERROR("Error got truncated manifest");
+        return FOTA_STATUS_MANIFEST_MALFORMED;
+    }
+
+    // jump over SignedResource
+    p += len;
+
+    FOTA_MANIFEST_TRACE_DEBUG("Parse EncryptionKey @%d",  p - input_data);
+    ret = mbedtls_asn1_get_tag(
+                    &p, input_data_end, &len,
+                    MBEDTLS_ASN1_CONTEXT_SPECIFIC | FOTA_MANIFEST_ENCRYPTION_KEY_TAG_AES_128);
+    if (ret != 0) {
+        FOTA_TRACE_ERROR("Error EncryptionKey tag %d", ret);
+        return FOTA_STATUS_MANIFEST_MALFORMED;
+    }
+
+    if (len != FOTA_ENCRYPT_KEY_SIZE) {
+        FOTA_TRACE_ERROR("Unexpected EncryptionKey size %zu", len);
+        return FOTA_STATUS_MANIFEST_MALFORMED;
+    }
+
+    if (p + len > input_data_end) {
+        FOTA_TRACE_ERROR("Error got truncated manifest");
+        return FOTA_STATUS_MANIFEST_MALFORMED;
+    }
+
+    fota_fi_memcpy(encryption_key, p, FOTA_ENCRYPT_KEY_SIZE);
+    p += len;
+
+    return FOTA_STATUS_SUCCESS;
+}
+#endif // (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
+
+#endif // (FOTA_MANIFEST_SCHEMA_VERSION == 3)
 
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE

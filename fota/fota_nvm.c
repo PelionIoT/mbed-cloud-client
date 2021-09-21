@@ -332,6 +332,24 @@ int fota_nvm_get_vendor_id(uint8_t buffer[FOTA_GUID_SIZE])
 
 #endif  // !defined(FOTA_USE_EXTERNAL_IDS)
 
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+
+int fota_nvm_update_result_set(int status)
+{
+    return fota_nvm_set(FOTA_RESULT_VALUE, (const uint8_t *)&status, sizeof(status), CCS_CONFIG_ITEM);
+}
+
+int fota_nvm_update_result_get(int *status, size_t status_size, size_t *bytes_read)
+{
+    return fota_nvm_get(FOTA_RESULT_VALUE, (uint8_t *)status, status_size, bytes_read, CCS_CONFIG_ITEM);
+}
+
+int fota_nvm_update_result_delete(void)
+{
+    return fota_nvm_remove(FOTA_MANIFEST_KEY, CCS_CONFIG_ITEM);
+}
+#endif
+
 #if !defined(FOTA_USE_EXTERNAL_MANIFEST_STORE)
 
 int fota_nvm_manifest_set(const uint8_t *buffer, size_t buffer_size)

@@ -512,6 +512,7 @@ private:
     friend class Test_M2MNsdlInterface;
     friend class Test_M2MTLVSerializer;
     friend class Test_M2MTLVDeserializer;
+    friend class Test_M2MDynLog;
 };
 
 #endif // M2M_RESOURCE_BASE_H

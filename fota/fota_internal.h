@@ -58,9 +58,6 @@ typedef enum {
 } fota_install_state_e;
 
 
-// The encryption block size used to encrypt payload by the cloud
-#define FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE 1024
-
 // Internal component for BR downloader (must start with '%' as it's internal)
 #define FOTA_MULTICAST_BR_INT_COMP_NAME "%MC_BR"
 
@@ -105,6 +102,7 @@ typedef struct {
     fota_multicast_node_post_action_callback_t mc_node_post_action_callback;
     uint8_t *mc_node_frag_buf;
     uint8_t mc_node_manifest_hash[FOTA_CRYPTO_HASH_SIZE];
+    size_t activate_in_sec;
 #endif
 } fota_context_t;
 

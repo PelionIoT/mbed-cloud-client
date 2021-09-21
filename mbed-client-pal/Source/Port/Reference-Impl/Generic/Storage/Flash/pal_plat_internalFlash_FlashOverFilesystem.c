@@ -28,6 +28,15 @@
 
 #define BITS_ALIGNED_TO_32  0x3
 
+#ifndef PAL_SIMULATOR_FLASH_FACTORY_MODE
+#warning PAL_SIMULATOR_FLASH_FACTORY_MODE is not defined. \
+         Set PAL_SIMULATOR_FLASH_FACTORY_MODE = 1 during factory provisioning, allowing file creation. \
+         Set PAL_SIMULATOR_FLASH_FACTORY_MODE = 0 when deployed to prevent data corruption. \
+         Current default is 1 for backwards compatibility but will change to 0 in the future.
+
+#define PAL_SIMULATOR_FLASH_FACTORY_MODE 1
+#endif
+
 PAL_PRIVATE palFileDescriptor_t g_fd = 0;
 
 //////////////////////////END GLOBALS SECTION ////////////////////////////
@@ -178,6 +187,21 @@ palStatus_t pal_plat_internalFlashInit(void)
 
     char buffer[PAL_MAX_FILE_AND_FOLDER_LENGTH];
 
+#if (PAL_SIMULATOR_FLASH_FACTORY_MODE == 0)
+    // Factory mode disabled, only check if file exists.
+    ret = pal_getFlashSimulationFilePathAndName(buffer);
+
+    if (PAL_SUCCESS == ret)
+    {
+        ret = pal_fsFopen(buffer, PAL_FS_FLAG_READONLY, &g_fd);
+        if (PAL_SUCCESS == ret)
+        {
+            pal_fsFclose(&g_fd);
+        }
+    }
+
+#elif (PAL_SIMULATOR_FLASH_FACTORY_MODE == 1)
+    // Factory mode enabled, create file if missing.
     ret = pal_getFlashSimulationFilePath(buffer);
 
     if (PAL_SUCCESS == ret)
@@ -196,6 +220,9 @@ palStatus_t pal_plat_internalFlashInit(void)
             ret = pal_verifyAndCreateFlashFile();
         }
     }
+#else
+#error PAL_SIMULATOR_FLASH_FACTORY_MODE not defined
+#endif
 
     return ret;
 }

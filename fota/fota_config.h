@@ -146,6 +146,24 @@
 #define MBED_CLOUD_CLIENT_FOTA_LINUX_CANDIDATE_FILENAME "fota_candidate"
 #endif
 
+#if (MBED_CLOUD_CLIENT_FOTA_SUB_COMPONENT_SUPPORT == 1)
+
+#if !defined(FOTA_COMBINED_IMAGE_VENDOR_MAX_DATA_SIZE)
+#define FOTA_COMBINED_IMAGE_VENDOR_MAX_DATA_SIZE    32
+#endif
+
+#if !defined(FOTA_MAX_NUM_OF_SUB_COMPONENTS)
+#define FOTA_MAX_NUM_OF_SUB_COMPONENTS 2
+#endif
+
+#if defined(TARGET_LIKE_LINUX)
+#if !defined(MBED_CLOUD_CLIENT_FOTA_LINUX_PACKAGE_DIRECTORY_NAME)
+#define MBED_CLOUD_CLIENT_FOTA_LINUX_PACKAGE_DIRECTORY_NAME "package_dir"
+#endif
+#endif
+
+#endif
+
 #if defined(FOTA_UNIT_TEST)
 // Unit tests don't actually replace the current running app, but use a test file
 extern char *unitest_curr_fw_filename;
@@ -167,12 +185,6 @@ extern char *program_invocation_name;
 #if !defined(FOTA_CUSTOM_MAIN_APP_VERIFY_INSTALL)
 // Use default verification logic otherwise
 #define FOTA_CUSTOM_MAIN_APP_VERIFY_INSTALL 0
-#endif
-
-// Set this flag to 0 to save post upgrade verification code
-#if !defined(FOTA_VERIFY_INSTALLATION_AFTER_UPGRADE)
-// Logic should be enabled by default otherwise
-#define FOTA_VERIFY_INSTALLATION_AFTER_UPGRADE 1
 #endif
 
 #ifndef MBED_CLOUD_CLIENT_FOTA_BLOCK_DEVICE_TYPE
@@ -279,6 +291,9 @@ extern char *program_invocation_name;
 #warning FOTA_USE_DEVICE_KEY is deprecated and contains security vulnerability. \
           Please consider using FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY instead.
 #endif
+
+// The encryption block size used to encrypt payload by the cloud
+#define FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE 1024
 
 #if (MBED_CLOUD_CLIENT_FOTA_CANDIDATE_BLOCK_SIZE != FOTA_CLOUD_ENCRYPTION_BLOCK_SIZE)
 #warning 'encrypted-raw' payload format will not be supported because \

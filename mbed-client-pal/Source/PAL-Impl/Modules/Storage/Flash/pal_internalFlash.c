@@ -230,7 +230,7 @@ palStatus_t pal_internalFlashErase(uint32_t address, size_t size)
     sectorSize = pal_internalFlashGetSectorSize(address);
     while (size)
     {
-        ret = pal_plat_internalFlashErase(address, size);
+        ret = pal_plat_internalFlashErase(address, sectorSize);
         size -= sectorSize;
         address += pal_internalFlashGetSectorSize(address + sectorSize);
         sectorSize = pal_internalFlashGetSectorSize(address);

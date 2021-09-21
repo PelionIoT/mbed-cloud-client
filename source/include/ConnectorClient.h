@@ -33,10 +33,6 @@
 #include "include/CloudClientStorage.h"
 #include "mbed-cloud-client/MbedCloudClientConfig.h"
 
-#ifdef MBED_CONF_MBED_CLOUD_CLIENT_DISABLE_CERTIFICATE_ENROLLMENT
-#define MBED_CLIENT_DISABLE_EST_FEATURE
-#endif
-
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
 #include "include/EstClient.h"
 #endif // !MBED_CLIENT_DISABLE_EST_FEATURE
@@ -73,9 +69,7 @@ public:
  * This class contains also the bootstrap functionality.
  */
 class ConnectorClient : public M2MInterfaceObserver
-#ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     , public M2MTimerObserver
-#endif
 {
 
 public:
@@ -237,6 +231,13 @@ public:
 
 public:
     // implementation of M2MInterfaceObserver:
+
+    /**
+     * \brief A callback indicating that the given security object instance
+     * requires initialisation.
+     * \param instance_id, The instance id of the security object instance to be initialised.
+     */
+    virtual void init_security_object(uint16_t instance_id);
 
     /**
      * \brief A callback indicating that the bootstap has been performed successfully.
@@ -429,6 +430,12 @@ private:
      * \brief A utility function to check whether bootstrap credentials are stored in KCM.
      */
     bool bootstrap_credentials_stored_in_kcm();
+
+    /**
+    * \brief Bootstrap performed.
+    *
+    */
+    bool bootstrapped();
 #endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 
     /**
@@ -454,12 +461,6 @@ private:
     *
     */
     void init_security_object();
-
-    /**
-    * \brief Bootstrap performed.
-    *
-    */
-    bool bootstrapped();
 
 private:
     // A callback to be called after the sequence is complete.

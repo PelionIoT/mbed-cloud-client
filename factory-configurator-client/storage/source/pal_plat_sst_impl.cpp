@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2018 ARM Ltd.
+// Copyright 2018-2021 Pelion.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #include "pv_error_handling.h"
 #include "pal_sst.h"
 #include "kvstore_global_api.h"
-#ifdef TARGET_LIKE_MBED
+#ifdef __MBED__
 #include "mbed.h"
 #if MBED_MAJOR_VERSION > 5
 #include "DeviceKey.h"
@@ -31,7 +31,7 @@
 
 #define TRACE_GROUP "SST"
 
-#ifndef TARGET_LIKE_MBED
+#ifndef __MBED__
 enum mbed_errors {
     MBED_SUCCESS,
     MBED_ERROR_READ_FAILED,

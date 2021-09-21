@@ -62,6 +62,7 @@ static bool auto_observable_reporting_enabled;
 static const char *manifest_res_id = "/10252/0/1";
 static const char *state_res_id = "/10252/0/2";
 static const char *update_result_res_id = "/10252/0/3";
+static const char *update_customer_result_res_id = "/10252/0/4";
 static const char *protocol_version_res_id = "/10255/0/0";
 static const char *vendor_id_res_id = "/10255/0/3";
 static const char *class_id_res_id = "/10255/0/4";
@@ -78,8 +79,11 @@ static int fota_state;
 // Value for this resource crosses the init/deinit calls (so it can be resent in
 // reg message after failures), hence initialized here.
 static int fota_update_result = DEFAULT_INT_VAL;
+static int fota_update_customer_result;
 
 static uint16_t update_result_aobs_id;
+static uint16_t update_customer_result_aobs_id;
+
 
 #endif
 
@@ -317,6 +321,14 @@ static int get_fota_resources(endpoint_t *endpoint, register_resource_t **res)
     // Need to save this for later for dynamic reporting of update result
     update_result_aobs_id = curr->aobs_id;
 
+    curr->next = endpoint_create_register_resource_int(endpoint, update_customer_result_res_id, true, fota_update_customer_result);
+    curr = curr->next;
+    if (!curr) {
+        return -1;
+    }
+    // Need to save this for later for dynamic reporting of update result
+    update_customer_result_aobs_id = curr->aobs_id;
+
     curr->next = endpoint_create_register_resource_int(endpoint, protocol_version_res_id, true, FOTA_MCCP_PROTOCOL_VERSION);
     curr = curr->next;
     if (!curr) {
@@ -471,6 +483,14 @@ int fota_source_init(
     if (REGISTRY_STATUS_OK != registry_set_value_int(registry, &path, DEFAULT_INT_VAL) ||
             REGISTRY_STATUS_OK != registry_set_auto_observable_parameter(registry, &path, true) ||
             REGISTRY_STATUS_OK != registry_set_resource_value_to_reg_msg(registry, &path, true)) {
+        goto fail;
+    }
+
+    // Create update result resource /10252/0/4
+    registry_set_path(&path, FOTA_SOURCE_PACKAGE_OBJECT_ID, 0, FOTA_SOURCE_UPDATE_CUSTOMER_RESULT_RESOURCE_ID,
+                      0, REGISTRY_PATH_RESOURCE);
+    if (REGISTRY_STATUS_OK != registry_set_auto_observable_parameter(registry, &path, true) ||
+            REGISTRY_STATUS_OK != registry_set_resource_value_to_reg_msg(registry, &path, false)) {
         goto fail;
     }
 
@@ -640,6 +660,19 @@ static int report_int(int value, int16_t resource_id, report_sent_callback_t on_
 }
 #endif
 
+// new feature set delaied state not supported in lite mode
+// added implemantation for backword compatability
+int fota_source_report_state_in_ms(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure, size_t in_ms)
+{
+    (void)in_ms;
+    return fota_source_report_state(state, on_sent, on_failure);
+}
+
+void report_state_random_delay(bool enable)
+{
+    (void)enable;
+}
+
 int fota_source_report_state(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure)
 {
 #ifndef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
@@ -657,11 +690,26 @@ int fota_source_report_state(fota_source_state_e state, report_sent_callback_t o
 int fota_source_report_update_result(int result)
 {
 #ifndef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
-    return report_int(result, FOTA_SOURCE_UPDATE_RESULT_RESOURCE_ID, NULL, NULL);  // 10252/0/3
+    return report_int(result, FOTA_SOURCE_UPDATE_RESULT_RESOURCE_ID, NULL, NULL);
 #else
     fota_update_result = result;
     registry_path_t path = {FOTA_SOURCE_PACKAGE_OBJECT_ID, 0, FOTA_SOURCE_UPDATE_RESULT_RESOURCE_ID, 0, REGISTRY_PATH_RESOURCE};
     int ret = endpoint_send_notification_int(endpoint, &path, update_result_aobs_id, result);
+    if (ret != NOTIFICATION_STATUS_SENT) {
+        return FOTA_STATUS_INTERNAL_ERROR;
+    }
+    return FOTA_STATUS_SUCCESS;
+#endif
+}
+
+int fota_source_report_update_customer_result(int result)
+{
+#ifndef MBED_CLOUD_CLIENT_DISABLE_REGISTRY
+    return report_int(result, FOTA_SOURCE_UPDATE_CUSTOMER_RESULT_RESOURCE_ID, NULL, NULL);
+#else
+    fota_update_customer_result = result;
+    registry_path_t path = {FOTA_SOURCE_PACKAGE_OBJECT_ID, 0, FOTA_SOURCE_UPDATE_CUSTOMER_RESULT_RESOURCE_ID, 0, REGISTRY_PATH_RESOURCE};
+    int ret = endpoint_send_notification_int(endpoint, &path, update_customer_result_aobs_id, result);
     if (ret != NOTIFICATION_STATUS_SENT) {
         return FOTA_STATUS_INTERNAL_ERROR;
     }

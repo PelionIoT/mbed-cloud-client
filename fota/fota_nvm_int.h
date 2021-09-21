@@ -53,6 +53,7 @@ typedef const char * cloud_client_param;
 #define FOTA_SALT_KEY                           "FOTA_SALT_KEY" // ""FTSaltKey"
 #define FOTA_MANIFEST_KEY                       "FOTA_MANIFEST_KEY" // ""FTManKey"
 #define FOTA_COMP_VER_BASE                      "FTCmpV"
+#define FOTA_RESULT_VALUE                       "FOTA_RESULT"
 
 #endif  // (MBED_CLOUD_CLIENT_PROFILE == MBED_CLOUD_CLIENT_PROFILE_LITE)
 

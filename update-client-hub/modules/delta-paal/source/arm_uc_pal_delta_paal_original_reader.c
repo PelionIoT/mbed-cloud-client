@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2019 ARM Ltd.
+// Copyright 2019-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -110,7 +110,7 @@ int arm_uc_deltapaal_original_reader(void* buffer, uint64_t length, uint32_t off
     uint32_t appStart = MBED_CONF_APP_APPLICATION_START_ADDRESS;
 
     int32_t status = ARM_UC_FLASHIAP_SUCCESS;
-	
+
 #if defined(TARGET_LIKE_MBED)
     static int flash_init_done = 0;
 #endif

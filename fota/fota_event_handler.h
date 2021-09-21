@@ -28,7 +28,7 @@ extern "C" {
 
 #include "fota_internal.h"
 
-typedef  void (*fota_deferred_data_callabck_t)(uint8_t *data, size_t size);
+typedef  void (*fota_deferred_data_callabck_t)(void *data, size_t size);
 typedef  void (*fota_deferred_result_callabck_t)(int32_t param);
 
 /*
@@ -57,7 +57,7 @@ void fota_event_handler_deinit(void);
  * \return FOTA_STATUS_SUCCESS on success.
  */
 int fota_event_handler_defer_with_data(
-    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size);
+    fota_deferred_data_callabck_t cb, void *data, size_t size);
 
 /*
  * Defer execution of a FOTA callback with a data buffer after a given time
@@ -71,7 +71,16 @@ int fota_event_handler_defer_with_data(
  * \return FOTA_STATUS_SUCCESS on success.
  */
 int fota_event_handler_defer_with_data_in_ms(
-    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size, size_t in_ms);
+    fota_deferred_data_callabck_t cb, void *data, size_t size, size_t in_ms, uint8_t event_id);
+
+/*
+ * Cancel delayed event
+ *
+ *
+ * /param event_id[in] event id to cancel
+ * \return FOTA_STATUS_SUCCESS on success.
+ */
+int fota_event_cancel(uint8_t event_id);
 
 /*
  * Defer execution of a FOTA callback with error details

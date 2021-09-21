@@ -115,6 +115,7 @@ namespace m2m
     int compare( size_type pos, size_type len, const char*   str ) const;
 
     int find_last_of(char c) const;
+    int find_first_of(char c) const;
 
     static uint8_t* convert_integer_to_array(int64_t value, uint8_t &size, const uint8_t *array = NULL, const uint32_t array_size = 0);
     static int64_t convert_array_to_integer(const uint8_t *value, const uint32_t size);

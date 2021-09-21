@@ -307,6 +307,21 @@ int String::find_last_of(char c) const {
     return r;
 }
 
+int String::find_first_of(char c) const {
+    int r = -1;
+    char *v;
+    v = strchr(p,c);
+    if (v != NULL) {
+        r = 0;
+        char* i = p;
+        while (v != i) {
+            i++;
+            r++;
+        }
+    }
+    return r;
+}
+
 void String::new_realloc( size_type n) {
     if (n > 0 ) {
         char* pnew = static_cast<char*>(realloc(p, n)); // could return NULL

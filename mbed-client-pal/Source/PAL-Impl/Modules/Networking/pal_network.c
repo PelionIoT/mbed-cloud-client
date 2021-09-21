@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2016, 2017 ARM Ltd.
+ * Copyright 2016-2021 Pelion.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@
 #include "pal_plat_network.h"
 
 #define TRACE_GROUP "PAL"
+
+static uint16_t _stagger_override_value = 0;
 
 typedef struct pal_in_addr {
     uint32_t s_addr; // that's a 32-bit int (4 bytes)
@@ -493,7 +495,7 @@ palStatus_t pal_getAddressInfoAsync(const char* hostname,
 }
 
 #elif (PAL_DNS_API_VERSION == 2) || (PAL_DNS_API_VERSION == 3)
-#if !defined(TARGET_LIKE_MBED) && (PAL_DNS_API_VERSION == 2)
+#if !defined(__MBED__) && (PAL_DNS_API_VERSION == 2)
 #error "PAL_DNS_API_VERSION 2 is only supported with mbed-os"
 #endif
 palStatus_t pal_getAddressInfoAsync(const char* hostname,
@@ -568,6 +570,15 @@ uint8_t pal_getRttEstimate()
 
 uint16_t pal_getStaggerEstimate(uint16_t data_amount)
 {
-    return pal_plat_getStaggerEstimate(data_amount);
+    if (_stagger_override_value > 0) {
+        PAL_LOG_INFO("Using override for stagger of %d.", _stagger_override_value);
+        return _stagger_override_value;
+    } else {
+        return pal_plat_getStaggerEstimate(data_amount);
+    }
 }
 
+void pal_setFixedStaggerEstimate(uint16_t stagger_estimate)
+{
+    _stagger_override_value = stagger_estimate;
+}

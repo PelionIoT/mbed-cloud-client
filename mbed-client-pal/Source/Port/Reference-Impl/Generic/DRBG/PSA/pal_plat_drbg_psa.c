@@ -20,7 +20,7 @@
 
 #include "pal.h"
 #include "pal_plat_drbg.h"
-#include "crypto.h"
+#include "psa/crypto.h"
 
 #define TRACE_GROUP "PAL"
 

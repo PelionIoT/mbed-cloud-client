@@ -143,10 +143,10 @@ public:
 
     /**
     *  \brief Starts the registration or bootstrap sequence from MbedCloudClient.
-    *  \param callback, Takes the callback for the status from ConnectorClient.
-    *  \param client_objs, A list of objects to be registered to Cloud.
+    *  \param reg_objs, A list of objects to be registered to Cloud.
+    *  \param full_register If set, forces client to send a registration message to Device Management server.
     */
-    void initialize_and_register(M2MBaseList &reg_objs);
+    void initialize_and_register(M2MBaseList &reg_objs, bool full_register);
 
     /**
     *  \brief Initializes event OS tasklets
@@ -345,6 +345,11 @@ private:
 #ifdef SERVICE_CLIENT_SUPPORT_MULTICAST
     int8_t                          _multicast_tasklet_id;
 #endif // SERVICE_CLIENT_SUPPORT_MULTICAST
+
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+    int8_t                          _dynlog_tasklet_id;
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
+
     ConnectorClient                 _connector_client;
     int8_t                          _tasklet_id;
     arm_event_storage_t             _event;

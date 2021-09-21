@@ -201,6 +201,13 @@
     #define PAL_USE_FILESYSTEM 1
 #endif
 
+#ifndef PAL_NET_DNS_SUPPORT
+    #define PAL_NET_DNS_SUPPORT 1
+#endif
+
+#if (PAL_NET_DNS_SUPPORT == 1) && !(defined(PAL_DNS_API_VERSION))
+#define PAL_DNS_API_VERSION 3 //!< asyncronous DNS API that can return multiple DNS results.
+#endif
 
 // Sanity check for defined stack sizes
 #if (PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)

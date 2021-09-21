@@ -37,7 +37,7 @@
 #define FOTA_EVENT_EXECUTE_WITH_RESULT 4
 
 typedef struct {
-    uint8_t *data;
+    void *data;
     size_t size;
 } fota_cb_buffer_t;
 
@@ -87,10 +87,10 @@ static void event_handler(arm_event_t *event)
 
         // backup the pointer as we need it after the callback.
         // since we are setting ctx->is_pending_event = false - it may be overwritten
-        uint8_t *cb_data = ctx->args.buffer.data;
+        void *cb_data = ctx->args.buffer.data;
 
         cb(ctx->args.buffer.data, ctx->args.buffer.size);
-        free((void *)cb_data);
+        free(cb_data);
 
     } else { // FOTA_EVENT_EXECUTE_WITH_RESULT
 
@@ -121,14 +121,14 @@ void fota_event_handler_deinit(void)
 }
 
 static int fota_event_handler_defer_with_data_(
-    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size, size_t in_ms)
+    fota_deferred_data_callabck_t cb, void *data, size_t size, size_t in_ms, uint8_t event_id)
 {
     FOTA_ASSERT(!g_ctx.is_pending_event);
     g_ctx.is_pending_event = true;
     g_ctx.cb = (void *)cb;
     g_ctx.args.buffer.size = size;
     if (size) {
-        uint8_t *tmp_data_ptr = (uint8_t *) malloc(size);
+        void *tmp_data_ptr = malloc(size);
         if (!tmp_data_ptr) {
             FOTA_TRACE_ERROR("FOTA tmp_data_ptr - allocation failed");
             return FOTA_STATUS_OUT_OF_MEMORY;
@@ -151,6 +151,7 @@ static int fota_event_handler_defer_with_data_(
         event.receiver = g_ctx.event_storage.data.receiver;
         event.event_type = g_ctx.event_storage.data.event_type;
         event.priority = g_ctx.event_storage.data.priority;
+        event.event_id = event_id;
         eventOS_event_timer_request_in(&event, eventOS_event_timer_ms_to_ticks(in_ms));
     } else {
         eventOS_event_send_user_allocated(&g_ctx.event_storage);
@@ -159,16 +160,29 @@ static int fota_event_handler_defer_with_data_(
     return FOTA_STATUS_SUCCESS;
 }
 
-int fota_event_handler_defer_with_data(
-    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size)
+int fota_event_cancel(uint8_t event_id)
 {
-    return fota_event_handler_defer_with_data_(cb, data, size, 0);
+    if( !eventOS_event_timer_cancel(event_id, g_tasklet_id)) {
+        void *cb_data = g_ctx.args.buffer.data;
+        free(cb_data);
+        g_ctx.is_pending_event = false;
+        FOTA_TRACE_DEBUG("fota_event_cancel canceled event");
+    } else {
+        FOTA_TRACE_DEBUG("fota_event_cancel event not found");
+    }
+    return FOTA_STATUS_SUCCESS;
+}
+
+int fota_event_handler_defer_with_data(
+    fota_deferred_data_callabck_t cb, void *data, size_t size)
+{
+    return fota_event_handler_defer_with_data_(cb, data, size, 0, 0);
 }
 
 int fota_event_handler_defer_with_data_in_ms(
-    fota_deferred_data_callabck_t cb, uint8_t *data, size_t size, size_t in_ms)
+    fota_deferred_data_callabck_t cb, void *data, size_t size, size_t in_ms, uint8_t event_id)
 {
-    return fota_event_handler_defer_with_data_(cb, data, size, in_ms);
+    return fota_event_handler_defer_with_data_(cb, data, size, in_ms, event_id);
 }
 
 void fota_event_handler_defer_with_result(

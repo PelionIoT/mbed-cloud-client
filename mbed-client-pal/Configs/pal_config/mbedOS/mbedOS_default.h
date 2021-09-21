@@ -36,7 +36,11 @@
     #define PAL_RTOS_WAIT_FOREVER osWaitForever
 #endif
 
-#if (PAL_NET_DNS_SUPPORT == true) && !(defined(PAL_DNS_API_VERSION))
+#ifndef PAL_NET_DNS_SUPPORT
+    #define PAL_NET_DNS_SUPPORT 1
+#endif
+
+#if (PAL_NET_DNS_SUPPORT == 1) && !(defined(PAL_DNS_API_VERSION))
 #define PAL_DNS_API_VERSION 2 //!< asyncronous DNS API
 #endif
 

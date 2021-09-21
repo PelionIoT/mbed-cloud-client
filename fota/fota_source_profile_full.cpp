@@ -33,7 +33,6 @@
 #include "fota/fota_component_defs.h"
 #include "fota/fota_component_internal.h"
 
-
 #include "mbed-client/m2minterfacefactory.h"
 #include "mbed-client/m2mresource.h"
 #include "mbed-client/m2mobject.h"
@@ -44,6 +43,7 @@ static M2MInterface *g_m2m = NULL;
 static M2MResource *g_manifest_resource = NULL;  // /10252/0/1
 static M2MResource *g_state_resource = NULL;  // /10252/0/2
 static M2MResource *g_update_result_resource = NULL;  // /10252/0/3
+static M2MResource *g_update_customer_result_resource = NULL;  // /10252/0/4
 static M2MObject *g_lwm2m_manifest_object = NULL; //10252
 static M2MObject *g_lwm2m_dev_metadata_object = NULL; //10255
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 0)
@@ -53,6 +53,7 @@ static M2MObject *g_component_lwm2m_object = NULL;  // /14
 static report_sent_callback_t g_on_sent_callback = NULL;
 static report_sent_callback_t g_on_failure_callback = NULL;
 static bool auto_observable_reporting_enabled;
+static bool report_state_random_delay_enabled = false;
 
 typedef struct {
     size_t max_frag_size;
@@ -296,6 +297,19 @@ int fota_source_init(
     g_update_result_resource->publish_value_in_registration_msg(true);
     g_update_result_resource->set_auto_observable(true);
 
+    // Create update customer result resource /10252/0/4
+    g_update_customer_result_resource = lwm2m_object_instance->create_dynamic_resource(
+                                   "4",
+                                   "CustomerUpdateResult",
+                                   M2MResourceInstance::INTEGER,
+                                   true // observable
+                               );
+    FOTA_ASSERT(g_update_customer_result_resource);
+    g_update_customer_result_resource->set_operation(M2MBase::GET_ALLOWED);
+    g_update_customer_result_resource->set_message_delivery_status_cb(notification_status, NULL);
+    g_update_customer_result_resource->publish_value_in_registration_msg(false);
+    g_update_customer_result_resource->set_auto_observable(true);
+
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 1)
     // Create package name resource /10252/0/5
     FOTA_DBG_ASSERT(curr_fw_digest_size == FOTA_CRYPTO_HASH_SIZE);
@@ -312,6 +326,17 @@ int fota_source_init(
     pkg_name_resource->set_operation(M2MBase::GET_ALLOWED);
     pkg_name_resource->set_value(str_digest, curr_fw_digest_size);
     pkg_name_resource->publish_value_in_registration_msg(true);
+    pkg_name_resource->set_auto_observable(true):
+#else
+    // Create dummy resource for server
+    M2MResource *pkg_name_resource = lwm2m_object_instance->create_dynamic_resource(
+                                         "5",
+                                         "PkgName",
+                                         M2MResourceInstance::STRING,
+                                         false // observable
+                                     );
+    FOTA_ASSERT(pkg_name_resource);
+    pkg_name_resource->set_auto_observable(true);
 #endif
 
 #if (FOTA_SOURCE_LEGACY_OBJECTS_REPORT == 1 || MBED_CLOUD_CLIENT_FOTA_FW_HEADER_VERSION < 3)
@@ -327,6 +352,17 @@ int fota_source_init(
     pkg_version_resource->set_operation(M2MBase::GET_ALLOWED);
     pkg_version_resource->set_value(curr_fw_version);
     pkg_version_resource->publish_value_in_registration_msg(true);
+    pkg_version_resource->set_auto_observable(true);
+#else
+    // Create dummy resource for server
+    M2MResource *pkg_version_resource = lwm2m_object_instance->create_dynamic_resource(
+                                            "6",
+                                            "PkgVersion",
+                                            M2MResourceInstance::INTEGER,
+                                            false // observable
+                                        );
+    FOTA_ASSERT(pkg_version_resource);
+    pkg_version_resource->set_auto_observable(true);
 #endif
 
     m2m_object_list->push_back(g_lwm2m_manifest_object);
@@ -388,6 +424,7 @@ int fota_source_init(
 #endif
 
     fota_source_enable_auto_observable_resources_reporting(true);
+    report_state_random_delay(false);
     return FOTA_STATUS_SUCCESS;
 }
 
@@ -471,9 +508,49 @@ static int report_int(M2MResource *resource, int value, report_sent_callback_t o
     return FOTA_STATUS_SUCCESS;
 }
 
+static void on_random_state_report(void *data, size_t size)
+{
+    (void)size;  // unused param
+    fota_random_state_report_params_t *params = (fota_random_state_report_params_t *)data;
+    report_int(g_state_resource, (int)params->state, params->on_sent, params->on_failure);  // 10252/0/2
+}
+
+static size_t fota_get_random_delay_ms()
+{
+    return (rand() % RANDOM_DELAY_RANGE_IN_SEC) * 1000;
+}
+
+int fota_source_report_state_in_ms(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure, size_t in_ms)
+{
+    if (in_ms) {
+        fota_random_state_report_params_t params;
+        params.state = state;
+        params.on_sent = on_sent;
+        params.on_failure = on_failure;
+        FOTA_TRACE_DEBUG("fota_source_report_state_in_ms sent delayed state %d in_ms %zu", state, in_ms);
+        return fota_event_handler_defer_with_data_in_ms(on_random_state_report, &params, sizeof(params), in_ms, EVENT_RANDOM_DELAY);
+    }
+
+    return report_int(g_state_resource, (int)state, on_sent, on_failure);  // 10252/0/2
+}
+
+void report_state_random_delay(bool enable)
+{
+    report_state_random_delay_enabled = enable;
+}
+
 int fota_source_report_state(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure)
 {
-    return report_int(g_state_resource, (int)state, on_sent, on_failure);  // 10252/0/2
+    if (report_state_random_delay_enabled) {
+        return fota_source_report_state_in_ms(state, on_sent, on_failure, fota_get_random_delay_ms());
+    }
+
+    return fota_source_report_state_in_ms(state, on_sent, on_failure, 0);
+}
+
+int fota_source_report_update_customer_result(int result)
+{
+    return report_int(g_update_customer_result_resource, result, NULL, NULL);  // 10252/0/4
 }
 
 int fota_source_report_update_result(int result)

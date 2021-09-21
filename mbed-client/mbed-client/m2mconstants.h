@@ -180,7 +180,7 @@ const uint32_t HANDSHAKE_TIMEOUT_MSECS = (30 * 60 * 1000);
 #define ERROR_REASON_23 "Bootstrap SecureConnection failed"
 #define ERROR_REASON_26 "BS FIN fails: missing EST iep param"
 #endif
-#define ERROR_REASON_24 "LWM2M server rejected client unregistration (not-found)"
+#define ERROR_REASON_24 "Unregistration failed"
 #define ERROR_REASON_25 "Failed to allocate registration message"
 #define ERROR_REASON_27 "Call already in progress"
 #define ERROR_REASON_28 "Message sending timed out"

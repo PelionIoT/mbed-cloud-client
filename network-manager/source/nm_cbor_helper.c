@@ -32,6 +32,8 @@
 #define CBOR_TAG_REG_DOMAIN                         "reg_domain"
 #define CBOR_TAG_OP_CLASS                           "op_class"
 #define CBOR_TAG_OP_MODE                            "op_mode"
+#define CBOR_TAG_PHY_MODE_ID                        "phy_mode_id"
+#define CBOR_TAG_CHANNEL_PLAN_ID                    "ch_plan_id"
 #define CBOR_TAG_UC_FUNC                            "uc_func"
 #define CBOR_TAG_UC_FIX                             "uc_fix"
 #define CBOR_TAG_UC_DWELL                           "uc_dwell"
@@ -298,17 +300,27 @@ static nm_status_t update_ws_config(void *st_app, uint8_t *cbor_data, size_t len
 
     // Finding Regulatory_domain
     if (get_uint32_value_from_stream(&main_value, CBOR_TAG_REG_DOMAIN, &map_value, &int_value) == true) {
-        ws_cfg->reg_op.regulatory_domain = (uint8_t)int_value;
+        ws_cfg->regulatory_domain = (uint8_t)int_value;
     }
 
     // Finding operating_class
     if (get_uint32_value_from_stream(&main_value, CBOR_TAG_OP_CLASS, &map_value, &int_value) == true) {
-        ws_cfg->reg_op.operating_class = (uint8_t)int_value;
+        ws_cfg->phy_config.op_class_mode.operating_class = (uint8_t)int_value;
     }
 
     // Finding operating_mode
     if (get_uint32_value_from_stream(&main_value, CBOR_TAG_OP_MODE, &map_value, &int_value) == true) {
-        ws_cfg->reg_op.operating_mode = (uint8_t)int_value;
+        ws_cfg->phy_config.op_class_mode.operating_mode = (uint8_t)int_value;
+    }
+
+    // Finding phy_mode_id
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_PHY_MODE_ID, &map_value, &int_value) == true) {
+        ws_cfg->phy_config.net_dom.phy_mode_id = (uint8_t)int_value;
+    }
+
+    // Finding channel_plan_id
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_CHANNEL_PLAN_ID, &map_value, &int_value) == true) {
+        ws_cfg->phy_config.net_dom.channel_plan_id = (uint8_t)int_value;
     }
 
     // Finding network_size
@@ -503,7 +515,7 @@ nm_status_t nm_cbor_config_struct_update(void *st_cfg, uint8_t *cbor_data, confi
 static bool encode_text_string(CborEncoder *map, const char *str_name, size_t len)
 {
     if (cbor_encode_text_string(map, str_name, len)) {
-        tr_warn("Failed adding string in map");
+        tr_warn("Could not add string in map");
         return false;
     }
     return true;
@@ -534,20 +546,20 @@ static bool encode_int_array(CborEncoder *map, uint32_t *int_ptr, size_t array_l
     CborEncoder int_array;
     cbor_error = cbor_encoder_create_array(map, &int_array, array_len);
     if (cbor_error) {
-        tr_warn("Failed creating Array map for Integer with error code %d", cbor_error);
+        tr_warn("Could not creat Array map for Integer: error %d", cbor_error);
         return NM_STATUS_FAIL;
     }
 
     for (array_index = 0; array_index < array_len; array_index++) {
         if (cbor_encode_uint(&int_array, int_ptr[array_index])) {
-            tr_warn("FAILED adding array of integer value in map\n");
+            tr_warn("Could not add array of integer value in map\n");
             return false;
         }
     }
 
     cbor_error = cbor_encoder_close_container(map, &int_array);
     if (cbor_error) {
-        tr_warn("FAILED closing Integer Array with error code %d", cbor_error);
+        tr_warn("Could not close Integer Array: error %d", cbor_error);
         return false;
     }
     return true;
@@ -560,20 +572,20 @@ static bool encode_int8_array(CborEncoder *map, int8_t *int_ptr, size_t array_le
     CborEncoder int_array;
     cbor_error = cbor_encoder_create_array(map, &int_array, array_len);
     if (cbor_error) {
-        tr_warn("Failed creating Array map for Integer with error code %d", cbor_error);
+        tr_warn("Could not create Array map for Integer: error %d", cbor_error);
         return NM_STATUS_FAIL;
     }
 
     for (array_index = 0; array_index < array_len; array_index++) {
         if (cbor_encode_int(&int_array, int_ptr[array_index])) {
-            tr_warn("FAILED adding array of int8 value in map\n");
+            tr_warn("Could not add array of int8 value in map\n");
             return false;
         }
     }
 
     cbor_error = cbor_encoder_close_container(map, &int_array);
     if (cbor_error) {
-        tr_warn("FAILED closing Integer Array with error code %d", cbor_error);
+        tr_warn("Could not close Integer Array: error %d", cbor_error);
         return false;
     }
     return true;
@@ -633,17 +645,27 @@ static nm_status_t ws_config_to_cbor(void *ws_cfg, uint8_t *cbor_data, size_t *l
 
     // regulatory_domain
     if (encode_text_string(&map, CBOR_TAG_REG_DOMAIN, sizeof(CBOR_TAG_REG_DOMAIN) - 1)) {
-        encode_uint32_value(&map, (uint32_t)st_cfg->reg_op.regulatory_domain);
+        encode_uint32_value(&map, (uint32_t)st_cfg->regulatory_domain);
     }
 
     // operating_class
     if (encode_text_string(&map, CBOR_TAG_OP_CLASS, sizeof(CBOR_TAG_OP_CLASS) - 1)) {
-        encode_uint32_value(&map, (uint32_t)st_cfg->reg_op.operating_class);
+        encode_uint32_value(&map, (uint32_t)st_cfg->phy_config.op_class_mode.operating_class);
     }
 
     // operating_mode
     if (encode_text_string(&map, CBOR_TAG_OP_MODE, sizeof(CBOR_TAG_OP_MODE) - 1)) {
-        encode_uint32_value(&map, (uint32_t)st_cfg->reg_op.operating_mode);
+        encode_uint32_value(&map, (uint32_t)st_cfg->phy_config.op_class_mode.operating_mode);
+    }
+
+    // phy_mode_id
+    if (encode_text_string(&map, CBOR_TAG_PHY_MODE_ID, sizeof(CBOR_TAG_PHY_MODE_ID) - 1)) {
+        encode_uint32_value(&map, (uint32_t)st_cfg->phy_config.net_dom.phy_mode_id);
+    }
+
+    // channel_plan_id
+    if (encode_text_string(&map, CBOR_TAG_CHANNEL_PLAN_ID, sizeof(CBOR_TAG_CHANNEL_PLAN_ID) - 1)) {
+        encode_uint32_value(&map, (uint32_t)st_cfg->phy_config.net_dom.channel_plan_id);
     }
 
     // network_size
@@ -1312,7 +1334,7 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
     // Create map
     cbor_error = cbor_encoder_create_map(&encoder, &map, CborIndefiniteLength);
     if (cbor_error) {
-        tr_warn("Failed creating presence map with error code %d", cbor_error);
+        tr_warn("Could not create presence map: error %d", cbor_error);
         return NM_STATUS_FAIL;
     }
 
@@ -1325,7 +1347,7 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
         // Close map
         cbor_error = cbor_encoder_close_container(&encoder, &map);
         if (cbor_error) {
-            tr_warn("Failed closing presence map with error code %d", cbor_error);
+            tr_warn("Could not close presence map: error %d", cbor_error);
             return NM_STATUS_FAIL;
         }
 
@@ -1342,7 +1364,7 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
         // Create array
         cbor_error = cbor_encoder_create_array(&map, &stu_array, nbr_info->count);
         if (cbor_error) {
-            tr_warn("Failed creating array for map with error code %d", cbor_error);
+            tr_warn("Could not create array for map: error %d", cbor_error);
             return NM_STATUS_FAIL;
         }
 
@@ -1350,7 +1372,7 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
             // Create remap
             cbor_error = cbor_encoder_create_map(&stu_array, &remap, CborIndefiniteLength);
             if (cbor_error) {
-                tr_warn("Failed creating presence remap with error code %d", cbor_error);
+                tr_warn("Could not create presence remap: error %d", cbor_error);
                 return NM_STATUS_FAIL;
             }
 
@@ -1405,14 +1427,14 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
         // Close array
         cbor_error = cbor_encoder_close_container(&map, &stu_array);
         if (cbor_error) {
-            tr_warn("Failed closing presence array of map with error code %d", cbor_error);
+            tr_warn("Could not close presence array of map: error %d", cbor_error);
             return NM_STATUS_FAIL;
         }
 
         // Close map
         cbor_error = cbor_encoder_close_container(&encoder, &map);
         if (cbor_error) {
-            tr_warn("Failed closing presence map with error code %d", cbor_error);
+            tr_warn("Could not close presence map: error %d", cbor_error);
             return NM_STATUS_FAIL;
         }
 

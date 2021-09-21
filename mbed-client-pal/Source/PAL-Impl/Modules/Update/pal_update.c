@@ -91,7 +91,6 @@ palStatus_t pal_imageInitAPI(palImageSignalEvent_t CBfunction)
 
 palStatus_t pal_imageDeInit(void)
 {
-    //printf("pal_plat_imageDeInit\r\n");
     PAL_MODULE_DEINIT(palUpdateInitFlag);
 
     for (int i = 0; i < IMAGE_COUNT_MAX; i++)
@@ -219,14 +218,6 @@ palStatus_t  pal_imageFinalize(palImageId_t imageId)
     return ret;
 }
 
-palStatus_t pal_imageGetDirectMemoryAccess(palImageId_t imageId, void** imagePtr, size_t* imageSizeInBytes)
-{
-    PAL_MODULE_IS_INIT(palUpdateInitFlag);
-    palStatus_t status = PAL_SUCCESS;
-    status = pal_plat_imageGetDirectMemAccess(imageId, imagePtr, imageSizeInBytes);
-    return status;
-}
-
 palStatus_t pal_imageReadToBuffer(palImageId_t imageId, size_t offset, palBuffer_t *chunk)
 {
     //printf("pal_imageReadToBuffer(imageId=%lu, offset=%lu)\r\n", imageId, offset);
@@ -246,14 +237,6 @@ palStatus_t pal_imageReadToBuffer(palImageId_t imageId, size_t offset, palBuffer
     }
 
     return ret;
-}
-
-palStatus_t pal_imageActivate(palImageId_t imageId)
-{
-    PAL_MODULE_IS_INIT(palUpdateInitFlag);
-    palStatus_t status = PAL_SUCCESS;
-    status = pal_plat_imageActivate(imageId);
-    return status;
 }
 
 palStatus_t pal_imageGetFirmwareHeaderData(palImageId_t imageId, palBuffer_t *headerData)
@@ -292,58 +275,6 @@ palStatus_t pal_imageGetFirmwareHeaderData(palImageId_t imageId, palBuffer_t *he
             ret = PAL_ERR_NO_MEMORY;
         }
         return ret;
-}
-
-palStatus_t pal_imageGetActiveHash(palBuffer_t *hash)
-{
-    //printf("pal_imageGetActiveHash\r\n");
-    PAL_MODULE_IS_INIT(palUpdateInitFlag);
-    palStatus_t ret;
-
-    if (hash->maxBufferLength < SIZEOF_SHA256)
-    {
-        ret = PAL_ERR_BUFFER_TOO_SMALL;
-        goto exit;
-    }
-
-    hash->bufferLength = 0;
-    memset(hash->buffer, 0, hash->maxBufferLength);
-
-    ret = pal_plat_imageGetActiveHash(hash);
-    if (ret == PAL_SUCCESS)
-    {
-        g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_GETACTIVEHASH);
-    }
-
-exit:
-    return ret;
-}
-
-palStatus_t pal_imageGetActiveVersion(palBuffer_t *version)
-{
-    PAL_MODULE_IS_INIT(palUpdateInitFlag);
-    palStatus_t status = PAL_SUCCESS;
-    status = pal_plat_imageGetActiveVersion(version);
-    return status;
-}
-
-palStatus_t pal_imageWriteDataToMemory(palImagePlatformData_t dataId, const palConstBuffer_t * const dataBuffer)
-{
-    palStatus_t status = PAL_SUCCESS;
-    PAL_MODULE_IS_INIT(palUpdateInitFlag);
-    // this switch is for further use when there will be more options
-    switch(dataId)
-    {
-    case PAL_IMAGE_DATA_HASH:
-        status = pal_plat_imageWriteHashToMemory(dataBuffer);
-        break;
-    default:
-        {
-            PAL_LOG_ERR("Update image write to memory error");
-            status = PAL_ERR_GENERIC_FAILURE;
-        }
-    }
-    return status;
 }
 
 PAL_PRIVATE palStatus_t pal_set_fw_header(palImageId_t index, FirmwareHeader_t *headerP)
@@ -668,8 +599,6 @@ palStatus_t pal_imageDeInit(void)
     return status;
 }
 
-
-
 palStatus_t pal_imagePrepare(palImageId_t imageId, palImageHeaderDeails_t *headerDetails)
 {
     PAL_MODULE_IS_INIT(palUpdateInitFlag);
@@ -750,6 +679,74 @@ palStatus_t pal_imageWriteDataToMemory(palImagePlatformData_t dataId, const palC
     default:
         {
             PAL_LOG_ERR("Update write data to mem status %d", (int)dataId);
+            status = PAL_ERR_GENERIC_FAILURE;
+        }
+    }
+    return status;
+}
+
+palStatus_t pal_imageGetDirectMemoryAccess(palImageId_t imageId, void** imagePtr, size_t* imageSizeInBytes)
+{
+    PAL_MODULE_IS_INIT(palUpdateInitFlag);
+    palStatus_t status = PAL_SUCCESS;
+    status = pal_plat_imageGetDirectMemAccess(imageId, imagePtr, imageSizeInBytes);
+    return status;
+}
+
+palStatus_t pal_imageActivate(palImageId_t imageId)
+{
+    PAL_MODULE_IS_INIT(palUpdateInitFlag);
+    palStatus_t status = PAL_SUCCESS;
+    status = pal_plat_imageActivate(imageId);
+    return status;
+}
+
+palStatus_t pal_imageGetActiveHash(palBuffer_t *hash)
+{
+    //printf("pal_imageGetActiveHash\r\n");
+    PAL_MODULE_IS_INIT(palUpdateInitFlag);
+    palStatus_t ret;
+
+    if (hash->maxBufferLength < SIZEOF_SHA256)
+    {
+        ret = PAL_ERR_BUFFER_TOO_SMALL;
+        goto exit;
+    }
+
+    hash->bufferLength = 0;
+    memset(hash->buffer, 0, hash->maxBufferLength);
+
+    ret = pal_plat_imageGetActiveHash(hash);
+    if (ret == PAL_SUCCESS)
+    {
+        g_palUpdateServiceCBfunc(PAL_IMAGE_EVENT_GETACTIVEHASH);
+    }
+
+exit:
+    return ret;
+}
+
+palStatus_t pal_imageGetActiveVersion(palBuffer_t *version)
+{
+    PAL_MODULE_IS_INIT(palUpdateInitFlag);
+    palStatus_t status = PAL_SUCCESS;
+    status = pal_plat_imageGetActiveVersion(version);
+    return status;
+}
+
+palStatus_t pal_imageWriteDataToMemory(palImagePlatformData_t dataId, const palConstBuffer_t * const dataBuffer)
+{
+    palStatus_t status = PAL_SUCCESS;
+    PAL_MODULE_IS_INIT(palUpdateInitFlag);
+    // this switch is for further use when there will be more options
+    switch(dataId)
+    {
+    case PAL_IMAGE_DATA_HASH:
+        status = pal_plat_imageWriteHashToMemory(dataBuffer);
+        break;
+    default:
+        {
+            PAL_LOG_ERR("Update image write to memory error");
             status = PAL_ERR_GENERIC_FAILURE;
         }
     }

@@ -35,8 +35,7 @@ typedef Vector<M2MResourceInstance *> M2MResourceInstanceList;
  * You can create any LwM2M resources with it.
  * This class will also hold all resources instances associated with the given object.
  */
-class M2MResource : public M2MResourceBase
-{
+class M2MResource : public M2MResourceBase {
 
     friend class M2MObjectInstance;
 
@@ -44,12 +43,12 @@ public:
     class M2MExecuteParameter;
 
 private: // Constructor and destructor are private,
-         // which means that these objects can be created or
-         // deleted only through a function provided by the M2MObjectInstance.
+    // which means that these objects can be created or
+    // deleted only through a function provided by the M2MObjectInstance.
 
     M2MResource(M2MObjectInstance &_parent,
-                 const lwm2m_parameters_s* s,
-                 M2MBase::DataType type);
+                const lwm2m_parameters_s *s,
+                M2MBase::DataType type);
     /**
      * \brief Constructor
      * \param resource_name The resource name of the object.
@@ -100,10 +99,10 @@ private: // Constructor and destructor are private,
     M2MResource();
 
     // Prevents the use of an assignment operator.
-    M2MResource& operator=( const M2MResource& /*other*/ );
+    M2MResource &operator=(const M2MResource & /*other*/);
 
     // Prevents the use of a copy constructor
-    M2MResource( const M2MResource& /*other*/ );
+    M2MResource(const M2MResource & /*other*/);
 
     /**
      * \brief Returns the owner object. Can return NULL if the object has no parent.
@@ -186,13 +185,13 @@ public:
      * \param instance_id The instance ID of the requested resource, default is 0
      * \return M2MResourceInstance object if found, else NULL.
      */
-    M2MResourceInstance* resource_instance(uint16_t instance_id = 0) const;
+    M2MResourceInstance *resource_instance(uint16_t instance_id = 0) const;
 
     /**
      * \brief Returns a list of resources.
      * \return A list of resources.
      */
-    const M2MResourceInstanceList& resource_instances() const;
+    const M2MResourceInstanceList &resource_instances() const;
 
     /**
      * \brief Returns the total number of resources.
@@ -206,7 +205,7 @@ public:
      *
      * \deprecated Internal API, subject to be modified or removed.
     */
-    virtual M2MObservationHandler* observation_handler() const;
+    virtual M2MObservationHandler *observation_handler() const;
 
     /**
      * \brief Sets the observation handler
@@ -253,7 +252,7 @@ public:
      *
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler = NULL);
     /**
@@ -267,7 +266,7 @@ public:
      *
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler,
                                               bool &execute_value_updated);
@@ -282,7 +281,7 @@ public:
      *
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_post_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
                                                M2MObservationHandler *observation_handler,
                                                bool &execute_value_updated,
@@ -291,7 +290,7 @@ public:
     /**
      * \deprecated Internal API, subject to be modified or removed.
      */
-    M2MObjectInstance& get_parent_object_instance() const;
+    M2MObjectInstance &get_parent_object_instance() const;
 
     /**
      * \brief Returns the instance ID of the object where the resource exists.
@@ -303,9 +302,9 @@ public:
      * \brief Returns the name of the object where the resource exists.
      * \return Object name.
     */
-    virtual const char* object_name() const;
+    virtual const char *object_name() const;
 
-    virtual M2MResource& get_parent_resource() const;
+    virtual M2MResource &get_parent_resource() const;
 
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     /**
@@ -335,22 +334,23 @@ private:
     bool                        _delayed_response;
 #endif
 
-friend class Test_M2MResource;
-friend class Test_M2MObjectInstance;
-friend class Test_M2MObject;
-friend class Test_M2MDevice;
-friend class Test_M2MSecurity;
-friend class Test_M2MServer;
-friend class Test_M2MReportHandler;
-friend class Test_M2MNsdlInterface;
-friend class Test_M2MInterfaceFactory;
-friend class Test_M2MTLVSerializer;
-friend class Test_M2MTLVDeserializer;
-friend class Test_M2MBase;
-friend class Test_M2MResourceInstance;
-friend class TestFactory;
-friend class Test_M2MInterfaceImpl;
-friend class Test_M2MDiscover;
+    friend class Test_M2MResource;
+    friend class Test_M2MObjectInstance;
+    friend class Test_M2MObject;
+    friend class Test_M2MDevice;
+    friend class Test_M2MSecurity;
+    friend class Test_M2MServer;
+    friend class Test_M2MReportHandler;
+    friend class Test_M2MNsdlInterface;
+    friend class Test_M2MInterfaceFactory;
+    friend class Test_M2MTLVSerializer;
+    friend class Test_M2MTLVDeserializer;
+    friend class Test_M2MBase;
+    friend class Test_M2MResourceInstance;
+    friend class TestFactory;
+    friend class Test_M2MInterfaceImpl;
+    friend class Test_M2MDiscover;
+    friend class Test_M2MDynLog;
 };
 
 /**
@@ -393,9 +393,9 @@ public:
      * \return Object name.
     */
 #ifdef MEMORY_OPTIMIZED_API
-    const char* get_argument_object_name() const;
+    const char *get_argument_object_name() const;
 #else
-    const String& get_argument_object_name() const;
+    const String &get_argument_object_name() const;
 #endif
 
     /**
@@ -403,9 +403,9 @@ public:
      * \return Resource name.
     */
 #ifdef MEMORY_OPTIMIZED_API
-    const char* get_argument_resource_name() const;
+    const char *get_argument_resource_name() const;
 #else
-    const String& get_argument_resource_name() const;
+    const String &get_argument_resource_name() const;
 #endif
 
     /**
@@ -418,13 +418,13 @@ public:
     /** \brief Storing the instance of the resource class.
      * \param res Resource pointer to be stored.
      */
-    void set_resource(M2MResource* res);
+    void set_resource(M2MResource *res);
 
     /**
     * \brief Returns the Resource pointer.
     * \return M2MResource pointer.
      */
-    M2MResource * get_resource();
+    M2MResource *get_resource();
 
 #endif
 
@@ -445,8 +445,8 @@ private:
     M2MResource     *_resource;
 #endif
 
-friend class Test_M2MResource;
-friend class M2MResource;
+    friend class Test_M2MResource;
+    friend class M2MResource;
 };
 
 #endif // M2M_RESOURCE_H

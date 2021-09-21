@@ -39,31 +39,30 @@ class M2MObject;
  * that these objects can be created or
  * deleted only through function provided by M2MObject.
  */
-class M2MObjectInstance : public M2MBase
-{
+class M2MObjectInstance : public M2MBase {
 
-friend class M2MObject;
+    friend class M2MObject;
 
 private:
     /**
      * \brief Constructor
      * \param name Name of the object
      */
-    M2MObjectInstance(M2MObject& parent,
+    M2MObjectInstance(M2MObject &parent,
                       const String &resource_type,
                       char *path,
                       bool external_blockwise_store = false);
 
-    M2MObjectInstance(M2MObject& parent, const lwm2m_parameters_s* static_res);
+    M2MObjectInstance(M2MObject &parent, const lwm2m_parameters_s *static_res);
 
     // Prevents the use of default constructor.
     M2MObjectInstance();
 
     // Prevents the use of assignment operator.
-    M2MObjectInstance& operator=( const M2MObjectInstance& /*other*/ );
+    M2MObjectInstance &operator=(const M2MObjectInstance & /*other*/);
 
     // Prevents the use of copy constructor.
-    M2MObjectInstance( const M2MObjectInstance& /*other*/ );
+    M2MObjectInstance(const M2MObjectInstance & /*other*/);
 
     /**
      * Destructor
@@ -77,7 +76,7 @@ public:
      * \return M2MResource The resource for managing other client operations.
      * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
-    M2MResource* create_static_resource(const lwm2m_parameters_s* static_res,
+    M2MResource *create_static_resource(const lwm2m_parameters_s *static_res,
                                         M2MResourceInstance::ResourceType type);
 
     /**
@@ -94,7 +93,7 @@ public:
      * \return M2MResource The resource for managing other client operations.
      * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
-    M2MResource* create_static_resource(const String &resource_name,
+    M2MResource *create_static_resource(const String &resource_name,
                                         const String &resource_type,
                                         M2MResourceInstance::ResourceType type,
                                         const uint8_t *value,
@@ -116,7 +115,7 @@ public:
      * \return M2MResource The resource for managing other client operations.
      * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
-    M2MResource* create_dynamic_resource(const String &resource_name,
+    M2MResource *create_dynamic_resource(const String &resource_name,
                                          const String &resource_type,
                                          M2MResourceInstance::ResourceType type,
                                          bool observable,
@@ -137,7 +136,7 @@ public:
      * \return M2MResource The resource for managing other client operations.
      * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
-    M2MResource* create_dynamic_resource(const uint16_t resource_name,
+    M2MResource *create_dynamic_resource(const uint16_t resource_name,
                                          const char *resource_type,
                                          M2MResourceInstance::ResourceType type,
                                          bool observable,
@@ -149,9 +148,9 @@ public:
      * \return M2MResource The resource for managing other client operations.
      * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
-    M2MResource* create_dynamic_resource(const lwm2m_parameters_s* static_res,
-                                        M2MResourceInstance::ResourceType type,
-                                        bool observable);
+    M2MResource *create_dynamic_resource(const lwm2m_parameters_s *static_res,
+                                         M2MResourceInstance::ResourceType type,
+                                         bool observable);
 
     /**
      * \brief Creates a static resource instance for a given mbed Client Inteface object. With this,
@@ -166,7 +165,7 @@ public:
      * \return M2MResourceInstance The resource instance for managing other client operations.
      * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
-    M2MResourceInstance* create_static_resource_instance(const String &resource_name,
+    M2MResourceInstance *create_static_resource_instance(const String &resource_name,
                                                          const String &resource_type,
                                                          M2MResourceInstance::ResourceType type,
                                                          const uint8_t *value,
@@ -187,7 +186,7 @@ public:
      * \return M2MResourceInstance The resource instance for managing other client operations.
      * \deprecated Please use M2MInterfaceFactory::create_resource() instead.
      */
-    M2MResourceInstance* create_dynamic_resource_instance(const String &resource_name,
+    M2MResourceInstance *create_dynamic_resource_instance(const String &resource_name,
                                                           const String &resource_type,
                                                           M2MResourceInstance::ResourceType type,
                                                           bool observable,
@@ -218,27 +217,27 @@ public:
      * \return True if removed, else false.
      */
     bool remove_resource_instance(const String &resource_name,
-                                          uint16_t instance_id);
+                                  uint16_t instance_id);
 
     /**
      * \brief Returns the resource with the given name.
      * \param name The name of the requested resource.
      * \return Resource reference if found, else NULL.
      */
-    M2MResource* resource(const uint16_t resource_id) const;
+    M2MResource *resource(const uint16_t resource_id) const;
 
     /**
      * \deprecated String based APIs are deprecated. Please use resource_id or path instead.
      */
-    M2MResource* resource(const String &name) const;
+    M2MResource *resource(const String &name) const;
 
-    M2MResource* resource(const char *resource) const;
+    M2MResource *resource(const char *resource) const;
 
     /**
      * \brief Returns a list of M2MResourceBase objects.
      * \return A list of M2MResourceBase objects.
      */
-    const M2MResourceList& resources() const;
+    const M2MResourceList &resources() const;
 
     /**
      * \brief Returns the total number of resources with the object.
@@ -254,7 +253,7 @@ public:
      * \return Total number of the resources.
      * \deprecated String based APIs are deprecated. Please use resource_id or path instead.
      */
-    uint16_t resource_count(const String& resource) const;
+    uint16_t resource_count(const String &resource) const;
 
     /**
      * \brief Returns the total number of single resource instances.
@@ -282,7 +281,7 @@ public:
      * \return M2MObservationHandler object.
      * \deprecated Internal API, subject to be modified or removed.
     */
-    virtual M2MObservationHandler* observation_handler() const;
+    virtual M2MObservationHandler *observation_handler() const;
 
     /**
      * \brief Sets the observation handler
@@ -300,7 +299,7 @@ public:
      * return sn_coap_hdr_s The message that needs to be sent to the server.
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler = NULL);
     /**
@@ -313,7 +312,7 @@ public:
      * \return sn_coap_hdr_s The message that needs to be sent to server.
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler,
                                               bool &execute_value_updated);
@@ -328,13 +327,13 @@ public:
      * \return sn_coap_hdr_s The message that needs to be sent to server.
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_post_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
                                                M2MObservationHandler *observation_handler,
                                                bool &execute_value_updated,
                                                sn_nsdl_addr_s *address = NULL);
 
-    inline M2MObject& get_parent_object() const;
+    inline M2MObject &get_parent_object() const;
 
     /** callback used from M2MResource/M2MResourceInstance
      * \deprecated Internal API, subject to be modified or removed.
@@ -376,9 +375,10 @@ private:
     friend class TestFactory;
     friend class Test_M2MInterfaceImpl;
     friend class Test_M2MDiscover;
+    friend class Test_M2MDynLog;
 };
 
-inline M2MObject& M2MObjectInstance::get_parent_object() const
+inline M2MObject &M2MObjectInstance::get_parent_object() const
 {
     return _parent;
 }

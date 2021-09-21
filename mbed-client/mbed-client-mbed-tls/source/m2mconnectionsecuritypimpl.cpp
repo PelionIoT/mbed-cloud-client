@@ -39,11 +39,11 @@
 #define TRACE_GROUP "mClt"
 
 M2MConnectionSecurityPimpl::M2MConnectionSecurityPimpl(M2MConnectionSecurity::SecurityMode mode)
-    :_init_done(M2MConnectionSecurityPimpl::INIT_NOT_STARTED),
-     _conf(0),
-     _ssl(0),
-     _sec_mode(mode),
-     _network_rtt_estimate(10)    // Use reasonable initialization value for the RTT estimate. Must be larger than 0.
+    : _init_done(M2MConnectionSecurityPimpl::INIT_NOT_STARTED),
+      _conf(0),
+      _ssl(0),
+      _sec_mode(mode),
+      _network_rtt_estimate(10)    // Use reasonable initialization value for the RTT estimate. Must be larger than 0.
 {
     memset(&_entropy, 0, sizeof(entropy_cb));
     memset(&_tls_socket, 0, sizeof(palTLSSocket_t));
@@ -51,20 +51,20 @@ M2MConnectionSecurityPimpl::M2MConnectionSecurityPimpl(M2MConnectionSecurity::Se
 
 M2MConnectionSecurityPimpl::~M2MConnectionSecurityPimpl()
 {
-    if(_ssl) {
+    if (_ssl) {
         pal_freeTLS(&_ssl);
     }
-    if(_conf) {
+    if (_conf) {
         pal_tlsConfigurationFree(&_conf);
     }
 }
 
 void M2MConnectionSecurityPimpl::reset()
 {
-    if(_ssl) {
+    if (_ssl) {
         pal_freeTLS(&_ssl);
     }
-    if(_conf) {
+    if (_conf) {
         pal_tlsConfigurationFree(&_conf);
     }
     _init_done = M2MConnectionSecurityPimpl::INIT_NOT_STARTED;
@@ -72,9 +72,7 @@ void M2MConnectionSecurityPimpl::reset()
 
 int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping)
 {
-    tr_debug("M2MConnectionSecurityPimpl::init");
-
-    if (!security){
+    if (!security) {
         tr_error("M2MConnectionSecurityPimpl::init - security null");
         return M2MConnectionHandler::SSL_CONNECTION_ERROR;
     }
@@ -120,7 +118,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     M2MSecurity::SecurityModeType cert_mode =
         (M2MSecurity::SecurityModeType)security->resource_value_int(M2MSecurity::SecurityMode, security_instance_id);
 
-    if (cert_mode == M2MSecurity::Certificate || cert_mode == M2MSecurity::EST ) {
+    if (cert_mode == M2MSecurity::Certificate || cert_mode == M2MSecurity::EST) {
         palX509_t owncert;
         palPrivateKey_t privateKey;
         palX509_t caChain;
@@ -219,8 +217,8 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
         palStatus_t ret = pal_setPSK(_conf, identity_ptr, static_cast<uint32_t>(identity_len), psk_ptr, static_cast<uint32_t>(psk_len));
 
         if (PAL_SUCCESS != ret) {
-           tr_error("M2MConnectionSecurityPimpl::init  - pal_setPSK failed");
-           return M2MConnectionHandler::SSL_CONNECTION_ERROR;;
+            tr_error("M2MConnectionSecurityPimpl::init  - pal_setPSK failed");
+            return M2MConnectionHandler::SSL_CONNECTION_ERROR;;
         }
 
     } else {
@@ -250,7 +248,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
     return M2MConnectionHandler::ERROR_NONE;
 }
 
-int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, bool is_server_ping)
+int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler * /*connHandler*/, bool is_server_ping)
 {
     palStatus_t ret = PAL_SUCCESS;
     if (is_server_ping) {
@@ -265,7 +263,7 @@ int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, b
 
     if (ret == PAL_SUCCESS) {
         return M2MConnectionHandler::ERROR_NONE;
-    } else if (ret == PAL_ERR_TLS_WANT_READ || ret == PAL_ERR_TLS_WANT_WRITE){
+    } else if (ret == PAL_ERR_TLS_WANT_READ || ret == PAL_ERR_TLS_WANT_WRITE) {
         return M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ;
     } else if (ret == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
         return M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY;
@@ -285,27 +283,21 @@ int M2MConnectionSecurityPimpl::connect(M2MConnectionHandler* /*connHandler*/, b
 
 int M2MConnectionSecurityPimpl::send_message(unsigned char *message, int len)
 {
-    tr_debug("M2MConnectionSecurityPimpl::send_message");
     int ret = M2MConnectionHandler::SOCKET_SEND_ERROR;
     palStatus_t return_value;
     uint32_t len_write;
 
-    if (PAL_SUCCESS == (return_value = pal_sslWrite(_ssl, _conf, message, len, &len_write))){
+    if (PAL_SUCCESS == (return_value = pal_sslWrite(_ssl, _conf, message, len, &len_write))) {
         ret = (int)len_write;
-    }
-    else if (return_value == PAL_ERR_TLS_WANT_READ || return_value == PAL_ERR_TIMEOUT_EXPIRED){
+    } else if (return_value == PAL_ERR_TLS_WANT_READ || return_value == PAL_ERR_TIMEOUT_EXPIRED) {
         ret = M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ;
-    }
-    else if (return_value == PAL_ERR_TLS_WANT_WRITE) {
+    } else if (return_value == PAL_ERR_TLS_WANT_WRITE) {
         ret = M2MConnectionHandler::CONNECTION_ERROR_WANTS_WRITE;
-    }
-    else if (return_value == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
+    } else if (return_value == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
         ret = M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY;
-    }
-    else if (return_value == PAL_ERR_NO_MEMORY) {
+    } else if (return_value == PAL_ERR_NO_MEMORY) {
         ret = M2MConnectionHandler::MEMORY_ALLOCATION_FAILED;
-    }
-    else if (return_value == PAL_ERR_TIMEOUT_EXPIRED || return_value == PAL_ERR_TLS_TIMEOUT) {
+    } else if (return_value == PAL_ERR_TIMEOUT_EXPIRED || return_value == PAL_ERR_TLS_TIMEOUT) {
         return M2MConnectionHandler::SOCKET_TIMEOUT;
     }
 
@@ -313,25 +305,21 @@ int M2MConnectionSecurityPimpl::send_message(unsigned char *message, int len)
     return ret; //bytes written or error
 }
 
-int M2MConnectionSecurityPimpl::read(unsigned char* buffer, uint16_t len)
+int M2MConnectionSecurityPimpl::read(unsigned char *buffer, uint16_t len)
 {
     int ret = M2MConnectionHandler::SOCKET_READ_ERROR;
     palStatus_t return_value;
     uint32_t len_read;
 
-    if (PAL_SUCCESS == (return_value = pal_sslRead(_ssl, buffer, len, &len_read))){
+    if (PAL_SUCCESS == (return_value = pal_sslRead(_ssl, buffer, len, &len_read))) {
         ret = (int)len_read;
-    }
-    else if (return_value == PAL_ERR_TLS_WANT_READ || return_value == PAL_ERR_TLS_WANT_WRITE || return_value == PAL_ERR_TIMEOUT_EXPIRED){
+    } else if (return_value == PAL_ERR_TLS_WANT_READ || return_value == PAL_ERR_TLS_WANT_WRITE || return_value == PAL_ERR_TIMEOUT_EXPIRED) {
         ret = M2MConnectionHandler::CONNECTION_ERROR_WANTS_READ;
-    }
-    else if (return_value == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
+    } else if (return_value == PAL_ERR_TLS_PEER_CLOSE_NOTIFY) {
         ret = M2MConnectionHandler::SSL_PEER_CLOSE_NOTIFY;
-    }
-    else if (return_value == PAL_ERR_NO_MEMORY) {
+    } else if (return_value == PAL_ERR_NO_MEMORY) {
         ret = M2MConnectionHandler::MEMORY_ALLOCATION_FAILED;
-    }
-    else if (return_value == PAL_ERR_TIMEOUT_EXPIRED || return_value == PAL_ERR_TLS_TIMEOUT) {
+    } else if (return_value == PAL_ERR_TIMEOUT_EXPIRED || return_value == PAL_ERR_TLS_TIMEOUT) {
         return M2MConnectionHandler::SOCKET_TIMEOUT;
     }
 
@@ -345,9 +333,7 @@ void M2MConnectionSecurityPimpl::set_random_number_callback(random_number_cb cal
 
 void M2MConnectionSecurityPimpl::set_entropy_callback(entropy_cb callback)
 {
-
     _entropy = callback;
-
 }
 
 void M2MConnectionSecurityPimpl::set_socket(palSocket_t socket, palSocketAddress_t *address)
@@ -356,15 +342,14 @@ void M2MConnectionSecurityPimpl::set_socket(palSocket_t socket, palSocketAddress
     _tls_socket.socketAddress = address;
     _tls_socket.addressLength = sizeof(palSocketAddress_t);
 
-    if(_sec_mode == M2MConnectionSecurity::TLS){
+    if (_sec_mode == M2MConnectionSecurity::TLS) {
         _tls_socket.transportationMode = PAL_TLS_MODE;
-    }
-    else{
+    } else {
         _tls_socket.transportationMode = PAL_DTLS_MODE;
     }
 }
 
-int M2MConnectionSecurityPimpl::set_dtls_socket_callback(void(*foo)(void*), void *argument)
+int M2MConnectionSecurityPimpl::set_dtls_socket_callback(void(*foo)(void *), void *argument)
 {
     pal_setDTLSSocketCallback(_conf, (palSocketCallback_f)foo, argument);
     return M2MConnectionHandler::ERROR_NONE;

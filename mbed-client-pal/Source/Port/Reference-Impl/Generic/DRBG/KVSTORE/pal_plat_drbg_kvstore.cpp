@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Copyright 2020 ARM Ltd.
+// Copyright 2020-2021 Pelion.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,7 +18,7 @@
 
 #if defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) && !defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 
-#if TARGET_LIKE_MBED
+#if __MBED__
 #include "mbed.h"
 #endif
 

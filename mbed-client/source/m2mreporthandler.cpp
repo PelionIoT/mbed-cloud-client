@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 ARM Limited. All rights reserved.
+ * Copyright (c) 2015 - 2021 Pelion. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -74,7 +74,6 @@ M2MReportHandler::M2MReportHandler(M2MReportObserver &observer, M2MBase::DataTyp
       _confirmable(true),
       _resource_base(NULL)
 {
-    tr_debug("M2MReportHandler::M2MReportHandler()");
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     if (_resource_type == M2MBase::FLOAT) {
         _high_step.float_value = 0;
@@ -119,7 +118,6 @@ void M2MReportHandler::set_under_observation(bool observed)
 void M2MReportHandler::set_value_float(float value)
 {
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
-    tr_debug("M2MReportHandler::set_value_float() - current %f, last %f", value, _last_value.float_value);
     _current_value.float_value = value;
 
     if (!_last_value_valid || _current_value.float_value != _last_value.float_value) {
@@ -133,7 +131,6 @@ void M2MReportHandler::set_value_float(float value)
 void M2MReportHandler::set_value_int(int64_t value)
 {
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
-    tr_debug("M2MReportHandler::set_value_int() - current %" PRId64 ", last % " PRId64, value, _last_value.int_value);
     _current_value.int_value = value;
 
     if (!_last_value_valid || _current_value.int_value != _last_value.int_value) {
@@ -181,7 +178,7 @@ bool M2MReportHandler::parse_notification_attribute(const char *query,
                                                     M2MBase::BaseType type,
                                                     M2MResourceInstance::ResourceType resource_type)
 {
-    tr_debug("M2MReportHandler::parse_notification_attribute(Query %s, Base type %d)", query, (int)type);
+    tr_debug("M2MReportHandler::parse_notification_attribute - query: %s, type: %d", query, (int)type);
     bool success = false;
     const char *sep_pos = strchr(query, '&');
     const char *rest = query;
@@ -228,7 +225,7 @@ bool M2MReportHandler::parse_notification_attribute(const char *query,
         if (success) {
             success = check_attribute_validity();
         } else {
-            tr_debug("M2MReportHandler::parse_notification_attribute - not valid query");
+            tr_error("M2MReportHandler::parse_notification_attribute - not valid query");
             _pmin = pmin;
             _pmax = pmax;
             _st = st;
@@ -455,12 +452,6 @@ void M2MReportHandler::report(bool in_queue)
 
     if ((value_changed && _notify) || in_queue) {
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
-        if (_pmin_exceeded) {
-            tr_debug("M2MReportHandler::report()- send with PMIN expiration");
-        } else {
-            tr_debug("M2MReportHandler::report()- send with VALUE change");
-        }
-
         _pmin_exceeded = false;
         _pmax_exceeded = false;
         _pmin_quiet_period = false;
@@ -534,13 +525,11 @@ void M2MReportHandler::report(bool in_queue)
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
 void M2MReportHandler::start_timers()
 {
-    tr_debug("M2MReportHandler::start_timers");
     handle_timers();
 }
 
 void M2MReportHandler::handle_timers()
 {
-    tr_debug("M2MReportHandler::handle_timers()");
     uint64_t time_interval = 0;
     if ((_attribute_state & M2MReportHandler::Pmin) == M2MReportHandler::Pmin) {
         if (_pmin == _pmax) {
@@ -582,15 +571,11 @@ bool M2MReportHandler::check_attribute_validity() const
 
 void M2MReportHandler::stop_timers()
 {
-    tr_debug("M2MReportHandler::stop_timers()");
-
     _pmin_exceeded = false;
     _pmin_timer.stop_timer();
 
     _pmax_exceeded = false;
     _pmax_timer.stop_timer();
-
-    tr_debug("M2MReportHandler::stop_timers() - out");
 }
 #endif
 
@@ -642,22 +627,11 @@ void M2MReportHandler::init_int_values(int64_t value)
 
 bool M2MReportHandler::check_threshold_values() const
 {
-    tr_debug("M2MReportHandler::check_threshold_values");
     if (_resource_type == M2MBase::FLOAT) {
-        tr_debug("Current value: %f", _current_value.float_value);
-        tr_debug("Last value: %f", _last_value.float_value);
-        tr_debug("High step: %f", _high_step.float_value);
-        tr_debug("Low step: %f", _low_step.float_value);
+        tr_debug("M2MReportHandler::check_threshold_values - curr val: %f, last val: %f, high st: %f low st: %f, lt: %f, gt: %f, st: %f", _current_value.float_value, _last_value.float_value, _high_step.float_value, _low_step.float_value, _lt, _gt, _st);
     } else {
-        tr_debug("Current value: %" PRId64, _current_value.int_value);
-        tr_debug("Last value: %" PRId64, _last_value.int_value);
-        tr_debug("High step: %" PRId64, _high_step.int_value);
-        tr_debug("Low step: %" PRId64, _low_step.int_value);
+        tr_debug("M2MReportHandler::check_threshold_values - curr val: %" PRId64 ", last val: %" PRId64 ", hs: %" PRId64 ", ls: %" PRId64 ", lt: %f, gt: %f, st: %f", _current_value.int_value, _last_value.int_value, _high_step.int_value, _low_step.int_value, _lt, _gt, _st);
     }
-
-    tr_debug("Less than: %f", _lt);
-    tr_debug("Greater than: %f", _gt);
-    tr_debug("Step: %f", _st);
 
     bool can_send = check_gt_lt_params();
     if (can_send) {
@@ -676,17 +650,17 @@ bool M2MReportHandler::check_threshold_values() const
                 }
             }
         }
+    } else {
+        tr_debug("M2MReportHandler::check_threshold_values - value not in range");
     }
 
-    tr_debug("M2MReportHandler::check_threshold_values - value can be sent = %d", (int)can_send);
     return can_send;
 }
 
 bool M2MReportHandler::check_gt_lt_params() const
 {
-    tr_debug("M2MReportHandler::check_gt_lt_params");
     if (!_last_value_valid) {
-        tr_debug("No valid _last_value, sending initial notification");
+        tr_debug("No valid last_value, sending initial notification");
         return true;
     }
     bool can_send = false;
@@ -751,7 +725,7 @@ bool M2MReportHandler::check_gt_lt_params() const
     else {
         can_send = true;
     }
-    tr_debug("M2MReportHandler::check_gt_lt_params - value in range = %d", (int)can_send);
+
     return can_send;
 }
 
@@ -867,7 +841,6 @@ bool M2MReportHandler::blockwise_notify() const
 
 void M2MReportHandler::send_value()
 {
-    tr_debug("M2MReportHandler::send_value() - new value");
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
     if (check_threshold_values()) {
         if (_confirmable) {

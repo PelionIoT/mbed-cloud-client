@@ -157,12 +157,12 @@ bool M2MObject::remove_object_instance(uint16_t inst_id)
             }
         }
     }
+
     return success;
 }
 
 M2MObjectInstance *M2MObject::object_instance(uint16_t inst_id) const
 {
-    tr_debug("M2MObject::object_instance(inst_id %d)", inst_id);
     M2MObjectInstance *obj = NULL;
     if (!_instance_list.empty()) {
         M2MObjectInstanceList::const_iterator it;
@@ -188,6 +188,14 @@ uint16_t M2MObject::instance_count() const
     return (uint16_t)_instance_list.size();
 }
 
+uint16_t M2MObject::new_instance_id() const
+{
+    if (!_instance_list.empty()) {
+        return (uint16_t) _instance_list.back()->instance_id() + 1;
+    }
+    return 0;
+}
+
 M2MObservationHandler *M2MObject::observation_handler() const
 {
     // XXX: need to check the flag too
@@ -196,7 +204,6 @@ M2MObservationHandler *M2MObject::observation_handler() const
 
 void M2MObject::set_observation_handler(M2MObservationHandler *handler)
 {
-    tr_debug("M2MObject::set_observation_handler - handler: 0x%p", (void *)handler);
     _observation_handler = handler;
 }
 
@@ -256,7 +263,7 @@ sn_coap_hdr_s *M2MObject::handle_get_request(nsdl_s *nsdl,
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY) && (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY == 1)
                             && (coap_response->content_format != COAP_CONTENT_OMA_LINK_FORMAT_TYPE)
 #endif
-                            ) {
+                       ) {
                         is_content_type_supported = false;
                     }
                 }
@@ -399,7 +406,7 @@ sn_coap_hdr_s *M2MObject::handle_post_request(nsdl_s *nsdl,
                     coap_content_type = M2MBase::coap_content_type();
                 }
 
-                tr_debug("M2MObject::handle_post_request() - Request Content-type: %d", coap_content_type);
+                tr_debug("M2MObject::handle_post_request() - ct: %d", coap_content_type);
 
                 if (COAP_CONTENT_OMA_TLV_TYPE == coap_content_type ||
                         COAP_CONTENT_OMA_TLV_TYPE_OLD == coap_content_type) {

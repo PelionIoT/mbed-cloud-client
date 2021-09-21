@@ -78,7 +78,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_dodag_id_dyn_params = {
     0,                      // registered
     true,                   // publish_uri
     false,                  // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     false,                  // observable
+#endif
     false,                  // auto-observable
     false,                  // always_publish
     0                       // publish_value
@@ -113,7 +115,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_connected_nodes_dyn_params = {
     0,                                          // registered
     true,                                       // publish_uri
     false,                                      // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     true,                                       // observable
+#endif
     false,                                      // auto-observable
     false,                                      // always_publish
     0,                                          // publish_value
@@ -148,7 +152,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_ready_for_multicast_dyn_params 
     0,                                          // registered
     true,                                       // publish_uri
     false,                                      // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     true,                                       // observable
+#endif
     false,                                      // auto-observable
     false,                                      // always_publish
     0,                                          // publish_value
@@ -183,7 +189,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_status_dyn_params = {
     0,                      // registered
     true,                   // publish_uri
     false,                  // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     true,                   // observable
+#endif
     false,                  // auto-observable
     false,                  // always_publish
     0                       // publish_value
@@ -218,7 +226,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_session_dyn_params = {
     0,                      // registered
     true,                   // publish_uri
     false,                  // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     true,                   // observable
+#endif
     false,                  // auto-observable
     false,                  // always_publish
     0                       // publish_value
@@ -253,7 +263,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_command_dyn_params = {
     0,                                          // registered
     true,                                       // publish_uri
     false,                                      // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     false,                                      // observable
+#endif
     false,                                      // auto-observable
     false,                                      // always_publish
     0,                                          // publish_value
@@ -288,7 +300,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_estimated_total_time_dyn_params
     0,                      // registered
     true,                   // publish_uri
     false,                  // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     true,                  // observable
+#endif
     false,                  // auto-observable
     false,                  // always_publish
     0                       // publish_value
@@ -323,7 +337,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_estimated_resend_time_dyn_param
     0,                      // registered
     true,                   // publish_uri
     false,                  // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     true,                  // observable
+#endif
     false,                  // auto-observable
     false,                  // always_publish
     0                       // publish_value
@@ -358,7 +374,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_error_dyn_params = {
     0,                      // registered
     true,                   // publish_uri
     false,                  // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     true,                  // observable
+#endif
     false,                  // auto-observable
     false,                  // always_publish
     0                       // publish_value
@@ -393,7 +411,9 @@ static sn_nsdl_dynamic_resource_parameters_s ota_fragment_size_dyn_params = {
     0,                      // registered
     true,                   // publish_uri
     false,                  // free_on_delete
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     false,                  // observable
+#endif
     false,                  // auto-observable
     false,                  // always_publish
     0                       // publish_value

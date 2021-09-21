@@ -447,12 +447,20 @@ public:
      */
     uint16_t coap_content_type() const;
 
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     /**
      * \brief Returns the observation status of the object.
      * \return True if observable, else false.
      * \deprecated All resources are observable by default.
      */
     bool is_observable() const;
+#else
+    /**
+     * \brief Returns get operation allow state.
+     * \return True if get operation allowed, else false.
+     */
+    bool is_readable() const;
+#endif //MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE
 
     /**
      * \brief Returns the auto observation status of the object.

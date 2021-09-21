@@ -150,7 +150,7 @@ static void reset_parameter_cb(const char * /*object_name*/)
 static nm_status_t nm_res_get_ws_config_from_kvstore(uint8_t **datap, size_t *length)
 {
     if (get_lenght_from_KVstore(kv_key_ws, length) == NM_STATUS_FAIL) {
-        tr_warn("FAILED to get Length from KVStore for Wi-SUN Configuration");
+        tr_warn("Wi-SUN Configuration Key length is not available in KVStore");
         return NM_STATUS_FAIL;
     }
 
@@ -174,7 +174,7 @@ static nm_status_t nm_res_get_ws_config_from_kvstore(uint8_t **datap, size_t *le
 static nm_status_t nm_res_get_br_config_from_kvstore(uint8_t **datap, size_t *length)
 {
     if (get_lenght_from_KVstore(kv_key_br, length) == NM_STATUS_FAIL) {
-        tr_warn("FAILED to get Length from KVStore for Border router configuration");
+        tr_warn("Border router configuration Key length is not available in KVStore");
         return NM_STATUS_FAIL;
     }
 
@@ -396,22 +396,30 @@ nm_status_t nm_res_manager_create(void *obj_list)
     app_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 3, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     app_stats->set_message_delivery_status_cb(msg_delivery_handle, app_stats);
     app_stats->set_read_resource_function(resource_read_requested, app_stats);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     app_stats->set_observable(true);
+#endif
 
     nm_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 4, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     nm_stats->set_message_delivery_status_cb(msg_delivery_handle, nm_stats);
     nm_stats->set_read_resource_function(resource_read_requested, nm_stats);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     nm_stats->set_observable(true);
+#endif
 
     ws_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 5, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     ws_stats->set_message_delivery_status_cb(msg_delivery_handle, ws_stats);
     ws_stats->set_read_resource_function(resource_read_requested, ws_stats);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     ws_stats->set_observable(true);
+#endif
 
     ch_noise = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 10, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     ch_noise->set_message_delivery_status_cb(msg_delivery_handle, ch_noise);
     ch_noise->set_read_resource_function(resource_read_requested, ch_noise);
+ #if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     ch_noise->set_observable(true);
+#endif
 
 #if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
     reset_parameter = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 8, M2MResourceInstance::OPAQUE, M2MBase::PUT_ALLOWED);
@@ -423,25 +431,34 @@ nm_status_t nm_res_manager_create(void *obj_list)
     nbr_info = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 11, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
     nbr_info->set_message_delivery_status_cb(msg_delivery_handle, nbr_info);
     nbr_info->set_read_resource_function(resource_read_requested, nbr_info);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
     nbr_info->set_observable(true);
+#endif
+
 #endif
 
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_BORDER_ROUTER) {
         br_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 6, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         br_stats->set_message_delivery_status_cb(msg_delivery_handle, br_stats);
         br_stats->set_read_resource_function(resource_read_requested, br_stats);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
         br_stats->set_observable(true);
+#endif
 
         routing_table = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 9, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         routing_table->set_message_delivery_status_cb(msg_delivery_handle, routing_table);
         routing_table->set_read_resource_function(resource_read_requested, routing_table);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
         routing_table->set_observable(true);
+#endif
     }
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_ROUTER) {
         node_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 7, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
         node_stats->set_message_delivery_status_cb(msg_delivery_handle, node_stats);
         node_stats->set_read_resource_function(resource_read_requested, node_stats);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
         node_stats->set_observable(true);
+#endif
     }
     return NM_STATUS_SUCCESS;
 }
@@ -462,14 +479,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource app_stats [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set APP Statistics resource to Cloud Client");
+                tr_warn("Could not set APP Statistics resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("APP Statistics resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch APP Statistics");
+        tr_warn("Could not fetch APP Statistics");
         return NM_STATUS_FAIL;
     }
 
@@ -478,14 +495,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource nm_stats [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set General Network Statistics resource to Cloud Client");
+                tr_warn("Could not set General Network Statistics resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("General Network Statistics resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch General Network Statistics");
+        tr_warn("Could not fetch General Network Statistics");
         return NM_STATUS_FAIL;
     }
 
@@ -494,14 +511,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource ws_stats [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Wi-SUN common Statistics resource to Cloud Client");
+                tr_warn("Could not set Wi-SUN common Statistics resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("Wi-SUN common Statistics resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch Wi-SUN common Statistics");
+        tr_warn("Could not fetch Wi-SUN common Statistics");
         return NM_STATUS_FAIL;
     }
 
@@ -510,14 +527,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource br_stats [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Border router Statistics resource to Cloud Client");
+                tr_warn("Could not set Border router Statistics resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("Border router Statistics resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch Border router Statistics");
+        tr_warn("Could not fetch Border router Statistics");
         return NM_STATUS_FAIL;
     }
 
@@ -526,14 +543,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource node_stats [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Node Statistics resource to Cloud Client");
+                tr_warn("Could not set Node Statistics resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("Node Statistics resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch Node Statistics");
+        tr_warn("Could not fetch Node Statistics");
         return NM_STATUS_FAIL;
     }
 
@@ -542,14 +559,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource routing_table [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Routing Table resource to Cloud Client");
+                tr_warn("Could not set Routing Table resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("Routing Table resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch Routing Table");
+        tr_warn("Could not fetch Routing Table");
         return NM_STATUS_FAIL;
     }
 
@@ -558,14 +575,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource ch_noise [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Channel noise resource to Cloud Client");
+                tr_warn("Could not set Channel noise resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("Channel noise resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch Channel noise");
+        tr_warn("Could not fetch Channel noise");
         return NM_STATUS_FAIL;
     }
 
@@ -575,14 +592,14 @@ nm_status_t nm_res_manager_get(void *resource_object)
             tr_info("Setting value of resource nbr_info [len = %u] in Cloud Client", len);
             print_stream(buf, len);
             if (res_obj->set_value(buf, len) != true) {
-                tr_warn("FAILED to set Neighbor Info. resource to Cloud Client");
+                tr_warn("Could not set Neighbor Info. resource to Cloud Client");
                 return NM_STATUS_FAIL;
             }
             tr_info("Neighbor Info. resource value Set to Cloud Client");
             nm_dyn_mem_free(buf);
             return NM_STATUS_SUCCESS;
         }
-        tr_warn("FAILED to fetch Neighbor Info.");
+        tr_warn("Could not fetch Neighbor Info.");
         return NM_STATUS_FAIL;
     }
 #endif

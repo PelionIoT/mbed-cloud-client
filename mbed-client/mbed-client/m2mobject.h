@@ -32,12 +32,11 @@ class M2MEndpoint;
  * Use this class to define LwM2M objects.
  * This class also holds all object instances associated with the given object.
  */
-class M2MObject : public M2MBase
-{
+class M2MObject : public M2MBase {
 
-friend class M2MInterfaceFactory;
-friend class M2MEndpoint;
-friend class TestFactory;
+    friend class M2MInterfaceFactory;
+    friend class M2MEndpoint;
+    friend class TestFactory;
 
 protected :
 
@@ -56,16 +55,16 @@ protected :
     M2MObject();
 
     // Prevents the use of assignment operator.
-    M2MObject& operator=( const M2MObject& /*other*/ );
+    M2MObject &operator=(const M2MObject & /*other*/);
 
     // Prevents the use of copy constructor.
-    M2MObject( const M2MObject& /*other*/ );
+    M2MObject(const M2MObject & /*other*/);
 
     /**
      * \brief Constructor
      * \param name The name of the object.
      */
-    M2MObject(const M2MBase::lwm2m_parameters_s* static_res);
+    M2MObject(const M2MBase::lwm2m_parameters_s *static_res);
 
 public:
 
@@ -79,7 +78,7 @@ public:
      * the client can respond to server's GET methods with the provided value.
      * \return M2MObjectInstance. An object instance for managing other client operations.
      */
-    M2MObjectInstance* create_object_instance(uint16_t instance_id = 0);
+    M2MObjectInstance *create_object_instance(uint16_t instance_id = 0);
 
     /**
      * \brief Creates a new object instance for a given mbed Client Interface object. With this,
@@ -88,7 +87,7 @@ public:
      *
      * \deprecated Internal lwm2m_parameter_s structure is deprecated. Please use M2MObject::create_object_instance(uint16_t) instead.
      */
-    M2MObjectInstance* create_object_instance(const lwm2m_parameters_s* s);
+    M2MObjectInstance *create_object_instance(const lwm2m_parameters_s *s);
 
     /**
      * \brief Removes the object instance resource with the given instance id.
@@ -102,13 +101,13 @@ public:
      * \param instance_id The instance ID of the requested object instance ID, default is 0.
      * \return Object instance reference if found, else NULL.
      */
-    M2MObjectInstance* object_instance(uint16_t instance_id = 0) const;
+    M2MObjectInstance *object_instance(uint16_t instance_id = 0) const;
 
     /**
      * \brief Returns a list of object instances.
      * \return A list of object instances.
      */
-    const M2MObjectInstanceList& instances() const;
+    const M2MObjectInstanceList &instances() const;
 
     /**
      * \brief Returns the total number of object instances-
@@ -117,11 +116,17 @@ public:
     uint16_t instance_count() const;
 
     /**
+     * \brief Returns instance id to be used for new instances.
+     * \return The instance id of last instance in the list + 1
+     */
+    uint16_t new_instance_id() const;
+
+    /**
      * \brief Returns the Observation Handler object.
      * \return M2MObservationHandler object.
      * \deprecated Internal API, subject to be modified or removed.
     */
-    virtual M2MObservationHandler* observation_handler() const;
+    virtual M2MObservationHandler *observation_handler() const;
 
     /**
      * \brief Sets the observation handler
@@ -153,7 +158,7 @@ public:
      * \return sn_coap_hdr_s  The message that needs to be sent to server.
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_get_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_get_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler = NULL);
 
@@ -167,7 +172,7 @@ public:
      * \return sn_coap_hdr_s The message that needs to be sent to server.
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_put_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_put_request(nsdl_s *nsdl,
                                               sn_coap_hdr_s *received_coap_header,
                                               M2MObservationHandler *observation_handler,
                                               bool &execute_value_updated);
@@ -182,7 +187,7 @@ public:
      * \return sn_coap_hdr_s The message that needs to be sent to server.
      * \deprecated Internal API, subject to be modified or removed.
      */
-    virtual sn_coap_hdr_s* handle_post_request(nsdl_s *nsdl,
+    virtual sn_coap_hdr_s *handle_post_request(nsdl_s *nsdl,
                                                sn_coap_hdr_s *received_coap_header,
                                                M2MObservationHandler *observation_handler,
                                                bool &execute_value_updated,
@@ -196,7 +201,7 @@ public:
 #ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
     void set_endpoint(M2MEndpoint *endpoint);
 
-    M2MEndpoint* get_endpoint() const;
+    M2MEndpoint *get_endpoint() const;
 #endif
 
 protected :
@@ -215,22 +220,23 @@ private:
     M2MEndpoint              *_endpoint; // Parent endpoint
 #endif
 
-friend class Test_M2MObject;
-friend class Test_M2MEndpoint;
-friend class Test_M2MInterfaceImpl;
-friend class Test_M2MInterfaceFactory;
-friend class Test_M2MNsdlInterface;
-friend class Test_M2MTLVSerializer;
-friend class Test_M2MTLVDeserializer;
-friend class Test_M2MDevice;
-friend class Test_M2MBase;
-friend class Test_M2MObjectInstance;
-friend class Test_M2MResource;
-friend class Test_M2MSecurity;
-friend class Test_M2MServer;
-friend class Test_M2MReportHandler;
-friend class Test_M2MResourceInstance;
-friend class Test_M2MDiscover;
+    friend class Test_M2MObject;
+    friend class Test_M2MEndpoint;
+    friend class Test_M2MInterfaceImpl;
+    friend class Test_M2MInterfaceFactory;
+    friend class Test_M2MNsdlInterface;
+    friend class Test_M2MTLVSerializer;
+    friend class Test_M2MTLVDeserializer;
+    friend class Test_M2MDevice;
+    friend class Test_M2MBase;
+    friend class Test_M2MObjectInstance;
+    friend class Test_M2MResource;
+    friend class Test_M2MSecurity;
+    friend class Test_M2MServer;
+    friend class Test_M2MReportHandler;
+    friend class Test_M2MResourceInstance;
+    friend class Test_M2MDiscover;
+    friend class Test_M2MDynLog;
 };
 
 #endif // M2M_OBJECT_H

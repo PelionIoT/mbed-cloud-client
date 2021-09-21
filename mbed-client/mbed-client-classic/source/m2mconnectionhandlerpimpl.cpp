@@ -43,7 +43,7 @@
 
 #define TRACE_GROUP "mClt"
 
-#if (PAL_DNS_API_VERSION == 1) && defined(TARGET_LIKE_MBED)
+#if (PAL_DNS_API_VERSION == 1) && defined(__MBED__)
 #error "For async PAL DNS only API v2 or greater is supported on Mbed."
 #endif
 
@@ -70,7 +70,7 @@ extern "C" void eventloop_event_handler(arm_event_s *event)
     if (!event->data_ptr) {
         return;
     }
-    tr_debug("M2MConnectionHandlerPimpl::eventloop_event_handler %d", event->event_type);
+
     if (event->event_type != M2MConnectionHandlerPimpl::ESocketIdle) {
         if (!event->data_ptr) {
             tr_error("M2MConnectionHandlerPimpl::eventloop_event_handler event->data_ptr=NULL !!!!");
@@ -431,6 +431,7 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String &server_addr
     if (_security &&
             security_instance_id >= 0 &&
             (_security->resource_value_int(M2MSecurity::SecurityMode, security_instance_id) == M2MSecurity::Certificate ||
+             _security->resource_value_int(M2MSecurity::SecurityMode, security_instance_id) == M2MSecurity::EST ||
              _security->resource_value_int(M2MSecurity::SecurityMode, security_instance_id) == M2MSecurity::Psk)) {
         _secure_connection = true;
     } else {
@@ -460,14 +461,13 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
         security_instance_id = _security->get_security_instance_id(M2MSecurity::Bootstrap);
     }
 
-    tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - _socket_state = %d", _socket_state);
-
     switch (_socket_state) {
         case ESocketStateCloseBeingCalled:
         case ESocketStateDNSResolving:
         case ESocketStateDisconnected:
         case ESocketStateHandshaking:
         case ESocketStateUnsecureConnection:
+            tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - _socket_state = %d --> ignore", _socket_state);
             // Ignore these events
             break;
 
@@ -494,8 +494,6 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
 
             if (PAL_SUCCESS != status) {
                 tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - setSockAddrPort err: %" PRIx32, status);
-            } else {
-                tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - address family: %d", (int)_socket_address.addressType);
             }
 
             if (_socket_address.addressType == PAL_AF_INET) {
@@ -506,7 +504,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                     return;
                 }
 
-                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - IPv4 Address %d.%d.%d.%d",
+                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - IPv4 address %d.%d.%d.%d",
                         _ipV4Addr[0], _ipV4Addr[1], _ipV4Addr[2], _ipV4Addr[3]);
                 _address._stack = M2MInterface::LwIP_IPv4;
                 _address._address = (void *)_ipV4Addr;
@@ -520,7 +518,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                     return;
                 }
 
-                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - IPv6 Address: %s", mbed_trace_ipv6(_ipV6Addr));
+                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - IPv6 address: %s", mbed_trace_ipv6(_ipV6Addr));
                 _address._stack = M2MInterface::LwIP_IPv6;
                 _address._address = (void *)_ipV6Addr;
                 _address._length = PAL_IPV6_ADDRESS_SIZE;
@@ -547,8 +545,6 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
         case ESocketStateConnecting:
             if (is_tcp_connection()) {
 #ifdef PAL_NET_TCP_AND_TLS_SUPPORT
-                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - Using TCP");
-
                 status = pal_connect(_socket, (palSocketAddress_t *)&_socket_address, sizeof(_socket_address));
 
                 if ((status == PAL_ERR_SOCKET_IN_PROGRES) || (status == PAL_ERR_SOCKET_WOULD_BLOCK)) {
@@ -574,7 +570,7 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                 tr_error("socket_connect_handler() - TCP not configured"
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
             } else {
-                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - Using UDP");
+                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - using UDP");
                 _socket_state = ESocketStateConnected;
             }
         // fall through
@@ -584,7 +580,6 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                 if (_secure_connection) {
                     if (_security_impl != NULL) {
                         _security_impl->reset();
-                        tr_debug("M2MConnectionHandlerPimpl::socket_connect_handler - security reseted!");
                         int ret_code = _security_impl->init(_security, security_instance_id, _is_server_ping);
                         if (ret_code == M2MConnectionHandler::ERROR_NONE) {
                             ret_code = _security_impl->set_dtls_socket_callback(&socket_event_handler, this);
@@ -679,7 +674,6 @@ bool M2MConnectionHandlerPimpl::send_data(uint8_t *data,
 
 void M2MConnectionHandlerPimpl::send_socket_data()
 {
-    tr_debug("M2MConnectionHandlerPimpl::send_socket_data()");
     int bytes_sent = 0;
     bool success = true;
 
@@ -794,28 +788,23 @@ void M2MConnectionHandlerPimpl::handle_connection_error(int error)
 
 void M2MConnectionHandlerPimpl::set_platform_network_handler(void *handler)
 {
-    tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler");
-
     palStatus_t status = pal_registerNetworkInterface(handler, &_net_iface);
 
     if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Interface registration failed 0x%" PRIx32, status);
+        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - interface registration failed 0x%" PRIx32, status);
     }
     status = pal_setConnectionStatusCallback(_net_iface, network_status_event, this);
     if (PAL_ERR_NOT_SUPPORTED == status) {
         // On Linux pal_setConnectionStatusCallback will return PAL_ERR_NOT_SUPPORTED
-        tr_info("Connection status callback set not supported.");
+        tr_info("M2MConnectionHandlerPimpl::set_platform_network_handler - connection status callback set not supported.");
     } else if (PAL_SUCCESS != status) {
-        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - Connection status callback set failed 0x%" PRIx32, status);
+        tr_error("M2MConnectionHandlerPimpl::set_platform_network_handler - connection status callback set failed 0x%" PRIx32, status);
     }
-
-    tr_debug("M2MConnectionHandlerPimpl::set_platform_network_handler - index = %d", _net_iface);
 }
 
 void M2MConnectionHandlerPimpl::receive_handshake_handler()
 {
     int return_value;
-    tr_debug("M2MConnectionHandlerPimpl::receive_handshake_handler()");
 
     assert(_socket_state == ESocketStateHandshaking);
 
@@ -854,8 +843,6 @@ void M2MConnectionHandlerPimpl::receive_handshake_handler()
         tr_error("M2MConnectionHandlerPimpl::receive_handshake_handler() - retcode %d", return_value);
         _observer.socket_error(return_value, true);
         close_socket();
-    } else {
-        tr_debug("M2MConnectionHandlerPimpl::receive_handshake_handler() - waiting next event");
     }
 }
 
@@ -875,7 +862,6 @@ void M2MConnectionHandlerPimpl::receive_handler()
 
         // we need to read as much as there is data available as the events may or may not be suppressed
         do {
-            tr_debug("M2MConnectionHandlerPimpl::receive_handler()..");
             rcv_size = _security_impl->read(recv_buffer, sizeof(recv_buffer));
             tr_debug("M2MConnectionHandlerPimpl::receive_handler() res: %d", rcv_size);
             if (rcv_size > 0) {

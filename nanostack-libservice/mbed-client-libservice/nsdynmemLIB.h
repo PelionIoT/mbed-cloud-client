@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018 ARM Limited. All rights reserved.
+ * Copyright (c) 2014-2019 ARM Limited. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the License); you may
  * not use this file except in compliance with the License.
@@ -37,6 +37,9 @@ extern "C" {
 typedef size_t ns_mem_block_size_t; //external interface unsigned heap block size type
 typedef size_t ns_mem_heap_size_t; //total heap size type.
 
+// Can be used to enable tracking of dynamic memory allocations
+#include "nsdynmem_tracker.h"
+
 /*!
  * \enum heap_fail_t
  * \brief Dynamically heap system failure call back event types.
@@ -64,18 +67,31 @@ typedef struct mem_stat_t {
     uint32_t heap_alloc_fail_cnt;               /**< Counter for Heap allocation fail. */
 } mem_stat_t;
 
-
 typedef struct ns_mem_book ns_mem_book_t;
 
 /**
   * \brief Init and set Dynamical heap pointer and length.
   *
   * \param heap_ptr Pointer to dynamically heap buffer
-  * \param heap_size size of the heap buffer
+  * \param h_size size of the heap buffer
+  * \param passed_fptr pointer to heap error callback function
+  * \param info_ptr Pointer to mem_stat_t for memory statistics. Can be NULL.
+  *
   * \return None
   */
-extern void ns_dyn_mem_init(void *heap, ns_mem_heap_size_t h_size, void (*passed_fptr)(heap_fail_t), mem_stat_t *info_ptr);
+extern void ns_dyn_mem_init(void *heap_ptr, ns_mem_heap_size_t h_size, void (*passed_fptr)(heap_fail_t), mem_stat_t *info_ptr);
 
+/**
+  * \brief Add memory region to initialized heap.
+  *
+  * This method adds memory region to already initialized heap.
+  * Method will reset temporary heap threshold to the default value.
+  *
+  * \param region_ptr Pointer to memory region to be added
+  * \param region_size size of the region buffer
+  * \return 0 on success, <0 in case of errors.
+  */
+extern int ns_dyn_mem_region_add(void *region_ptr, ns_mem_heap_size_t region_size);
 
 /**
   * \brief Free allocated memory.
@@ -85,7 +101,10 @@ extern void ns_dyn_mem_init(void *heap, ns_mem_heap_size_t h_size, void (*passed
   * \return 0, Free OK
   * \return <0, Free Fail
   */
+#if NSDYNMEM_TRACKER_ENABLED!=1
 extern void ns_dyn_mem_free(void *heap_ptr);
+#endif
+
 /**
   * \brief Allocate temporary data.
   *
@@ -96,7 +115,10 @@ extern void ns_dyn_mem_free(void *heap_ptr);
   * \return 0, Allocate Fail
   * \return >0, Pointer to allocated data sector.
   */
+#if NSDYNMEM_TRACKER_ENABLED!=1
 extern void *ns_dyn_mem_temporary_alloc(ns_mem_block_size_t alloc_size);
+#endif
+
 /**
   * \brief Allocate long period data.
   *
@@ -107,7 +129,9 @@ extern void *ns_dyn_mem_temporary_alloc(ns_mem_block_size_t alloc_size);
   * \return 0, Allocate Fail
   * \return >0, Pointer to allocated data sector.
   */
+#if NSDYNMEM_TRACKER_ENABLED!=1
 extern void *ns_dyn_mem_alloc(ns_mem_block_size_t alloc_size);
+#endif
 
 /**
   * \brief Get pointer to the current mem_stat_t set via ns_dyn_mem_init.
@@ -118,7 +142,7 @@ extern void *ns_dyn_mem_alloc(ns_mem_block_size_t alloc_size);
   * Note: the caller may not modify the returned structure.
   *
   * \return NULL, no mem_stat_t was given on initialization
-  * \return !=0, Pointer to mem_stat_t.
+  * \return Pointer to mem_stat_t or NULL.
   */
 extern const mem_stat_t *ns_dyn_mem_get_mem_stat(void);
 
@@ -139,11 +163,27 @@ extern int ns_dyn_mem_set_temporary_alloc_free_heap_threshold(uint8_t free_heap_
 /**
   * \brief Init and set Dynamical heap pointer and length.
   *
-  * \param heap_ptr Pointer to dynamically heap buffer
-  * \param heap_size size of the heap buffer
-  * \return !=0, Pointer to ns_mem_book_t.
+  * \param heap_ptr Pointer to dynamically heap buffer.
+  * \param h_size size of the heap buffer.
+  * \param passed_fptr pointer to heap error callback function.
+  * \param info_ptr Pointer to mem_stat_t for memory statistics. Can be NULL.
+  * \return Pointer to ns_mem_book_t.
   */
-extern ns_mem_book_t *ns_mem_init(void *heap, ns_mem_heap_size_t h_size, void (*passed_fptr)(heap_fail_t), mem_stat_t *info_ptr);
+extern ns_mem_book_t *ns_mem_init(void *heap_ptr, ns_mem_heap_size_t h_size, void (*passed_fptr)(heap_fail_t), mem_stat_t *info_ptr);
+
+/**
+  * \brief Add memory region to initialized heap.
+  *
+  * This method adds memory region to already initialized heap.
+  * Method will reset temporary heap threshold to the default value.
+  *
+  * \param book Address of book keeping structure.
+  * \param region_ptr Pointer to memory region buffer.
+  * \param region_size size of the memory region to add
+  *
+  * \return 0 on success, <0 in case of errors.
+  */
+extern int ns_mem_region_add(ns_mem_book_t *book, void *region_ptr, ns_mem_heap_size_t region_size);
 
 /**
   * \brief Free allocated memory.
@@ -155,6 +195,7 @@ extern ns_mem_book_t *ns_mem_init(void *heap, ns_mem_heap_size_t h_size, void (*
   * \return <0, Free Fail
   */
 extern void ns_mem_free(ns_mem_book_t *book, void *heap_ptr);
+
 /**
   * \brief Allocate temporary data.
   *
@@ -167,6 +208,7 @@ extern void ns_mem_free(ns_mem_book_t *book, void *heap_ptr);
   * \return >0, Pointer to allocated data sector.
   */
 extern void *ns_mem_temporary_alloc(ns_mem_book_t *book, ns_mem_block_size_t alloc_size);
+
 /**
   * \brief Allocate long period data.
   *

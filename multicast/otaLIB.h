@@ -43,14 +43,6 @@ extern "C" {
 
 #define OTA_SESSION_ID_SIZE                 16 // In bytes
 
-#define OTA_DEFAULT_FRAGMENT_SIZE           1024 // In bytes
-
-#define OTA_MAX_MULTICAST_MESSAGE_SIZE      1200 - 21 // In bytes, 21 is the "header" part of the fragment command
-
-#define OTA_MIN_FRAGMENT_SIZE               768 // In bytes, this can be less if manifest will go as fragments. Delta manifest is around 540 bytes.
-
-#define OTA_FRAGMENTS_REQ_BITMASK_LENGTH    16 // In bytes (bitmask consist of 128 bits: 16 bytes * 8 bits = 128 bits)
-
 /*!
  * \enum ota_device_type_e
  * \brief Enum for Device types.

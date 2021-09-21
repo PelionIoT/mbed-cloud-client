@@ -58,9 +58,27 @@ int fota_source_firmware_request_fragment(const char *uri, size_t offset);
 
 typedef void (*report_sent_callback_t)(void);
 int fota_source_report_state(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure);
+int fota_source_report_state_in_ms(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure, size_t in_ms);
+void report_state_random_delay(bool enable);
+
 int fota_source_report_update_result(int result);
+int fota_source_report_update_customer_result(int result);
 void fota_source_send_manifest_received_ack(void);
 void fota_source_enable_auto_observable_resources_reporting(bool enable);
+
+typedef struct {
+    fota_source_state_e state;
+    report_sent_callback_t on_sent;
+    report_sent_callback_t on_failure;
+} fota_random_state_report_params_t;
+
+#define EVENT_RANDOM_DELAY 100
+
+#if defined(__NANOSIMULATOR__) || defined(MBED_CLOUD_CLIENT_MULTICAST_SMALL_NETWORK) || defined(MBED_CLOUD_CLIENT_MESH_SOCKET_SIMULATOR)
+#define RANDOM_DELAY_RANGE_IN_SEC 10
+#else
+#define RANDOM_DELAY_RANGE_IN_SEC 120
+#endif
 
 #ifdef __cplusplus
 }

@@ -45,17 +45,10 @@ M2MInterface *M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
                                                     const String &context_address,
                                                     const String &version)
 {
-    tr_debug("M2MInterfaceFactory::create_interface - IN");
-    tr_info("M2MInterfaceFactory::create_interface - parameters endpoint name : %s", endpoint_name.c_str());
-    tr_info("M2MInterfaceFactory::create_interface - parameters endpoint type : %s", endpoint_type.c_str());
-    tr_info("M2MInterfaceFactory::create_interface - parameters life time(in secs): %" PRId32, life_time);
-    tr_info("M2MInterfaceFactory::create_interface - parameters Listen Port : %d", listen_port);
-    tr_info("M2MInterfaceFactory::create_interface - parameters Binding Mode : %d", (int)mode);
-    tr_info("M2MInterfaceFactory::create_interface - parameters NetworkStack : %d", (int)stack);
-    tr_info("M2MInterfaceFactory::create_interface - parameters version : %s", version.c_str());
+    tr_info("M2MInterfaceFactory::create_interface - name: %s, type: %s, lt: %" PRId32", port: %d, binding: %d, stack: %d, version: %s",
+            endpoint_name.c_str(), endpoint_type.c_str(), life_time, listen_port, (int)mode, (int)stack, version.c_str());
+
     M2MInterfaceImpl *interface = NULL;
-
-
     bool endpoint_type_valid = true;
     if (!endpoint_type.empty()) {
         if (endpoint_type.size() > MAX_ALLOWED_STRING_LENGTH) {
@@ -80,7 +73,6 @@ M2MInterface *M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
     if (((life_time == -1) || (life_time >= MINIMUM_REGISTRATION_TIME)) &&
             !endpoint_name.empty() && (endpoint_name.size() <= MAX_ALLOWED_STRING_LENGTH) &&
             endpoint_type_valid && domain_valid && version_valid) {
-        tr_debug("M2MInterfaceFactory::create_interface - Creating M2MInterfaceImpl");
         interface = new M2MInterfaceImpl(observer, endpoint_name,
                                              endpoint_type, life_time,
                                              listen_port, domain, mode,
@@ -88,34 +80,30 @@ M2MInterface *M2MInterfaceFactory::create_interface(M2MInterfaceObserver &observ
                                              version);
 
     }
-    tr_debug("M2MInterfaceFactory::create_interface - OUT");
+
     return interface;
 }
 
 M2MSecurity *M2MInterfaceFactory::create_security(M2MSecurity::ServerType server_type)
 {
-    tr_debug("M2MInterfaceFactory::create_security");
     M2MSecurity *security = M2MSecurity::get_instance();
     return security;
 }
 
 M2MServer *M2MInterfaceFactory::create_server()
 {
-    tr_debug("M2MInterfaceFactory::create_server");
     M2MServer *server = new M2MServer();
     return server;
 }
 
 M2MDevice *M2MInterfaceFactory::create_device()
 {
-    tr_debug("M2MInterfaceFactory::create_device");
     M2MDevice *device = M2MDevice::get_instance();
     return device;
 }
 
 M2MObject *M2MInterfaceFactory::create_object(const String &name)
 {
-    tr_debug("M2MInterfaceFactory::create_object : Name : %s", name.c_str());
     if (name.size() > MAX_ALLOWED_STRING_LENGTH || name.empty()) {
         return NULL;
     }
@@ -222,8 +210,8 @@ M2MResource *M2MInterfaceFactory::create_resource(M2MObjectList &object_list,
                                                   bool multiple_instance,
                                                   bool external_blockwise_store)
 {
-    tr_debug("M2MInterfaceFactory::create_resource() - creating /%" PRIu16 "/%" PRIu16 "/%" PRIu16,
-             object_id, object_instance_id, resource_id);
+    tr_debug("M2MInterfaceFactory::create_resource() - path: /%" PRIu16 "/%" PRIu16 "/%" PRIu16 ", type %d, operation: %d",
+             object_id, object_instance_id, resource_id, resource_type, allowed);
 
     M2MObject *object;
     M2MObjectInstance *object_instance;

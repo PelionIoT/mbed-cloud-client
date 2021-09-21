@@ -156,6 +156,11 @@ public:
 
         /// Client is unable to bootstrap due to certificate issue (Bad Request).
         ConnectorInvalidCredentials             = M2MInterface::InvalidCertificates,
+
+        /// Unregistration failed.
+        /// No internal recovery mechanism. Actions needed on the application side.
+        ConnectorUnregistrationFailed           = M2MInterface::UnregistrationFailed,
+
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_UPDATE
         UpdateWarningNoActionRequired           = UpdateClient::WarningBase, // Range reserved for Update Error from 0x0400 - 0x04FF
         UpdateWarningCertificateNotFound        = UpdateClient::WarningCertificateNotFound,
@@ -327,12 +332,13 @@ public:
      * If you have not called `init()` API separately, `setup()` will call it internally
      *
      * \param iface A handler to the network interface.
+     * \param full_register If set, forces client to send a registration message to Device Management server.
      * \return True on success or false in case of failure.
      * False means your application is running low on memory and all APIs will fail with undefined behaviour.
      * An application using Device Management Client must be able to recover from the failure and retry the initialization of
      * Device Management Client by calling this API or `init()` at later stage.
      */
-    bool setup(void *iface);
+    bool setup(void *iface, bool full_register = false);
 
     /**
      * \brief Set the callback function that is called when Device Management Client is registered
@@ -612,6 +618,16 @@ public:
      * sendings/active operations and waits for priority data to be sent.
      */
     void alert();
+
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+    /**
+     * \brief Sets dynamic logging state.
+     *
+     * \param state Enabled/Disabled
+     * \param stopped_by_update  If true it will report error status "4" (Aborted due firmware updated) to Pelion
+     */
+    void set_dynamic_logging_state(bool state, bool stopped_by_update);
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
 
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
     /**

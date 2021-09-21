@@ -32,6 +32,13 @@ class M2MServer;
 class M2MInterfaceObserver {
 
 public:
+     /**
+     * \brief A callback indicating that the given security object instance
+     * requires initialisation.
+     * \param instance_id The instance id of the security object instance
+     * requiring initialisation.
+     */
+    virtual void init_security_object(uint16_t instance_id) = 0;
 
     /**
      * \brief A callback indicating that the bootstap has been performed successfully.

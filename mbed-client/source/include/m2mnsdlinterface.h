@@ -805,11 +805,13 @@ private:
     uint16_t                                _bootstrap_id;
     static int8_t                           _tasklet_id;
     uint8_t                                 _binding_mode;
+    bool                                    _nosec_mode;
     bool                                    _identity_accepted;
     bool                                    _nsdl_execution_timer_running;
     bool                                    _notification_send_ongoing;
     bool                                    _registered;
     bool                                    _waiting_for_bs_finish_ack;
+    bool                                    _bootstrap_finished;
     M2MTimer                                _download_retry_timer;
     uint32_t                                _download_retry_time;
     uint8_t                                 _network_rtt_estimate;

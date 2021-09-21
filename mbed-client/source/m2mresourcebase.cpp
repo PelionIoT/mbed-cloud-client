@@ -206,7 +206,7 @@ bool M2MResourceBase::set_resource_write_callback(write_resource_value_callback 
 
 void M2MResourceBase::clear_value()
 {
-    tr_debug("M2MResourceBase::clear_value");
+    tr_debug("M2MResourceBase::clear_value - res: %s", uri_path());
 
     sn_nsdl_dynamic_resource_parameters_s *res = get_nsdl_resource();
     free(res->resource);
@@ -219,6 +219,7 @@ void M2MResourceBase::clear_value()
 bool M2MResourceBase::set_value_float(float value)
 {
     bool success;
+
     char buffer[REGISTRY_FLOAT_STRING_MAX_LEN];
 
     // Convert value to string
@@ -248,7 +249,7 @@ bool M2MResourceBase::set_value(int64_t value)
 bool M2MResourceBase::set_value(const uint8_t *value,
                                 const uint32_t value_length)
 {
-    tr_debug("M2MResourceBase::set_value()");
+    tr_info("M2MResourceBase::set_value - res: %s", uri_path());
     bool success = false;
     if (value != NULL && value_length > 0) {
         M2MBase::lwm2m_parameters_s *param = M2MBase::get_lwm2m_parameters();
@@ -274,7 +275,7 @@ bool M2MResourceBase::set_value_raw(uint8_t *value,
                                     const uint32_t value_length)
 
 {
-    tr_debug("M2MResourceBase::set_value_raw()");
+    tr_info("M2MResourceBase::set_value_raw - res: %s", uri_path());
     bool success = false;
     if (value != NULL && value_length > 0) {
         success = true;
@@ -315,7 +316,6 @@ void M2MResourceBase::report_to_parents()
 
     if ((M2MBase::O_Attribute & parent_observation_level) == M2MBase::O_Attribute ||
             (M2MBase::OI_Attribute & parent_observation_level) == M2MBase::OI_Attribute) {
-        tr_debug("M2MResourceBase::report_to_parents() -- object/instance level");
         object_instance.notification_update((M2MBase::Observation)parent_observation_level);
     }
 }
@@ -323,7 +323,6 @@ void M2MResourceBase::report_to_parents()
 void M2MResourceBase::report()
 {
     M2MBase::Observation observation_level = M2MBase::observation_level();
-    tr_debug("M2MResourceBase::report() - level %d", observation_level);
 
     // We must combine the parent object/objectinstance/resource observation information
     // when determining if there is observation set or not.
@@ -334,7 +333,11 @@ void M2MResourceBase::report()
     parent_observation_level |= (int)get_parent_resource().observation_level();
     parent_observation_level |= (int)observation_level;
 
-    tr_debug("M2MResourceBase::report() - combined level %d", parent_observation_level);
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
+    tr_debug("M2MResourceBase::report() - level: %d, combined level: %d, mode: %d, is_observable: %d", observation_level, parent_observation_level, mode(), is_observable());
+#else
+    tr_debug("M2MResourceBase::report() - level: %d, combined level: %d, mode: %d, is_readable: %d", observation_level, parent_observation_level, mode(), is_readable());
+#endif
 
     if ((M2MBase::O_Attribute & parent_observation_level) == M2MBase::O_Attribute ||
             (M2MBase::OI_Attribute & parent_observation_level) == M2MBase::OI_Attribute) {
@@ -348,13 +351,15 @@ void M2MResourceBase::report()
 
     if (M2MBase::Dynamic == mode() &&
             (M2MBase::R_Attribute & parent_observation_level) == M2MBase::R_Attribute) {
-        tr_debug("M2MResourceBase::report() - resource level");
-
         if (((resource_instance_type() != M2MResourceBase::STRING) &&
                 (resource_instance_type() != M2MResourceBase::OPAQUE)) &&
                 (observation_level != M2MBase::None)) {
             M2MReportHandler *report_handler = M2MBase::report_handler();
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
             if (report_handler && (is_observable() || is_auto_observable())) {
+#else
+            if (report_handler && (is_readable() || is_auto_observable())) {
+#endif
                 if (resource_instance_type() == M2MResourceBase::FLOAT) {
                     const float float_value = get_value_float();
                     report_handler->set_value_float(float_value);
@@ -367,7 +372,11 @@ void M2MResourceBase::report()
             if (base_type() == M2MBase::ResourceInstance) {
                 const M2MResource &parent_resource = get_parent_resource();
                 M2MReportHandler *report_handler = parent_resource.report_handler();
+#if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
                 if (report_handler && (parent_resource.is_observable() || parent_resource.is_auto_observable())) {
+#else
+                if (report_handler && (parent_resource.is_readable() || parent_resource.is_auto_observable())) {
+#endif
                     report_handler->set_notification_trigger(parent_resource.get_parent_object_instance().instance_id());
                 }
             }
@@ -377,11 +386,6 @@ void M2MResourceBase::report()
         if (obs_handler) {
             obs_handler->value_updated(this);
         }
-    } else {
-        if (is_observable() || is_auto_observable()) {
-            tr_debug("M2MResourceBase::report() - resource %s is observable but not yet subscribed!", uri_path());
-        }
-        tr_debug("M2MResourceBase::report() - mode = %d, is_observable = %d", mode(), is_observable());
     }
 }
 
@@ -422,7 +426,7 @@ void M2MResourceBase::execute(void *arguments)
 {
     // XXX: this line is expected by seven testcases and until this code hits master branch
     // the testcases can not be modified and we need to print the false information too.
-    tr_debug("M2MResourceBase::execute");
+    tr_debug("M2MResourceBase::execute - res: %s", uri_path());
 
     execute_callback *callback = (execute_callback *)M2MCallbackStorage::get_callback(*this, M2MCallbackAssociation::M2MResourceInstanceExecuteCallback);
 
@@ -438,8 +442,6 @@ void M2MResourceBase::execute(void *arguments)
 
 int M2MResourceBase::read_resource_value(const M2MResourceBase &resource, void *buffer, size_t *buffer_len)
 {
-    tr_debug("M2MResourceBase::read_resource_value");
-
     M2MCallbackAssociation *item = M2MCallbackStorage::get_association_item(resource,
                                                                             M2MCallbackAssociation::M2MResourceInstanceReadCallback);
 
@@ -461,8 +463,6 @@ int M2MResourceBase::read_resource_value(const M2MResourceBase &resource, void *
 
 int M2MResourceBase::read_resource_value_size(const M2MResourceBase &resource, size_t *buffer_len)
 {
-    tr_debug("M2MResourceBase::read_resource_value_size");
-
     M2MCallbackAssociation *item = M2MCallbackStorage::get_association_item(resource,
                                                                             M2MCallbackAssociation::M2MResourceBaseValueReadSizeCallback);
 
@@ -478,7 +478,6 @@ int M2MResourceBase::read_resource_value_size(const M2MResourceBase &resource, s
 
 bool M2MResourceBase::write_resource_value(const M2MResourceBase &resource, const uint8_t *buffer, const size_t buffer_size)
 {
-    tr_debug("M2MResourceBase::write_resource_value");
     M2MCallbackAssociation *item = M2MCallbackStorage::get_association_item(resource,
                                                                             M2MCallbackAssociation::M2MResourceBaseValueWriteCallback);
     if (item) {
@@ -586,7 +585,6 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
                                                    sn_coap_hdr_s *received_coap_header,
                                                    M2MObservationHandler *observation_handler)
 {
-    tr_info("M2MResourceBase::handle_get_request()");
     sn_coap_msg_code_e msg_code = COAP_MSG_CODE_RESPONSE_CONTENT;
     sn_coap_hdr_s *coap_response = sn_nsdl_build_response(nsdl,
                                                           received_coap_header,
@@ -603,13 +601,13 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
 
         if (received_coap_header->options_list_ptr && received_coap_header->options_list_ptr->accept != COAP_CT_NONE) {
             if ((received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_OPAQUE_TYPE) ||
-                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_PLAIN_TEXT_TYPE) ||
-                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE_OLD) ||
-                (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE)
+                    (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_PLAIN_TEXT_TYPE) ||
+                    (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE_OLD) ||
+                    (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_TLV_TYPE)
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY) && (MBED_CONF_MBED_CLIENT_ENABLE_DISCOVERY == 1)
-                || (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_LINK_FORMAT_TYPE)
+                    || (received_coap_header->options_list_ptr->accept == COAP_CONTENT_OMA_LINK_FORMAT_TYPE)
 #endif
-                ) { // COAP_CONTENT_OMA_LINK_FORMAT_TYPE if for Discover
+               ) { // COAP_CONTENT_OMA_LINK_FORMAT_TYPE if for Discover
                 coap_response->content_format = received_coap_header->options_list_ptr->accept;
                 set_coap_content_type(coap_response->content_format);
             } else {
@@ -674,7 +672,7 @@ sn_coap_hdr_s *M2MResourceBase::handle_get_request(nsdl_s *nsdl,
             }
         }
 
-        tr_debug("M2MResourceBase::handle_get_request() - Request Content-type: %d", coap_response->content_format);
+        tr_debug("M2MResourceBase::handle_get_request() - ct: %d", coap_response->content_format);
 
         coap_response->payload_len = payload_len;
         if (received_coap_header->options_list_ptr) {
@@ -697,8 +695,6 @@ sn_coap_hdr_s *M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                                                    M2MObservationHandler *observation_handler,
                                                    bool &execute_value_updated)
 {
-    tr_info("M2MResourceBase::handle_put_request()");
-
     sn_coap_msg_code_e msg_code = COAP_MSG_CODE_RESPONSE_CHANGED; // 2.04
     sn_coap_hdr_s *coap_response = sn_nsdl_build_response(nsdl,
                                                           received_coap_header,
@@ -714,8 +710,6 @@ sn_coap_hdr_s *M2MResourceBase::handle_put_request(nsdl_s *nsdl,
             char *query = (char *)alloc_string_copy(received_coap_header->options_list_ptr->uri_query_ptr,
                                                     received_coap_header->options_list_ptr->uri_query_len);
             if (query) {
-                tr_info("M2MResourceBase::handle_put_request() - query %s", query);
-
                 // if anything was updated, re-initialize the stored notification attributes
 #if defined (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS) && (MBED_CONF_MBED_CLIENT_ENABLE_OBSERVATION_PARAMETERS == 1)
                 if (!handle_observation_attribute(query)) {
@@ -732,7 +726,7 @@ sn_coap_hdr_s *M2MResourceBase::handle_put_request(nsdl_s *nsdl,
                 msg_code = COAP_MSG_CODE_RESPONSE_INTERNAL_SERVER_ERROR; // 4.00
             }
         } else if ((operation() & M2MBase::PUT_ALLOWED) != 0) {
-            tr_debug("M2MResourceBase::handle_put_request() - Request Content-type: %d", coap_content_type);
+            tr_debug("M2MResourceBase::handle_put_request() - ct: %d", coap_content_type);
 
             if (COAP_CONTENT_OMA_OPAQUE_TYPE != coap_content_type &&
                     COAP_CONTENT_OMA_PLAIN_TEXT_TYPE != coap_content_type &&
@@ -919,7 +913,6 @@ void M2MResourceBase::read_data_from_application(M2MCallbackAssociation *item,
                                                  sn_coap_hdr_s *coap_response,
                                                  size_t &payload_len)
 {
-    tr_info("M2MResourceBase::read_data_from_application()");
     read_value_callback callback = (read_value_callback)item->_callback;
     assert(callback);
 

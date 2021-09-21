@@ -25,6 +25,7 @@
 
 #include "fota/fota_component_defs.h"
 #include "fota/fota_crypto_defs.h"
+#include "fota/fota_comp_callbacks.h"
 #include "fota/fota_candidate.h"
 #include "fota/fota_header_info.h"
 
@@ -34,8 +35,8 @@ extern "C" {
 
 /**
  * @file fota_component.h
- *  \brief Functions required for implementing the component update feature.
- */
+ * \brief Functions required for implementing the component update feature.
+*/
 
 /**
  * A callback function to read the current firmware.
@@ -47,7 +48,7 @@ extern "C" {
  * \param[in] num_read Actual size read.
  *
  * \return ::FOTA_STATUS_SUCCESS for a successful read operation.
- */
+*/
 typedef int (*fota_component_curr_fw_read)(uint8_t *buf, size_t offset, size_t size, size_t *num_read);
 
 /**
@@ -62,18 +63,6 @@ typedef int (*fota_component_curr_fw_read)(uint8_t *buf, size_t offset, size_t s
 typedef int (*fota_component_curr_fw_get_digest)(uint8_t *buf);
 
 /**
- * A callback function to verify component installation success.
- * Executed after component installation.
- *
- * \param[in] component_name Name of the installed component. The same name that was specified as an argument to ::fota_component_add().
- * \param[in] expected_header_info Header with expected values for installed components.
- *
- * \return ::FOTA_STATUS_SUCCESS on success.
- */
-typedef int (*fota_component_verify_install_handler_t)(const char *comp_name, const fota_header_info_t *expected_header_info);
-
-
-/**
  * Component description information.
  *
  * @param install_alignment The preferred installer fragment size. Typically equal to the flash program size.
@@ -82,14 +71,20 @@ typedef int (*fota_component_verify_install_handler_t)(const char *comp_name, co
                                Only `true` parameter is currently supported.
  * @param candidate_iterate_cb A callback function the FOTA client calls for installing the candidate.
  *                             The FOTA client calls the callback iteratively with a firmware fragment buffer pointer as an argument.
- *                             Note: For Linux systems, this iterative callback is replaced by ::fota_app_on_install_candidate().
+ *                             Deprecated callback. New customers should use ::component_install_cb instead.
  * @param component_verify_install_cb A callback function to be executed after installation, verifying installation.
+ *                                    Deprecated callback. New customers should use ::fota_comp_verify_cb_t instead.
  * @param curr_fw_read Only required if ::support delta is set to true.
  *                     A helper function for reading the currently installed firmware of the component.
  *                     A callback to read the current firmware.
  * @param curr_fw_get_digest Only required if ::support delta is set to true.
  *                           A helper function for calculating the SHA256 digest of the currently installed firmware of the component.
  *                           A callback to get the current firmware digest.
+ * @param component_install_cb A callback function to be executed for installing the candidate.
+                               Replaces the deprecated ::fota_app_on_install_candidate API for Linux and ::candidate_iterate_cb for Mbed OS.
+ * @param component_verify_cb A callback function to be executed after installation, verifying installation.
+                              Replaces the deprecated component_::verify_install_cb.
+ * @param component_finalize_cb A callback function to be executed to finalize the FOTA process, currently not in use
  */
 typedef struct {
     uint32_t install_alignment;
@@ -97,10 +92,13 @@ typedef struct {
     bool need_reboot;
 #if !defined(TARGET_LIKE_LINUX)
     fota_candidate_iterate_handler_t candidate_iterate_cb;
-#endif
+#endif  
     fota_component_verify_install_handler_t component_verify_install_cb;
     fota_component_curr_fw_read curr_fw_read;
     fota_component_curr_fw_get_digest curr_fw_get_digest;
+    fota_comp_install_cb_t component_install_cb;
+    fota_comp_verify_cb_t component_verify_cb;
+    fota_comp_finalize_cb_t component_finalize_cb;
 } fota_component_desc_info_t;
 
 /**
@@ -111,7 +109,8 @@ typedef struct {
  *
  * \param[in] comp_desc Component description with required information.
  * \param[in] comp_name A string value representing the component name to add. Maximum length is ::FOTA_COMPONENT_MAX_NAME_SIZE including NULL termination. Must not start with "%".
- * \param[in] comp_semver A string value representing the [Semantic Version](https://semver.org/) of the component firmware installed at the factory.
+ * \param[in] comp_semver A string value representing the [semantic version](https://semver.org/) of the component firmware installed at the factory. 
+ *                        This variable is of interest only on the first boot of the device after leaving the factory.
  *
  * \return ::FOTA_STATUS_SUCCESS on success.
  */

@@ -28,11 +28,11 @@
 #include "fota/fota_block_device.h"
 #include "fota/fota_status.h"
 #include "fota_platform_linux.h"
-
+#include <unistd.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
-#define BD_ERASE_VALUE 0x0
+#define BD_ERASE_VALUE 0xff
 #define BD_ERASE_SIZE 0x1
 #define BD_READ_SIZE 0x1
 #define BD_PROGRAM_SIZE 0x1
@@ -120,8 +120,16 @@ int fota_bd_program(const void *buffer, size_t addr, size_t size)
     int ret;
 
     if (addr + size > file_size) {
-        FOTA_TRACE_ERROR("Program failed: addr %ld, size %ld file size %ld", addr, size, file_size);
-        return FOTA_STATUS_STORAGE_WRITE_FAILED;
+        size_t delta = addr + size - file_size;
+        if (truncate(fota_linux_get_update_storage_file_name(), addr + size)) {
+           FOTA_TRACE_ERROR("truncate to new size failed : addr %ld, size %ld file size %ld", addr, size, file_size);
+           return FOTA_STATUS_STORAGE_WRITE_FAILED;
+        }
+        ret = fota_bd_erase(file_size, delta);
+        if (ret) {
+            FOTA_TRACE_ERROR("Erase storage failed %d", ret);
+            return FOTA_STATUS_STORAGE_WRITE_FAILED;
+        }
     }
 
     FILE *bd_backend = get_bd_backend();

@@ -1,4 +1,4 @@
-# Copyright (c) 2021 Pelion IoT
+# Copyright (c) 2021 Pelion.
 # SPDX-License-Identifier: Apache-2.0
 
 menu "Mbed TLS options"

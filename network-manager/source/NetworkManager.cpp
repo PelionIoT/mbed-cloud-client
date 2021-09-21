@@ -45,7 +45,7 @@ nm_status_t nm_post_event(nm_event_t event_type, uint8_t event_id, void *data)
     arm_event_s event = {
         .receiver = nm_handler_id, // ID we got when creating our handler
         .sender = 0,
-        .event_type = event_type,
+        .event_type = (uint8_t)event_type,
         .event_id = event_id,
         .data_ptr = data,
         .priority = ARM_LIB_LOW_PRIORITY_EVENT, // Application level priority
@@ -114,7 +114,7 @@ static void nm_event_handler(arm_event_s *event)
         case NM_EVENT_RESOURCE_GET:
             tr_info("Resource Get Event Received");
             if (nm_res_manager_get(event->data_ptr) == NM_STATUS_FAIL) {
-                tr_warn("FAILED to get resource value");
+                tr_warn("Resource value is not available in network manager");
             }
             break;
         default:
