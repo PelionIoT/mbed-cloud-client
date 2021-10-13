@@ -27,6 +27,7 @@
 #include "psa/crypto.h"
 #include "stdio.h"
 #endif
+#include "cs_pal_crypto.h"
 
 #include "eventOS_scheduler.h"
 #include "eventOS_event_timer.h"

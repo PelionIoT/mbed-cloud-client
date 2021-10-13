@@ -26,6 +26,7 @@
 #include "fota/fota_block_device.h"
 #include "fota/fota_candidate.h"
 #include "fota/fota.h"
+#include "pal.h"
 
 #if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
 
@@ -52,40 +53,18 @@ const char *logging_enabled_key = "mbed.logging_enabled";
 const char *trace_level_key = "mbed.trace_level";
 const char *trace_level_trigger_key = "mbed.trace_level_trigger";
 
-static palMutexID_t trace_mutex_id = 0;
-static palMutexID_t mutex_id = 0;
+palMutexID_t logger_mutex = NULLPTR;
+
 M2MDynLog *M2MDynLog::_instance = NULL;
 
-void M2MDynLog::dynlog_trace_mutex_wait()
+static void mutex_lock()
 {
-    palStatus_t status;
-    status = pal_osMutexWait(trace_mutex_id, UINT32_MAX);
-    assert(PAL_SUCCESS == status);
-    (void) status;
+    (void)pal_osMutexWait(logger_mutex, PAL_RTOS_WAIT_FOREVER);
 }
 
-void M2MDynLog::dynlog_trace_mutex_release()
+static void mutex_unlock()
 {
-    palStatus_t status;
-    status = pal_osMutexRelease(trace_mutex_id);
-    assert(PAL_SUCCESS == status);
-    (void) status;
-}
-
-void M2MDynLog::dynlog_mutex_wait()
-{
-    palStatus_t status;
-    status = pal_osMutexWait(mutex_id, UINT32_MAX);
-    assert(PAL_SUCCESS == status);
-    (void) status;
-}
-
-void M2MDynLog::dynlog_mutex_release()
-{
-    palStatus_t status;
-    status = pal_osMutexRelease(mutex_id);
-    assert(PAL_SUCCESS == status);
-    (void) status;
+    (void)pal_osMutexRelease(logger_mutex);
 }
 
 void M2MDynLog::dynamic_log_tasklet(struct arm_event_s *event)
@@ -131,7 +110,7 @@ void M2MDynLog::clear()
             _event.data.event_type = SEND_ERASE_EVENT;
             eventOS_event_send_user_allocated(&_event);
         } else {
-            DYNLOG_TRACE("clear - event already in queue");
+            DYNLOG_TRACE("clear - event already in queue"); // Should we raise an error through error resource?
         }
     }
 }
@@ -179,11 +158,9 @@ M2MDynLog::~M2MDynLog()
     mbed_trace_mutex_wait_function_set(NULL);
     mbed_trace_mutex_release_function_set(NULL);
     mbed_trace_print_function_set(NULL);
-
+    pal_osMutexDelete(&logger_mutex);
     free(_log_chunk);
     free_trace_list();
-    pal_osMutexDelete(&trace_mutex_id);
-    pal_osMutexDelete(&mutex_id);
 }
 
 M2MDynLog *M2MDynLog::get_instance()
@@ -251,13 +228,15 @@ int8_t M2MDynLog::get_default_trace_level() const
 void M2MDynLog::stop_capture(bool stopped_by_user, bool stopped_by_update)
 {
     if (!_event.data.sender) {
+        eventOS_scheduler_mutex_wait();
         _event.data.sender = 1;
         _event.data.event_type = SEND_STOP_CAPTURE_EVENT;
         _event.data.event_id = stopped_by_user;
         _event.data.event_data = stopped_by_update;
         eventOS_event_send_user_allocated(&_event);
+        eventOS_scheduler_mutex_release();
     } else {
-        DYNLOG_TRACE("stop_capture - event already in queue");
+        DYNLOG_TRACE("stop_capture - event already in process");
     }
 }
 
@@ -289,11 +268,13 @@ void M2MDynLog::stop(bool stopped_by_user, bool stopped_by_update)
 void M2MDynLog::start_capture()
 {
     if (!_event.data.sender) {
+        eventOS_scheduler_mutex_wait();
         _event.data.sender = 1;
         _event.data.event_type = SEND_START_CAPTURE_EVENT;
         eventOS_event_send_user_allocated(&_event);
+        eventOS_scheduler_mutex_release();
     } else {
-        DYNLOG_TRACE("start_capture - event already in queue");
+        DYNLOG_TRACE("start_capture - event already in process");
     }
 }
 void M2MDynLog::start()
@@ -320,8 +301,6 @@ void M2MDynLog::start()
 
     DYNLOG_TRACE("trace level: %" PRId64 ", trace level trigger: %" PRId64, _trace_level_res->get_value_int(), _trace_level_trigger_res->get_value_int());
 
-    mbed_trace_mutex_wait_function_set(dynlog_trace_mutex_wait);
-    mbed_trace_mutex_release_function_set(dynlog_trace_mutex_release);
     mbed_trace_print_function_set(trace_output);
     mbed_trace_config_set(get_trace_level());
 }
@@ -332,20 +311,16 @@ bool M2MDynLog::initialize(M2MBaseList &objects, const int8_t tasklet_id)
         return true;
     }
 
-    palStatus_t status = pal_osMutexCreate(&trace_mutex_id);
-    assert(PAL_SUCCESS == status);
-
-    status = pal_osMutexCreate(&mutex_id);
-    assert(PAL_SUCCESS == status);
+    palStatus_t status;
+    status = pal_osMutexCreate(&logger_mutex);
+    if (status != PAL_SUCCESS) {
+        return false;
+    }
 
     _tasklet_id = tasklet_id;
-    _event.data.data_ptr = NULL;
-    _event.data.event_data = 0;
-    _event.data.event_id = 0;
-    _event.data.sender = 0;
-    _event.data.event_type = 0;
-    _event.data.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
-    _event.data.receiver = M2MDynLog::_tasklet_id;
+
+    init_event(&_event);
+    init_event(&_store_event);
 
     _mem_book = ns_mem_init(_trace_buffer, MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE, NULL, NULL);
     assert(_mem_book);
@@ -361,6 +336,15 @@ bool M2MDynLog::initialize(M2MBaseList &objects, const int8_t tasklet_id)
     }
 
     fota_bd_get_program_size(&_prog_size);
+
+    // Erase storage space
+    if (_write_offset == fota_candidate_get_config()->storage_start_addr) {
+#ifndef TARGET_LIKE_LINUX
+        if (!erase_nvm()) {
+            return false;
+        }
+#endif // !TARGET_LIKE_LINUX
+    }
 
     _initialized = true;
 
@@ -544,6 +528,7 @@ void M2MDynLog::handle_trace_output(const char *str)
             return;
         } else {
             DYNLOG_TRACE("Failed to allocate list item - remove item from list and try alloc again");
+            mutex_lock();
             ns_list_foreach_safe(M2MDynLog::trace_list_s, tmp, &_trace_list) {
                 free_trace_list_item(tmp);
                 item = (M2MDynLog::trace_list_s *)ns_mem_alloc(_mem_book, sizeof(M2MDynLog::trace_list_s));
@@ -551,6 +536,7 @@ void M2MDynLog::handle_trace_output(const char *str)
                     break;
                 }
             }
+            mutex_unlock();
         }
     }
 
@@ -579,6 +565,7 @@ void M2MDynLog::handle_trace_output(const char *str)
                 store_to_nvm(str);
                 ns_mem_free(_mem_book, item);
             } else {
+                mutex_lock();
                 ns_list_foreach_safe(M2MDynLog::trace_list_s, tmp, &_trace_list) {
                     // Release enough memory to store current line
                     free_trace_list_item(tmp);
@@ -589,6 +576,7 @@ void M2MDynLog::handle_trace_output(const char *str)
                         break;
                     }
                 }
+                mutex_unlock();
 
                 if (!item->trace_line) {
                     ns_mem_free(_mem_book, item);
@@ -608,19 +596,19 @@ void M2MDynLog::handle_trace_output(const char *str)
             ns_mem_free(_mem_book, item->trace_line);
             ns_mem_free(_mem_book, item);
         } else {
+            mutex_lock();
             memset(item->trace_line, 0, len); // fill whole storage block
             store_to_ram(str, item);
+            mutex_unlock();
         }
     }
 }
 
 void M2MDynLog::store_to_nvm(const char *str)
 {
-    M2MDynLog::ErrorStatus status = DYNLOG_SUCCESS;
-
     DYNLOG_TRACE("Store to NVM");
 
-    if (!_event.data.sender) {
+    if (!_store_event.data.sender) {
         uint8_t *buf = NULL;
         if (str) {
             size_t alloc_len = strlen(str) + 2;
@@ -632,7 +620,6 @@ void M2MDynLog::store_to_nvm(const char *str)
             buf = (uint8_t *)malloc(alloc_len);
             if (!buf) {
                 _error_res->set_value(DYNLOG_ERROR_OUT_OF_MEMORY);
-                status = DYNLOG_ERROR_OUT_OF_MEMORY;
             } else {
                 memset(buf, 0, alloc_len);
                 memcpy(buf, str, str_len);
@@ -641,10 +628,10 @@ void M2MDynLog::store_to_nvm(const char *str)
             }
         }
 
-        _event.data.sender = 1;
-        _event.data.event_type = SEND_STORE_EVENT;
-        _event.data.data_ptr = buf;
-        eventOS_event_send_user_allocated(&_event);
+        _store_event.data.sender = 1;
+        _store_event.data.event_type = SEND_STORE_EVENT;
+        _store_event.data.data_ptr = buf;
+        eventOS_event_send_user_allocated(&_store_event);
     } else {
         DYNLOG_TRACE("store - event already in queue");
     }
@@ -730,13 +717,15 @@ void M2MDynLog::erase_logs()
 
     free_trace_list();
 
-    _read_offset = _write_offset = fota_candidate_get_config()->storage_start_addr;
-    fota_candidate_erase();
+    _read_offset = _write_offset = fota_candidate_get_config()->storage_start_addr;    
 
     // fota_candidate_erase removes the update storage file so it must be created again
-#if defined(TARGET_LIKE_LINUX)
+#if defined(TARGET_LIKE_LINUX)    
+    (void) fota_candidate_erase();
     (void) fota_bd_init();
-#endif
+#else
+    (void)erase_nvm(); // Own error code for erase errors?
+#endif // TARGET_LIKE_LINUX
 
     _unread_log_size->set_value(0);
     _total_log_size_res->set_value(0);
@@ -747,7 +736,7 @@ void M2MDynLog::erase_logs()
 M2MDynLog::ErrorStatus M2MDynLog::store_trace_line(const char *line)
 {
     size_t prog_size = FOTA_ALIGN_UP(strlen(line), _prog_size);
-    if (_write_offset + prog_size >= _nvm_size->get_value_int() + fota_candidate_get_config()->storage_start_addr) {
+    if (_write_offset + prog_size > _nvm_size->get_value_int() + fota_candidate_get_config()->storage_start_addr) {
         return DYNLOG_ERROR_STORAGE_FULL;
     }
 
@@ -861,12 +850,9 @@ void M2MDynLog::store_failed(M2MDynLog::ErrorStatus status)
 
 void M2MDynLog::store(void *str)
 {
-    dynlog_mutex_wait();
-
     M2MDynLog::ErrorStatus status = DYNLOG_SUCCESS;
 
-    mbed_trace_print_function_set(NULL);
-
+    mutex_lock();
     // Store items from buffer
     ns_list_foreach_safe(M2MDynLog::trace_list_s, temp, &_trace_list) {
         // If storing fails just remove remaining items from the list
@@ -876,6 +862,7 @@ void M2MDynLog::store(void *str)
 
         free_trace_list_item(temp);
     }
+    mutex_unlock();
 
     if (str && status == DYNLOG_SUCCESS) {
         status = store_trace_line((char *)str);
@@ -887,13 +874,49 @@ void M2MDynLog::store(void *str)
 
     if (status == DYNLOG_SUCCESS) {
         store_success();
-        mbed_trace_print_function_set(trace_output);
     } else {
         store_failed(status);
     }
 
-    dynlog_mutex_release();
 }
+
+void M2MDynLog::init_event(arm_event_storage_t *event)
+{
+    event->data.data_ptr = NULL;
+    event->data.event_data = 0;
+    event->data.event_id = 0;
+    event->data.sender = 0;
+    event->data.event_type = 0;
+    event->data.priority = ARM_LIB_HIGH_PRIORITY_EVENT;
+    event->data.receiver = M2MDynLog::_tasklet_id;
+}
+
+#ifndef TARGET_LIKE_LINUX
+bool M2MDynLog::erase_nvm()
+{
+    size_t end_addr = fota_candidate_get_config()->storage_start_addr + fota_candidate_get_config()->storage_size;
+    size_t erase_size;
+    int ret = fota_bd_get_erase_size(end_addr - 1, &erase_size);
+    if (ret) {
+        DYNLOG_TRACE("Get erase size failed %d", ret);
+        return false;
+    }
+
+    // Align erase size to the end of last sector
+    size_t total_erase_size = end_addr % erase_size ? FOTA_ALIGN_DOWN(end_addr, erase_size) + erase_size - fota_candidate_get_config()->storage_start_addr :
+                       fota_candidate_get_config()->storage_size;
+
+    DYNLOG_TRACE("Erasing storage at %zu, size %zu", fota_candidate_get_config()->storage_start_addr, total_erase_size);
+    ret = fota_bd_erase(fota_candidate_get_config()->storage_start_addr, total_erase_size);
+    if (ret) {
+        DYNLOG_TRACE("Erase storage failed %d", ret);
+        return false;
+    }
+
+    return true;
+}
+#endif !TARGET_LIKE_LINUX
+
 // C wrappers
 extern "C" void m2mdynlog_stop_capture(bool stopped_by_update)
 {

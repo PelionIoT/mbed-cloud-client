@@ -25,6 +25,7 @@ typedef enum nm_error {
     NM_ERROR_NONE = 0
 } nm_error_t;
 
+typedef void (*ntpfp)(char * server_addr, uint32_t timeout);
 /** Network Manager class
  *
  * Class can be used to configure interfaces and create network manager resources.
@@ -103,7 +104,36 @@ public:
      * \return void
      * */
     void nm_cloud_client_connect_indication(void);
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+    /**
+     * \brief Indicates that the registering a callback to network manager.
+     *
+     * Function indicates network manager register a callback got from application
+     * so, when data need to send to application from network manager related to ntp
+     * he can call callback function.
+     *
+     * \param function pointer from application of type ntpfp.
+     * \return NM_ERROR_NONE on success.
+     * \return NM_ERROR_UNKNOWN in case of failure.
+     * */
+    nm_error_t register_ntp_callback(ntpfp register_cb);
+
+    /**
+     * \brief Reads the NTP Client related configuration parameters from interface.
+     *
+     * Function indicates that the it will get ntp parameters form interface,
+     * 1.server address - for from which server time data required.
+     * 2.time interval - for after how much time re-request send to server.
+     *
+     * \param ntp_server_addr is a char pointer to hold a server address.
+     * \param timeout is unsigned 32 bit re-request time out.
+     * \return NM_ERROR_NONE on success.
+     * \return NM_ERROR_UNKNOWN in case of failure.
+     * */
+    nm_error_t get_ntp_default_config(char *ntp_server_addr, uint32_t *timeout);
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
 };
+
 
 #endif    //MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER && (MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER == 1)
 #endif /* NETWORK_MANAGER_H_ */

@@ -51,6 +51,10 @@ static M2MResource *reset_parameter;
 static M2MResource *nbr_info;
 #endif
 
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+static M2MResource *time_sync;
+#endif
+
 typedef struct {
     M2MResource *res_obj;
     uint8_t *data;
@@ -69,11 +73,14 @@ static uint8_t *ch_noise_buf = NULL;
 static uint8_t *br_stats_buf = NULL;
 static uint8_t *routing_table_buf = NULL;
 static uint8_t *node_stats_buf = NULL;
+static uint8_t *res_data = NULL;
 #if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
 static uint8_t *nbr_info_buf = NULL;
 #endif
-static uint8_t *res_data = NULL;
 
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+static uint8_t *time_sync_buf = NULL;
+#endif
 
 /* Function to overcome limitation of 32 bytes of length in tr_array */
 static void print_stream(uint8_t *datap, uint32_t datal)
@@ -147,6 +154,29 @@ static void reset_parameter_cb(const char * /*object_name*/)
 }
 #endif
 
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+static void time_sync_cb(const char * /*object_name*/)
+{
+    uint8_t *received_data = NULL;
+    uint32_t received_size = 0;
+
+    res_set_data_t *res_data = (res_set_data_t *)nm_dyn_mem_alloc(sizeof(res_set_data_t));
+    if (res_data == NULL) {
+        return;
+    }
+
+    received_size = (uint32_t)time_sync->value_length();
+    time_sync->get_value(received_data, received_size);
+    tr_info("Received br_config [len = %lu]", received_size);
+    print_stream(received_data, received_size);
+
+    res_data->res_obj = time_sync;
+    res_data->len = (size_t)received_size;
+    res_data->data = received_data;
+    nm_post_event(NM_EVENT_RESOURCE_SET, 0, res_data);
+}
+#endif
+
 static nm_status_t nm_res_get_ws_config_from_kvstore(uint8_t **datap, size_t *length)
 {
     if (get_lenght_from_KVstore(kv_key_ws, length) == NM_STATUS_FAIL) {
@@ -194,6 +224,32 @@ static nm_status_t nm_res_get_br_config_from_kvstore(uint8_t **datap, size_t *le
     }
     return NM_STATUS_SUCCESS;
 }
+
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+static nm_status_t nm_res_get_timing_sync_data(uint8_t **datap, size_t *length)
+{
+    if (get_lenght_from_KVstore(kv_key_tm, length) == NM_STATUS_FAIL) {
+        tr_warn("FAILED to get Length from KVStore for time sync configuration");
+        return NM_STATUS_FAIL;
+    }
+
+    if (datap == NULL) {
+        return NM_STATUS_FAIL;
+    }
+
+    *datap = (uint8_t *)nm_dyn_mem_alloc(*length);
+    if (*datap == NULL) {
+        return NM_STATUS_FAIL;
+    }
+
+    if (get_data_from_kvstore(kv_key_tm, *datap, *length) == NM_STATUS_FAIL) {
+        /* Free dynamically allocated memory */
+        nm_dyn_mem_free(*datap);
+        return NM_STATUS_FAIL;
+    }
+    return NM_STATUS_SUCCESS;
+}
+#endif
 
 static nm_status_t nm_res_get_app_stats(uint8_t **datap, size_t *length)
 {
@@ -269,6 +325,11 @@ static coap_response_code_e resource_read_requested(const M2MResourceBase &resou
             status = nm_res_get_nbr_info_stats(&nbr_info_buf, &len);
             res_data = nbr_info_buf;
 #endif
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+        } else if (obj == time_sync) {
+            status = nm_res_get_timing_sync_data(&time_sync_buf, &len);
+            res_data = time_sync_buf;
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
@@ -364,6 +425,14 @@ void msg_delivery_handle(const M2MBase &base,
                 tr_debug("nbr_info data Memory freed");
             }
 #endif
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+        } else if (obj == time_sync) {
+            if (time_sync_buf != NULL) {
+                nm_dyn_mem_free(time_sync_buf);
+                time_sync_buf = NULL;
+                tr_debug("Time sync data Memory freed");
+            }
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
         } else {
             tr_err("FAILED: Unknown client_args received in %s", __func__);
         }
@@ -391,6 +460,16 @@ nm_status_t nm_res_manager_create(void *obj_list)
         }
         br_config->set_message_delivery_status_cb(msg_delivery_handle, br_config);
         br_config->set_read_resource_function(resource_read_requested, br_config);
+
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+        time_sync = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 12, M2MResourceInstance::OPAQUE, M2MBase::GET_PUT_ALLOWED);
+        if (time_sync->set_value_updated_function(time_sync_cb) != true) {
+            tr_error("time_sync->set_value_updated_function() failed");
+            return NM_STATUS_FAIL;
+        }
+        time_sync->set_message_delivery_status_cb(msg_delivery_handle, time_sync);
+        time_sync->set_read_resource_function(resource_read_requested, time_sync);
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
     }
 
     app_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 3, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
@@ -451,6 +530,7 @@ nm_status_t nm_res_manager_create(void *obj_list)
 #if defined (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE) && (MBED_CLIENT_ENABLE_DYNAMIC_OBSERVABLE == 1)
         routing_table->set_observable(true);
 #endif
+
     }
     if (MBED_CONF_MBED_MESH_API_WISUN_DEVICE_TYPE == MESH_DEVICE_TYPE_WISUN_ROUTER) {
         node_stats = M2MInterfaceFactory::create_resource(*m2m_obj_list, 33455, 0, 7, M2MResourceInstance::OPAQUE, M2MBase::GET_ALLOWED);
@@ -641,7 +721,7 @@ nm_status_t nm_res_manager_set(void *resource_data)
 #if ((MBED_VERSION > MBED_ENCODE_VERSION(6, 10, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION > MBED_ENCODE_VERSION(5, 15, 7))))
     if (res_data->res_obj == reset_parameter) {
 
-        if(nm_reset_parameters() == NM_STATUS_FAIL) {
+        if (nm_reset_parameters() == NM_STATUS_FAIL) {
             tr_info("Reset Parameter FAILED");
         } else {
             tr_info("Reset Parameter SUCCESS");
@@ -651,6 +731,21 @@ nm_status_t nm_res_manager_set(void *resource_data)
         return NM_STATUS_SUCCESS;
     }
 #endif
+
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+    if (res_data->res_obj == time_sync) {
+        if (nm_res_set_time_sync_config(res_data->data, res_data->len) == NM_STATUS_FAIL) {
+            tr_error("Time sync Set Request FAILED");
+        } else {
+            tr_info("Time sync Set Request SUCCESS");
+        }
+        free(res_data->data);
+        nm_dyn_mem_free(res_data);
+
+        return NM_STATUS_SUCCESS;
+    }
+
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
 
     /* To-Do :: Implement for other resources */
     return NM_STATUS_FAIL;

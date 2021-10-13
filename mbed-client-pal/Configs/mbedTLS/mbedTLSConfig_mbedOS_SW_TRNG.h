@@ -250,9 +250,13 @@
 
 // Non-volatile entropy source callback functions - Non PSA
 #ifndef MBEDTLS_PLATFORM_NV_SEED_READ_MACRO
+    #include <stdlib.h>
+    extern int seed_read_from_kvs(unsigned char *buf, size_t buf_len);
     #define MBEDTLS_PLATFORM_NV_SEED_READ_MACRO seed_read_from_kvs
 #endif
 #ifndef MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO
+    #include <stdlib.h>
+    extern int seed_write_to_kvs(unsigned char *buf, size_t buf_len);
     #define MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO seed_write_to_kvs
 #endif
 

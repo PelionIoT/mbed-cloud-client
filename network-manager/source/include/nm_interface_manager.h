@@ -43,6 +43,9 @@ nm_status_t nm_res_get_routing_table(uint8_t **datap, size_t *length);
 void apply_br_config_after_delay(uint16_t delay);
 void apply_br_config_to_nannostack(void);
 
+nm_status_t nm_res_set_time_sync_config(uint8_t *data, size_t length);
+nm_status_t get_ntp_default_config_from_Kvstore(char *ntp_server_addr, uint32_t *duration);
+
 nm_status_t string2hex_mac_address(uint8_t **mac_addr, uint8_t *recv_buffer, uint8_t length);
 
 #endif /* NM_INTERFACE_MANAGER_H_ */

@@ -975,7 +975,7 @@ void M2MInterfaceImpl::state_register(EventData *data)
                     if (_nsdl_interface.create_nsdl_list_structure(event->_base_list)) {
                         // If the nsdl resource structure is created successfully
                         get_security_server_ip_address(m2m_id);
-                        tr_info("M2MInterfaceImpl::state_register - lwm2m_id: %"PRId32", server_address: %s", m2m_id, _server_ip_address.c_str());
+                        tr_info("M2MInterfaceImpl::state_register - lwm2m_id: %" PRId32 ", server_address: %s", m2m_id, _server_ip_address.c_str());
                         if (!_server_ip_address.empty()) {
                             // Backoff logic not needed in DTLS mode. DTLS timer will handle timeouts properly.
                             // This timer is stopped when handshake is completed (address resolved).

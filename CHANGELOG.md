@@ -1,5 +1,12 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.11.1 (11.10.2021)
+
+### Device Management Client
+
+- [Remote logging] Fixed internal flash configuration to perform a full storage erase before using it.
+- Fixed compiler warnings.
+
 ### Release 4.11.0 (17.09.2021)
 
 ### Device Management Client

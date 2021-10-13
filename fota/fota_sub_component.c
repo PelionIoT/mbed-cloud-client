@@ -47,6 +47,19 @@ static bool is_sub_comp_registered(fota_sub_comp_table_t *sub_comp_table, int nu
     return false;
 }
 
+int fota_sub_component_get_table(fota_comp_table_t *comp_table, size_t comp_table_size)
+{
+    int res = 0 ;
+
+    if(comp_table_size < sizeof(g_comp_table)){
+        return FOTA_STATUS_INVALID_ARGUMENT;
+    }
+    //Copy table
+    memcpy( comp_table, g_comp_table, sizeof(g_comp_table));
+
+    return FOTA_STATUS_SUCCESS; 
+}
+
 void fota_sub_component_clean(void)
 {
     for (int comp_index = 0; comp_index < FOTA_NUM_COMPONENTS; comp_index++) {

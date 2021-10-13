@@ -35,6 +35,7 @@
 
 #define WS_CONF_MAX_BUF WS_CONF_MAX_ENCODER_BUF
 #define BR_CONF_MAX_BUF BR_CONF_MAX_ENCODER_BUF
+#define TM_CONF_MAX_BUF TM_CONF_MAX_ENCODER_BUF
 #define WS_STAT_MAX_BUF WS_STAT_MAX_ENCODER_BUF
 #define NM_STAT_MAX_BUF NM_STAT_MAX_ENCODER_BUF
 #define BR_STAT_MAX_BUF BR_STAT_MAX_ENCODER_BUF
@@ -44,6 +45,16 @@
 #define DEFAULT_CONFIG_DELAY          0
 #define MESH_MAC_ADDR_LEN             8
 #define BACKHAUL_MAC_ADDR_LEN         6
+
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+
+#define NTP_MIN_INTERVAL_TIME   5          // 5 mins
+#define NTP_MAX_INTERVAL_TIME   (24*60)    // 24 hrs
+
+#define ENABLE     1
+#define DISABLE    0
+
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
 
 static SocketAddress sa;
 static NetworkInterface *backhaul_interface = NULL;
@@ -107,7 +118,7 @@ nm_status_t nm_backhaul_configure_factory_mac_address(NetworkInterface *backhaul
     }
 
     if (nm_kcm_ethernet_mac_address_init(&r_backhaul_mac_address, &backhaul_mac_address_len) == NM_STATUS_SUCCESS) {
-        if(string2hex_mac_address(&backhaul_mac_address,r_backhaul_mac_address,backhaul_mac_address_len) == NM_STATUS_SUCCESS)  {
+        if (string2hex_mac_address(&backhaul_mac_address, r_backhaul_mac_address, backhaul_mac_address_len) == NM_STATUS_SUCCESS)  {
             if (backhaul_iface->set_mac_address(backhaul_mac_address, BACKHAUL_MAC_ADDR_LEN) != MESH_ERROR_NONE) {
                 tr_error("FAILED to set Backhaul MAC address from Factory Configuration %s", tr_array(r_backhaul_mac_address, backhaul_mac_address_len));
                 free(r_backhaul_mac_address);
@@ -119,7 +130,7 @@ nm_status_t nm_backhaul_configure_factory_mac_address(NetworkInterface *backhaul
                 nm_dyn_mem_free(backhaul_mac_address);
             }
         } else {
-            tr_error("FAILED: Read wrong Backhaul MAC address length from KCM: %d, Expected length is 6", backhaul_mac_address_len/2);
+            tr_error("FAILED: Read wrong Backhaul MAC address length from KCM: %d, Expected length is 6", backhaul_mac_address_len / 2);
             free(r_backhaul_mac_address);
             nm_dyn_mem_free(backhaul_mac_address);
             return NM_STATUS_FAIL;
@@ -498,46 +509,45 @@ nm_status_t string2hex_mac_address(uint8_t **mac_addr, uint8_t *recv_buffer, uin
     int j = 0;
     uint8_t num = 0;
 
-    tr_debug("received length = %d",length);
+    tr_debug("received length = %d", length);
 
-    if(length / 2 == MESH_MAC_ADDR_LEN){
+    if (length / 2 == MESH_MAC_ADDR_LEN) {
         *mac_addr = (uint8_t *)nm_dyn_mem_alloc(MESH_MAC_ADDR_LEN * sizeof(char));
-        memset(*mac_addr, '\0' ,MESH_MAC_ADDR_LEN);
-    } else if (length / 2 == BACKHAUL_MAC_ADDR_LEN){
+        memset(*mac_addr, '\0', MESH_MAC_ADDR_LEN);
+    } else if (length / 2 == BACKHAUL_MAC_ADDR_LEN) {
         *mac_addr = (uint8_t *)nm_dyn_mem_alloc(BACKHAUL_MAC_ADDR_LEN * sizeof(char));
-        memset(*mac_addr, '\0' ,BACKHAUL_MAC_ADDR_LEN);
+        memset(*mac_addr, '\0', BACKHAUL_MAC_ADDR_LEN);
     } else {
-        tr_err("Received wrong MAC ADDR length %d",length);
+        tr_err("Received wrong MAC ADDR length %d", length);
         return NM_STATUS_FAIL;
     }
 
-    for(int k=0;k<8;k++)
-     {
-        for(int i=0;i<2;i++){
-            dummy[i] = recv_buffer[i+j];
+    for (int k = 0; k < 8; k++) {
+        for (int i = 0; i < 2; i++) {
+            dummy[i] = recv_buffer[i + j];
         }
         num = strtol(dummy, NULL, 16);
-        j=j+2;
+        j = j + 2;
         base_mac_addr[k] = num;
-     }
-    if(length / 2 == MESH_MAC_ADDR_LEN){
-        memcpy(*mac_addr,base_mac_addr,MESH_MAC_ADDR_LEN);
-        tr_debug("MAC ADDR length set %d",MESH_MAC_ADDR_LEN);
-    } else if(length / 2 == BACKHAUL_MAC_ADDR_LEN){
-        memcpy(*mac_addr,base_mac_addr,BACKHAUL_MAC_ADDR_LEN);
-        tr_debug("MAC ADDR length set %d",BACKHAUL_MAC_ADDR_LEN);
+    }
+    if (length / 2 == MESH_MAC_ADDR_LEN) {
+        memcpy(*mac_addr, base_mac_addr, MESH_MAC_ADDR_LEN);
+        tr_debug("MAC ADDR length set %d", MESH_MAC_ADDR_LEN);
+    } else if (length / 2 == BACKHAUL_MAC_ADDR_LEN) {
+        memcpy(*mac_addr, base_mac_addr, BACKHAUL_MAC_ADDR_LEN);
+        tr_debug("MAC ADDR length set %d", BACKHAUL_MAC_ADDR_LEN);
     } else {
         tr_err("Failed: memcpy received wrong MAC ADDR length");
         return NM_STATUS_FAIL;
     }
-        return NM_STATUS_SUCCESS;
+    return NM_STATUS_SUCCESS;
 }
 
 nm_status_t nm_mesh_configure_factory_mac_address(WisunInterface *mesh_iface)
 {
 #if ((MBED_VERSION >= MBED_ENCODE_VERSION(6, 8, 0)) || ((MBED_VERSION < MBED_ENCODE_VERSION(6, 0, 0)) && (MBED_VERSION >= MBED_ENCODE_VERSION(5, 15, 7))))
     uint8_t *mesh_mac_address = NULL;
-    uint8_t *r_mesh_mac_address= NULL;
+    uint8_t *r_mesh_mac_address = NULL;
     size_t mesh_mac_address_len = 0;
 
     if (mesh_iface == NULL) {
@@ -546,7 +556,7 @@ nm_status_t nm_mesh_configure_factory_mac_address(WisunInterface *mesh_iface)
     }
 
     if (nm_kcm_mesh_mac_address_init(&r_mesh_mac_address, &mesh_mac_address_len) == NM_STATUS_SUCCESS) {
-        if(string2hex_mac_address(&mesh_mac_address,r_mesh_mac_address,mesh_mac_address_len) == NM_STATUS_SUCCESS) {
+        if (string2hex_mac_address(&mesh_mac_address, r_mesh_mac_address, mesh_mac_address_len) == NM_STATUS_SUCCESS) {
             if (mesh_iface->set_mac_address(mesh_mac_address, MESH_MAC_ADDR_LEN) != MESH_ERROR_NONE) {
                 tr_error("FAILED to set Mesh MAC address from Factory Configuration %s", tr_array(r_mesh_mac_address, mesh_mac_address_len));
                 free(r_mesh_mac_address);
@@ -560,7 +570,7 @@ nm_status_t nm_mesh_configure_factory_mac_address(WisunInterface *mesh_iface)
         } else {
             free(r_mesh_mac_address);
             nm_dyn_mem_free(mesh_mac_address);
-            tr_error("FAILED: Read wrong Mesh MAC address length from KCM: %d, Expected length is 8", mesh_mac_address_len/2);
+            tr_error("FAILED: Read wrong Mesh MAC address length from KCM: %d, Expected length is 8", mesh_mac_address_len / 2);
             return NM_STATUS_FAIL;
         }
     } else {
@@ -1027,7 +1037,7 @@ nm_status_t nm_res_get_nbr_info_stats(uint8_t **datap, size_t *length)
         return NM_STATUS_FAIL;
     }
 
-    if(nw_nbr_info.count != 0 ){
+    if (nw_nbr_info.count != 0) {
 
         nw_nbr_info.nbr_info_ptr = (nm_ws_nbr_info_t *)nm_dyn_mem_alloc(nw_nbr_info.count * (sizeof(nm_ws_nbr_info_t)));
         if (nw_nbr_info.nbr_info_ptr == NULL) {
@@ -1104,7 +1114,6 @@ static nm_status_t get_server_secret(radius_server_t *temp_cfg)
 
     return NM_STATUS_SUCCESS;
 }
-
 
 static nm_status_t br_config_validation(nm_br_config_t *existing_br_config, nm_br_config_t *updated_br_config)
 {
@@ -1209,12 +1218,12 @@ static nm_status_t set_br_config_to_nanostack(nm_br_config_t *existing_br_config
     /* Setting radius server address */
     if (memcmp(existing_br_config->radius_config.address, updated_br_config->radius_config.address, sizeof(updated_br_config->radius_config.address)) != 0) {
         if (get_server_secret(&temp) == NM_STATUS_SUCCESS) {
-            if(updated_br_config->radius_config.address[0] == '\0') {
+            if (updated_br_config->radius_config.address[0] == '\0') {
                 /*Clear External radius server address*/
                 status = ws_br->set_radius_server_ipv6_address(NULL);
             } else {
                 /*Set External radius server address*/
-            status = ws_br->set_radius_server_ipv6_address(updated_br_config->radius_config.address);
+                status = ws_br->set_radius_server_ipv6_address(updated_br_config->radius_config.address);
             }
             nm_dyn_mem_free(temp.secret);
             temp.secret = NULL;
@@ -1270,7 +1279,7 @@ nm_status_t nm_factory_configure_border_router(void)
 {
     size_t radius_buf_len = 0;
     char *radius_serv_adr = NULL;
-    uint8_t * radius_serv_secret = NULL;
+    uint8_t *radius_serv_secret = NULL;
     tr_info("Applying Factory Configurations on BR Interface");
 
     if (ws_br == NULL) {
@@ -1279,11 +1288,11 @@ nm_status_t nm_factory_configure_border_router(void)
     }
     if (nm_kcm_wisun_network_radius_secret_init(&radius_serv_secret, &radius_buf_len) == NM_STATUS_SUCCESS) {
         if (ws_br->set_radius_shared_secret((uint16_t)radius_buf_len, radius_serv_secret) != MESH_ERROR_NONE) {
-            tr_error("FAILED to set radius shared secret '%s' len '%d'from Factory Configuration", tr_array( radius_serv_secret, radius_buf_len), radius_buf_len);
+            tr_error("FAILED to set radius shared secret '%s' len '%d'from Factory Configuration", tr_array(radius_serv_secret, radius_buf_len), radius_buf_len);
             free(radius_serv_secret);
             return NM_STATUS_FAIL;
         } else {
-            tr_info("Factory Configuration SET: Radius Shared Secret = %s ,Radius Shared Secret len = %d", tr_array( radius_serv_secret, radius_buf_len),radius_buf_len);
+            tr_info("Factory Configuration SET: Radius Shared Secret = %s ,Radius Shared Secret len = %d", tr_array(radius_serv_secret, radius_buf_len), radius_buf_len);
             free(radius_serv_secret);
         }
     } else {
@@ -1544,6 +1553,124 @@ void apply_br_config_after_delay(uint16_t delay)
     tr_debug("starting br_timer for %d seconds delay", delay);
     nm_post_timeout_event(NM_EVENT_APPLY_BR_CONFIG_AFTER_DELAY, delay * 1000);
 }
+
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+nm_status_t get_ntp_default_config_from_Kvstore(char *ntp_server_addr, uint32_t *duration)
+{
+    nm_time_sync_t kvstored_tm_config = {0};
+    uint8_t *cborise_data = NULL;
+    size_t cborise_data_len = 0;
+
+    if (nm_iface_kvstore_read_cfg(kv_key_tm, &kvstored_tm_config, TM) == NM_STATUS_FAIL) {
+        tr_info("Reading default time sync Configuration");
+
+        cborise_data = (uint8_t *)nm_dyn_mem_alloc(TM_CONF_MAX_BUF);
+        if (cborise_data == NULL) {
+            tr_error("FAILED to allocate memory for Cborise data");
+            return NM_STATUS_FAIL;
+        }
+
+        if (nm_config_to_cbor(&kvstored_tm_config, cborise_data, TM, &cborise_data_len) == NM_STATUS_FAIL) {
+            tr_warn("FAILED to CBORise updated TM Configuration");
+            /* Free dynamically allocated memory */
+            nm_dyn_mem_free(cborise_data);
+            return NM_STATUS_FAIL;
+        }
+
+        if (set_data_to_kvstore(kv_key_tm, cborise_data, cborise_data_len) == NM_STATUS_FAIL) {
+            tr_error("FAILED to store updated CBORised BR Configuration");
+            /* Free dynamically allocated memory */
+            nm_dyn_mem_free(cborise_data);
+            return NM_STATUS_FAIL;
+        }
+        /* Free dynamically allocated memory */
+        nm_dyn_mem_free(cborise_data);
+    }
+
+    strcpy(ntp_server_addr, kvstored_tm_config.server_addr);
+    *duration = kvstored_tm_config.interval * (60 * 1000);
+
+    return NM_STATUS_SUCCESS;
+}
+
+nm_status_t nm_res_set_time_sync_config(uint8_t *data, size_t length)
+{
+    char temp_ntp_server_addr[] = {'\0'};
+    nm_time_sync_t kvstored_tm_config = {0};
+    nm_time_sync_t received_tm_config = {0};
+
+    uint8_t *cborise_data = NULL;
+    size_t cborise_data_len = 0;
+
+    if (data == NULL) {
+        return NM_STATUS_FAIL;
+    }
+
+    if (nm_iface_kvstore_read_cfg(kv_key_tm, &kvstored_tm_config, TM) == NM_STATUS_FAIL) {
+        tr_warn("FAILED to read time sync Configuration from KVStore");
+        return NM_STATUS_FAIL;
+    }
+
+    /* Copy the existing configuration to another local structure */
+    memcpy((uint8_t *)&received_tm_config, (uint8_t *)&kvstored_tm_config, sizeof(nm_time_sync_t));
+
+
+    /* Update the received_tm_config structure with received configuration leaving the other configuration unchanged */
+    if (nm_cbor_config_struct_update(&received_tm_config, data, TM, length) == NM_STATUS_FAIL) {
+        tr_warn("FAILED to De-CBORise received BR Configuration");
+        return NM_STATUS_FAIL;
+    }
+
+    if(received_tm_config.server_addr == NULL) {
+        strcpy(received_tm_config.server_addr,temp_ntp_server_addr);
+    }
+
+    if(kvstored_tm_config.interval != received_tm_config.interval) {
+        if(received_tm_config.interval == DISABLE) {
+            tr_info("Disabling NTP");
+        } else if (received_tm_config.interval < NTP_MIN_INTERVAL_TIME) {
+            received_tm_config.interval = NTP_MIN_INTERVAL_TIME;
+            tr_debug("Setting NTP time interval to MIN :: %lu minutes", received_tm_config.interval);
+        } else if(received_tm_config.interval > NTP_MAX_INTERVAL_TIME) {
+            received_tm_config.interval = NTP_MAX_INTERVAL_TIME;
+            tr_debug("Setting NTP time interval to MAX :: %lu minutes", received_tm_config.interval);
+        } else {
+            tr_info("Setting NTP time interval :: %lu minutes", received_tm_config.interval);;
+        }
+    } else {
+        tr_debug("KvStore and Received configuration is same");
+    }
+
+    cborise_data = (uint8_t *)nm_dyn_mem_alloc(TM_CONF_MAX_BUF);
+    if (cborise_data == NULL) {
+        tr_error("FAILED to allocate memory for Cborise data");
+        return NM_STATUS_FAIL;
+    }
+
+    if (nm_config_to_cbor(&received_tm_config, cborise_data, TM, &cborise_data_len) == NM_STATUS_FAIL) {
+        tr_warn("FAILED to CBORise updated TM Configuration");
+        /* Free dynamically allocated memory */
+        nm_dyn_mem_free(cborise_data);
+        return NM_STATUS_FAIL;
+    }
+
+    if (set_data_to_kvstore(kv_key_tm, cborise_data, cborise_data_len) == NM_STATUS_FAIL) {
+        tr_error("FAILED to store updated CBORised BR Configuration");
+        /* Free dynamically allocated memory */
+        nm_dyn_mem_free(cborise_data);
+        return NM_STATUS_FAIL;
+    }
+    /* Free dynamically allocated memory */
+    nm_dyn_mem_free(cborise_data);
+
+    if (send_ntp_rev_conf_to_app(received_tm_config.server_addr, received_tm_config.interval * (60 * 1000)) == NM_STATUS_FAIL) {
+        tr_warn("FAILED to send time sync config to Application");
+        return NM_STATUS_FAIL;
+    }
+
+    return NM_STATUS_SUCCESS;
+}
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
 /************************************************************************/
 
 #endif    //MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER && (MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER == 1)
