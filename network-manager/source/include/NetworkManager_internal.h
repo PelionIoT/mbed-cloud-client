@@ -33,7 +33,8 @@ typedef enum config {
     BR,
     NM,
     NI,
-    NS
+    NS,
+    TM
 } config_type_t;
 
 typedef enum {
@@ -65,6 +66,7 @@ typedef enum nm_event_type_e {
 
 nm_status_t nm_post_event(nm_event_t event_type, uint8_t event_id, void *data);
 nm_status_t nm_post_timeout_event(nm_event_t event_type, int32_t delay);
+nm_status_t send_ntp_rev_conf_to_app(char *server_addr, uint32_t timeout);
 
 #define WS_RESOURCE_VERSION 1
 #define WS_BR_RESOURCE_VERSION 1
@@ -255,7 +257,12 @@ typedef struct {
 typedef struct {
     uint16_t count;
     nm_ws_nbr_info_t *nbr_info_ptr;
-}nbr_info_t;
+} nbr_info_t;
+
+typedef struct {
+    uint32_t interval;
+    char server_addr[33];
+} nm_time_sync_t;
 
 #ifdef __cplusplus
 } // closing brace for extern "C"

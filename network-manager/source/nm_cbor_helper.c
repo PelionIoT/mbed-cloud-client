@@ -143,6 +143,9 @@
 #define CBOR_TAG_NBR_ETX                            "etx"
 #define CBOR_TAG_NBR_LIFETIME                       "lifetime"
 #define CBOR_TAG_NBR_TYPE                           "type"
+//Time synchronization
+#define CBOR_TAG_TIME_SYNC_SERVER_ADDR              "server_addr"
+#define CBOR_TAG_TIME_SYNC_INTERVAL                 "sync_time"
 
 
 static bool get_string_value_from_stream(CborValue *main_value, const char *str_name, CborValue *map_value, char **temp_buffer)
@@ -459,10 +462,10 @@ static nm_status_t update_br_config(void *st_app, uint8_t *cbor_data, size_t len
 
     //Finding Radius Server address
     if (get_string_value_from_stream(&main_value, CBOR_TAG_RADIUS_SERVER_ADDR, &map_value, &temp_buffer) == true) {
-        if(!strcasecmp(temp_buffer,"NULL")) {
+        if (!strcasecmp(temp_buffer, "NULL")) {
             memset(br_cfg->radius_config.address, '\0', sizeof(br_cfg->radius_config.address));
         } else {
-        strcpy(br_cfg->radius_config.address, temp_buffer);
+            strcpy(br_cfg->radius_config.address, temp_buffer);
         }
     }
 
@@ -473,6 +476,44 @@ static nm_status_t update_br_config(void *st_app, uint8_t *cbor_data, size_t len
 
     /* This parameters going to update from binary only */
     br_cfg->resource_version = WS_BR_RESOURCE_VERSION;
+    return NM_STATUS_SUCCESS;
+}
+
+static nm_status_t update_tm_config(void *st_app, uint8_t *cbor_data, size_t len)
+{
+    /* Following structure is as per current parameters defined in code that may be going to modify, add or remove. */
+    CborParser parser;
+    CborValue main_value;
+    CborValue map_value;
+
+    char *temp_buffer = NULL;
+    uint32_t int_value = 0;
+
+    nm_time_sync_t *tm_cfg = (nm_time_sync_t *)st_app;
+
+    if (cbor_parser_init(cbor_data, len, 0, &parser, &main_value) != CborNoError) {
+        tr_debug("CborParser init fail");
+        return NM_STATUS_FAIL;
+    }
+    if (cbor_value_is_map(&main_value) != true) {
+        tr_debug("Cbor main_value map fail");
+        return NM_STATUS_FAIL;
+    }
+
+    // Finding ntp_server_addr
+    if (get_string_value_from_stream(&main_value, CBOR_TAG_TIME_SYNC_SERVER_ADDR, &map_value, &temp_buffer) == true) {
+        strcpy(tm_cfg->server_addr, temp_buffer);
+    }
+    if (temp_buffer != NULL) {
+        free(temp_buffer);
+        temp_buffer = NULL;
+    }
+
+    // Finding ntp_sync_time
+    if (get_uint32_value_from_stream(&main_value, CBOR_TAG_TIME_SYNC_INTERVAL, &map_value, &int_value) == true) {
+        tm_cfg->interval = int_value;
+    }
+
     return NM_STATUS_SUCCESS;
 }
 
@@ -501,6 +542,12 @@ nm_status_t nm_cbor_config_struct_update(void *st_cfg, uint8_t *cbor_data, confi
             break;
         case BR:
             status = update_br_config(st_cfg, cbor_data, len);
+            if (status) {
+                tr_info("BR structure update fail");
+            }
+            break;
+        case TM:
+            status = update_tm_config(st_cfg, cbor_data, len);
             if (status) {
                 tr_info("BR structure update fail");
             }
@@ -822,6 +869,48 @@ static nm_status_t br_config_to_cbor(void *br_cfg, uint8_t *cbor_data, size_t *l
     return NM_STATUS_SUCCESS;
 }
 
+static nm_status_t tm_config_to_cbor(void *tm_cfg, uint8_t *cbor_data, size_t *len)
+{
+    CborError cbor_error = CborNoError;
+    CborEncoder encoder;
+    CborEncoder map;
+
+    nm_time_sync_t *st_cfg = (nm_time_sync_t *)tm_cfg;
+
+    cbor_encoder_init(&encoder, cbor_data, TM_CONF_MAX_ENCODER_BUF, 0);
+
+    cbor_error = cbor_encoder_create_map(&encoder, &map, CborIndefiniteLength);
+    if (cbor_error) {
+        tr_debug("Failed creating presence map with error code %d", cbor_error);
+        return NM_STATUS_FAIL;
+    }
+
+    // ntp_server_addr
+    if (encode_text_string(&map, CBOR_TAG_TIME_SYNC_SERVER_ADDR, sizeof(CBOR_TAG_TIME_SYNC_SERVER_ADDR) - 1)) {
+        encode_text_string(&map, st_cfg->server_addr, strlen(st_cfg->server_addr));
+    }
+
+    // ntp_sync_time
+    if (encode_text_string(&map, CBOR_TAG_TIME_SYNC_INTERVAL, sizeof(CBOR_TAG_TIME_SYNC_INTERVAL) - 1)) {
+        encode_uint32_value(&map, st_cfg->interval);
+    }
+
+    // Close Map
+    cbor_error = cbor_encoder_close_container(&encoder, &map);
+    if (cbor_error) {
+        tr_debug("Failed closing presence map with error code %d", cbor_error);
+        return NM_STATUS_FAIL;
+    }
+
+    size_t ret = cbor_encoder_get_buffer_size(&encoder, cbor_data);
+    tr_debug("Length of tm_config_to_cbor buffer is %d", ret);
+    *len = ret;
+
+    return NM_STATUS_SUCCESS;
+}
+
+
+
 /* Configuration to CBOR */
 nm_status_t nm_config_to_cbor(void *st_cfg, uint8_t *cbor_data, config_type_t type, size_t *len)
 {
@@ -849,6 +938,12 @@ nm_status_t nm_config_to_cbor(void *st_cfg, uint8_t *cbor_data, config_type_t ty
             status = br_config_to_cbor(st_cfg, cbor_data, len);
             if (status) {
                 tr_info("BR structure cbor encoder fail");
+            }
+            break;
+        case TM:
+            status = tm_config_to_cbor(st_cfg, cbor_data, len);
+            if (status) {
+                tr_info("TM structure cbor encoder fail");
             }
             break;
         default:
@@ -1329,7 +1424,7 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
 
     nbr_info_t *nbr_info = (nbr_info_t *)stats_ns;
 
-    cbor_encoder_init(&encoder, cbor_data,(nbr_info->count * (sizeof(nm_ws_nbr_info_t)) + NEIGHBOR_INFO_MAX_ENCODING_BUFF(nbr_info->count)), 0);
+    cbor_encoder_init(&encoder, cbor_data, (nbr_info->count * (sizeof(nm_ws_nbr_info_t)) + NEIGHBOR_INFO_MAX_ENCODING_BUFF(nbr_info->count)), 0);
 
     // Create map
     cbor_error = cbor_encoder_create_map(&encoder, &map, CborIndefiniteLength);
@@ -1343,7 +1438,7 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
         encode_uint32_value(&map, (uint32_t)nbr_info->count);
     }
 
-    if(nbr_info->count == 0) {
+    if (nbr_info->count == 0) {
         // Close map
         cbor_error = cbor_encoder_close_container(&encoder, &map);
         if (cbor_error) {
@@ -1359,7 +1454,7 @@ static nm_status_t neighbor_stats_to_cbor(void *stats_ns, uint8_t *cbor_data, si
     }
 
     // neighbor_info
-    if(encode_text_string(&map, CBOR_TAG_NBR_INFO, sizeof(CBOR_TAG_NBR_INFO) - 1)) {
+    if (encode_text_string(&map, CBOR_TAG_NBR_INFO, sizeof(CBOR_TAG_NBR_INFO) - 1)) {
 
         // Create array
         cbor_error = cbor_encoder_create_array(&map, &stu_array, nbr_info->count);
@@ -1490,6 +1585,9 @@ nm_status_t nm_statistics_to_cbor(void *stats, uint8_t *cbor_data, config_type_t
             if (status) {
                 tr_info("Neighbor statistics cbor encoder fail");
             }
+            break;
+        default:
+            tr_info("Unknown Configuration type received");
             break;
     }
     return status;

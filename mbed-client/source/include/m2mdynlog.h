@@ -269,10 +269,18 @@ private:
      */
     void store(void *str);
 
-    static void dynlog_trace_mutex_wait();
-    static void dynlog_trace_mutex_release();
-    static void dynlog_mutex_wait();
-    static void dynlog_mutex_release();
+    /**
+     * \brief Initialize event
+     * \param event Event to be initialized
+     */
+    void init_event(arm_event_storage_t *event);
+
+#ifndef TARGET_LIKE_LINUX
+    /**
+     * \brief Erase whole update image storage area
+     */
+    bool erase_nvm();
+#endif // !TARGET_LIKE_LINUX
 
     /**
      *  \brief Resource callbacks
@@ -298,6 +306,7 @@ private:
     int8_t                  _tasklet_id;
     char                    _trigger_string[6];
     arm_event_storage_t     _event;
+    arm_event_storage_t     _store_event;
     size_t                  _total_log_size;
     size_t                  _write_offset;
     size_t                  _read_offset;

@@ -280,13 +280,7 @@ void ServiceClient::initialize_and_register(M2MBaseList &reg_objs, bool full_reg
         assert(!fota_res);
         (void)fota_res;
 #endif // defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
-        if (!M2MDynLog::get_instance()->initialize(*_client_objs, _dynlog_tasklet_id)) {
-            tr_error("ServiceClient::initialize_and_register - failed to create dynlog resources");
-            _service_callback.error((int)MbedCloudClient::ConnectMemoryConnectFail, "Failed to create dynlog resources");
-            return;
-        }
-#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
+
         finish_initialization();
 #endif // defined(MBED_CLOUD_CLIENT_SUPPORT_UPDATE) && !defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
     } else if (_current_state == State_Success) {
@@ -341,6 +335,15 @@ void ServiceClient::finish_initialization(void)
         /* Add Device Object to object list. */
         _client_objs->push_back(device_object);
     }
+
+#if defined (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE) && (MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE > 0)
+    if (!M2MDynLog::get_instance()->initialize(*_client_objs, _dynlog_tasklet_id)) {
+        tr_error("ServiceClient::initialize_and_register - failed to create dynlog resources");
+        _service_callback.error((int)MbedCloudClient::ConnectMemoryConnectFail, "Failed to create dynlog resources");
+        return;
+    }
+#endif // MBED_CLIENT_DYNAMIC_LOGGING_BUFFER_SIZE
+
 #ifndef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     internal_event(State_Bootstrap);
 #else

@@ -56,6 +56,7 @@ int fota_sub_component_install(const char *comp_name, package_descriptor_t *desc
 int fota_sub_component_finalize(const char *comp_name, package_descriptor_t *descriptor_info, fota_status_e status);
 int fota_sub_component_rollback(const char *comp_name, package_descriptor_t *descriptor_info);
 int fota_sub_component_verify(const char *comp_name, package_descriptor_t *descriptor_info);
+int fota_sub_component_get_table(fota_comp_table_t *comp_table, size_t comp_table_size);
 
 #ifdef __cplusplus
 }

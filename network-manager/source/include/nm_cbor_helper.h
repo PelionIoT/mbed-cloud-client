@@ -27,6 +27,7 @@ extern "C" {
 /* Following buffer size need be change after adding/removing parameters from CBOR*/
 #define WS_CONF_MAX_ENCODER_BUF 512
 #define BR_CONF_MAX_ENCODER_BUF 256
+#define TM_CONF_MAX_ENCODER_BUF 64
 
 #define APP_STAT_MAX_ENCODER_BUF 512
 #define WS_STAT_MAX_ENCODER_BUF 512
@@ -34,6 +35,7 @@ extern "C" {
 #define BR_STAT_MAX_ENCODER_BUF 256
 #define NI_STAT_MAX_ENCODER_BUF 256
 #define NS_STAT_MAX_ENCODER_BUF 512
+
 
 #define CH_NOISE_TABLE_CBOR_OVERHEAD                 30
 #define CH_NOISE_TABLE_MAX_ENCODING_BUFF(ch_noise_table_length) ((ch_noise_table_length*2)+CH_NOISE_TABLE_CBOR_OVERHEAD)

@@ -28,10 +28,9 @@
 
 #define err_code(ret) MBED_GET_ERROR_CODE(ret)
 
-char kv_key_app[KV_KEY_LENGTH] = {"/kv/app_key"};
-char kv_key_bb[KV_KEY_LENGTH] = {"/kv/bb_key"};
 char kv_key_ws[KV_KEY_LENGTH] = {"/kv/ws_key"};
 char kv_key_br[KV_KEY_LENGTH] = {"/kv/br_key"};
+char kv_key_tm[KV_KEY_LENGTH] = {"/kv/tm_key"};
 
 /*
  * Get length of data for respective key.

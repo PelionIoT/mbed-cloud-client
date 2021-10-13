@@ -39,10 +39,10 @@ extern "C" void tasklet_func(arm_event_s *event)
     // skip the init event as there will be a timer event after
     if (event->event_type == MBED_CLIENT_TIMER_EVENT) {
         if (event->data_ptr) {
-            M2MTimerPimpl* timer = (M2MTimerPimpl*)event->data_ptr;
+            M2MTimerPimpl *timer = (M2MTimerPimpl *)event->data_ptr;
             timer->handle_timer_event(*event);
         } else {
-            tr_debug("M2MTimerPimpl:tasklet_func event->data_ptr == NULL: event->event_id: %d",event->event_id);
+            tr_debug("M2MTimerPimpl:tasklet_func event->data_ptr == NULL: event->event_id: %d", event->event_id);
         }
     }
 }
@@ -59,18 +59,18 @@ void M2MTimerPimpl::handle_timer_event(const arm_event_s &event)
     }
 }
 
-M2MTimerPimpl::M2MTimerPimpl(M2MTimerObserver& observer)
-: _observer(observer),
-  _interval(0),
-  _intermediate_interval(0),
-  _total_interval(0),
-  _still_left(0),
-  _timer_event(NULL),
-  _type(M2MTimerObserver::Notdefined),
-  _status(0),
-  _dtls_type(false),
-  _single_shot(true),
-  _event_id(-1)
+M2MTimerPimpl::M2MTimerPimpl(M2MTimerObserver &observer)
+    : _observer(observer),
+      _interval(0),
+      _intermediate_interval(0),
+      _total_interval(0),
+      _still_left(0),
+      _timer_event(NULL),
+      _type(M2MTimerObserver::Notdefined),
+      _status(0),
+      _dtls_type(false),
+      _single_shot(true),
+      _event_id(-1)
 {
     eventOS_scheduler_mutex_wait();
     if (_tasklet_id < 0) {
@@ -172,7 +172,7 @@ void M2MTimerPimpl::set_event_id()
         _event_id = _next_event_id;
         _next_event_id++;
         // check that event_ids wont over lap timer types
-        // _next_event_id will overflow and it is ok. 
+        // _next_event_id will overflow and it is ok.
         // when it's value change from 225 -> 0. this will set it to M2MTimerObserver::TypeNotUsed + 1
         if (_next_event_id <= (uint8_t)M2MTimerObserver::TypeNotUsed) {
             _next_event_id = (uint8_t)M2MTimerObserver::TypeNotUsed + 1;
@@ -237,7 +237,7 @@ bool M2MTimerPimpl::is_total_interval_passed() const
 
 uint64_t M2MTimerPimpl::get_still_left_time() const
 {
-   return _still_left;
+    return _still_left;
 }
 
 void M2MTimerPimpl::start_still_left_timer()

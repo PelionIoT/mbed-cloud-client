@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2019 ARM Ltd.
+* Copyright 2016-2021 Pelion.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,6 +70,19 @@ palStatus_t pal_plat_osEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBy
 * @return PAL_ERR_RTOS_TRNG_PARTIAL_DATA - `bufSizeBytes` too small or too big.
 */
 palStatus_t pal_plat_osEntropyRead(const char *entropyFileName, uint8_t *randomBufOut, size_t bufSizeBytes, size_t *actualRandomSizeBytesOut);
+
+/**
+ * Inject entropy to non-volatile memory.
+ *
+ * @param entropyBuf - pointer to buffer containing the entropy
+ * @param bufSizeBytes - size of entropyBuf in bytes
+ *
+ * @return PAL_SUCCESS - if operation is successful
+ *         PAL_ERR_ENTROPY_EXISTS - Entropy already injected
+ *         PAL_ERR_GENERIC_FAILURE - any other case
+ */
+
+palStatus_t pal_plat_DRBGEntropyInject(const uint8_t *entropyBuf, size_t bufSizeBytes);
 
 #ifdef __cplusplus
 }

@@ -39,6 +39,8 @@ static int32_t stats_refresh_interval = MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_T
 static int32_t stats_refresh_interval = 0;
 #endif
 
+static ntpfp ntp_app_cb;
+
 nm_status_t nm_post_event(nm_event_t event_type, uint8_t event_id, void *data)
 {
     int8_t event_status;
@@ -83,9 +85,9 @@ static void nm_event_handler(arm_event_s *event)
     switch (event->event_type) {
         case NM_EVENT_INIT:
 #if defined MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER && (MBED_CONF_MBED_CLOUD_CLIENT_OBSERVABLE_TIMER != 0)
-                nm_post_timeout_event(NM_EVENT_STATS_REFRESH_TIMEOUT, stats_refresh_interval);
+            nm_post_timeout_event(NM_EVENT_STATS_REFRESH_TIMEOUT, stats_refresh_interval);
 #else
-                tr_debug("Observable timer event not posted");
+            tr_debug("Observable timer event not posted");
 #endif
             break;
         case NM_EVENT_RESOURCE_SET:
@@ -217,5 +219,28 @@ void NetworkManager::nm_cloud_client_connect_indication(void)
 
     mesh_interface_connected();
 }
+
+#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
+nm_error_t NetworkManager::register_ntp_callback(ntpfp register_cb)
+{
+    ntp_app_cb = register_cb;
+    return NM_ERROR_NONE;
+}
+
+nm_error_t NetworkManager::get_ntp_default_config(char *ntp_server_addr, uint32_t *timeout)
+{
+    if (get_ntp_default_config_from_Kvstore(ntp_server_addr, timeout) == NM_STATUS_FAIL) {
+        tr_warn("Unable to get NTP configuration from KvStore");
+        return NM_ERROR_UNKNOWN;
+    }
+    return NM_ERROR_NONE;
+}
+
+nm_status_t send_ntp_rev_conf_to_app(char *server_addr, uint32_t timeout)
+{
+    ntp_app_cb(server_addr, timeout);
+    return NM_STATUS_SUCCESS;
+}
+#endif //#if defined MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK && (MBED_CONF_MBED_MESH_API_SYSTEM_TIME_UPDATE_FROM_NANOSTACK == 1)
 
 #endif    //MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER && (MBED_CONF_MBED_CLOUD_CLIENT_NETWORK_MANAGER == 1)

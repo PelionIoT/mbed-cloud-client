@@ -20,10 +20,9 @@
 /* Max value of KV_KEY_LENGTH */
 #define KV_KEY_LENGTH 32
 
-extern char kv_key_app[KV_KEY_LENGTH];
-extern char kv_key_bb[KV_KEY_LENGTH];
 extern char kv_key_ws[KV_KEY_LENGTH];
 extern char kv_key_br[KV_KEY_LENGTH];
+extern char kv_key_tm[KV_KEY_LENGTH];
 
 nm_status_t get_lenght_from_KVstore(char *key, size_t *len);
 nm_status_t get_data_from_kvstore(char *key, uint8_t *value, size_t len);
