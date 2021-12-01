@@ -2351,7 +2351,14 @@ bool sn_nsdl_remove_resource_attribute(sn_nsdl_static_resource_parameters_s *par
 void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
 {
 #if MBED_CONF_MBED_TRACE_ENABLE
+#if MBED_TRACE_MAX_LEVEL >= TRACE_LEVEL_INFO
     if (!coap_header_ptr) {
+        return;
+    }
+
+    // If active tracing level is below INFO, no need to parse through.
+    // Use of tr_array() can also result in dead lock with application mutexes if trace level is below INFO.
+    if (!(mbed_trace_config_get() & TRACE_LEVEL_INFO)) {
         return;
     }
 
@@ -2475,6 +2482,7 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
     WRITE_TAG(buffer + ret - 1, buf_size - ret - 1, "%s", end);
 
 print_line:
+    // This is dependant on active-trace level checks earlier in the function. Do not change to debug without adjusting checks for active level.
     tr_info("%s", buffer);
 
 #ifdef MBED_CLIENT_PRINT_COAP_PAYLOAD
@@ -2494,11 +2502,11 @@ print_line:
         }
     }
 #endif
-
+#endif // MBED_TRACE_MAX_LEVEL
 #else
     (void) coap_header_ptr;
     (void) outgoing;
-#endif
+#endif // MBED_CONF_MBED_TRACE_ENABLE
 }
 
 #if MBED_CONF_MBED_TRACE_ENABLE

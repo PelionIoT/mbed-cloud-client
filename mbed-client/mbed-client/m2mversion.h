@@ -30,6 +30,6 @@
 /** PDMC_PATCH_VERSION
   * Pelion Device Management Client patch version
   */
-#define PDMC_PATCH_VERSION 1
+#define PDMC_PATCH_VERSION 2
 
 #endif // M2MVERSION_H

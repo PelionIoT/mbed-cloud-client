@@ -1,5 +1,9 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.11.2 (01.12.2021)
+
+Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is enabled but trace-level is set below INFO. This fixes a regression introduced in 4.11.0 release.
+
 ### Release 4.11.1 (11.10.2021)
 
 ### Device Management Client

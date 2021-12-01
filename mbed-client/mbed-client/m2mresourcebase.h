@@ -256,7 +256,7 @@ public:
      * \note If "read_resource_value_callback" is not set this is internally calling value() and value_length() API's.
      * \param resource Pointer to resource whose value will be read.
      * \param buffer[OUT] Buffer where the value is stored.
-     * \param buffer_len[IN/OUT] Buffer size
+     * \param[in, out]  buffer_len On input, tells the maximum size of bytes to read. On output, tells how many bytes have been written to buffer.
      * \return Error code, 0 on success otherwise < 0
      */
     int read_resource_value(const M2MResourceBase &resource, void *buffer, size_t *buffer_len);
@@ -349,18 +349,21 @@ public:
     /**
      * \brief Converts a value to integer and returns it. Note: Conversion
      * errors are not detected.
+     * \return int64 value.
      */
     int64_t get_value_int() const;
 
     /**
      * Get the value as a string object. No encoding/charset conversions
      * are done for the value, just a raw copy.
+     * \return value as a String object.
      */
     String get_value_string() const;
 
     /**
      * \brief Converts a value to float and returns it. Note: Conversion
      * errors are not detected.
+     * \return value as a float.
      */
     float get_value_float() const;
 
@@ -447,6 +450,7 @@ public:
      * @brief Sets the function that is executed when this
      * object receives a block-wise message.
      * @param callback The function pointer that is called.
+     * @return True if successfully set, otherwise return False.
      */
     bool set_incoming_block_message_callback(incoming_block_message_callback callback);
 
@@ -457,6 +461,7 @@ public:
      * @note Due to a limitation in the mbed-client-c library, the whole
      * payload up to 64 KiB must be supplied in the single callback.
      * @param callback The function pointer that is called.
+     * @return True if successfully set, otherwise return False.
      */
     bool set_outgoing_block_message_callback(outgoing_block_message_callback callback) m2m_deprecated;
 
