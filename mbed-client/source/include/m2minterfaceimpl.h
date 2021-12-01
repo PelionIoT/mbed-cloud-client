@@ -351,7 +351,7 @@ protected: // From M2MNsdlObserver
 
     virtual void registration_updated(const M2MServer &server_object);
 
-    virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false);
+    virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false, bool ping_recovery = false);
 
     virtual void client_unregistered(bool success = true);
 

@@ -401,12 +401,12 @@ void M2MInterfaceImpl::registration_updated(const M2MServer &server_object)
     _observer.registration_updated(_register_server, server_object);
 }
 
-void M2MInterfaceImpl::registration_error(uint8_t error_code, bool retry, bool full_registration)
+void M2MInterfaceImpl::registration_error(uint8_t error_code, bool retry, bool full_registration, bool ping_recovery)
 {
     tr_error("M2MInterfaceImpl::registration_error code [%d]", error_code);
 
     if (_binding_mode == M2MInterface::UDP || _binding_mode == M2MInterface::UDP_QUEUE) {
-        if (error_code != M2MInterface::MemoryFail && _connection_handler.is_cid_available()) {
+        if (ping_recovery && _connection_handler.is_cid_available()) {
             // Check if we can ping LWm2m server with DTLS client hello (send it immediately and lets have timeout of 60 seconds)
             //   if(server responds)
             //       CID has expired, delete CID do handshake

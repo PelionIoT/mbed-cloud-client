@@ -61,8 +61,9 @@ public :
     * @param error_code, Error code for registration error
     * @param retry, Indicates state machine to re-establish connection
     * @param full_registration, Indicates that after DTLS handshake continue with a full registration
+    * @param ping_recovery, Indicates whether ping recovery should be attempted or not
     */
-    virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false) = 0;
+    virtual void registration_error(uint8_t error_code, bool retry = false, bool full_registration = false, bool ping_recovery = false) = 0;
 
     /**
     * @brief Informs that client is unregistered.

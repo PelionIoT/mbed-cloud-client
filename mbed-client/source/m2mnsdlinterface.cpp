@@ -899,7 +899,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                     free_response_list();
                 }
 
-                _observer.registration_error(M2MInterface::NetworkError, true);
+                _observer.registration_error(M2MInterface::NetworkError, true, false, true);
 
                 // Handle Server-side expections during registration flow
                 // Client might receive error from server due to temporary connection/operability reasons,
@@ -917,7 +917,7 @@ uint8_t M2MNsdlInterface::received_from_server_callback(struct nsdl_s *nsdl_hand
                 tr_error("M2MNsdlInterface::received_from_server_callback - registration error %d", coap_header->msg_code);
                 tr_error("M2MNsdlInterface::received_from_server_callback - unexpected error received from server");
                 // Try to do clean register again
-                _observer.registration_error(M2MInterface::NetworkError, true);
+                _observer.registration_error(M2MInterface::NetworkError, true, false, false);
 
             } else {
                 // Add warn for any message that gets this far. We might be missing some handling in above.
@@ -1374,7 +1374,7 @@ void M2MNsdlInterface::timer_expired(M2MTimerObserver::Type type)
         tr_debug("M2MNsdlInterface::timer_expired - Send update registration");
         if (!send_update_registration()) {
             // Most likely case would be memory allocation failure
-            _observer.registration_error(M2MInterface::MemoryFail, false);
+            _observer.registration_error(M2MInterface::MemoryFail, false, false, false);
         }
     } else if (M2MTimerObserver::RetryTimer == type) {
         send_pending_request();
@@ -3296,17 +3296,18 @@ void M2MNsdlInterface::handle_register_response(const sn_coap_hdr_s *coap_header
 
     } else {
         tr_error("M2MNsdlInterface::handle_register_response - registration error %d", coap_header->msg_code);
-        if (coap_header->coap_status == COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED ||
-                coap_header->coap_status == COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED) {
-            tr_error("M2MNsdlInterface::handle_register_response - message sending failed !!!!");
-        }
 
         if (COAP_MSG_CODE_RESPONSE_BAD_REQUEST == coap_header->msg_code ||
                 COAP_MSG_CODE_RESPONSE_FORBIDDEN == coap_header->msg_code) {
-            _observer.registration_error(M2MInterface::InvalidParameters, false);
+            _observer.registration_error(M2MInterface::InvalidParameters, false, false, false);
+        } else if (coap_header->coap_status == COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED ||
+                       coap_header->coap_status == COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED) {
+            tr_error("M2MNsdlInterface::handle_register_response - message sending failed !!!!");
+            _observer.registration_error(M2MInterface::NetworkError, true, true, true);
         } else {
+            tr_error("M2MNsdlInterface::handle_register_response - Try to do clean register again");
             // Try to do clean register again
-            _observer.registration_error(M2MInterface::NetworkError, true, true);
+            _observer.registration_error(M2MInterface::NetworkError, true, true, false);
         }
     }
 }
@@ -3350,7 +3351,7 @@ void M2MNsdlInterface::handle_register_update_response(const sn_coap_hdr_s *coap
                 coap_header->coap_status == COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED) {
             // Inform interfaceimpl to do a reconnection and registration update
             // till we get CoAP level response for the request
-            _observer.registration_error(M2MInterface::NetworkError, true);
+            _observer.registration_error(M2MInterface::NetworkError, true, false, true);
         } else {
             // Clear observation tokens and do a full registration
             send_next_notification(M2MNsdlInterface::CLEAR_NOTIFICATION_TOKEN);
@@ -3442,7 +3443,7 @@ void M2MNsdlInterface::handle_request_response(const sn_coap_hdr_s *coap_header,
         // Retransmission completed
         if (coap_header->coap_status == COAP_STATUS_BUILDER_MESSAGE_SENDING_FAILED ||
                 coap_header->coap_status == COAP_STATUS_BUILDER_BLOCK_SENDING_FAILED) {
-            _observer.registration_error(M2MInterface::NetworkError, true);
+            _observer.registration_error(M2MInterface::NetworkError, true, false, true);
 
             // Start retry logic, only for file download operation
         } else if (coap_header->msg_code == COAP_MSG_CODE_RESPONSE_SERVICE_UNAVAILABLE &&
@@ -3540,7 +3541,7 @@ bool M2MNsdlInterface::handle_post_response(sn_coap_hdr_s *coap_header,
                                 tr_debug("M2MNsdlInterface::handle_post_response - Send Update registration for Create");
                                 if (!send_update_registration()) {
                                     // Most likely case would be memory allocation failure
-                                    _observer.registration_error(M2MInterface::MemoryFail, false);
+                                    _observer.registration_error(M2MInterface::MemoryFail, false, false, false);
                                 }
                             }
                         } else {
