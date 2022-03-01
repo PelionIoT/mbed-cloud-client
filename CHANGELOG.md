@@ -1,5 +1,12 @@
 ## Changelog for Pelion Device Management Client
 
+### Release 4.12.0 (01.03.2022)
+
+- [Linux] Security improvement - the update encryption key is stored in the NVM and not in the header.
+- Enable connection to any LwM2M compliant bootstrap and device management services.
+   - Introduce a new `LWM2M_COMPLIANT` flag that enables connection to any LwM2M compliant bootstrap and device management services. Disabled by default.
+   - Introduce a new `DISABLE_SERVER_CERT_VERIFY` flag that disables the server certificate verification during the TLS handshake. Disabled by default.
+
 ### Release 4.11.2 (01.12.2021)
 
 Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is enabled but trace-level is set below INFO. This fixes a regression introduced in 4.11.0 release.

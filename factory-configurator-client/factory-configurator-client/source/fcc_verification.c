@@ -143,6 +143,7 @@ static fcc_status_e fcc_check_uri_contents(bool use_bootstrap, uint8_t* uri_data
         SA_PV_ERR_RECOVERABLE_GOTO_IF(true, fcc_status = FCC_STATUS_URI_WRONG_FORMAT, exit, "Wrong uri prefix");
     }
 
+#ifndef LWM2M_COMPLIANT // Account ID is a Pelion thing
     // Check if uri_string contains uri_aid (indicate the uri contains AccountId)
     if ((strstr(uri_string, URI_AID_PREFIX1) != NULL) || (strstr(uri_string, URI_AID_PREFIX2) != NULL)) {
         has_uri_aid = true;
@@ -154,6 +155,7 @@ static fcc_status_e fcc_check_uri_contents(bool use_bootstrap, uint8_t* uri_data
     } else {
         SA_PV_ERR_RECOVERABLE_GOTO_IF(has_uri_aid == false, fcc_status = FCC_STATUS_URI_WRONG_FORMAT, exit, "Wrong uri data");
     }
+#endif
 
 exit:
     fcc_free(uri_string);
@@ -546,6 +548,7 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
     fcc_status = verify_existence_and_set_warning(secondary_ca_cert_name, secondary_ca_cert_name_len, KCM_CERTIFICATE_ITEM, false);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, store_error_and_exit, "Failed in verify_existence_and_set_warning");
 
+#if defined (PAL_USE_SECURE_TIME) && (PAL_USE_SECURE_TIME == 1)
     if (use_bootstrap == true) {
         fcc_status = fcc_get_certificate_attribute_by_name((const uint8_t*)root_ca_cert_name,
                      root_ca_cert_name_len,
@@ -570,6 +573,7 @@ static fcc_status_e verify_root_ca_certificate(bool use_bootstrap)
         }
         fcc_status = FCC_STATUS_SUCCESS;
     }
+#endif //#if defined (PAL_USE_SECURE_TIME) && (PAL_USE_SECURE_TIME == 1)
 
     //TBD : check of mbed crypto scheme IOTPREQ-1417
 store_error_and_exit:
@@ -709,11 +713,13 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     fcc_status = compare_cn_with_endpoint(x509_cert_handle);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to compare_cn_with_endpoint");
 
+#ifndef LWM2M_COMPLIANT // Account ID is Pelion specific
     //In case LWM2M certificate check it's OU attribute with aid of server link
     if (strcmp((const char*)exist_item_name, g_fcc_lwm2m_device_certificate_name) == 0) {
         fcc_status = compare_ou_with_aid_server(x509_cert_handle);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to compare_ou_with_aid_server");
     }
+#endif
 
     //Check that device certificate not self-signed
     kcm_status = cs_is_self_signed_x509_cert(x509_cert_handle, &is_self_signed);

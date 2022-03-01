@@ -74,6 +74,11 @@ const char g_fcc_update_authentication_certificate_name[] = "mbed.UpdateAuthCert
 const char g_fcc_class_id_name[] = "mbed.ClassId";
 const char g_fcc_vendor_id_name[] = "mbed.VendorId";
 
+#ifdef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+const char g_fcc_mbed_internal_endpoint[] = "mbed.InternalEndpoint";
+const char g_fcc_account_id[] = "mbed.AccountID";
+#endif
+
 static bool g_is_fcc_initialized = false;
 bool g_is_session_finished = true;
 

@@ -158,6 +158,26 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
             return M2MConnectionHandler::SSL_CONNECTION_ERROR;
         }
 
+#ifdef LWM2M_COMPLIANT
+        // Use the public key resource instead of Chain resources that aren't part of the standard
+        resource_buffer_size = MAX_CERTIFICATE_SIZE;
+        ret_code = security->resource_value_buffer(M2MSecurity::PublicKey, certificate_ptr, security_instance_id, &resource_buffer_size);
+        if (ret_code < 0) {
+            tr_error("M2MConnectionSecurityPimpl::init - fail to read device certificate size");
+            return M2MConnectionHandler::FAILED_TO_READ_CREDENTIALS;
+        } else if (resource_buffer_size == 0) {
+            tr_error("M2MConnectionSecurityPimpl::init - no device certificate!");
+            return M2MConnectionHandler::SSL_CONNECTION_ERROR;
+        } else {
+            owncert.size = static_cast<uint32_t>(resource_buffer_size);
+            owncert.buffer = certificate_ptr;
+            if (PAL_SUCCESS != pal_setOwnCertChain(_conf, &owncert)) {
+                tr_error("M2MConnectionSecurityPimpl::init - pal_setOwnCertChain failed");
+                return M2MConnectionHandler::SSL_CONNECTION_ERROR;
+            }
+        }
+#else
+
         // Open certificate chain, size parameter contains the depth of certificate chain
         size_t cert_chain_size = 0;
         if (security->resource_value_buffer_size(M2MSecurity::OpenCertificateChain, security_instance_id, &cert_chain_size) < 0) {
@@ -192,7 +212,7 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
             }
             security->resource_value_buffer_size(M2MSecurity::CloseCertificateChain, security_instance_id, &cert_chain_size);
         }
-
+#endif //LWM2M_COMPLIANT
     } else if (cert_mode == M2MSecurity::Psk) {
 
         uint8_t identity[MAX_CERTIFICATE_SIZE];

@@ -1589,7 +1589,7 @@ static int prepare_and_program_header(void)
 
 #if (MBED_CLOUD_CLIENT_FOTA_ENCRYPTION_SUPPORT == 1)
     header_info.flags |= FOTA_HEADER_ENCRYPTED_FLAG;
-#if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY)
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION == FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY) && !defined(TARGET_LIKE_LINUX)
     // encrypt fw_key buffer using device key and store it in the header
     uint8_t fw_key[FOTA_ENCRYPT_KEY_SIZE];
     ret = fota_nvm_fw_encryption_key_get(fw_key);

@@ -2694,6 +2694,9 @@ bool M2MNsdlInterface::validate_security_object()
                 // Read directly from the resource. Used only in "client only" mode.
                 _security->resource_value_buffer_size(M2MSecurity::PublicKey, instance_id, &chain_size);
             }
+        } else {
+                // Read directly from the resource. Used only in "LWM2M_COMPLIANT" mode.
+                _security->resource_value_buffer_size(M2MSecurity::PublicKey, instance_id, &chain_size);
         }
 
         _security->resource_value_buffer_size(M2MSecurity::ServerPublicKey, instance_id, &server_key_size);

@@ -178,6 +178,10 @@ extern const char g_fcc_class_id_name[];
 
 extern const char g_fcc_vendor_id_name[];
 
+#ifdef MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
+extern const char g_fcc_mbed_internal_endpoint[];
+extern const char g_fcc_account_id[];
+#endif
 
 #ifdef __cplusplus
 }
