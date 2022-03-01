@@ -405,6 +405,7 @@ bool ConnectorClient::create_bootstrap_object()
 
         // Read internal endpoint name if it exists, we need to append
         // it to bootstrap uri if device already bootstrapped
+#ifndef LWM2M_COMPLIANT
         uint8_t *iep = NULL;
         if (success && ccs_get_string_item(KEY_INTERNAL_ENDPOINT, buffer, max_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
             iep = (uint8_t *)malloc(strlen((const char *)buffer) + strlen(INTERNAL_ENDPOINT_PARAM) + 1);
@@ -415,13 +416,14 @@ bool ConnectorClient::create_bootstrap_object()
             }
             //TODO: Should handle error if iep exists but allocation fails?
         }
+#endif //LWM2M_COMPLIANT
 
         // Bootstrap URI
         if (success) {
             success = false;
             if (ccs_get_string_item(g_fcc_bootstrap_server_uri_name, buffer, max_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
                 real_size = strlen((const char *)buffer);
-
+#ifndef LWM2M_COMPLIANT
                 // Append iep if we 1. have it 2. it doesn't already exist in uri 3. it fits
                 if (iep &&
                         strstr((const char *)buffer, (const char *)iep) == NULL &&
@@ -429,7 +431,7 @@ bool ConnectorClient::create_bootstrap_object()
                     strcat((char *)buffer, (const char *)iep);
                     real_size += strlen((const char *)iep) + 1;
                 }
-
+#endif // LWM2M_COMPLIANT
                 tr_info("ConnectorClient::create_bootstrap_object - M2MServerUri %.*s", (int)real_size, buffer);
                 if (_security->set_resource_value(M2MSecurity::M2MServerUri, buffer, real_size, bs_id)) {
                     success = true;
@@ -444,8 +446,9 @@ bool ConnectorClient::create_bootstrap_object()
                 }
             }
         }
-
+#ifndef LWM2M_COMPLIANT
         free(iep);
+#endif
 
         // Endpoint
         if (success) {
@@ -731,6 +734,7 @@ bool ConnectorClient::create_register_object()
     }
 
     // Try to get internal endpoint name
+#ifndef LWM2M_COMPLIANT
     if (success) {
         if (ccs_get_item(KEY_INTERNAL_ENDPOINT, buffer, max_size, &real_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
             _endpoint_info.internal_endpoint_name = String((const char *)buffer, real_size);
@@ -769,6 +773,7 @@ bool ConnectorClient::create_register_object()
             }
         }
     }
+#endif //LWM2M_COMPLIANT
 
     free(buffer);
 
@@ -980,7 +985,7 @@ void ConnectorClient::state_registration_success()
         return;
     }
     bool no_param_update = true;
-
+#ifndef LWM2M_COMPLIANT
     if (ccs_get_string_item(KEY_INTERNAL_ENDPOINT, buffer, max_size, CCS_CONFIG_ITEM) == CCS_STATUS_SUCCESS) {
         if (strcmp((const char *)buffer, _endpoint_info.internal_endpoint_name.c_str()) != 0) {
             // Update is required as the stored KCM entry is different than _endpoint_info.internal_endpoint_name.
@@ -997,6 +1002,7 @@ void ConnectorClient::state_registration_success()
                      (size_t)_endpoint_info.internal_endpoint_name.size(),
                      CCS_CONFIG_ITEM);
     }
+#endif //LWM2M_COMPLIANT
     _callback->registration_process_result(State_Registration_Success);
 }
 
@@ -1206,6 +1212,10 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
 
         char device_id[64];
         memset(device_id, 0, 64);
+
+#ifdef LWM2M_COMPLIANT
+        status = CCS_STATUS_SUCCESS;
+#else
         if (extract_field_from_certificate(public_key, buffer_size, "L", device_id)) {
             tr_info("ConnectorClient::set_connector_credentials - L internal_endpoint_name : %s", device_id);
             _endpoint_info.internal_endpoint_name = String(device_id);
@@ -1214,6 +1224,7 @@ ccs_status_e ConnectorClient::set_connector_credentials(M2MSecurity *security)
         }
 
         memset(device_id, 0, 64);
+#endif //LWM2M_COMPLIANT
         if (extract_field_from_certificate(public_key, buffer_size, "CN", device_id)) {
             tr_info("ConnectorClient::set_connector_credentials - CN endpoint_name : %s", device_id);
             _endpoint_info.endpoint_name = String(device_id);
@@ -1478,6 +1489,8 @@ void ConnectorClient::init_security_object(uint16_t instance_id)
         res->set_resource_write_callback(write_security_object_data_to_kcm, this);
     }
 
+#ifndef LWM2M_COMPLIANT
+    // Chain resources are not part of the standard
     res = _security->get_resource(M2MSecurity::OpenCertificateChain, instance_id);
     if (res) {
         res->set_resource_read_size_callback(open_certificate_chain_callback, this);
@@ -1492,6 +1505,7 @@ void ConnectorClient::init_security_object(uint16_t instance_id)
     if (res) {
         res->set_resource_read_size_callback(close_certificate_chain_callback, this);
     }
+#endif //LWM2M_COMPLIANT
 }
 void ConnectorClient::init_security_object()
 {

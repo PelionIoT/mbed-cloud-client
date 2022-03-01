@@ -25,11 +25,11 @@
 /** PDMC_MINOR_VERSION
   * Pelion Device Management Client minor version
   */
-#define PDMC_MINOR_VERSION 11
+#define PDMC_MINOR_VERSION 12
 
 /** PDMC_PATCH_VERSION
   * Pelion Device Management Client patch version
   */
-#define PDMC_PATCH_VERSION 2
+#define PDMC_PATCH_VERSION 0
 
 #endif // M2MVERSION_H

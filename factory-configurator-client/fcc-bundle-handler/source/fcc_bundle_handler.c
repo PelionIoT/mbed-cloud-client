@@ -470,9 +470,10 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
         // in SOTP, if in the future more error conditions will be attached to FCC_STATUS_CA_ERROR error code
         // then the logic here MUST be change.
         // Only if this is the last message - set the certificate ID
+#if defined (PAL_USE_SECURE_TIME) && (PAL_USE_SECURE_TIME == 1)
         fcc_status = fcc_trust_ca_cert_id_set();
         SA_PV_ERR_RECOVERABLE_GOTO_IF(((fcc_status != FCC_STATUS_SUCCESS) && (fcc_status != FCC_STATUS_CA_ERROR)), (fcc_status = fcc_status), exit_and_response, "CA store error %u", fcc_status);
-
+#endif
     }
 
     if (fcc_verify_status == true) {

@@ -269,7 +269,8 @@ static int fota_candidate_extract_start(bool force_encrypt, const char *expected
             uint8_t zero_key[FOTA_ENCRYPT_KEY_SIZE] = {0};
             size_t volatile loop_check;
 
-#if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION != FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY)
+#if (MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION != FOTA_USE_ENCRYPTED_ONE_TIME_FW_KEY) || \
+    defined(TARGET_LIKE_LINUX)
             ret = fota_nvm_fw_encryption_key_get(fw_key);
 #else
             ret = fota_decrypt_fw_key(fw_key, 

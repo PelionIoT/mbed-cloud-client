@@ -331,6 +331,20 @@
 #define MBEDTLS_SSL_CONTEXT_SERIALIZATION
 #define MBEDTLS_SSL_DTLS_CONNECTION_ID
 
+#ifdef LWM2M_COMPLIANT
+    #define MBEDTLS_ECP_DP_SECP384R1_ENABLED
+    #define MBEDTLS_RSA_C
+    #define MBEDTLS_PKCS1_V15
+    #define MBEDTLS_SSL_MAX_CONTENT_LEN             16384
+    #define MBEDTLS_SSL_CIPHERSUITES MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, \
+                                 MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, \
+                                 MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, \
+                                 MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8, \
+                                 MBEDTLS_TLS_PSK_WITH_AES_256_CCM_8, \
+                                 MBEDTLS_TLS_ECDHE_ECDSA_WITH_ARIA_128_GCM_SHA256, \
+                                 MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256
+#endif
+
 #include "mbedtls/check_config.h"
 
 #endif /* PAL_MBEDTLS_USER_CONFIG_H */

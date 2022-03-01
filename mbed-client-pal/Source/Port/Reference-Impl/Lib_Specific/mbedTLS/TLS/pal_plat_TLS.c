@@ -672,11 +672,32 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
             break;
 #endif
         default:
+            tr_error("ERROR - pal_plat_TLS.c, no cipher suite!");
             localConfigCtx->cipherSuites[0] = 0;
             status = PAL_ERR_TLS_INVALID_CIPHER;
             goto finish;
     }
-
+#if 0
+    if (PAL_MAX_ALLOWED_CIPHER_SUITES >= 2) {
+        localConfigCtx->cipherSuites[1] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256;
+    }
+    if (PAL_MAX_ALLOWED_CIPHER_SUITES >= 3) {
+        localConfigCtx->cipherSuites[2] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384;
+    }
+    if (PAL_MAX_ALLOWED_CIPHER_SUITES >= 4) {
+        localConfigCtx->cipherSuites[3] = MBEDTLS_TLS_PSK_WITH_AES_256_CCM_8;
+    }
+    if (PAL_MAX_ALLOWED_CIPHER_SUITES >= 5) {
+            localConfigCtx->cipherSuites[4] = MBEDTLS_TLS_PSK_WITH_AES_128_CCM_8;
+    }
+    localConfigCtx->cipherSuites[PAL_MAX_ALLOWED_CIPHER_SUITES] = 0;
+    int i = 0;
+    // There can be some duplicates (same cipher twice) but never mind that - it works.
+    while (i<=PAL_MAX_ALLOWED_CIPHER_SUITES) {
+        tr_debug("localConfigCtx->cipherSuites[%d]=0x%x", i, localConfigCtx->cipherSuites[i]);
+        i++;
+    }
+#endif
     mbedtls_ssl_conf_ciphersuites(localConfigCtx->confCtx, localConfigCtx->cipherSuites);
 finish:
     return status;
@@ -689,6 +710,7 @@ palStatus_t pal_plat_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int
     int32_t platStatus = SSL_LIB_SUCCESS;
     *verifyResult = 0;
 
+#ifndef DISABLE_SERVER_CERT_VERIFY 
     platStatus = mbedtls_ssl_get_verify_result(&localTLSCtx->tlsCtx);
     if (SSL_LIB_SUCCESS != platStatus)
     {
@@ -727,6 +749,7 @@ palStatus_t pal_plat_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int
         }
 #endif
     }
+#endif // DISABLE_SERVER_CERT_VERIFY
     return status;
 }
 
