@@ -1,5 +1,5 @@
-# Device Management Client
-This repository contains Pelion Device Management Client: a library that connects devices to Pelion Device Management service and to Mbed-enabled cloud services from our partners.
+# Izuma Connect
+This repository contains Izuma Connect (formerly Pelion Device Management Client): a library that connects devices to Pelion Device Management service and to Mbed-enabled cloud services from our partners.
 
 The documentation is hosted [here](https://www.pelion.com/docs/device-management/current/welcome/index.html).
 
