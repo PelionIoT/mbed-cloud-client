@@ -19,6 +19,7 @@
 #include "fcc_defs.h"
 #include "pv_error_handling.h"
 #include "fcc_utils.h"
+#include "cs_der_keys_and_csrs.h"
 
 typedef struct fcc_deloveper_mode_item_params {
     const char *item_name;
@@ -83,8 +84,10 @@ fcc_status_e fcc_developer_flow(void)
         { g_fcc_lwm2m_device_certificate_name,         KCM_CERTIFICATE_ITEM,  MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE,             MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE_SIZE },
         { g_fcc_lwm2m_device_private_key_name,         KCM_PRIVATE_KEY_ITEM,  MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY,             MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY_SIZE },
         { g_fcc_mbed_internal_endpoint,                KCM_CONFIG_ITEM,      (const uint8_t*)MBED_CLOUD_DEV_BOOTSTRAP_ENDPOINT_NAME,   (uint32_t)strlen((char*)MBED_CLOUD_DEV_BOOTSTRAP_ENDPOINT_NAME) },
+#ifndef LWM2M_COMPLIANT // Account ID is Pelion specific
         // The account id is not really needed, but the MCC requires it.
         { g_fcc_account_id,                            KCM_CONFIG_ITEM,      (const uint8_t*)MBED_CLOUD_DEV_ACCOUNT_ID,                (uint32_t)strlen((char*)MBED_CLOUD_DEV_ACCOUNT_ID) },
+#endif //LWM2M_COMPLIANT
 #endif //MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
 #endif //!defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) || (defined(MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT) && defined(MBED_CONF_MBED_CLOUD_CLIENT_CLEAN_CREDENTIALS_SE))
 
@@ -108,6 +111,9 @@ fcc_status_e fcc_developer_flow(void)
     };
 
     const fcc_deloveper_mode_item_params_s* mandatory_items_iter = &fcc_deloveper_mode_item_params_table[0];
+    uint8_t kcm_item_buffer[KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE];
+    size_t act_kcm_item_buffer_size;
+
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
     SA_PV_ERR_RECOVERABLE_RETURN_IF((!fcc_is_initialized()), FCC_STATUS_NOT_INITIALIZED, "FCC not initialized");
@@ -119,11 +125,32 @@ fcc_status_e fcc_developer_flow(void)
                                         strlen(mandatory_items_iter->item_name), 
                                         mandatory_items_iter->item_kcm_type,
                                         &UseBootstrap_size);
-    if(kcm_status == KCM_STATUS_SUCCESS){
+    if (kcm_status == KCM_STATUS_SUCCESS){
         // item already exists - this means that storage already contains developer mode prov items.
-        // we don't need to override the items, we just exit from the function with "an item exists" status.
         SA_PV_LOG_INFO("Developer mode prov items already exist on the storage.");
-        return FCC_STATUS_KCM_FILE_EXIST_ERROR;
+
+        // Read the BS device private key and check if it's equal to the pre-compiled key.
+        kcm_item_get_data((const uint8_t*)g_fcc_bootstrap_device_private_key_name,
+                          strlen(g_fcc_bootstrap_device_private_key_name),
+                          KCM_PRIVATE_KEY_ITEM,
+                          kcm_item_buffer,
+                          sizeof(kcm_item_buffer), 
+                          &act_kcm_item_buffer_size);
+
+        if (act_kcm_item_buffer_size == MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY_SIZE) {
+            // The size of the stored key is equal to the compiled key
+            if (memcmp(kcm_item_buffer, MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY, MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY_SIZE) == 0) {
+                // The content of the keys are equal
+                // No need to override the items, just exit the function with "an item exists" status.
+                SA_PV_LOG_INFO("The stored items are equal to the compiled items.");
+                return FCC_STATUS_KCM_FILE_EXIST_ERROR;
+            }
+        }
+
+        // The stored item is not equal to the pre-compiled.
+        // Reset the storage, even if the RESET_STORAGE flag isn't on
+        SA_PV_LOG_INFO("The stored items are different from the compiled items. Reset the storage");
+        fcc_storage_delete();
     }
 
     // developer mode prov items do not exist on the storage. Flash them.

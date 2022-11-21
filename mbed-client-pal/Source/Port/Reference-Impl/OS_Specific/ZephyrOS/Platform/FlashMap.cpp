@@ -1,4 +1,5 @@
 /* Copyright (c) 2021 Pelion
+ * Copyright (c) 2022 Izuma Networks
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +23,7 @@
 
 #if 0
 #include <logging/log.h>
-LOG_MODULE_REGISTER(pelion);
+LOG_MODULE_REGISTER(izuma);
 #define DEBUG_PRINT(...) LOG_INF(__VA_ARGS__)
 #else
 #define DEBUG_PRINT(...)
@@ -32,7 +33,7 @@ LOG_MODULE_REGISTER(pelion);
  * Implementation
  ******************************************************************************/
 
-namespace pelion {
+namespace izuma {
 
 FlashMap::FlashMap(int id)
     : _area(NULL), _flash_size(0), _page_size(0), _erase_value(0xF0)

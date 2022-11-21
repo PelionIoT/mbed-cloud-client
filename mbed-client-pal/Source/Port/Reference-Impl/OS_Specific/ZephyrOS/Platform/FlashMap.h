@@ -1,5 +1,6 @@
 /* Copyright (c) 2021 Pelion
- *
+ * Copyright (c) 2021 Izuma Networks
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef PELION_FLASHMAP_H
-#define PELION_FLASHMAP_H
+#ifndef IZUMA_FLASHMAP_H
+#define IZUMA_FLASHMAP_H
 
 #include <storage/flash_map.h>
 #include <device.h>
 
-namespace pelion {
+namespace izuma {
 
 class FlashMap {
 public:
@@ -114,6 +115,6 @@ private:
     uint8_t _erase_value;
 };
 
-} /* namespace pelion */
+} /* namespace izuma */
 
-#endif  /* PELION_FLASHMAP_H */
+#endif  /* IZUMA_FLASHMAP_H */

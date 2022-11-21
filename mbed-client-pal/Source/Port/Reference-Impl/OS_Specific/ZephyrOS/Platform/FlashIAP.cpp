@@ -1,4 +1,5 @@
 /* Copyright (c) 2021 Pelion
+ * Copyright (c) 2022 Izuma Networks
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +24,13 @@
 
 namespace mbed {
 
-#if FLASH_AREA_LABEL_EXISTS(pelion_storage)
-static pelion::FlashMap flash(FLASH_AREA_ID(pelion_storage));
+#if FLASH_AREA_LABEL_EXISTS(izuma_storage)
+static izuma::FlashMap flash(FLASH_AREA_ID(izuma_storage));
 #elif FLASH_AREA_LABEL_EXISTS(storage) && !defined(CONFIG_SETTINGS)
 /* Only use default storage area if not already in use. */
-static pelion::FlashMap flash(FLASH_AREA_ID(storage));
+static izuma::FlashMap flash(FLASH_AREA_ID(storage));
 #else
-#error "Missing pelion_storage partition for storing credentials and settings"
+#error "Missing izuma_storage partition for storing credentials and settings"
 #endif
 
 int FlashIAP::init()

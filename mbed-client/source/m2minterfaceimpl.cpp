@@ -80,7 +80,9 @@ M2MInterfaceImpl::M2MInterfaceImpl(M2MInterfaceObserver &observer,
       _nsdl_interface(*this, _connection_handler),
       _security(NULL),
       _initial_reconnection_time(0),
-      _reconnection_time(0)
+      _reconnection_time(0),
+      _socket_errors(0),
+      _alt_port_count(0)
 {
     memset(&_server_address, 0, sizeof(_server_address));
     _server_address._stack = stack;
@@ -515,7 +517,6 @@ void M2MInterfaceImpl::bootstrap_wait()
 
 void M2MInterfaceImpl::bootstrap_error_wait(const char *reason)
 {
-
     tr_error("M2MInterfaceImpl::bootstrap_error_wait");
     set_error_description(reason);
     internal_event(STATE_BOOTSTRAP_ERROR_WAIT);
@@ -594,6 +595,7 @@ void M2MInterfaceImpl::data_available(uint8_t *data,
 
 void M2MInterfaceImpl::socket_error(int error_code, bool retry)
 {
+    _socket_errors++;
 #ifndef MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE
     // Bootstrap completed once PEER CLOSE notify received from the server.
     if (_current_state == STATE_BOOTSTRAP_WAIT &&
@@ -685,6 +687,10 @@ void M2MInterfaceImpl::socket_error(int error_code, bool retry)
         _retry_timer.start_timer(_reconnection_time * 1000,
                                  M2MTimerObserver::RetryTimer);
 
+#ifdef MBED_CLOUD_CLIENT_CUSTOM_URI_PORT
+        _alt_port_count++;
+        tr_info("M2MInterfaceImpl::socket_error - try alternating port, count %d", _alt_port_count);
+#endif
         tr_info("M2MInterfaceImpl::socket_error - reconnecting in %" PRIu32 "(s)", _reconnection_time);
 
         _reconnection_time = _reconnection_time * RECONNECT_INCREMENT_FACTOR;
@@ -1053,7 +1059,6 @@ void M2MInterfaceImpl::get_security_server_ip_address(int32_t instance_id)
 }
 void M2MInterfaceImpl::process_address(const String &server_address, String &ip_address, uint16_t &port)
 {
-
     int colonFound = server_address.find_last_of(':'); //10
     if (colonFound != -1) {
         ip_address = server_address.substr(0, colonFound);
@@ -1061,8 +1066,19 @@ void M2MInterfaceImpl::process_address(const String &server_address, String &ip_
         port = atoi(server_address.substr(colonFound + 1,
                                           server_address.size() - ip_address.size()).c_str());
 #else
-        port = MBED_CLOUD_CLIENT_CUSTOM_URI_PORT;
-        tr_info("Using custom URI port %d", port);
+        if (_alt_port_count % 2 == 0) {
+            port = MBED_CLOUD_CLIENT_CUSTOM_URI_PORT;
+            tr_info("Using custom URI port %d, alt count %d", port, _alt_port_count);
+        }
+        else {
+            port = atoi(server_address.substr(colonFound + 1,
+                                              server_address.size() - ip_address.size()).c_str());
+            if (port == MBED_CLOUD_CLIENT_CUSTOM_URI_PORT) {
+                // Config failure, if both are 443 - force to use CoAP port as alternative
+                port = 5684;
+            }
+            tr_info("Using alternative URI port %d, alt count %d", port, _alt_port_count);
+        }
 #endif
         colonFound = ip_address.find_last_of(']');
         if (ip_address.compare(0, 1, "[") == 0) {

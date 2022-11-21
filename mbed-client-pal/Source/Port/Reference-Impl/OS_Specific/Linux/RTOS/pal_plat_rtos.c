@@ -259,8 +259,8 @@ palStatus_t pal_plat_osThreadCreate(palThreadFuncPtr function, void* funcArgumen
 
     if (stackSize < PTHREAD_STACK_MIN)
     {        
-        PAL_LOG_WARN("Stack size is less than PTHREAD_STACK_MIN (%#x), change the stack size to PTHEAD_STACK_MIN\r\n", PTHREAD_STACK_MIN);
-        stackSize = PTHREAD_STACK_MIN;
+        PAL_LOG_WARN("Stack size is less than PTHREAD_STACK_MIN (%#x), change the stack size to 2*PTHREAD_STACK_MIN\r\n", PTHREAD_STACK_MIN);
+        stackSize = 2*PTHREAD_STACK_MIN;
     }
 
     err = pthread_attr_setstacksize(ptrAttr, stackSize);

@@ -1,8 +1,9 @@
 # Copyright (c) 2021 Pelion.
+# Copyright (c) 2022 Izuma Networks
 # SPDX-License-Identifier: Apache-2.0
 
-menuconfig PELION_CLIENT
-    bool "Pelion Device Management Client Library"
+menuconfig IZUMA_CLIENT
+    bool "Izuma Device Management Client Library"
 
     depends on NEWLIB_LIBC
     depends on CPLUSPLUS
@@ -10,23 +11,23 @@ menuconfig PELION_CLIENT
 
     select REBOOT
     select MPU_ALLOW_FLASH_WRITE
-    select PELION_SOURCES
+    select IZUMA_SOURCES
 
-if PELION_CLIENT
+if IZUMA_CLIENT
 
-config PELION_SOURCES
-    bool "Build Pelion client from sources"
+config IZUMA_SOURCES
+    bool "Build Izuma client from sources"
     help
-      Build Pelion client from sources.
+      Build Izuma client from sources.
 
-config APP_LINK_WITH_PELION_CLIENT
-    bool "Link application with Pelion client"
-    depends on PELION_SOURCES
+config APP_LINK_WITH_IZUMA_CLIENT
+    bool "Link application with Izuma client"
+    depends on IZUMA_SOURCES
     default y
     help
-      Request Zephyr to link the Pelion client library with the application.
+      Request Zephyr to link the Izuma client library with the application.
 
-if PELION_SOURCES
+if IZUMA_SOURCES
 rsource "Kconfig.client"
 rsource "Kconfig.mbedtls"
 rsource "Kconfig.pal"

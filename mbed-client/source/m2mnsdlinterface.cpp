@@ -2507,6 +2507,7 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header, sn_
         msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
     }
 #ifndef MBED_CLIENT_DISABLE_EST_FEATURE
+#ifndef LWM2M_COMPLIANT
     else if (!est_iep_ok &&
              m2m_id >= 0 &&
              _security->resource_value_int(M2MSecurity::SecurityMode, m2m_id) == M2MSecurity::EST) {
@@ -2514,6 +2515,7 @@ void M2MNsdlInterface::handle_bootstrap_finished(sn_coap_hdr_s *coap_header, sn_
         snprintf(buffer, sizeof(buffer), ERROR_REASON_26);
         msg_code = COAP_MSG_CODE_RESPONSE_BAD_REQUEST;
     }
+#endif
 #endif //MBED_CLIENT_DISABLE_EST_FEATURE
     else {
         // Add short server id to server object
@@ -2639,6 +2641,7 @@ void M2MNsdlInterface::handle_bootstrap_delete(sn_coap_hdr_s *coap_header, sn_ns
                         }
                     } else {
                         if (instance_id != _security->get_security_instance_id(M2MSecurity::Bootstrap)) {
+                            tr_info("M2MNsdlInterface::handle_bootstrap_delete - delete bootstrap instance");
                             _security->remove_object_instance(instance_id);
                         }
                     }

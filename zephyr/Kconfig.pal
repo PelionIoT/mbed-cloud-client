@@ -1,9 +1,9 @@
-# Copyright (c) 2021 Pelion.
+# Copyright (c) 2022 Izuma Networks
 # SPDX-License-Identifier: Apache-2.0
 
 menu "Platform Abstraction Layer options"
 
-config PELION_PAL_SUPPORT_NAT64
+config IZUMA_PAL_SUPPORT_NAT64
     bool "Automatic NAT64 address support on IPv6 networks"
     default y
     help
@@ -12,7 +12,7 @@ config PELION_PAL_SUPPORT_NAT64
       effect when an IPv6-only device receives an IPv4 address from the DNS
       server.
 
-config PELION_PAL_SUPPORT_SSL_CONNECTION_ID
+config IZUMA_PAL_SUPPORT_SSL_CONNECTION_ID
     bool "Use Connection Identifiers for DTLS 1.2"
     help
       Connection ID is an extention to DTLS 1.2 that allows a DTLS session
@@ -26,7 +26,7 @@ config PELION_PAL_SUPPORT_SSL_CONNECTION_ID
 
       https://tools.ietf.org/html/draft-ietf-tls-dtls-connection-id-11
 
-config PELION_PAL_USE_APPLICATION_REBOOT
+config IZUMA_PAL_USE_APPLICATION_REBOOT
     bool "Use reboot function provided by application"
     help
       Override default reboot function with one provided by application.
@@ -36,11 +36,11 @@ config PELION_PAL_USE_APPLICATION_REBOOT
       Signature for C function:
         void pal_plat_osApplicationReboot(void)
 
-config PELION_PAL_USE_APPLICATION_NETWORK_CALLBACK
+config IZUMA_PAL_USE_APPLICATION_NETWORK_CALLBACK
     bool "Use network status callback provided by application"
     help
       Provide setter for registering network status callback function in
-      application. Application uses callback function to notify Pelion client
+      application. Application uses callback function to notify Izuma client
       about changes in network connectivity, enabling the client to refrain
       from sending data during network loss.
 
@@ -52,22 +52,22 @@ config PELION_PAL_USE_APPLICATION_NETWORK_CALLBACK
 
 choice
     prompt "DNS API"
-    default PELION_PAL_USE_DNS_API_RESOLVE
+    default IZUMA_PAL_USE_DNS_API_RESOLVE
     help
       Select DNS API used by network abstraction implementation.
 
-    config PELION_PAL_USE_DNS_API_POSIX
+    config IZUMA_PAL_USE_DNS_API_POSIX
         bool "POSIX"
         help
           Use POSIX's getaddrinfo. This call is synchronous and maps to
-          Pelion's DNS version 0.
+          Izuma's DNS version 0.
 
-    config PELION_PAL_USE_DNS_API_RESOLVE
+    config IZUMA_PAL_USE_DNS_API_RESOLVE
         bool "DNS Resolve"
         depends on DNS_RESOLVER
         help
           Use DNS Resolve's dns_get_addr_info. This call is asynchronous and maps
-          to Pelion's DNS version 3.
+          to Izuma's DNS version 3.
 
 endchoice
 

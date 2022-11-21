@@ -25,6 +25,7 @@
 #include "include/EstClient.h"
 #include "mbed-trace/mbed_trace.h"
 #include "mbed-client-libservice/common_functions.h"
+#include "include/CertificatePkcs7Parser.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -128,6 +129,7 @@ void EstClient::est_post_data_cb(const uint8_t *buffer,
                                  bool last_block,
                                  void *context)
 {
+    tr_debug("EstClient::est_post_data_cb invoked");
     enrollment_context_s *enrollment_context = static_cast<enrollment_context_s*>(context);
     (void)total_size;
     assert(enrollment_context);
@@ -137,6 +139,7 @@ void EstClient::est_post_data_cb(const uint8_t *buffer,
     uint8_t *new_buffer = (uint8_t*)malloc(new_size);
     if (!new_buffer) {
         // Memory error!
+        tr_error("EstClient::est_post_data_cb - falied to allocate memory");
         return;
     }
 
@@ -153,7 +156,17 @@ void EstClient::est_post_data_cb(const uint8_t *buffer,
     enrollment_context->data_size = new_size;
 
     if (last_block) {
+#ifdef LWM2M_COMPLIANT
+        est_status_e result = EST_STATUS_SUCCESS;
+        cert_chain_context_s *cert_ctx = parse_pkcs7_cert(&enrollment_context->data, 
+                                                          enrollment_context->data_size,
+                                                          &result);
+        if(result != EST_STATUS_SUCCESS && cert_ctx != NULL) {
+            free_cert_chain_context(cert_ctx);
+        }
+#else
         cert_chain_context_s *cert_ctx = parse_cert_chain(enrollment_context->data, enrollment_context->data_size);
+#endif
         if (cert_ctx != NULL) {
             enrollment_context->result_cb(EST_ENROLLMENT_SUCCESS, cert_ctx, enrollment_context->context);
         }
@@ -163,7 +176,6 @@ void EstClient::est_post_data_cb(const uint8_t *buffer,
 
         free(enrollment_context);
     }
-
 }
 
 void EstClient::est_post_data_error_cb(get_data_req_error_t error_code,
@@ -180,6 +192,8 @@ cert_chain_context_s* EstClient::parse_cert_chain(uint8_t *cert_chain_data,
 {
     assert(cert_chain_data);
     assert(cert_chain_data_len > 0);
+
+    tr_debug("EstClient::parse_cert_chain - invoked");
 
     uint8_t *ptr = cert_chain_data;
     cert_chain_context_s *context = (cert_chain_context_s*)malloc(sizeof(cert_chain_context_s));
