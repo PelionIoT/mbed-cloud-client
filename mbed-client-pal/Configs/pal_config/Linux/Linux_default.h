@@ -70,27 +70,14 @@
 // 16KB does not seem to be enough, some tests are failing with it
 #ifndef PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE
     #define PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE (1024 * 24)
-    #if (PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-        #undef PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE
-        #define PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE PTHREAD_STACK_MIN
-    #endif
 #endif
 
 #ifndef PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE
     #define PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE (1024 * 16)
-    #if (PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-        #undef PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE
-        #define PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE PTHREAD_STACK_MIN
-    #endif
 #endif
 
 #ifndef PAL_ASYNC_DNS_THREAD_STACK_SIZE
     #define PAL_ASYNC_DNS_THREAD_STACK_SIZE (1024 * 24)
-#else
-    #if (PAL_ASYNC_DNS_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-        #undef PAL_ASYNC_DNS_THREAD_STACK_SIZE
-        #define PAL_ASYNC_DNS_THREAD_STACK_SIZE PTHREAD_STACK_MIN
-    #endif
 #endif
 
 #ifndef PAL_FORMAT_CMD_MAX_LENGTH
@@ -142,19 +129,11 @@
 //!< Stack size for thread created when calling pal_getAddressInfoAsync
 #ifndef PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE
     #define PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE (1024 * 32)
-    #if (PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-        #undef PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE
-        #define PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE PTHREAD_STACK_MIN
-    #endif
 #endif
 
 //! Stack size for TRNG noise collecting thread
 #ifndef PAL_NOISE_TRNG_THREAD_STACK_SIZE
     #define PAL_NOISE_TRNG_THREAD_STACK_SIZE (1024 * 32)
-    #if (PAL_NOISE_TRNG_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-        #undef PAL_NOISE_TRNG_THREAD_STACK_SIZE
-        #define PAL_NOISE_TRNG_THREAD_STACK_SIZE PTHREAD_STACK_MIN
-    #endif
 #endif
 
 #ifndef PAL_TIMER_SIGNAL
@@ -207,23 +186,6 @@
 
 #if (PAL_NET_DNS_SUPPORT == 1) && !(defined(PAL_DNS_API_VERSION))
 #define PAL_DNS_API_VERSION 3 //!< asyncronous DNS API that can return multiple DNS results.
-#endif
-
-// Sanity check for defined stack sizes
-#if (PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-#warning "PAL_NET_TEST_ASYNC_SOCKET_MANAGER_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
-#endif
-
-#if (PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-#warning "PAL_RTOS_HIGH_RES_TIMER_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
-#endif
-
-#if (PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-#warning "PAL_NET_ASYNC_DNS_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
-#endif
-
-#if (PAL_NOISE_TRNG_THREAD_STACK_SIZE < PTHREAD_STACK_MIN)
-#warning "PAL_NOISE_TRNG_THREAD_STACK_SIZE stack size is less than PTHREAD_STACK_MIN"
 #endif
 
 // Define this to use static memory buffer for mbedtls, instead of standard mbedtls memory system (default is using heap).

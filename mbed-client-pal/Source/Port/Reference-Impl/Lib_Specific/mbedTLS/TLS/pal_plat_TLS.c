@@ -677,7 +677,6 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
             status = PAL_ERR_TLS_INVALID_CIPHER;
             goto finish;
     }
-#if 0
     if (PAL_MAX_ALLOWED_CIPHER_SUITES >= 2) {
         localConfigCtx->cipherSuites[1] = MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256;
     }
@@ -697,7 +696,6 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
         tr_debug("localConfigCtx->cipherSuites[%d]=0x%x", i, localConfigCtx->cipherSuites[i]);
         i++;
     }
-#endif
     mbedtls_ssl_conf_ciphersuites(localConfigCtx->confCtx, localConfigCtx->cipherSuites);
 finish:
     return status;

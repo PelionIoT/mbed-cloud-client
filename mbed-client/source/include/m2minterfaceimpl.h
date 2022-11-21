@@ -568,7 +568,7 @@ private: // state machine state functions
      * @param ip_address The extracted IP.
      * @param port The extracted port.
      */
-    static void process_address(const String &server_address, String &ip_address, uint16_t &port);
+    void process_address(const String &server_address, String &ip_address, uint16_t &port);
 
     /**
      * Helper method for storing the error description to _error_description if the feature
@@ -642,6 +642,9 @@ private:
     // Reconnection related variables (in seconds)
     uint16_t                                _initial_reconnection_time;
     uint32_t                                _reconnection_time;
+
+    uint32_t                                _socket_errors;
+    uint16_t                                _alt_port_count;          // Count for port swapping
 
     // Get M2M server IP address from security's instance with the given id
     void get_security_server_ip_address(int32_t instance_id);

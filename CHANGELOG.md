@@ -1,4 +1,21 @@
-## Changelog for Pelion Device Management Client
+## Changelog for Izuma Device Management Client
+
+### Release 4.13.0 (21.11.2022)
+
+- Izuma branding changes.
+- Support for multiple ciphers via config flag `PAL_MAX_ALLOWED_CIPHER_SUITES`.
+    - This is required for improved LwM2M compliancy.
+    - Please ensure your TLS configuration also enables the required ciphers.
+- Add support for parsing Pkcs#7 certificate format. This format is used in EST flow.
+    - This is required for improved LwM2M compliancy.
+- **Developer flow only:** The device goes through storage reset, if the compiled credential file is different from the stored credentials.
+- In `LWM2M_COMPLIANT` mode, use Bootstrap server CA as LwM2M server CA for enabling server certificate verification during TLS handshake.
+- Fix compilation issue with glibc 2.34 and newer where PTHREAD stack sizes have been changed to runtime variables.
+- Alternating port fallback function for `MBED_CLOUD_CLIENT_CUSTOM_URI_PORT` added.
+   * If a socket error is encountered, next try will be done with original CoaP port `5684`.
+   * After 2nd fail we alternate back to custom port.
+   * NOTE! Only port 443 can be used as a alternative customer port with Izuma Networks.
+
 
 ### Release 4.12.0 (01.03.2022)
 

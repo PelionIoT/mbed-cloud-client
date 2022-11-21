@@ -3,21 +3,21 @@
 
 menu "Mbed TLS options"
 
-config PELION_MBEDTLS_FILE
+config IZUMA_MBEDTLS_FILE
     bool "Built-in Mbed TLS, configuration from file"
     select MBEDTLS
 
-if PELION_MBEDTLS_FILE
+if IZUMA_MBEDTLS_FILE
     config MBEDTLS_CFG_FILE
         string "Use built-in Mbed TLS with configuration file"
-        default "config-tls-pelion.h" if PELION_MBEDTLS_FILE
+        default "config-tls-pelion.h" if IZUMA_MBEDTLS_FILE
 endif
 
-config PELION_MBEDTLS_LIB_NAME
+config IZUMA_MBEDTLS_LIB_NAME
     string
     default "mbedTLS" if MBEDTLS
     help
       This option allows to specify one or more mbedtls library files to be
-      linked with Pelion. Separate multiple values with space " ".
+      linked with Izuma DM. Separate multiple values with space " ".
 
 endmenu

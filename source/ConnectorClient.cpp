@@ -178,7 +178,11 @@ static coap_response_code_e read_security_object_data_from_kcm(const M2MResource
             if (server_type(resource) == M2MSecurity::Bootstrap) {
                 status = read_callback_helper(g_fcc_bootstrap_server_ca_certificate_name, (void *)buffer, buffer_len);
             } else {
+#if (!defined LWM2M_COMPLIANT) || defined (MBED_CONF_MBED_CLIENT_DISABLE_BOOTSTRAP_FEATURE)
                 status = read_callback_helper(g_fcc_lwm2m_server_ca_certificate_name, (void *)buffer, buffer_len);
+#else
+                status = read_callback_helper(g_fcc_bootstrap_server_ca_certificate_name, (void *)buffer, buffer_len);
+#endif
             }
             break;
 
@@ -817,9 +821,12 @@ void ConnectorClient::state_est_start()
 
     // Check EST required parameters are in place
     if (m2m_id < 0 ||
-            _endpoint_info.endpoint_name.length() <= 0 ||
-            _endpoint_info.internal_endpoint_name.length() <= 0 ||
-            _endpoint_info.account_id.length() <= 0) {
+            _endpoint_info.endpoint_name.length() <= 0
+#ifndef LWM2M_COMPLIANT
+             || _endpoint_info.internal_endpoint_name.length() <= 0
+             || _endpoint_info.account_id.length() <= 0
+#endif
+        ) {
         tr_error("ConnectorClient::state_est_start - Missing parameters for EST enrollment!");
         internal_event(State_EST_Failure);
         return;
@@ -1296,11 +1303,13 @@ ccs_status_e ConnectorClient::set_bootstrap_credentials(M2MSecurity *security)
 
     int32_t bs_id = security->get_security_instance_id(M2MSecurity::Bootstrap);
     if (bs_id == -1) {
+        tr_error("ConnectorClient::set_bootstrap_credentials, fail to get BS instance ID");
         return status;
     }
 
     String bs_uri = security->resource_value_string(M2MSecurity::M2MServerUri, bs_id);
     if (bs_uri.size() <= 0) {
+        tr_error("ConnectorClient::set_bootstrap_credentials, BS URI size is negative or 0");
         return status;
     }
 

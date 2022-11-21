@@ -1,5 +1,6 @@
 // ----------------------------------------------------------------------------
 // Copyright 2016-2020 ARM Ltd.
+// Copyright 2022 Izuma Networks
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -26,8 +27,8 @@
 #include "FlashMap.h"
 
 // use Zephyr's partitions to configure where the active and candidate firmware are
-static pelion::FlashMap flash_active(FLASH_AREA_ID(image_0));
-static pelion::FlashMap flash_candidate(FLASH_AREA_ID(image_1));
+static izuma::FlashMap flash_active(FLASH_AREA_ID(image_0));
+static izuma::FlashMap flash_candidate(FLASH_AREA_ID(image_1));
 
 #define FLASH_ACTIVE_OBJ flash_active
 #define FLASH_CANDIDATE_OBJ flash_candidate
