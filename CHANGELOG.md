@@ -1,6 +1,6 @@
 ## Changelog for Izuma Device Management Client
 
-### Release 4.13.0 (17.11.2022)
+### Release 4.13.0 (21.11.2022)
 
 - Izuma branding changes.
 - Support for multiple ciphers via config flag `PAL_MAX_ALLOWED_CIPHER_SUITES`.
