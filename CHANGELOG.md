@@ -4,17 +4,17 @@
 
 - Izuma branding changes.
 - Support for multiple ciphers via config flag `PAL_MAX_ALLOWED_CIPHER_SUITES`.
-    - This is required for improved LwM2M compliancy.
+    - This is required for improved LwM2M compliance.
     - Please ensure your TLS configuration also enables the required ciphers.
 - Add support for parsing Pkcs#7 certificate format. This format is used in EST flow.
-    - This is required for improved LwM2M compliancy.
-- **Developer flow only:** The device goes through storage reset, if the compiled credential file is different from the stored credentials.
+    - This is required for improved LwM2M compliance.
+- **Developer flow only:** The device goes through a storage reset if the compiled credential file differs from the stored credentials.
 - In `LWM2M_COMPLIANT` mode, use Bootstrap server CA as LwM2M server CA for enabling server certificate verification during TLS handshake.
 - Fix compilation issue with glibc 2.34 and newer where PTHREAD stack sizes have been changed to runtime variables.
 - Alternating port fallback function for `MBED_CLOUD_CLIENT_CUSTOM_URI_PORT` added.
-   * If a socket error is encountered, next try will be done with original CoaP port `5684`.
-   * After 2nd fail we alternate back to custom port.
-   * NOTE! Only port 443 can be used as a alternative customer port with Izuma Networks.
+   * If a socket error is encountered, the next try will be done with the original CoaP port `5684`.
+   * After 2nd failure, we alternate back to the custom port.
+   * NOTE! Only port 443 can be used as an alternative customer port with Izuma Networks.
 
 
 ### Release 4.12.0 (01.03.2022)
