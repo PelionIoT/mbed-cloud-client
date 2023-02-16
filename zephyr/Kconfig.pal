@@ -52,7 +52,7 @@ config IZUMA_PAL_USE_APPLICATION_NETWORK_CALLBACK
 
 choice
     prompt "DNS API"
-    default IZUMA_PAL_USE_DNS_API_RESOLVE
+    default IZUMA_PAL_USE_DNS_API_POSIX
     help
       Select DNS API used by network abstraction implementation.
 
@@ -66,6 +66,7 @@ choice
         bool "DNS Resolve"
         depends on DNS_RESOLVER
         help
+          NOTE! Do not use this feature right now. Issues with reconnecting.
           Use DNS Resolve's dns_get_addr_info. This call is asynchronous and maps
           to Izuma's DNS version 3.
 
