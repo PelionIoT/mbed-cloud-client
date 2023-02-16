@@ -21,12 +21,12 @@
 #include "fcc_utils.h"
 #include "cs_der_keys_and_csrs.h"
 
-typedef struct fcc_deloveper_mode_item_params {
+typedef struct fcc_developer_mode_item_params {
     const char *item_name;
     kcm_item_type_e item_kcm_type;
     const uint8_t *item_data;
     const uint32_t item_data_size;
-} fcc_deloveper_mode_item_params_s;
+} fcc_developer_mode_item_params_s;
 
 //bootstrap endpoint name
 extern const char MBED_CLOUD_DEV_BOOTSTRAP_ENDPOINT_NAME[];
@@ -69,7 +69,7 @@ fcc_status_e fcc_developer_flow(void)
 #else
     static const uint32_t is_bootstrap_mode = 1;
 #endif
-    const fcc_deloveper_mode_item_params_s fcc_deloveper_mode_item_params_table[] = {
+    const fcc_developer_mode_item_params_s fcc_developer_mode_item_params_table[] = {
 
         //param name                                //param kcm type        //param data                                              //param data_size
         //Device general info
@@ -110,8 +110,8 @@ fcc_status_e fcc_developer_flow(void)
         { NULL,                                       KCM_LAST_ITEM,         NULL,                                                    0},
     };
 
-    const fcc_deloveper_mode_item_params_s* mandatory_items_iter = &fcc_deloveper_mode_item_params_table[0];
-    uint8_t kcm_item_buffer[KCM_EC_SECP256R1_MAX_PRIV_KEY_DER_SIZE];
+    const fcc_developer_mode_item_params_s* mandatory_items_iter = &fcc_developer_mode_item_params_table[0];
+    uint8_t kcm_item_buffer[1024];
     size_t act_kcm_item_buffer_size;
 
 
@@ -129,18 +129,22 @@ fcc_status_e fcc_developer_flow(void)
         // item already exists - this means that storage already contains developer mode prov items.
         SA_PV_LOG_INFO("Developer mode prov items already exist on the storage.");
 
-        // Read the BS device private key and check if it's equal to the pre-compiled key.
-        kcm_item_get_data((const uint8_t*)g_fcc_bootstrap_device_private_key_name,
-                          strlen(g_fcc_bootstrap_device_private_key_name),
-                          KCM_PRIVATE_KEY_ITEM,
-                          kcm_item_buffer,
-                          sizeof(kcm_item_buffer), 
-                          &act_kcm_item_buffer_size);
+        // Read the BS device certificate and check if it's equal to the pre-compiled cert.
+        // We can't check private key since it won't work for PSA
+        kcm_status = kcm_item_get_data((const uint8_t*)g_fcc_bootstrap_device_certificate_name,
+                                       strlen(g_fcc_bootstrap_device_certificate_name),
+                                       KCM_CERTIFICATE_ITEM,
+                                       kcm_item_buffer,
+                                       sizeof(kcm_item_buffer), 
+                                       &act_kcm_item_buffer_size);
 
-        if (act_kcm_item_buffer_size == MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY_SIZE) {
-            // The size of the stored key is equal to the compiled key
-            if (memcmp(kcm_item_buffer, MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY, MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_PRIVATE_KEY_SIZE) == 0) {
-                // The content of the keys are equal
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), fcc_convert_kcm_to_fcc_status(kcm_status), "Get of the BS cert failed %d", kcm_status);
+                                       
+
+        if (act_kcm_item_buffer_size == MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE_SIZE ) {
+            // The size of the stored cert is equal to the compiled cert
+            if (memcmp(kcm_item_buffer, MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE, MBED_CLOUD_DEV_BOOTSTRAP_DEVICE_CERTIFICATE_SIZE) == 0) {
+                // The content of the certs are equal
                 // No need to override the items, just exit the function with "an item exists" status.
                 SA_PV_LOG_INFO("The stored items are equal to the compiled items.");
                 return FCC_STATUS_KCM_FILE_EXIST_ERROR;

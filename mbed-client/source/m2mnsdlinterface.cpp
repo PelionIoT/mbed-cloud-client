@@ -2719,13 +2719,16 @@ bool M2MNsdlInterface::validate_security_object()
                     return false;
                 }
                 break;
-#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
             case M2MSecurity::EST:
+#ifndef MBED_CLIENT_DISABLE_EST_FEATURE
                 // Only server public key should be populated for lwm2m, client keys will be generated
                 if (!is_bs_server && (!server_key_size || chain_size || pkey_size)) {
                     return false;
                 }
                 break;
+#else
+                tr_error("M2MNsdlInterface - EST mode activated - EST feature is NOT configured in!");
+                return false;
 #endif
             case M2MSecurity::NoSecurity:
                 if (!is_bs_server) {
@@ -2734,6 +2737,7 @@ bool M2MNsdlInterface::validate_security_object()
                 break;
             default:
                 // Security mode not supported
+                tr_error("M2MNsdlInterface - Unknown security mode - not supported.!");
                 return false;
         }
     }

@@ -1,5 +1,19 @@
 ## Changelog for Izuma Device Management Client
 
+### Release 4.13.1 (16.02.2023)
+
+- Improved error logging for certificate enrollment misconfiguration.
+- Fixed a failure in FOTA for developer flow in PSA mode. The mechanism of going through a storage reset if the compiled credential file differs from the stored credentials did not work well with PSA.
+  Read a certificate instead of a private key that we can't read in PSA mode.
+- Only synchronous DNS is currently supported. 
+  - [Linux] Change the default DNS to synchronous, by setting `PAL_DNS_API_VERSION` flag to 0.    
+  - [Zephyr] Change the default DNS to synchronous, by setting `DNS API` selection to `POSIX`.
+    **Note: For Linux devices with version >= 4.11.0, or Zephyr device with version >= 4.9.0 you should override the default DNS setting to synchronous in the application level.**
+
+#### Known issues
+
+- [Linux/Zephyr] Asynchronous DNS does not work well, and the device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+
 ### Release 4.13.0 (21.11.2022)
 
 - Izuma branding changes.
@@ -15,7 +29,13 @@
    * If a socket error is encountered, the next try will be done with the original CoaP port `5684`.
    * After 2nd failure, we alternate back to the custom port.
    * NOTE! Only port 443 can be used as an alternative customer port with Izuma Networks.
+   
+#### Known issues
 
+- [Linux/Zephyr] Asynchronous DNS does not work well, and the device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level:
+  - For Linux devices, set the `PAL_DNS_API_VERSION` flag to 0.
+  - For Zephyr devices, set the `DNS API` selection to POSIX.
 
 ### Release 4.12.0 (01.03.2022)
 
@@ -24,9 +44,23 @@
    - Introduce a new `LWM2M_COMPLIANT` flag that enables connection to any LwM2M compliant bootstrap and device management services. Disabled by default.
    - Introduce a new `DISABLE_SERVER_CERT_VERIFY` flag that disables the server certificate verification during the TLS handshake. Disabled by default.
 
+#### Known issues
+
+- [Linux/Zephyr] Asynchronous DNS does not work well, and the device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level:
+  - For Linux devices, set the `PAL_DNS_API_VERSION` flag to 0.
+  - For Zephyr devices, set the `DNS API` selection to POSIX.
+
 ### Release 4.11.2 (01.12.2021)
 
-Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is enabled but trace-level is set below INFO. This fixes a regression introduced in 4.11.0 release.
+- Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is enabled but trace-level is set below INFO. This fixes a regression introduced in 4.11.0 release.
+
+#### Known issues
+
+- [Linux/Zephyr] Asynchronous DNS does not work well, and the device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level:
+  - For Linux devices, set the `PAL_DNS_API_VERSION` flag to 0.
+  - For Zephyr devices, set the `DNS API` selection to POSIX.
 
 ### Release 4.11.1 (11.10.2021)
 
@@ -34,6 +68,13 @@ Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is 
 
 - [Remote logging] Fixed internal flash configuration to perform a full storage erase before using it.
 - Fixed compiler warnings.
+
+#### Known issues
+
+- [Linux/Zephyr] Asynchronous DNS does not work well, and the device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level:
+  - For Linux devices, set the `PAL_DNS_API_VERSION` flag to 0.
+  - For Zephyr devices, set the `DNS API` selection to POSIX.
 
 ### Release 4.11.0 (17.09.2021)
 
@@ -77,6 +118,13 @@ Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is 
 ### Platform Adaptation Layer (PAL)
 
 [Linux] Enabled `PAL_DNS_API_VERSION` 3 by default for Linux configurations.
+
+#### Known issues
+
+- [Linux/Zephyr] Asynchronous DNS does not work well, and the device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level:
+  - For Linux devices, set the `PAL_DNS_API_VERSION` flag to 0.
+  - For Zephyr devices, set the `DNS API` selection to POSIX.
 
 ### Release 4.10.0 (07.07.2021)
 
@@ -124,6 +172,11 @@ Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is 
    - Of a component image on an Mbed OS devices.
 - Fix: Removed the candidate image file from its original path in Linux after FOTA completion.
 
+#### Known issues
+
+- [Zephyr] Asynchronous DNS does not work well. The device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level by setting the DNS API selection to POSIX in the application's configuration settings. 
+
 ### Release 4.9.1 (17.06.2021)
 
 ### Device Management Client
@@ -131,6 +184,11 @@ Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is 
 
 ### Platform Adaptation Layer (PAL)
 - [Zephyr] Fixed a memory leak on DNS handling.
+
+#### Known issues
+
+- [Zephyr] Asynchronous DNS does not work well. The device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level by setting the DNS API selection to POSIX in the application's configuration settings. 
 
 ### Release 4.9.0 (21.05.2021)
 
@@ -167,6 +225,11 @@ Fixed a potential dead-lock situation in sn_nsdl.c CoAP tracing when tracing is 
 
 - Added new PAL_DNS_API_VERSION 3. It's an asynchronous DNS API that can return multiple DNS results.
   - This feature is currently implemented only for Linux platform and is disabled by default. You can enable it by defining PAL_DNS_API_VERSION=3. In future releases, this feature will be enabled by default for Linux.
+
+#### Known issues
+
+- [Zephyr] Asynchronous DNS does not work well. The device fails to reconnect to the cloud if some of the pods are restarted. In such a scenario, the device needs to be restarted.
+  To address this issue, the default DNS settings should be overridden to synchronous DNS in the application level by setting the DNS API selection to POSIX in the application's configuration settings. 
 
 ### Release 4.8.0 (19.04.2021)
 

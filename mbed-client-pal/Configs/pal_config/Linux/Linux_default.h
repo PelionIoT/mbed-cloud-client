@@ -184,10 +184,6 @@
     #define PAL_NET_DNS_SUPPORT 1
 #endif
 
-#if (PAL_NET_DNS_SUPPORT == 1) && !(defined(PAL_DNS_API_VERSION))
-#define PAL_DNS_API_VERSION 3 //!< asyncronous DNS API that can return multiple DNS results.
-#endif
-
 // Define this to use static memory buffer for mbedtls, instead of standard mbedtls memory system (default is using heap).
 //#undef PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
 
