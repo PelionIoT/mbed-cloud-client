@@ -1,5 +1,12 @@
 ## Changelog for Izuma Device Management Client
 
+### Release 4.13.2 (10.12.2023)
+
+- `PAL_MAX_FOLDER_DEPTH_CHAR` increased from 66 to 128 bytes for Linux targets.
+- [Linux]: Bugfix - update with large images and a short lifetime was failing.
+  - The downloading of the image happens only after the FOTA state is being updated in the service to `FOTA_SOURCE_STATE_DOWNLOADING`.
+  - The FOTA state auto-observable resource is kept observable even upon CoAP RESET message from the service. 
+
 ### Release 4.13.1 (16.02.2023)
 
 - Improved error logging for certificate enrollment misconfiguration.

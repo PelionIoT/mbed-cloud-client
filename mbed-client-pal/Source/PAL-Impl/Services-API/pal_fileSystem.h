@@ -116,7 +116,11 @@
 
 #define PAL_MAX_FILE_NAME_SIZE		8				//!< Max length for file name received by user.
 #define PAL_MAX_FILE_NAME_SUFFIX	3				//!< Max length for file name suffix.
+#ifdef __linux__ 
+#define PAL_MAX_FOLDER_DEPTH_CHAR	128				//!< Max folder length in chars, snaps need more.
+#else
 #define PAL_MAX_FOLDER_DEPTH_CHAR	66				//!< Max folder length in chars.
+#endif
 #define PAL_MAX_FILE_AND_FOLDER_LENGTH	(PAL_MAX_FILE_NAME_SIZE + PAL_MAX_FILE_NAME_SUFFIX + PAL_MAX_FOLDER_DEPTH_CHAR + 1) //!< Maximum combined file and folder name length. Plus 1 is for the period that separates file name and file suffix.
 #define PAL_MAX_FULL_FILE_NAME	(PAL_MAX_FILE_NAME_SUFFIX + PAL_MAX_FOLDER_DEPTH_CHAR + 1) //!< Maximum combined file name. Plus 1 is for the period that separates file name and file suffix.
 
