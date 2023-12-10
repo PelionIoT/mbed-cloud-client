@@ -62,7 +62,7 @@ palStatus_t pal_aesECB(palAesHandle_t aes, const unsigned char input[PAL_CRYPT_B
     return pal_plat_aesECB(aes, input, output, mode);
 }
 
-palStatus_t pal_sha256(const unsigned char* input, size_t inLen, unsigned char* output)
+palStatus_t pal_sha256(const unsigned char* input, size_t inLen, unsigned char output[PAL_SHA256_SIZE])
 {
     FCC_PAL_VALIDATE_ARGUMENTS((NULL == input || NULL == output))
 

@@ -3635,7 +3635,13 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
                 M2MBase *base = find_resource(resp->uri_path);
                 if (base) {
                     if (resp->type == M2MBase::NOTIFICATION) {
-                        base->cancel_observation();
+                        if (base->is_auto_observable()) {
+                            // If the resource is auto-observable,don't cancel the observation but do send an error
+                            base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, M2MBase::NOTIFICATION);
+                        } else {
+                            // If the resource is not auto-observable, cancel the observation
+                            base->cancel_observation();
+                        }
                         _notification_send_ongoing = false;
                         _notification_handler->send_notification(this);
                     } else if (resp->type == M2MBase::DELAYED_POST_RESPONSE) {

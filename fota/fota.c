@@ -1948,6 +1948,29 @@ static int calc_and_erase_needed_storage()
     return ret;
 }
 
+static void on_downloading_state_delivered(void)
+{
+    int ret;
+
+    ret = fota_download_init(&fota_ctx->download_handle);
+    if (ret) {
+        FOTA_TRACE_ERROR("init download failed %d", ret);
+        goto fail;
+    }
+
+    ret = fota_download_start(fota_ctx->download_handle, fota_ctx->fw_info->uri, fota_ctx->payload_offset);
+    if (ret) {
+        FOTA_TRACE_ERROR("start firmware download failed %d", ret);
+        goto fail;
+    }
+
+    return;
+
+fail:
+    FOTA_TRACE_DEBUG("Failed on download event. ret code %d", ret);
+    abort_update(ret, "Failed on download authorization event");
+}
+
 static void fota_on_download_authorize()
 {
     int ret;
@@ -2114,19 +2137,7 @@ static void fota_on_download_authorize()
 #endif
 
     fota_ctx->state = FOTA_STATE_DOWNLOADING;
-    fota_source_report_state(FOTA_SOURCE_STATE_DOWNLOADING, NULL, NULL);
-
-    ret = fota_download_init(&fota_ctx->download_handle);
-    if (ret) {
-        FOTA_TRACE_ERROR("init download failed %d", ret);
-        goto fail;
-    }
-
-    ret = fota_download_start(fota_ctx->download_handle, fota_ctx->fw_info->uri, fota_ctx->payload_offset);
-    if (ret) {
-        FOTA_TRACE_ERROR("start firmware download failed %d", ret);
-        goto fail;
-    }
+    fota_source_report_state(FOTA_SOURCE_STATE_DOWNLOADING, on_downloading_state_delivered, on_state_set_failure);
 
     return;
 
