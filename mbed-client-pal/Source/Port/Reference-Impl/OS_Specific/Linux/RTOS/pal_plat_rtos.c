@@ -128,7 +128,11 @@ void pal_plat_osReboot(void)
         status = system("sync");
         if (status == 127) {
             PAL_LOG_ERR("sync command not available, using C API instead.\r\n");
-            status = sync();
+            // Since glibc 2.2.2 sync is void sync(void); - no return value.
+            // Ref: https://man7.org/linux/man-pages/man2/sync.2.html
+            // That function cannot fail, so status is zero.
+            sync();
+            status = 0;
         }
         if (status == 0)
         {
