@@ -1,5 +1,6 @@
 /*******************************************************************************
  * Copyright 2016-2019 ARM Ltd.
+ * Copyright 2024 Izuma Networks
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -52,6 +53,10 @@
 
 #ifndef CLOCK_MONOTONIC_RAW //a workaround for the operWRT port that missing this include
 #define CLOCK_MONOTONIC_RAW 4 //http://elixir.free-electrons.com/linux/latest/source/include/uapi/linux/time.h
+#endif
+
+#ifndef PAL_REBOOT_RETRY_COUNT
+#define PAL_REBOOT_RETRY_COUNT 3
 #endif
 
 #define PAL_THREAD_PRIORITY_TRANSLATE(x) ((int16_t)(x + 7))
@@ -113,11 +118,48 @@ void pal_plat_osReboot(void)
     }
 #else
     PAL_LOG_INFO("Rebooting the system\r\n");
+    int status;
+    int retries = 0;
 
     // Syncronize cached files to persistant storage.
-    sync();
+    while (retries < PAL_REBOOT_RETRY_COUNT) {
+        // Prefer using the command line command, as they perform
+        // more things than the plain C API.
+        status = system("sync");
+        if (status == 127) {
+            PAL_LOG_ERR("sync command not available, using C API instead.\r\n");
+            status = sync();
+        }
+        if (status == 0)
+        {
+            PAL_LOG_INFO("sync succesfully done.\r\n");
+            break;
+        }
+        else {
+            PAL_LOG_ERR("sync command failed %d, retry...\r\n", status);
+            retries++;
+            sleep(1);
+        }
+    }
     // Reboot the device
-    reboot(RB_AUTOBOOT);
+    retries = 0;
+    while (retries < PAL_REBOOT_RETRY_COUNT) {
+        // Prefer using the command line command, as they perform
+        // more things than the plain C API.
+        status = system("reboot");
+        if (status == 127) {
+            PAL_LOG_ERR("reboot command not available, using C API instead.\r\n");
+            status = reboot(RB_AUTOBOOT);
+        }
+        if (status != 0) {
+            PAL_LOG_ERROR("Reboot failed with status %d\r\n", status);
+            // Print the processes that are uninterruptile
+            // and might be blocking the reboot
+            system("ps -aux | grep D");
+            retries++;
+            sleep(1);
+        }
+    }
 #endif
 }
 
