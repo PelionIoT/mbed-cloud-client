@@ -146,23 +146,22 @@ void pal_plat_osReboot(void)
         }
     }
     // Reboot the device
-    retries = 0;
-    while (retries < PAL_REBOOT_RETRY_COUNT) {
-        // Prefer using the command line command, as they perform
-        // more things than the plain C API.
-        status = system("reboot");
-        if (status == 127) {
-            PAL_LOG_ERR("reboot command not available, using C API instead.\r\n");
-            status = reboot(RB_AUTOBOOT);
-        }
-        if (status != 0) {
-            PAL_LOG_ERROR("Reboot failed with status %d\r\n", status);
-            // Print the processes that are uninterruptile
-            // and might be blocking the reboot
-            system("ps -aux | grep D");
-            retries++;
-            sleep(1);
-        }
+    // Prefer using the command line command, as they perform
+    // more things than the plain C API.
+    status = system("reboot");
+    if (status == 127) {
+        PAL_LOG_ERR("reboot command not available, using C API instead.\r\n");
+        status = reboot(RB_AUTOBOOT);
+    }
+    if (status != 0) {
+        PAL_LOG_ERR("Reboot failed with status %d\r\n", status);
+        // Print the processes that are uninterruptile
+        // and might be blocking the reboot
+        status = system("ps -aux |grep D");
+        // Try harder, forced reboot next...
+        PAL_LOG_ERR("reboot -f next..\r\n");
+        status = system("reboot -f");
+        PAL_LOG_ERR("Reboot -f returns status %d\r\n", status);
     }
 #endif
 }
