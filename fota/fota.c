@@ -294,6 +294,7 @@ static void do_abort_update(int ret, const char *msg)
 
 static void abort_update(int ret, const char *msg)
 {
+    FOTA_TRACE_DEBUG("abort_update");
     if (!fota_is_active_update()) {
         return;
     }
@@ -1224,6 +1225,7 @@ void fota_on_defer(int32_t param)
         return; //don't allow defer/postpone during install
     }
 
+    FOTA_TRACE_DEBUG("fota_on_defer");
     /* mark call to defer only if FOTA is active */
     fota_defer_by_user = true; // for now we assume that defer called always by user app
 
@@ -2560,19 +2562,24 @@ fail:
 }
 
 
-void fota_on_resume(int32_t param)
+void fota_on_resume(fota_resume_reason_e resume_reason)
 {
 #if (MBED_CLOUD_CLIENT_FOTA_RESUME_SUPPORT != FOTA_RESUME_UNSUPPORTED)
-
-    bool fota_resume_by_user = !param; // param=0 - called from user app
-    // param=1 - called from internal flow
+    FOTA_TRACE_DEBUG("fota_on_resume");
 
     if (fota_ctx) {
-        /*
-         * FOTA context exists therefore defer was not called. Got here because of internal resume event, continue update
-         */
-        FOTA_TRACE_DEBUG("FOTA already running");
-        return;  // FOTA is already running - ignore
+        // We are in the middle of FOTA, defer wasn't called.
+        // If we are here because of registration, it means there were
+        // network errors.
+        // The FOTA is aborted with TRANSIENT_FAILURE, i.e. the ctx is removed,
+        // but the manifest isn't deleted.
+        // The function continues to run and the FOTA resumes.
+        if (resume_reason == FOTA_RESUME_REASON_REGISTRATION) {
+            abort_update(FOTA_STATUS_TRANSIENT_FAILURE, "network errors during the FOTA");
+        } else {
+            FOTA_TRACE_DEBUG("FOTA already running");
+            return;
+        }
     }
 
     if (fota_install_state == FOTA_INSTALL_STATE_POSTPONE_REBOOT) {
@@ -2580,11 +2587,11 @@ void fota_on_resume(int32_t param)
         return;
     }
 
-    FOTA_TRACE_INFO("fota_on_resume - resume by %u", fota_resume_by_user);
+    FOTA_TRACE_INFO("fota_on_resume - resume reason %u", resume_reason);
 
-    //if we got here, there is no fota context:
+    // If we got here, there is no FOTA context:
     // either defer was called or context was deleted because of internal error
-    if ((fota_defer_by_user == true) && (fota_resume_by_user == false)) {
+    if ((fota_defer_by_user == true) && (resume_reason != FOTA_RESUME_REASON_USER_APP)) {
         /* fota was deferred by user app and resume was called from internal flow
          * ignore the resume  for now and wait for call from user app
          */

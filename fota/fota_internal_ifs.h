@@ -20,19 +20,20 @@
 #define __FOTA_INTERNAL_IFS_H_
 
 #include "fota/fota_config.h"
+#include "fota/fota_internal.h"
 
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
 
 #ifdef __cplusplus
 extern "C" {
-#endif  
+#endif
 
 /**
  * Resume Pelion FOTA update - internal
  *
  * If the update process is interrupted, the interal flow can call this function to resume the process.
   */
-void fota_internal_resume(void);
+void fota_internal_resume(fota_resume_reason_e resume_reason);
 
 
 #ifdef __cplusplus

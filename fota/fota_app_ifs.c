@@ -58,7 +58,7 @@ void fota_app_postpone_reboot()
 
 void fota_app_resume(void)
 {
-    fota_event_handler_defer_with_result_ignore_busy(fota_on_resume, /*fota resume by user app */ 0);
+    fota_event_handler_defer_with_result_ignore_busy(fota_on_resume, FOTA_RESUME_REASON_USER_APP);
 }
 
 #if defined (FOTA_DEFAULT_APP_IFS) && FOTA_DEFAULT_APP_IFS==1

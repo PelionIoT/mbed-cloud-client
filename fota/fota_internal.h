@@ -57,6 +57,12 @@ typedef enum {
     FOTA_INSTALL_STATE_POSTPONE_REBOOT
 } fota_install_state_e;
 
+typedef enum {
+    FOTA_RESUME_REASON_USER_APP,
+    FOTA_RESUME_REASON_REGISTRATION,
+    FOTA_RESUME_REASON_UPDATE_REGISTRATION
+} fota_resume_reason_e;
+
 
 // Internal component for BR downloader (must start with '%' as it's internal)
 #define FOTA_MULTICAST_BR_INT_COMP_NAME "%MC_BR"
@@ -130,7 +136,7 @@ void fota_on_defer(int32_t param);
 void fota_on_authorize(int32_t status);
 void fota_on_fragment(uint8_t *buf, size_t size);
 void fota_on_fragment_failure(int32_t status);
-void fota_on_resume(int32_t param);
+void fota_on_resume(fota_resume_reason_e resume_reason);
 #ifdef __cplusplus
 }
 #endif

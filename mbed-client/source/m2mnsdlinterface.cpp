@@ -3635,15 +3635,15 @@ void M2MNsdlInterface::handle_empty_ack(const sn_coap_hdr_s *coap_header, bool i
                 M2MBase *base = find_resource(resp->uri_path);
                 if (base) {
                     if (resp->type == M2MBase::NOTIFICATION) {
-                        if (base->is_auto_observable()) {
-                            // If the resource is auto-observable,don't cancel the observation but do send an error
-                            base->send_message_delivery_status(*base, M2MBase::MESSAGE_STATUS_SEND_FAILED, M2MBase::NOTIFICATION);
-                        } else {
+                        // If the resource is auto-observable, do not cancel the observation and do not send anything.
+                        // If error will be sent, the service will send the RESET again since it's not expecting notifications from this resource anymore
+                        if (!base->is_auto_observable()) {
                             // If the resource is not auto-observable, cancel the observation
                             base->cancel_observation();
+                            _notification_send_ongoing = false;
+                            _notification_handler->send_notification(this);
                         }
-                        _notification_send_ongoing = false;
-                        _notification_handler->send_notification(this);
+
                     } else if (resp->type == M2MBase::DELAYED_POST_RESPONSE) {
                         handle_message_status_callback(base, M2MBase::DELAYED_POST_RESPONSE, M2MBase::MESSAGE_STATUS_REJECTED);
                     }

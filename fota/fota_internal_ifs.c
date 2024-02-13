@@ -22,9 +22,9 @@
 
 #include "fota/fota_event_handler.h"
 
-void fota_internal_resume()
+void fota_internal_resume(fota_resume_reason_e resume_reason)
 {
-    fota_event_handler_defer_with_result_ignore_busy(fota_on_resume, /*fota resume by internal flow */ 1);
+    fota_event_handler_defer_with_result_ignore_busy(fota_on_resume, resume_reason);
 }
 
 #endif

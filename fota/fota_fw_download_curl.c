@@ -109,8 +109,11 @@ int fota_download_start(void *download_handle, const char *payload_url, size_t p
     // get it
     res = curl_easy_perform(download_handle);
     if (res != CURLE_OK) {
+        // The function may fail due to network errors
+        // This is why FOTA_STATUS_TRANSIENT_FAILURE error is returned
+        // So that FOTA can be resumed.
         FOTA_TRACE_ERROR("curl start downloading failed with error %d", res);
-        return FOTA_STATUS_INTERNAL_ERROR;
+        return FOTA_STATUS_TRANSIENT_FAILURE;
     }
 
     return FOTA_STATUS_SUCCESS;

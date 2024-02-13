@@ -446,7 +446,7 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
     switch (status) {
         case ConnectorClient::State_Registration_Success:
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-            fota_internal_resume();
+            fota_internal_resume(FOTA_RESUME_REASON_REGISTRATION);
 #endif
             internal_event(State_Success);
             break;
@@ -465,7 +465,7 @@ void ServiceClient::registration_process_result(ConnectorClient::StartupSubState
 
         case ConnectorClient::State_Registration_Updated:
 #if defined(MBED_CLOUD_CLIENT_FOTA_ENABLE)
-            fota_internal_resume();
+            fota_internal_resume(FOTA_RESUME_REASON_UPDATE_REGISTRATION);
 #endif
             send_complete_event(ServiceClientCallback::Service_Client_Status_Register_Updated);
             break;
