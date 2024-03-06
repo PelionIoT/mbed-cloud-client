@@ -1256,6 +1256,8 @@ static void on_reboot(void)
 {
     FOTA_TRACE_INFO("Rebooting.");
 
+    manifest_delete();
+
     const fota_component_desc_t *comp_desc;
     fota_component_get_desc(fota_ctx->comp_id, &comp_desc);
 
@@ -1405,10 +1407,6 @@ fail:
 
 #endif // FOTA_COMPONENT_SUPPORT
 
-    // remove manifest after candidate installation finished and before potential reboot.
-    // MAIN component for mbed-os will be installed by the bootloader
-    manifest_delete();
-
     if ((comp_desc->desc_info.need_reboot) && (fota_install_state == FOTA_INSTALL_STATE_AUTHORIZE)) {
         fota_ctx->state = FOTA_STATE_IDLE;
 #if (MBED_CLOUD_CLIENT_FOTA_MULTICAST_SUPPORT == FOTA_MULTICAST_NODE_MODE) && !defined (MBED_CLOUD_CLIENT_FOTA_EXTERNAL_DOWNLOADER)
@@ -1424,6 +1422,11 @@ fail:
         fota_source_report_state(FOTA_SOURCE_STATE_REBOOTING, on_reboot, on_reboot);
 
         return;
+    } else {
+        // In case reboot is needed, the manifest is deleted in on_reboot_in_ms or in on_reboot CB
+        // i.e. after the resource is being updated
+        // In case the reboot isn't needed, delete the manifest now, after the installation is completed
+        manifest_delete();
     }
 
     if (fota_install_state == FOTA_INSTALL_STATE_AUTHORIZE) {

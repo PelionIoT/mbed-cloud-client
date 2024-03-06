@@ -186,6 +186,9 @@ void fota_app_on_download_progress(size_t downloaded_size, size_t current_chunk_
  * Should be implemented by the application if it has custom logic to verify installation of the main application.
  * If custom logic is not required, FOTA uses the default implementation.
  *
+ * The CB might be called more than once in some corner cases.
+ * If the function is called twice on the same image, the function shouldn't return an error.
+ *
  * The ::expected_header_info field includes the whole candidate header, including the vendor_data field, which can
  * store vendor-specific data to help verify installation of the main app (for example, a vendor-specific application hash).
  *
@@ -206,6 +209,9 @@ int fota_app_on_main_app_verify_install(const fota_header_info_t *expected_heade
  * Pelion FOTA install callback to be implemented by application.
  *
  * FOTA client expects the callback to install the candidate and return ::FOTA_STATUS_SUCCESS or reboot the system.
+ *
+ * The CB might be called more than once in some corner cases.
+ * If the function is called twice on the same image, the function shouldn't return an error.
  *
  * \param[in] candidate_fs_name Candidate image file name.
  * \param[in] firmware_info Parsed update manifest.
