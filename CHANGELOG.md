@@ -1,5 +1,9 @@
 ## Changelog for Izuma Device Management Client
 
+### Release 4.13.3 (18.05.2024)
+
+- Bugfix - incorrect firmware download progress
+
 ### Release 4.13.2 (10.12.2023)
 
 - `PAL_MAX_FOLDER_DEPTH_CHAR` increased from 66 to 128 bytes for Linux targets.
