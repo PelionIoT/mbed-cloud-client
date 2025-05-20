@@ -55,14 +55,18 @@ void fota_app_on_download_progress(size_t downloaded_size, size_t current_chunk_
 
     static const uint32_t  print_range_percent = 5;
 
-    total_size /= 100;
     // In case total size is less then 100B return without printing progress
     if (total_size == 0) {
         return;
     }
 
-    uint32_t progress = (downloaded_size + current_chunk_size) / total_size;
-    uint32_t prev_progress = downloaded_size / total_size;
+    // In case total size is too small to track progress meaningfully
+    if (total_size < 100) {
+        return;
+    }
+
+    uint32_t progress = ((downloaded_size + current_chunk_size) * 100) / total_size;
+    uint32_t prev_progress = (downloaded_size * 100) / total_size;
 
     if (downloaded_size == 0 || ((progress / print_range_percent) > (prev_progress / print_range_percent))) {
         FOTA_APP_PRINT("Downloading firmware. %" PRIu32 "%c", progress, '%');
