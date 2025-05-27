@@ -82,6 +82,7 @@ extern "C" {
 #define STORAGE_RBP_SAVED_TIME_NAME "saved_time"
 #define STORAGE_RBP_LAST_TIME_BACK_NAME "last_time_back"
 #define STORAGE_RBP_ROT_NAME "rot"
+#define STORAGE_RBP_ROT_FILE_PATH_NAME "rot_file_path"
 #define STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME "time_srv_id"
 #define STORAGE_RBP_EXECUTION_MODE_NAME "execution_mode"
 #define STORAGE_RBP_OEM_TRANSFER_MODE_ENABLED_NAME "oem_transfer_mode"

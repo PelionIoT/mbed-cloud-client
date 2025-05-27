@@ -169,6 +169,9 @@ set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/SOTP/pal_pl
 # Add the platform independent ROT implementation for PSA, which gets used if the PAL_USE_HW_ROT==0
 set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/PSA/pal_plat_rot_psa.c)
 
+# Add the platform independent ROT implementation for File Based, which gets used if the PAL_USE_HW_ROT==0
+set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${PAL_PORT_GENERIC_SOURCE_DIR}/ROT/FileBased/pal_plat_rot_file.c)
+
 # Add the platform independent ROT implementation for KVSTORE platform, which gets used if the PAL_USE_HW_ROT==0
 # TODO: the code is really in wrong place for generic implementation
 set (PAL_ROT_SRCS ${PAL_ROT_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/Source/Port/Reference-Impl/OS_Specific/mbedOS/ROT/pal_plat_rot.cpp)

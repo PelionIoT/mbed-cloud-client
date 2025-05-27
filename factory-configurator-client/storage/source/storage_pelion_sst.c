@@ -42,7 +42,8 @@ static const sotp_type_lookup_record_s sotp_type_lookup_table[] = {
     { SOTP_TYPE_FACTORY_DONE,               STORAGE_RBP_FACTORY_DONE_NAME },
     { SOTP_TYPE_SAVED_TIME,                 STORAGE_RBP_SAVED_TIME_NAME },
     { SOTP_TYPE_LAST_TIME_BACK,             STORAGE_RBP_LAST_TIME_BACK_NAME },
-    { SOTP_TYPE_TRUSTED_TIME_SRV_ID,        STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME }
+    { SOTP_TYPE_TRUSTED_TIME_SRV_ID,        STORAGE_RBP_TRUSTED_TIME_SRV_ID_NAME },
+    { SOTP_TYPE_ROT_FILE_PATH,              STORAGE_RBP_ROT_FILE_PATH_NAME }
 };
 
 #define ARRAY_LENGTH(array) (sizeof(array)/sizeof((array)[0]))
@@ -279,7 +280,7 @@ palStatus_t storage_rbp_read(
     sotp_result = sotp_get(sotp_type, (uint16_t)data_size, (uint32_t*)data, (uint16_t*)data_actual_size_out);
     if (sotp_result == SOTP_NOT_FOUND) {
         //item not found. Print info level error
-        SA_PV_LOG_INFO("SOTP item not found");
+        SA_PV_LOG_INFO("SOTP item %s not found", item_name);
         return PAL_ERR_ITEM_NOT_EXIST;
     }
     SA_PV_ERR_RECOVERABLE_RETURN_IF((sotp_result != SOTP_SUCCESS), PAL_ERR_GENERIC_FAILURE, "SOTP get failed");
@@ -1153,7 +1154,7 @@ kcm_status_e storage_file_create(store_esfs_file_ctx_s *ctx,
 
     esfs_status = esfs_create(file_name, file_name_length, meta_data_items, meta_data_count, access_flags, &ctx->esfs_file_h);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((esfs_status == ESFS_EXISTS), kcm_status = KCM_STATUS_FILE_EXIST, Exit, "File already exist in ESFS (esfs_status %" PRIu32 ")", (uint32_t)esfs_status);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((esfs_status != ESFS_SUCCESS), kcm_status = esfs_to_kcm_error_translation(esfs_status), Exit, "Failed creating file (esfs_status %" PRIu32 ")", (uint32_t)esfs_status);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((esfs_status != ESFS_SUCCESS), kcm_status = esfs_to_kcm_error_translation(esfs_status), Exit, "Failed creating file %s (esfs_status %" PRIu32 ")", file_name, (uint32_t)esfs_status);
 
 Exit:
     if (kcm_status != KCM_STATUS_SUCCESS) {

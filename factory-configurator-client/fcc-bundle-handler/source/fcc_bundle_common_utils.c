@@ -43,14 +43,48 @@ fcc_status_e fcc_bundle_process_rbp_buffer(CborValue *tcbor_top_map, const char 
         return FCC_STATUS_SUCCESS;
     }
 
-    status = fcc_bundle_get_byte_string(&tcbor_val, &buf, &buf_size, NULL, 0);
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Failed to get rbp buffer");    
+#if (PAL_USE_ROT_FROM_FILE == 1)
+    const char *file_path = NULL;
+    size_t file_path_len = 0;
+    if (strcmp(rbp_item_name, STORAGE_RBP_ROT_FILE_PATH_NAME) == 0) {
+        // Handle RoT file path
+        status = fcc_bundle_get_text_string(&tcbor_val, &file_path, &file_path_len, NULL, 0);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Failed to get RoT file path");
 
+        // Allocate an aligned buffer for the file path
+        uint8_t *aligned_buf = (uint8_t *)fcc_malloc(file_path_len);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((aligned_buf == NULL), fcc_status = KCM_STATUS_OUT_OF_MEMORY, exit, "Failed to allocate aligned buffer");
+
+        // Copy the file path to the aligned buffer
+        memcpy(aligned_buf, file_path, file_path_len);
+
+        // Store the file path in RBP storage
+        fcc_status = storage_rbp_write(STORAGE_RBP_ROT_FILE_PATH_NAME,
+                                     aligned_buf,
+                                     file_path_len,
+                                     true); // Write once
+
+        // Free the aligned buffer
+        fcc_free(aligned_buf);
+
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS),
+                                    fcc_status = fcc_status,
+                                    exit,
+                                    "Failed to store RoT file path");
+    }
+    else
+#endif // PAL_USE_ROT_FROM_FILE
     if (strcmp(rbp_item_name, STORAGE_RBP_RANDOM_SEED_NAME) == 0) {
+        status = fcc_bundle_get_byte_string(&tcbor_val, &buf, &buf_size, NULL, 0);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Failed to get rbp buffer");
         fcc_status = fcc_entropy_set(buf, buf_size);
-    } else if (strcmp(rbp_item_name, STORAGE_RBP_ROT_NAME) == 0) {
+    }
+    else if (strcmp(rbp_item_name, STORAGE_RBP_ROT_NAME) == 0) {
+        status = fcc_bundle_get_byte_string(&tcbor_val, &buf, &buf_size, NULL, 0);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((!status), fcc_status = FCC_STATUS_BUNDLE_ERROR, exit, "Failed to get rbp buffer");
         fcc_status = fcc_rot_set(buf, buf_size);
-    } else {
+    }
+    else {
         return FCC_STATUS_ERROR; // Internal error should not happens. If it does, there is a bug in the code
     }
 
