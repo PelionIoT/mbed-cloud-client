@@ -539,6 +539,11 @@ void report_state_random_delay(bool enable)
     report_state_random_delay_enabled = enable;
 }
 
+int fota_source_get_state(void)
+{
+    return (int)g_state_resource->get_value_int();
+}
+
 int fota_source_report_state(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure)
 {
     if (report_state_random_delay_enabled) {
