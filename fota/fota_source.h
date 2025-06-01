@@ -61,6 +61,7 @@ int fota_source_report_state(fota_source_state_e state, report_sent_callback_t o
 int fota_source_report_state_in_ms(fota_source_state_e state, report_sent_callback_t on_sent, report_sent_callback_t on_failure, size_t in_ms);
 void report_state_random_delay(bool enable);
 
+int fota_source_get_state(void);
 int fota_source_report_update_result(int result);
 int fota_source_report_update_customer_result(int result);
 void fota_source_send_manifest_received_ack(void);
