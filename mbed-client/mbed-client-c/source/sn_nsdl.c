@@ -39,7 +39,7 @@
 #include "sn_nsdl_lib.h"
 #include "sn_grs.h"
 #include "mbed-trace/mbed_trace.h"
-#include "mbedtls/base64.h"
+#include "lib/ssl-platform/ssl_platform.h"
 #include "common_functions.h"
 #include "mbed-client/m2mconfig.h"
 #include "randLIB.h"
@@ -1120,7 +1120,7 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
                     unsigned char *dst = (unsigned char *)handle->sn_nsdl_alloc(dst_size);
                     size_t olen = 0;
                     if (dst) {
-                        if (mbedtls_base64_encode(dst, dst_size, &olen,
+                        if (ssl_platform_base64_encode(dst, dst_size, &olen,
                                                   resource_temp_ptr->resource, resource_temp_ptr->resource_len) == 0) {
                             *temp_ptr++ = ';';
                             memcpy(temp_ptr, resource_value, RESOURCE_VALUE_PARAMETER_LEN);
