@@ -29,7 +29,7 @@
 #include "update-client-common/arm_uc_common.h"
 #include "update-client-common/arm_uc_error.h"
 #include "update-client-metadata-header/arm_uc_buffer_utilities.h"
-#include "mbedtls/sha256.h"
+#include "ssl_platform.h"
 
 #include "arm_uc_mmFSMHelper.h"
 
@@ -256,11 +256,12 @@ arm_uc_error_t arm_uc_mmInitFSM(uint32_t event)
             }
             {
                 // Calculate the dependency hash
-                mbedtls_sha256_context ctx;
-                mbedtls_sha256_init(&ctx);
-                mbedtls_sha256_starts(&ctx, 0);
-                mbedtls_sha256_update(&ctx, resource.ptr, resource.size);
-                mbedtls_sha256_finish(&ctx, local.ptr);
+                ssl_platform_hash_context_t ctx;
+                ssl_platform_hash_init(&ctx, SSL_PLATFORM_HASH_SHA256);
+                ssl_platform_hash_starts(&ctx);
+                ssl_platform_hash_update(&ctx, resource.ptr, resource.size);
+                ssl_platform_hash_finish(&ctx, local.ptr);
+                ssl_platform_hash_free(&ctx);
             }
             {
                 arm_uc_buffer_t remote = {

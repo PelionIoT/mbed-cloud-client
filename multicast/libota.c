@@ -922,7 +922,7 @@ static void ota_manage_abort_command(uint16_t payload_length, uint8_t *payload_p
     if (ota_parameters.ota_state == OTA_STATE_CHECKSUM_CALCULATING) {
         tr_warn("Checksum calculating over whole received image is aborted!!!");
 
-        mbedtls_sha256_free(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
+        ssl_platform_hash_free(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
 
         ota_free_fptr(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
         ota_checksum_calculating_ptr.ota_sha256_context_ptr = NULL;
@@ -1374,13 +1374,13 @@ static void ota_manage_whole_fw_checksum_calculating(void)
             new_round_needed = true;
 
             memset(&ota_checksum_calculating_ptr, 0, sizeof(ota_checksum_calculating_t));
-            ota_checksum_calculating_ptr.ota_sha256_context_ptr = ota_malloc_fptr(sizeof(mbedtls_sha256_context));
+            ota_checksum_calculating_ptr.ota_sha256_context_ptr = ota_malloc_fptr(sizeof(ssl_platform_hash_context_t));
 
             if (ota_checksum_calculating_ptr.ota_sha256_context_ptr != NULL) {
-                memset(ota_checksum_calculating_ptr.ota_sha256_context_ptr, 0, sizeof(mbedtls_sha256_context));
+                memset(ota_checksum_calculating_ptr.ota_sha256_context_ptr, 0, sizeof(ssl_platform_hash_context_t));
 
-                mbedtls_sha256_init(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
-                mbedtls_sha256_starts(ota_checksum_calculating_ptr.ota_sha256_context_ptr, 0);
+                ssl_platform_hash_init(ota_checksum_calculating_ptr.ota_sha256_context_ptr, SSL_PLATFORM_HASH_SHA256);
+                ssl_platform_hash_starts(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
             } else {
                 tr_err("Memory allocation failed for ota_sha256_context_ptr");
             }
@@ -1405,7 +1405,7 @@ static void ota_manage_whole_fw_checksum_calculating(void)
                 if (read_byte_count != pushed_fw_data_byte_count) {
                     tr_err("Reading from data storage failed (%"PRIu32" <> %"PRIu32")", read_byte_count, pushed_fw_data_byte_count);
                 } else {
-                    mbedtls_sha256_update(ota_checksum_calculating_ptr.ota_sha256_context_ptr, pushed_fw_data_byte_ptr, read_byte_count);
+                    ssl_platform_hash_update(ota_checksum_calculating_ptr.ota_sha256_context_ptr, pushed_fw_data_byte_ptr, read_byte_count);
                 }
 
                 if (ota_checksum_calculating_ptr.current_byte_id == fw_total_data_byte_count ||
@@ -1414,9 +1414,9 @@ static void ota_manage_whole_fw_checksum_calculating(void)
 
                     memset(sha256_result, 0, OTA_WHOLE_FW_CHECKSUM_LENGTH);
 
-                    mbedtls_sha256_finish(ota_checksum_calculating_ptr.ota_sha256_context_ptr, sha256_result);
+                    ssl_platform_hash_finish(ota_checksum_calculating_ptr.ota_sha256_context_ptr, sha256_result);
 
-                    mbedtls_sha256_free(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
+                    ssl_platform_hash_free(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
 
                     ota_free_fptr(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
                     ota_checksum_calculating_ptr.ota_sha256_context_ptr = NULL;
@@ -1734,7 +1734,7 @@ static void ota_delete_process(uint8_t *session_id)
     ota_free_fptr(ota_parameters.pull_url_ptr);
     ota_parameters.pull_url_ptr = NULL;
 
-    mbedtls_sha256_free(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
+    ssl_platform_hash_free(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
     ota_free_fptr(ota_checksum_calculating_ptr.ota_sha256_context_ptr);
     ota_checksum_calculating_ptr.ota_sha256_context_ptr = NULL;
 

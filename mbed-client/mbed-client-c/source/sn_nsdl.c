@@ -39,7 +39,7 @@
 #include "sn_nsdl_lib.h"
 #include "sn_grs.h"
 #include "mbed-trace/mbed_trace.h"
-#include "lib/ssl-platform/ssl_platform.h"
+#include "ssl_platform.h"
 #include "common_functions.h"
 #include "mbed-client/m2mconfig.h"
 #include "randLIB.h"

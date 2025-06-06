@@ -18,7 +18,7 @@
 
 #include <inttypes.h>
 
-#include "mbedtls/sha256.h"
+#include "ssl_platform.h"
 #include "mbedtls/base64.h"
 #include "otaLIB.h"
 
@@ -98,7 +98,7 @@ typedef enum
 
 typedef struct ota_checksum_calculating_t
 {
-    mbedtls_sha256_context *ota_sha256_context_ptr;
+    ssl_platform_hash_context_t *ota_sha256_context_ptr;
     uint32_t current_byte_id;
 } ota_checksum_calculating_t;
 
