@@ -639,11 +639,11 @@ int fota_verify_signature_prehashed(
     volatile int flow_control = 0;
     int fota_status = FOTA_STATUS_INTERNAL_ERROR;
     uint8_t *update_crt_data;
-    mbedtls_pk_context *pk_ctx_ptr = NULL;
+    ssl_platform_pk_context_t *pk_ctx_ptr = NULL;
     size_t update_crt_size;
     mbedtls_x509_crt crt;
 #if defined(MBEDTLS_X509_ON_DEMAND_PARSING)
-    mbedtls_pk_context pk_ctx;
+    ssl_platform_pk_context_t pk_ctx;
 #endif
     flow_control++;
     update_crt_data = (uint8_t *)malloc(FOTA_CERT_MAX_SIZE);
@@ -668,7 +668,7 @@ int fota_verify_signature_prehashed(
 /*mbedtls_x509_crt_parse_der_nocopy not supported for mbedtls 2.16.0 and lower versions,
  use older version of x509 cert parse function */
 #if  (MBEDTLS_VERSION_NUMBER < 0x02110000)
-    ret = mbedtls_x509_crt_parse_der(
+    ret = mbedtls_x509_crt_parse(
 #else
     ret = mbedtls_x509_crt_parse_der_nocopy(
 #endif
@@ -688,22 +688,28 @@ int fota_verify_signature_prehashed(
     // supporting both crypto lib api
 #if defined(MBEDTLS_X509_ON_DEMAND_PARSING)
     pk_ctx_ptr = &pk_ctx;
-    mbedtls_pk_init(pk_ctx_ptr);
-    ret = mbedtls_x509_crt_get_pk(&crt, pk_ctx_ptr);
+    ssl_platform_pk_init(pk_ctx_ptr);
+    ret = mbedtls_x509_crt_get_pk(&crt, &pk_ctx_ptr->mbedtls_ctx);
     if (ret) {
         FOTA_TRACE_ERROR("Failed to extract public key from certificate %d", ret);
         fota_status = FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
         goto fail;
     }
-#else
-    pk_ctx_ptr = &crt.pk;
-#endif
     flow_control++;
-    ret = mbedtls_pk_verify(
-              pk_ctx_ptr, MBEDTLS_MD_SHA256,
+    ret = ssl_platform_pk_verify(
+              pk_ctx_ptr, SSL_PLATFORM_HASH_SHA256,
               data_digest, FOTA_CRYPTO_HASH_SIZE,
               sig, sig_len
           );
+#else
+    // For non-on-demand parsing, use direct mbedtls call since crt.pk is mbedtls_pk_context
+    flow_control++;
+    ret = mbedtls_pk_verify(
+              &crt.pk, MBEDTLS_MD_SHA256,
+              data_digest, FOTA_CRYPTO_HASH_SIZE,
+              sig, sig_len
+          );
+#endif
     flow_control++;
     // todo FI check
     if (ret) {
@@ -717,7 +723,7 @@ int fota_verify_signature_prehashed(
 fail:
 
 #ifdef MBEDTLS_X509_ON_DEMAND_PARSING
-    mbedtls_pk_free(pk_ctx_ptr);
+    ssl_platform_pk_free(pk_ctx_ptr);
 #endif
 
     mbedtls_x509_crt_free(&crt);

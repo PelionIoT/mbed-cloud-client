@@ -28,6 +28,7 @@
 #include "stdio.h"
 #endif
 #include "cs_pal_crypto.h"
+#include "ssl_platform.h"
 
 #include "eventOS_scheduler.h"
 #include "eventOS_event_timer.h"
@@ -141,7 +142,7 @@ typedef struct palTLSConf {
     mbedtls_x509_crt owncert;
     mbedtls_x509_crt cacert;
 #endif
-    mbedtls_pk_context pkey;
+    ssl_platform_pk_context_t pkey;
     bool hasKeys;
     bool hasChain;
     int cipherSuites[PAL_MAX_ALLOWED_CIPHER_SUITES + 1];  // The +1 is for the Zero Termination required by mbedTLS
@@ -952,10 +953,12 @@ palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateK
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
     int32_t platStatus = SSL_LIB_SUCCESS;
 
-    mbedtls_pk_init(&localConfigCtx->pkey);
+    ssl_platform_pk_init(&localConfigCtx->pkey);
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    platStatus = mbedtls_pk_setup_opaque(&localConfigCtx->pkey, *privateKey);
+    // Note: ssl_platform doesn't yet support PSA opaque keys
+    // This requires direct mbed-TLS access for now
+    platStatus = mbedtls_pk_setup_opaque(&localConfigCtx->pkey.mbedtls_ctx, *privateKey);
     if (SSL_LIB_SUCCESS != platStatus)
     {
         status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
@@ -965,7 +968,7 @@ palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateK
     localConfigCtx->hasKeyHandle = true;
 
 #else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-     platStatus = mbedtls_pk_parse_key(&localConfigCtx->pkey, (const unsigned char *)privateKey->buffer, privateKey->size, NULL, 0);
+     platStatus = ssl_platform_pk_parse_key(&localConfigCtx->pkey, (const unsigned char *)privateKey->buffer, privateKey->size, NULL, 0);
      if (SSL_LIB_SUCCESS != platStatus)
      {
          status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
