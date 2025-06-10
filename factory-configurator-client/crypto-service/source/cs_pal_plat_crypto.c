@@ -100,11 +100,9 @@ static int pal_plat_entropySource( void *data, unsigned char *output, size_t len
 static int pal_plat_entropySourceDRBG( void *data, unsigned char *output, size_t len);
 
 // Forward declarations for stub functions
-static int ssl_platform_x509_get_issuer_raw_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len);
-static int ssl_platform_x509_get_subject_raw_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len);
-static int ssl_platform_x509_get_validity_stub(ssl_platform_x509_crt_t *crt, struct tm *not_before, struct tm *not_after);
-static int ssl_platform_x509_get_signature_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len);
-static int ssl_platform_x509_get_tbs_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len);
+// Forward declarations for helper functions
+static palStatus_t pal_plat_x509CertGetID(palX509Ctx_t* x509Cert, uint8_t *id, size_t outLenBytes, size_t* actualOutLenBytes);
+static palStatus_t pal_plat_X509GetField(palX509Ctx_t* x509Ctx, const char* fieldName, void* output, size_t outLenBytes, size_t* actualOutLenBytes);
 
 #define CRYPTO_PLAT_SUCCESS 0
 #define CRYPTO_PLAT_GENERIC_ERROR (-1)
@@ -374,8 +372,8 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
     switch(attr)
     {
         case PAL_X509_ISSUER_ATTR:
-            if (ssl_platform_x509_get_issuer_raw_stub(&localCtx->ssl_crt, &buf_ptr, &buf_len) != SSL_PLATFORM_SUCCESS) {
-                status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary error
+            if (ssl_platform_x509_get_issuer_raw(&localCtx->ssl_crt, &buf_ptr, &buf_len) != SSL_PLATFORM_SUCCESS) {
+                status = FCC_PAL_ERR_X509_UNKNOWN_OID;
                 break;
             }
             if (buf_len <= outLenBytes) {
@@ -387,8 +385,8 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             break;
 
         case PAL_X509_SUBJECT_ATTR:
-            if (ssl_platform_x509_get_subject_raw_stub(&localCtx->ssl_crt, &buf_ptr, &buf_len) != SSL_PLATFORM_SUCCESS) {
-                status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary error
+            if (ssl_platform_x509_get_subject_raw(&localCtx->ssl_crt, &buf_ptr, &buf_len) != SSL_PLATFORM_SUCCESS) {
+                status = FCC_PAL_ERR_X509_UNKNOWN_OID;
                 break;
             }
             if (buf_len <= outLenBytes) {
@@ -400,8 +398,8 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             break;
 
         case PAL_X509_VALID_FROM:
-            if (ssl_platform_x509_get_validity_stub(&localCtx->ssl_crt, &not_before, &not_after) != SSL_PLATFORM_SUCCESS) {
-                status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary error  
+            if (ssl_platform_x509_get_validity(&localCtx->ssl_crt, &not_before, &not_after) != SSL_PLATFORM_SUCCESS) {
+                status = FCC_PAL_ERR_X509_UNKNOWN_OID;
                 break;
             }
             if (PAL_CRYPTO_CERT_DATE_LENGTH > outLenBytes) {
@@ -417,8 +415,8 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             break;
 
         case PAL_X509_VALID_TO:
-            if (ssl_platform_x509_get_validity_stub(&localCtx->ssl_crt, &not_before, &not_after) != SSL_PLATFORM_SUCCESS) {
-                status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary error
+            if (ssl_platform_x509_get_validity(&localCtx->ssl_crt, &not_before, &not_after) != SSL_PLATFORM_SUCCESS) {
+                status = FCC_PAL_ERR_X509_UNKNOWN_OID;
                 break;
             }
             if (PAL_CRYPTO_CERT_DATE_LENGTH > outLenBytes) {
@@ -455,8 +453,8 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             break;
 
         case PAL_X509_SIGNATUR_ATTR:
-            if (ssl_platform_x509_get_signature_stub(&localCtx->ssl_crt, &buf_ptr, &buf_len) != SSL_PLATFORM_SUCCESS) {
-                status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary error
+            if (ssl_platform_x509_get_signature(&localCtx->ssl_crt, &buf_ptr, &buf_len) != SSL_PLATFORM_SUCCESS) {
+                status = FCC_PAL_ERR_X509_UNKNOWN_OID;
                 break;
             }
             if (buf_len > outLenBytes) {
@@ -1148,8 +1146,8 @@ palStatus_t pal_plat_CtrDRBGSeedFromEntropySources(palCtrDrbgCtxHandle_t ctx, in
      */
     else if (status == FCC_PAL_SUCCESS)
     {
-        // TODO: Use ssl_platform_ctr_drbg_reseed() when available
-        return FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary - reseed not supported yet
+        // Use ssl_platform_ctr_drbg_reseed for reseeding
+        platStatus = ssl_platform_ctr_drbg_reseed(&palCtrDrbgCtx->ssl_ctx, additionalData, additionalDataLen);
     }
     else
     {
@@ -2432,10 +2430,11 @@ palStatus_t pal_plat_asymmetricSign( palECKeyHandle_t privateKeyHandle, palMDTyp
         return FCC_PAL_ERR_BUFFER_TOO_SMALL;
 
     //Create signature in asn1 format
-    // TODO: Use ssl_platform_pk_sign() when available
-    return FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary - mixed mbed-TLS/ssl-platform not supported
-    if (platStatus != CRYPTO_PLAT_SUCCESS) {
+    ssl_platform_hash_type_t ssl_md_alg = (mdAlg == MBEDTLS_MD_SHA256) ? SSL_PLATFORM_HASH_SHA256 : SSL_PLATFORM_HASH_SHA256;
+    platStatus = ssl_platform_pk_sign(localECKey, ssl_md_alg, hash, hashSize, derSignature, &derSignatureSize, NULL, NULL);
+    if (platStatus != SSL_PLATFORM_SUCCESS) {
         status = FCC_PAL_ERR_PK_SIGN_FAILED;
+        return status;
     }
 
 
@@ -2773,7 +2772,7 @@ palStatus_t pal_plat_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_
             // TODO: Use ssl_platform_x509_get_tbs() when implemented
             unsigned char *tbs_buf;
             size_t tbs_len;
-            if (ssl_platform_x509_get_tbs_stub(&crt_ctx->ssl_crt, &tbs_buf, &tbs_len) == SSL_PLATFORM_SUCCESS) {
+            if (ssl_platform_x509_get_tbs(&crt_ctx->ssl_crt, &tbs_buf, &tbs_len) == SSL_PLATFORM_SUCCESS) {
                 status = pal_plat_sha256(tbs_buf, tbs_len, output);
             } else {
                 status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary error
@@ -2883,9 +2882,24 @@ palStatus_t pal_plat_x509CSRFromCertWriteDER(palX509Handle_t x509Cert, palx509CS
     * initialized and contain at list a private key.
     */
 
-    // TODO: These operations require ssl-platform API extensions
-    // For now, return not supported error
-    return FCC_PAL_ERR_NOT_SUPPORTED_CURVE;
+    // Extract subject name from certificate and set it on CSR
+    mbedtls_ret = ssl_platform_x509_get_subject_name(&localCert->ssl_crt, subject, sizeof(subject));
+    if (mbedtls_ret < 0) {
+        return FCC_PAL_ERR_X509_UNKNOWN_OID;
+    }
+    
+    mbedtls_ret = pal_plat_x509CSRSetSubject(x509CSR, subject);
+    if (mbedtls_ret != FCC_PAL_SUCCESS) {
+        return mbedtls_ret;
+    }
+    
+    // Get certificate TBS (To Be Signed) data and extract extensions
+    unsigned char *tbs_ptr;
+    size_t tbs_len;
+    if (ssl_platform_x509_get_tbs(&localCert->ssl_crt, &tbs_ptr, &tbs_len) == SSL_PLATFORM_SUCCESS) {
+        // Try to copy extensions from cert to CSR
+        copy_X509_v3_extensions_to_CSR(tbs_ptr, tbs_len, localCSR);
+    }
 
     // write CSR
     return pal_plat_x509CSRWriteDER(x509CSR, derBuf, derBufLen, actualDerBufLen);
@@ -2980,29 +2994,6 @@ struct tm *gmtime_r(const time_t *timep, struct tm * result)
 #endif
 
 // Stub function implementations  
-static int ssl_platform_x509_get_issuer_raw_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
-{
-    return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
-}
-
-static int ssl_platform_x509_get_subject_raw_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
-{
-    return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
-}
-
-static int ssl_platform_x509_get_validity_stub(ssl_platform_x509_crt_t *crt, struct tm *not_before, struct tm *not_after)
-{
-    return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
-}
-
-static int ssl_platform_x509_get_signature_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
-{
-    return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
-}
-
-static int ssl_platform_x509_get_tbs_stub(ssl_platform_x509_crt_t *crt, unsigned char **buf, size_t *len)
-{
-    return SSL_PLATFORM_ERROR_NOT_SUPPORTED;
-}
+// SSL-Platform X.509 functions are now properly implemented - no more stubs needed
 
 
