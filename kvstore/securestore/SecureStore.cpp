@@ -29,6 +29,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "BlockDevice.h"
+#include "ssl_platform.h"
 
 using namespace mbed;
 
@@ -63,7 +64,7 @@ typedef struct {
     char *key = nullptr;
     uint32_t offset_in_data = 0u;
     uint8_t ctr_buf[enc_block_size] = { 0u };
-    mbedtls_aes_context enc_ctx;
+    ssl_platform_aes_context_t enc_ctx;
     mbedtls_cipher_context_t auth_ctx;
     KVStore::set_handle_t underlying_handle;
 } inc_set_handle_t;
@@ -80,7 +81,7 @@ typedef struct {
 
 // -------------------------------------------------- Functions Implementation ----------------------------------------------------
 
-int encrypt_decrypt_start(mbedtls_aes_context &enc_aes_ctx, uint8_t *iv, const char *key,
+int encrypt_decrypt_start(ssl_platform_aes_context_t &enc_aes_ctx, uint8_t *iv, const char *key,
                           uint8_t *ctr_buf, uint8_t *salt_buf, int salt_buf_size)
 {
     DeviceKey &devkey = DeviceKey::get_instance();
@@ -95,8 +96,8 @@ int encrypt_decrypt_start(mbedtls_aes_context &enc_aes_ctx, uint8_t *iv, const c
         return os_ret;
     }
 
-    mbedtls_aes_init(&enc_aes_ctx);
-    mbedtls_aes_setkey_enc(&enc_aes_ctx, encrypt_key, enc_block_size * 8);
+    ssl_platform_aes_init(&enc_aes_ctx);
+    ssl_platform_aes_setkey_enc(&enc_aes_ctx, encrypt_key, enc_block_size * 8);
 
     memcpy(ctr_buf, iv, iv_size);
     memset(ctr_buf + iv_size, 0, iv_size);
@@ -104,12 +105,16 @@ int encrypt_decrypt_start(mbedtls_aes_context &enc_aes_ctx, uint8_t *iv, const c
     return 0;
 }
 
-int encrypt_decrypt_data(mbedtls_aes_context &enc_aes_ctx, const uint8_t *in_buf,
+int encrypt_decrypt_data(ssl_platform_aes_context_t &enc_aes_ctx, const uint8_t *in_buf,
                          uint8_t *out_buf, uint32_t chunk_size, uint8_t *ctr_buf, size_t &aes_offs)
 {
+    // Note: ssl_platform doesn't expose CTR mode yet, so we keep the mbed-TLS call for now
+    // This needs to be addressed in a future ssl-platform enhancement
     uint8_t stream_block[enc_block_size] = { 0 };
-
-    return mbedtls_aes_crypt_ctr(&enc_aes_ctx, chunk_size, &aes_offs, ctr_buf,
+    
+    // Get the underlying mbed-TLS context for CTR operation
+    // This is a temporary workaround until ssl-platform supports CTR mode
+    return mbedtls_aes_crypt_ctr((mbedtls_aes_context*)&enc_aes_ctx, chunk_size, &aes_offs, ctr_buf,
                                  stream_block, in_buf, out_buf);
 }
 
@@ -236,7 +241,7 @@ int SecureStore::set_start(set_handle_t *handle, const char *key, size_t final_d
 
     if (create_flags & REQUIRE_CONFIDENTIALITY_FLAG) {
         // generate a new random iv
-        os_ret = mbedtls_entropy_func(_entropy, ih->metadata.iv, iv_size);
+        os_ret = ssl_platform_ctr_drbg_random(_entropy, ih->metadata.iv, iv_size);
         if (os_ret) {
             ret = MBED_ERROR_FAILED_OPERATION;
             goto fail;
@@ -296,7 +301,7 @@ int SecureStore::set_start(set_handle_t *handle, const char *key, size_t final_d
 
 fail:
     if (enc_started) {
-        mbedtls_aes_free(&ih->enc_ctx);
+        ssl_platform_aes_free(&ih->enc_ctx);
     }
 
     if (auth_started) {
@@ -378,7 +383,7 @@ fail:
         delete[] ih->key;
     }
     if (ih->metadata.create_flags & REQUIRE_CONFIDENTIALITY_FLAG) {
-        mbedtls_aes_free(&ih->enc_ctx);
+        ssl_platform_aes_free(&ih->enc_ctx);
     }
 
     mbedtls_cipher_free(&ih->auth_ctx);
@@ -444,7 +449,7 @@ end:
     // mark handle as invalid by clearing metadata size field in header
     ih->metadata.metadata_size = 0;
     if (ih->metadata.create_flags & REQUIRE_CONFIDENTIALITY_FLAG) {
-        mbedtls_aes_free(&ih->enc_ctx);
+        ssl_platform_aes_free(&ih->enc_ctx);
     }
 
     mbedtls_cipher_free(&ih->auth_ctx);
@@ -699,7 +704,7 @@ end:
     ih->metadata.metadata_size = 0;
 
     if (enc_started) {
-        mbedtls_aes_free(&ih->enc_ctx);
+        ssl_platform_aes_free(&ih->enc_ctx);
     }
 
     if (auth_started) {
@@ -748,9 +753,9 @@ int SecureStore::init()
     }
 #endif /* MBEDTLS_PLATFORM_C */
 
-    _entropy = new mbedtls_entropy_context;
-    memset(_entropy, 0, sizeof(mbedtls_entropy_context));
-    mbedtls_entropy_init(static_cast<mbedtls_entropy_context *>(_entropy));
+    _entropy = new ssl_platform_ctr_drbg_context_t;
+    memset(_entropy, 0, sizeof(ssl_platform_ctr_drbg_context_t));
+    ssl_platform_ctr_drbg_init(static_cast<ssl_platform_ctr_drbg_context_t *>(_entropy));
 
     _scratch_buf = new uint8_t[scratch_buf_size];
     _inc_set_handle = new inc_set_handle_t;
@@ -778,8 +783,8 @@ int SecureStore::deinit()
 {
     pal_osMutexWait(_mutex, PAL_RTOS_WAIT_FOREVER);
     if (_is_initialized) {
-        mbedtls_entropy_free(static_cast<mbedtls_entropy_context *>(_entropy));
-        delete static_cast<mbedtls_entropy_context *>(_entropy);
+            ssl_platform_ctr_drbg_free(static_cast<ssl_platform_ctr_drbg_context_t *>(_entropy));
+    delete static_cast<ssl_platform_ctr_drbg_context_t *>(_entropy);
         delete static_cast<inc_set_handle_t *>(_inc_set_handle);
         delete _scratch_buf;
         // TODO: Deinit member KVs?

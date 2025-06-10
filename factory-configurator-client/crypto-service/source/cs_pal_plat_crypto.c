@@ -130,16 +130,16 @@ palStatus_t pal_plat_initAes(palAesHandle_t *aes)
     localCtx = (palAes_t*)malloc(sizeof(palAes_t));
     if (NULL == localCtx)
     {
-        status = FCC_PAL_ERR_CREATION_FAILED;
+        status = FCC_PAL_ERR_NO_MEMORY;
     }
     else
     {
-        mbedtls_aes_init(&localCtx->platCtx);
+        ssl_platform_aes_init(&localCtx->platCtx);
+        memset(localCtx->stream_block, 0x00, PAL_CRYPT_BLOCK_SIZE);
         localCtx->nc_off = 0;
-        memset(localCtx->stream_block, 0, 16);
-
         *aes = (palAesHandle_t)localCtx;
     }
+
     return status;
 }
 
@@ -147,10 +147,9 @@ palStatus_t pal_plat_freeAes(palAesHandle_t *aes)
 {
     palStatus_t status = FCC_PAL_SUCCESS;
     palAes_t* localCtx = NULL;
-    
+
     localCtx = (palAes_t*)*aes;
-    
-    mbedtls_aes_free(&localCtx->platCtx);
+    ssl_platform_aes_free(&localCtx->platCtx);
     free(localCtx);
     *aes = NULLPTR;
     return status;
@@ -159,24 +158,25 @@ palStatus_t pal_plat_freeAes(palAesHandle_t *aes)
 palStatus_t pal_plat_setAesKey(palAesHandle_t aes, const unsigned char* key, uint32_t keybits, palAesKeyType_t keyTarget)
 {
     palStatus_t status = FCC_PAL_SUCCESS;
+    palAes_t* localCtx = NULL;
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
-    palAes_t* localCtx = (palAes_t*)aes;
 
-    if (PAL_KEY_TARGET_ENCRYPTION == keyTarget)
+    localCtx = (palAes_t*)aes;
+    if (PAL_AES_ENCRYPT == keyTarget)
     {
-        platStatus = mbedtls_aes_setkey_enc(&localCtx->platCtx, key, keybits);
+        platStatus = ssl_platform_aes_setkey_enc(&localCtx->platCtx, key, keybits);
     }
     else
     {
-        platStatus = mbedtls_aes_setkey_dec(&localCtx->platCtx, key, keybits);
+        platStatus = ssl_platform_aes_setkey_dec(&localCtx->platCtx, key, keybits);
     }
 
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         status = FCC_PAL_ERR_AES_INVALID_KEY_LENGTH;
     }
 
-    return status;    
+    return status;
 }
 
 palStatus_t pal_plat_aesCTR(palAesHandle_t aes, const unsigned char* input, unsigned char* output, size_t inLen, unsigned char iv[16], bool zeroOffset)
@@ -206,8 +206,8 @@ palStatus_t pal_plat_aesECB(palAesHandle_t aes, const unsigned char input[PAL_CR
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     palAes_t* localCtx = (palAes_t*)aes;
 
-    platStatus = mbedtls_aes_crypt_ecb(&localCtx->platCtx, (PAL_AES_ENCRYPT == mode ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT), input, output);
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    platStatus = ssl_platform_aes_crypt_ecb(&localCtx->platCtx, (PAL_AES_ENCRYPT == mode ? SSL_PLATFORM_AES_ENCRYPT : SSL_PLATFORM_AES_DECRYPT), input, output);
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         FCC_PAL_LOG_ERR("Crypto aes ecb status  %" PRId32 "", platStatus);
         status = FCC_PAL_ERR_GENERIC_FAILURE;
@@ -218,32 +218,34 @@ palStatus_t pal_plat_aesECB(palAesHandle_t aes, const unsigned char input[PAL_CR
 palStatus_t pal_plat_sha256(const unsigned char* input, size_t inLen, unsigned char* output)
 {    
     palStatus_t status = FCC_PAL_SUCCESS;
+    ssl_platform_hash_context_t hash_ctx;
+    int ret;
 
-#ifndef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
-    mbedtls_sha256(input, inLen, output, 0);
-#else
-    palMDHandle_t md = 0;
-
-    status = pal_plat_mdInit(&md, PAL_SHA256);
-    if (FCC_PAL_SUCCESS != status)
-    {
-        return status;
+    ret = ssl_platform_hash_init(&hash_ctx, SSL_PLATFORM_HASH_SHA256);
+    if (ret != SSL_PLATFORM_SUCCESS) {
+        return FCC_PAL_ERR_GENERIC_FAILURE;
     }
 
-    status = pal_plat_mdUpdate(md, input, inLen);
-    if (status != FCC_PAL_SUCCESS)
-    {
-        goto finish;
+    ret = ssl_platform_hash_starts(&hash_ctx);
+    if (ret != SSL_PLATFORM_SUCCESS) {
+        status = FCC_PAL_ERR_GENERIC_FAILURE;
+        goto cleanup;
     }
 
-    status = pal_plat_mdFinal(md, output);
-
-finish:
-    if (0 != md)
-    {
-        (void)pal_plat_mdFree(&md);
+    ret = ssl_platform_hash_update(&hash_ctx, input, inLen);
+    if (ret != SSL_PLATFORM_SUCCESS) {
+        status = FCC_PAL_ERR_GENERIC_FAILURE;
+        goto cleanup;
     }
-#endif
+
+    ret = ssl_platform_hash_finish(&hash_ctx, output);
+    if (ret != SSL_PLATFORM_SUCCESS) {
+        status = FCC_PAL_ERR_GENERIC_FAILURE;
+        goto cleanup;
+    }
+
+cleanup:
+    ssl_platform_hash_free(&hash_ctx);
     return status;
 }
 #if (PAL_ENABLE_X509 == 1)
