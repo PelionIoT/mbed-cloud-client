@@ -32,6 +32,8 @@ ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/modules/source-local-file)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/delta-tool-internal/include)
 ADD_GLOBALDIR(${UPDATE_SOURCE_DIR}/delta-tool-internal/source)
 
+# Add ssl-platform include directory
+ADD_GLOBALDIR(${CMAKE_CURRENT_SOURCE_DIR}/../../ssl-platform)
 
 include_directories(${UPDATE_SOURCE_DIR}/update-client-hub)
 include_directories(${UPDATE_SOURCE_DIR}/modules/atomic-queue/atomic-queue)
@@ -141,11 +143,11 @@ message("update-client = ${UPDATE_SRC}")
 
 # create a library and describe its dependencies
 add_library(update-client STATIC "${UPDATE_SRC}")
-add_dependencies(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal)
-target_link_libraries(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal)
+add_dependencies(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal ssl-platform)
+target_link_libraries(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal ssl-platform)
 
 # add pal dependency only for full client builds
 if (NOT ${BUILD_TYPE} STREQUAL "client-lite")
-    add_dependencies(update-client pal)
-    target_link_libraries(update-client pal)
+    add_dependencies(update-client pal ssl-platform)
+    target_link_libraries(update-client pal ssl-platform)
 endif()
