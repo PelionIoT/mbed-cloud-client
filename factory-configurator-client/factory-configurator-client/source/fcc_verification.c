@@ -709,9 +709,12 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
     SA_PV_ERR_RECOVERABLE_GOTO_IF((pal_status != FCC_PAL_SUCCESS), fcc_status = FCC_STATUS_INVALID_CERTIFICATE, close_chain, "Device certificate has no extended-key-usage V3 extension with X509_EXT_KU_CLIENT_AUTH bit set on");
 #endif // MBED_CONF_APP_DEVELOPER_MODE
 
+#ifndef MBED_CONF_APP_DEVELOPER_MODE
+    // Note: Check only for production because old developer certificates may not have matching CN with endpoint name
     //Compare device certificate's CN attribute with endpoint name
     fcc_status = compare_cn_with_endpoint(x509_cert_handle);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to compare_cn_with_endpoint");
+#endif // MBED_CONF_APP_DEVELOPER_MODE
 
 #ifndef LWM2M_COMPLIANT // Account ID is Pelion specific
     //In case LWM2M certificate check it's OU attribute with aid of server link
@@ -733,11 +736,16 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
                                       g_fcc_self_signed_warning_str);
     }
 
+#ifndef MBED_CONF_APP_DEVELOPER_MODE
+    // Note: Check only for production because developer certificates may have invalid validity periods
     //Verify expiration of first certificate in chain
     fcc_status = verify_certificate_expiration(x509_cert_handle, exist_item_name, exist_item_name_len);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_certificate_validity");
+#endif // MBED_CONF_APP_DEVELOPER_MODE
 
 
+#ifndef MBED_CONF_APP_DEVELOPER_MODE
+    // Note: Check only for production because developer certificates may have invalid validity periods
     // Verify expiration of rest of chain, starting from second certificate in chain (if exists).
     for (cert_num = 2; cert_num <= chain_len; cert_num++) {
         // Close handle of first X509 in chain
@@ -751,6 +759,7 @@ static fcc_status_e verify_device_certificate_and_private_key(bool use_bootstrap
         fcc_status = verify_certificate_expiration(x509_cert_handle, exist_item_name, exist_item_name_len);
         SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, close_chain, "Failed to verify_certificate_validity");
     }
+#endif // MBED_CONF_APP_DEVELOPER_MODE
 
 close_chain:
     kcm_cert_chain_close(chain_handle);

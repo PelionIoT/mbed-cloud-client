@@ -46,6 +46,7 @@
 
 // Add ssl-platform include at the top
 #include "ssl_platform.h"
+#include <stdio.h>
 
 #define TRACE_GROUP "PAL"
 
@@ -267,22 +268,19 @@ palStatus_t pal_plat_x509Initiate(palX509Handle_t* x509)
 palStatus_t pal_plat_x509CertParse(palX509Handle_t x509, const unsigned char* input, size_t inLen)
 {
     palStatus_t status = FCC_PAL_SUCCESS;
+    palX509Ctx_t* localCtx = NULL;
     int32_t platStatus = SSL_PLATFORM_SUCCESS;
-    palX509Ctx_t* localCtx = (palX509Ctx_t*)x509;
 
+    localCtx = (palX509Ctx_t*)x509;
+    
     platStatus = ssl_platform_x509_crt_parse(&localCtx->ssl_crt, input, inLen);
-    if (platStatus != SSL_PLATFORM_SUCCESS)
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
-        if (platStatus == SSL_PLATFORM_ERROR_INVALID_DATA)
-        {
-            status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE;
-        }
-        else
-        {
-            status = FCC_PAL_ERR_CERT_PARSING_FAILED;
-        }
+        status = FCC_PAL_ERR_X509_CERT_VERIFY_FAILED;
+        goto finish;
     }
 
+finish:
     return status;
 }
 
@@ -291,14 +289,91 @@ palStatus_t pal_plat_x509CertParse(palX509Handle_t x509, const unsigned char* in
 // Helper functions that were accidentally removed
 static palStatus_t pal_plat_x509CertGetID(palX509Ctx_t* x509Cert, uint8_t *id, size_t outLenBytes, size_t* actualOutLenBytes)
 {
-    // This function needs ssl-platform ECC point operations - for now return not supported
-    return FCC_PAL_ERR_NOT_SUPPORTED_CURVE;
+    palStatus_t status = FCC_PAL_SUCCESS;
+    unsigned char *cert_der = NULL;
+    size_t cert_der_len = 0;
+    unsigned char hash[32]; // SHA-256 hash size
+    
+    if (!x509Cert || !id || !actualOutLenBytes) {
+        return FCC_PAL_ERR_INVALID_ARGUMENT;
+    }
+    
+    // Get the raw DER data of the certificate
+    if (ssl_platform_x509_get_tbs(&x509Cert->ssl_crt, &cert_der, &cert_der_len) != SSL_PLATFORM_SUCCESS) {
+        return FCC_PAL_ERR_X509_UNKNOWN_OID;
+    }
+    
+    // Compute SHA-256 hash of the certificate DER data
+    status = pal_plat_sha256(cert_der, cert_der_len, hash);
+    if (status != FCC_PAL_SUCCESS) {
+        return status;
+    }
+    
+    // Copy the hash to the output buffer (32 bytes + null terminator = 33 bytes)
+    if (outLenBytes < PAL_CERT_ID_SIZE) {
+        *actualOutLenBytes = PAL_CERT_ID_SIZE;
+        return FCC_PAL_ERR_BUFFER_TOO_SMALL;
+    }
+    
+    memcpy(id, hash, 32);
+    id[32] = '\0'; // Null terminator
+    *actualOutLenBytes = PAL_CERT_ID_SIZE;
+    
+    return FCC_PAL_SUCCESS;
 }
 
 static palStatus_t pal_plat_X509GetField(palX509Ctx_t* x509Ctx, const char* fieldName, void* output, size_t outLenBytes, size_t* actualOutLenBytes)
 {
-    // This function needs ssl-platform X.509 name parsing - for now return not supported
-    return FCC_PAL_ERR_INVALID_IOD;
+    palStatus_t status = FCC_PAL_SUCCESS;
+    int32_t platStatus = SSL_PLATFORM_SUCCESS;
+    
+    if (strcmp(fieldName, "CN") == 0 || strcmp(fieldName, "L") == 0 || strcmp(fieldName, "OU") == 0) {
+        // Get the full subject name and parse the requested field
+        char subject_name[256];
+        platStatus = ssl_platform_x509_get_subject_name(&x509Ctx->ssl_crt, subject_name, sizeof(subject_name));
+        if (platStatus != SSL_PLATFORM_SUCCESS) {
+            return FCC_PAL_ERR_GENERIC_FAILURE;
+        }
+        
+        // Parse the subject name to find the requested field
+        // Subject name format: "CN=device123,L=Helsinki,O=ARM"
+        char field_prefix[8];
+        snprintf(field_prefix, sizeof(field_prefix), "%s=", fieldName);
+        
+        char* field_start = strstr(subject_name, field_prefix);
+        if (field_start == NULL) {
+            return FCC_PAL_ERR_INVALID_X509_ATTR;
+        }
+        
+        // Move past the field name and '='
+        field_start += strlen(field_prefix);
+        
+        // Find the end of the field value (next comma or end of string)
+        char* field_end = strchr(field_start, ',');
+        size_t field_len;
+        if (field_end != NULL) {
+            field_len = field_end - field_start;
+        } else {
+            field_len = strlen(field_start);
+        }
+        
+        // Check if output buffer is large enough
+        if (field_len >= outLenBytes) {
+            *actualOutLenBytes = field_len + 1; // +1 for null terminator
+            return FCC_PAL_ERR_BUFFER_TOO_SMALL;
+        }
+        
+        // Copy the field value and null-terminate
+        memcpy(output, field_start, field_len);
+        ((char*)output)[field_len] = '\0';
+        *actualOutLenBytes = field_len + 1;
+        
+        status = FCC_PAL_SUCCESS;
+    } else {
+        status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE;
+    }
+    
+    return status;
 }
 
 static bool pal_isLeapYear(uint16_t year)
@@ -570,9 +645,11 @@ palStatus_t pal_plat_x509CertCheckExtendedKeyUsage(palX509Handle_t x509Cert, pal
             return FCC_PAL_ERR_X509_UNKNOWN_OID;
     }
 
-    // TODO: Use ssl_platform_x509_crt_check_extended_key_usage() when implemented
-    return FCC_PAL_ERR_NOT_SUPPORTED_CURVE; // Temporary - extended key usage check not yet implemented
-    if (ret != 0) {
+    // Use ssl_platform_x509_crt_check_extended_key_usage() 
+    ret = ssl_platform_x509_crt_check_extended_key_usage(&localCert->ssl_crt, 
+                                                        (const unsigned char *)oid, 
+                                                        oid_size);
+    if (ret != SSL_PLATFORM_SUCCESS) {
         return FCC_PAL_ERR_CERT_CHECK_EXTENDED_KEY_USAGE_FAILED;
     }
 
