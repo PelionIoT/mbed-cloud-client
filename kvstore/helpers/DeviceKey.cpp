@@ -19,6 +19,7 @@
 #if DEVICEKEY_ENABLED
 #include "mbedtls/cmac.h"
 #include "mbedtls/platform.h"
+#include "ssl_platform.h"
 #include "KVStore.h"
 #include "TDBStore.h"
 #include "KVMap.h"
@@ -189,60 +190,58 @@ int DeviceKey::get_derived_key(uint32_t *ikey_buff, size_t ikey_size, const unsi
     int ret;
     size_t counter = 0;
     char separator = 0x00;
-    mbedtls_cipher_context_t ctx;
+    ssl_platform_cipher_context_t ctx;
     unsigned char output_len_enc[ 4 ] = {0};
     unsigned char counter_enc[ 1 ] = {0};
 
     DEVKEY_WRITE_UINT32_LE(output_len_enc, ikey_type);
 
-    mbedtls_cipher_type_t mbedtls_cipher_type = MBEDTLS_CIPHER_AES_128_ECB;
+    ssl_platform_cipher_type_t ssl_cipher_type = SSL_PLATFORM_CIPHER_AES_128_ECB;
     if (DEVICE_KEY_32BYTE == ikey_size) {
-        mbedtls_cipher_type = MBEDTLS_CIPHER_AES_256_ECB;
+        ssl_cipher_type = SSL_PLATFORM_CIPHER_AES_256_ECB;
     }
-
-    const mbedtls_cipher_info_t *cipher_info = mbedtls_cipher_info_from_type(mbedtls_cipher_type);
 
     do {
 
-        mbedtls_cipher_init(&ctx);
-        ret = mbedtls_cipher_setup(&ctx, cipher_info);
-        if (ret != 0) {
+        ssl_platform_cipher_init(&ctx);
+        ret = ssl_platform_cipher_setup(&ctx, ssl_cipher_type);
+        if (ret != SSL_PLATFORM_SUCCESS) {
             goto finish;
         }
 
-        ret = mbedtls_cipher_cmac_starts(&ctx, (unsigned char *)ikey_buff, ikey_size * 8);
-        if (ret != 0) {
+        ret = ssl_platform_cipher_cmac_starts(&ctx, (unsigned char *)ikey_buff, ikey_size * 8);
+        if (ret != SSL_PLATFORM_SUCCESS) {
             goto finish;
         }
 
         DEVKEY_WRITE_UINT8_LE(counter_enc, (counter + 1));
 
-        ret = mbedtls_cipher_cmac_update(&ctx, (unsigned char *)counter_enc, sizeof(counter_enc));
-        if (ret != 0) {
+        ret = ssl_platform_cipher_cmac_update(&ctx, (unsigned char *)counter_enc, sizeof(counter_enc));
+        if (ret != SSL_PLATFORM_SUCCESS) {
             goto finish;
         }
 
-        ret = mbedtls_cipher_cmac_update(&ctx, isalt, isalt_size);
-        if (ret != 0) {
+        ret = ssl_platform_cipher_cmac_update(&ctx, isalt, isalt_size);
+        if (ret != SSL_PLATFORM_SUCCESS) {
             goto finish;
         }
 
-        ret = mbedtls_cipher_cmac_update(&ctx, (unsigned char *)&separator, sizeof(char));
-        if (ret != 0) {
+        ret = ssl_platform_cipher_cmac_update(&ctx, (unsigned char *)&separator, sizeof(char));
+        if (ret != SSL_PLATFORM_SUCCESS) {
             goto finish;
         }
 
-        ret = mbedtls_cipher_cmac_update(&ctx, (unsigned char *)&output_len_enc, sizeof(output_len_enc));
-        if (ret != 0) {
+        ret = ssl_platform_cipher_cmac_update(&ctx, (unsigned char *)&output_len_enc, sizeof(output_len_enc));
+        if (ret != SSL_PLATFORM_SUCCESS) {
             goto finish;
         }
 
-        ret = mbedtls_cipher_cmac_finish(&ctx, output + (DEVICE_KEY_16BYTE * (counter)));
-        if (ret != 0) {
+        ret = ssl_platform_cipher_cmac_finish(&ctx, output + (DEVICE_KEY_16BYTE * (counter)));
+        if (ret != SSL_PLATFORM_SUCCESS) {
             goto finish;
         }
 
-        mbedtls_cipher_free(&ctx);
+        ssl_platform_cipher_free(&ctx);
 
         counter++;
 
@@ -250,7 +249,7 @@ int DeviceKey::get_derived_key(uint32_t *ikey_buff, size_t ikey_size, const unsi
 
 finish:
     if (DEVICEKEY_SUCCESS != ret) {
-        mbedtls_cipher_free(&ctx);
+        ssl_platform_cipher_free(&ctx);
         return DEVICEKEY_ERR_CMAC_GENERIC_FAILURE;
     }
 

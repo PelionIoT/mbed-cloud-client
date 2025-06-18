@@ -59,7 +59,7 @@ typedef mbedtls_ecp_group palECGroup_t;
 typedef mbedtls_ecp_point palECPoint_t;
 typedef mbedtls_mpi palMP_t;
 typedef mbedtls_x509write_csr palx509CSR_t;
-typedef mbedtls_cipher_context_t palCipherCtx_t;
+typedef ssl_platform_cipher_context_t palCipherCtx_t;
 
 typedef struct palSign{
     mbedtls_mpi r;  // Keep mbed-TLS for now - ssl-platform doesn't expose MPI operations
@@ -1281,24 +1281,18 @@ palStatus_t pal_plat_CtrDRBGGenerateWithAdditional(palCtrDrbgCtxHandle_t ctx, un
 palStatus_t pal_plat_cipherCMAC(const unsigned char *key, size_t keyLenInBits, const unsigned char *input, size_t inputLenInBytes, unsigned char *output)
 {
     palStatus_t status = FCC_PAL_SUCCESS;
-    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
-    const mbedtls_cipher_info_t *cipherInfo;
+    int32_t platStatus = SSL_PLATFORM_SUCCESS;
 
-    cipherInfo = mbedtls_cipher_info_from_values(MBEDTLS_CIPHER_ID_AES, (int)keyLenInBits, MBEDTLS_MODE_ECB);
-    if (NULL == cipherInfo)
-    {
-        FCC_PAL_LOG_ERR("Crypto cipher cmac error");
-        status = FCC_PAL_ERR_CMAC_GENERIC_FAILURE;
-        goto finish;
-    }
-
-    platStatus = mbedtls_cipher_cmac( cipherInfo, key, keyLenInBits, input, inputLenInBytes, output);
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    // Convert key length from bits to bytes for ssl_platform_aes_cmac
+    size_t keyLenInBytes = keyLenInBits / 8;
+    
+    platStatus = ssl_platform_aes_cmac(key, keyLenInBytes, input, inputLenInBytes, output);
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         FCC_PAL_LOG_ERR("Crypto cipher cmac status %" PRId32 "", platStatus);
         status = FCC_PAL_ERR_CMAC_GENERIC_FAILURE;
     }
-finish:
+
     return status;
 }
 
@@ -1306,26 +1300,17 @@ palStatus_t pal_plat_CMACStart(palCMACHandle_t *ctx, const unsigned char *key, s
 {
     palStatus_t status = FCC_PAL_SUCCESS;
     palCipherCtx_t* localCipher = NULL;
-    const mbedtls_cipher_info_t* cipherInfo = NULL;
-    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
-    mbedtls_cipher_type_t platType = MBEDTLS_CIPHER_NONE;
+    int32_t platStatus = SSL_PLATFORM_SUCCESS;
+    ssl_platform_cipher_type_t platType = SSL_PLATFORM_CIPHER_AES_128_ECB;
 
     switch(cipherID)
     {
         case PAL_CIPHER_ID_AES:
-            platType = MBEDTLS_CIPHER_AES_128_ECB;
+            platType = SSL_PLATFORM_CIPHER_AES_128_ECB;
             break;
         default:
             status = FCC_PAL_ERR_INVALID_CIPHER_ID;
             goto finish;
-    }
-
-    cipherInfo = mbedtls_cipher_info_from_type(platType);
-    if (NULL == cipherInfo)
-    {
-        FCC_PAL_LOG_ERR("Crypto cmac cipher info error");
-        status = FCC_PAL_ERR_CMAC_GENERIC_FAILURE;
-        goto finish;
     }
 
     localCipher = (palCipherCtx_t*)malloc(sizeof(palCipherCtx_t));
@@ -1335,17 +1320,17 @@ palStatus_t pal_plat_CMACStart(palCMACHandle_t *ctx, const unsigned char *key, s
         goto finish;
     }
 
-    mbedtls_cipher_init(localCipher);
-    platStatus = mbedtls_cipher_setup(localCipher, cipherInfo);
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    ssl_platform_cipher_init(localCipher);
+    platStatus = ssl_platform_cipher_setup(localCipher, platType);
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         FCC_PAL_LOG_ERR("Crypto cmac cipher setup status %" PRId32 ".", platStatus);
         status = FCC_PAL_ERR_CMAC_GENERIC_FAILURE;
         goto finish;
     }
 
-    platStatus = mbedtls_cipher_cmac_starts(localCipher, key, keyLenBits);
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    platStatus = ssl_platform_cipher_cmac_starts(localCipher, key, keyLenBits);
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         status = FCC_PAL_ERR_CMAC_START_FAILED;
         goto finish;
@@ -1364,10 +1349,10 @@ palStatus_t pal_plat_CMACUpdate(palCMACHandle_t ctx, const unsigned char *input,
 {
     palStatus_t status = FCC_PAL_SUCCESS;
     palCipherCtx_t* localCipher = (palCipherCtx_t*)ctx;
-    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    int32_t platStatus = SSL_PLATFORM_SUCCESS;
 
-    platStatus = mbedtls_cipher_cmac_update(localCipher, input, inLen);
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    platStatus = ssl_platform_cipher_cmac_update(localCipher, input, inLen);
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         status = FCC_PAL_ERR_CMAC_UPDATE_FAILED;
     }
@@ -1379,21 +1364,19 @@ palStatus_t pal_plat_CMACFinish(palCMACHandle_t *ctx, unsigned char *output, siz
 {
     palStatus_t status = FCC_PAL_SUCCESS;
     palCipherCtx_t* localCipher = (palCipherCtx_t*)*ctx;
-    int32_t platStatus = CRYPTO_PLAT_SUCCESS;
+    int32_t platStatus = SSL_PLATFORM_SUCCESS;
 
-    platStatus = mbedtls_cipher_cmac_finish(localCipher, output);
-    if (CRYPTO_PLAT_SUCCESS != platStatus)
+    platStatus = ssl_platform_cipher_cmac_finish(localCipher, output);
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         status = FCC_PAL_ERR_CMAC_FINISH_FAILED;
     }
     else
     {
-        *outLen = localCipher->cipher_info->block_size;
+        *outLen = 16; // AES block size for CMAC output
     }
 
-    
-
-    mbedtls_cipher_free(localCipher);
+    ssl_platform_cipher_free(localCipher);
     free(localCipher);
     *ctx = NULLPTR;
     return status;
@@ -2433,11 +2416,11 @@ static palStatus_t ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_m
     unsigned char *p = buf + sizeof(buf);
     int len = 0;
 
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, s));
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_mpi(&p, buf, r));
+    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_mpi(&p, buf, (const mbedtls_mpi *)s));
+    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_mpi(&p, buf, (const mbedtls_mpi *)r));
 
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(&p, buf, (size_t)len));
-    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_len(&p, buf, (size_t)len));
+    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
 
     if (sigMaxSize < (size_t)len) {
         return FCC_PAL_ERR_BUFFER_TOO_SMALL;
@@ -2734,25 +2717,25 @@ palStatus_t pal_plat_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint
     /* As mbedTLS, build the DER in value_buf from end to start */
 
     if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_OCSP_SIGNING & extKeyUsage) {
-        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_OCSP_SIGNING, MBEDTLS_OID_SIZE(MBEDTLS_OID_OCSP_SIGNING));
+        platStatus = ssl_platform_asn1_write_oid(&end, start, MBEDTLS_OID_OCSP_SIGNING, MBEDTLS_OID_SIZE(MBEDTLS_OID_OCSP_SIGNING));
     }
     if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_TIME_STAMPING & extKeyUsage) {
-        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_TIME_STAMPING, MBEDTLS_OID_SIZE(MBEDTLS_OID_TIME_STAMPING));
+        platStatus = ssl_platform_asn1_write_oid(&end, start, MBEDTLS_OID_TIME_STAMPING, MBEDTLS_OID_SIZE(MBEDTLS_OID_TIME_STAMPING));
     }
     if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_EMAIL_PROTECTION & extKeyUsage) {
-        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_EMAIL_PROTECTION, MBEDTLS_OID_SIZE(MBEDTLS_OID_EMAIL_PROTECTION));
+        platStatus = ssl_platform_asn1_write_oid(&end, start, MBEDTLS_OID_EMAIL_PROTECTION, MBEDTLS_OID_SIZE(MBEDTLS_OID_EMAIL_PROTECTION));
     }
     if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_CODE_SIGNING & extKeyUsage) {
-        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_CODE_SIGNING, MBEDTLS_OID_SIZE(MBEDTLS_OID_CODE_SIGNING));
+        platStatus = ssl_platform_asn1_write_oid(&end, start, MBEDTLS_OID_CODE_SIGNING, MBEDTLS_OID_SIZE(MBEDTLS_OID_CODE_SIGNING));
     }
     if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_CLIENT_AUTH & extKeyUsage){
-        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_CLIENT_AUTH, MBEDTLS_OID_SIZE(MBEDTLS_OID_CLIENT_AUTH));
+        platStatus = ssl_platform_asn1_write_oid(&end, start, MBEDTLS_OID_CLIENT_AUTH, MBEDTLS_OID_SIZE(MBEDTLS_OID_CLIENT_AUTH));
     }
     if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_SERVER_AUTH & extKeyUsage){
-        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_SERVER_AUTH, MBEDTLS_OID_SIZE(MBEDTLS_OID_SERVER_AUTH));
+        platStatus = ssl_platform_asn1_write_oid(&end, start, MBEDTLS_OID_SERVER_AUTH, MBEDTLS_OID_SIZE(MBEDTLS_OID_SERVER_AUTH));
     }
     if (platStatus >= CRYPTO_PLAT_SUCCESS && PAL_X509_EXT_KU_ANY & extKeyUsage){
-        platStatus = mbedtls_asn1_write_oid(&end, start, MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE, MBEDTLS_OID_SIZE(MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE));
+        platStatus = ssl_platform_asn1_write_oid(&end, start, MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE, MBEDTLS_OID_SIZE(MBEDTLS_OID_ANY_EXTENDED_KEY_USAGE));
     }
 
     if (platStatus < CRYPTO_PLAT_SUCCESS) {
@@ -2760,12 +2743,12 @@ palStatus_t pal_plat_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint
     }
 
     // Calc written len (from end to the end of value_buf) and write it to value_buf
-    platStatus = mbedtls_asn1_write_len(&end, start,(size_t)((value_buf + sizeof(value_buf)) - end));
+    platStatus = ssl_platform_asn1_write_len(&end, start,(size_t)((value_buf + sizeof(value_buf)) - end));
     if (platStatus < CRYPTO_PLAT_SUCCESS) {
         goto finish;
     }
     // Write sequence tag
-    platStatus = mbedtls_asn1_write_tag(&end, start, (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
+    platStatus = ssl_platform_asn1_write_tag(&end, start, (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
     if (platStatus < CRYPTO_PLAT_SUCCESS) {
         goto finish;
     }
@@ -2877,8 +2860,8 @@ static int copy_X509_v3_extensions_to_CSR(unsigned char *ext_v3_start, size_t ex
     }
 
     // skip root ext.
-    if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
-        MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0) {
+    if ((ret = ssl_platform_asn1_get_tag_ext(&p, end, &len,
+        MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE, 1)) != 0) {
         return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
     }
 
@@ -2892,15 +2875,15 @@ static int copy_X509_v3_extensions_to_CSR(unsigned char *ext_v3_start, size_t ex
         mbedtls_x509_buf extn_oid = { 0, 0, NULL };
         int is_critical = 0; /* DEFAULT FALSE */
 
-        if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
-            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0) {
+        if ((ret = ssl_platform_asn1_get_tag_ext(&p, end, &len,
+            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE, 1)) != 0) {
             return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
         }
 
         /* Get extension ID */
         extn_oid.tag = *p;
 
-        if ((ret = mbedtls_asn1_get_tag(&p, end, &extn_oid.len, MBEDTLS_ASN1_OID)) != 0) {
+        if ((ret = ssl_platform_asn1_get_tag_ext(&p, end, &extn_oid.len, MBEDTLS_ASN1_OID, 0)) != 0) {
             return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
         }
 
@@ -2913,14 +2896,15 @@ static int copy_X509_v3_extensions_to_CSR(unsigned char *ext_v3_start, size_t ex
         }
 
         /* Get optional critical */
+        // Note: mbedtls_asn1_get_bool not available in ssl-platform yet, keeping original
         if ((ret = mbedtls_asn1_get_bool(&p, end, &is_critical)) != 0 &&
             (ret != MBEDTLS_ERR_ASN1_UNEXPECTED_TAG)) {
             return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
         }
 
         /* Data should be octet string type */
-        if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
-            MBEDTLS_ASN1_OCTET_STRING)) != 0) {
+        if ((ret = ssl_platform_asn1_get_tag_ext(&p, end, &len,
+            MBEDTLS_ASN1_OCTET_STRING, 0)) != 0) {
             return(MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret);
         }
 

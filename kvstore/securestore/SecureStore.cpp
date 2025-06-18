@@ -65,7 +65,7 @@ typedef struct {
     uint32_t offset_in_data = 0u;
     uint8_t ctr_buf[enc_block_size] = { 0u };
     ssl_platform_aes_context_t enc_ctx;
-    mbedtls_cipher_context_t auth_ctx;
+    ssl_platform_cipher_context_t auth_ctx;
     KVStore::set_handle_t underlying_handle;
 } inc_set_handle_t;
 
@@ -118,7 +118,7 @@ int encrypt_decrypt_data(ssl_platform_aes_context_t &enc_aes_ctx, const uint8_t 
                                  stream_block, in_buf, out_buf);
 }
 
-int cmac_calc_start(mbedtls_cipher_context_t &auth_ctx, const char *key, uint8_t *salt_buf, int salt_buf_size)
+int cmac_calc_start(ssl_platform_cipher_context_t &auth_ctx, const char *key, uint8_t *salt_buf, int salt_buf_size)
 {
     DeviceKey &devkey = DeviceKey::get_instance();
     char *salt = reinterpret_cast<char *>(salt_buf);
@@ -132,36 +132,34 @@ int cmac_calc_start(mbedtls_cipher_context_t &auth_ctx, const char *key, uint8_t
         return os_ret;
     }
 
-    const mbedtls_cipher_info_t *cipher_info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_ECB);
+    ssl_platform_cipher_init(&auth_ctx);
 
-    mbedtls_cipher_init(&auth_ctx);
-
-    if ((os_ret = mbedtls_cipher_setup(&auth_ctx, cipher_info)) != 0) {
+    if ((os_ret = ssl_platform_cipher_setup(&auth_ctx, SSL_PLATFORM_CIPHER_AES_128_ECB)) != SSL_PLATFORM_SUCCESS) {
         return os_ret;
     }
 
-    os_ret = mbedtls_cipher_cmac_starts(&auth_ctx, auth_key, cmac_size * 8);
-    if (os_ret != 0) {
+    os_ret = ssl_platform_cipher_cmac_starts(&auth_ctx, auth_key, cmac_size * 8);
+    if (os_ret != SSL_PLATFORM_SUCCESS) {
         return os_ret;
     }
 
     return 0;
 }
 
-int cmac_calc_data(mbedtls_cipher_context_t &auth_ctx, const void *input, size_t ilen)
+int cmac_calc_data(ssl_platform_cipher_context_t &auth_ctx, const void *input, size_t ilen)
 {
     int os_ret;
 
-    os_ret = mbedtls_cipher_cmac_update(&auth_ctx, static_cast<const uint8_t *>(input), ilen);
+    os_ret = ssl_platform_cipher_cmac_update(&auth_ctx, static_cast<const uint8_t *>(input), ilen);
 
     return os_ret;
 }
 
-int cmac_calc_finish(mbedtls_cipher_context_t &auth_ctx, uint8_t *output)
+int cmac_calc_finish(ssl_platform_cipher_context_t &auth_ctx, uint8_t *output)
 {
     int os_ret;
 
-    os_ret = mbedtls_cipher_cmac_finish(&auth_ctx, output);
+    os_ret = ssl_platform_cipher_cmac_finish(&auth_ctx, output);
 
     return os_ret;
 }
@@ -305,7 +303,7 @@ fail:
     }
 
     if (auth_started) {
-        mbedtls_cipher_free(&ih->auth_ctx);
+        ssl_platform_cipher_free(&ih->auth_ctx);
     }
 
     // mark handle as invalid by clearing metadata size field in header
@@ -386,7 +384,7 @@ fail:
         ssl_platform_aes_free(&ih->enc_ctx);
     }
 
-    mbedtls_cipher_free(&ih->auth_ctx);
+    ssl_platform_cipher_free(&ih->auth_ctx);
 
     // mark handle as invalid by clearing metadata size field in header
     ih->metadata.metadata_size = 0;
@@ -452,7 +450,7 @@ end:
         ssl_platform_aes_free(&ih->enc_ctx);
     }
 
-    mbedtls_cipher_free(&ih->auth_ctx);
+    ssl_platform_cipher_free(&ih->auth_ctx);
 
     pal_osMutexRelease(_mutex);
     return ret;
@@ -708,7 +706,7 @@ end:
     }
 
     if (auth_started) {
-        mbedtls_cipher_free(&ih->auth_ctx);
+        ssl_platform_cipher_free(&ih->auth_ctx);
     }
 
     return ret;
