@@ -150,6 +150,15 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
  */
 palStatus_t pal_plat_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult);
 
+/*! \brief Set SNI (Server Name Indication) hostname for TLS connection
+ *
+ * @param[in] palTLSHandle: The TLS context.
+ * @param[in] hostname: Server hostname to set for SNI (NULL to clear).
+ *
+ * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_plat_setSNIHostname(palTLSHandle_t palTLSHandle, const char* hostname);
+
 /*! \brief Read at most 'len' application data bytes.
  *
  * @param[in] palTLSHandle: The TLS context.

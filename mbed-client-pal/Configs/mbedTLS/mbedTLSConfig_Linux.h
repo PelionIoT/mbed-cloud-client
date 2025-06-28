@@ -626,10 +626,7 @@
 /**
  * \def MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
  *
- * Enable the RSA-only based ciphersuite modes in SSL / TLS.
- *
- * Requires: MBEDTLS_RSA_C, MBEDTLS_PKCS1_V15,
- *           MBEDTLS_X509_CRT_PARSE_C
+ * Enable the RSA-based ciphersuite modes in SSL / TLS.
  *
  * This enables the following ciphersuites (if other requisites are
  * enabled as well):
@@ -648,16 +645,22 @@
  *      MBEDTLS_TLS_RSA_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_RSA_WITH_RC4_128_SHA
  *      MBEDTLS_TLS_RSA_WITH_RC4_128_MD5
+ *
+ * PolarSSL-specific name for compatibility
+ *
+ * Requires: MBEDTLS_RSA_C, MBEDTLS_X509_CRT_PARSE_C
+ *
+ * Enable the RSA-based ciphersuite modes in SSL / TLS.
  */
-//#define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
+#define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED
  *
  * Enable the DHE-RSA based ciphersuite modes in SSL / TLS.
  *
- * Requires: MBEDTLS_DHM_C, MBEDTLS_RSA_C, MBEDTLS_PKCS1_V15,
- *           MBEDTLS_X509_CRT_PARSE_C
+ * Requires: MBEDTLS_DHM_C, MBEDTLS_RSA_C, MBEDTLS_X509_CRT_PARSE_C,
+ *           MBEDTLS_PKCS1_V15
  *
  * This enables the following ciphersuites (if other requisites are
  * enabled as well):
@@ -674,6 +677,8 @@
  *      MBEDTLS_TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA256
  *      MBEDTLS_TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA
  *      MBEDTLS_TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA
+ *
+ * PolarSSL-specific name for compatibility
  */
 //#define MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED
 
@@ -682,8 +687,8 @@
  *
  * Enable the ECDHE-RSA based ciphersuite modes in SSL / TLS.
  *
- * Requires: MBEDTLS_ECDH_C, MBEDTLS_RSA_C, MBEDTLS_PKCS1_V15,
- *           MBEDTLS_X509_CRT_PARSE_C
+ * Requires: MBEDTLS_ECP_C, MBEDTLS_RSA_C, MBEDTLS_X509_CRT_PARSE_C,
+ *           MBEDTLS_PKCS1_V15
  *
  * This enables the following ciphersuites (if other requisites are
  * enabled as well):
@@ -700,7 +705,7 @@
  *      MBEDTLS_TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_ECDHE_RSA_WITH_RC4_128_SHA
  */
-//#define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
+#define MBEDTLS_KEY_EXCHANGE_ECDHE_RSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
@@ -2228,6 +2233,7 @@
  * Enable the RSA public-key cryptosystem.
  *
  * Module:  library/rsa.c
+ *          library/rsa_internal.c
  * Caller:  library/ssl_cli.c
  *          library/ssl_srv.c
  *          library/ssl_tls.c
@@ -2238,7 +2244,7 @@
  *
  * Requires: MBEDTLS_BIGNUM_C, MBEDTLS_OID_C
  */
-//#define MBEDTLS_RSA_C
+#define MBEDTLS_RSA_C
 
 /**
  * \def MBEDTLS_SHA1_C

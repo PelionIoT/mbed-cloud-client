@@ -42,7 +42,7 @@
 
 #define TRACE_GROUP "PAL"
 
-#ifdef PAL_NET_TCP_AND_TLS_SUPPORT
+#if (PAL_NET_TCP_AND_TLS_SUPPORT == true)
 #include <netinet/tcp.h>
 #endif
 
@@ -68,6 +68,9 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
         status = PAL_ERR_NO_MEMORY;
         break;
     case EWOULDBLOCK:
+#if EAGAIN != EWOULDBLOCK
+    case EAGAIN:
+#endif
         status = PAL_ERR_SOCKET_WOULD_BLOCK;
         break;
     case ENOTSOCK:
@@ -315,10 +318,12 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
                     {
                         if(fds[i].revents)
                         {
-                            uint32_t filter = POLLOUT|POLLHUP; // filter for specific event that is triggered for non-connected sockets- this event combination shouldn't exist in an active socket.
-
-
-                            if ((fds[i].revents != filter) && ((fds[i].revents != POLLOUT) || (fds[i].revents != s_callbackFilter[i])) ) // this is handlign for a special scenario when a specific event which shouldnt happen is sent to all unconnected sockets in Linux triggering an unwanted callback.
+                            // Allow POLLOUT events for TCP connection completion
+                            // Only filter out the combination of POLLOUT|POLLHUP which indicates a failed connection
+                            uint32_t problematic_filter = POLLOUT|POLLHUP;
+                            
+                            // Always allow standalone POLLOUT (successful connection) and other legitimate events
+                            if ((fds[i].revents != problematic_filter) && (fds[i].revents != s_callbackFilter[i]))
                             {
                                 callbacks[i](callbackArgs[i]);
                             }
@@ -995,7 +1000,7 @@ PAL_PRIVATE palStatus_t registerAsyncSocketParams(palSocket_t socket, palAsyncSo
     clearSocketFilter((intptr_t)socket);
 
     s_fds[s_nfds].fd = (intptr_t)socket;
-    s_fds[s_nfds].events = POLLIN|POLLERR;  //TODO POLLOUT missing is not documented
+    s_fds[s_nfds].events = POLLIN|POLLERR;  // NOTE: POLLOUT is added in asyncSocketManager polling loop for all sockets
     s_callbacks[s_nfds] = callback;
     s_callbackArgs[s_nfds] = callbackArgument;
     s_nfds++;
@@ -1350,8 +1355,8 @@ palStatus_t pal_plat_getDNSAddress(palAddressInfo_t *addressInfo, uint16_t index
     {
         if (count == index)
         {
-            mempcpy((void *)addr, info->ai_addr, info->ai_addrlen);
-            result = PAL_SUCCESS;
+            palSocketLength_t length;
+            result = pal_plat_socketAddressToPalSockAddr(info->ai_addr, addr, &length);
             break;
         }
         count++;

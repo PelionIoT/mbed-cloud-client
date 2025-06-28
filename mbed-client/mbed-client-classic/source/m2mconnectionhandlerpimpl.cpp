@@ -31,6 +31,7 @@
 #include "eventOS_event_timer.h"
 #include "mbed-trace/mbed_trace.h"
 #include <stdlib.h> // free() and malloc()
+#include <stdio.h>
 
 #ifdef MBED_CLOUD_CLIENT_SUPPORT_MULTICAST_UPDATE
 // Copied from socket_api.h since not part of mbed-os master yet
@@ -455,6 +456,9 @@ bool M2MConnectionHandlerPimpl::resolve_server_address(const String &server_addr
 
 void M2MConnectionHandlerPimpl::socket_connect_handler()
 {
+    printf("DEBUG: socket_connect_handler() CALLED - _socket_state=%d\n", _socket_state);
+    fflush(stdout);
+    
     palStatus_t status;
     int32_t security_instance_id = _security->get_security_instance_id(M2MSecurity::M2MServer);
     if (_server_type == M2MConnectionObserver::Bootstrap) {
@@ -494,6 +498,12 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
 
             if (PAL_SUCCESS != status) {
                 tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - setSockAddrPort err: %" PRIx32, status);
+            }
+            
+            // Debug: verify port is correctly set
+            uint16_t check_port;
+            if (pal_getSockAddrPort((palSocketAddress_t *)&_socket_address, &check_port) == PAL_SUCCESS) {
+                tr_info("M2MConnectionHandlerPimpl::socket_connect_handler - Port verification: set %d, actual %d", _server_port, check_port);
             }
 
             if (_socket_address.addressType == PAL_AF_INET) {
@@ -576,19 +586,45 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
         // fall through
         // is a normal flow in case the UDP was used or pal_connect() happened to return immediately with PAL_SUCCESS
         case ESocketStateConnected:
+            printf("DEBUG: socket_connect_handler - ESocketStateConnected reached\n");
+            fflush(stdout);
+            
             if (_security && security_instance_id >= 0) {
+                printf("DEBUG: socket_connect_handler - security checks passed, security_instance_id=%d\n", security_instance_id);
+                fflush(stdout);
+                
                 if (_secure_connection) {
+                    printf("DEBUG: socket_connect_handler - secure connection mode\n");
+                    fflush(stdout);
+                    
                     if (_security_impl != NULL) {
+                        printf("DEBUG: socket_connect_handler - security_impl is valid, calling reset()\n");
+                        fflush(stdout);
+                        
                         _security_impl->reset();
-                        int ret_code = _security_impl->init(_security, security_instance_id, _is_server_ping);
+                        
+                        printf("DEBUG: socket_connect_handler - reset() completed, calling init()\n");
+                        fflush(stdout);
+                        
+                        int ret_code = _security_impl->init(_security, security_instance_id, _is_server_ping, _server_address.c_str());
+                        
+                        printf("DEBUG: socket_connect_handler - init() returned ret_code=%d\n", ret_code);
+                        fflush(stdout);
+                        
                         if (ret_code == M2MConnectionHandler::ERROR_NONE) {
+                            printf("DEBUG: socket_connect_handler - init successful, setting DTLS callback\n");
+                            fflush(stdout);
                             ret_code = _security_impl->set_dtls_socket_callback(&socket_event_handler, this);
                         }
                         if (ret_code == M2MConnectionHandler::ERROR_NONE) {
+                            printf("DEBUG: socket_connect_handler - all successful, starting handshake\n");
+                            fflush(stdout);
                             // Initiate handshake. Perhaps there could be a separate event type for this?
                             _socket_state = ESocketStateHandshaking;
                             send_event(ESocketCallback);
                         } else {
+                            printf("DEBUG: socket_connect_handler - init failed with ret_code=%d\n", ret_code);
+                            fflush(stdout);
                             tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - init failed");
                             close_socket();
 
@@ -601,12 +637,20 @@ void M2MConnectionHandlerPimpl::socket_connect_handler()
                             return;
                         }
                     } else {
+                        printf("DEBUG: socket_connect_handler - security_impl is NULL\n");
+                        fflush(stdout);
                         tr_error("M2MConnectionHandlerPimpl::socket_connect_handler - sec is null");
                         close_socket();
                         _observer.socket_error(M2MConnectionHandler::SSL_CONNECTION_ERROR, true);
                         return;
                     }
+                } else {
+                    printf("DEBUG: socket_connect_handler - non-secure connection mode\n");
+                    fflush(stdout);
                 }
+            } else {
+                printf("DEBUG: socket_connect_handler - security checks failed, _security=%p, security_instance_id=%d\n", (void*)_security, security_instance_id);
+                fflush(stdout);
             }
             if (_socket_state != ESocketStateHandshaking) {
                 _socket_state = ESocketStateUnsecureConnection;

@@ -220,8 +220,8 @@ add_library(palEntropy STATIC "${PAL_ENTROPY_SRCS}")
 
 # Create the TLS module library
 add_library(palTLS STATIC "${PAL_TLS_SRCS}")
-add_dependencies(palTLS palTime key-config-manager nanostackeventloop palDRBG PLATFORM_LIBS)
-target_link_libraries(palTLS palTime key-config-manager nanostackeventloop palDRBG PLATFORM_LIBS)
+add_dependencies(palTLS palTime key-config-manager nanostackeventloop palDRBG PLATFORM_LIBS ssl-platform)
+target_link_libraries(palTLS palTime key-config-manager nanostackeventloop palDRBG PLATFORM_LIBS ssl-platform)
 
 # Create the DRBG module library
 add_library(palDRBG STATIC "${PAL_DRBG_SRCS}")

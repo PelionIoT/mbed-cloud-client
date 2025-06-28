@@ -32,8 +32,8 @@ void M2MConnectionSecurity::reset(){
     _private_impl->reset();
 }
 
-int M2MConnectionSecurity::init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping){
-    return _private_impl->init(security, security_instance_id, is_server_ping);
+int M2MConnectionSecurity::init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping, const char *hostname){
+    return _private_impl->init(security, security_instance_id, is_server_ping, hostname);
 }
 
 int M2MConnectionSecurity::connect(M2MConnectionHandler* connHandler, bool is_server_ping){

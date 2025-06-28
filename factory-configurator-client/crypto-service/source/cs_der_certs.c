@@ -164,6 +164,8 @@ kcm_status_e cs_check_der_x509_format(const uint8_t *cert, size_t cert_length)
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cert == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid cert pointer");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((cert_length <= 0), KCM_STATUS_INVALID_PARAMETER, "Invalid cert_length");
 
+
+
     //Allocate and Init certificate handler
     pal_status = pal_x509Initiate(&x509_cert);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((pal_status != FCC_PAL_SUCCESS), cs_error_handler(pal_status), "pal_x509Initiate failed");

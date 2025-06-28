@@ -77,7 +77,7 @@ typedef enum {
 
 /*! \brief Socket types supported by PAL. */
 typedef enum {
-#if PAL_NET_TCP_AND_TLS_SUPPORT
+#if (PAL_NET_TCP_AND_TLS_SUPPORT == true)
     PAL_SOCK_STREAM = 1,    /*!< \brief Stream socket.   */
     PAL_SOCK_STREAM_SERVER = 99,    /*!< \brief Stream socket.   */
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
@@ -87,7 +87,7 @@ typedef enum {
 /*! \brief Socket options supported by PAL. */
 typedef enum {
     PAL_SO_REUSEADDR = 0x0004,  /*!< \brief Allow local address reuse. */
-#if PAL_NET_TCP_AND_TLS_SUPPORT // Socket options below supported only if TCP is supported.
+#if (PAL_NET_TCP_AND_TLS_SUPPORT == true) // Socket options below supported only if TCP is supported.
     PAL_SO_KEEPALIVE = 0x0008, /*!< \brief Keep TCP connection open even if idle using periodic messages. */
     PAL_SO_KEEPIDLE = 0x0009,  /*!< \brief The time (in seconds) the connection needs to remain idle before TCP starts sending keepalive probes, if the socket option `SO_KEEPALIVE` has been set on this socket. */
     PAL_SO_KEEPINTVL = 0x0010, /*!< \brief The time (in seconds) between individual keepalive probes */

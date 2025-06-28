@@ -65,7 +65,7 @@ public:
     /**
      * \brief Initiatlizes the socket connection states.
      */
-    int init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping);
+    int init(const M2MSecurity *security, uint16_t security_instance_id, bool is_server_ping, const char *hostname = NULL);
 
     /**
      * \brief Connects the client to the server.

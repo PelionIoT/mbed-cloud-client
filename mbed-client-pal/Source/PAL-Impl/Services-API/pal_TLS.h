@@ -39,7 +39,7 @@ typedef uintptr_t palTLSHandle_t;
 typedef uintptr_t palTLSConfHandle_t;
 
 typedef enum palTLSTranportMode{
-#ifdef PAL_NET_TCP_AND_TLS_SUPPORT
+#if (PAL_NET_TCP_AND_TLS_SUPPORT == true)
     PAL_TLS_MODE, //(STREAM)
 #endif //PAL_NET_TCP_AND_TLS_SUPPORT
     PAL_DTLS_MODE //(DATAGRAM)
@@ -231,6 +231,15 @@ palStatus_t pal_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t minT
  * \return PAL_ERR_X509_CERT_VERIFY_FAILED in case of failure.
  */
 palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult);
+
+/*! \brief Set SNI (Server Name Indication) hostname for TLS connection
+ *
+ * @param[in] palTLSHandle: The TLS context.
+ * @param[in] hostname: Server hostname to set for SNI (NULL to clear).
+ *
+ * \return PAL_SUCCESS on success. A negative value indicating a specific error code in case of failure.
+ */
+palStatus_t pal_setSNIHostname(palTLSHandle_t palTLSHandle, const char* hostname);
 
 /*! \brief Read the application data bytes (the max number of bytes).
  *

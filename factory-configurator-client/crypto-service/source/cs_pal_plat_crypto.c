@@ -46,6 +46,7 @@
 
 // Add ssl-platform include at the top
 #include "ssl_platform.h"
+#include "ssl_platform_mpi_ext.h"
 #include <stdio.h>
 
 #define TRACE_GROUP "PAL"
@@ -274,6 +275,7 @@ palStatus_t pal_plat_x509CertParse(palX509Handle_t x509, const unsigned char* in
     localCtx = (palX509Ctx_t*)x509;
     
     platStatus = ssl_platform_x509_crt_parse(&localCtx->ssl_crt, input, inLen);
+    
     if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         status = FCC_PAL_ERR_X509_CERT_VERIFY_FAILED;
@@ -329,11 +331,18 @@ static palStatus_t pal_plat_X509GetField(palX509Ctx_t* x509Ctx, const char* fiel
     
     if (strcmp(fieldName, "CN") == 0 || strcmp(fieldName, "L") == 0 || strcmp(fieldName, "OU") == 0) {
         // Get the full subject name and parse the requested field
-        char subject_name[256];
+        // Increase buffer size to handle longer certificate subject names
+        char subject_name[2048];  // Increased for very long subject names
+        memset(subject_name, 0, sizeof(subject_name));
+        
         platStatus = ssl_platform_x509_get_subject_name(&x509Ctx->ssl_crt, subject_name, sizeof(subject_name));
         if (platStatus != SSL_PLATFORM_SUCCESS) {
+            // Add more detailed error logging
+            printf("ERROR: ssl_platform_x509_get_subject_name failed with code %d\n", platStatus);
             return FCC_PAL_ERR_GENERIC_FAILURE;
         }
+        
+        printf("DEBUG: Certificate subject name: '%s'\n", subject_name);
         
         // Parse the subject name to find the requested field
         // Subject name format: "CN=device123,L=Helsinki,O=ARM"
@@ -342,6 +351,7 @@ static palStatus_t pal_plat_X509GetField(palX509Ctx_t* x509Ctx, const char* fiel
         
         char* field_start = strstr(subject_name, field_prefix);
         if (field_start == NULL) {
+            printf("DEBUG: Field '%s' not found in subject name\n", fieldName);
             return FCC_PAL_ERR_INVALID_X509_ATTR;
         }
         
@@ -357,9 +367,12 @@ static palStatus_t pal_plat_X509GetField(palX509Ctx_t* x509Ctx, const char* fiel
             field_len = strlen(field_start);
         }
         
+        printf("DEBUG: Field '%s' value length: %zu\n", fieldName, field_len);
+        
         // Check if output buffer is large enough
         if (field_len >= outLenBytes) {
             *actualOutLenBytes = field_len + 1; // +1 for null terminator
+            printf("DEBUG: Buffer too small - need %zu, have %zu\n", field_len + 1, outLenBytes);
             return FCC_PAL_ERR_BUFFER_TOO_SMALL;
         }
         
@@ -368,6 +381,7 @@ static palStatus_t pal_plat_X509GetField(palX509Ctx_t* x509Ctx, const char* fiel
         ((char*)output)[field_len] = '\0';
         *actualOutLenBytes = field_len + 1;
         
+        printf("DEBUG: Extracted field '%s' = '%s'\n", fieldName, (char*)output);
         status = FCC_PAL_SUCCESS;
     } else {
         status = FCC_PAL_ERR_NOT_SUPPORTED_CURVE;
@@ -1499,7 +1513,7 @@ static palStatus_t pal_plat_ECCheckPrivateKey(palECGroup_t* ecpGroup, palECKeyHa
         return FCC_PAL_ERR_INVALID_ARGUMENT;
     }
 
-    prvMP = &((mbedtls_ecp_keypair*)prv_mbedtls_ctx->pk_ctx)->d;
+    prvMP = (mbedtls_mpi*)ssl_platform_ecp_keypair_get_private_key((ssl_platform_ecp_keypair_t*)prv_mbedtls_ctx->pk_ctx);
 
     platStatus =  mbedtls_ecp_check_privkey(ecpGroup, prvMP);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
@@ -1527,7 +1541,7 @@ static palStatus_t pal_plat_ECCheckPublicKey(palECGroup_t* ecpGroup, palECKeyHan
         return FCC_PAL_ERR_INVALID_ARGUMENT;
     }
 
-    pubPoint = &((mbedtls_ecp_keypair*)pub_mbedtls_ctx->pk_ctx)->Q;
+    pubPoint = (mbedtls_ecp_point*)ssl_platform_ecp_keypair_get_public_key((ssl_platform_ecp_keypair_t*)pub_mbedtls_ctx->pk_ctx);
 
     platStatus =  mbedtls_ecp_check_pubkey(ecpGroup, pubPoint);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
@@ -2030,7 +2044,9 @@ palStatus_t pal_plat_ECKeyGetCurve(palECKeyHandle_t key, palGroupIndex_t* grpID)
     }
     keyPair = (mbedtls_ecp_keypair*)mbedtls_ctx->pk_ctx;
 
-    switch(keyPair->grp.id)
+    ssl_platform_ecp_group_t *ssl_group = (ssl_platform_ecp_group_t*)ssl_platform_ecp_keypair_get_group((ssl_platform_ecp_keypair_t*)keyPair);
+    int group_id = ssl_platform_ecp_group_get_id(ssl_group);
+    switch(group_id)
     {
         case MBEDTLS_ECP_DP_SECP256R1:
             *grpID = PAL_ECP_DP_SECP256R1;
@@ -2120,7 +2136,10 @@ palStatus_t pal_plat_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHa
 
     if (NULL != pubKeyPair && NULL != prvKeyPair && NULL != outKeyPair)
     {
-        platStatus = mbedtls_ecdh_compute_shared(ecpGroup, &outKeyPair->d, &pubKeyPair->Q, &prvKeyPair->d, mbedtls_ctr_drbg_random, (void*)&ctrDrbgCtx);
+        mbedtls_mpi *outKeyPair_d = (mbedtls_mpi*)ssl_platform_ecp_keypair_get_private_key((ssl_platform_ecp_keypair_t*)outKeyPair);
+        mbedtls_ecp_point *pubKeyPair_Q = (mbedtls_ecp_point*)ssl_platform_ecp_keypair_get_public_key((ssl_platform_ecp_keypair_t*)pubKeyPair);
+        mbedtls_mpi *prvKeyPair_d = (mbedtls_mpi*)ssl_platform_ecp_keypair_get_private_key((ssl_platform_ecp_keypair_t*)prvKeyPair);
+        platStatus = mbedtls_ecdh_compute_shared(ecpGroup, outKeyPair_d, pubKeyPair_Q, prvKeyPair_d, mbedtls_ctr_drbg_random, (void*)&ctrDrbgCtx);
         if (CRYPTO_PLAT_SUCCESS != platStatus)
         {
             status = FCC_PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
@@ -2241,7 +2260,9 @@ palStatus_t pal_plat_ECDHKeyAgreement(
     pubPeerKeyPair = (mbedtls_ecp_keypair*)pub_peer_mbedtls_ctx->pk_ctx;
 
     //Get raw public key data
-    platStatus = mbedtls_ecp_point_write_binary(&pubPeerKeyPair->grp, &pubPeerKeyPair->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &act_raw_public_key_size, raw_public_key, sizeof(raw_public_key));
+    mbedtls_ecp_group *pubPeerKeyPair_grp = (mbedtls_ecp_group*)ssl_platform_ecp_keypair_get_group((ssl_platform_ecp_keypair_t*)pubPeerKeyPair);
+    mbedtls_ecp_point *pubPeerKeyPair_Q = (mbedtls_ecp_point*)ssl_platform_ecp_keypair_get_public_key((ssl_platform_ecp_keypair_t*)pubPeerKeyPair);
+    platStatus = mbedtls_ecp_point_write_binary(pubPeerKeyPair_grp, pubPeerKeyPair_Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &act_raw_public_key_size, raw_public_key, sizeof(raw_public_key));
     if (platStatus != FCC_PAL_SUCCESS || act_raw_public_key_size!= PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE) {
         status = FCC_PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY;
         goto finish;
@@ -2415,19 +2436,51 @@ static palStatus_t ecdsa_signature_to_asn1(const mbedtls_mpi *r, const mbedtls_m
     unsigned char buf[PAL_ECDSA_SECP256R1_SIGNATURE_DER_SIZE];
     unsigned char *p = buf + sizeof(buf);
     int len = 0;
+    
+    // Create SSL platform MPI wrappers for the mbedtls_mpi values
+    ssl_platform_mpi_t ssl_r, ssl_s;
+    
+    // Initialize the SSL platform MPI structures
+    ssl_platform_mpi_init(&ssl_r);
+    ssl_platform_mpi_init(&ssl_s);
+    
+    // Copy the mbedtls_mpi values to ssl_platform_mpi_t structures
+    // Use mbedtls_mpi_copy to properly copy the MPI data
+    mbedtls_mpi *ssl_r_mpi = (mbedtls_mpi*)ssl_platform_mpi_get_backend_context(&ssl_r);
+    ret = mbedtls_mpi_copy(ssl_r_mpi, r);
+    if (ret != 0) {
+        ssl_platform_mpi_free(&ssl_r);
+        ssl_platform_mpi_free(&ssl_s);
+        return FCC_PAL_ERR_ECP_BAD_INPUT_DATA;
+    }
+    
+    mbedtls_mpi *ssl_s_mpi = (mbedtls_mpi*)ssl_platform_mpi_get_backend_context(&ssl_s);
+    ret = mbedtls_mpi_copy(ssl_s_mpi, s);
+    if (ret != 0) {
+        ssl_platform_mpi_free(&ssl_r);
+        ssl_platform_mpi_free(&ssl_s);
+        return FCC_PAL_ERR_ECP_BAD_INPUT_DATA;
+    }
 
-    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_mpi(&p, buf, (const mbedtls_mpi *)s));
-    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_mpi(&p, buf, (const mbedtls_mpi *)r));
+    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_mpi(&p, buf, &ssl_s));
+    MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_mpi(&p, buf, &ssl_r));
 
     MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_len(&p, buf, (size_t)len));
     MBEDTLS_ASN1_CHK_ADD(len, ssl_platform_asn1_write_tag(&p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE));
 
     if (sigMaxSize < (size_t)len) {
+        // Clean up before returning error
+        ssl_platform_mpi_free(&ssl_r);
+        ssl_platform_mpi_free(&ssl_s);
         return FCC_PAL_ERR_BUFFER_TOO_SMALL;
     }
 
     memcpy(sig, p, (size_t)len);
     *sigActSizeOut =(size_t) len;
+
+    // Clean up the SSL platform MPI structures
+    ssl_platform_mpi_free(&ssl_r);
+    ssl_platform_mpi_free(&ssl_s);
 
     return FCC_PAL_SUCCESS;
 }
@@ -2448,6 +2501,7 @@ palStatus_t pal_plat_convertRawSignatureToDer(const unsigned char *rawSignature,
         status = FCC_PAL_ERR_ECP_BAD_INPUT_DATA;
         goto cleanup;
     }
+    
     //Read s component
     platStatus = mbedtls_mpi_read_binary(&s, rawSignature + rawSignatureSize /2, rawSignatureSize /2);
     if (platStatus != CRYPTO_PLAT_SUCCESS)
@@ -2491,7 +2545,7 @@ palStatus_t pal_plat_asymmetricSign( palECKeyHandle_t privateKeyHandle, palMDTyp
 
     //Create signature in asn1 format
     ssl_platform_hash_type_t ssl_md_alg = (mdAlg == MBEDTLS_MD_SHA256) ? SSL_PLATFORM_HASH_SHA256 : SSL_PLATFORM_HASH_SHA256;
-    platStatus = ssl_platform_pk_sign(localECKey, ssl_md_alg, hash, hashSize, derSignature, &derSignatureSize, NULL, NULL);
+    platStatus = ssl_platform_pk_sign(localECKey, ssl_md_alg, hash, hashSize, derSignature, &derSignatureSize, pal_plat_entropySource, NULL);
     if (platStatus != SSL_PLATFORM_SUCCESS) {
         status = FCC_PAL_ERR_PK_SIGN_FAILED;
         return status;
@@ -2612,7 +2666,9 @@ palStatus_t pal_plat_x509CSRSetKey(palx509CSRHandle_t x509CSR, palECKeyHandle_t 
 
         if (NULL != pubKeyPair && NULL != prvKeyPair)
         {
-            platStatus = mbedtls_mpi_copy(&(pubKeyPair->d), &(prvKeyPair->d));
+            ssl_platform_mpi_t *pubKeyPair_d = (ssl_platform_mpi_t*)ssl_platform_ecp_keypair_get_private_key((ssl_platform_ecp_keypair_t*)pubKeyPair);
+            ssl_platform_mpi_t *prvKeyPair_d = (ssl_platform_mpi_t*)ssl_platform_ecp_keypair_get_private_key((ssl_platform_ecp_keypair_t*)prvKeyPair);
+            platStatus = ssl_platform_mpi_copy(pubKeyPair_d, prvKeyPair_d);
             if (CRYPTO_PLAT_SUCCESS != platStatus)
             {
                 status = FCC_PAL_ERR_FAILED_TO_COPY_KEYPAIR;
@@ -2846,7 +2902,6 @@ palStatus_t pal_plat_x509CertGetHTBS(palX509Handle_t x509Cert, palMDType_t hash_
     
     return status;
 }
-
 static int copy_X509_v3_extensions_to_CSR(unsigned char *ext_v3_start, size_t ext_v3_len, palx509CSR_t *x509CSR)
 {
     int ret;
@@ -3056,5 +3111,6 @@ struct tm *gmtime_r(const time_t *timep, struct tm * result)
 
 // Stub function implementations  
 // SSL-Platform X.509 functions are now properly implemented - no more stubs needed
+
 
 

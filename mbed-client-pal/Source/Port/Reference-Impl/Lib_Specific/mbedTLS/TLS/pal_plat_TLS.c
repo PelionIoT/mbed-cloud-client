@@ -32,6 +32,7 @@
 
 #include "eventOS_scheduler.h"
 #include "eventOS_event_timer.h"
+#include <stdio.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -74,8 +75,8 @@ unsigned char mbedtls_buf[PAL_STATIC_MEMBUF_SIZE_FOR_MBEDTLS];
 #endif // #ifdef PAL_STATIC_MEMBUF_SECTION_NAME
 #endif // #if PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS
 
-typedef mbedtls_ssl_context platTlsContext;
-typedef mbedtls_ssl_config platTlsConfigurationContext;
+typedef ssl_platform_ssl_context_t platTlsContext;
+typedef ssl_platform_ssl_config_t platTlsConfigurationContext;
 
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
 /** Following items need to be stored from mbedtlsssl_session info structure
@@ -133,19 +134,19 @@ typedef struct palTLS {
 //! the full structures will be defined later in the implemetation.
 typedef struct palTLSConf {
     platTlsConfigurationContext* confCtx;
-    palTLSSocketHandle_t palIOCtx; // which will be used as bio context for mbedTLS
+    palTLSSocketHandle_t palIOCtx; // which will be used as bio context for ssl-platform
     palTLS_t* tlsContext; // to help us to get the index of the containing palTLS_t in the array. will be updated in the init
                           // maybe we need to make this an array, since index can be shared for more than one TLS context
-    mbedtls_ctr_drbg_context ctrDrbg;
+    ssl_platform_ctr_drbg_context_t ctrDrbg;
     palTimingDelayContext_t timerCtx;
 #if (PAL_ENABLE_X509 == 1)
-    mbedtls_x509_crt owncert;
-    mbedtls_x509_crt cacert;
+    ssl_platform_x509_crt_t owncert;
+    ssl_platform_x509_crt_t cacert;
 #endif
     ssl_platform_pk_context_t pkey;
     bool hasKeys;
     bool hasChain;
-    int cipherSuites[PAL_MAX_ALLOWED_CIPHER_SUITES + 1];  // The +1 is for the Zero Termination required by mbedTLS
+    int cipherSuites[PAL_MAX_ALLOWED_CIPHER_SUITES + 1];  // The +1 is for the Zero Termination required by ssl-platform
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     bool hasKeyHandle;
     psa_key_handle_t key_handle;
@@ -161,24 +162,31 @@ PAL_PRIVATE palStatus_t translateTLSErrToPALError(int32_t error)
             status = PAL_ERR_END_OF_FILE;
             break;
         case MBEDTLS_ERR_SSL_WANT_READ:
+        case SSL_PLATFORM_ERROR_WANT_READ:
             status = PAL_ERR_TLS_WANT_READ;
             break;
         case MBEDTLS_ERR_SSL_WANT_WRITE:
+        case SSL_PLATFORM_ERROR_WANT_WRITE:
             status = PAL_ERR_TLS_WANT_WRITE;
             break;
         case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:
+        case SSL_PLATFORM_ERROR_HELLO_VERIFY_REQUIRED:
             status = PAL_ERR_TLS_HELLO_VERIFY_REQUIRED;
             break;
         case MBEDTLS_ERR_SSL_TIMEOUT:
+        case SSL_PLATFORM_ERROR_TIMEOUT:
             status = PAL_ERR_TIMEOUT_EXPIRED;
             break;
         case MBEDTLS_ERR_SSL_BAD_INPUT_DATA:
+        case SSL_PLATFORM_ERROR_BAD_INPUT_DATA:
             status = PAL_ERR_TLS_BAD_INPUT_DATA;
             break;
         case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
+        case SSL_PLATFORM_ERROR_CLIENT_RECONNECT:
             status = PAL_ERR_TLS_CLIENT_RECONNECT;
             break;
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+        case SSL_PLATFORM_ERROR_PEER_CLOSE_NOTIFY:
             status = PAL_ERR_TLS_PEER_CLOSE_NOTIFY;
             break;
 #if (PAL_ENABLE_X509 == 1)
@@ -210,15 +218,17 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
     palStatus_t status;
     switch(error)
     {
-        case SSL_LIB_SUCCESS:
+        case SSL_LIB_SUCCESS: // Same as SSL_PLATFORM_SUCCESS (0)
             status = PAL_SUCCESS;
             tlsCtx->wantReadOrWrite = false;
             break;
         case MBEDTLS_ERR_SSL_WANT_READ:
+        case SSL_PLATFORM_ERROR_WANT_READ:
             status = PAL_ERR_TLS_WANT_READ;
             tlsCtx->wantReadOrWrite = true;
             break;
         case MBEDTLS_ERR_SSL_WANT_WRITE:
+        case SSL_PLATFORM_ERROR_WANT_WRITE:
             status = PAL_ERR_TLS_WANT_WRITE;
             tlsCtx->wantReadOrWrite = true;
             break;
@@ -226,6 +236,7 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
             status = PAL_ERR_TLS_HELLO_VERIFY_REQUIRED;
             break;
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+        case SSL_PLATFORM_ERROR_PEER_CLOSE_NOTIFY:
             status = PAL_ERR_TLS_PEER_CLOSE_NOTIFY;
             break;
 #if (PAL_ENABLE_X509 == 1)
@@ -252,9 +263,11 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
             status = PAL_ERR_NO_MEMORY;
             break;
         case MBEDTLS_ERR_SSL_TIMEOUT:
+        case SSL_PLATFORM_ERROR_TIMEOUT:
             status = PAL_ERR_TLS_TIMEOUT;
             break;
         case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
+        case SSL_PLATFORM_ERROR_CLIENT_RECONNECT:
             status = PAL_ERR_TLS_CLIENT_RECONNECT;
             break;
 #if (PAL_USE_SSL_SESSION_RESUME == 1)
@@ -262,8 +275,8 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
         	status =  PAL_ERR_TLS_SSL_VERSION_MISMATCH;
         	break;
 #endif
-        case PAL_ERR_NO_MEMORY:
-            status = PAL_ERR_NO_MEMORY;
+        case SSL_PLATFORM_ERROR_BAD_INPUT_DATA:
+            status = PAL_ERR_TLS_BAD_INPUT_DATA;
             break;
         default:
             PAL_LOG_ERR("SSL handshake return code -0x%" PRIx32 ".", -error);
@@ -291,23 +304,22 @@ palStatus_t pal_plat_initTLSLibrary(void)
 {
     palStatus_t status = PAL_SUCCESS;
 
-    g_entropy = (mbedtls_entropy_context*)malloc(sizeof(mbedtls_entropy_context));
-    if (NULL == g_entropy)
+    // Use ssl-platform to initialize PAL's entropy context
+    // This maintains the abstraction layer properly
+    int ssl_ret = ssl_platform_pal_entropy_init();
+    if (ssl_ret != SSL_PLATFORM_SUCCESS)
     {
         status = PAL_ERR_NO_MEMORY;
         goto finish;
     }
-    else
+    
+    g_entropy = (mbedtls_entropy_context*)ssl_platform_pal_entropy_get();
+    if (g_entropy == NULL)
     {
-        /**
-         * Clean buffer before initialization. Some platform implementations
-         * does not handle mutex initialization correctly when buffers are
-         * dirty.
-         */
-        memset(g_entropy, 0, sizeof(mbedtls_entropy_context));
-        mbedtls_entropy_init(g_entropy);
-        g_entropyInitiated = false;
+        status = PAL_ERR_NO_MEMORY;
+        goto finish;
     }
+    g_entropyInitiated = false;
 
 #if defined(PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS)
     mbedtls_memory_buffer_alloc_init(mbedtls_buf, sizeof(mbedtls_buf));
@@ -340,12 +352,10 @@ finish:
 palStatus_t pal_plat_cleanupTLS(void)
 {
     palStatus_t status = PAL_SUCCESS;
-    if(g_entropy != NULL)
-    {
-        mbedtls_entropy_free(g_entropy);
-    }
+    
+    // Use ssl-platform to cleanup PAL's entropy context
+    ssl_platform_pal_entropy_cleanup();
     g_entropyInitiated = false;
-    free(g_entropy);
     g_entropy = NULL;
 
 #if defined(PAL_USE_STATIC_MEMBUF_FOR_MBEDTLS)
@@ -388,8 +398,9 @@ palStatus_t pal_plat_addEntropySource(palEntropySource_f entropyCallback)
 
     if (!g_entropyInitiated)
     {
-        platStatus = mbedtls_entropy_add_source(g_entropy, entropyCallback, NULL, PAL_INITIAL_RANDOM_SIZE, MBEDTLS_ENTROPY_SOURCE_STRONG );
-        if (SSL_LIB_SUCCESS != platStatus)
+        // Use ssl-platform to add entropy source
+        int ssl_ret = ssl_platform_pal_entropy_add_source(entropyCallback, NULL, PAL_INITIAL_RANDOM_SIZE, MBEDTLS_ENTROPY_SOURCE_STRONG);
+        if (SSL_PLATFORM_SUCCESS != ssl_ret)
         {
             status = PAL_ERR_TLS_CONFIG_INIT;
         }
@@ -437,11 +448,11 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
 
     memset(localConfigCtx->cipherSuites, 0,(sizeof(int)* (PAL_MAX_ALLOWED_CIPHER_SUITES+1)) );
     memset(&(localConfigCtx->timerCtx), 0, sizeof(palTimingDelayContext_t));
-    mbedtls_ssl_config_init(localConfigCtx->confCtx);
+    ssl_platform_ssl_config_init(localConfigCtx->confCtx);
 
 #if (PAL_ENABLE_X509 == 1)
-    mbedtls_x509_crt_init(&localConfigCtx->owncert);
-    mbedtls_x509_crt_init(&localConfigCtx->cacert);
+    ssl_platform_x509_crt_init(&localConfigCtx->owncert);
+    ssl_platform_x509_crt_init(&localConfigCtx->cacert);
 #endif
 
     if (PAL_TLS_IS_CLIENT == methodType)
@@ -453,40 +464,54 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
         endpoint = MBEDTLS_SSL_IS_SERVER;
     }
 
+#if (PAL_NET_TCP_AND_TLS_SUPPORT == true)
     if (PAL_TLS_MODE == transportVersion)
     {
         transport = MBEDTLS_SSL_TRANSPORT_STREAM;
     }
     else
+#endif
     {
         transport = MBEDTLS_SSL_TRANSPORT_DATAGRAM;
     }
-    platStatus = mbedtls_ssl_config_defaults(localConfigCtx->confCtx, endpoint, transport, MBEDTLS_SSL_PRESET_DEFAULT);
-    if (SSL_LIB_SUCCESS != platStatus)
+    // Convert mbedtls constants to ssl-platform constants
+    int ssl_platform_endpoint = (endpoint == MBEDTLS_SSL_IS_CLIENT) ? 
+                                SSL_PLATFORM_SSL_IS_CLIENT : SSL_PLATFORM_SSL_IS_SERVER;
+    int ssl_platform_transport = (transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM) ? 
+                                 SSL_PLATFORM_SSL_TRANSPORT_DATAGRAM : SSL_PLATFORM_SSL_TRANSPORT_STREAM;
+    
+    // Use ssl-platform API directly on our ssl-platform configuration context
+    platStatus = ssl_platform_ssl_config_defaults(localConfigCtx->confCtx, 
+                                                  ssl_platform_endpoint, 
+                                                  ssl_platform_transport, 
+                                                  SSL_PLATFORM_SSL_PRESET_DEFAULT);
+    
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         PAL_LOG_ERR("TLS Init conf status %" PRId32 ".", platStatus);
         status = PAL_ERR_TLS_CONFIG_INIT;
         goto finish;
     }
 
-    mbedtls_ctr_drbg_init(&localConfigCtx->ctrDrbg);
+    // Initialize PAL's own CTR-DRBG for this TLS configuration
+    // ssl-platform will handle its internal SSL/TLS RNG separately
+    ssl_platform_ctr_drbg_init(&localConfigCtx->ctrDrbg);
     status = pal_plat_addEntropySource(pal_plat_entropySourceTLS);
     if (PAL_SUCCESS != status)
     {
         goto finish;
     }
 
-    platStatus = mbedtls_ctr_drbg_seed(&localConfigCtx->ctrDrbg, mbedtls_entropy_func, g_entropy, NULL, 0); //Custom data can be defined in
-                                                                                          //pal_TLS.h header and to be defined by
-                                                                                          //Service code. But we need to check if other platform support this
-                                                                                          //input!
-    if (SSL_LIB_SUCCESS != platStatus)
+    // Use ssl-platform entropy function instead of direct mbed-TLS
+    platStatus = ssl_platform_ctr_drbg_seed(&localConfigCtx->ctrDrbg, ssl_platform_entropy_func, g_entropy, NULL, 0);
+    if (SSL_PLATFORM_SUCCESS != platStatus)
     {
         status = PAL_ERR_TLS_CONFIG_INIT;
         goto finish;
     }
 
-    mbedtls_ssl_conf_rng(localConfigCtx->confCtx, mbedtls_ctr_drbg_random, &localConfigCtx->ctrDrbg);
+    // Let ssl-platform handle its own RNG internally - this avoids conflicts
+    ssl_platform_ssl_conf_rng(localConfigCtx->confCtx, ssl_platform_ctr_drbg_random, &localConfigCtx->ctrDrbg);
     *palConfCtx = (uintptr_t)localConfigCtx;
 
 finish:
@@ -528,19 +553,19 @@ palStatus_t pal_plat_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf)
             psa_status = psa_close_key(localConfigCtx->key_handle);
         }
 #endif
-        mbedtls_pk_free(&localConfigCtx->pkey);
+        ssl_platform_pk_free(&localConfigCtx->pkey);
 #if (PAL_ENABLE_X509 == 1)
-        mbedtls_x509_crt_free(&localConfigCtx->owncert);
+        ssl_platform_x509_crt_free(&localConfigCtx->owncert);
     }
 
     if (true == localConfigCtx->hasChain)
     {
-        mbedtls_x509_crt_free(&localConfigCtx->cacert);
+        ssl_platform_x509_crt_free(&localConfigCtx->cacert);
 #endif
     }
 
-    mbedtls_ssl_config_free(localConfigCtx->confCtx);
-    mbedtls_ctr_drbg_free(&localConfigCtx->ctrDrbg);
+    ssl_platform_ssl_config_free(localConfigCtx->confCtx);
+    ssl_platform_ctr_drbg_free(&localConfigCtx->ctrDrbg);
 
     // Cancel possible outstanding timer event
     eventOS_cancel(localConfigCtx->timerCtx.timer_event);
@@ -563,22 +588,24 @@ palStatus_t pal_plat_tlsConfigurationFree(palTLSConfHandle_t* palTLSConf)
 palStatus_t pal_plat_initTLS(palTLSConfHandle_t palTLSConf, palTLSHandle_t* palTLSHandle)
 {
     palStatus_t status = PAL_SUCCESS;
-    palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
-
-    palTLS_t* localTLSHandle = (palTLS_t*)malloc( sizeof(palTLS_t));
-    if (NULL == localTLSHandle)
+    palTLS_t* localTLSCtx = (palTLS_t*)malloc( sizeof(palTLS_t));
+    if (NULL == localTLSCtx)
     {
         status = PAL_ERR_TLS_RESOURCE;
         goto finish;
     }
 
-    memset(localTLSHandle, 0 , sizeof(palTLS_t));
-    mbedtls_ssl_init(&localTLSHandle->tlsCtx);
-    localConfigCtx->tlsContext = localTLSHandle;
-    localTLSHandle->tlsInit = true;
+    memset(localTLSCtx, 0 , sizeof(palTLS_t));
+    ssl_platform_ssl_init(&localTLSCtx->tlsCtx);
+    palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
+    localConfigCtx->tlsContext = localTLSCtx;
+    localTLSCtx->tlsInit = true;
     memset(&localConfigCtx->timerCtx, 0 , sizeof(palTimingDelayContext_t));
-    mbedtls_ssl_set_timer_cb(&localTLSHandle->tlsCtx, &localConfigCtx->timerCtx, palTimingSetDelay, palTimingGetDelay);
-    *palTLSHandle = (palTLSHandle_t)localTLSHandle;
+    
+    // Use ssl-platform API directly on our ssl-platform context
+    ssl_platform_ssl_set_timer_cb(&localTLSCtx->tlsCtx, &localConfigCtx->timerCtx, palTimingSetDelay, palTimingGetDelay);
+    
+    *palTLSHandle = (palTLSHandle_t)localTLSCtx;
 
     create_eventloop();
 
@@ -609,7 +636,7 @@ palStatus_t pal_plat_freeTLS(palTLSHandle_t* palTLSHandle)
     }
 
 
-    mbedtls_ssl_free(&localTLSCtx->tlsCtx);
+    ssl_platform_ssl_free(&localTLSCtx->tlsCtx);
     free(localTLSCtx);
     *palTLSHandle = NULLPTR;
 
@@ -639,7 +666,9 @@ palStatus_t pal_plat_setAuthenticationMode(palTLSConfHandle_t sslConf, palTLSAut
             status = PAL_ERR_INVALID_ARGUMENT;
             goto finish;
     };
-    mbedtls_ssl_conf_authmode(localConfigCtx->confCtx, platAuthMode );
+    
+    // Use ssl-platform API directly on our ssl-platform configuration context
+    ssl_platform_ssl_conf_authmode(localConfigCtx->confCtx, platAuthMode);
 
 finish:
     return status;
@@ -697,7 +726,9 @@ palStatus_t pal_plat_setCipherSuites(palTLSConfHandle_t sslConf, palTLSSuites_t 
         tr_debug("localConfigCtx->cipherSuites[%d]=0x%x", i, localConfigCtx->cipherSuites[i]);
         i++;
     }
-    mbedtls_ssl_conf_ciphersuites(localConfigCtx->confCtx, localConfigCtx->cipherSuites);
+    // Use ssl-platform API directly on our ssl-platform configuration context
+    ssl_platform_ssl_conf_ciphersuites(localConfigCtx->confCtx, localConfigCtx->cipherSuites);
+
 finish:
     return status;
 }
@@ -710,7 +741,7 @@ palStatus_t pal_plat_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int
     *verifyResult = 0;
 
 #ifndef DISABLE_SERVER_CERT_VERIFY 
-    platStatus = mbedtls_ssl_get_verify_result(&localTLSCtx->tlsCtx);
+    platStatus = ssl_platform_ssl_get_verify_result(&localTLSCtx->tlsCtx);
     if (SSL_LIB_SUCCESS != platStatus)
     {
         status = PAL_ERR_X509_CERT_VERIFY_FAILED;
@@ -758,7 +789,9 @@ palStatus_t pal_plat_sslRead(palTLSHandle_t palTLSHandle, void *buffer, uint32_t
     int32_t platStatus = SSL_LIB_SUCCESS;
     palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
 
-    platStatus = mbedtls_ssl_read(&localTLSCtx->tlsCtx, (unsigned char*)buffer, len);
+    // Use ssl-platform API directly on our ssl-platform context
+    platStatus = ssl_platform_ssl_read(&localTLSCtx->tlsCtx, (unsigned char*)buffer, len);
+    
     if (platStatus > SSL_LIB_SUCCESS)
     {
         *actualLen = platStatus;
@@ -789,7 +822,9 @@ palStatus_t pal_plat_sslWrite(palTLSHandle_t palTLSHandle, const void *buffer, u
 
     PAL_LOG_DBG("pal_plat_sslWrite ssl->state %d", (&localTLSCtx->tlsCtx)->state);
 
-    platStatus = mbedtls_ssl_write(&localTLSCtx->tlsCtx, (unsigned char*)buffer, len);
+    // Use ssl-platform API directly on our ssl-platform context
+    platStatus = ssl_platform_ssl_write(&localTLSCtx->tlsCtx, (unsigned char*)buffer, len);
+    
     if (platStatus > SSL_LIB_SUCCESS)
     {
         *bytesWritten = platStatus;
@@ -814,7 +849,7 @@ palStatus_t pal_plat_setHandShakeTimeOut(palTLSConfHandle_t palTLSConf, uint32_t
 {
     PAL_LOG_DBG("DTLS min timeout %d max timeout %d", minTimeout, maxTimeout);
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
-    mbedtls_ssl_conf_handshake_timeout(localConfigCtx->confCtx, minTimeout, maxTimeout);
+    ssl_platform_ssl_conf_handshake_timeout(localConfigCtx->confCtx, minTimeout, maxTimeout);
 
     return PAL_SUCCESS;
 }
@@ -829,7 +864,9 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
 
     if (!localTLSCtx->wantReadOrWrite)
     {
-        platStatus = mbedtls_ssl_setup(&localTLSCtx->tlsCtx, localConfigCtx->confCtx);
+        // Use ssl-platform API directly on our ssl-platform contexts
+        platStatus = ssl_platform_ssl_setup(&localTLSCtx->tlsCtx, localConfigCtx->confCtx);
+        
         if (SSL_LIB_SUCCESS != platStatus)
         {
             PAL_LOG_ERR("SSL setup return code %" PRId32 ".", platStatus);
@@ -842,15 +879,15 @@ palStatus_t pal_plat_sslSetup(palTLSHandle_t palTLSHandle, palTLSConfHandle_t pa
             goto finish;
         }
 #if defined (MBEDTLS_SSL_DTLS_CONNECTION_ID) && (PAL_USE_SSL_SESSION_RESUME == 1)
-         platStatus = mbedtls_ssl_set_cid(&localTLSCtx->tlsCtx, MBEDTLS_SSL_CID_ENABLED, NULL, 0);
+         platStatus = ssl_platform_ssl_set_cid(&localTLSCtx->tlsCtx, MBEDTLS_SSL_CID_ENABLED, NULL, 0);
          if(SSL_LIB_SUCCESS != platStatus)
          {
-             PAL_LOG_DBG("mbedtls_ssl_set_cid failed return code %" PRId32 ".", platStatus);
+             PAL_LOG_DBG("ssl_platform_ssl_set_cid failed return code %" PRId32 ".", platStatus);
          }
 #endif
 
 #if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH) && (PAL_MAX_FRAG_LEN > 0)
-        platStatus = mbedtls_ssl_conf_max_frag_len(localConfigCtx->confCtx, PAL_MAX_FRAG_LEN);
+        platStatus = ssl_platform_ssl_conf_max_frag_len(localConfigCtx->confCtx, PAL_MAX_FRAG_LEN);
         if (SSL_LIB_SUCCESS != platStatus)
         {
             PAL_LOG_ERR("SSL fragment setup error code %" PRId32 ".", platStatus);
@@ -875,24 +912,21 @@ palStatus_t pal_plat_handShake(palTLSHandle_t palTLSHandle, uint64_t* serverTime
     palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
     int32_t platStatus = SSL_LIB_SUCCESS;
 
-    while( (MBEDTLS_SSL_HANDSHAKE_OVER != localTLSCtx->tlsCtx.state) && (PAL_SUCCESS == status) )
+    // The socket validation will be handled by the BIO functions during handshake
+    // We don't need to access the BIO context directly here as it's not standard mbedTLS API
+    PAL_LOG_INFO("pal_plat_handShake: starting handshake");
+
+    // Use ssl-platform API directly on our ssl-platform context
+    platStatus = ssl_platform_ssl_handshake(&localTLSCtx->tlsCtx);
+    
+    status = translateTLSHandShakeErrToPALError(localTLSCtx, platStatus);
+
+    /* Note: ssl-platform abstraction doesn't expose internal handshake details */
+    if( PAL_SUCCESS == status )
     {
-        platStatus = mbedtls_ssl_handshake_step( &localTLSCtx->tlsCtx );
-
-        /* Extract the first 4 bytes of the ServerHello random */
-        if( MBEDTLS_SSL_SERVER_HELLO_DONE == localTLSCtx->tlsCtx.state )
-        {
-            *serverTime = (uint64_t)
-                ( (uint32_t)localTLSCtx->tlsCtx.handshake->randbytes[32 + 0] << 24 ) |
-                ( (uint32_t)localTLSCtx->tlsCtx.handshake->randbytes[32 + 1] << 16 ) |
-                ( (uint32_t)localTLSCtx->tlsCtx.handshake->randbytes[32 + 2] << 8  ) |
-                ( (uint32_t)localTLSCtx->tlsCtx.handshake->randbytes[32 + 3] << 0  );
-        }
-
-        if (SSL_LIB_SUCCESS != platStatus)
-        {
-            status = translateTLSHandShakeErrToPALError(localTLSCtx, platStatus);
-        }
+        // For now, set server time to current time since ssl-platform doesn't expose handshake internals
+        // TODO: Add ssl-platform API to extract server time from handshake if needed
+        *serverTime = (uint64_t)time(NULL);
     }
 
     return status;
@@ -924,7 +958,7 @@ palStatus_t pal_plat_renegotiate(palTLSHandle_t palTLSHandle, uint64_t serverTim
         goto finish;
     }
 
-    platStatus = mbedtls_ssl_renegotiate(&localTLSCtx->tlsCtx);
+    platStatus = ssl_platform_ssl_renegotiate(&localTLSCtx->tlsCtx);
     status = translateTLSHandShakeErrToPALError(localTLSCtx, platStatus);
 
 finish:
@@ -949,6 +983,9 @@ finish:
 
 palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateKey_t* privateKey)
 {
+    printf("DEBUG: pal_plat_setOwnPrivateKey called - privateKey->size=%u\n", privateKey ? privateKey->size : 0);
+    fflush(stdout);
+    
     palStatus_t status = PAL_SUCCESS;
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
     int32_t platStatus = SSL_LIB_SUCCESS;
@@ -958,9 +995,14 @@ palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateK
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
     // Note: ssl_platform doesn't yet support PSA opaque keys
     // This requires direct mbed-TLS access for now
-    platStatus = mbedtls_pk_setup_opaque(&localConfigCtx->pkey.mbedtls_ctx, *privateKey);
+    printf("DEBUG: pal_plat_setOwnPrivateKey - using PSA support (direct mbedTLS)\n");
+    fflush(stdout);
+    
+    platStatus = mbedtls_pk_setup_opaque(&localConfigCtx->pkey.pk_ctx, *privateKey);
     if (SSL_LIB_SUCCESS != platStatus)
     {
+        printf("DEBUG: pal_plat_setOwnPrivateKey - mbedtls_pk_setup_opaque FAILED with status %d\n", platStatus);
+        fflush(stdout);
         status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
         goto finish;
     }
@@ -968,15 +1010,23 @@ palStatus_t pal_plat_setOwnPrivateKey(palTLSConfHandle_t palTLSConf, palPrivateK
     localConfigCtx->hasKeyHandle = true;
 
 #else //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
+    printf("DEBUG: pal_plat_setOwnPrivateKey - calling ssl_platform_pk_parse_key\n");
+    fflush(stdout);
+    
      platStatus = ssl_platform_pk_parse_key(&localConfigCtx->pkey, (const unsigned char *)privateKey->buffer, privateKey->size, NULL, 0);
      if (SSL_LIB_SUCCESS != platStatus)
      {
+         printf("DEBUG: pal_plat_setOwnPrivateKey - ssl_platform_pk_parse_key FAILED with status %d\n", platStatus);
+         fflush(stdout);
          status = PAL_ERR_TLS_FAILED_TO_PARSE_KEY;
          goto finish;
      }
 #endif
 
     localConfigCtx->hasKeys = true;
+    
+    printf("DEBUG: pal_plat_setOwnPrivateKey - SUCCESS\n");
+    fflush(stdout);
 
 finish:
     PAL_LOG_DBG("Privatekey set and parse status %" PRIu32 ".", platStatus);
@@ -985,24 +1035,42 @@ finish:
 
 palStatus_t pal_plat_setOwnCertChain(palTLSConfHandle_t palTLSConf, palX509_t* ownCert)
 {
+    printf("DEBUG: pal_plat_setOwnCertChain called - ownCert->size=%u\n", ownCert ? ownCert->size : 0);
+    fflush(stdout);
+    
     palStatus_t status = PAL_SUCCESS;
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
     int32_t platStatus = SSL_LIB_SUCCESS;
 
-    platStatus = mbedtls_x509_crt_parse_der(&localConfigCtx->owncert, (const unsigned char *)ownCert->buffer, ownCert->size);
+    printf("DEBUG: pal_plat_setOwnCertChain - calling ssl_platform_x509_crt_parse\n");
+    fflush(stdout);
+    
+    platStatus = ssl_platform_x509_crt_parse(&localConfigCtx->owncert, (const unsigned char *)ownCert->buffer, ownCert->size);
     if (SSL_LIB_SUCCESS != platStatus)
     {
+        printf("DEBUG: pal_plat_setOwnCertChain - ssl_platform_x509_crt_parse FAILED with status %d\n", platStatus);
+        fflush(stdout);
         status = PAL_ERR_TLS_FAILED_TO_PARSE_CERT;
         goto finish;
     }
 
-    platStatus = mbedtls_ssl_conf_own_cert(localConfigCtx->confCtx, &localConfigCtx->owncert, &localConfigCtx->pkey);
+    printf("DEBUG: pal_plat_setOwnCertChain - calling ssl_platform_ssl_conf_own_cert\n");
+    fflush(stdout);
+    
+    // Use ssl-platform API directly on our ssl-platform contexts
+    platStatus = ssl_platform_ssl_conf_own_cert(localConfigCtx->confCtx, &localConfigCtx->owncert, &localConfigCtx->pkey);
+    
     if (SSL_LIB_SUCCESS != platStatus)
     {
+        printf("DEBUG: pal_plat_setOwnCertChain - ssl_platform_ssl_conf_own_cert FAILED with status %d\n", platStatus);
+        fflush(stdout);
         status = PAL_ERR_TLS_FAILED_TO_SET_CERT;
     }
 
     localConfigCtx->hasKeys = true;
+    
+    printf("DEBUG: pal_plat_setOwnCertChain - SUCCESS\n");
+    fflush(stdout);
 
 finish:
     PAL_LOG_DBG("Own cert chain set and parse status %" PRIu32 ".", platStatus);
@@ -1012,20 +1080,37 @@ finish:
 
 palStatus_t pal_plat_setCAChain(palTLSConfHandle_t palTLSConf, palX509_t* caChain, palX509CRL_t* caCRL)
 {
+    printf("DEBUG: pal_plat_setCAChain called - caChain->size=%u\n", caChain ? caChain->size : 0);
+    fflush(stdout);
+    
     palStatus_t status = PAL_SUCCESS;
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
     int32_t platStatus = SSL_LIB_SUCCESS;
 
-    platStatus = mbedtls_x509_crt_parse_der(&localConfigCtx->cacert, (const unsigned char *)caChain->buffer, caChain->size);
+    printf("DEBUG: pal_plat_setCAChain - calling ssl_platform_x509_crt_parse\n");
+    fflush(stdout);
+    
+    platStatus = ssl_platform_x509_crt_parse(&localConfigCtx->cacert, (const unsigned char *)caChain->buffer, caChain->size);
     if (SSL_LIB_SUCCESS != platStatus)
     {
+        printf("DEBUG: pal_plat_setCAChain - ssl_platform_x509_crt_parse FAILED with status %d\n", platStatus);
+        fflush(stdout);
         PAL_LOG_ERR("TLS CA chain status %" PRId32 ".", platStatus);
         status = PAL_ERR_GENERIC_FAILURE;
         goto finish;
     }
-    mbedtls_ssl_conf_ca_chain(localConfigCtx->confCtx, &localConfigCtx->cacert, NULL );
+    
+    printf("DEBUG: pal_plat_setCAChain - calling ssl_platform_ssl_conf_ca_chain\n");
+    fflush(stdout);
+    
+    // Use ssl-platform API directly on our ssl-platform contexts
+    ssl_platform_ssl_conf_ca_chain(localConfigCtx->confCtx, &localConfigCtx->cacert, NULL);
 
     localConfigCtx->hasChain = true;
+    
+    printf("DEBUG: pal_plat_setCAChain - SUCCESS\n");
+    fflush(stdout);
+    
 finish:
     return status;
 }
@@ -1062,12 +1147,65 @@ palStatus_t pal_plat_tlsSetSocket(palTLSConfHandle_t palTLSConf, palTLSSocket_t*
     return status;
 }
 
+palStatus_t pal_plat_setSNIHostname(palTLSHandle_t palTLSHandle, const char* hostname)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
+
+    printf("DEBUG: pal_plat_setSNIHostname ENTRY - hostname='%s'\n", hostname ? hostname : "NULL");
+    fflush(stdout);
+
+    if (!localTLSCtx)
+    {
+        printf("DEBUG: pal_plat_setSNIHostname - invalid TLS context\n");
+        fflush(stdout);
+        return PAL_ERR_INVALID_ARGUMENT;
+    }
+
+    // Use ssl-platform API to set SNI hostname
+    int ret = ssl_platform_ssl_set_hostname(&localTLSCtx->tlsCtx, hostname);
+    if (ret == SSL_PLATFORM_SUCCESS)
+    {
+        printf("DEBUG: pal_plat_setSNIHostname - SUCCESS, SNI hostname set to '%s'\n", hostname ? hostname : "NULL");
+        fflush(stdout);
+        status = PAL_SUCCESS;
+    }
+    else
+    {
+        printf("DEBUG: pal_plat_setSNIHostname - FAILED, ssl_platform_ssl_set_hostname returned %d\n", ret);
+        fflush(stdout);
+        
+        // Map ssl-platform error to PAL error
+        switch (ret)
+        {
+            case SSL_PLATFORM_ERROR_INVALID_PARAMETER:
+                status = PAL_ERR_INVALID_ARGUMENT;
+                break;
+            case SSL_PLATFORM_ERROR_INVALID_DATA:
+                status = PAL_ERR_TLS_BAD_INPUT_DATA;
+                break;
+            case SSL_PLATFORM_ERROR_NOT_SUPPORTED:
+                status = PAL_ERR_NOT_SUPPORTED;
+                break;
+            default:
+                status = PAL_ERR_GENERIC_FAILURE;
+                break;
+        }
+    }
+
+    printf("DEBUG: pal_plat_setSNIHostname EXIT - status=%d\n", status);
+    fflush(stdout);
+    return status;
+}
+
 palStatus_t pal_plat_sslSetIOCallBacks(palTLSConfHandle_t palTLSConf, palTLSSocket_t* palIOCtx, palBIOSend_f palBIOSend, palBIORecv_f palBIORecv)
 {
     palStatus_t status = PAL_SUCCESS;
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
     bool isNonBlocking = false;
 
+    PAL_LOG_INFO("pal_plat_sslSetIOCallBacks: storing socket pointer %p, transportationMode=%d", 
+                 (void*)palIOCtx, palIOCtx->transportationMode);
     localConfigCtx->palIOCtx = palIOCtx;
 
     status = pal_isNonBlocking(palIOCtx->socket, &isNonBlocking);
@@ -1076,13 +1214,14 @@ palStatus_t pal_plat_sslSetIOCallBacks(palTLSConfHandle_t palTLSConf, palTLSSock
         return status;
     }
 
+    // Use ssl-platform API directly on our ssl-platform context
     if (isNonBlocking)
     {
-        mbedtls_ssl_set_bio(&localConfigCtx->tlsContext->tlsCtx, palIOCtx, palBIOSend, palBIORecv, NULL);
+        ssl_platform_ssl_set_bio(&localConfigCtx->tlsContext->tlsCtx, palIOCtx, palBIOSend, palBIORecv, NULL);
     }
     else
     {
-        mbedtls_ssl_set_bio(&localConfigCtx->tlsContext->tlsCtx, palIOCtx, palBIOSend, NULL, palBIORecv_timeout);
+        ssl_platform_ssl_set_bio(&localConfigCtx->tlsContext->tlsCtx, palIOCtx, palBIOSend, NULL, palBIORecv_timeout);
     }
 
     return PAL_SUCCESS;
@@ -1110,7 +1249,7 @@ palStatus_t pal_plat_SetLoggingCb(palTLSConfHandle_t palTLSConf, palLogFunc_f pa
 {
     palTLSConf_t* localConfigCtx = (palTLSConf_t*)palTLSConf;
 
-    mbedtls_ssl_conf_dbg(localConfigCtx->confCtx, palLogFunction, logContext);
+    ssl_platform_ssl_conf_dbg(localConfigCtx->confCtx, palLogFunction, logContext);
     return PAL_SUCCESS;
 }
 
@@ -1226,6 +1365,22 @@ PAL_PRIVATE int palBIOSend(palTLSSocketHandle_t socket, const unsigned char *buf
         goto finish;
     }
 
+    // Memory validation debug logging
+    PAL_LOG_INFO("palBIOSend: socket=%p, transportationMode=%d, PAL_TLS_MODE=%d, PAL_DTLS_MODE=%d", 
+                 (void*)socket, localSocket->transportationMode, PAL_TLS_MODE, PAL_DTLS_MODE);
+    
+    // Additional validation to detect corruption early
+    if (localSocket->transportationMode != PAL_TLS_MODE && localSocket->transportationMode != PAL_DTLS_MODE) {
+        PAL_LOG_ERR("palBIOSend: MEMORY CORRUPTION DETECTED - invalid transportationMode=%d at socket=%p", 
+                    localSocket->transportationMode, (void*)socket);
+        // Log some memory around the socket structure to help debug
+        unsigned char *ptr = (unsigned char*)localSocket;
+        PAL_LOG_ERR("Memory dump around socket: %02x %02x %02x %02x %02x %02x %02x %02x", 
+                    ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
+        status = PAL_ERR_GENERIC_FAILURE;
+        goto finish;
+    }
+
     if (PAL_TLS_MODE == localSocket->transportationMode)
     {
         status = pal_send(localSocket->socket, buf, len, &sentDataSize);
@@ -1275,8 +1430,25 @@ PAL_PRIVATE int palBIORecv(palTLSSocketHandle_t socket, unsigned char *buf, size
         goto finish;
     }
 
+    // Debug logging to understand the transportation mode issue
+    PAL_LOG_INFO("palBIORecv: transportationMode=%d, PAL_TLS_MODE=%d, PAL_DTLS_MODE=%d", 
+                 localSocket->transportationMode, PAL_TLS_MODE, PAL_DTLS_MODE);
+
+    // Additional validation to detect corruption early
+    if (localSocket->transportationMode != PAL_TLS_MODE && localSocket->transportationMode != PAL_DTLS_MODE) {
+        PAL_LOG_ERR("palBIORecv: MEMORY CORRUPTION DETECTED - invalid transportationMode=%d at socket=%p", 
+                    localSocket->transportationMode, (void*)socket);
+        // Log some memory around the socket structure to help debug
+        unsigned char *ptr = (unsigned char*)localSocket;
+        PAL_LOG_ERR("Memory dump around socket: %02x %02x %02x %02x %02x %02x %02x %02x", 
+                    ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7]);
+        status = PAL_ERR_GENERIC_FAILURE;
+        goto finish;
+    }
+
     if (PAL_TLS_MODE == localSocket->transportationMode)
     {
+        PAL_LOG_INFO("palBIORecv: Using TLS mode (TCP)");
         status = pal_recv(localSocket->socket, buf, len, &recievedDataSize);
         if (PAL_SUCCESS == status)
         {
@@ -1289,6 +1461,7 @@ PAL_PRIVATE int palBIORecv(palTLSSocketHandle_t socket, unsigned char *buf, size
     }
     else if (PAL_DTLS_MODE == localSocket->transportationMode)
     {
+        PAL_LOG_INFO("palBIORecv: Using DTLS mode (UDP)");
         status = pal_receiveFrom(localSocket->socket, buf, len, localSocket->socketAddress, &localSocket->addressLength, &recievedDataSize);
         if (PAL_SUCCESS == status)
         {
@@ -1308,7 +1481,7 @@ PAL_PRIVATE int palBIORecv(palTLSSocketHandle_t socket, unsigned char *buf, size
     }
     else
     {
-        PAL_LOG_ERR("TLS BIO recv error");
+        PAL_LOG_ERR("TLS BIO recv error - unknown transportation mode: %d", localSocket->transportationMode);
         status = PAL_ERR_GENERIC_FAILURE;
     }
 
@@ -1468,7 +1641,7 @@ uint8_t* pal_plat_GetSslSessionBuffer(palTLSHandle_t palTLSHandle, size_t *buffe
     }
 
     mbedtls_ssl_session saved_ssl_session = {0};
-    int32_t platStatus = mbedtls_ssl_get_session(&localTLSCtx->tlsCtx, &saved_ssl_session);
+    int32_t platStatus = ssl_platform_ssl_get_session(&localTLSCtx->tlsCtx, &saved_ssl_session);
     if (platStatus == SSL_LIB_SUCCESS)
     {
         memcpy(session_buffer, (uint8_t*)&saved_ssl_session.id_len, sizeof(saved_ssl_session.id_len));
@@ -1502,7 +1675,7 @@ void pal_plat_SetSslSession(palTLSHandle_t palTLSHandle, const uint8_t *session_
     memcpy(&saved_ssl_session.master, session_buffer + sizeof(saved_ssl_session.id_len) + sizeof(saved_ssl_session.id), sizeof(saved_ssl_session.master));
     memcpy(&saved_ssl_session.ciphersuite, session_buffer + sizeof(saved_ssl_session.id_len) + sizeof(saved_ssl_session.id) + sizeof(saved_ssl_session.master), sizeof(saved_ssl_session.ciphersuite));
 
-    int32_t platStatus = mbedtls_ssl_set_session(&localTLSCtx->tlsCtx, &saved_ssl_session);
+    int32_t platStatus = ssl_platform_ssl_set_session(&localTLSCtx->tlsCtx, &saved_ssl_session);
     if (platStatus != SSL_LIB_SUCCESS) {
         PAL_LOG_ERR("pal_plat_SetSslSession - session set failed -0x%" PRIx32 ".", -platStatus);
     }
@@ -1516,10 +1689,10 @@ int32_t pal_plat_saveSslSessionBuffer(palTLSHandle_t palTLSHandle)
 
     size_t olen = 0;
     unsigned char temp_context[SSL_SESSION_STORE_SIZE] = {0};
-    platStatus  = mbedtls_ssl_context_save( &localTLSCtx->tlsCtx,
-                                                    temp_context,
-                                                    SSL_SESSION_STORE_SIZE,
-                                                    &olen );
+    platStatus  = ssl_platform_ssl_context_save( &localTLSCtx->tlsCtx,
+                                                          temp_context,
+                                                          SSL_SESSION_STORE_SIZE,
+                                                          &olen );
     if (platStatus == SSL_LIB_SUCCESS) {
         memset(ssl_session_context, 0, SSL_SESSION_STORE_SIZE);
         memcpy(ssl_session_context, temp_context, olen);
@@ -1536,9 +1709,9 @@ int32_t pal_plat_loadSslSession(palTLSHandle_t palTLSHandle)
     int32_t platStatus  = 0;
     palStatus_t status = PAL_SUCCESS;
     palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
-    platStatus  = mbedtls_ssl_context_load( &localTLSCtx->tlsCtx,
-                                            ssl_session_context,
-                                            ssl_session_context_length );
+    platStatus  = ssl_platform_ssl_context_load( &localTLSCtx->tlsCtx,
+                                                  ssl_session_context,
+                                                  ssl_session_context_length );
 
     if (platStatus != SSL_LIB_SUCCESS) {
         PAL_LOG_ERR("pal_plat_loadSslSession - session set failed -0x%" PRIx32 ".", -platStatus);
@@ -1585,29 +1758,18 @@ void pal_plat_set_cid(const uint8_t* context, const size_t length)
 
 void pal_plat_set_cid_value(palTLSHandle_t palTLSHandle, const uint8_t *data_ptr, const size_t data_len)
 {
-    assert(data_len <= MBEDTLS_SSL_CID_OUT_LEN_MAX);
-    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
-#ifdef MBEDTLS_SSL_DTLS_CONNECTION_ID
-    memcpy(localTLSCtx->tlsCtx.transform_out->out_cid, data_ptr, data_len);
-    localTLSCtx->tlsCtx.transform_out->out_cid_len = data_len;
-    pal_plat_saveSslSessionBuffer(palTLSHandle);
-#endif
+    // TODO: CID functionality not implemented in ssl-platform abstraction yet
+    // ssl-platform doesn't expose internal transform structures
+    PAL_LOG_WARN("pal_plat_set_cid_value: CID not supported in ssl-platform abstraction");
+    (void)palTLSHandle; (void)data_ptr; (void)data_len;  // Suppress unused parameter warnings
 }
 
 void pal_plat_get_cid_value(palTLSHandle_t palTLSHandle, uint8_t *data_ptr, size_t *data_len)
 {
-    palTLS_t* localTLSCtx = (palTLS_t*)palTLSHandle;
-    assert(data_ptr != NULL);
-    assert(data_len != NULL);
-    assert(MBEDTLS_SSL_CID_OUT_LEN_MAX >= *data_len);
-
+    // TODO: CID functionality not implemented in ssl-platform abstraction yet
+    // ssl-platform doesn't expose internal transform structures
+    PAL_LOG_WARN("pal_plat_get_cid_value: CID not supported in ssl-platform abstraction");
     *data_len = 0;
-    *data_ptr = 0;
-#ifdef MBEDTLS_SSL_DTLS_CONNECTION_ID
-    if (localTLSCtx->tlsCtx.transform_out) {
-        memcpy(data_ptr, localTLSCtx->tlsCtx.transform_out->out_cid, localTLSCtx->tlsCtx.transform_out->out_cid_len);
-        *data_len = localTLSCtx->tlsCtx.transform_out->out_cid_len;
-    }
-#endif
+    (void)palTLSHandle; (void)data_ptr;  // Suppress unused parameter warnings
 }
 #endif // PAL_USE_SSL_SESSION_RESUME

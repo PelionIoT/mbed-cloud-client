@@ -56,8 +56,8 @@ FILE(GLOB CRYPTO_SERVICE_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/crypto-service/source/*.c"
 )
 add_library(crypto-service STATIC "${CRYPTO_SERVICE_SRC}")
-add_dependencies(crypto-service palDRBG)
-target_link_libraries(crypto-service palDRBG)
+add_dependencies(crypto-service palDRBG ssl-platform)
+target_link_libraries(crypto-service palDRBG ssl-platform)
 
 
 # fccstorage library

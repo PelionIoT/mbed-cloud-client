@@ -559,6 +559,20 @@ finish:
     return status;
 }
 
+palStatus_t pal_setSNIHostname(palTLSHandle_t palTLSHandle, const char* hostname)
+{
+    palStatus_t status = PAL_SUCCESS;
+    palTLSService_t* palTLSCtx = NULL;
+
+    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSHandle);
+
+    palTLSCtx = (palTLSService_t*)palTLSHandle;
+    PAL_VALIDATE_ARGUMENTS(NULLPTR == palTLSCtx->platTlsHandle);
+
+    status = pal_plat_setSNIHostname(palTLSCtx->platTlsHandle, hostname);
+    return status;
+}
+
 palStatus_t pal_sslGetVerifyResultExtended(palTLSHandle_t palTLSHandle, int32_t* verifyResult)
 {
     palStatus_t status = PAL_SUCCESS;
