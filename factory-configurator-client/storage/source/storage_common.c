@@ -16,6 +16,7 @@
 
 
 #include <stdbool.h>
+#include <errno.h>
 #include "pv_error_handling.h"
 #include "pv_macros.h"
 #include "storage_kcm.h"
@@ -236,6 +237,87 @@ bool storage_is_cert_chain(kcm_cert_chain_handle kcm_chain_handle)
     return chain_context->is_meta_data;
 }
 
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
+kcm_status_e storage_read_file_size_from_external_certificate_store(const uint8_t *file_name,
+                              size_t file_name_length,
+                              size_t *file_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    FILE *secure_file = NULL;
+    long file_size;
+
+    SA_PV_LOG_TRACE_FUNC_ENTER("file_name_length=%" PRIu32 "", (uint32_t)file_name_length);
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((file_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid file name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((file_name_length == 0), KCM_STATUS_INVALID_PARAMETER, "Got empty file name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((file_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid file_size_out");
+
+    secure_file = fopen((char*)file_name, "rb");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((secure_file == NULL), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, Exit, "Failed opening secure file");
+
+    // Get file size
+    if (fseek(secure_file, 0, SEEK_END) != 0) {
+        kcm_status = KCM_STATUS_ERROR;
+        goto Exit;
+    }
+
+    file_size = ftell(secure_file);
+    if (file_size < 0) {
+        kcm_status = KCM_STATUS_ERROR;
+        goto Exit;
+    }
+
+    // Check if output buffer is large enough
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((STORAGE_FILE_DATA_MAX_SIZE < (size_t)file_size), kcm_status = KCM_STATUS_OUT_OF_MEMORY, Exit, "Buffer too small");
+
+    *file_size_out = (size_t)file_size;
+
+Exit:
+    if (secure_file != NULL) {
+        fclose(secure_file);
+    }
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+    return kcm_status;
+}
+
+kcm_status_e storage_read_file_from_external_certificate_store(const uint8_t *file_name,
+                              size_t file_name_length,
+                              uint8_t *buffer_out,
+                              size_t buffer_size,
+                              size_t *buffer_actual_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    size_t actual_size = 0;
+    FILE *secure_file = NULL;
+
+    SA_PV_LOG_TRACE_FUNC_ENTER("file_name_length=%" PRIu32 "", (uint32_t)file_name_length);
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((file_name == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid file name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((file_name_length == 0), KCM_STATUS_INVALID_PARAMETER, "Got empty file name");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((buffer_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid buffer_out");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((buffer_actual_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid buffer_actual_size_out");
+
+    secure_file = fopen((char*)file_name, "rb");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((secure_file == NULL), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, Exit, "Failed opening secure file");
+
+    // Read file data
+    actual_size = fread(buffer_out, 1, buffer_size, secure_file);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((actual_size != (size_t)buffer_size), kcm_status = KCM_STATUS_ERROR, Exit, "Failed reading file");
+
+    *buffer_actual_size_out = actual_size;
+
+Exit:
+    if (secure_file != NULL) {
+        fclose(secure_file);
+    }
+
+    SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
+
+    return kcm_status;
+}
+
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
 
 /******** Certificate chains common logic for PSA and SST *********/
 

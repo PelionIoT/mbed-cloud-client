@@ -449,6 +449,36 @@ extern "C" {
                                        kcm_item_type_e kcm_item_type,
                                        storage_item_prefix_type_e item_prefix_type,
                                        bool clean_active_item_only);
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
+    /** Read file from external secure storage area
+    *
+    *   @param file_name A binary blob that uniquely identifies the file
+    *   @param file_name_length The binary blob length in bytes.
+    *   @param buffer_out Output buffer for storing the data
+    *   @param buffer_actual_size_out Actual size of the data read
+    *
+    *   @returns
+    *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+    */
+    kcm_status_e storage_read_file_from_external_certificate_store(const uint8_t *file_name,
+                                size_t file_name_length,
+                                uint8_t *buffer_out,
+                                size_t buffer_size,
+                                size_t *buffer_actual_size_out);
+
+    /** Read file size from external secure storage area
+    *
+    *   @param file_name A binary blob that uniquely identifies the file
+    *   @param file_name_length The binary blob length in bytes.
+    *   @param file_size_out Output buffer for storing the file size
+    *
+    *   @returns
+    *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
+    */
+    kcm_status_e storage_read_file_size_from_external_certificate_store(const uint8_t *file_name,
+                              size_t file_name_length,
+                              size_t *file_size_out);
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_SECURE_ELEMENT_SUPPORT
 
