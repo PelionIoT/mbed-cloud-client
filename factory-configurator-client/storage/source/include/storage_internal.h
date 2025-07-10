@@ -222,7 +222,7 @@ typedef struct storage_cert_chain_context_ {
     store_esfs_file_ctx_s current_kcm_ctx;                  //!< Current KCM operation context.
 #endif
 #if defined MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
-    store_ext_secure_file_ctx_s current_ext_ctx;            //!< Current external secure file operation context.
+    store_ext_file_ctx_s current_ext_ctx;            //!< Current external file operation context.
 #endif
     uint32_t current_cert_index;                            //!< Current certificate iterator.
     storage_chain_operation_type_e operation_type;          //!< Type of Current operation.

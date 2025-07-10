@@ -58,11 +58,11 @@ extern "C" {
         bool is_file_size_checked;
     } store_esfs_file_ctx_s;
 
-    typedef struct store_ext_secure_file_ctx_ {
-        size_t ext_secure_file_name_size;
-        size_t ext_secure_file_data_size;
-        uint8_t *ext_secure_file_data;
-    } store_ext_secure_file_ctx_s;
+    typedef struct store_ext_file_ctx_ {
+        size_t ext_file_name_size;
+        size_t ext_file_data_size;
+        uint8_t *ext_file_data;
+    } store_ext_file_ctx_s;
 
     /* === File Operations === */
 
@@ -224,24 +224,24 @@ extern "C" {
     kcm_status_e storage_file_read_meta_data_by_type(store_esfs_file_ctx_s *ctx, store_esfs_meta_data_type_e type, uint8_t *buffer_out, size_t buffer_size, size_t *buffer_actual_size_out);
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
-    /** Open external secure file
+    /** Open external file
     *
-    *   @param ext_ctx External secure file context.
+    *   @param ext_ctx External file context.
     *   @param ctx ESFS file context.
     *
     *   @returns
     *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
     */
-    kcm_status_e storage_file_open_external_certificate_store(store_ext_secure_file_ctx_s *ext_ctx, store_esfs_file_ctx_s *ctx);
+    kcm_status_e storage_file_open_external_certificate_store(store_ext_file_ctx_s *ext_ctx, store_esfs_file_ctx_s *ctx);
 
-    /** Close external secure file
+    /** Close external file
     *
-    *   @param ext_ctx External secure file context.
+    *   @param ext_ctx External file context.
     *
     *   @returns
     *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
     */
-    kcm_status_e storage_file_close_external_certificate_store(store_ext_secure_file_ctx_s *ext_ctx);
+    kcm_status_e storage_file_close_external_certificate_store(store_ext_file_ctx_s *ext_ctx);
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
 
 #ifdef __cplusplus

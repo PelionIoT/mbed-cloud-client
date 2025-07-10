@@ -405,11 +405,12 @@ kcm_status_e storage_item_get_data_size(
         kcm_item_type == KCM_PRIVATE_KEY_ITEM ||
         kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
 
-        store_ext_secure_file_ctx_s ext_ctx;
+        store_ext_file_ctx_s ext_ctx;
+        SA_PV_LOG_INFO("Reading %s from external certificate store", kcm_complete_name);
         kcm_status = storage_file_open_external_certificate_store(&ext_ctx, &ctx);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed opening external secure file (%d)", kcm_status);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed opening external file (%d)", kcm_status);
 
-        kcm_data_size = ext_ctx.ext_secure_file_data_size;
+        kcm_data_size = ext_ctx.ext_file_data_size;
 
         storage_file_close_external_certificate_store(&ext_ctx);
     }
@@ -479,25 +480,26 @@ kcm_status_e storage_item_get_data(
     }
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
-    // For certificates and keys, kcm_item_data_out contains external secure storage file location
+    // For certificates and keys, kcm_item_data_out contains external storage file location
     if (kcm_item_type == KCM_CERTIFICATE_ITEM ||
         kcm_item_type == KCM_PRIVATE_KEY_ITEM ||
         kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
 
-        store_ext_secure_file_ctx_s ext_ctx;
+        store_ext_file_ctx_s ext_ctx;
+        SA_PV_LOG_INFO("Reading %s from external certificate store", kcm_complete_name);
         kcm_status = storage_file_open_external_certificate_store(&ext_ctx, &ctx);
-        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed opening external secure file (%d)", kcm_status);
+        SA_PV_ERR_RECOVERABLE_GOTO_IF((kcm_status != KCM_STATUS_SUCCESS), (kcm_status = kcm_status), Exit, "Failed opening external file (%d)", kcm_status);
 
         // Copy data if buffer provided
         if (kcm_item_data_max_size > 0) {
-            if (kcm_item_data_max_size < ext_ctx.ext_secure_file_data_size) {
+            if (kcm_item_data_max_size < ext_ctx.ext_file_data_size) {
                 storage_file_close_external_certificate_store(&ext_ctx);
                 kcm_status = KCM_STATUS_INSUFFICIENT_BUFFER;
                 goto Exit;
             }
-            memcpy(kcm_item_data_out, ext_ctx.ext_secure_file_data, ext_ctx.ext_secure_file_data_size);
+            memcpy(kcm_item_data_out, ext_ctx.ext_file_data, ext_ctx.ext_file_data_size);
         }
-        *kcm_item_data_act_size_out = ext_ctx.ext_secure_file_data_size;
+        *kcm_item_data_act_size_out = ext_ctx.ext_file_data_size;
 
         storage_file_close_external_certificate_store(&ext_ctx);
         SA_PV_LOG_INFO_FUNC_EXIT("kcm data size = %" PRIu32 "", (uint32_t)*kcm_item_data_act_size_out);
@@ -767,10 +769,11 @@ kcm_status_e storage_cert_chain_get_next_size(kcm_cert_chain_handle *kcm_chain_h
     }
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
+    SA_PV_LOG_INFO("Reading %s from external certificate store", chain_context->chain_name);
     kcm_status = storage_file_open_external_certificate_store(&chain_context->current_ext_ctx, &chain_context->current_kcm_ctx);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed opening external secure file (%d)", kcm_status);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed opening external file (%d)", kcm_status);
 
-    *kcm_out_cert_data_size = chain_context->current_ext_ctx.ext_secure_file_data_size;
+    *kcm_out_cert_data_size = chain_context->current_ext_ctx.ext_file_data_size;
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
     SA_PV_LOG_INFO_FUNC_EXIT("cert_data_size = %" PRIu32 "", (uint32_t)*kcm_out_cert_data_size);
 
@@ -813,24 +816,25 @@ kcm_status_e storage_cert_chain_get_next_data(kcm_cert_chain_handle *kcm_chain_h
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_max_cert_data_size < expected_data_size), KCM_STATUS_INSUFFICIENT_BUFFER, "Certificate data buffer too small");
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
-    store_ext_secure_file_ctx_s *ext_ctx = &chain_context->current_ext_ctx;
+    store_ext_file_ctx_s *ext_ctx = &chain_context->current_ext_ctx;
 
-    if (ext_ctx->ext_secure_file_data_size == 0) {
+    if (ext_ctx->ext_file_data_size == 0) {
         kcm_status = KCM_STATUS_INSUFFICIENT_BUFFER;
         return kcm_status;
     }
 
     // Copy data if buffer provided
     if (kcm_max_cert_data_size > 0) {
-        if (kcm_max_cert_data_size < ext_ctx->ext_secure_file_data_size) {
+        if (kcm_max_cert_data_size < ext_ctx->ext_file_data_size) {
             kcm_status = KCM_STATUS_INSUFFICIENT_BUFFER;
             return kcm_status;
         }
 
-        memcpy(kcm_cert_data, ext_ctx->ext_secure_file_data, ext_ctx->ext_secure_file_data_size);
+        SA_PV_LOG_INFO("Copying %s from external certificate store", chain_context->chain_name);
+        memcpy(kcm_cert_data, ext_ctx->ext_file_data, ext_ctx->ext_file_data_size);
 
     }
-    *kcm_actual_cert_data_size = ext_ctx->ext_secure_file_data_size;
+    *kcm_actual_cert_data_size = ext_ctx->ext_file_data_size;
 
     // storage_file_close_external_certificate_store(ext_ctx);
     SA_PV_LOG_INFO_FUNC_EXIT("kcm data size = %" PRIu32 "", (uint32_t)*kcm_actual_cert_data_size);
@@ -1052,7 +1056,7 @@ kcm_status_e storage_cert_chain_close(kcm_cert_chain_handle kcm_chain_handle, st
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
     // Clean up external secure store context if it was used
-    if (chain_context->current_ext_ctx.ext_secure_file_data != NULL) {
+    if (chain_context->current_ext_ctx.ext_file_data != NULL) {
         storage_file_close_external_certificate_store(&chain_context->current_ext_ctx);
     }
 #endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
@@ -1300,15 +1304,15 @@ Exit:
 }
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
-/** Open external secure file
+/** Open external certificate store file
 *
-*   @param ext_ctx External secure file context to populate
+*   @param ext_ctx External file context to populate
 *   @param ctx ESFS file context that must be already opened
 *
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_open_external_certificate_store(store_ext_secure_file_ctx_s *ext_ctx,
+kcm_status_e storage_file_open_external_certificate_store(store_ext_file_ctx_s *ext_ctx,
                                          store_esfs_file_ctx_s *ctx)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
@@ -1318,66 +1322,68 @@ kcm_status_e storage_file_open_external_certificate_store(store_ext_secure_file_
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ext_ctx == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid external context");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ctx == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid ESFS context");
 
-    memset(ext_ctx, 0, sizeof(store_ext_secure_file_ctx_s));
-    uint8_t ext_secure_file_name[STORAGE_FILENAME_MAX_SIZE];
+    memset(ext_ctx, 0, sizeof(store_ext_file_ctx_s));
+    uint8_t ext_file_name[STORAGE_FILENAME_MAX_SIZE];
 
     // Read esfs_file_h using storage_file_read_with_ctx
-    kcm_status = storage_file_read_with_ctx(ctx, ext_secure_file_name, STORAGE_FILENAME_MAX_SIZE, &ext_ctx->ext_secure_file_name_size);
+    kcm_status = storage_file_read_with_ctx(ctx, ext_file_name, STORAGE_FILENAME_MAX_SIZE, &ext_ctx->ext_file_name_size);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading esfs (kcm_status %d)", kcm_status);
 
     // Ensure null termination
-    if (ext_ctx->ext_secure_file_name_size > 0) {
-        ext_secure_file_name[ext_ctx->ext_secure_file_name_size] = '\0';
+    if (ext_ctx->ext_file_name_size > 0) {
+        ext_file_name[ext_ctx->ext_file_name_size] = '\0';
     }
 
-    if (ext_secure_file_name[0] == '\0') {
+    if (ext_file_name[0] == '\0') {
         kcm_status = KCM_STATUS_ITEM_NOT_FOUND;
         return kcm_status;
     }
 
-    // Read file size from external secure storage area
-    kcm_status = storage_read_file_size_from_external_certificate_store(ext_secure_file_name,
-                                            ext_ctx->ext_secure_file_name_size,
-                                            &ext_ctx->ext_secure_file_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading external secure file size (kcm_status %d)", kcm_status);
+    SA_PV_LOG_INFO_FUNC_EXIT("Reading  = %s", ext_file_name);
+
+    // Read file size from external storage area
+    kcm_status = storage_read_file_size_from_external_certificate_store(ext_file_name,
+                                            ext_ctx->ext_file_name_size,
+                                            &ext_ctx->ext_file_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading external file size (kcm_status %d)", kcm_status);
 
     // malloc buffer for file data
-    ext_ctx->ext_secure_file_data = malloc(ext_ctx->ext_secure_file_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((ext_ctx->ext_secure_file_data == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating memory for external secure file data");
+    ext_ctx->ext_file_data = malloc(ext_ctx->ext_file_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((ext_ctx->ext_file_data == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating memory for external file data");
 
-    // Read file from external secure storage area
-    kcm_status = storage_read_file_from_external_certificate_store(ext_secure_file_name,
-                                            ext_ctx->ext_secure_file_name_size,
-                                            ext_ctx->ext_secure_file_data,
-                                            ext_ctx->ext_secure_file_data_size,
-                                            &ext_ctx->ext_secure_file_data_size);
-    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading external secure file (kcm_status %d)", kcm_status);
+    // Read file from external storage area
+    kcm_status = storage_read_file_from_external_certificate_store(ext_file_name,
+                                            ext_ctx->ext_file_name_size,
+                                            ext_ctx->ext_file_data,
+                                            ext_ctx->ext_file_data_size,
+                                            &ext_ctx->ext_file_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading external file (kcm_status %d)", kcm_status);
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 
     return kcm_status;
 }
 
-/** Close external secure file
+/** Close external file
 *
-*   @param ext_ctx External secure file context to close
+*   @param ext_ctx External file context to close
 *
 *   @returns
 *       KCM_STATUS_SUCCESS in case of success otherwise one of kcm_status_e errors
 */
-kcm_status_e storage_file_close_external_certificate_store(store_ext_secure_file_ctx_s *ext_ctx)
+kcm_status_e storage_file_close_external_certificate_store(store_ext_file_ctx_s *ext_ctx)
 {
     SA_PV_LOG_TRACE_FUNC_ENTER_NO_ARGS();
 
     SA_PV_ERR_RECOVERABLE_RETURN_IF((ext_ctx == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid external context");
 
     // Free heap memory if allocated
-    if (ext_ctx->ext_secure_file_data != NULL) {
-        free(ext_ctx->ext_secure_file_data);
+    if (ext_ctx->ext_file_data != NULL) {
+        free(ext_ctx->ext_file_data);
     }
 
     // Clear the context
-    memset(ext_ctx, 0, sizeof(store_ext_secure_file_ctx_s));
+    memset(ext_ctx, 0, sizeof(store_ext_file_ctx_s));
 
     SA_PV_LOG_TRACE_FUNC_EXIT_NO_ARGS();
 

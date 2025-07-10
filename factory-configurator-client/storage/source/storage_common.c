@@ -253,7 +253,7 @@ kcm_status_e storage_read_file_size_from_external_certificate_store(const uint8_
     SA_PV_ERR_RECOVERABLE_RETURN_IF((file_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid file_size_out");
 
     secure_file = fopen((char*)file_name, "rb");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((secure_file == NULL), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, Exit, "Failed opening secure file");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((secure_file == NULL), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, Exit, "Failed opening external file");
 
     // Get file size
     if (fseek(secure_file, 0, SEEK_END) != 0) {
@@ -299,7 +299,7 @@ kcm_status_e storage_read_file_from_external_certificate_store(const uint8_t *fi
     SA_PV_ERR_RECOVERABLE_RETURN_IF((buffer_actual_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid buffer_actual_size_out");
 
     secure_file = fopen((char*)file_name, "rb");
-    SA_PV_ERR_RECOVERABLE_GOTO_IF((secure_file == NULL), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, Exit, "Failed opening secure file");
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((secure_file == NULL), kcm_status = KCM_STATUS_ITEM_NOT_FOUND, Exit, "Failed opening external file");
 
     // Read file data
     actual_size = fread(buffer_out, 1, buffer_size, secure_file);

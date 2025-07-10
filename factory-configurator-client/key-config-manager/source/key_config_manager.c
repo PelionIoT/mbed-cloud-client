@@ -143,17 +143,17 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
         memcpy(filename, kcm_item_data, kcm_item_data_size);
         filename[kcm_item_data_size] = '\0';
 
-        // Read file size from external secure storage area
+        // Read file size from external storage area
         kcm_status = storage_read_file_size_from_external_certificate_store((uint8_t*)filename, kcm_item_data_size, &temp_size);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading external secure file size (kcm_status %d)", kcm_status);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading external certificate file size (kcm_status %d)", kcm_status);
 
         // malloc buffer for file data
         temp_data = malloc(temp_size);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((temp_data == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating memory for external secure file data");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((temp_data == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating memory for external certificate file data");
 
-        // Read file from external secure storage area
+        // Read file from external storage area
         kcm_status = storage_read_file_from_external_certificate_store((uint8_t*)filename, kcm_item_data_size, temp_data, temp_size, &temp_size);
-        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading certificate/key from external store");
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading certificate/key from external file");
         free(filename);
 
         // Update certificate data and size
