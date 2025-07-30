@@ -18,16 +18,28 @@
 
 #ifndef __FOTA_CRYPTO_ASN_EXTRA_H_
 #define __FOTA_CRYPTO_ASN_EXTRA_H_
-
+#include "mbed-client/m2mconfig.h"
 #include <stdint.h>
 
 #define MBEDTLS_ASN1_ENUMERATED              0x0A
 
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 1)
+int openssl_asn1_get_enumerated_value(const unsigned char **p,
+                                      const unsigned char *end,
+                                      int *val);
+int openssl_asn1_get_int64(const unsigned char **p,
+                           const unsigned char *end,
+                           int64_t *val);
+// Macro aliasing for unified API
+#define mbedtls_asn1_get_enumerated_value openssl_asn1_get_enumerated_value
+#define mbedtls_asn1_get_int64 openssl_asn1_get_int64
+#else
 int mbedtls_asn1_get_enumerated_value(unsigned char **p,
                                       const unsigned char *end,
                                       int *val);
 int mbedtls_asn1_get_int64(unsigned char **p,
                            const unsigned char *end,
                            int64_t *val);
+#endif
 
 #endif  // __FOTA_CRYPTO_ASN_EXTRA_H_

@@ -383,7 +383,8 @@
 /**
  * \def MBEDTLS_CAMELLIA_SMALL_MEMORY
  *
- * Use less ROM for the Camellia implementation (saves about 768 bytes).
+ * Use less ROM for the Camellia implementa
+ tion (saves about 768 bytes).
  *
  * Uncomment this macro to use less memory for Camellia.
  */

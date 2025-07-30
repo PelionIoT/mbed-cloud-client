@@ -43,13 +43,12 @@ palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t key
     PAL_VALIDATE_CONDITION_WITH_ERROR((NULL == key), PAL_ERR_NULL_POINTER)
 
     status = pal_plat_osGetRoT(rotBuffer, keyLenBytes);
-    if (status != PAL_SUCCESS) {
+    if (status != PAL_SUCCESS && status != PAL_ERR_ITEM_NOT_EXIST) {
         PAL_PRINTF("pal_osGetDeviceKey() - pal_plat_osGetRoT() failed with pal_status = 0x%x", (unsigned int)status);
         return status;
     }
 
-#ifndef PAL_USE_ROT_FROM_FILE
-#if (PAL_USE_HW_ROT == 0)
+#if (PAL_USE_HW_ROT == 0 && PAL_USE_ROT_FROM_FILE == 0)
 
     //If Rot not exists,try to generate random buffer and set as RoT
     if (status == PAL_ERR_ITEM_NOT_EXIST) {
@@ -63,7 +62,7 @@ palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t key
         }
     }
 #endif
-#endif // PAL_USE_ROT_FROM_FILE
+
     if (PAL_SUCCESS == status)
     {   // Logic of RoT according to key type using 128 bit strong Key Derivation Algorithm
 

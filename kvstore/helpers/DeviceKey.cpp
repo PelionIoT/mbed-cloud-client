@@ -56,7 +56,7 @@ namespace mbed {
 
 DeviceKey::DeviceKey()
 {
-
+    printf("openssl DeviceKey::DeviceKey\n");
     int ret = kv_init_storage_config();
     if (ret != MBED_SUCCESS) {
         tr_error("DeviceKey: Fail to initialize KvStore configuration.");

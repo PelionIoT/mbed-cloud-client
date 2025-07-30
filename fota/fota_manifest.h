@@ -30,6 +30,8 @@
 extern "C" {
 #endif
 
+#define FOTA_MANIFEST_DEBUG
+
 #ifdef FOTA_MANIFEST_DEBUG
 #define FOTA_MANIFEST_TRACE_DEBUG FOTA_TRACE_DEBUG
 #else

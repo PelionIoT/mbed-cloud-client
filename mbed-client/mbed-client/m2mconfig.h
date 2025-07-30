@@ -22,7 +22,7 @@
 
 #include <stddef.h>
 #include "mbed-client/m2mversion.h"
-
+#include <stdint.h>
 #ifdef __cplusplus
 
 #include "mbed-client/m2mstring.h"
@@ -237,6 +237,10 @@ typedef struct mbedtls_entropy {
 
 #ifdef MBED_CONF_MBED_CLIENT_DYNAMIC_LOGGING_USE_FILESYSTEM
 #define MBED_CLIENT_DYNAMIC_LOGGING_USE_FILESYSTEM MBED_CONF_MBED_CLIENT_DYNAMIC_LOGGING_USE_FILESYSTEM
+#endif
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL
+#define MBED_CLOUD_CLIENT_USE_OPENSSL MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL
 #endif
 
 #endif // M2MCONFIG_H
