@@ -383,7 +383,7 @@ int fota_hash_start(fota_hash_context_t **ctx)
 
     mbedtls_sha256_init(&hash_ctx->sha256_ctx);
 
-    ret = mbedtls_sha256_starts_ret(&hash_ctx->sha256_ctx, 0);
+    ret = mbedtls_sha256_starts(&hash_ctx->sha256_ctx, 0);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
@@ -396,7 +396,7 @@ int fota_hash_start(fota_hash_context_t **ctx)
 int fota_hash_update(fota_hash_context_t *ctx, const uint8_t *buf, uint32_t buf_size)
 {
     FOTA_DBG_ASSERT(ctx);
-    int ret = mbedtls_sha256_update_ret(&ctx->sha256_ctx, buf, buf_size);
+    int ret = mbedtls_sha256_update(&ctx->sha256_ctx, buf, buf_size);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
@@ -415,7 +415,7 @@ void fota_hash_clone(fota_hash_context_t *dst_ctx, const fota_hash_context_t *sr
 int fota_hash_result(fota_hash_context_t *ctx, uint8_t *hash_buf)
 {
     FOTA_DBG_ASSERT(ctx);
-    int ret = mbedtls_sha256_finish_ret(&ctx->sha256_ctx, hash_buf);
+    int ret = mbedtls_sha256_finish(&ctx->sha256_ctx, hash_buf);
     if (ret) {
         FOTA_TRACE_TLS_ERR(ret);
         return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
@@ -739,18 +739,18 @@ int fota_verify_signature(
     int ret = FOTA_STATUS_INTERNAL_ERROR;
     int status;
 
-    status = mbedtls_sha256_starts_ret(&sha256_ctx, 0);
+    status = mbedtls_sha256_starts(&sha256_ctx, 0);
     if (status) {
         goto fail;
     }
     flow_control++;
-    status = mbedtls_sha256_update_ret(&sha256_ctx, signed_data, signed_data_size);
+    status = mbedtls_sha256_update(&sha256_ctx, signed_data, signed_data_size);
     if (status) {
         mbedtls_sha256_free(&sha256_ctx);
         goto fail;
     }
     flow_control++;
-    status = mbedtls_sha256_finish_ret(&sha256_ctx, digest);
+    status = mbedtls_sha256_finish(&sha256_ctx, digest);
     mbedtls_sha256_free(&sha256_ctx);
     if (status) {
         goto fail;

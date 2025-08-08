@@ -14,6 +14,7 @@
 // limitations under the License.
 // ----------------------------------------------------------------------------
 
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS  // Allow access to private members during mbedTLS 3.x migration
 #include "pv_error_handling.h"
 #include "cs_der_keys_and_csrs.h"
 #include "cs_der_certs.h"
@@ -191,10 +192,10 @@ kcm_status_e cs_pub_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_le
     SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed");
 
     localECKey = (mbedtls_pk_context*)key_handle;
-    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
     //Get raw public key data
-    mbdtls_result = mbedtls_ecp_point_write_binary(&ecp_key_pair->grp, &ecp_key_pair->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, raw_key_data_act_size_out, raw_key_data_out, raw_key_data_max_size);
+    mbdtls_result = mbedtls_ecp_point_write_binary(&ecp_key_pair->MBEDTLS_PRIVATE(grp), &ecp_key_pair->MBEDTLS_PRIVATE(Q), MBEDTLS_ECP_PF_UNCOMPRESSED, raw_key_data_act_size_out, raw_key_data_out, raw_key_data_max_size);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_point_write_binary failed");
     SA_PV_ERR_RECOVERABLE_GOTO_IF((*raw_key_data_act_size_out != KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "Wrong raw_key_data_act_size_out");
 
@@ -229,13 +230,13 @@ kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_le
     mbdtls_result = mbedtls_pk_setup(localECKey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
     SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_pk_setup failed ");
 
-    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
-    mbdtls_result = mbedtls_ecp_group_load(&ecp_key_pair->grp, MBEDTLS_ECP_DP_SECP256R1);
+    mbdtls_result = mbedtls_ecp_group_load(&ecp_key_pair->MBEDTLS_PRIVATE(grp), MBEDTLS_ECP_DP_SECP256R1);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_group_load failed ");
 
     //Fill ecp_key_pair with raw public key data
-    mbdtls_result = mbedtls_ecp_point_read_binary(&ecp_key_pair->grp, &ecp_key_pair->Q, raw_key, raw_key_length);
+    mbdtls_result = mbedtls_ecp_point_read_binary(&ecp_key_pair->MBEDTLS_PRIVATE(grp), &ecp_key_pair->MBEDTLS_PRIVATE(Q), raw_key, raw_key_length);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY, exit, "mbedtls_ecp_point_read_binary failed ");
 
     pal_status = pal_writePublicKeyToDer(key_handle, der_key_data_out, der_key_data_max_size, der_key_data_act_size_out);
@@ -274,14 +275,14 @@ kcm_status_e cs_priv_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_l
     SA_PV_ERR_RECOVERABLE_GOTO_IF((FCC_PAL_SUCCESS != pal_status), kcm_status = cs_error_handler(pal_status), exit, "pal_parseECPublicKeyFromDER failed ");
 
     localECKey = (mbedtls_pk_context*)key_handle;
-    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    ecp_key_pair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
     // Get raw private key size
-    key_data_size = mbedtls_mpi_size(&ecp_key_pair->d);
+    key_data_size = mbedtls_mpi_size(&ecp_key_pair->MBEDTLS_PRIVATE(d));
     SA_PV_ERR_RECOVERABLE_GOTO_IF((key_data_size > KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PRIVKEY, exit, "Wrong key_data_size");
 
     // Get raw private key data
-    mbdtls_result = mbedtls_mpi_write_binary(&ecp_key_pair->d, raw_key_data_out, KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE);
+    mbdtls_result = mbedtls_mpi_write_binary(&ecp_key_pair->MBEDTLS_PRIVATE(d), raw_key_data_out, KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((mbdtls_result != 0), kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PRIVKEY, exit, "mbedtls_ecp_point_write_binary failed ");
 
     *raw_key_data_act_size_out = KCM_EC_SECP256R1_MAX_PRIV_KEY_RAW_SIZE;

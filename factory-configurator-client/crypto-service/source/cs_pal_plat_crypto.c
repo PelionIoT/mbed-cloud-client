@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS  // Allow access to private members during mbedTLS 3.x migration
 #include "cs_pal_plat_crypto.h"
 #if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) || defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 #include "pal.h"
@@ -297,7 +298,7 @@ static palStatus_t pal_plat_x509CertGetID(palX509Ctx_t* x509Cert, uint8_t *id, s
     palStatus_t status = FCC_PAL_SUCCESS;
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
 
-    platStatus = mbedtls_ecp_point_write_binary( &((mbedtls_ecp_keypair *)((x509Cert->crt).pk).pk_ctx)->grp, &((mbedtls_ecp_keypair *)((x509Cert->crt).pk).pk_ctx)->Q,
+    platStatus = mbedtls_ecp_point_write_binary( &((mbedtls_ecp_keypair *)((x509Cert->crt).pk).pk_ctx)->MBEDTLS_PRIVATE(grp), &((mbedtls_ecp_keypair *)((x509Cert->crt).pk).pk_ctx)->MBEDTLS_PRIVATE(Q),
          MBEDTLS_ECP_PF_COMPRESSED, actualOutLenBytes, id, outLenBytes);
     if (platStatus != CRYPTO_PLAT_SUCCESS)
     {
@@ -514,13 +515,13 @@ palStatus_t pal_plat_x509CertGetAttribute(palX509Handle_t x509Cert, palX509Attr_
             break;
 
         case PAL_X509_SIGNATUR_ATTR:
-            if (localCtx->crt.sig.len > outLenBytes) {
+            if (localCtx->crt.MBEDTLS_PRIVATE(sig).len > outLenBytes) {
                 status = FCC_PAL_ERR_BUFFER_TOO_SMALL;
                 break;
             }
 
-            memcpy(output, localCtx->crt.sig.p, localCtx->crt.sig.len);
-            *actualOutLenBytes = localCtx->crt.sig.len;
+            memcpy(output, localCtx->crt.MBEDTLS_PRIVATE(sig).p, localCtx->crt.MBEDTLS_PRIVATE(sig).len);
+            *actualOutLenBytes = localCtx->crt.MBEDTLS_PRIVATE(sig).len;
             break;
 
         default:
@@ -770,9 +771,9 @@ palStatus_t pal_plat_mdGetOutputSize(palMDHandle_t md, size_t* bufferSize)
     palStatus_t status = FCC_PAL_SUCCESS;
     palMD_t* localCtx = (palMD_t*)md;
 
-    if (NULL != localCtx->md.md_info)
+    if (NULL != localCtx->md.MBEDTLS_PRIVATE(md_info))
     {
-        *bufferSize = (size_t)mbedtls_md_get_size(localCtx->md.md_info);
+        *bufferSize = (size_t)mbedtls_md_get_size(localCtx->md.MBEDTLS_PRIVATE(md_info));
     }
     else
     {
@@ -1441,7 +1442,7 @@ palStatus_t pal_plat_CMACFinish(palCMACHandle_t *ctx, unsigned char *output, siz
     }
     else
     {
-        *outLen = localCipher->cipher_info->block_size;
+        *outLen = localCipher->MBEDTLS_PRIVATE(cipher_info)->block_size;
     }
 
     
@@ -1563,12 +1564,12 @@ static palStatus_t pal_plat_ECCheckPrivateKey(palECGroup_t* ecpGroup, palECKeyHa
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     palECKey_t* privateKey = (palECKey_t*)key;
     mbedtls_mpi* prvMP = NULL;
-    if(NULL == (mbedtls_ecp_keypair*)privateKey->pk_ctx)
+    if(NULL == (mbedtls_ecp_keypair*)privateKey->MBEDTLS_PRIVATE(pk_ctx))
     {
         return FCC_PAL_ERR_INVALID_ARGUMENT;
     }
 
-    prvMP = &((mbedtls_ecp_keypair*)privateKey->pk_ctx)->d;
+    prvMP = &((mbedtls_ecp_keypair*)privateKey->MBEDTLS_PRIVATE(pk_ctx))->MBEDTLS_PRIVATE(d);
 
     platStatus =  mbedtls_ecp_check_privkey(ecpGroup, prvMP);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
@@ -1590,12 +1591,12 @@ static palStatus_t pal_plat_ECCheckPublicKey(palECGroup_t* ecpGroup, palECKeyHan
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
     palECKey_t* publicKey = (palECKey_t*)key;
     mbedtls_ecp_point* pubPoint = NULL;
-    if(NULL == (mbedtls_ecp_keypair*)publicKey->pk_ctx)
+    if(NULL == (mbedtls_ecp_keypair*)publicKey->MBEDTLS_PRIVATE(pk_ctx))
     {
         return FCC_PAL_ERR_INVALID_ARGUMENT;
     }
 
-    pubPoint = &((mbedtls_ecp_keypair*)publicKey->pk_ctx)->Q;
+    pubPoint = &((mbedtls_ecp_keypair*)publicKey->MBEDTLS_PRIVATE(pk_ctx))->MBEDTLS_PRIVATE(Q);
 
     platStatus =  mbedtls_ecp_check_pubkey(ecpGroup, pubPoint);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
@@ -1813,7 +1814,7 @@ palStatus_t pal_plat_parseECPrivateKeyFromDER(const unsigned char* prvDERKey, si
         return FCC_PAL_ERR_INVALID_ARGUMENT;
     }
 
-    platStatus = mbedtls_pk_parse_key(localECKey, prvDERKey, keyLen, NULL, 0);
+    platStatus = mbedtls_pk_parse_key(localECKey, prvDERKey, keyLen, NULL, 0, NULL, NULL);
 
     status = pal_plat_pkMbedtlsToPalError(platStatus);
 
@@ -1876,15 +1877,15 @@ static palStatus_t pal_plat_convertPublicRawKeyToDer(const uint8_t *rawKey, size
         palStatus = FCC_PAL_ERR_PARSING_PUBLIC_KEY;
         goto finish;
     }
-    ecpKeyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    ecpKeyPair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
-    platStatus = mbedtls_ecp_group_load(&ecpKeyPair->grp, MBEDTLS_ECP_DP_SECP256R1);
+    platStatus = mbedtls_ecp_group_load(&ecpKeyPair->MBEDTLS_PRIVATE(grp), MBEDTLS_ECP_DP_SECP256R1);
     if (CRYPTO_PLAT_SUCCESS != platStatus) {
         palStatus = FCC_PAL_ERR_PARSING_PUBLIC_KEY;
         goto finish;
     }
     //Fill ecpKeyPair with raw public key data
-    platStatus = mbedtls_ecp_point_read_binary(&ecpKeyPair->grp, &ecpKeyPair->Q, rawKey, rawKeyLength);
+    platStatus = mbedtls_ecp_point_read_binary(&ecpKeyPair->MBEDTLS_PRIVATE(grp), &ecpKeyPair->MBEDTLS_PRIVATE(Q), rawKey, rawKeyLength);
     if (CRYPTO_PLAT_SUCCESS != platStatus) {
         palStatus = FCC_PAL_ERR_PARSING_PUBLIC_KEY;
         goto finish;
@@ -2071,7 +2072,7 @@ palStatus_t pal_plat_ECKeyGenerateKey(palGroupIndex_t grpID, palECKeyHandle_t ke
         goto finish;
     }
 
-    keyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    keyPair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
     platStatus = mbedtls_ecp_gen_key(platCurve, keyPair, pal_plat_entropySource, NULL);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
@@ -2090,13 +2091,13 @@ palStatus_t pal_plat_ECKeyGetCurve(palECKeyHandle_t key, palGroupIndex_t* grpID)
     palECKey_t* localECKey = (palECKey_t*)key;
     mbedtls_ecp_keypair* keyPair = NULL;
 
-    if (NULL == (mbedtls_ecp_keypair*)localECKey->pk_ctx)
+    if (NULL == (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx))
     {
         return FCC_PAL_ERR_INVALID_ARGUMENT;
     }
-    keyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    keyPair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
-    switch(keyPair->grp.id)
+    switch(keyPair->MBEDTLS_PRIVATE(grp).id)
     {
         case MBEDTLS_ECP_DP_SECP256R1:
             *grpID = PAL_ECP_DP_SECP256R1;
@@ -2177,13 +2178,13 @@ palStatus_t pal_plat_ECDHComputeKey(const palCurveHandle_t grp, const palECKeyHa
 
     mbedtls_ctr_drbg_init(&ctrDrbgCtx);
 
-    pubKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)peerPublicKey)->pk_ctx;
-    prvKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)privateKey)->pk_ctx;
-    outKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)outKey)->pk_ctx;
+    pubKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)peerPublicKey)->MBEDTLS_PRIVATE(pk_ctx);
+    prvKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)privateKey)->MBEDTLS_PRIVATE(pk_ctx);
+    outKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)outKey)->MBEDTLS_PRIVATE(pk_ctx);
 
     if (NULL != pubKeyPair && NULL != prvKeyPair && NULL != outKeyPair)
     {
-        platStatus = mbedtls_ecdh_compute_shared(ecpGroup, &outKeyPair->d, &pubKeyPair->Q, &prvKeyPair->d, mbedtls_ctr_drbg_random, (void*)&ctrDrbgCtx);
+        platStatus = mbedtls_ecdh_compute_shared(ecpGroup, &outKeyPair->MBEDTLS_PRIVATE(d), &pubKeyPair->MBEDTLS_PRIVATE(Q), &prvKeyPair->MBEDTLS_PRIVATE(d), mbedtls_ctr_drbg_random, (void*)&ctrDrbgCtx);
         if (CRYPTO_PLAT_SUCCESS != platStatus)
         {
             status = FCC_PAL_ERR_FAILED_TO_COMPUTE_SHARED_KEY;
@@ -2234,8 +2235,8 @@ palStatus_t pal_plat_ECDHKeyAgreement(
     mbedtls_ecdh_init(&ecdhContext);
 
     //Get ecp keys form private and public peer key handles
-    pubPeerKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)peerPublicKeyHandle)->pk_ctx;
-    prvKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)privateKeyHandle)->pk_ctx;
+    pubPeerKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)peerPublicKeyHandle)->MBEDTLS_PRIVATE(pk_ctx);
+    prvKeyPair = (mbedtls_ecp_keypair*)((palECKey_t*)privateKeyHandle)->MBEDTLS_PRIVATE(pk_ctx);
 
     if (NULL != pubPeerKeyPair && NULL != prvKeyPair)
     {
@@ -2282,7 +2283,7 @@ palStatus_t pal_plat_ECDHKeyAgreement(
     uint8_t raw_public_key[PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE] = { 0 };
     size_t act_raw_public_key_size = 0;
     //Set PSA handle
-    psa_key_handle_t *privatKeyPSAHandle =(psa_key_handle_t*)((mbedtls_pk_context*)((palECKey_t*)privateKeyHandle)->pk_ctx);
+    psa_key_handle_t *privatKeyPSAHandle =(psa_key_handle_t*)((mbedtls_pk_context*)((palECKey_t*)privateKeyHandle)->MBEDTLS_PRIVATE(pk_ctx));
 
     //Initialize a new key handle
     status = pal_plat_ECKeyNew(&peerPublicKeyHandle);
@@ -2297,10 +2298,10 @@ palStatus_t pal_plat_ECDHKeyAgreement(
     }
 
     //Set ecp key pair
-    pubPeerKeyPair = (mbedtls_ecp_keypair*)(((palECKey_t*)peerPublicKeyHandle)->pk_ctx);
+    pubPeerKeyPair = (mbedtls_ecp_keypair*)(((palECKey_t*)peerPublicKeyHandle)->MBEDTLS_PRIVATE(pk_ctx));
 
     //Get raw public key data
-    platStatus = mbedtls_ecp_point_write_binary(&pubPeerKeyPair->grp, &pubPeerKeyPair->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &act_raw_public_key_size, raw_public_key, sizeof(raw_public_key));
+    platStatus = mbedtls_ecp_point_write_binary(&pubPeerKeyPair->MBEDTLS_PRIVATE(grp), &pubPeerKeyPair->MBEDTLS_PRIVATE(Q), MBEDTLS_ECP_PF_UNCOMPRESSED, &act_raw_public_key_size, raw_public_key, sizeof(raw_public_key));
     if (platStatus != FCC_PAL_SUCCESS || act_raw_public_key_size!= PAL_SECP256R1_MAX_PUB_KEY_RAW_SIZE) {
         status = FCC_PAL_ERR_FAILED_TO_WRITE_PUBLIC_KEY;
         goto finish;
@@ -2333,7 +2334,7 @@ palStatus_t pal_plat_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKe
     palECGroup_t* localGroup = (palECGroup_t*)grp;
     mbedtls_md_type_t mdAlg = MBEDTLS_MD_NONE;
 
-    keyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    keyPair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
     mbedtls_ecdsa_init(&localECDSA);
     platStatus = mbedtls_ecdsa_from_keypair(&localECDSA, keyPair);
@@ -2360,7 +2361,7 @@ palStatus_t pal_plat_ECDSASign(palCurveHandle_t grp, palMDType_t mdType, palECKe
             goto finish;
     }
 
-    platStatus = mbedtls_ecdsa_write_signature(&localECDSA, mdAlg, dgst, dgstLen, sig, sigLen, NULL, NULL);
+    platStatus = mbedtls_ecdsa_write_signature(&localECDSA, mdAlg, dgst, dgstLen, sig, *sigLen, sigLen, NULL, NULL);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
         status = FCC_PAL_ERR_FAILED_TO_WRITE_SIGNATURE;
@@ -2379,7 +2380,7 @@ palStatus_t pal_plat_ECDSAVerify(palECKeyHandle_t pubKey, unsigned char* dgst, u
     mbedtls_ecp_keypair* keyPair = NULL;
     mbedtls_ecdsa_context localECDSA;
 
-    keyPair = (mbedtls_ecp_keypair*)localECKey->pk_ctx;
+    keyPair = (mbedtls_ecp_keypair*)localECKey->MBEDTLS_PRIVATE(pk_ctx);
 
     mbedtls_ecdsa_init(&localECDSA);
     platStatus = mbedtls_ecdsa_from_keypair(&localECDSA, keyPair);
@@ -2547,7 +2548,7 @@ palStatus_t pal_plat_asymmetricSign( palECKeyHandle_t privateKeyHandle, palMDTyp
         return FCC_PAL_ERR_BUFFER_TOO_SMALL;
 
     //Create signature in asn1 format
-    platStatus = mbedtls_pk_sign(localECKey, mdAlg, hash, hashSize, derSignature, &derSignatureSize, pal_plat_entropySource, NULL);
+    platStatus = mbedtls_pk_sign(localECKey, mdAlg, hash, hashSize, derSignature, sizeof(derSignature), &derSignatureSize, pal_plat_entropySource, NULL);
     if (platStatus != CRYPTO_PLAT_SUCCESS) {
         status = FCC_PAL_ERR_PK_SIGN_FAILED;
     }
@@ -2659,12 +2660,12 @@ palStatus_t pal_plat_x509CSRSetKey(palx509CSRHandle_t x509CSR, palECKeyHandle_t 
         mbedtls_ecp_keypair* pubKeyPair = NULL;
         mbedtls_ecp_keypair* prvKeyPair = NULL;
 
-        pubKeyPair = (mbedtls_ecp_keypair*)localPubKey->pk_ctx;
-        prvKeyPair = (mbedtls_ecp_keypair*)localPrvKey->pk_ctx;
+        pubKeyPair = (mbedtls_ecp_keypair*)localPubKey->MBEDTLS_PRIVATE(pk_ctx);
+        prvKeyPair = (mbedtls_ecp_keypair*)localPrvKey->MBEDTLS_PRIVATE(pk_ctx);
 
         if (NULL != pubKeyPair && NULL != prvKeyPair)
         {
-            platStatus = mbedtls_mpi_copy(&(pubKeyPair->d), &(prvKeyPair->d));
+            platStatus = mbedtls_mpi_copy(&(pubKeyPair->MBEDTLS_PRIVATE(d)), &(prvKeyPair->MBEDTLS_PRIVATE(d)));
             if (CRYPTO_PLAT_SUCCESS != platStatus)
             {
                 status = FCC_PAL_ERR_FAILED_TO_COPY_KEYPAIR;
@@ -2808,7 +2809,7 @@ palStatus_t pal_plat_x509CSRSetExtendedKeyUsage(palx509CSRHandle_t x509CSR, uint
     start = end;
     end = value_buf + sizeof(value_buf);
     platStatus = mbedtls_x509write_csr_set_extension(localCSR, MBEDTLS_OID_EXTENDED_KEY_USAGE, MBEDTLS_OID_SIZE(MBEDTLS_OID_EXTENDED_KEY_USAGE),
-                                                     start, (size_t)(end - start));
+                                                     0, start, (size_t)(end - start));
     if (CRYPTO_PLAT_SUCCESS != platStatus) {
         goto finish;
     }
@@ -2826,7 +2827,7 @@ palStatus_t pal_plat_x509CSRSetExtension(palx509CSRHandle_t x509CSR,const char* 
     palx509CSR_t *localCSR = (palx509CSR_t*)x509CSR;
     int32_t platStatus = CRYPTO_PLAT_SUCCESS;
 
-    platStatus = mbedtls_x509write_csr_set_extension(localCSR, oid, oidLen, value, valueLen);
+    platStatus = mbedtls_x509write_csr_set_extension(localCSR, oid, oidLen, 0, value, valueLen);
     if (CRYPTO_PLAT_SUCCESS != platStatus)
     {
         status = FCC_PAL_ERR_SET_EXTENSION_FAILED;

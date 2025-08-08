@@ -2662,7 +2662,7 @@
 #define MBEDTLS_SSL_CONTEXT_SERIALIZATION
 #define MBEDTLS_SSL_DTLS_CONNECTION_ID
 
-#include "check_config.h"
+// #include "check_config.h" // Removed for mbedTLS 3.x compatibility - included automatically
 
 #if defined(MBEDTLS_TEST_NULL_ENTROPY)
 #warning "MBEDTLS_TEST_NULL_ENTROPY has been enabled. This " \
