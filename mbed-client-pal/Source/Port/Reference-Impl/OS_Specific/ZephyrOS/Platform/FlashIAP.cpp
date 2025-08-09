@@ -1,86 +1,53 @@
 /* Copyright (c) 2021 Pelion
  * Copyright (c) 2022 Izuma Networks
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "FlashIAP.h"
-
-#include "FlashMap.h"
-
-/*******************************************************************************
- * Implementation
- ******************************************************************************/
-
-namespace mbed {
-
-#if FLASH_AREA_LABEL_EXISTS(izuma_storage)
-static izuma::FlashMap flash(FLASH_AREA_ID(izuma_storage));
-#elif FLASH_AREA_LABEL_EXISTS(storage) && !defined(CONFIG_SETTINGS)
-/* Only use default storage area if not already in use. */
-static izuma::FlashMap flash(FLASH_AREA_ID(storage));
-#else
-#error "Missing izuma_storage partition for storing credentials and settings"
-#endif
-
-int FlashIAP::init()
-{
-    return flash.init();
-}
-
-int FlashIAP::deinit()
-{
-    return flash.deinit();
-}
-
-int FlashIAP::read(void *buffer, uint32_t address, uint32_t size)
-{
-    return flash.read(buffer, address, size);
-}
-
-int FlashIAP::program(const void *buffer, uint32_t address, uint32_t size)
-{
-    return flash.program(buffer, address, size);
-}
-
-int FlashIAP::erase(uint32_t address, uint32_t size)
-{
-    return flash.erase(address, size);
-}
-
-uint32_t FlashIAP::get_page_size() const
-{
-    return flash.get_page_size();
-}
-
-uint32_t FlashIAP::get_sector_size(uint32_t address) const
-{
-    return flash.get_sector_size(address);
-}
-
-uint32_t FlashIAP::get_flash_start() const
-{
-    return flash.get_flash_start();
-}
-
-uint32_t FlashIAP::get_flash_size() const
-{
-    return flash.get_flash_size();
-}
-
-uint8_t FlashIAP::get_erase_value() const
-{
-    return flash.get_erase_value();
-}
-
-}
+ #include "FlashIAP.h"
+ #include "FlashMap.h"
+ 
+ /* Zephyr 3.6 headers for devicetree + flash map */
+ #include <zephyr/devicetree.h>
+ #include <zephyr/storage/flash_map.h>
+ 
+ /*******************************************************************************
+  * Implementation
+  ******************************************************************************/
+ 
+ namespace mbed {
+ 
+ /*
+  * Prefer a node *label* (DT_NODELABEL) you control in the overlay.
+  * Example overlay nodes:
+  *
+  *   izuma_partition: partition@fa000 { label = "izuma_storage"; ... };
+  *   storage:         partition@...   { label = "storage";        ... };
+  *
+  * We key off the *node label* (izuma_partition / storage), not the "label" string.
+  */
+ 
+ #if DT_NODE_EXISTS(DT_NODELABEL(izuma_partition))
+ /* Use: izuma_partition: partition@... { ... }; */
+ static izuma::FlashMap flash(FIXED_PARTITION_ID(izuma_partition));
+ 
+ #elif DT_NODE_EXISTS(DT_NODELABEL(storage)) && !IS_ENABLED(CONFIG_SETTINGS)
+ /* Only use the generic 'storage' partition if the Zephyr settings subsystem isn't using it. */
+ static izuma::FlashMap flash(FIXED_PARTITION_ID(storage));
+ 
+ #else
+ #error "Missing izuma_partition (node label) for storing credentials/settings; add it in your overlay"
+ #endif
+ 
+ int FlashIAP::init()                   { return flash.init(); }
+ int FlashIAP::deinit()                 { return flash.deinit(); }
+ int FlashIAP::read(void *b, uint32_t a, uint32_t s)   { return flash.read(b, a, s); }
+ int FlashIAP::program(const void *b, uint32_t a, uint32_t s) { return flash.program(b, a, s); }
+ int FlashIAP::erase(uint32_t a, uint32_t s)           { return flash.erase(a, s); }
+ uint32_t FlashIAP::get_page_size() const              { return flash.get_page_size(); }
+ uint32_t FlashIAP::get_sector_size(uint32_t a) const  { return flash.get_sector_size(a); }
+ uint32_t FlashIAP::get_flash_start() const            { return flash.get_flash_start(); }
+ uint32_t FlashIAP::get_flash_size() const             { return flash.get_flash_size(); }
+ uint8_t  FlashIAP::get_erase_value() const            { return flash.get_erase_value(); }
+ 
+ } // namespace mbed
+ 

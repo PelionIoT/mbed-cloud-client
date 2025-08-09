@@ -2572,6 +2572,6 @@
 #include MBEDTLS_USER_CONFIG_FILE
 #endif
 
-#include "mbedtls/check_config.h"
+// #include "mbedtls/check_config.h"
 
 #endif /* KSDK_MBEDTLS_CONFIG_H */

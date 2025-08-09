@@ -17,8 +17,8 @@
 #ifndef IZUMA_FLASHMAP_H
 #define IZUMA_FLASHMAP_H
 
-#include <storage/flash_map.h>
-#include <device.h>
+#include <zephyr/storage/flash_map.h>
+#include <zephyr/device.h>
 
 namespace izuma {
 

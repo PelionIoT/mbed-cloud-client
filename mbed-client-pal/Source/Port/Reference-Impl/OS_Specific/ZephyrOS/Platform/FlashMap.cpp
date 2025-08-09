@@ -16,7 +16,7 @@
 
 #include "FlashMap.h"
 
-#include <drivers/flash.h>
+#include <zephyr/drivers/flash.h>
 
 #define __STDC_LIMIT_MACROS 1
 #include <stdint.h>

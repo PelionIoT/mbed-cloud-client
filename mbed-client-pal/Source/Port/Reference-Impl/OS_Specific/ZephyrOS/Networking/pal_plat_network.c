@@ -18,11 +18,11 @@
 
 #include "fd_work_poll.h"
 
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 #include <zephyr/types.h>
 
 #ifdef CONFIG_NET_SOCKETS_POSIX_NAMES
-#include <net/socket.h>
+#include <zephyr/net/socket.h>
 #else
 #include <sys/socket.h>
 #include <sys/types.h>

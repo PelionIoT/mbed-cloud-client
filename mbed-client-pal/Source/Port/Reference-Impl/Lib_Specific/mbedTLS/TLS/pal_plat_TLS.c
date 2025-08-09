@@ -306,10 +306,12 @@ PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int
             printf("DEBUG: Handshake error case: PAL_ERR_NO_MEMORY\n");
             status = PAL_ERR_NO_MEMORY;
             break;
+#ifdef MBEDTLS_ERR_SSL_CERTIFICATE_VERIFICATION_WITHOUT_HOSTNAME
         case MBEDTLS_ERR_SSL_CERTIFICATE_VERIFICATION_WITHOUT_HOSTNAME:
             printf("DEBUG: Handshake error case: MBEDTLS_ERR_SSL_CERTIFICATE_VERIFICATION_WITHOUT_HOSTNAME\n");
             status = PAL_ERR_X509_CERT_VERIFY_FAILED;
             break;
+#endif
         default:
             printf("DEBUG: Handshake error case: default, error=%d\n", error);
             PAL_LOG_ERR("SSL handshake return code -0x%" PRIx32 ".", -error);

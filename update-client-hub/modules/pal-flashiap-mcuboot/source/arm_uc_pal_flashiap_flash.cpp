@@ -27,8 +27,8 @@
 #include "FlashMap.h"
 
 // use Zephyr's partitions to configure where the active and candidate firmware are
-static izuma::FlashMap flash_active(FLASH_AREA_ID(image_0));
-static izuma::FlashMap flash_candidate(FLASH_AREA_ID(image_1));
+static izuma::FlashMap flash_active(FIXED_PARTITION_ID(slot0_partition));
+static izuma::FlashMap flash_candidate(FIXED_PARTITION_ID(slot1_partition));
 
 #define FLASH_ACTIVE_OBJ flash_active
 #define FLASH_CANDIDATE_OBJ flash_candidate

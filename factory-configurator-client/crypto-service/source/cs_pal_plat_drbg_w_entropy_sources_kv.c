@@ -27,7 +27,7 @@
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/entropy.h"
-#include "mbedtls/config.h"
+#include "mbedtls/build_info.h"
 #include "cs_pal_plat_crypto.h"
 #ifndef FCC_NANOCLIENT_ENABLED
 #if PAL_USE_HW_TRNG

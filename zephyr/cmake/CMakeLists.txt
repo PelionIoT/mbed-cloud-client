@@ -92,7 +92,7 @@ if(CONFIG_IZUMA_SOURCES)
   add_compile_options($<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_OPTIONS>)
 
   # Add include directories of Zephyr's implemented POSIX API headers.
-  include_directories($<TARGET_PROPERTY:posix_subsys,INTERFACE_INCLUDE_DIRECTORIES>)
+  # include_directories($<TARGET_PROPERTY:posix_subsys,INTERFACE_INCLUDE_DIRECTORIES>)
 
   # Stub libraries
   add_library(platformCommon INTERFACE)

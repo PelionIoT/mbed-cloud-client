@@ -5,7 +5,7 @@
 menuconfig IZUMA_CLIENT
     bool "Izuma Device Management Client Library"
 
-    depends on NEWLIB_LIBC
+    #depends on NEWLIB_LIBC
     depends on CPLUSPLUS
     depends on LIB_CPLUSPLUS
 

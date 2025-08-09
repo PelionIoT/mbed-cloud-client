@@ -17,11 +17,7 @@
 #ifndef MBED_SECURESTORE_H
 #define MBED_SECURESTORE_H
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 #include "DeviceKey.h"
 

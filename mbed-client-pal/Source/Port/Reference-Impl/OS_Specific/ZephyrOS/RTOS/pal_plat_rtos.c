@@ -13,11 +13,11 @@
  * limitations under the License.
  */
 
-#include <zephyr.h>
+#include <zephyr/zephyr.h>
 #include <zephyr/types.h>
-#include <logging/log.h>
-#include <power/reboot.h>
-#include <posix/time.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/reboot.h>
+#include <zephyr/posix/time.h>
 
 #include "pal_plat_rtos.h"
 

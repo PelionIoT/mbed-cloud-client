@@ -29,7 +29,7 @@
 #define FD_POLL_DEBUG_PRINT(...)
 #endif
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(fd_net_sock, CONFIG_NET_SOCKETS_LOG_LEVEL);
 
 

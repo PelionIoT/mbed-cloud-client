@@ -23,11 +23,7 @@
 #include "pal_plat_entropy.h"
 
 // Include mbedtls config file explicitly for MBEDTLS_ENTROPY_NV_SEED flag
-#if !defined(MBEDTLS_CONFIG_FILE)
-    #include "mbedtls/config.h"
-#else
-    #include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 // include only when mbedTLS use PSA
 #if defined(MBEDTLS_ENTROPY_NV_SEED) && defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)

@@ -153,10 +153,10 @@ static uint32_t arm_uc_pal_flashiap_mcuboot_header[MCUBOOT_HEADER_BUFFER_WORDS] 
  * When using Zephyr, get the storage size from the devicetree.
  */
 #if defined(__ZEPHYR__)
-#include <devicetree.h>
-#include <storage/flash_map.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/storage/flash_map.h>
 #undef MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE
-#define MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE FLASH_AREA_SIZE(image_1)
+#define MBED_CONF_UPDATE_CLIENT_STORAGE_SIZE FIXED_PARTITION_SIZE(slot1_partition)
 #endif
 
 /**

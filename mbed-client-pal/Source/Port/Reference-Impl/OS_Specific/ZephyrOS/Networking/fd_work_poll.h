@@ -19,8 +19,8 @@
 #include "pal.h"
 
 #include <fcntl.h>
-#include <net/socket.h>
-#include <kernel.h>
+#include <zephyr/net/socket.h>
+#include <zephyr/kernel.h>
 
 #if defined(PAL_SOCKET_USE_K_WORK_POLL) && (PAL_SOCKET_USE_K_WORK_POLL == 1)
 #elif defined(PAL_SOCKET_USE_LONG_POLLING) && (PAL_SOCKET_USE_LONG_POLLING == 1)
