@@ -58,6 +58,13 @@ config IZUMA_COAP_MAX_BLOCKWISE_PAYLOAD_SIZE
     help
       Maximum payload size used by CoAP.
 
+config IZUMA_TDB_INTERNAL_STORAGE_SIZE
+    hex "TDB internal storage size"
+    default 0x6000
+    help
+      Size of internal flash (in bytes) reserved for Izuma KVStore TDBInternal.
+      Configure per board via its .conf (e.g. `CONFIG_IZUMA_TDB_INTERNAL_STORAGE_SIZE=0x40000`).
+
 config IZUMA_DEBUG_TRACE
     bool "Build Izuma DM client with debug tracing"
     help

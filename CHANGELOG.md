@@ -1,5 +1,8 @@
 ## Changelog for Izuma Device Management Client
 
+### Release 4.14.0 (09.04.2025)
+- Updated Zephyr OS to 3.6.0, using the default Mbed TLS 3.5.2.
+
 ### Release 4.13.2 (10.12.2023)
 
 - `PAL_MAX_FOLDER_DEPTH_CHAR` increased from 66 to 128 bytes for Linux targets.
