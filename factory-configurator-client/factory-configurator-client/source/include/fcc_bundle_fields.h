@@ -93,6 +93,10 @@ extern "C" {
 */
 #define FCC_ROT_NAME          "ROT"
 /**
+ * Name of RoTFilePath.
+ */
+#define FCC_ROT_FILE_PATH_NAME          "RoTFilePath"
+/**
 * Name of device verify readiness group.
 */
 #define FCC_VERIFY_DEVICE_IS_READY_GROUP_NAME          "Verify"
