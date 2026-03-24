@@ -1113,7 +1113,7 @@ const char *get_filesystemstore_folder_path()
 
 int kv_init_storage_config()
 {
-
+    printf("openssl kv_init_storage_config\n");
     int ret = MBED_SUCCESS;
 
     // We currently have no supported configuration without internal storage

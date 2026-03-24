@@ -35,9 +35,11 @@
 #include "crypto_cose.h"
 #include "pal.h"
 #include "cs_pal_crypto.h"
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL==0)
 #include "mbedtls/bignum.h"
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecp.h"
+#endif
 
 #ifdef USE_CN_CBOR
 
@@ -193,6 +195,7 @@ errorReturn:
 
 #else
 
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL==0)
 bool ECDSA_Verify_tiny(
     COSE *pSigner,
     int index,
@@ -287,6 +290,91 @@ errorReturn:
 
     return true; // success
 }
+#else
+#include <openssl/evp.h>
+#include <openssl/ec.h>
+#include <openssl/ecdsa.h>
+#include <openssl/sha.h>
+#include <openssl/x509.h>
+bool ECDSA_Verify_tiny_openssl(
+    COSE *pSigner,
+    int index,
+    const byte *pKey,
+    size_t keySize,
+    int cbitDigest,
+    const unsigned char *rgbToSign,
+    size_t cbToSign,
+    cose_errback *perr)
+{
+    unsigned char rgbDigest[SHA256_DIGEST_LENGTH];
+    const uint8_t *p = pKey;
+    EC_KEY *ec_key = NULL;
+    ECDSA_SIG *sig = NULL;
+    bool result = false;
+    CborParser parser;
+    CborValue value;
+    CborValue signerSig;
+    const uint8_t *sig_buffer = NULL;
+    size_t signerSigLength;
+    CborError cbor_error = CborNoError;
+    cose_errback error = { 0 };
+    if (perr == NULL) perr = &error;
+
+    // Compute SHA-256 digest
+    if (!SHA256(rgbToSign, cbToSign, rgbDigest)) {
+        perr->err = COSE_ERR_CRYPTO_FAIL;
+        return false;
+    }
+
+    // Parse CBOR to get the signature
+    cbor_error = cbor_parser_init(pSigner->message_cbor.buffer, pSigner->message_cbor.buffer_size, CborIteratorFlag_NegativeInteger, &parser, &value);
+    if (cbor_error != CborNoError) { perr->err = cbor_error; return false; }
+    cbor_error = cbor_get_array_element(&value, index, &signerSig);
+    if (cbor_error != CborNoError) { perr->err = cbor_error; return false; }
+    if (!cbor_value_is_byte_string(&signerSig)) { perr->err = cbor_error; return false; }
+    cbor_error = cbor_value_get_byte_string_chunk(&signerSig, &sig_buffer, &signerSigLength, NULL);
+    if (cbor_error != CborNoError) { perr->err = cbor_error; return false; }
+
+    // Load EC public key from DER
+    ec_key = d2i_EC_PUBKEY(NULL, &p, keySize);
+    if (!ec_key) {
+        perr->err = COSE_ERR_INTERNAL;
+        return false;
+    }
+
+    // Convert raw r||s signature to ECDSA_SIG
+    size_t groupSizeBytes = signerSigLength / 2;
+    BIGNUM *r = BN_bin2bn(sig_buffer, groupSizeBytes, NULL);
+    BIGNUM *s = BN_bin2bn(sig_buffer + groupSizeBytes, groupSizeBytes, NULL);
+    if (!r || !s) {
+        perr->err = COSE_ERR_INTERNAL;
+        goto cleanup;
+    }
+    sig = ECDSA_SIG_new();
+    if (!sig) {
+        perr->err = COSE_ERR_INTERNAL;
+        goto cleanup;
+    }
+    ECDSA_SIG_set0(sig, r, s); // sig takes ownership of r and s
+
+    // Verify signature
+    int verify_status = ECDSA_do_verify(rgbDigest, SHA256_DIGEST_LENGTH, sig, ec_key);
+    if (verify_status == 1) {
+        result = true;
+        perr->err = COSE_ERR_NONE;
+    } else if (verify_status == 0) {
+        perr->err = COSE_ERR_CRYPTO_FAIL;
+    } else {
+        perr->err = COSE_ERR_INTERNAL;
+    }
+
+cleanup:
+    if (sig) ECDSA_SIG_free(sig);
+    if (ec_key) EC_KEY_free(ec_key);
+    return result;
+}
+
+#endif // (MBED_CLOUD_CLIENT_USE_OPENSSL==0)
 #endif
 
 #ifdef USE_CN_CBOR

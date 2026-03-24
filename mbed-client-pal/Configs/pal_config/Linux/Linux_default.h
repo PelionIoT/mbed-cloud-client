@@ -168,7 +168,7 @@
 
 // SSL session resume requires Mbed TLS 2.19.0d1 or later
 #ifndef PAL_USE_SSL_SESSION_RESUME
-#define PAL_USE_SSL_SESSION_RESUME 1
+#define PAL_USE_SSL_SESSION_RESUME 0
 #endif
 
 #ifndef PAL_DEFAULT_RTT_ESTIMATE

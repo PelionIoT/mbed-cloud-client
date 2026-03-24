@@ -217,6 +217,7 @@ static bool run_basic_validation(const uint8_t *encoded_blob, size_t encoded_blo
                 { ... }
               ],
     "ROT": "byte array",
+    "RoTFilePath": "text string",
     "Certificates": [ {"Name": "__", "Format":" _","Data":"__", "ACL" : "__"},
                       {..},
                       {"Name": "__", "Format":" _","Data":"__", "ACL" : "__"}],
@@ -327,7 +328,13 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
     /* If RoT injection is expected (to derive storage key) it also must be done prior to storage calls */
     fcc_status = fcc_bundle_process_rbp_buffer(&tcbor_top_map, FCC_ROT_NAME, STORAGE_RBP_ROT_NAME);
     SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_rbp_buffer failed for RoT");
-#endif
+
+#if (PAL_USE_ROT_FROM_FILE == 1)
+    /* If RoT file path is expected (to derive storage key) it also must be done prior to storage calls */
+    fcc_status = fcc_bundle_process_rbp_buffer(&tcbor_top_map, FCC_ROT_FILE_PATH_NAME, STORAGE_RBP_ROT_FILE_PATH_NAME);
+    SA_PV_ERR_RECOVERABLE_GOTO_IF((fcc_status != FCC_STATUS_SUCCESS), fcc_status = fcc_status, exit_and_response, "fcc_bundle_process_rbp_buffer failed for RoTFilePath");
+#endif // PAL_USE_ROT_FROM_FILE
+#endif // FCC_NANOCLIENT_ENABLED
     /*
      * At this point we assume that if user expects to inject an entropy - it exists
      * in storage, and if not - device has TRNG and it is safe to call storage functions.
@@ -365,7 +372,8 @@ fcc_status_e fcc_bundle_handler(const uint8_t *encoded_blob, size_t encoded_blob
 
         if ((strncmp(FCC_BUNDLE_SCHEME_GROUP_NAME, key_name, key_name_len) == 0) ||
             (strncmp(FCC_ENTROPY_NAME, key_name, key_name_len) == 0) ||
-            (strncmp(FCC_ROT_NAME, key_name, key_name_len) == 0)) {
+            (strncmp(FCC_ROT_NAME, key_name, key_name_len) == 0) ||
+            (strncmp(FCC_ROT_FILE_PATH_NAME, key_name, key_name_len) == 0)) {
 
             // key was handled before while loop
 

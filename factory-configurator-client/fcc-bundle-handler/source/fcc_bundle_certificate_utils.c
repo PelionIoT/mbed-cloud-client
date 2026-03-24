@@ -76,7 +76,11 @@ fcc_status_e fcc_bundle_process_certificates_cb(CborValue *tcbor_val, void *extr
         } else if (strncmp(FCC_BUNDLE_DATA_PARAMETER_DATA, key_name, key_name_len) == 0 && is_chains == false) {
 
             // get single certificate data
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
+            status = fcc_bundle_get_text_string(tcbor_val, (const char **)&cert_chain_data[0], &cert_chain_data_size[0], param_name, param_name_len);
+#else
             status = fcc_bundle_get_byte_string(tcbor_val, &cert_chain_data[0], &cert_chain_data_size[0], param_name, param_name_len);
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
             SA_PV_ERR_RECOVERABLE_RETURN_IF((!status), FCC_STATUS_BUNDLE_ERROR, "Failed during parse certificate param");
             cert_chain_len = 1;
 

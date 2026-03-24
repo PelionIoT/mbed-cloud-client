@@ -253,6 +253,7 @@ target_link_libraries(mbedCloudClient factory-configurator-client mbedTrace nano
 option(FOTA_ENABLE "Enable FOTA client module (replaces update client)" OFF)
 option(MBED_CLOUD_CLIENT_CURL_DYNAMIC_LINK "dynamically link with libcurl" OFF)
 option(FOTA_COAP_DOWNLOAD "Force CoAP download for FOTA client" OFF)
+option(MBED_CLOUD_CLIENT_USE_OPENSSL "Use OpenSSL instead of mbedTLS" OFF)
 
 # Update client
 SET(UPDATE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/update-client-hub)

@@ -34,9 +34,11 @@
 #include "cose_int.h"
 #include "crypto_cose.h"
 #include "pal.h"
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL==0)
 #include "mbedtls/bignum.h"
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecp.h"
+#endif
 
 #ifndef USE_CN_CBOR
 /*  This function uses tiny cbor functionality */

@@ -107,6 +107,17 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
                             const kcm_security_desc_s kcm_item_info)
 {
     kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    // Read certificate data from external secure store
+    uint8_t *temp_data = NULL;
+    size_t temp_size = 0;
+
+    uint8_t *kcm_item_data_org = NULL;
+    size_t kcm_item_data_size_org = 0;
+    // copy kcm_item_data and kcm_item_data_size to temp_data and temp_size
+    kcm_item_data_org = malloc(kcm_item_data_size);
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_data_org == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating memory for kcm_item_data_org");
+    memcpy(kcm_item_data_org, kcm_item_data, kcm_item_data_size);
+    kcm_item_data_size_org = kcm_item_data_size;
 
     SA_PV_LOG_INFO_FUNC_ENTER_NO_ARGS();
 
@@ -120,6 +131,36 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_info != NULL), KCM_STATUS_INVALID_PARAMETER, "Passing additional info is not supported. kcm_item_info must be set to NULL.");
     SA_PV_ERR_RECOVERABLE_RETURN_IF(((kcm_item_data == NULL) && (kcm_item_data_size > 0)), KCM_STATUS_INVALID_PARAMETER, "Provided kcm_item_data NULL and kcm_item_data_size greater than 0.");
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_item_type != KCM_CONFIG_ITEM && kcm_item_data_size == 0), KCM_STATUS_ITEM_IS_EMPTY, "The data of the current item is empty.");
+
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
+    if (kcm_item_type == KCM_CERTIFICATE_ITEM || 
+        kcm_item_type == KCM_PRIVATE_KEY_ITEM || 
+        kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
+
+        // Create null-terminated copy of filename
+        char *filename = malloc(kcm_item_data_size + 1);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((filename == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating memory for filename");
+        memcpy(filename, kcm_item_data, kcm_item_data_size);
+        filename[kcm_item_data_size] = '\0';
+
+        // Read file size from external storage area
+        kcm_status = storage_read_file_size_from_external_certificate_store((uint8_t*)filename, kcm_item_data_size, &temp_size);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading external certificate file size (kcm_status %d)", kcm_status);
+
+        // malloc buffer for file data
+        temp_data = malloc(temp_size);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((temp_data == NULL), KCM_STATUS_OUT_OF_MEMORY, "Failed allocating memory for external certificate file data");
+
+        // Read file from external storage area
+        kcm_status = storage_read_file_from_external_certificate_store((uint8_t*)filename, kcm_item_data_size, temp_data, temp_size, &temp_size);
+        SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed reading certificate/key from external file");
+        free(filename);
+
+        // Update certificate data and size
+        kcm_item_data = temp_data;
+        kcm_item_data_size = temp_size;
+    }
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
 
     switch (kcm_item_type) {
         case KCM_PRIVATE_KEY_ITEM:
@@ -143,8 +184,18 @@ kcm_status_e kcm_item_store(const uint8_t * kcm_item_name,
             SA_PV_ERR_RECOVERABLE_RETURN_IF((true), KCM_STATUS_INVALID_PARAMETER, "Invalid kcm_item_type");
     }
 
-    kcm_status = storage_item_store(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, STORAGE_ITEM_PREFIX_KCM, kcm_item_data, kcm_item_data_size, true);
+    kcm_status = storage_item_store(kcm_item_name, kcm_item_name_len, kcm_item_type, kcm_item_is_factory, STORAGE_ITEM_PREFIX_KCM, kcm_item_data_org, kcm_item_data_size_org, true);
     SA_PV_ERR_RECOVERABLE_RETURN_IF((kcm_status != KCM_STATUS_SUCCESS), kcm_status, "Failed during storage_data_write");
+
+    if (kcm_item_type == KCM_CERTIFICATE_ITEM || 
+        kcm_item_type == KCM_PRIVATE_KEY_ITEM || 
+        kcm_item_type == KCM_PUBLIC_KEY_ITEM) {
+            if (temp_data != NULL) {
+                free(temp_data);
+            }
+    }
+
+    free(kcm_item_data_org);
 
     SA_PV_LOG_INFO_FUNC_EXIT_NO_ARGS();
     return kcm_status;
