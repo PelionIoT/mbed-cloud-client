@@ -94,7 +94,11 @@ palStatus_t pal_plat_osRandomBuffer_blocking(uint8_t *randomBuf, size_t bufSizeB
             // XXX: move this to pal_plat_DRBGInit(), no point to do lazy initializations as it is
             // better to fail early on init phase than unexpectedly on a call to pal_osRandomBuffer().
             uint32_t sotpCounter = 0;
+#ifdef _MSC_VER
+            PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 uint8_t buf[(PAL_INITIAL_RANDOM_SIZE * 2 + sizeof(sotpCounter))] = { 0 };
+#else
             uint8_t buf[(PAL_INITIAL_RANDOM_SIZE * 2 + sizeof(sotpCounter))] PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 = { 0 }; // space for 48 bytes short term + 48 bytes long term + 4 counter bytes (note this buffer will also be used to collect TRNG noise)
+#endif
             const uint16_t sotpLenBytes = PAL_INITIAL_RANDOM_SIZE + sizeof(sotpCounter); // the max number of bytes expected to be read/written form/to sotp, note that sotpCounter will probably be empty the 1st time data is read from sotp
             uint32_t* ptrSotpRead = (uint32_t*)&buf; // pointer to the memory address in buf which will point to the data that will be read from sotp
             uint32_t* ptrSotpWrite = (uint32_t*)&buf[PAL_INITIAL_RANDOM_SIZE]; // pointer to the memory address in buf which will point to the data which needs to be written back to sotp

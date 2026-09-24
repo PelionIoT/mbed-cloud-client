@@ -99,7 +99,11 @@ palStatus_t pal_plat_noiseDestroy(void)
 #if PAL_USE_HW_TRNG
 PAL_PRIVATE void pal_trngNoiseThreadFunc(void const* arg)
 {
+#ifdef _MSC_VER
+    PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 uint8_t buf[PAL_NOISE_SIZE_BYTES] = { 0 };
+#else
     uint8_t buf[PAL_NOISE_SIZE_BYTES] PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 = { 0 };
+#endif
     size_t trngBytesRead = 0;
     uint16_t noiseBitsWritten = 0;
     palStatus_t status;

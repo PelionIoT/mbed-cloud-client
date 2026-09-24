@@ -1,7 +1,9 @@
 INCLUDE(CMakeForceCompiler)
 # CROSS COMPILER SETTING
 cmake_minimum_required (VERSION 3.5)
-SET(CMAKE_SYSTEM_NAME Generic)
+if (NOT WIN32)
+    SET(CMAKE_SYSTEM_NAME Generic)
+endif()
 
 project(mbedPal)
 
@@ -77,6 +79,11 @@ if(${OS_BRAND} MATCHES "Linux")
     add_definitions(-DPAL_USE_PLATFORM_FILESYSTEM=1)
 endif()
 
+if(WIN32)
+    add_library(PLATFORM_LIBS INTERFACE)
+    target_link_libraries(PLATFORM_LIBS INTERFACE ws2_32 bcrypt iphlpapi)
+endif()
+
 if(PAL_USE_PLATFORM_UPDATE)
     set(PAL_SRCS ${PAL_SRCS} ${PAL_PORT_SOURCE_DIR}/Update/pal_plat_update.c)
     message("PAL is using update.")
@@ -148,7 +155,11 @@ set(PAL_TIME_SRCS
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEVICE_FLASH")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDEVICE_FLASH -std=gnu99")
+if(WIN32)
+    add_definitions(-DDEVICE_FLASH)
+else()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDEVICE_FLASH -std=gnu99")
+endif()
 
 
 # XXX: The mbedtls is configured as mbedTLS in PAL, which is not the correct name of the actual library.
