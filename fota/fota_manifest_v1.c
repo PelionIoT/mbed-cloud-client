@@ -32,7 +32,12 @@
 #include "fota/fota_crypto.h"
 #include "fota/fota_crypto_asn_extra.h"
 #include "fota/fota_nvm.h"
+
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
 #include "mbedtls/asn1.h"
+#else
+#include <openssl/asn1.h>
+#endif
 
 #if (FOTA_MANIFEST_SCHEMA_VERSION == 1)
 

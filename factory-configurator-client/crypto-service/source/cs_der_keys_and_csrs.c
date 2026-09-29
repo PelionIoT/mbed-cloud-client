@@ -18,11 +18,21 @@
 #include "cs_der_keys_and_csrs.h"
 #include "cs_der_certs.h"
 #include "cs_utils.h"
-#include "mbedtls/pk.h"
 #include "fcc_malloc.h"
 #include "key_slot_allocator.h"
 #include "storage_kcm.h"
 #include "pv_macros.h"
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL != 0)
+#include <openssl/ec.h>
+#include <openssl/obj_mac.h>
+#include <openssl/bn.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#else
+#include "mbedtls/pk.h"
+#endif
 
 /*! Frees key handle.
 *    @param[in] grp                       curve handle
@@ -166,7 +176,7 @@ static kcm_status_e key_pair_generate(palECKeyHandle_t ec_key_handle, kcm_crypto
 
 #endif //MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 
-
+#if (MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
 //For now only EC SECP256R keys supported!!!
 kcm_status_e cs_pub_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out)
 {
@@ -246,6 +256,123 @@ exit:
     (void)pal_ECKeyFree(&key_handle);
     return kcm_status;
 }
+
+#else
+
+//For now only EC SECP256R keys supported!!!
+kcm_status_e cs_pub_key_get_der_to_raw(const uint8_t *der_key, size_t der_key_length, uint8_t *raw_key_data_out, size_t raw_key_data_max_size, size_t *raw_key_data_act_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    EC_KEY *ec_key = NULL;
+    const unsigned char *p = der_key;
+    const EC_POINT *pub_key_point = NULL;
+    const EC_GROUP *group = NULL;
+    int len = 0;
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_length == 0) || (der_key_length > KCM_EC_SECP256R1_MAX_PUB_KEY_DER_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_length");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_data_out");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_data_act_size_out pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_data_max_size < KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_size_out value");
+
+    // Parse DER public key to EC_KEY
+    ec_key = d2i_EC_PUBKEY(NULL, &p, der_key_length);
+    if (ec_key == NULL) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    group = EC_KEY_get0_group(ec_key);
+    pub_key_point = EC_KEY_get0_public_key(ec_key);
+
+    if (group == NULL || pub_key_point == NULL) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    // Export public key point in uncompressed form
+    len = EC_POINT_point2oct(group, pub_key_point, POINT_CONVERSION_UNCOMPRESSED, raw_key_data_out, raw_key_data_max_size, NULL);
+    if (len != KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    *raw_key_data_act_size_out = len;
+
+exit:
+    if (ec_key) {
+        EC_KEY_free(ec_key);
+    }
+    return kcm_status;
+}
+
+//For now only EC SECP256R keys supported!!!
+kcm_status_e cs_pub_key_get_raw_to_der(const uint8_t *raw_key, size_t raw_key_length, uint8_t *der_key_data_out, size_t der_key_data_max_size, size_t *der_key_data_act_size_out)
+{
+    kcm_status_e kcm_status = KCM_STATUS_SUCCESS;
+    EC_KEY *ec_key = NULL;
+    EC_GROUP *group = NULL;
+    EC_POINT *point = NULL;
+    int nid = NID_X9_62_prime256v1;
+    int len = 0;
+    unsigned char *p = der_key_data_out;
+    int der_len = 0;
+
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((raw_key_length != KCM_EC_SECP256R1_MAX_PUB_KEY_RAW_SIZE), KCM_STATUS_INVALID_PARAMETER, "Invalid raw_key_length");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_data_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_data_out");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_data_act_size_out == NULL), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_data_act_size_out pointer");
+    SA_PV_ERR_RECOVERABLE_RETURN_IF((der_key_data_max_size == 0), KCM_STATUS_INVALID_PARAMETER, "Invalid der_key_size_out value");
+
+    // Create new EC_KEY and set group
+    ec_key = EC_KEY_new_by_curve_name(nid);
+    if (ec_key == NULL) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    group = (EC_GROUP *)EC_KEY_get0_group(ec_key);
+    if (group == NULL) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    // Create EC_POINT from raw public key
+    point = EC_POINT_new(group);
+    if (point == NULL) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    if (!EC_POINT_oct2point(group, point, raw_key, raw_key_length, NULL)) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    if (!EC_KEY_set_public_key(ec_key, point)) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    // Write DER encoded public key
+    der_len = i2d_EC_PUBKEY(ec_key, &p);
+    if (der_len <= 0 || (size_t)der_len > der_key_data_max_size) {
+        kcm_status = KCM_CRYPTO_STATUS_INVALID_PK_PUBKEY;
+        goto exit;
+    }
+
+    *der_key_data_act_size_out = der_len;
+
+exit:
+    if (point) {
+        EC_POINT_free(point);
+    }
+    if (ec_key) {
+        EC_KEY_free(ec_key);
+    }
+    return kcm_status;
+}
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL
 
 #ifdef MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT
 

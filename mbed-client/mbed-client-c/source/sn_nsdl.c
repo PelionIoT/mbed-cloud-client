@@ -39,10 +39,14 @@
 #include "sn_nsdl_lib.h"
 #include "sn_grs.h"
 #include "mbed-trace/mbed_trace.h"
-#include "mbedtls/base64.h"
 #include "common_functions.h"
 #include "mbed-client/m2mconfig.h"
 #include "randLIB.h"
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL != 0)
+#include <openssl/evp.h>
+#else
+#include "mbedtls/base64.h"
+#endif
 
 #include <assert.h>
 #include <stdlib.h>
@@ -1120,6 +1124,7 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
                     unsigned char *dst = (unsigned char *)handle->sn_nsdl_alloc(dst_size);
                     size_t olen = 0;
                     if (dst) {
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
                         if (mbedtls_base64_encode(dst, dst_size, &olen,
                                                   resource_temp_ptr->resource, resource_temp_ptr->resource_len) == 0) {
                             *temp_ptr++ = ';';
@@ -1131,6 +1136,19 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
                             *temp_ptr++ = '"';
 
                         }
+#else
+                        // Use OpenSSL EVP_EncodeBlock for base64 encoding
+                        int encoded_len = EVP_EncodeBlock(dst, resource_temp_ptr->resource, resource_temp_ptr->resource_len);
+                        if (encoded_len > 0) {
+                            *temp_ptr++ = ';';
+                            memcpy(temp_ptr, resource_value, RESOURCE_VALUE_PARAMETER_LEN);
+                            temp_ptr += RESOURCE_VALUE_PARAMETER_LEN;
+                            *temp_ptr++ = '"';
+                            memcpy(temp_ptr, dst, encoded_len);
+                            temp_ptr += encoded_len;
+                            *temp_ptr++ = '"';
+                        }
+#endif // MBED_CLOUD_CLIENT_USE_OPENSSL
                         handle->sn_nsdl_free(dst);
                     }
 

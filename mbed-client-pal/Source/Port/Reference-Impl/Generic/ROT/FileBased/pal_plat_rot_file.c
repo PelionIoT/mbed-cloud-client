@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-
+#if (PAL_USE_ROT_FROM_FILE == 1)
 #include <stdio.h>
 #include "pal.h"
 #include "pal_plat_rot.h"
@@ -74,4 +74,4 @@ palStatus_t pal_plat_osSetRoT(uint8_t * key, size_t keyLenBytes)
     return PAL_ERR_NOT_IMPLEMENTED;
 }
 
-// #endif // PAL_USE_ROT_FROM_FILE
+#endif // PAL_USE_ROT_FROM_FILE

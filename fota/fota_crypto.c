@@ -27,56 +27,9 @@
 #include "fota/fota_crypto_defs.h"
 #include "fota/fota_nvm.h"
 #include "fota_device_key.h"
-#include "mbedtls/sha256.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ccm.h"
-#include "mbedtls/aes.h"
-#include "mbedtls/md.h"
-#include "mbedtls/platform_util.h"
-
-#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_USE_TINYCRYPT)
-#include "tinycrypt/ecc.h"
-#include "tinycrypt/ecc_dsa.h"
-#include "fota/fota_nvm.h"
-#endif
-
-#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_ECDSA_C)
-#include "mbedtls/ecdsa.h"
-#include "mbedtls/ecp.h"
-#include "mbedtls/bignum.h"
-#endif
-
-#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_X509_PUBLIC_KEY_FORMAT)
-#include "mbedtls/x509_crt.h"
-#include "mbedtls/x509.h"
-#endif
-#include "mbedtls/pk.h"
-
-#if defined(REMOVE_MBEDTLS_SSL_CONF_RNG)
-#undef MBEDTLS_SSL_CONF_RNG
-#endif
-
-#if defined(MBEDTLS_SSL_CONF_RNG)
-#include "shared_rng.h"
-#endif
 
 #include <stdlib.h>
-
-#if !defined(MBEDTLS_SSL_CONF_RNG)
-static bool random_initialized = false;
-static mbedtls_entropy_context entropy_ctx;
-#endif // !defined(MBEDTLS_SSL_CONF_RNG)
-
-typedef struct fota_hash_context_s {
-    mbedtls_sha256_context sha256_ctx;
-} fota_hash_context_t;
-
-typedef struct fota_encrypt_context_s {
-    mbedtls_ccm_context ccm_ctx;
-    uint64_t iv;
-} fota_encrypt_context_t;
-
-#define FOTA_TRACE_TLS_ERR(err) FOTA_TRACE_DEBUG("mbedTLS error %d", err)
+#define FOTA_TRACE_TLS_ERR(err) FOTA_TRACE_DEBUG("TLS error %d", err)
 
 #define FOTA_DERIVE_KEY_BITS 128
 
@@ -110,6 +63,311 @@ const unsigned char* fota_get_derivation_string(void)
 #endif
 }
 #endif
+
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
+#include "mbedtls/sha256.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ccm.h"
+#include "mbedtls/aes.h"
+#include "mbedtls/md.h"
+#include "mbedtls/platform_util.h"
+
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_USE_TINYCRYPT)
+#include "tinycrypt/ecc.h"
+#include "tinycrypt/ecc_dsa.h"
+#include "fota/fota_nvm.h"
+#endif
+
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_RAW_PUBLIC_KEY_FORMAT) && defined(MBEDTLS_ECDSA_C)
+#include "mbedtls/ecdsa.h"
+#include "mbedtls/ecp.h"
+#include "mbedtls/bignum.h"
+#endif
+
+#if (MBED_CLOUD_CLIENT_FOTA_PUBLIC_KEY_FORMAT == FOTA_X509_PUBLIC_KEY_FORMAT)
+#include "mbedtls/x509_crt.h"
+#include "mbedtls/x509.h"
+#endif
+#include "mbedtls/pk.h"
+
+#if defined(REMOVE_MBEDTLS_SSL_CONF_RNG)
+#undef MBEDTLS_SSL_CONF_RNG
+#endif
+
+#if defined(MBEDTLS_SSL_CONF_RNG)
+#include "shared_rng.h"
+#endif
+
+#if !defined(MBEDTLS_SSL_CONF_RNG)
+static bool random_initialized = false;
+static mbedtls_entropy_context entropy_ctx;
+#endif // !defined(MBEDTLS_SSL_CONF_RNG)
+
+#endif // MBED_CLOUD_CLIENT_USE_OPENSSL
+
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 1)
+#include <openssl/evp.h>
+#include <openssl/ecdsa.h>
+#include <openssl/sha.h>
+#include <openssl/x509.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+#include <string.h>
+
+typedef struct fota_hash_context_s {
+    EVP_MD_CTX *md_ctx;
+} fota_hash_context_t;
+typedef struct fota_encrypt_context_s {
+    EVP_CIPHER_CTX *ctx;
+    uint64_t iv;
+    uint8_t key[16]; // Store key for each operation
+} fota_encrypt_context_t;
+
+int fota_encrypt_decrypt_start(fota_encrypt_context_t **ctx, const uint8_t *key, uint32_t key_size) {
+    *ctx = NULL;
+    fota_encrypt_context_t *enc_ctx = malloc(sizeof(fota_encrypt_context_t));
+    if (!enc_ctx) return FOTA_STATUS_OUT_OF_MEMORY;
+    enc_ctx->ctx = EVP_CIPHER_CTX_new();
+    if (!enc_ctx->ctx) { free(enc_ctx); return FOTA_STATUS_OUT_OF_MEMORY; }
+    enc_ctx->iv = 0;
+    memcpy(enc_ctx->key, key, key_size);
+    *ctx = enc_ctx;
+    return FOTA_STATUS_SUCCESS;
+}
+
+void fota_encryption_stream_reset(fota_encrypt_context_t *ctx)
+{
+    FOTA_DBG_ASSERT(ctx);
+    ctx->iv = INITIAL_IV_VALUE;
+
+}
+
+void fota_encryption_iv_increment(fota_encrypt_context_t *ctx)
+{
+    FOTA_DBG_ASSERT(ctx);
+    ctx->iv++;
+}
+
+int fota_encrypt_data(fota_encrypt_context_t *ctx, const uint8_t *in_buf, uint32_t buf_size, uint8_t *out_buf, uint8_t *tag) {
+    int len = 0;
+    unsigned char iv_buf[12] = {0};
+    memcpy(iv_buf, &ctx->iv, sizeof(ctx->iv));
+    if (EVP_EncryptInit_ex(ctx->ctx, EVP_aes_128_ccm(), NULL, NULL, NULL) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_CIPHER_CTX_ctrl(ctx->ctx, EVP_CTRL_CCM_SET_IVLEN, sizeof(iv_buf), NULL) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_CIPHER_CTX_ctrl(ctx->ctx, EVP_CTRL_CCM_SET_TAG, FOTA_ENCRYPT_TAG_SIZE, NULL) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_EncryptInit_ex(ctx->ctx, NULL, NULL, ctx->key, iv_buf) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_EncryptUpdate(ctx->ctx, NULL, &len, NULL, buf_size) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_EncryptUpdate(ctx->ctx, out_buf, &len, in_buf, buf_size) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_EncryptFinal_ex(ctx->ctx, out_buf + len, &len) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_CIPHER_CTX_ctrl(ctx->ctx, EVP_CTRL_CCM_GET_TAG, FOTA_ENCRYPT_TAG_SIZE, tag) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    fota_encryption_iv_increment(ctx);
+    return FOTA_STATUS_SUCCESS;
+}
+
+int fota_decrypt_data(fota_encrypt_context_t *ctx, const uint8_t *in_buf, uint32_t buf_size, uint8_t *out_buf, uint8_t *tag) {
+    int len = 0;
+    unsigned char iv_buf[12] = {0};
+    memcpy(iv_buf, &ctx->iv, sizeof(ctx->iv));
+    if (EVP_DecryptInit_ex(ctx->ctx, EVP_aes_128_ccm(), NULL, NULL, NULL) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_CIPHER_CTX_ctrl(ctx->ctx, EVP_CTRL_CCM_SET_IVLEN, sizeof(iv_buf), NULL) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_CIPHER_CTX_ctrl(ctx->ctx, EVP_CTRL_CCM_SET_TAG, FOTA_ENCRYPT_TAG_SIZE, tag) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_DecryptInit_ex(ctx->ctx, NULL, NULL, ctx->key, iv_buf) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_DecryptUpdate(ctx->ctx, NULL, &len, NULL, buf_size) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_DecryptUpdate(ctx->ctx, out_buf, &len, in_buf, buf_size) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    if (EVP_DecryptFinal_ex(ctx->ctx, out_buf + len, &len) != 1) return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    fota_encryption_iv_increment(ctx);
+    return FOTA_STATUS_SUCCESS;
+}
+
+int fota_encrypt_finalize(fota_encrypt_context_t **ctx) {
+    if (ctx && *ctx) {
+        if ((*ctx)->ctx) EVP_CIPHER_CTX_free((*ctx)->ctx);
+        free(*ctx);
+        *ctx = NULL;
+    }
+    return FOTA_STATUS_SUCCESS;
+}
+
+int fota_hash_start(fota_hash_context_t **ctx)
+{
+    FOTA_DBG_ASSERT(ctx);
+    *ctx = NULL;
+    fota_hash_context_t *hash_ctx = (fota_hash_context_t *)malloc(sizeof(fota_hash_context_t));
+    if (!hash_ctx) {
+        return FOTA_STATUS_OUT_OF_MEMORY;
+    }
+    hash_ctx->md_ctx = EVP_MD_CTX_new();
+    if (!hash_ctx->md_ctx) {
+        free(hash_ctx);
+        return FOTA_STATUS_OUT_OF_MEMORY;
+    }
+    if (EVP_DigestInit_ex(hash_ctx->md_ctx, EVP_sha256(), NULL) != 1) {
+        EVP_MD_CTX_free(hash_ctx->md_ctx);
+        free(hash_ctx);
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    *ctx = hash_ctx;
+    return FOTA_STATUS_SUCCESS;
+}
+
+int fota_hash_update(fota_hash_context_t *ctx, const uint8_t *buf, uint32_t buf_size)
+{
+    FOTA_DBG_ASSERT(ctx);
+    if (EVP_DigestUpdate(ctx->md_ctx, buf, buf_size) != 1) {
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    return FOTA_STATUS_SUCCESS;
+}
+
+void fota_hash_clone(fota_hash_context_t *dst_ctx, const fota_hash_context_t *src_ctx)
+{
+    FOTA_DBG_ASSERT(dst_ctx);
+    FOTA_DBG_ASSERT(src_ctx);
+    EVP_MD_CTX_copy(dst_ctx->md_ctx, src_ctx->md_ctx);
+}
+
+int fota_hash_result(fota_hash_context_t *ctx, uint8_t *hash_buf)
+{
+    FOTA_DBG_ASSERT(ctx);
+    unsigned int len = 0;
+    if (EVP_DigestFinal_ex(ctx->md_ctx, hash_buf, &len) != 1) {
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    return FOTA_STATUS_SUCCESS;
+}
+
+void fota_hash_finish(fota_hash_context_t **ctx)
+{
+    if (ctx && *ctx) {
+        if ((*ctx)->md_ctx) {
+            EVP_MD_CTX_free((*ctx)->md_ctx);
+        }
+        free(*ctx);
+        *ctx = NULL;
+    }
+}
+
+int fota_random_init(const uint8_t *seed, uint32_t seed_size) { 
+    (void)seed;
+    (void)seed_size;
+    return FOTA_STATUS_SUCCESS;
+}
+
+int fota_gen_random(uint8_t *buf, uint32_t buf_size) {
+    return RAND_bytes(buf, buf_size) == 1 ? FOTA_STATUS_SUCCESS : FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+}
+
+int fota_random_deinit(void) {
+    return FOTA_STATUS_SUCCESS;
+}
+
+int fota_verify_signature_prehashed(
+    const uint8_t *data_digest,
+    const uint8_t *sig, size_t sig_len
+)
+{
+    int ret = FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    int fota_status = FOTA_STATUS_INTERNAL_ERROR;
+    uint8_t *update_crt_data = NULL;
+    size_t update_crt_size = 0;
+    EVP_PKEY *pkey = NULL;
+    X509 *crt = NULL;
+    EVP_MD_CTX *md_ctx = NULL;
+    int verify_ret = 0;
+
+    update_crt_data = (uint8_t *)malloc(FOTA_CERT_MAX_SIZE);
+    if (!update_crt_data) {
+        FOTA_TRACE_ERROR("Failed to allocate storage for update certificate");
+        return FOTA_STATUS_OUT_OF_MEMORY;
+    }
+    ret = fota_nvm_get_update_certificate(update_crt_data, FOTA_CERT_MAX_SIZE, &update_crt_size);
+    if (ret) {
+        FOTA_TRACE_ERROR("Failed to get update certificate %d", ret);
+        free(update_crt_data);
+        return ret;
+    }
+    const unsigned char *p = update_crt_data;
+    crt = d2i_X509(NULL, &p, update_crt_size);
+    if (!crt) {
+        FOTA_TRACE_ERROR("Failed to parse update certificate");
+        free(update_crt_data);
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    pkey = X509_get_pubkey(crt);
+    if (!pkey) {
+        FOTA_TRACE_ERROR("Failed to extract public key from certificate");
+        X509_free(crt);
+        free(update_crt_data);
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    md_ctx = EVP_MD_CTX_new();
+    if (!md_ctx) {
+        EVP_PKEY_free(pkey);
+        X509_free(crt);
+        free(update_crt_data);
+        return FOTA_STATUS_OUT_OF_MEMORY;
+    }
+    if (EVP_DigestVerifyInit(md_ctx, NULL, EVP_sha256(), NULL, pkey) != 1) {
+        EVP_MD_CTX_free(md_ctx);
+        EVP_PKEY_free(pkey);
+        X509_free(crt);
+        free(update_crt_data);
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    // EVP_DigestVerify only works with DER encoded ECDSA signatures
+    verify_ret = EVP_DigestVerify(md_ctx, sig, sig_len, data_digest, FOTA_CRYPTO_HASH_SIZE);
+    if (verify_ret == 1) {
+        fota_status = FOTA_STATUS_SUCCESS;
+    } else {
+        FOTA_TRACE_ERROR("Manifest signature verification failed (OpenSSL) (%d)", verify_ret);
+        fota_status = FOTA_STATUS_MANIFEST_SIGNATURE_INVALID;
+    }
+    EVP_MD_CTX_free(md_ctx);
+    EVP_PKEY_free(pkey);
+    X509_free(crt);
+    free(update_crt_data);
+    return fota_status;
+}
+
+int fota_verify_signature(
+    const uint8_t *signed_data, size_t signed_data_size,
+    const uint8_t *sig, size_t sig_len
+)
+{
+    int ret = FOTA_STATUS_INTERNAL_ERROR;
+    uint8_t digest[FOTA_CRYPTO_HASH_SIZE] = {0};
+    EVP_MD_CTX *md_ctx = EVP_MD_CTX_new();
+    if (!md_ctx) {
+        return FOTA_STATUS_OUT_OF_MEMORY;
+    }
+    if (EVP_DigestInit_ex(md_ctx, EVP_sha256(), NULL) != 1) {
+        EVP_MD_CTX_free(md_ctx);
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    if (EVP_DigestUpdate(md_ctx, signed_data, signed_data_size) != 1) {
+        EVP_MD_CTX_free(md_ctx);
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    unsigned int len = 0;
+    if (EVP_DigestFinal_ex(md_ctx, digest, &len) != 1) {
+        EVP_MD_CTX_free(md_ctx);
+        return FOTA_STATUS_INTERNAL_CRYPTO_ERROR;
+    }
+    EVP_MD_CTX_free(md_ctx);
+    ret = fota_verify_signature_prehashed(digest, sig, sig_len);
+    return ret;
+}
+
+#else
+typedef struct fota_hash_context_s {
+    mbedtls_sha256_context sha256_ctx;
+} fota_hash_context_t;
+
+typedef struct fota_encrypt_context_s {
+    mbedtls_ccm_context ccm_ctx;
+    uint64_t iv;
+} fota_encrypt_context_t;
+
 #if defined(MBED_CLOUD_CLIENT_FOTA_KEY_ENCRYPTION)
 static int derive_key(uint8_t *key)
 {
@@ -773,4 +1031,7 @@ fail:
     return ret;
 }
 
+#endif // MBED_CLOUD_CLIENT_USE_OPENSSL == 1
+
 #endif  // MBED_CLOUD_CLIENT_FOTA_ENABLE
+
