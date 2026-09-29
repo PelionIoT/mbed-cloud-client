@@ -61,8 +61,7 @@ palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t key
             }
         }
     }
-#endif
-
+#endif // PAL_USE_ROT_FROM_FILE
     if (PAL_SUCCESS == status)
     {   // Logic of RoT according to key type using 128 bit strong Key Derivation Algorithm
 
