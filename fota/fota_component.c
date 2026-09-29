@@ -104,7 +104,7 @@ int fota_component_add(const fota_component_desc_info_t *comp_desc_info, const c
         FOTA_TRACE_ERROR("empty fields in component description");
         return FOTA_STATUS_INVALID_ARGUMENT;
     }
-    
+
 #ifdef FOTA_INTERNAL_COMPONENTS_SUPPORT
     if (comp_name[0] == '%') {
         comp_table = malloc((num_int_components + 1) * sizeof(fota_component_desc_t));
@@ -128,11 +128,11 @@ int fota_component_add(const fota_component_desc_info_t *comp_desc_info, const c
         return FOTA_STATUS_INVALID_ARGUMENT;
     }
 #endif
-    if (comp_desc_info->need_reboot == false && comp_table == user_comp_table){
+    // if (comp_desc_info->need_reboot == false && comp_table == user_comp_table){
 
-        FOTA_TRACE_ERROR("Component with need_reboot false is not supported");
-        return FOTA_STATUS_INVALID_ARGUMENT;
-    }
+    //     FOTA_TRACE_ERROR("Component with need_reboot false is not supported");
+    //     return FOTA_STATUS_INVALID_ARGUMENT;
+    // }
     memcpy(&comp_table[*num_components].desc_info, comp_desc_info, sizeof(*comp_desc_info));
     strncpy(comp_table[*num_components].name, comp_name, FOTA_COMPONENT_MAX_NAME_SIZE - 1);
     fota_component_version_semver_to_int(comp_semver, &comp_table[*num_components].version);
@@ -277,8 +277,8 @@ int fota_component_version_semver_to_int(const char *sem_ver, fota_component_ver
         major = MIN(major, MAX_VER);
 
         *version =  FOTA_COMPONENT_SEMVER_BIT |
-                    ((uint64_t) split) | 
-                    ((uint64_t) minor << SPLIT_NUM_BITS) | 
+                    ((uint64_t) split) |
+                    ((uint64_t) minor << SPLIT_NUM_BITS) |
                     ((uint64_t) major << (SPLIT_NUM_BITS + MINOR_NUM_BITS));
     }
     return ret;

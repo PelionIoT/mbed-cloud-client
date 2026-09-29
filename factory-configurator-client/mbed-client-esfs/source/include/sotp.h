@@ -67,6 +67,7 @@ typedef enum {
     SOTP_TYPE_EXECUTION_MODE,
     SOTP_TYPE_OEM_TRANSFER_MODE_ENABLED,
     SOTP_TYPE_MIN_FW_VERSION,
+    SOTP_TYPE_ROT_FILE_PATH,
 
     SOTP_LAST_TYPE = 15, // Keep as long as we have less than this
     SOTP_MAX_TYPES

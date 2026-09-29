@@ -20,7 +20,7 @@
 
 // If there is no "HW ROT", this code is enabled. It will in practice either use a pre-generated
 // ROT in SOTP or generate it once on the fly.
-#if (PAL_USE_HW_ROT == 0)
+#if (PAL_USE_HW_ROT == 0 && PAL_USE_ROT_FROM_FILE == 0)
 
 #include "sotp.h"
 

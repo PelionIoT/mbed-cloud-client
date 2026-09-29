@@ -72,7 +72,11 @@ fcc_status_e fcc_bundle_process_keys_cb(CborValue *tcbor_val, void *extra_info)
         } else if (strncmp(FCC_BUNDLE_DATA_PARAMETER_DATA, key_name, key_name_len) == 0) {
 
             // get param data
+#ifdef MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
+            status = fcc_bundle_get_text_string(tcbor_val, (const char **)&param_data, &param_data_size, NULL, 0);
+#else
             status = fcc_bundle_get_byte_string(tcbor_val, &param_data, &param_data_size, NULL, 0);
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_CERTIFICATE_STORE_SUPPORT
             SA_PV_ERR_RECOVERABLE_RETURN_IF((!status), FCC_STATUS_BUNDLE_ERROR, "Failed during parse key param");
 
         } else {
