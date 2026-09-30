@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include "pal.h"
+
 #if (PAL_USE_ROT_FROM_FILE == 1)
 #include <stdio.h>
-#include "pal.h"
 #include "pal_plat_rot.h"
 #include "storage_kcm.h"
 
