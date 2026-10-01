@@ -33,10 +33,15 @@
 #include "fota/fota_crypto_asn_extra.h"
 #include "fota/fota_base.h"
 #include "fota/fota_internal.h"
-#include "mbedtls/asn1.h"
-#include "mbedtls/asn1write.h"
 #if defined(TARGET_LIKE_LINUX)
 #include "fota/platform/linux/fota_platform_linux.h"
+#endif
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 1)
+#include <openssl/asn1.h>
+#include <openssl/asn1t.h>
+#else
+#include "mbedtls/asn1.h"
+#include "mbedtls/asn1write.h"
 #endif
 
 
@@ -116,6 +121,110 @@ static int parse_descriptors_array(const uint8_t *descriptor_array_data,
     for (int image_index = 0; image_index < num_of_img_descriptors; image_index++) {
 
         FOTA_PACKAGE_TRACE_DEBUG("Parse ImgDescriptor ");
+
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 1)
+        // -- Get SEQUENCE
+        long item_len = 0;
+        int tag = 0, xclass = 0;
+        int ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_arrary_end - p);
+        if ((ret & 0x80) || tag != V_ASN1_SEQUENCE) {
+            FOTA_TRACE_ERROR("Error package descriptor array tag");
+            res = FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+            goto cleanup;
+        }
+        start_of_image_descriptor = p;
+        len_of_image_descriptor = item_len;
+
+        FOTA_PACKAGE_TRACE_DEBUG("Parse ImgDescriptor:image_id");
+        // -- Parse UTF8String (image id)
+        ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_arrary_end - p);
+        if ((ret & 0x80) || tag != V_ASN1_UTF8STRING) {
+            FOTA_TRACE_ERROR("Error reading ImgDescriptor:image_id");
+            res = FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+            goto cleanup;
+        }
+        if (item_len >= FOTA_PACKAGE_IMAGE_ID_MAX_NAME_SIZE) {
+            FOTA_TRACE_ERROR("image id-name too long %ld", item_len);
+            res = FOTA_STATUS_COMB_PACKAGE_IMAGE_ID_NAME_TOO_LONG;
+            goto cleanup;
+        }
+        memcpy(img_desc_array->image_id, p, item_len);
+        img_desc_array->image_id[item_len] = '\0'; // Null-terminate
+        FOTA_PACKAGE_TRACE_DEBUG("image id %s", img_desc_array->image_id);
+        p += item_len;
+
+        FOTA_PACKAGE_TRACE_DEBUG("Parse ImgDescriptor:vendor_data");
+        // -- Parse OCTET STRING (vendor_data)
+        ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_arrary_end - p);
+        if ((ret & 0x80) || tag != V_ASN1_OCTET_STRING) {
+            FOTA_TRACE_ERROR("Error reading ImgDescriptor:vendor_data");
+            res = FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+            goto cleanup;
+        }
+        if (item_len > FOTA_COMBINED_IMAGE_VENDOR_MAX_DATA_SIZE) {
+            FOTA_TRACE_ERROR("Vendor data too long %ld", item_len);
+            res = FOTA_STATUS_COMB_PACKAGE_VENDOR_DATA_TOO_LONG;
+            goto cleanup;
+        }
+        vendor_data = p;
+        vendor_data_size = item_len;
+        p += item_len;
+
+        FOTA_PACKAGE_TRACE_DEBUG("Parse ImgDescriptor:vendor_data_size");
+        // -- Parse INTEGER (vendor_data_size)
+        ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_arrary_end - p);
+        if ((ret & 0x80) || tag != V_ASN1_INTEGER) {
+            FOTA_TRACE_ERROR("Error reading ImgDescriptor:vendor_data_size");
+            res = FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+            goto cleanup;
+        }
+        // Use OpenSSL ASN1_INTEGER helper
+        ASN1_INTEGER *ai = d2i_ASN1_INTEGER(NULL, (const unsigned char **)&p, item_len);
+        if (!ai) {
+            FOTA_TRACE_ERROR("ASN1_INTEGER parse error");
+            res = FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+            goto cleanup;
+        }
+        img_desc_array->vendor_data_size = ASN1_INTEGER_get(ai);
+        ASN1_INTEGER_free(ai);
+
+        // -- Validate vendor data size
+        if (vendor_data_size != img_desc_array->vendor_data_size) {
+            FOTA_TRACE_ERROR("Vendor data size is wrong %zu", img_desc_array->vendor_data_size);
+            return FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+        }
+        img_desc_array->vendor_data = malloc(vendor_data_size + 1);
+        if (!img_desc_array->vendor_data) {
+            FOTA_TRACE_ERROR("Failed to allocate memory");
+            res = FOTA_STATUS_OUT_OF_MEMORY;
+            goto cleanup;
+        }
+        memcpy(img_desc_array->vendor_data, vendor_data, vendor_data_size);
+        img_desc_array->vendor_data[vendor_data_size] = '\0';
+        FOTA_PACKAGE_TRACE_DEBUG("Vendor data %s", vendor_data);
+
+        FOTA_PACKAGE_TRACE_DEBUG("Parse ImgDescriptor:image_size");
+        // -- Parse INTEGER (image_size)
+        ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_arrary_end - p);
+        if ((ret & 0x80) || tag != V_ASN1_INTEGER) {
+            FOTA_TRACE_ERROR("Error reading ImgDescriptor:image_size");
+            res = FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+            goto cleanup;
+        }
+        ai = d2i_ASN1_INTEGER(NULL, (const unsigned char **)&p, item_len);
+        if (!ai) {
+            FOTA_TRACE_ERROR("ASN1_INTEGER parse error");
+            res = FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+            goto cleanup;
+        }
+        img_desc_array->image_size = ASN1_INTEGER_get(ai);
+        ASN1_INTEGER_free(ai);
+
+        p = start_of_image_descriptor + len_of_image_descriptor; // Skip unknown fields, for compatibility
+        img_desc_array++;
+
+#else // !MBED_CLOUD_CLIENT_USE_OPENSSL
+
         tmp_status = mbedtls_asn1_get_tag(
                          &p, desc_arrary_end, &len,
                          MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
@@ -209,6 +318,8 @@ static int parse_descriptors_array(const uint8_t *descriptor_array_data,
         // Do not delete !!!
         p = start_of_image_descriptor + len_of_image_descriptor; // For backward compatibility - the parser should ignore unknown fields
         img_desc_array++;
+#endif // MBED_CLOUD_CLIENT_USE_OPENSSL
+
     }// for
 
     return 0;
@@ -238,6 +349,65 @@ int fota_combined_package_parse(package_descriptor_t *descriptor_info, uint8_t *
 
     // Reset descriptor info structure memory
     memset(descriptor_info, 0, sizeof(*descriptor_info));
+
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 1)
+    long item_len = 0;
+    int tag = 0, xclass = 0;
+    int ret;
+
+    // Parse outer SEQUENCE
+    ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_data_end - p);
+    if ((ret & 0x80) || tag != V_ASN1_SEQUENCE) {
+        FOTA_TRACE_ERROR("Error package descriptor tag");
+        return FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+    }
+    if (p + item_len > desc_data_end) {
+        FOTA_TRACE_ERROR("Truncated package descriptor");
+        return FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+    }
+
+    // Parse num_of_images INTEGER
+    ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_data_end - p);
+    if ((ret & 0x80) || tag != V_ASN1_INTEGER) {
+        FOTA_TRACE_ERROR("Error reading Descriptor:num_of_images");
+        return FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+    }
+    ASN1_INTEGER *ai = d2i_ASN1_INTEGER(NULL, (const unsigned char **)&p, item_len);
+    if (!ai) {
+        FOTA_TRACE_ERROR("ASN1_INTEGER parse error");
+        return FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+    }
+    descriptor_info->num_of_images = ASN1_INTEGER_get(ai);
+    ASN1_INTEGER_free(ai);
+
+    if (FOTA_MAX_NUM_OF_SUB_COMPONENTS != descriptor_info->num_of_images) {
+        FOTA_TRACE_ERROR("Wrong number of combined images");
+        return FOTA_STATUS_COMB_PACKAGE_WRONG_IMAGE_NUM;
+    }
+
+    // Parse descriptors-array SEQUENCE OF ImgDescriptor
+    ret = ASN1_get_object((const unsigned char **)&p, &item_len, &tag, &xclass, desc_data_end - p);
+    if ((ret & 0x80) || tag != V_ASN1_SEQUENCE) {
+        FOTA_TRACE_ERROR("Error reading Descriptor:descriptors-array");
+        return FOTA_STATUS_COMB_PACKAGE_MALFORMED;
+    }
+
+    // Set pointer and size of descriptors array
+    uint8_t *desc_array_ptr = p;
+    size_t desc_array_size = item_len;
+
+    // Parse descriptors array
+    tmp_status = parse_descriptors_array(
+                     desc_array_ptr,
+                     desc_array_size,
+                     descriptor_info);
+    if (tmp_status != 0) {
+        FOTA_TRACE_ERROR("parse_descriptors_array failed %d", tmp_status);
+        return tmp_status;
+    }
+    // No need to advance p; for backward compatibility, ignore unknown fields
+
+#else // MBEDTLS version
 
     tmp_status = mbedtls_asn1_get_tag(
                      &p, desc_data_end, &len,
@@ -286,8 +456,8 @@ int fota_combined_package_parse(package_descriptor_t *descriptor_info, uint8_t *
         FOTA_TRACE_ERROR("parse_descriptors_array failed %d", tmp_status);
         return tmp_status;
     }
+#endif
 
-    // For For backward compatibility - ignore unkown fields and do not check end of the buffer.
     return 0;
 }
 

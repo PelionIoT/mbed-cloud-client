@@ -141,8 +141,13 @@ message("update-client = ${UPDATE_SRC}")
 
 # create a library and describe its dependencies
 add_library(update-client STATIC "${UPDATE_SRC}")
-add_dependencies(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal)
-target_link_libraries(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal)
+if (NOT MBED_CLOUD_CLIENT_USE_OPENSSL)
+    add_dependencies(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal)
+    target_link_libraries(update-client mbedclient mbedTrace mbedcrypto mbedx509 pal)
+else()
+    add_dependencies(update-client mbedclient mbedTrace OpenSSL::SSL OpenSSL::Crypto pal)
+    target_link_libraries(update-client mbedclient mbedTrace OpenSSL::SSL OpenSSL::Crypto pal)
+endif()
 
 # add pal dependency only for full client builds
 if (NOT ${BUILD_TYPE} STREQUAL "client-lite")

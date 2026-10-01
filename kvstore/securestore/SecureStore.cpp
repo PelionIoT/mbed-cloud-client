@@ -169,6 +169,7 @@ SecureStore::SecureStore(KVStore *underlying_kv, KVStore *rbp_kv) :
     _is_initialized(false), _underlying_kv(underlying_kv), _rbp_kv(rbp_kv), _entropy(0),
     _inc_set_handle(0), _scratch_buf(0)
 {
+    printf("SecureStore::SecureStore\n");
 }
 
 SecureStore::~SecureStore()

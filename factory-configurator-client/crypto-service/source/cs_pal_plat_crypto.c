@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+
+#include "mbed-client/m2mconfig.h"
+#if (MBED_CLOUD_CLIENT_USE_OPENSSL == 0)
+
 #include "cs_pal_plat_crypto.h"
 #if !defined(MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT) || defined(MBED_CONF_MBED_CLOUD_CLIENT_PSA_SUPPORT)
 #include "pal.h"
@@ -3105,3 +3109,4 @@ struct tm *gmtime_r(const time_t *timep, struct tm * result)
 #endif
 
 
+#endif // MBED_CONF_MBED_CLOUD_CLIENT_USE_OPENSSL

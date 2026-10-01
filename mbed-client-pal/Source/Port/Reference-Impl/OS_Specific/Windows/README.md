@@ -3,6 +3,11 @@
 Native Win32 x64 implementation of the existing PAL platform contracts.
 The Edge Windows target selects this directory with `OS_BRAND=Windows` and
 `MBED_CLOUD_CLIENT_DEVICE=x86_x64`. Link with `ws2_32`, `iphlpapi`, and `bcrypt`.
+With `MBED_CLOUD_CLIENT_USE_OPENSSL=ON`, link native x64 OpenSSL 3.x too. Windows
+uses the shared `Lib_Specific/OpenSSL/TLS` and crypto-service implementations.
+A Windows-guarded BIO routes TLS through PAL's opaque sockets using `pal_send`
+and `pal_recv`; freeing TLS leaves the socket owned by its caller. Client TLS
+over TCP is supported; DTLS and server TLS are not yet implemented on Windows.
 
 - RTOS uses `_beginthreadex`, Windows mutexes/semaphores, waitable timers and
   `GetTickCount64`. Threads release their resources on normal return or deferred
@@ -12,7 +17,8 @@ The Edge Windows target selects this directory with `OS_BRAND=Windows` and
   deleting a timer. As with other PAL ports, deleting an object concurrently
   with arbitrary API use requires synchronization by its owner.
 - Entropy comes from `BCryptGenRandom` with the system-preferred RNG. Hardware
-  RoT is unsupported; reuse PAL's generic SOTP implementation.
+  RoT is unsupported; reuse PAL's generic SOTP implementation. The optional
+  file-based RoT reader also reuses Windows PAL's UTF-8 file APIs.
 - Filesystem paths are UTF-8, converted to wide strings for Win32 APIs. File
   creation inherits directory ACLs. Writable files use write-through caching.
   Exclusive creation uses `CREATE_NEW`. Folder operations follow the documented
@@ -31,7 +37,9 @@ The Edge Windows target selects this directory with `OS_BRAND=Windows` and
 
 The Edge repository's `test/windows-pal` suite compiles these sources and PAL's
 generic RTOS, filesystem and networking layers. Run it from Edge with
-`build-windows.ps1 -PalTests`. It needs no cloud account or external network.
+`build-windows.ps1 -PalTests -OpenSSLRoot C:/path/to/native-openssl-sdk`. The
+suite also compiles the shared TLS, crypto and file-based RoT sources. It needs
+no cloud account or external network.
 
 Relevant native API semantics:
 [Winsock event selection](https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsaeventselect)

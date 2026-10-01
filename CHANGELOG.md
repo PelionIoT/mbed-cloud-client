@@ -1,5 +1,9 @@
 ## Changelog for Izuma Device Management Client
 
+### Release 4.13.4 (30.05.2024)
+
+- Bugfix - Drop manifest if device is in reboot state
+
 ### Release 4.13.3 (18.05.2024)
 
 - Bugfix - incorrect firmware download progress

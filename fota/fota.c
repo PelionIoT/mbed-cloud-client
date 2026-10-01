@@ -498,6 +498,15 @@ int fota_is_ready(uint8_t *data, size_t size, fota_state_e *fota_state)
         *fota_state = FOTA_STATE_INVALID;
         return FOTA_STATUS_OUT_OF_MEMORY;
     }
+
+    // Check if device is rebooting
+    if (fota_source_get_state() == FOTA_SOURCE_STATE_REBOOTING) {
+        FOTA_TRACE_DEBUG("FOTA not ready - device is rebooting");
+        *fota_state = FOTA_STATE_INVALID;
+        free(manifest);
+        return FOTA_STATUS_SUCCESS;
+    }
+
     int ret = manifest_get(manifest, FOTA_MANIFEST_MAX_SIZE, &manifest_size);
     if (ret) {
         //  cannot find saved manifest - ready to start an update
