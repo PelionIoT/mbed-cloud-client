@@ -89,7 +89,10 @@ palStatus_t pal_plat_fsFopen(const char *path, pal_fsFileMode_t mode, palFileDes
         FILE_ATTRIBUTE_NORMAL | ((access & GENERIC_WRITE) ? FILE_FLAG_WRITE_THROUGH : 0), NULL);
     error = GetLastError();
     free(wide);
-    if (file == INVALID_HANDLE_VALUE) return fs_error(error);
+    /* PAL open follows ENOENT semantics for a missing file or parent. ESFS
+     * probes BACKUP/FR/fr_on before the FR directory exists on first boot. */
+    if (file == INVALID_HANDLE_VALUE)
+        return error == ERROR_PATH_NOT_FOUND ? PAL_ERR_FS_NO_FILE : fs_error(error);
     *fd = (palFileDescriptor_t)file;
     return PAL_SUCCESS;
 }

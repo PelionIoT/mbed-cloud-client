@@ -121,7 +121,13 @@ private:
     // pointer to the current timer event pending, NULL if none is in flight
     arm_event_storage_t *_timer_event;
 
+#ifdef _MSC_VER
+    // MSVC gives this enum a signed underlying type. A four-bit field turns
+    // BootstrapFlowTimer (8) through DnsQueryFallback (11) into negative values.
+    M2MTimerObserver::Type  _type;
+#else
     M2MTimerObserver::Type  _type : 4;
+#endif
 
     unsigned int        _status : 2;
 

@@ -46,7 +46,12 @@
 /* Different calls to update                                            */
 /************************************************************************/
 
+#ifdef _WIN32
+// Defined in ce_safe_renewal_internal.c, with C linkage.
+extern "C" const char g_lwm2m_name[];
+#else
 extern const char g_lwm2m_name[];
+#endif
 
 namespace CertificateEnrollmentClient {
 
@@ -487,7 +492,11 @@ ce_status_e CertificateEnrollmentClient::schedule_event(event_type_e event_type)
     arm_event_s event = {
         .receiver = handler_id, // ID we got when creating our handler
         .sender = 0, // Which tasklet sent us the event is irrelevant to us 
-        .event_type = event_type, // Indicate event type 
+#ifdef _MSC_VER
+        .event_type = static_cast<uint8_t>(event_type),
+#else
+        .event_type = event_type, // Indicate event type
+#endif
         .event_id = 0, // We currently do not need an ID for a specific event - event type is enough
         .data_ptr = 0, // Not needed, data handled in internal structure
         .priority = ARM_LIB_LOW_PRIORITY_EVENT, // Application level priority

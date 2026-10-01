@@ -82,7 +82,8 @@ using namespace m2m;
  */
 
 #undef MBED_CLIENT_MEMORY_OPTIMIZED_API
-#if defined (__ICCARM__)
+#if defined (__ICCARM__) || defined (_MSC_VER)
+// This annotation follows the declaration; MSVC's __declspec must precede it.
 #define m2m_deprecated
 #else
 #define m2m_deprecated __attribute__ ((deprecated))

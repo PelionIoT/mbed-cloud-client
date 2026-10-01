@@ -25,6 +25,9 @@
 #include "eventOS_callback_timer.h"
 
 #include "ns_timer.h"
+#ifdef _WIN32
+#include "pal.h"
+#endif
 
 #ifndef ST_MAX
 #define ST_MAX 6
@@ -39,6 +42,9 @@ NS_STATIC_ASSERT(1000 % EVENTOS_EVENT_TIMER_HZ == 0, "Need whole number of ms pe
 // timer_sys_ticks must be read in critical section to guarantee
 // atomicity on 16-bit platforms
 static volatile uint32_t timer_sys_ticks;
+#ifdef _WIN32
+static uint64_t timer_last_kernel_tick;
+#endif
 
 static NS_LIST_DEFINE(system_timer_free, sys_timer_struct_s, event.link);
 static NS_LIST_DEFINE(system_timer_list, sys_timer_struct_s, event.link);
@@ -95,6 +101,9 @@ void timer_sys_init(void)
     }
 
     platform_tick_timer_register(timer_sys_interrupt);
+#ifdef _WIN32
+    timer_last_kernel_tick = pal_osKernelSysTick();
+#endif
     platform_tick_timer_start(TIMER_SYS_TICK_PERIOD);
 }
 
@@ -111,13 +120,30 @@ void timer_sys_disable(void)
  */
 int8_t timer_sys_wakeup(void)
 {
+#ifdef _WIN32
+    // The sleep/resume API accounts for stopped time separately.
+    timer_last_kernel_tick = pal_osKernelSysTick();
+#endif
     return platform_tick_timer_start(TIMER_SYS_TICK_PERIOD);
 }
 
 
 static void timer_sys_interrupt(void)
 {
+#ifdef _WIN32
+    // Windows can coalesce short periodic PAL timer wakes. Counting callbacks
+    // loses elapsed time and makes registration/retry deadlines run late.
+    // Advance by elapsed monotonic PAL ticks, preserving fractional periods.
+    platform_enter_critical();
+    const uint64_t ticks_per_period = pal_osKernelSysTickFrequency() / EVENTOS_EVENT_TIMER_HZ;
+    const uint64_t now = pal_osKernelSysTick();
+    const uint64_t elapsed = (now - timer_last_kernel_tick) / ticks_per_period;
+    timer_last_kernel_tick += elapsed * ticks_per_period;
+    system_timer_tick_update((uint32_t)elapsed);
+    platform_exit_critical();
+#else
     system_timer_tick_update(1);
+#endif
 }
 
 

@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <bcrypt.h>
 #include "pal_plat_entropy.h"
+#include "pal_plat_drbg.h"
 
 palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *buffer, size_t size, size_t *actual)
 {
@@ -18,4 +19,10 @@ palStatus_t pal_plat_getRandomBufferFromHW(uint8_t *buffer, size_t size, size_t 
     }
     if (actual) *actual = done;
     return PAL_SUCCESS;
+}
+
+palStatus_t pal_plat_osRandomBuffer(uint8_t *buffer, size_t size, size_t *actual)
+{
+    /* SOTP's DRBG seed path uses this OS hook, as it does on Linux. */
+    return pal_plat_getRandomBufferFromHW(buffer, size, actual);
 }

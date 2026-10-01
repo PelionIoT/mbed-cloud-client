@@ -75,7 +75,11 @@ palStatus_t pal_plat_osSetRoT(uint8_t * key, size_t keyLenBytes)
 {
     sotp_result_e sotpStatus;
     uint16_t actual_size;
+#ifdef _MSC_VER
+    PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 uint8_t rotBuffer[PAL_DEVICE_KEY_SIZE_IN_BYTES] = { 0 };
+#else
     uint8_t rotBuffer[PAL_DEVICE_KEY_SIZE_IN_BYTES] __attribute__((aligned(4))) = { 0 };
+#endif
 
     if (keyLenBytes != PAL_DEVICE_KEY_SIZE_IN_BYTES || key == NULL) {
         return PAL_ERR_INVALID_ARGUMENT;

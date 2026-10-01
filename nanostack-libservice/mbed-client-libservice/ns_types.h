@@ -179,7 +179,8 @@ typedef int_fast32_t int_fast24_t;
  * elements. This adds no new type-checking, but the information could aid
  * compiler optimisation, and it can serve as documentation).
  */
-#ifdef __cplusplus
+#if defined(__cplusplus) || defined(_MSC_VER)
+/* MSVC also lacks C99's static array parameter qualifier. */
 #define __static
 #else
 #define __static static
