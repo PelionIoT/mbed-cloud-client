@@ -77,9 +77,8 @@ void pal_osReboot(void)
 
 uint64_t pal_osKernelSysTick(void)
 {
-#ifdef _WIN32
-    /* GetTickCount64 is already monotonic and 64-bit. The legacy 32-bit wrap
-     * detector below has shared mutable state and is unnecessary on Windows. */
+#if defined(_WIN32) || defined(__APPLE__)
+    /* These native clocks are monotonic and 64-bit; no wrap detection is needed. */
     return pal_plat_osKernelSysTick();
 #else
     static uint64_t lastValue = 0;
@@ -264,4 +263,3 @@ int32_t pal_osAtomicIncrement(int32_t* valuePtr, int32_t increment)
     result = pal_plat_osAtomicIncrement(valuePtr, increment);
     return result;
 }
-

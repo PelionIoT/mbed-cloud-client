@@ -1,7 +1,7 @@
 INCLUDE(CMakeForceCompiler)
 # CROSS COMPILER SETTING
 cmake_minimum_required (VERSION 3.5)
-if (NOT WIN32)
+if (NOT WIN32 AND NOT APPLE)
     SET(CMAKE_SYSTEM_NAME Generic)
 endif()
 
@@ -372,4 +372,3 @@ endif() # (FOTA_ENABLE)
 #set (SRC_LIBS ${SRC_LIBS} PARENT_SCOPE)
 
 ADDSUBDIRS()
-

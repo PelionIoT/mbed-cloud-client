@@ -58,7 +58,7 @@ FILE(GLOB CRYPTO_SERVICE_SRC
 add_library(crypto-service STATIC "${CRYPTO_SERVICE_SRC}")
 add_dependencies(crypto-service palDRBG)
 target_link_libraries(crypto-service palDRBG)
-if(WIN32 AND MBED_CLOUD_CLIENT_USE_OPENSSL)
+if(MBED_CLOUD_CLIENT_USE_OPENSSL)
     find_package(OpenSSL 3.0 REQUIRED)
     target_link_libraries(crypto-service OpenSSL::Crypto)
 endif()
@@ -108,8 +108,8 @@ if(STORAGE_ESFS)
     add_dependencies(fccstorage crypto-service esfs sotp)
     target_link_libraries(fccstorage crypto-service esfs sotp)
 endif()
-if(WIN32)
-    # Native Windows reuses the file-backed ESFS/SOTP path through PAL.
+if(WIN32 OR OS_BRAND STREQUAL "Darwin")
+    # Native desktop ports reuse the file-backed ESFS/SOTP path through PAL.
     # The embedded KVStore backend has direct mbedTLS dependencies.
     add_dependencies(fccstorage crypto-service esfs sotp)
     target_link_libraries(fccstorage crypto-service esfs sotp)

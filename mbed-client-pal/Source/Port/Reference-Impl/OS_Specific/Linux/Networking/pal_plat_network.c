@@ -123,6 +123,10 @@ PAL_PRIVATE palStatus_t translateErrorToPALError(int errnoValue)
 }
 
 
+#ifdef __APPLE__
+PAL_PRIVATE palStatus_t pal_plat_socketAddressToPalSockAddr(struct sockaddr*, palSocketAddress_t*, palSocketLength_t*);
+#include "../../Darwin/Networking/pal_plat_network_posix.h"
+#else
 static pthread_t s_pollThread = NULLPTR;
 static palMutexID_t s_mutexSocketCallbacks = 0;
 static palMutexID_t s_mutexSocketEventFilter = 0;
@@ -356,6 +360,8 @@ PAL_PRIVATE void asyncSocketManager(void const* arg)
 }
 
 
+#endif
+
 PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_t* palAddr, struct sockaddr* output)
 {
     palStatus_t result = PAL_SUCCESS;
@@ -374,6 +380,9 @@ PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_
         palIpV4Addr_t ipV4Addr = { 0 };
         struct sockaddr_in* ip4addr = (struct sockaddr_in*)output;
         ip4addr->sin_family = AF_INET;
+#ifdef __APPLE__
+        ip4addr->sin_len = sizeof(*ip4addr);
+#endif
         ip4addr->sin_port = PAL_HTONS(port);
         result = pal_getSockAddrIPV4Addr(palAddr, ipV4Addr);
         if (result == PAL_SUCCESS)
@@ -391,6 +400,10 @@ PAL_PRIVATE palStatus_t pal_plat_SockAddrToSocketAddress(const palSocketAddress_
         struct sockaddr_in6* ip6addr = (struct sockaddr_in6*)output;
         ip6addr->sin6_family = AF_INET6;
         ip6addr->sin6_scope_id = 0; // we assume there will not be several interfaces with the same IP.
+#ifdef __APPLE__
+        ip6addr->sin6_len = sizeof(*ip6addr);
+        memcpy(&ip6addr->sin6_scope_id, (const char *)palAddr + offsetof(darwin_pal_ipv6, scope), sizeof(ip6addr->sin6_scope_id));
+#endif
         ip6addr->sin6_flowinfo = 0;
         ip6addr->sin6_port = PAL_HTONS(port);
         result = pal_getSockAddrIPV6Addr(palAddr, ipV6Addr);
@@ -438,6 +451,9 @@ PAL_PRIVATE palStatus_t pal_plat_socketAddressToPalSockAddr(struct sockaddr* inp
         struct sockaddr_in6* ip6addr = (struct sockaddr_in6*)input;
         memcpy(ipV6Addr, &ip6addr->sin6_addr, PAL_IPV6_ADDRESS_SIZE);
         result = pal_setSockAddrIPV6Addr(out, ipV6Addr);
+#ifdef __APPLE__
+        memcpy((char *)out + offsetof(darwin_pal_ipv6, scope), &ip6addr->sin6_scope_id, sizeof(ip6addr->sin6_scope_id));
+#endif
         if (result == PAL_SUCCESS)
         {
             result = pal_setSockAddrPort(out, PAL_NTOHS(ip6addr->sin6_port));
@@ -455,6 +471,7 @@ PAL_PRIVATE palStatus_t pal_plat_socketAddressToPalSockAddr(struct sockaddr* inp
     return result;
 }
 
+#ifndef __APPLE__
 palStatus_t pal_plat_socketsInit(void* context)
 {
     PAL_UNUSED_ARG(context);
@@ -642,6 +659,8 @@ palStatus_t pal_plat_socketsTerminate(void* context)
     return firstError;
 }
 
+#endif
+
 /*
  * NOTE!!!!
  * When creating socket in Linux, we ignore interfaceNum provided.
@@ -654,7 +673,11 @@ palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool n
     intptr_t sockfd;
     int sockBehavior = 0;
 
+#ifdef __APPLE__
+    if (!darwin_valid_interface(interfaceNum)) return PAL_ERR_INVALID_ARGUMENT;
+#else
     PAL_VALIDATE_ARGUMENTS(interfaceNum >= s_palNumOfInterfaces && PAL_NET_DEFAULT_INTERFACE != interfaceNum);
+#endif
 
     // These are the same in Linux
     if(type == PAL_SOCK_STREAM_SERVER)
@@ -663,6 +686,7 @@ palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool n
     }
 
     // Compile time check that PAL values are the same as Linux values
+#ifndef __APPLE__
     PAL_ASSERT_STATIC(AF_INET == PAL_AF_INET);
     PAL_ASSERT_STATIC(AF_INET6 == PAL_AF_INET6);
     PAL_ASSERT_STATIC(AF_UNSPEC == PAL_AF_UNSPEC);
@@ -676,6 +700,18 @@ palStatus_t create_socket(palSocketDomain_t domain, palSocketType_t type, bool n
 
     // SOCK_NONBLOCK since Linux 2.6.27
     sockfd = socket(domain, type | sockBehavior , 0);
+#else
+    (void)sockBehavior;
+    int native_domain = domain == PAL_AF_INET ? AF_INET : domain == PAL_AF_INET6 ? AF_INET6 : -1;
+    if (native_domain < 0) return PAL_ERR_SOCKET_INVALID_ADDRESS_FAMILY;
+    sockfd = socket(native_domain, type, 0);
+    if (sockfd >= 0 && darwin_configure_socket((int)sockfd, nonBlockingSocket) != 0) {
+        int saved = errno;
+        close((int)sockfd);
+        errno = saved;
+        sockfd = PAL_LINUX_INVALID_SOCKET;
+    }
+#endif
     // Note - though it is not an error, if we get sockfd == 0 then we probably (accidentally closed fd 0 somewhere else)
     if (sockfd == PAL_LINUX_INVALID_SOCKET)
     {
@@ -718,7 +754,11 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
         linuxName = SO_KEEPALIVE;
         break;
     case PAL_SO_KEEPIDLE:
+#ifdef __APPLE__
+        linuxName = TCP_KEEPALIVE;
+#else
         linuxName = TCP_KEEPIDLE;
+#endif
         break;
     case PAL_SO_KEEPINTVL:
         linuxName = TCP_KEEPINTVL;
@@ -741,7 +781,7 @@ palStatus_t pal_plat_setSocketOptions(palSocket_t socket, int optionName, const 
 #ifdef PAL_NET_TCP_AND_TLS_SUPPORT
         else if (PAL_SO_KEEPIDLE == optionName || PAL_SO_KEEPINTVL == optionName)
         {
-            result = setsockopt ((intptr_t)socket, SOL_TCP, linuxName, (int *)optionValue, optionLength);
+            result = setsockopt ((intptr_t)socket, IPPROTO_TCP, linuxName, (int *)optionValue, optionLength);
         }
 #endif
         else
@@ -772,6 +812,7 @@ palStatus_t pal_plat_setSocketOptionsWithLevel(palSocket_t socket, palSocketOpti
 palStatus_t pal_plat_isNonBlocking(palSocket_t socket, bool* isNonBlocking)
 {
     int flags = fcntl((intptr_t)socket, F_GETFL);
+    if (flags < 0) return translateErrorToPALError(errno);
 
     if (0 != (flags & O_NONBLOCK))
     {
@@ -794,6 +835,9 @@ palStatus_t pal_plat_bind(palSocket_t socket, palSocketAddress_t* myAddress, pal
     result = pal_plat_SockAddrToSocketAddress(myAddress, (struct sockaddr *)&internalAddr);
     if (result == PAL_SUCCESS)
     {
+#ifdef __APPLE__
+        addressLength = ((struct sockaddr *)&internalAddr)->sa_len;
+#endif
         res = bind((intptr_t)socket, (struct sockaddr *)&internalAddr, addressLength);
         if (res == -1)
         {
@@ -837,7 +881,15 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
     ssize_t res;
 
     clearSocketFilter((intptr_t)socket);
+#ifdef __APPLE__
+    struct sockaddr_storage native = {0};
+    result = pal_plat_SockAddrToSocketAddress(to, (struct sockaddr *)&native);
+    if (result != PAL_SUCCESS) return result;
+    (void)toLength;
+    res = sendto((intptr_t)socket, buffer, length, 0, (struct sockaddr *)&native, ((struct sockaddr *)&native)->sa_len);
+#else
     res = sendto((intptr_t)socket, buffer, length, 0, (struct sockaddr *)to, toLength);
+#endif
     if(res == -1)
     {
         result = translateErrorToPALError(errno);
@@ -850,6 +902,7 @@ palStatus_t pal_plat_sendTo(palSocket_t socket, const void* buffer, size_t lengt
     return result;
 }
 
+#ifndef __APPLE__
 palStatus_t pal_plat_close(palSocket_t* socket)
 {
     palStatus_t result = PAL_SUCCESS;
@@ -1012,6 +1065,8 @@ PAL_PRIVATE palStatus_t registerAsyncSocketParams(palSocket_t socket, palAsyncSo
     return result;
 }
 
+#endif
+
 #if PAL_NET_TCP_AND_TLS_SUPPORT // functionality below supported only in case TCP is supported.
 
 #if PAL_NET_SERVER_SOCKET_API
@@ -1022,6 +1077,9 @@ palStatus_t pal_plat_listen(palSocket_t socket, int backlog)
     int res;
 
     res = listen((intptr_t)socket,backlog);
+#ifdef __APPLE__
+    if (!res) darwin_arm_socket((int)(intptr_t)socket, false);
+#endif
     if(res == -1)
     {
         result = translateErrorToPALError(errno);
@@ -1050,9 +1108,20 @@ palStatus_t pal_plat_accept(palSocket_t socket, palSocketAddress_t * address, pa
     }
     else
     {
+#ifdef __APPLE__
+        clearSocketFilter((intptr_t)socket);
+        if (darwin_configure_socket((int)res, true) != 0) {
+            result = translateErrorToPALError(errno);
+            close((int)res);
+            return result;
+        }
+#endif
         result = registerAsyncSocketParams((palSocket_t)res, callback, callbackArgument);
         if(result != PAL_SUCCESS)
         {
+#ifdef __APPLE__
+            close((int)res);
+#endif
             return result;
         }
 
@@ -1077,8 +1146,16 @@ palStatus_t pal_plat_connect(palSocket_t socket, const palSocketAddress_t* addre
     {
         // clean filter to get the callback on first attempt
         clearSocketFilter((intptr_t)socket);
+#ifdef __APPLE__
+        addressLen = ((struct sockaddr *)&internalAddr)->sa_len;
+#endif
 
         res = connect((intptr_t)socket,(struct sockaddr *)&internalAddr, addressLen);
+#ifdef __APPLE__
+        int saved = errno;
+        if (res == 0 || saved == EINPROGRESS) darwin_arm_socket((int)(intptr_t)socket, true);
+        errno = saved;
+#endif
         if(res == -1)
         {
             result = translateErrorToPALError(errno);
@@ -1116,7 +1193,11 @@ palStatus_t pal_plat_send(palSocket_t socket, const void *buf, size_t len, size_
     ssize_t res;
 
     clearSocketFilter((intptr_t)socket);
+#ifdef __APPLE__
+    res = send((intptr_t)socket, buf, len, 0);
+#else
     res = send((intptr_t)socket, buf, len, MSG_NOSIGNAL);
+#endif
 
     if(res == -1)
     {
@@ -1138,7 +1219,9 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
     int err;
     int flags;
     palStatus_t result = create_socket(domain,  type,  nonBlockingSocket,  interfaceNum, socket);
+    if (result != PAL_SUCCESS) return result;
 
+#ifndef __APPLE__
     // initialize the socket to be ASYNC so we get SIGIO's for it
     // XXX: this needs to be conditionalized as the blocking IO might have some use also.
     err = fcntl((intptr_t)*socket, F_SETOWN, getpid());
@@ -1155,10 +1238,17 @@ palStatus_t pal_plat_asynchronousSocket(palSocketDomain_t domain, palSocketType_
     {
         result = translateErrorToPALError(errno);
     }
+#else
+    (void)err;
+    (void)flags;
+#endif
 
     if (result == PAL_SUCCESS)
     {
         result = registerAsyncSocketParams(*socket, callback, callbackArgument);
+#ifdef __APPLE__
+        if (result != PAL_SUCCESS) pal_plat_close(socket);
+#endif
     }
 
     return result;
@@ -1193,7 +1283,7 @@ palStatus_t pal_plat_getAddressInfo(const char *hostname, palSocketAddress_t *ad
 #endif
 
     res = getaddrinfo(hostname, NULL, &hints, &pAddrInf);
-    if(res < 0)
+    if(res != 0)
     {
         // getaddrinfo returns EAI-error. In case of EAI_SYSTEM, the error
         // is 'Other system error, check errno for details'
@@ -1258,7 +1348,7 @@ PAL_PRIVATE palStatus_t getAddressInfo(const char *hostname, struct addrinfo **a
 #endif
 
     err = getaddrinfo(hostname, NULL, &hints, addrInfo);
-    if (err < 0)
+    if (err != 0)
     {
         // getaddrinfo returns EAI-error. In case of EAI_SYSTEM, the error
         // is 'Other system error, check errno for details'
@@ -1413,4 +1503,3 @@ uint16_t pal_plat_getStaggerEstimate(uint16_t data_amount)
     (void) data_amount;
     return PAL_DEFAULT_STAGGER_ESTIMATE;
 }
-
