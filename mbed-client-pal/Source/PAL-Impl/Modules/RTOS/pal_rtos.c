@@ -77,6 +77,10 @@ void pal_osReboot(void)
 
 uint64_t pal_osKernelSysTick(void)
 {
+#if defined(_WIN32) || defined(__APPLE__)
+    /* These native clocks are monotonic and 64-bit; no wrap detection is needed. */
+    return pal_plat_osKernelSysTick();
+#else
     static uint64_t lastValue = 0;
     static uint64_t wraparoundsDetected = 0;
     const uint64_t one = 1;
@@ -90,6 +94,7 @@ uint64_t pal_osKernelSysTick(void)
     }
     lastValue = tmp;
     return (uint64_t)tmp;
+#endif
 }
 
 uint64_t pal_osKernelSysTickMicroSec(uint64_t microseconds)
@@ -258,4 +263,3 @@ int32_t pal_osAtomicIncrement(int32_t* valuePtr, int32_t increment)
     result = pal_plat_osAtomicIncrement(valuePtr, increment);
     return result;
 }
-

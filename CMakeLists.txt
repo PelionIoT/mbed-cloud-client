@@ -1,7 +1,9 @@
 INCLUDE(CMakeForceCompiler)
 # CROSS COMPILER SETTING
 cmake_minimum_required (VERSION 3.5)
-SET(CMAKE_SYSTEM_NAME Generic)
+if (NOT WIN32 AND NOT APPLE)
+    SET(CMAKE_SYSTEM_NAME Generic)
+endif()
 
 # For Linux OS we will maintain backwards compatibility with the porting layer.
 # This does cause limitations on the porting flexibility for Linux.
@@ -370,4 +372,3 @@ endif() # (FOTA_ENABLE)
 #set (SRC_LIBS ${SRC_LIBS} PARENT_SCOPE)
 
 ADDSUBDIRS()
-

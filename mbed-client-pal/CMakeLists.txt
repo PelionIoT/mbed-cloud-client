@@ -1,7 +1,9 @@
 INCLUDE(CMakeForceCompiler)
 # CROSS COMPILER SETTING
 cmake_minimum_required (VERSION 3.5)
-SET(CMAKE_SYSTEM_NAME Generic)
+if (NOT WIN32 AND NOT APPLE)
+    SET(CMAKE_SYSTEM_NAME Generic)
+endif()
 
 project(mbedPal)
 
@@ -82,6 +84,27 @@ if(${OS_BRAND} MATCHES "Linux")
     add_definitions(-DPAL_USE_PLATFORM_FILESYSTEM=1)
 endif()
 
+if(WIN32)
+    add_library(PLATFORM_LIBS INTERFACE)
+    target_link_libraries(PLATFORM_LIBS INTERFACE ws2_32 bcrypt iphlpapi)
+    if(MBED_CLOUD_CLIENT_USE_OPENSSL)
+        find_package(OpenSSL 3.0 REQUIRED)
+        target_link_libraries(PLATFORM_LIBS INTERFACE OpenSSL::SSL OpenSSL::Crypto)
+    endif()
+endif()
+
+if(OS_BRAND STREQUAL "Darwin")
+    find_package(Threads REQUIRED)
+    add_library(PLATFORM_LIBS INTERFACE)
+    target_link_libraries(PLATFORM_LIBS INTERFACE Threads::Threads)
+    if(MBED_CLOUD_CLIENT_USE_OPENSSL)
+        find_package(OpenSSL 3.0 REQUIRED)
+        target_link_libraries(PLATFORM_LIBS INTERFACE OpenSSL::SSL OpenSSL::Crypto)
+    else()
+        target_link_libraries(PLATFORM_LIBS INTERFACE mbedtls mbedcrypto mbedx509)
+    endif()
+endif()
+
 if(PAL_USE_PLATFORM_UPDATE)
     set(PAL_SRCS ${PAL_SRCS} ${PAL_PORT_SOURCE_DIR}/Update/pal_plat_update.c)
     message("PAL is using update.")
@@ -111,7 +134,12 @@ set(PAL_FILESYSTEM_SRCS
 )
 
 if (PAL_USE_PLATFORM_FILESYSTEM)
-    set (PAL_FILESYSTEM_SRCS ${PAL_FILESYSTEM_SRCS} ${PAL_PORT_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem.c)
+    if(OS_BRAND STREQUAL "Darwin")
+        set(PAL_FILESYSTEM_PORT_SOURCE "${PAL_PORT_SOURCE_DIR}/../Linux/Storage/FileSystem/pal_plat_fileSystem.c")
+    else()
+        set(PAL_FILESYSTEM_PORT_SOURCE "${PAL_PORT_SOURCE_DIR}/Storage/FileSystem/pal_plat_fileSystem.c")
+    endif()
+    set (PAL_FILESYSTEM_SRCS ${PAL_FILESYSTEM_SRCS} ${PAL_FILESYSTEM_PORT_SOURCE})
     message("PAL is using filesystem.")
 else()
     message("PAL filesystem disabled.")
@@ -122,6 +150,15 @@ set(PAL_NETWORKING_SRCS
     ${PAL_MODULES_SOURCE_DIR}/Networking/pal_network.c
     ${PAL_PORT_SOURCE_DIR}/Networking/${NETWORK_STACK}/pal_plat_network.c
 )
+if(OS_BRAND STREQUAL "Darwin")
+    set(PAL_NETWORKING_SRCS
+        ${PAL_MODULES_SOURCE_DIR}/Networking/pal_network.c
+        ${PAL_PORT_SOURCE_DIR}/../Linux/Networking/pal_plat_network.c
+    )
+    find_library(PAL_SYSTEM_CONFIGURATION SystemConfiguration REQUIRED)
+    find_library(PAL_CORE_FOUNDATION CoreFoundation REQUIRED)
+    target_link_libraries(PLATFORM_LIBS INTERFACE ${PAL_SYSTEM_CONFIGURATION} ${PAL_CORE_FOUNDATION})
+endif()
 if (${OS_BRAND} MATCHES "Zephyr")
     set(PAL_NETWORKING_SRCS
         ${PAL_NETWORKING_SRCS}
@@ -153,7 +190,11 @@ set(PAL_TIME_SRCS
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEVICE_FLASH")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDEVICE_FLASH -std=gnu99")
+if(WIN32)
+    add_definitions(-DDEVICE_FLASH)
+else()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDEVICE_FLASH -std=gnu99")
+endif()
 
 
 # XXX: The mbedtls is configured as mbedTLS in PAL, which is not the correct name of the actual library.

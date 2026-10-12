@@ -207,8 +207,15 @@ public:
             uint16_t            instance_id; // XXX: this is not properly aligned now, need to reorder these after the elimination is done
         } identifier;
         sn_nsdl_dynamic_resource_parameters_s *dynamic_resource_params;
+#ifdef _MSC_VER
+        // MSVC treats these enum bitfields as signed. Three bits turn
+        // ObjectDirectory (4) and OPAQUE/TIME/OBJLINK (4..6) negative.
+        BaseType            base_type : 4;
+        M2MBase::DataType   data_type : 4;
+#else
         BaseType            base_type : 3;
         M2MBase::DataType   data_type : 3;
+#endif
         bool                multiple_instance;
         bool                free_on_delete;   /**< \brief true if struct is dynamically allocated and it
                                                  and its members (name) are to be freed on destructor.

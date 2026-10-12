@@ -6,3 +6,5 @@ The documentation is hosted [here](https://developer.izumanetworks.com/docs/devi
 You can report concerns about the documentation or this SW as issues to [this GitHub repository](https://github.com/PelionIoT/mbed-cloud-client/issues).
 
 
+
+Desktop Windows/macOS port integration and pinned Linux/desktop consumer checks are described in [desktop port validation](docs/desktop-port-validation.md).

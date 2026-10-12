@@ -44,7 +44,7 @@ Please use only MBED_CLOUD_CLIENT_USER_CONFIG_FILE.
 #endif
 
 #ifdef __cplusplus
-#if defined (__ICCARM__)
+#if defined (__ICCARM__) || defined (_MSC_VER)
 #define m2m_deprecated
 #else
 #define m2m_deprecated __attribute__ ((deprecated))

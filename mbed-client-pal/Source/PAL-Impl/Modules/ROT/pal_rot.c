@@ -37,7 +37,11 @@ palStatus_t pal_osGetDeviceKey(palDevKeyType_t keyType, uint8_t *key, size_t key
 {
     palStatus_t status = PAL_SUCCESS;
     sotp_result_e sotpStatus;
+#ifdef _MSC_VER
+    PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 uint8_t rotBuffer[PAL_DEVICE_KEY_SIZE_IN_BYTES] = {0};
+#else
     uint8_t rotBuffer[PAL_DEVICE_KEY_SIZE_IN_BYTES] __attribute__ ((aligned(4))) = {0};
+#endif
 
     PAL_VALIDATE_CONDITION_WITH_ERROR(((keyLenBytes < PAL_DEVICE_KEY_SIZE_IN_BYTES) || ((palOsStorageHmacSha256 == keyType) && (keyLenBytes < PAL_SHA256_DEVICE_KEY_SIZE_IN_BYTES))), PAL_ERR_BUFFER_TOO_SMALL)
     PAL_VALIDATE_CONDITION_WITH_ERROR((NULL == key), PAL_ERR_NULL_POINTER)

@@ -53,6 +53,13 @@ extern "C" {
     #else
         #define PAL_COMPILATION_ENDIANITY 0 // Define PAL compilation endian (0 is little endian, 1 is big endian).
     #endif
+#elif defined(_MSC_VER) && defined(_WIN32)
+    #if defined(_WIN64)
+        #define PAL_TARGET_POINTER_SIZE 8
+    #else
+        #define PAL_TARGET_POINTER_SIZE 4
+    #endif
+    #define PAL_COMPILATION_ENDIANITY 0
 #elif defined(__GNUC__) // Compiling with GCC.
     #define PAL_TARGET_POINTER_SIZE __SIZEOF_POINTER__
     #ifdef __BYTE_ORDER
@@ -177,13 +184,18 @@ extern "C" {
 	#define PAL_INLINE  __inline
 #elif defined (__GNUC__)        /* GNU compiler. */
 	#define PAL_INLINE  __attribute__((always_inline)) __inline
+#elif defined (_MSC_VER)
+    #define PAL_INLINE __forceinline
 #else
 	#define PAL_INLINE	//!< User should provide the compiler inline function command.
 #endif
 
 #define PAL_PRIVATE static
 
-#if defined (__CC_ARM)          /* ARM compiler. */
+#if defined (_MSC_VER)
+#define PAL_PRAGMA(x) __pragma(x)
+#define PAL_DEPRECATED(x) PAL_PRAGMA(message ("!!! PAL DEPRECATED CODE- " #x))
+#elif defined (__CC_ARM)          /* ARM compiler. */
 #define PAL_PRAGMA(x)
 #define PAL_DEPRECATED(x)
 #else
@@ -214,11 +226,15 @@ extern "C" {
 
 
 //for non recoverable errors
+#if defined(_MSC_VER)
+#define PAL_LOG_ASSERT(...) { tr_err(__VA_ARGS__); assert(0); }
+#else
 #define PAL_LOG_ASSERT( ARGS...) \
 { \
     tr_err(ARGS); \
 	assert(0);\
 }
+#endif
 
 #define PAL_LOG_ERR_FUNC   tr_err
 #define PAL_LOG_WARN_FUNC  tr_warn
@@ -232,6 +248,19 @@ extern "C" {
 #define PAL_LOG_LEVEL_INFO TRACE_LEVEL_INFO
 #define PAL_LOG_LEVEL_DBG  TRACE_LEVEL_DEBUG
 
+#if defined(_MSC_VER)
+#define PAL_LOG_ERR(...)  PAL_LOG_ERR_FUNC(__VA_ARGS__);
+#define PAL_LOG_WARN(...) PAL_LOG_WARN_FUNC(__VA_ARGS__);
+#define PAL_LOG_INFO(...) PAL_LOG_INFO_FUNC(__VA_ARGS__);
+#define PAL_LOG_DBG(...)  PAL_LOG_DBG_FUNC(__VA_ARGS__);
+#ifdef DEBUG
+#define PAL_PRINTF(...) PAL_LOG_DBG(__VA_ARGS__)
+#else
+#define PAL_PRINTF(...)
+#endif
+#define DEBUG_PRINT(...) PAL_PRINTF(__VA_ARGS__)
+#define PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 __declspec(align(4))
+#else
 #define PAL_LOG_ERR( ARGS...)   PAL_LOG_ERR_FUNC(ARGS);
 #define PAL_LOG_WARN( ARGS...)  PAL_LOG_WARN_FUNC(ARGS);
 #define PAL_LOG_INFO( ARGS...)  PAL_LOG_INFO_FUNC(ARGS);
@@ -253,6 +282,7 @@ extern "C" {
 #define DEBUG_PRINT(ARGS...) PAL_PRINTF(ARGS)
 
 #define PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 __attribute__((aligned(4)))
+#endif
 
 #define PAL_INT32_BITS (sizeof(int32_t) * CHAR_BIT)
 
