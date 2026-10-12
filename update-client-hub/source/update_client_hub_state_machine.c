@@ -36,7 +36,9 @@
 #include "update-client-control-center/arm_uc_control_center.h"
 #include "update-client-control-center/arm_uc_pre_shared_key.h"
 #include "eventOS_event_timer.h"
+#if defined(ARM_UC_FEATURE_MANIFEST_PSK) && (ARM_UC_FEATURE_MANIFEST_PSK == 1)
 #include "mbedtls/aes.h"
+#endif
 
 #include <inttypes.h>
 
