@@ -149,6 +149,8 @@ jobs:
           xcodebuild -version >> evidence/host.txt
           export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
           bash edge/macos/build-openssl.sh "$PWD/openssl" 2>&1 | tee evidence/openssl.log
+          # The pinned Core consumer wraps vendor C++ headers in C linkage.
+          # Preinclude standard headers until its separate integration fixes that wrapper.
           bash edge/build-macos.sh "$PWD/edge/build-check" \
             -DCMAKE_BUILD_TYPE="$CONFIGURATION" \
             -DOPENSSL_ROOT_DIR="$PWD/openssl/install" \
