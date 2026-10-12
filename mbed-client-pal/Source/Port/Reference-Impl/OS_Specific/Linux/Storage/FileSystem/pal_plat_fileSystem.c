@@ -111,7 +111,11 @@ palStatus_t pal_plat_fsMkdir(const char *pathName)
     palStatus_t ret = PAL_SUCCESS;
     int platStatus = 0;
 
+#ifdef __APPLE__
+    platStatus = mkdir(pathName, 0700);
+#else
     platStatus = mkdir(pathName, 0777);
+#endif
     if (platStatus)
     {
         ret = pal_plat_errorTranslation(errno);
@@ -144,7 +148,11 @@ palStatus_t pal_plat_fsFopen(const char *pathName, pal_fsFileMode_t mode, palFil
     palStatus_t ret = PAL_SUCCESS;
     int fDesc;
 
+#ifdef __APPLE__
+    fDesc = open(pathName, g_platOpenModeConvert[mode].flags | O_SYNC | O_CLOEXEC | O_NOFOLLOW, 0600);
+#else
     fDesc = open(pathName, g_platOpenModeConvert[mode].flags | O_SYNC, 0666); //same permissions as for fopen()
+#endif
     if (fDesc < 0)
     {
         return pal_plat_errorTranslation(errno);
@@ -154,6 +162,7 @@ palStatus_t pal_plat_fsFopen(const char *pathName, pal_fsFileMode_t mode, palFil
     if ((*fd) == NULLPTR)
     {
         ret = pal_plat_errorTranslation(errno);
+        close(fDesc);
     }
     return ret;
 }

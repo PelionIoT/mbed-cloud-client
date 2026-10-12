@@ -495,7 +495,7 @@ ce_status_e CertificateEnrollmentClient::schedule_event(event_type_e event_type)
 #ifdef _MSC_VER
         .event_type = static_cast<uint8_t>(event_type),
 #else
-        .event_type = event_type, // Indicate event type
+        .event_type = static_cast<uint8_t>(event_type), // Indicate event type
 #endif
         .event_id = 0, // We currently do not need an ID for a specific event - event type is enough
         .data_ptr = 0, // Not needed, data handled in internal structure
