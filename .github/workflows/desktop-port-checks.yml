@@ -1,0 +1,218 @@
+name: Desktop port consumer checks
+
+on:
+  push:
+    branches: [port/macos-windows-merge-port]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-port-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EDGE_LINUX_REVISION: 4bb547e6ef014ddb673eebeaa74eed7828b475d8
+  EDGE_MACOS_REVISION: 4dd884af8746b63aaa26fa51aba1a5984074c2ba
+  EDGE_WINDOWS_REVISION: b4180faa9221c0ec54f6e88871409c3733e2b37c
+  CMAKE_BUILD_PARALLEL_LEVEL: '3'
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: master-mbedtls
+            openssl: 'OFF'
+            units: false
+          - profile: master-openssl
+            openssl: 'ON'
+            units: false
+          - profile: port-unit-tests
+            openssl: 'OFF'
+            units: true
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: PelionIoT/mbed-edge
+          ref: ${{ matrix.units && env.EDGE_MACOS_REVISION || env.EDGE_LINUX_REVISION }}
+          submodules: recursive
+          path: edge
+          persist-credentials: false
+      - name: Pin the consumer to this cloud-client commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$(git rev-parse HEAD)"
+          git -C edge/lib/mbed-cloud-client fetch "$GITHUB_WORKSPACE" "$candidate"
+          git -C edge/lib/mbed-cloud-client checkout --detach "$candidate"
+          test "$(git -C edge/lib/mbed-cloud-client rev-parse HEAD)" = "$candidate"
+          mkdir -p evidence
+          git -C edge rev-parse HEAD > evidence/core-revision.txt
+          printf '%s\n' "$candidate" > evidence/cloud-client-revision.txt
+      - name: Build Linux consumer
+        shell: bash
+        env:
+          TLS_BACKEND: ${{ matrix.openssl }}
+          RUN_UNITS: ${{ matrix.units }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libssl-dev libcurl4-openssl-dev python3
+          options=(-DBYOC_MODE=ON -DFOTA_ENABLE=OFF -DFIRMWARE_UPDATE=ON
+                   -DTRACE_LEVEL=DEBUG -DCMAKE_BUILD_TYPE=Debug -DBUILD_DOCUMENTATION=OFF
+                   "-DMBED_CLOUD_CLIENT_USE_OPENSSL=$TLS_BACKEND")
+          if [[ "$RUN_UNITS" == true ]]; then options+=(-DBUILD_TARGET=test); fi
+          cmake -S edge -B edge/build-check "${options[@]}" 2>&1 | tee evidence/configure.log
+          cmake --build edge/build-check --parallel 3 2>&1 | tee evidence/build.log
+          if [[ "$RUN_UNITS" != true ]]; then
+            test -x edge/build-check/bin/edge-core
+            edge/build-check/bin/edge-core --help > evidence/core-help.txt
+            ldd edge/build-check/bin/edge-core > evidence/link-dependencies.txt
+            ! grep -q 'not found' evidence/link-dependencies.txt
+          fi
+      - name: Run all Linux unit executables
+        if: matrix.units
+        shell: bash
+        run: |
+          python3 - <<'PYTEST'
+          from pathlib import Path
+          import json, re, subprocess
+          root = Path('edge/build-check/bin').resolve()
+          expected = {'edge-client-test', 'edge-core-test', 'edge-io-lib-test',
+                      'edge-rpc-test', 'pt-client-test', 'pt-client-2-test'}
+          binaries = sorted(root.glob('*-test'))
+          assert {binary.name for binary in binaries} == expected
+          results = []
+          for binary in binaries:
+              log = Path('evidence') / (binary.name + '.log')
+              with log.open('wb') as stream:
+                  process = subprocess.run([str(binary)], cwd=root, stdout=stream,
+                                           stderr=subprocess.STDOUT, timeout=180)
+              summary = re.search(r'OK \((\d+) tests, (\d+) ran,', log.read_text(errors='replace'))
+              results.append({'suite': binary.name, 'exit': process.returncode,
+                              'tests': int(summary.group(1)) if summary else None,
+                              'ran': int(summary.group(2)) if summary else None})
+          Path('evidence/results.json').write_text(json.dumps(results, indent=2) + '\n')
+          assert all(result['exit'] == 0 and result['tests'] == result['ran'] and result['tests'] for result in results)
+          PYTEST
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: linux-${{ matrix.profile }}
+          path: evidence/
+          retention-days: 14
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-26]
+        configuration: [Debug, Release]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: PelionIoT/mbed-edge
+          ref: ${{ env.EDGE_MACOS_REVISION }}
+          submodules: recursive
+          path: edge
+          persist-credentials: false
+      - name: Pin and build the native macOS consumer
+        shell: bash
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          [[ "$(uname -m)" == arm64 ]]
+          candidate="$(git rev-parse HEAD)"
+          git -C edge/lib/mbed-cloud-client fetch "$GITHUB_WORKSPACE" "$candidate"
+          git -C edge/lib/mbed-cloud-client checkout --detach "$candidate"
+          test "$(git -C edge/lib/mbed-cloud-client rev-parse HEAD)" = "$candidate"
+          mkdir -p evidence
+          git -C edge rev-parse HEAD > evidence/core-revision.txt
+          printf '%s\n' "$candidate" > evidence/cloud-client-revision.txt
+          sw_vers > evidence/host.txt
+          xcodebuild -version >> evidence/host.txt
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          bash edge/macos/build-openssl.sh "$PWD/openssl" 2>&1 | tee evidence/openssl.log
+          bash edge/build-macos.sh "$PWD/edge/build-check" \
+            -DCMAKE_BUILD_TYPE="$CONFIGURATION" \
+            -DOPENSSL_ROOT_DIR="$PWD/openssl/install" 2>&1 | tee evidence/build-and-tests.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: macos-${{ matrix.os }}-${{ matrix.configuration }}
+          path: |
+            evidence/
+            edge/build-check/Testing/Temporary/LastTest.log
+          retention-days: 14
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: PelionIoT/mbed-edge
+          ref: ${{ env.EDGE_WINDOWS_REVISION }}
+          submodules: recursive
+          path: edge
+          persist-credentials: false
+      - uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c
+        with:
+          arch: x64
+      - name: Pin and build the native Windows consumer
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidate = (git rev-parse HEAD).Trim()
+          git -C edge/lib/mbed-cloud-client fetch "$pwd" $candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot fetch the candidate library.' }
+          git -C edge/lib/mbed-cloud-client checkout --detach $candidate
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot select the candidate library.' }
+          if ((git -C edge/lib/mbed-cloud-client rev-parse HEAD).Trim() -ne $candidate) { throw 'Library pin differs.' }
+          New-Item -ItemType Directory -Path evidence | Out-Null
+          git -C edge rev-parse HEAD | Set-Content evidence/core-revision.txt
+          $candidate | Set-Content evidence/cloud-client-revision.txt
+          ./edge/windows/build-openssl.ps1 -OutputDirectory "$pwd/openssl" *> evidence/openssl.log
+          $env:PATH = "$pwd/openssl/install/bin;$env:PATH"
+          ./edge/build-windows.ps1 -Configuration $env:CONFIGURATION -OpenSSLRoot "$pwd/openssl/install" -Jobs 3 -CMakeArgument '-DCMAKE_POLICY_VERSION_MINIMUM=3.5' *> evidence/build.log
+          if ($LASTEXITCODE -ne 0) { throw 'Windows production build failed.' }
+          ./edge/build-windows.ps1 -Configuration $env:CONFIGURATION -CoreTests -OpenSSLRoot "$pwd/openssl/install" -Jobs 3 -CMakeArgument '-DCMAKE_POLICY_VERSION_MINIMUM=3.5' *> evidence/core-tests.log
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Core tests failed.' }
+          ./edge/build-windows.ps1 -Configuration $env:CONFIGURATION -PalTests -OpenSSLRoot "$pwd/openssl/install" -Jobs 3 -CMakeArgument '-DCMAKE_POLICY_VERSION_MINIMUM=3.5' *> evidence/pal-tests.log
+          if ($LASTEXITCODE -ne 0) { throw 'Windows PAL tests failed.' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: windows-${{ matrix.configuration }}
+          path: |
+            evidence/
+            edge/build/windows-x64/Testing/Temporary/LastTest.log
+            edge/build/windows-pal/Testing/Temporary/LastTest.log
+          retention-days: 14
