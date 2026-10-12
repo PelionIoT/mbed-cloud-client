@@ -58,6 +58,10 @@ FILE(GLOB CRYPTO_SERVICE_SRC
 add_library(crypto-service STATIC "${CRYPTO_SERVICE_SRC}")
 add_dependencies(crypto-service palDRBG)
 target_link_libraries(crypto-service palDRBG)
+if(WIN32 AND MBED_CLOUD_CLIENT_USE_OPENSSL)
+    find_package(OpenSSL 3.0 REQUIRED)
+    target_link_libraries(crypto-service OpenSSL::Crypto)
+endif()
 
 
 # fccstorage library
@@ -104,7 +108,12 @@ if(STORAGE_ESFS)
     add_dependencies(fccstorage crypto-service esfs sotp)
     target_link_libraries(fccstorage crypto-service esfs sotp)
 endif()
-if(NOT (${OS_BRAND} MATCHES "Linux"))
+if(WIN32)
+    # Native Windows reuses the file-backed ESFS/SOTP path through PAL.
+    # The embedded KVStore backend has direct mbedTLS dependencies.
+    add_dependencies(fccstorage crypto-service esfs sotp)
+    target_link_libraries(fccstorage crypto-service esfs sotp)
+elseif(NOT (${OS_BRAND} MATCHES "Linux"))
 # Add the KVStore based storage implementation, which gets used if
 # MBED_CONF_MBED_CLOUD_CLIENT_EXTERNAL_SST_SUPPORT is defined
     add_dependencies(fccstorage crypto-service kvstore)

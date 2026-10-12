@@ -40,22 +40,30 @@ extern "C" {
 #endif
 
 
-typedef struct {
+#ifdef _MSC_VER
+#define SOTP_ALIGN_PREFIX __declspec(align(4))
+#define SOTP_ALIGN_SUFFIX
+#else
+#define SOTP_ALIGN_PREFIX
+#define SOTP_ALIGN_SUFFIX __attribute__((aligned(4)))
+#endif
+
+typedef SOTP_ALIGN_PREFIX struct {
     uint16_t type_and_flags;
     uint16_t length;
     uint32_t mac;
-} record_header_t __attribute__((aligned(4)));
+} record_header_t SOTP_ALIGN_SUFFIX;
 
 #define DELETE_ITEM_FLAG        0x8000
 #define HEADER_FLAG_MASK        0xF000
 #define SOTP_MASTER_RECORD_TYPE 0x0FFE
 #define SOTP_NO_TYPE            0x0FFF
 
-typedef struct {
+typedef SOTP_ALIGN_PREFIX struct {
     uint16_t version;
     uint16_t format_rev;
     uint32_t reserved;
-} master_record_data_t __attribute__((aligned(4)));
+} master_record_data_t SOTP_ALIGN_SUFFIX;
 
 #define MASTER_RECORD_SIZE sizeof(master_record_data_t)
 

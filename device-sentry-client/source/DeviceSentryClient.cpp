@@ -638,7 +638,11 @@ static ds_status_e schedule_event(event_type_e event_type)
     arm_event_s event = {
         .receiver = ds_ctx.event_handler_id, // id that we got when created event handler
         .sender = 0, // Sender tasklet - not relevant
+#ifdef _MSC_VER
+        .event_type = static_cast<uint8_t>(event_type),
+#else
         .event_type = event_type, // indicate event type
+#endif
         .event_id = 0, // not required, event type is enough
         .data_ptr = 0, // not required, data handled in internal structure ds_ctx
         .priority = ARM_LIB_LOW_PRIORITY_EVENT, // application level priority

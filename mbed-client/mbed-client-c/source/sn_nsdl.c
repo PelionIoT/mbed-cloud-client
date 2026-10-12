@@ -2405,7 +2405,12 @@ void sn_nsdl_print_coap_data(sn_coap_hdr_s *coap_header_ptr, bool outgoing)
     const char *received = "IN: [";
     const char *end = "]";
 
+#ifdef _MSC_VER
+    /* MSVC C requires an integer constant expression for a stack array. */
+    enum { buf_size = 512 };
+#else
     const int buf_size = 512;
+#endif
     char buffer[buf_size];
     int ret = 0;
 

@@ -53,6 +53,10 @@ typedef struct palTLS {
     char* psk; //NULL terminated
     char* identity; //NULL terminated
     bool wantReadOrWrite;
+#ifdef _WIN32
+    BIO_METHOD* palBioMethod;
+    palTLSSocket_t socket;
+#endif
 }palTLS_t;
 
 
@@ -69,6 +73,89 @@ typedef struct palTLSConf {
     // Optionally, store the last cipher suite string set (for debugging)
     char lastCipherSuite[128];
 } palTLSConf_t;
+
+#ifdef _WIN32
+/* Windows PAL sockets are opaque objects, not CRT descriptors. Keep the
+ * shared OpenSSL backend and route its BIO through the existing PAL API. */
+static int pal_win_bio_create(BIO* bio)
+{
+    BIO_set_init(bio, 1);
+    BIO_set_data(bio, NULL);
+    return 1;
+}
+
+static int pal_win_bio_destroy(BIO* bio)
+{
+    if (!bio) return 0;
+    BIO_set_data(bio, NULL);
+    BIO_set_init(bio, 0);
+    return 1; /* The caller retains ownership of the PAL socket. */
+}
+
+static int pal_win_bio_read(BIO* bio, char* buffer, int length)
+{
+    palTLS_t* tls = BIO_get_data(bio);
+    size_t received = 0;
+    palStatus_t status;
+    BIO_clear_retry_flags(bio);
+    if (!tls || !tls->socket.socket || !buffer || length <= 0) return 0;
+    status = pal_recv(tls->socket.socket, buffer, (size_t)length, &received);
+    if (status == PAL_ERR_SOCKET_WOULD_BLOCK || status == PAL_ERR_SOCKET_INTERRUPTED) {
+        BIO_set_retry_read(bio);
+        return -1;
+    }
+    if (status == PAL_ERR_SOCKET_CONNECTION_CLOSED) return 0;
+    return status == PAL_SUCCESS ? (int)received : -1;
+}
+
+static int pal_win_bio_write(BIO* bio, const char* buffer, int length)
+{
+    palTLS_t* tls = BIO_get_data(bio);
+    size_t sent = 0;
+    palStatus_t status;
+    BIO_clear_retry_flags(bio);
+    if (!tls || !tls->socket.socket || !buffer || length <= 0) return 0;
+    status = pal_send(tls->socket.socket, buffer, (size_t)length, &sent);
+    if (status == PAL_ERR_SOCKET_WOULD_BLOCK || status == PAL_ERR_SOCKET_INTERRUPTED) {
+        BIO_set_retry_write(bio);
+        return -1;
+    }
+    return status == PAL_SUCCESS ? (int)sent : -1;
+}
+
+static long pal_win_bio_ctrl(BIO* bio, int command, long number, void* pointer)
+{
+    (void)bio; (void)number; (void)pointer;
+    return command == BIO_CTRL_FLUSH ? 1 : 0;
+}
+
+static palStatus_t pal_win_set_bio(palTLS_t* tls, const palTLSSocket_t* socket)
+{
+    BIO* bio;
+    if (!socket->socket || socket->transportationMode != PAL_TLS_MODE) return PAL_ERR_NOT_SUPPORTED;
+    if (!tls->palBioMethod) {
+        int index = BIO_get_new_index();
+        if (index < 0) return PAL_ERR_TLS_RESOURCE;
+        tls->palBioMethod = BIO_meth_new(index | BIO_TYPE_SOURCE_SINK, "Windows PAL socket");
+        if (!tls->palBioMethod) return PAL_ERR_TLS_RESOURCE;
+        if (!BIO_meth_set_create(tls->palBioMethod, pal_win_bio_create) ||
+            !BIO_meth_set_destroy(tls->palBioMethod, pal_win_bio_destroy) ||
+            !BIO_meth_set_read(tls->palBioMethod, pal_win_bio_read) ||
+            !BIO_meth_set_write(tls->palBioMethod, pal_win_bio_write) ||
+            !BIO_meth_set_ctrl(tls->palBioMethod, pal_win_bio_ctrl)) {
+            BIO_meth_free(tls->palBioMethod);
+            tls->palBioMethod = NULL;
+            return PAL_ERR_TLS_RESOURCE;
+        }
+    }
+    bio = BIO_new(tls->palBioMethod);
+    if (!bio) return PAL_ERR_TLS_RESOURCE;
+    tls->socket = *socket;
+    BIO_set_data(bio, tls);
+    SSL_set_bio(tls->tlsCtx, bio, bio); /* SSL owns the BIO, never the socket. */
+    return PAL_SUCCESS;
+}
+#endif
 
 PAL_PRIVATE palStatus_t translateTLSHandShakeErrToPALError(palTLS_t* tlsCtx, int32_t ssl_ret)
 {
@@ -173,8 +260,16 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
     {
         return PAL_ERR_INVALID_ARGUMENT;
     }
+#ifdef _WIN32
+    *palConfCtx = NULLPTR;
+    if (transportVersion != PAL_TLS_MODE || methodType != PAL_TLS_IS_CLIENT) return PAL_ERR_NOT_SUPPORTED;
+#endif
 
+#ifdef _WIN32
+    localConfigCtx = (palTLSConf_t*)calloc(1, sizeof(palTLSConf_t));
+#else
     localConfigCtx = (palTLSConf_t*)malloc(sizeof(palTLSConf_t));
+#endif
     if (NULL == localConfigCtx)
     {
         status = PAL_ERR_NO_MEMORY;
@@ -185,7 +280,9 @@ palStatus_t pal_plat_initTLSConf(palTLSConfHandle_t* palConfCtx, palTLSTransport
     localConfigCtx->confCtx = SSL_CTX_new(method);
     if (NULL == localConfigCtx->confCtx)
     {
+#ifndef _WIN32
         free(localConfigCtx);
+#endif
         status = PAL_ERR_NO_MEMORY;
         goto finish;
     }
@@ -309,6 +406,9 @@ palStatus_t pal_plat_freeTLS(palTLSHandle_t* palTLSHandle)
     if (localTLSCtx->tlsCtx) {
         SSL_free(localTLSCtx->tlsCtx);
     }
+#ifdef _WIN32
+    BIO_meth_free(localTLSCtx->palBioMethod);
+#endif
     free(localTLSCtx);
     *palTLSHandle = NULLPTR;
 
@@ -638,10 +738,14 @@ palStatus_t pal_plat_tlsSetSocket(palTLSConfHandle_t palTLSConf, palTLSSocket_t*
 
     // Set the socket file descriptor on the SSL object
     if (localConfigCtx->tlsContext && localConfigCtx->tlsContext->tlsCtx) {
+#ifdef _WIN32
+        status = pal_win_set_bio(localConfigCtx->tlsContext, socket);
+#else
         int fd = (int)(intptr_t)socket->socket; // Fix: cast pointer to int
         if (SSL_set_fd(localConfigCtx->tlsContext->tlsCtx, fd) != 1) {
             status = PAL_ERR_GENERIC_FAILURE;
         }
+#endif
     } else {
         status = PAL_ERR_INVALID_ARGUMENT;
     }

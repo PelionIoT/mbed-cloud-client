@@ -337,7 +337,11 @@ fcc_status_e fcc_trust_ca_cert_id_set(void)
     fcc_status_e fcc_status = FCC_STATUS_SUCCESS;
     palStatus_t pal_status = FCC_PAL_SUCCESS;
     fcc_status_e output_info_fcc_status = FCC_STATUS_SUCCESS;
+#ifdef _MSC_VER
+    PAL_PTR_ADDR_ALIGN_UINT8_TO_UINT32 uint8_t attribute_data[PAL_CERT_ID_SIZE] = { 0 };
+#else
     uint8_t attribute_data[PAL_CERT_ID_SIZE] __attribute__((aligned(4))) = { 0 };
+#endif
     size_t size_of_attribute_data = 0;
     bool use_bootstrap = false;
 

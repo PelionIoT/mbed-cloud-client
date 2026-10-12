@@ -77,6 +77,11 @@ void pal_osReboot(void)
 
 uint64_t pal_osKernelSysTick(void)
 {
+#ifdef _WIN32
+    /* GetTickCount64 is already monotonic and 64-bit. The legacy 32-bit wrap
+     * detector below has shared mutable state and is unnecessary on Windows. */
+    return pal_plat_osKernelSysTick();
+#else
     static uint64_t lastValue = 0;
     static uint64_t wraparoundsDetected = 0;
     const uint64_t one = 1;
@@ -90,6 +95,7 @@ uint64_t pal_osKernelSysTick(void)
     }
     lastValue = tmp;
     return (uint64_t)tmp;
+#endif
 }
 
 uint64_t pal_osKernelSysTickMicroSec(uint64_t microseconds)
