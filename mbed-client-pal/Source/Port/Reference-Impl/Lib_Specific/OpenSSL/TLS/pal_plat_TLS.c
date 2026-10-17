@@ -134,9 +134,11 @@ static palStatus_t pal_win_set_bio(palTLS_t* tls, const palTLSSocket_t* socket)
     BIO* bio;
     if (!socket->socket || socket->transportationMode != PAL_TLS_MODE) return PAL_ERR_NOT_SUPPORTED;
     if (!tls->palBioMethod) {
-        int index = BIO_get_new_index();
-        if (index < 0) return PAL_ERR_TLS_RESOURCE;
-        tls->palBioMethod = BIO_meth_new(index | BIO_TYPE_SOURCE_SINK, "Windows PAL socket");
+        /* This per-context BIO is never searched by type. OpenSSL type IDs
+         * are process-wide, limited to 127, and are not reclaimed by
+         * BIO_meth_free(). Use the non-searchable type so reconnects cannot
+         * permanently exhaust IDs in an otherwise healthy Core process. */
+        tls->palBioMethod = BIO_meth_new(BIO_TYPE_NONE | BIO_TYPE_SOURCE_SINK, "Windows PAL socket");
         if (!tls->palBioMethod) return PAL_ERR_TLS_RESOURCE;
         if (!BIO_meth_set_create(tls->palBioMethod, pal_win_bio_create) ||
             !BIO_meth_set_destroy(tls->palBioMethod, pal_win_bio_destroy) ||

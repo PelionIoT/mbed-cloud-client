@@ -251,8 +251,10 @@ int M2MConnectionSecurityPimpl::init(const M2MSecurity *security, uint16_t secur
         return M2MConnectionHandler::SSL_CONNECTION_ERROR;
     }
 
-    if (PAL_SUCCESS != pal_tlsSetSocket(_conf, &_tls_socket)) {
-        tr_error("M2MConnectionSecurityPimpl::init - pal_tlsSetSocket failed");
+    const palStatus_t socket_status = pal_tlsSetSocket(_conf, &_tls_socket);
+    if (PAL_SUCCESS != socket_status) {
+        tr_error("M2MConnectionSecurityPimpl::init - pal_tlsSetSocket failed: 0x%08lx",
+                 static_cast<unsigned long>(socket_status));
         return M2MConnectionHandler::SSL_CONNECTION_ERROR;
     }
 
