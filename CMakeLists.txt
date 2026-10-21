@@ -372,3 +372,9 @@ endif() # (FOTA_ENABLE)
 #set (SRC_LIBS ${SRC_LIBS} PARENT_SCOPE)
 
 ADDSUBDIRS()
+
+option(MBED_CLOUD_CLIENT_ENDPOINT_REGISTRY_TESTS "Build native endpoint registry regression tests" OFF)
+if (MBED_CLOUD_CLIENT_ENDPOINT_REGISTRY_TESTS)
+    enable_testing()
+    add_subdirectory(tests/endpoint-registry)
+endif ()

@@ -708,9 +708,7 @@ private:
 
     void remove_item_from_response_list(const char *uri_path, const int32_t msg_id);
 
-#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
     void remove_items_from_response_list_for_uri(const char *uri_path);
-#endif
     /**
      * @brief Send next notification for object, return true if notification sent, false
      *        if no notification to send or send already in progress.

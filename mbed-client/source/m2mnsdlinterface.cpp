@@ -1530,12 +1530,29 @@ void M2MNsdlInterface::resource_to_be_deleted(M2MBase *base)
 {
     tr_debug("M2MNsdlInterface::resource_to_be_deleted() %p", base);
     claim_mutex();
+    M2MReportHandler *reporter = base->report_handler();
+    if (_registered && !_alert_mode && reporter && reporter->is_under_observation()) {
+        uint8_t token[MAX_TOKEN_SIZE];
+        uint8_t token_length = 0;
+        base->get_observation_token(token, token_length);
+        if (token_length) {
+            // RFC 7641 section 4.2: terminate the old observation without an Observe option.
+            sn_coap_hdr_s terminal;
+            sn_coap_parser_init_message(&terminal);
+            terminal.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
+            terminal.msg_code = COAP_MSG_CODE_RESPONSE_NOT_FOUND;
+            terminal.token_ptr = token;
+            terminal.token_len = token_length;
+            sn_nsdl_send_coap_message(_nsdl_handle, &_nsdl_handle->server_address, &terminal);
+        }
+    }
     remove_nsdl_resource(base);
-#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
     remove_items_from_response_list_for_uri(base->uri_path());
+    if (base && (base->base_type() == M2MBase::Object
+#ifdef MBED_CLOUD_CLIENT_EDGE_EXTENSION
+                 || base->base_type() == M2MBase::ObjectDirectory
 #endif
-    // Since the M2MObject's are stored in _base_list, they need to be removed from there also.
-    if (base && base->base_type() == M2MBase::Object) {
+                 )) {
         remove_object(base);
     }
 
@@ -1587,13 +1604,12 @@ void M2MNsdlInterface::remove_object(M2MBase *object)
 {
     claim_mutex();
     tr_debug("M2MNsdlInterface::remove_object() %p", object);
-    M2MObject *rem_object = static_cast<M2MObject *>(object);
-    if (rem_object && !_base_list.empty()) {
+    if (object && !_base_list.empty()) {
         M2MBaseList::const_iterator it;
         it = _base_list.begin();
         int index = 0;
         for (; it != _base_list.end(); it++, index++) {
-            if ((*it)->base_type() == M2MBase::Object && (*it) == rem_object) {
+            if (*it == object) {
                 _base_list.erase(index);
                 break;
             }
@@ -2027,16 +2043,19 @@ int M2MNsdlInterface::object_index(M2MBase *base) const
 
 bool M2MNsdlInterface::add_object_to_list(M2MBase *object)
 {
+    claim_mutex();
     bool success = false;
     if (object && !object_present(object)) {
         _base_list.push_back(object);
         success = true;
     }
+    release_mutex();
     return success;
 }
 
 bool M2MNsdlInterface::remove_object_from_list(M2MBase *object)
 {
+    claim_mutex();
     tr_debug("M2MNsdlInterface::remove_object_from_list object=%p", object);
     bool success = false;
     int index;
@@ -2045,6 +2064,7 @@ bool M2MNsdlInterface::remove_object_from_list(M2MBase *object)
         _base_list.erase(index);
         success = true;
     }
+    release_mutex();
     return success;
 }
 
@@ -3841,9 +3861,9 @@ void M2MNsdlInterface::remove_item_from_response_list(const char *uri_path, cons
     }
 }
 
-#if !defined(DISABLE_DELAYED_RESPONSE) || defined(ENABLE_ASYNC_REST_RESPONSE)
 void M2MNsdlInterface::remove_items_from_response_list_for_uri(const char *uri_path)
 {
+    bool notification_removed = false;
     // ns_list_foreach() replacement since it does not compile with IAR 7.x versions.
     coap_response_s *data = (coap_response_s *)ns_list_get_first(&_response_list);
     while (data) {
@@ -3855,14 +3875,18 @@ void M2MNsdlInterface::remove_items_from_response_list_for_uri(const char *uri_p
         }
         coap_response_s *next = (coap_response_s *)ns_list_get_next(&_response_list, data);
         if (remove) {
+            notification_removed = notification_removed || data->type == M2MBase::NOTIFICATION;
             ns_list_remove(&_response_list, data);
             memory_free(data->uri_path);
             memory_free(data);
         }
         data = next;
     }
+    if (notification_removed) {
+        _notification_send_ongoing = false;
+        _notification_handler->send_notification(this);
+    }
 }
-#endif
 
 void M2MNsdlInterface::store_to_response_list(const char *uri, int32_t msg_id, M2MBase::MessageType type)
 {
