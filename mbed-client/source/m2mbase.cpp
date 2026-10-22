@@ -1090,6 +1090,14 @@ void M2MBase::handle_observation(nsdl_s *nsdl,
         return;
     }
 
+    const uint32_t obs_number = received_coap_header.options_list_ptr->observe;
+    if (STOP_OBSERVATION == obs_number) {
+        // A cancellation response must not advertise an ongoing observation.
+        if (coap_response.options_list_ptr) coap_response.options_list_ptr->observe = -1;
+        cancel_observation();
+        return;
+    }
+
     // Add observe value to response
     if (coap_response.options_list_ptr) {
         coap_response.options_list_ptr->observe = observation_number();
@@ -1101,15 +1109,11 @@ void M2MBase::handle_observation(nsdl_s *nsdl,
         return;
     }
 
-    uint32_t obs_number = received_coap_header.options_list_ptr->observe;
-
     // If the observe number is 0 means register for observation.
     if (START_OBSERVATION == obs_number) {
 
         start_observation(received_coap_header, observation_handler);
 
-    } else if (STOP_OBSERVATION == obs_number) {
-        cancel_observation();
     }
 }
 

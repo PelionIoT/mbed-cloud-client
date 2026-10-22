@@ -1032,7 +1032,7 @@ int8_t sn_nsdl_build_registration_body(struct nsdl_s *handle, sn_coap_hdr_s *mes
                 resource_temp_ptr = sn_grs_get_next_resource(handle->grs, resource_temp_ptr);
                 continue;
             } else if (resource_temp_ptr->registered != SN_NDSL_RESOURCE_DELETE) {
-                resource_temp_ptr->registered = SN_NDSL_RESOURCE_REGISTERED;
+                resource_temp_ptr->registered = SN_NDSL_RESOURCE_REGISTERING;
             }
 
             /* If not first resource, add '.' to separator */
@@ -1698,6 +1698,7 @@ static int8_t sn_nsdl_local_rx_function(struct nsdl_s *handle, sn_coap_hdr_s *co
              memcmp(coap_packet_ptr->token_ptr,
                     &handle->update_register_token,
                     coap_packet_ptr->token_len) == 0) {
+        sn_grs_mark_resources_as_registered(handle);
         is_update_reg_msg = true;
     }
 

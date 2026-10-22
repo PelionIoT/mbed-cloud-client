@@ -715,12 +715,13 @@ void M2MConnectionHandlerPimpl::send_socket_data()
         else {
             bytes_sent = 0;
             palStatus_t ret;
+            size_t plain_bytes_sent = 0;
             if (is_tcp_connection()) {
 #ifdef PAL_NET_TCP_AND_TLS_SUPPORT
                 ret = pal_send(_socket,
                                out_data->data + out_data->offset,
                                out_data->data_len - out_data->offset,
-                               (size_t *)&bytes_sent);
+                               &plain_bytes_sent);
 #endif
             } else {
                 ret = pal_sendTo(_socket,
@@ -728,7 +729,7 @@ void M2MConnectionHandlerPimpl::send_socket_data()
                                  out_data->data_len - out_data->offset,
                                  (palSocketAddress_t *)&_socket_address,
                                  sizeof(_socket_address),
-                                 (size_t *)&bytes_sent);
+                                 &plain_bytes_sent);
             }
             if (ret == PAL_ERR_SOCKET_WOULD_BLOCK) {
                 // Return and wait next event
@@ -740,6 +741,7 @@ void M2MConnectionHandlerPimpl::send_socket_data()
                 success = false;
                 break;
             }
+            bytes_sent = static_cast<int>(plain_bytes_sent);
         }
         int new_offset = out_data->offset + bytes_sent;
         if (new_offset >= out_data->data_len) {
@@ -764,6 +766,13 @@ void M2MConnectionHandlerPimpl::send_socket_data()
         }
         close_socket();
     } else {
+        claim_mutex();
+        const bool pending = ns_list_get_first(&_linked_list_send_data) != NULL;
+        release_mutex();
+        // Multiple queued packets can share one coalesced send event.
+        if (pending) {
+            send_event(ESocketSend);
+        }
         _observer.data_sent();
     }
 }
