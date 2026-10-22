@@ -19,6 +19,7 @@
 #include "include/m2mnsdlobserver.h"
 #include "include/m2mreporthandler.h"
 #include "include/sn_grs.h"
+#include "mbed-client-classic/m2mconnectionhandlerpimpl.h"
 
 extern "C" int8_t sn_nsdl_build_registration_body(struct nsdl_s *, sn_coap_hdr_s *, uint8_t);
 
@@ -43,6 +44,7 @@ class Observer : public M2MNsdlObserver, public M2MConnectionObserver {
 public:
     virtual ~Observer() {}
     unsigned messages = 0;
+    unsigned sent = 0;
     uint8_t packet[128] = {};
     uint16_t packet_length = 0;
     void coap_message_ready(uint8_t *data, uint16_t length, sn_nsdl_addr_s *) override {
@@ -68,8 +70,52 @@ public:
     void data_available(uint8_t *, uint16_t, const SocketAddress &) override {}
     void socket_error(int, bool) override {}
     void address_ready(const SocketAddress &, ServerType, uint16_t) override {}
-    void data_sent() override {}
+    void data_sent() override { ++sent; }
     void network_interface_status_change(NetworkInterfaceStatus) override {}
+};
+
+class Test_M2MConnectionHandlerPimpl_classic {
+    static void socket_ready(void *) {}
+public:
+    static void check_send_burst() {
+        Observer observer;
+        M2MConnectionHandlerPimpl connection(NULL, observer, NULL, M2MInterface::UDP, M2MInterface::LwIP_IPv4);
+        palSocket_t receiver = 0;
+        CHECK(pal_asynchronousSocketWithArgument(PAL_AF_INET, PAL_SOCK_DGRAM, true, PAL_NET_DEFAULT_INTERFACE, socket_ready, NULL, &receiver) == PAL_SUCCESS);
+        palSocketAddress_t destination = {};
+        palIpV4Addr_t loopback = {127, 0, 0, 1};
+        CHECK(pal_setSockAddrIPV4Addr(&destination, loopback) == PAL_SUCCESS);
+        bool bound = false;
+        for (uint16_t port = 51000; port < 52000; ++port) {
+            CHECK(pal_setSockAddrPort(&destination, port) == PAL_SUCCESS);
+            if (pal_bind(receiver, &destination, sizeof(destination)) == PAL_SUCCESS) { bound = true; break; }
+        }
+        CHECK(bound);
+        CHECK(pal_asynchronousSocketWithArgument(PAL_AF_INET, PAL_SOCK_DGRAM, true, PAL_NET_DEFAULT_INTERFACE, socket_ready, NULL, &connection._socket) == PAL_SUCCESS);
+        memcpy((void *)&connection._socket_address, &destination, sizeof(destination));
+        connection._socket_state = M2MConnectionHandlerPimpl::ESocketStateUnsecureConnection;
+        sn_nsdl_addr_s address = {};
+        for (unsigned i = 0; i < 8; ++i) {
+            uint8_t packet[] = {0x44, 0x84, 0, static_cast<uint8_t>(i), 0x55, 0x66, 0x77, static_cast<uint8_t>(i)};
+            CHECK(connection.send_data(packet, sizeof(packet), &address));
+        }
+        CHECK(connection._event.data.event_data);
+        eventOS_scheduler_run_until_idle();
+        CHECK(observer.sent == 8);
+        CHECK(ns_list_get_first(&connection._linked_list_send_data) == NULL);
+        for (unsigned i = 0; i < 8; ++i) {
+            uint8_t packet[8] = {}; size_t received = 0;
+            palStatus_t status = PAL_ERR_SOCKET_WOULD_BLOCK;
+            for (unsigned attempt = 0; attempt < 1000 && status == PAL_ERR_SOCKET_WOULD_BLOCK; ++attempt) {
+                status = pal_receiveFrom(receiver, packet, sizeof(packet), NULL, NULL, &received);
+                if (status == PAL_ERR_SOCKET_WOULD_BLOCK) CHECK(pal_osDelay(1) == PAL_SUCCESS);
+            }
+            CHECK(status == PAL_SUCCESS);
+            CHECK(received == sizeof(packet));
+            CHECK(packet[1] == 0x84 && packet[7] == i);
+        }
+        CHECK(pal_close(&receiver) == PAL_SUCCESS);
+    }
 };
 
 static void check_registry_lock(M2MNsdlInterface &registry, M2MBase *object, bool add)
@@ -185,6 +231,41 @@ static void check_registration_retry(M2MNsdlInterface &registry)
     delete late;
 }
 
+static void check_observation_cancellation(M2MNsdlInterface &registry)
+{
+    M2MObject *object = M2MInterfaceFactory::create_object("13006");
+    M2MResource *resource = populate(object);
+    M2MBaseList list;
+    list.push_back(object);
+    CHECK(registry.create_nsdl_list_structure(list));
+    nsdl_s *handle = registry.get_nsdl_handle();
+    uint8_t token[] = {0xa1, 0xb2, 0xc3, 0xd4};
+    for (unsigned round = 0; round < 3; ++round) {
+        for (int observe = 0; observe <= 1; ++observe) {
+            sn_coap_hdr_s request;
+            sn_coap_parser_init_message(&request);
+            sn_coap_options_list_s options = {};
+            options.observe = observe;
+            request.options_list_ptr = &options;
+            request.msg_code = COAP_MSG_CODE_REQUEST_GET;
+            request.msg_type = COAP_MSG_TYPE_CONFIRMABLE;
+            request.token_ptr = token;
+            request.token_len = static_cast<uint8_t>(sizeof(token));
+            request.content_format = static_cast<sn_coap_content_format_e>(COAP_CONTENT_OMA_PLAIN_TEXT_TYPE);
+            sn_coap_hdr_s *response = resource->handle_get_request(handle, &request, &registry);
+            CHECK(response != NULL);
+            CHECK(response->msg_code == COAP_MSG_CODE_RESPONSE_CONTENT);
+            CHECK(response->options_list_ptr != NULL);
+            CHECK(resource->is_under_observation() == (observe == 0));
+            if (observe == 0) CHECK(response->options_list_ptr->observe >= 0);
+            else CHECK(response->options_list_ptr->observe == -1);
+            sn_nsdl_release_allocated_coap_msg_mem(handle, response);
+        }
+        ++token[0];
+    }
+    delete object;
+}
+
 int main(int argc, char **argv)
 {
     const bool remove_only = argc == 2 && strcmp(argv[1], "--remove-lock-only") == 0;
@@ -201,7 +282,9 @@ int main(int argc, char **argv)
         M2MConnectionHandler connection(observer, NULL, M2MInterface::TCP, M2MInterface::LwIP_IPv4);
         M2MNsdlInterface registry(observer, connection);
         eventOS_scheduler_mutex_wait();
+        Test_M2MConnectionHandlerPimpl_classic::check_send_burst();
         check_registration_retry(registry);
+        check_observation_cancellation(registry);
         M2MObject *concurrent = M2MInterfaceFactory::create_object("13002");
         CHECK(concurrent != NULL);
         if (remove_only) {
@@ -293,10 +376,24 @@ int main(int argc, char **argv)
         CHECK(observer.packet[1] == COAP_MSG_CODE_RESPONSE_NOT_FOUND);
         CHECK(memcmp(observer.packet + 4, token, sizeof(token)) == 0);
         eventOS_scheduler_run_until_idle();
+        CHECK(sn_nsdl_clear_coap_resending_queue(handle) == SN_NSDL_SUCCESS);
+        M2MEndpoint *burst = M2MInterfaceFactory::create_endpoint(String("termination-burst"));
+        for (unsigned i = 0; i < 8; ++i) {
+            char name[8]; snprintf(name, sizeof(name), "%u", 13010 + i);
+            M2MResource *leaf = populate(burst->create_object(String(name)));
+            uint8_t key[] = {0x55, 0x66, 0x77, static_cast<uint8_t>(i)};
+            leaf->set_under_observation(true, &registry);
+            leaf->report_handler()->set_observation_token(key, static_cast<uint8_t>(sizeof(key)));
+        }
+        M2MBaseList burst_list; burst_list.push_back(burst);
+        CHECK(registry.create_nsdl_list_structure(burst_list));
+        observer.messages = 0;
+        delete burst;
+        CHECK(observer.messages == 8);
         registry.set_registration_status(false);
         eventOS_scheduler_mutex_release();
     }
     ns_event_loop_thread_stop();
-    puts("PASS registration retry, registry mutation locking, endpoint replacement, in-flight cleanup and terminal observation packet");
+    puts("PASS send queue bursts, observation cancellation, registration retry, endpoint replacement and termination");
     return 0;
 }
