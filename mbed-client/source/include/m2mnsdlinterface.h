@@ -175,7 +175,7 @@ public:
      * @brief Sends the register message to the server.
      * @return  true if register sent successfully else false.
     */
-    bool send_register_message();
+    bool send_register_message(M2MInterface::Error *error = NULL);
 
     /**
      * @brief Sends the CoAP request to the server.
@@ -210,7 +210,9 @@ public:
      * @return  true if sent successfully else false.
      *
     */
-    bool send_update_registration(const uint32_t lifetime = 0);
+    // If this instance has no registered endpoint, send a full registration.
+    // Report an allocation failure only for the NSDL allocation error code.
+    bool send_update_registration(const uint32_t lifetime = 0, M2MInterface::Error *error = NULL);
 
     /**
      * @brief Sends unregister message to the server.

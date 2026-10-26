@@ -536,9 +536,10 @@ void M2MNsdlInterface::set_server_address(uint8_t *address,
     set_NSP_address(_nsdl_handle, address, address_length, port, address_type);
 }
 
-bool M2MNsdlInterface::send_register_message()
+bool M2MNsdlInterface::send_register_message(M2MInterface::Error *error)
 {
     tr_info("M2MNsdlInterface::send_register_message()");
+    if (error) *error = M2MInterface::ErrorNone;
     bool success = false;
 
     // Clear the observation tokens
@@ -550,7 +551,12 @@ bool M2MNsdlInterface::send_register_message()
 
     // If URI parsing fails or there is no parameters, try again without parameters
     if (!success) {
-        success = sn_nsdl_register_endpoint(_nsdl_handle, _endpoint, NULL) > 0;
+        int32_t result = sn_nsdl_register_endpoint(_nsdl_handle, _endpoint, NULL);
+        success = result > 0;
+        if (!success && error) {
+            *error = result == SN_NSDL_MEMORY_ALLOCATION_FAILED
+                ? M2MInterface::MemoryFail : M2MInterface::NetworkError;
+        }
     }
 
     return success;
@@ -656,15 +662,15 @@ void M2MNsdlInterface::send_request(DownloadType type,
     }
 }
 
-bool M2MNsdlInterface::send_update_registration(const uint32_t lifetime)
+bool M2MNsdlInterface::send_update_registration(const uint32_t lifetime, M2MInterface::Error *error)
 {
     tr_info("M2MNsdlInterface::send_update_registration( lifetime %" PRIu32 ")", lifetime);
     assert(_nsdl_handle != NULL);
+    if (error) *error = M2MInterface::ErrorNone;
+    _registration_timer.stop_timer();
 
     bool success = false;
     bool lifetime_changed = true;
-
-    _registration_timer.stop_timer();
 
     // If new resources have been created after registration those must be created and published to the server.
     create_nsdl_list_structure(_base_list);
@@ -679,6 +685,13 @@ bool M2MNsdlInterface::send_update_registration(const uint32_t lifetime)
         set_endpoint_lifetime_buffer(lifetime);
     }
 
+    // This also protects timer/resource-triggered updates on every platform,
+    // even if the caller's reconnection state still requests an UPDATE.
+    if (!sn_nsdl_is_ep_registered(_nsdl_handle)) {
+        tr_info("M2MNsdlInterface::send_update_registration - no registration; sending full registration");
+        return send_register_message(error);
+    }
+
     int32_t ret = do_send_update_register(lifetime_changed);
     if (ret == SN_NSDL_RESEND_QUEUE_FULL) {
         tr_warn("M2MNsdlInterface::send_update_registration - resend queue full, try again after clearing the queue");
@@ -691,6 +704,9 @@ bool M2MNsdlInterface::send_update_registration(const uint32_t lifetime)
         _registration_timer.start_timer(registration_time() * 1000,
                                         M2MTimerObserver::Registration,
                                         false);
+    } else if (error) {
+        *error = ret == SN_NSDL_MEMORY_ALLOCATION_FAILED
+            ? M2MInterface::MemoryFail : M2MInterface::NetworkError;
     }
 
     return success;
@@ -1372,9 +1388,9 @@ void M2MNsdlInterface::timer_expired(M2MTimerObserver::Type type)
                (is_unregister_ongoing() == false) &&
                (is_update_register_ongoing() == false)) {
         tr_debug("M2MNsdlInterface::timer_expired - Send update registration");
-        if (!send_update_registration()) {
-            // Most likely case would be memory allocation failure
-            _observer.registration_error(M2MInterface::MemoryFail, false, false, false);
+        M2MInterface::Error error;
+        if (!send_update_registration(0, &error)) {
+            _observer.registration_error(error, true, false, false);
         }
     } else if (M2MTimerObserver::RetryTimer == type) {
         send_pending_request();
@@ -3549,9 +3565,9 @@ bool M2MNsdlInterface::handle_post_response(sn_coap_hdr_s *coap_header,
                                 object->remove_object_instance(instance_id);
                             } else  {
                                 tr_debug("M2MNsdlInterface::handle_post_response - Send Update registration for Create");
-                                if (!send_update_registration()) {
-                                    // Most likely case would be memory allocation failure
-                                    _observer.registration_error(M2MInterface::MemoryFail, false, false, false);
+                                M2MInterface::Error error;
+                                if (!send_update_registration(0, &error)) {
+                                    _observer.registration_error(error, true, false, false);
                                 }
                             }
                         } else {

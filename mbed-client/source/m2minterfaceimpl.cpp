@@ -1126,15 +1126,17 @@ void M2MInterfaceImpl::state_register_address_resolved(EventData *data)
     }
 
     switch (_reconnection_state) {
-        case M2MInterfaceImpl::None:
-            if (!_nsdl_interface.send_register_message()) {
-                // If resource creation fails then inform error to application
-                tr_error("M2MInterfaceImpl::state_register_address_resolved : M2MInterface::MemoryFail");
+        case M2MInterfaceImpl::None: {
+            M2MInterface::Error error;
+            if (!_nsdl_interface.send_register_message(&error)) {
+                tr_error("M2MInterfaceImpl::state_register_address_resolved : error %d", (int)error);
                 internal_event(STATE_IDLE);
-                set_error_description(ERROR_REASON_25);
-                _observer.error(M2MInterface::MemoryFail);
+                set_error_description(error == M2MInterface::MemoryFail
+                    ? ERROR_REASON_25 : "Failed to send registration message");
+                _observer.error(error);
             }
             break;
+        }
         case M2MInterfaceImpl::WithUpdate:
             // Start registration update in case it is reconnection logic because of network issue.
             internal_event(STATE_UPDATE_REGISTRATION);
@@ -1184,12 +1186,14 @@ void M2MInterfaceImpl::state_update_registration(EventData *data)
         lifetime = event->_lifetime;
     }
 
-    bool success = _nsdl_interface.send_update_registration(lifetime);
+    M2MInterface::Error error = M2MInterface::ErrorNone;
+    bool success = _nsdl_interface.send_update_registration(lifetime, &error);
     if (!success) {
-        tr_error("M2MInterfaceImpl::state_update_registration : M2MInterface::MemoryFail");
+        tr_error("M2MInterfaceImpl::state_update_registration : error %d", (int)error);
         internal_event(STATE_IDLE);
-        set_error_description(ERROR_REASON_25);
-        _observer.error(M2MInterface::MemoryFail);
+        set_error_description(error == M2MInterface::MemoryFail
+            ? ERROR_REASON_25 : "Failed to send registration message");
+        _observer.error(error);
     }
 }
 
@@ -1207,7 +1211,10 @@ void M2MInterfaceImpl::pause()
     _retry_timer.stop_timer();
     _reconnecting = false;
     _reconnection_time = _initial_reconnection_time;
-    _reconnection_state = M2MInterfaceImpl::WithUpdate;
+    // A network event can pause a fresh client before its first registration.
+    // UPDATE needs the endpoint/location created by a successful full register.
+    _reconnection_state = sn_nsdl_is_ep_registered(_nsdl_interface.get_nsdl_handle())
+        ? M2MInterfaceImpl::WithUpdate : M2MInterfaceImpl::None;
 
     sn_nsdl_clear_coap_resending_queue(_nsdl_interface.get_nsdl_handle());
 
